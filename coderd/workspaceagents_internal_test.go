@@ -134,6 +134,7 @@ func runWatchChatGitWorkspaceLookupTest(t *testing.T, workspaceErr error, wantSt
 				Authorizer: &mockAuthorizer{},
 				Logger:     logger,
 			},
+			wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 		}
 	)
 
@@ -190,6 +191,7 @@ func TestWatchChatGit(t *testing.T) {
 					Logger:                         logger,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -264,6 +266,7 @@ func TestWatchChatGit(t *testing.T) {
 					Logger:                         logger,
 					DeploymentValues:               &codersdk.DeploymentValues{},
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -424,6 +427,7 @@ func TestWatchChatGit(t *testing.T) {
 					Authorizer: &mockAuthorizer{},
 					Logger:     logger,
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -602,6 +606,7 @@ func TestWatchChatGit(t *testing.T) {
 					Authorizer: &mockAuthorizer{},
 					Logger:     logger,
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 
@@ -773,10 +778,12 @@ func TestWatchAgentContainers(t *testing.T) {
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				wsWatcher: httpapi.NewWSWatcher(mClock, nil),
 			}
 		)
 
-		trap := mClock.Trap().NewTicker("HeartbeatClose")
+		trap := mClock.Trap().NewTicker("WSWatcher")
+
 		defer trap.Close()
 
 		var tailnetCoordinator tailnet.Coordinator = mCoordinator
@@ -897,6 +904,7 @@ func TestWatchAgentContainers(t *testing.T) {
 					DeploymentValues:               &codersdk.DeploymentValues{},
 					TailnetCoordinator:             tailnettest.NewFakeCoordinator(),
 				},
+				wsWatcher: httpapi.NewWSWatcher(quartz.NewReal(), nil),
 			}
 		)
 

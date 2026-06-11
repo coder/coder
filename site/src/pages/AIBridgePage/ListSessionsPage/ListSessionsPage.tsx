@@ -76,7 +76,7 @@ const AISessionListPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Sessions", "AI Bridge")}</title>
+			<title>{pageTitle("Sessions", "AI Gateway")}</title>
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}

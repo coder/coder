@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
-import { parseMessageContent } from "./messageParsing";
+import {
+	parseMessageContent,
+	parseMessagesWithMergedTools,
+} from "./messageParsing";
 import type {
 	MergedTool,
 	ParsedMessageContent,
@@ -151,6 +154,21 @@ const executeMessage = (messageID: number): ParsedMessageEntry => {
 	});
 };
 
+const message = ({
+	messageID,
+	role,
+	content,
+}: {
+	messageID: number;
+	role: TypesGen.ChatMessageRole;
+	content: TypesGen.ChatMessagePart[];
+}): TypesGen.ChatMessage => ({
+	...baseMessage,
+	id: messageID,
+	role,
+	content,
+});
+
 describe("deriveMessageDisplayState", () => {
 	it("marks text-only user messages as copyable", () => {
 		const message = buildMessage([{ type: "text", text: "Copy this" }]);
@@ -186,6 +204,82 @@ describe("deriveMessageDisplayState", () => {
 		);
 
 		expect(getDisplayState(message).hasCopyableContent).toBe(false);
+	});
+
+	it("does not mark assistant messages ending with a tool call as copyable", () => {
+		const tool: MergedTool = {
+			id: "execute-1",
+			name: "execute",
+			args: { command: "pnpm test" },
+			isError: false,
+			status: "completed",
+		};
+		const message = buildMessage(
+			[{ type: "text", text: "Running the tests now." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "Running the tests now.",
+				tools: [tool],
+				blocks: [
+					{ type: "response", text: "Running the tests now." },
+					{ type: "tool", id: tool.id },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(false);
+	});
+
+	it("marks assistant messages ending with text after a tool call as copyable", () => {
+		const tool: MergedTool = {
+			id: "execute-1",
+			name: "execute",
+			args: { command: "pnpm test" },
+			isError: false,
+			status: "completed",
+		};
+		const message = buildMessage(
+			[{ type: "text", text: "All tests passed." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "All tests passed.",
+				tools: [tool],
+				blocks: [
+					{ type: "tool", id: tool.id },
+					{ type: "response", text: "All tests passed." },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(true);
+	});
+
+	it("does not mark assistant messages ending with a thinking block as copyable", () => {
+		// Intended: the action row renders below the whole message, so a
+		// trailing thinking disclosure has the same visual problem as a
+		// trailing tool call even though copyable markdown exists.
+		const message = buildMessage(
+			[{ type: "text", text: "Here is my answer." }],
+			"assistant",
+		);
+
+		const state = getDisplayState(message, {
+			parsed: parsed({
+				markdown: "Here is my answer.",
+				blocks: [
+					{ type: "response", text: "Here is my answer." },
+					{ type: "thinking", text: "Reconsidering the edge cases." },
+				],
+			}),
+		});
+
+		expect(state.hasCopyableContent).toBe(false);
 	});
 
 	it("shows the assistant spacer for reasoning messages when no suppressing flags apply", () => {
@@ -319,18 +413,74 @@ describe("deriveMessageDisplayState", () => {
 	});
 });
 
-describe("groupSequentialReadFileMessages", () => {
+describe("buildDisplayMessages", () => {
+	it("keeps durable tool calls visible after parser-level result merging", () => {
+		const result = buildDisplayMessages(
+			parseMessagesWithMergedTools([
+				message({
+					messageID: 1,
+					role: "assistant",
+					content: [
+						{
+							type: "tool-call",
+							tool_call_id: "list-templates-1",
+							tool_name: "list_templates",
+							args: {},
+						},
+					],
+				}),
+				message({
+					messageID: 2,
+					role: "tool",
+					content: [
+						{
+							type: "tool-result",
+							tool_call_id: "list-templates-1",
+							tool_name: "list_templates",
+							result: {
+								count: "1",
+								templates: '[{"name":"docker","display_name":"Docker"}]',
+							},
+						},
+					],
+				}),
+			]),
+		);
+
+		expect(result).toHaveLength(1);
+		expect(result[0].message.id).toBe(1);
+		expect(result[0].parsed.tools).toEqual([
+			{
+				id: "list-templates-1",
+				name: "list_templates",
+				args: {},
+				result: {
+					count: "1",
+					templates: '[{"name":"docker","display_name":"Docker"}]',
+				},
+				isError: false,
+				status: "completed",
+				mcpServerConfigId: undefined,
+				modelIntent: undefined,
+				parsedCommands: undefined,
+			},
+		]);
+		expect(result[0].parsed.blocks).toEqual([
+			{ type: "tool", id: "list-templates-1" },
+		]);
+	});
+
 	it("returns a single read_file-only message unchanged", () => {
 		const readFile = readFileMessage(1, "read-1");
 
-		const result = groupSequentialReadFileMessages([readFile]);
+		const result = buildDisplayMessages([readFile]);
 
 		expect(result).toHaveLength(1);
 		expect(result[0]).toBe(readFile);
 	});
 
 	it("collapses read_file-only assistant messages across hidden tool results", () => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			hiddenToolResultMessage(2, "read-1"),
 			readFileMessage(3, "read-2"),
@@ -363,7 +513,7 @@ describe("groupSequentialReadFileMessages", () => {
 	] satisfies Array<
 		[string, ParsedMessageEntry]
 	>)("does not collapse read_file messages across visible %s content", (_, message) => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			message,
 			readFileMessage(3, "read-2"),
@@ -388,7 +538,7 @@ describe("groupSequentialReadFileMessages", () => {
 	] satisfies Array<
 		[string, Partial<ParsedMessageContent>]
 	>)("does not collapse read_file messages with visible %s", (_, overrides) => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			readFileMessage(2, "read-2", overrides),
 			readFileMessage(3, "read-3"),
@@ -398,7 +548,7 @@ describe("groupSequentialReadFileMessages", () => {
 	});
 
 	it("does not collapse read_file messages across another visible tool", () => {
-		const result = groupSequentialReadFileMessages([
+		const result = buildDisplayMessages([
 			readFileMessage(1, "read-1"),
 			executeMessage(2),
 			readFileMessage(3, "read-2"),

@@ -62,6 +62,7 @@ export const AppliesStagedFilters: Story = {
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
 		});
 	},
 };
@@ -73,6 +74,7 @@ export const KeepsOneChatStatusSelected: Story = {
 			groupBy: "date",
 			prStatuses: [],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
 		} satisfies AgentSidebarFilters,
 		onFiltersChange: fn(),
 	},
@@ -91,6 +93,44 @@ export const KeepsOneChatStatusSelected: Story = {
 			groupBy: "date",
 			prStatuses: [],
 			chatStatuses: ["unread"],
+			sources: ["created_by_me"],
+		});
+	},
+};
+
+export const KeepsOneSourceSelected: Story = {
+	args: {
+		filters: {
+			archiveStatus: "active",
+			groupBy: "date",
+			prStatuses: [],
+			chatStatuses: ["unread", "read"],
+			sources: ["shared_with_me"],
+		} satisfies AgentSidebarFilters,
+		onFiltersChange: fn(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const dialog = await openFilterDialog(canvasElement);
+
+		await userEvent.click(
+			dialog.getByRole("checkbox", { name: "Shared with me" }),
+		);
+
+		expect(
+			dialog.getByRole("checkbox", { name: "Created by me" }),
+		).not.toBeChecked();
+		expect(
+			dialog.getByRole("checkbox", { name: "Shared with me" }),
+		).toBeChecked();
+
+		await userEvent.click(dialog.getByRole("button", { name: "Apply" }));
+
+		await expect(args.onFiltersChange).toHaveBeenCalledWith({
+			archiveStatus: "active",
+			groupBy: "date",
+			prStatuses: [],
+			chatStatuses: ["unread", "read"],
+			sources: ["shared_with_me"],
 		});
 	},
 };

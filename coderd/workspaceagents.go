@@ -501,7 +501,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
@@ -861,7 +861,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx, cancel := context.WithCancel(r.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Here we close the websocket for reading, so that the websocket library will handle pings and
@@ -871,7 +871,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatCloseWithClock(ctx, logger, cancel, conn, api.Clock)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -1095,6 +1095,11 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, waws.WorkspaceTable) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
@@ -1366,9 +1371,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
@@ -1665,7 +1668,7 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspaceAgentMetadata(
@@ -2296,7 +2299,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,
@@ -2562,9 +2565,9 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if locked.OwnerID != workspace.OwnerID {
 			return errChatDoesNotBelongToWorkspaceOwner
 		}
-		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleChatMessageInsertParams(
+		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
 			chat.ID,
-			database.ChatMessageRoleUser,
+			"", // Agent-initiated context injection has no caller API key.
 			content,
 			database.ChatMessageVisibilityBoth,
 			locked.LastModelConfigID,

@@ -7,7 +7,6 @@ type SidebarView =
 const ADMIN_SETTINGS_SECTIONS = new Set([
 	"agents",
 	"templates",
-	"providers",
 	"models",
 	"mcp-servers",
 	"spend",

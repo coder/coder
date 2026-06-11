@@ -76,7 +76,7 @@ export const SystemInstructionsSettings: FC<
 			<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
-						System Instructions
+						System instructions
 					</h3>
 				</div>
 				<div className="flex items-center justify-between gap-4">

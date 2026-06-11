@@ -17,7 +17,8 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/pretty"
 )
 
@@ -29,6 +30,7 @@ func TestCurrentOrganization(t *testing.T) {
 	// 2. The user is connecting to an older Coder instance.
 	t.Run("no-default", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		orgID := uuid.New()
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,13 +51,13 @@ func TestCurrentOrganization(t *testing.T) {
 		client := codersdk.New(must(url.Parse(srv.URL)))
 		inv, root := clitest.New(t, "organizations", "show", "selected")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch(orgID.String())
+		stdout.ExpectMatch(ctx, orgID.String())
 	})
 }
 
@@ -140,6 +142,8 @@ func TestOrganizationDelete(t *testing.T) {
 
 	t.Run("Prompted", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		orgID := uuid.New()
 		var deleteCalled atomic.Bool
@@ -167,15 +171,16 @@ func TestOrganizationDelete(t *testing.T) {
 		client := codersdk.New(must(url.Parse(server.URL)))
 		inv, root := clitest.New(t, "organizations", "delete", "my-org")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		execDone := make(chan error)
 		go func() {
 			execDone <- inv.Run()
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Delete organization %s?", pretty.Sprint(cliui.DefaultStyles.Code, "my-org")))
-		pty.WriteLine("yes")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Delete organization %s?", pretty.Sprint(cliui.DefaultStyles.Code, "my-org")))
+		stdin.WriteLine("yes")
 
 		require.NoError(t, <-execDone)
 		require.True(t, deleteCalled.Load(), "expected delete request")

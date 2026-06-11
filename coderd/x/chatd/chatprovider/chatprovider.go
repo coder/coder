@@ -3,6 +3,7 @@ package chatprovider
 import (
 	"context"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strings"
 
@@ -184,6 +185,30 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 		return ""
 	}
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
+}
+
+// ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
+func ProviderBaseURLHostname(baseURL string) string {
+	parsed, ok := parseProviderBaseURL(baseURL)
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return nil, false
+	}
+	parsed, err := neturl.Parse(baseURL)
+	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
+		parsed, err = neturl.Parse("https://" + baseURL)
+	}
+	if err != nil {
+		return nil, false
+	}
+	return parsed, true
 }
 
 // MergeProviderAPIKeys overlays configured provider keys over fallback keys.
@@ -573,6 +598,21 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
+// isGatewayProvider reports whether the provider routes requests to
+// multiple upstream model providers using a "<provider>/<model>" model
+// identifier, where the slash is part of the upstream model ID rather
+// than a hint.
+func isGatewayProvider(provider string) bool {
+	switch provider {
+	case fantasyvercel.Name,
+		fantasyopenrouter.Name,
+		fantasyopenaicompat.Name:
+		return true
+	default:
+		return false
+	}
+}
+
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
@@ -601,6 +641,15 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 	modelName = strings.TrimSpace(modelName)
 	if modelName == "" {
 		return "", "", xerrors.New("model is required")
+	}
+
+	// Gateway providers (vercel, openrouter, openai-compat) treat the
+	// "<provider>/<model>" slash as part of the upstream model ID, so
+	// parseCanonicalModelRef would incorrectly strip the prefix and
+	// route to the embedded provider name instead. Honor an explicit
+	// gateway hint before attempting canonical-ref parsing.
+	if normalized := NormalizeProvider(providerHint); normalized != "" && isGatewayProvider(normalized) {
+		return normalized, modelName, nil
 	}
 
 	if provider, modelID, ok := parseCanonicalModelRef(modelName); ok {
@@ -720,6 +769,30 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	default:
 		return nil
 	}
+}
+
+// AnthropicThinkingDisplayFromChat normalizes chat-config thinking display
+// values for Anthropic and returns the canonical provider display value.
+func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingDisplay {
+	if value == nil {
+		return nil
+	}
+
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
+	}
+
+	display := chatutil.NormalizedEnumValue(
+		normalized,
+		string(fantasyanthropic.ThinkingDisplaySummarized),
+		string(fantasyanthropic.ThinkingDisplayOmitted),
+	)
+	if display == nil {
+		return nil
+	}
+	valueCopy := fantasyanthropic.ThinkingDisplay(*display)
+	return &valueCopy
 }
 
 // MergeMissingModelCostConfig fills unset pricing metadata from defaults.
@@ -869,6 +942,9 @@ func MergeMissingProviderOptions(
 			}
 			if dstAnthropic.Effort == nil {
 				dstAnthropic.Effort = defaultAnthropic.Effort
+			}
+			if dstAnthropic.ThinkingDisplay == nil {
+				dstAnthropic.ThinkingDisplay = defaultAnthropic.ThinkingDisplay
 			}
 			if dstAnthropic.DisableParallelToolUse == nil {
 				dstAnthropic.DisableParallelToolUse = defaultAnthropic.DisableParallelToolUse
@@ -1219,6 +1295,7 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
+		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),
@@ -1358,6 +1435,7 @@ func anthropicProviderOptionsFromChatConfig(
 	result := &fantasyanthropic.ProviderOptions{
 		SendReasoning:          options.SendReasoning,
 		Effort:                 anthropicEffortFromChat(options.Effort),
+		ThinkingDisplay:        AnthropicThinkingDisplayFromChat(options.ThinkingDisplay),
 		DisableParallelToolUse: options.DisableParallelToolUse,
 	}
 	if options.Thinking != nil && options.Thinking.BudgetTokens != nil {

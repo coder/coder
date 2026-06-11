@@ -163,7 +163,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub *pubsub.PGPubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -345,11 +348,16 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing || options.DeploymentValues.DisableChatSharing {
+	experiments := ReadExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
+
+	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
+			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
 		})
 	}
 
@@ -388,9 +396,6 @@ func New(options *Options) *API {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
-	experiments := ReadExperiments(
-		options.Logger, options.DeploymentValues.Experiments.Value(),
-	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -619,10 +624,9 @@ func New(options *Options) *API {
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          uuid.New(),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -914,6 +918,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
+
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
@@ -926,6 +933,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
@@ -994,7 +1002,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry, wsMetrics)
 
 	r.Use(
 		sharedhttpmw.Recover(api.Logger),
@@ -1004,7 +1012,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store
@@ -2251,6 +2261,7 @@ type API struct {
 	metadataBatcher          *metadatabatcher.Batcher
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	wsWatcher                *httpapi.WSWatcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

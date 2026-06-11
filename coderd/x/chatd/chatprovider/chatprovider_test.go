@@ -12,6 +12,7 @@ import (
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasyopenai "charm.land/fantasy/providers/openai"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
 	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream"
@@ -27,6 +28,28 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestProviderBaseURLHostname(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{name: "URL", baseURL: "https://openrouter.ai/api/v1", want: "openrouter.ai"},
+		{name: "BareHost", baseURL: "openrouter.ai", want: "openrouter.ai"},
+		{name: "HostWithPort", baseURL: "https://openrouter.ai:443/api/v1", want: "openrouter.ai"},
+		{name: "Empty", baseURL: "", want: ""},
+		{name: "Invalid", baseURL: "://", want: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, chatprovider.ProviderBaseURLHostname(tt.baseURL))
+		})
+	}
+}
 
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
@@ -346,6 +369,77 @@ func TestReasoningEffortFromChat(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestAnthropicThinkingDisplayFromChat(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input *string
+		want  *fantasyanthropic.ThinkingDisplay
+	}{
+		{
+			name:  "Summarized",
+			input: ptr.Ref(" SUMMARIZED "),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplaySummarized),
+		},
+		{
+			name:  "Omitted",
+			input: ptr.Ref("omitted"),
+			want:  ptr.Ref(fantasyanthropic.ThinkingDisplayOmitted),
+		},
+		{
+			name:  "InvalidReturnsNil",
+			input: ptr.Ref("summary"),
+		},
+		{
+			name:  "NilInputReturnsNil",
+			input: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := chatprovider.AnthropicThinkingDisplayFromChat(tt.input)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	providerOptions := chatprovider.ProviderOptionsFromChatModelConfig(nil, &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref(" SUMMARIZED "),
+		},
+	})
+
+	require.NotNil(t, providerOptions)
+	anthropicOptions, ok := providerOptions[fantasyanthropic.Name].(*fantasyanthropic.ProviderOptions)
+	require.True(t, ok)
+	require.NotNil(t, anthropicOptions.ThinkingDisplay)
+	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
+}
+
+func TestMergeMissingProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
+	t.Parallel()
+
+	options := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
+	}
+	defaults := &codersdk.ChatModelProviderOptions{
+		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
+			ThinkingDisplay: ptr.Ref("summarized"),
+		},
+	}
+
+	chatprovider.MergeMissingProviderOptions(&options, defaults)
+
+	require.NotNil(t, options.Anthropic.ThinkingDisplay)
+	require.Equal(t, "summarized", *options.Anthropic.ThinkingDisplay)
 }
 
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
@@ -1303,6 +1397,91 @@ func TestModelFromConfig_ExtraHeaders(t *testing.T) {
 	})
 }
 
+// TestModelFromConfig_AnthropicPDFFilePartReachesProvider pins the end-to-end
+// path that lets a user-uploaded PDF actually reach Claude/Bedrock: a
+// fantasy.FilePart with MediaType "application/pdf" must be serialized as an
+// Anthropic "document" content block with a base64 source carrying the PDF
+// bytes and a sanitized filename as the document title. Older fantasy versions
+// silently dropped PDF FileParts in the Anthropic provider, so the user
+// message ended up empty and the model never saw the document. The underlying
+// PDF block support came from coder/fantasy#37, a cherry-pick of upstream
+// charmbracelet/fantasy#197. The Generate call would fail outright on the
+// regressed code path because the dropped FilePart leaves the request with
+// zero messages.
+func TestModelFromConfig_AnthropicPDFFilePartReachesProvider(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	pdfData := []byte("%PDF-1.7\nfake pdf bytes for regression test")
+	wantData := base64.StdEncoding.EncodeToString(pdfData)
+
+	called := make(chan struct{})
+	serverURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		defer close(called)
+
+		require.Len(t, req.Messages, 1, "PDF FilePart should produce one Anthropic message, not be dropped as empty")
+		require.Equal(t, "user", req.Messages[0].Role)
+
+		var blocks []struct {
+			Type   string `json:"type"`
+			Title  string `json:"title"`
+			Source struct {
+				Type      string `json:"type"`
+				MediaType string `json:"media_type"`
+				Data      string `json:"data"`
+			} `json:"source"`
+		}
+		require.NoError(t, json.Unmarshal(req.Messages[0].Content, &blocks),
+			"user content should be a structured block array, got: %s", string(req.Messages[0].Content))
+
+		var found bool
+		for _, block := range blocks {
+			if block.Type != "document" {
+				continue
+			}
+			assert.Equal(t, "base64", block.Source.Type, "PDF document block must use a base64 source")
+			assert.Equal(t, wantData, block.Source.Data, "PDF bytes must round-trip base64 unchanged")
+			assert.Equal(t,
+				"quarterly report v1 pdf",
+				block.Title,
+				"PDF filename must reach Anthropic as a sanitized document title",
+			)
+			if block.Source.MediaType != "" {
+				assert.Equal(t, "application/pdf", block.Source.MediaType)
+			}
+			found = true
+		}
+		require.True(t, found, "expected an Anthropic document block carrying the PDF, got: %s", string(req.Messages[0].Content))
+
+		return chattest.AnthropicNonStreamingResponse("ok")
+	})
+
+	keys := chatprovider.ProviderAPIKeys{
+		ByProvider:        map[string]string{"anthropic": "test-key"},
+		BaseURLByProvider: map[string]string{"anthropic": serverURL},
+	}
+
+	model, err := chatprovider.ModelFromConfig("anthropic", "claude-sonnet-4-20250514", keys, chatprovider.UserAgent(), nil, nil)
+	require.NoError(t, err)
+
+	_, err = model.Generate(ctx, fantasy.Call{
+		Prompt: []fantasy.Message{
+			{
+				Role: fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{
+					fantasy.FilePart{
+						Filename:  "quarterly_report.v1.pdf",
+						Data:      pdfData,
+						MediaType: "application/pdf",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	_ = testutil.TryReceive(ctx, t, called)
+}
+
 func TestModelFromConfig_NilExtraHeaders(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -1438,4 +1617,102 @@ func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
 	require.Equal(t, []string{"foo"}, options.OpenRouter.Provider.Ignore)
 	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
 	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
+}
+
+func TestResolveModelWithProviderHint(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		modelName    string
+		providerHint string
+		wantProvider string
+		wantModel    string
+		wantErr      bool
+	}{
+		{
+			name:         "VercelHintPreservesPrefixedModelID",
+			modelName:    "anthropic/claude-4-5-sonnet",
+			providerHint: fantasyvercel.Name,
+			wantProvider: fantasyvercel.Name,
+			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "OpenRouterHintPreservesPrefixedModelID",
+			modelName:    "anthropic/claude-3.5-haiku",
+			providerHint: fantasyopenrouter.Name,
+			wantProvider: fantasyopenrouter.Name,
+			wantModel:    "anthropic/claude-3.5-haiku",
+		},
+		{
+			name:         "OpenAICompatHintPreservesPrefixedModelID",
+			modelName:    "anthropic/claude-4-5-sonnet",
+			providerHint: fantasyopenaicompat.Name,
+			wantProvider: fantasyopenaicompat.Name,
+			wantModel:    "anthropic/claude-4-5-sonnet",
+		},
+		{
+			name:         "OpenRouterHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenrouter.Name,
+			wantProvider: fantasyopenrouter.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAICompatHintPreservesOpenRouterModelID",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenaicompat.Name,
+			wantProvider: fantasyopenaicompat.Name,
+			wantModel:    "anthropic/claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintStripsCanonicalPrefix",
+			modelName:    "anthropic/claude-opus-4.6",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-opus-4.6",
+		},
+		{
+			name:         "OpenAIHintPreservesUnknownSlashNamespace",
+			modelName:    "meta-llama/llama-3-70b",
+			providerHint: fantasyopenai.Name,
+			wantProvider: fantasyopenai.Name,
+			wantModel:    "meta-llama/llama-3-70b",
+		},
+		{
+			name:         "AnthropicHintStripsCanonicalPrefix",
+			modelName:    "anthropic/claude-4-5-sonnet",
+			providerHint: fantasyanthropic.Name,
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-4-5-sonnet",
+		},
+		{
+			name:         "NoHintUsesCanonicalRef",
+			modelName:    "anthropic/claude-4-5-sonnet",
+			providerHint: "",
+			wantProvider: fantasyanthropic.Name,
+			wantModel:    "claude-4-5-sonnet",
+		},
+		{
+			name:         "VercelHintWithoutSlashPasses",
+			modelName:    "claude-4-5-sonnet",
+			providerHint: fantasyvercel.Name,
+			wantProvider: fantasyvercel.Name,
+			wantModel:    "claude-4-5-sonnet",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			provider, model, err := chatprovider.ResolveModelWithProviderHint(tt.modelName, tt.providerHint)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantProvider, provider)
+			require.Equal(t, tt.wantModel, model)
+		})
+	}
 }

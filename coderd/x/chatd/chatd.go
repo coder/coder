@@ -1114,9 +1114,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		// waiting for an unreachable agent. The timeout scopes
 		// only dialWithLazyValidation, not ensureWorkspaceAgent
 		// or the post-dial binding steps.
-		dialCtx, dialCancel := context.WithTimeoutCause(ctx, c.server.dialTimeout, errChatDialTimeout)
+		dialCtx, dialCancelCause := context.WithCancelCause(ctx)
+		dialTimer := c.server.clock.AfterFunc(
+			c.server.dialTimeout,
+			func() { dialCancelCause(errChatDialTimeout) },
+			"chatd",
+			dialTimeoutTimerTag,
+		)
+		dialCancel := func() {
+			dialTimer.Stop()
+			dialCancelCause(nil)
+		}
 		dialResult, err := dialWithLazyValidation(
 			dialCtx,
+			c.server.clock,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
@@ -1629,7 +1640,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			return xerrors.Errorf("marshal initial user content: %w", err)
 		}
 
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: insertedChat.ID,
 		}
 
@@ -1673,13 +1684,15 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			chatprompt.CurrentContentVersion,
 		))
 
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		userMsg := newUserChatMessage(
+			opts.APIKeyID,
 			userContent,
 			database.ChatMessageVisibilityBoth,
 			opts.ModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.OwnerID).withAPIKeyID(opts.APIKeyID))
+		)
+		userMsg = userMsg.withCreatedBy(opts.OwnerID)
+		appendUserChatMessage(&msgParams, userMsg)
 
 		_, err = tx.InsertChatMessages(ctx, msgParams)
 		if err != nil {
@@ -2111,16 +2124,18 @@ func (p *Server) EditMessage(
 		// InsertChatMessages CTE updates chats.last_model_config_id
 		// when the new message's model differs, so the assistant turn
 		// that follows picks up the new selection.
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: opts.ChatID,
 		}
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		editUserMsg := newUserChatMessage(
+			opts.APIKeyID,
 			content,
 			editedMsg.Visibility,
 			messageModelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCreatedBy(opts.CreatedBy).withAPIKeyID(opts.APIKeyID))
+		)
+		editUserMsg = editUserMsg.withCreatedBy(opts.CreatedBy)
+		appendUserChatMessage(&msgParams, editUserMsg)
 		newMessages, err := insertChatMessageWithStore(ctx, tx, msgParams)
 		if err != nil {
 			return xerrors.Errorf("insert replacement message: %w", err)
@@ -3162,6 +3177,7 @@ func (p *Server) recordManualTitleGenerationFailure(
 // generateManualTitleCandidate performs only model generation and returns the
 // candidate plus accounting metadata. Endpoint-specific commit paths are
 // responsible for recording usage and deciding whether to persist the title.
+// The context may carry the caller's delegated API key for manual title routes.
 func (p *Server) generateManualTitleCandidate(
 	ctx context.Context,
 	store database.Store,
@@ -3199,6 +3215,13 @@ func (p *Server) generateManualTitleCandidate(
 		return manualTitleCandidateResult{}, nil
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
+	// Manual title routes can run over messages that lack API key attribution.
+	// Fall back to the authenticated caller's delegated key for AI Gateway routing.
+	if modelOpts.ActiveAPIKeyID == "" {
+		if apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx); ok {
+			modelOpts.ActiveAPIKeyID = apiKeyID
+		}
+	}
 
 	model, modelConfig, modelKeys, err := p.resolveManualTitleModel(ctx, store, chat, keys, modelOpts)
 	result := manualTitleCandidateResult{
@@ -3891,19 +3914,16 @@ func insertChatMessageWithStore(
 	return messages, nil
 }
 
-// chatMessage describes a single message to insert as part of a batch.
-// Use newChatMessage to create one, then chain builder methods for
-// optional fields. For nullable UUID fields (ModelConfigID, CreatedBy),
-// use uuid.Nil to represent NULL — the SQL uses NULLIF to convert zero
-// UUIDs to NULL. For nullable int64 fields, use 0 to represent NULL —
-// the SQL uses NULLIF to convert zeros to NULL.
+// chatMessage is the base message type for batch inserts. Use directly
+// only for non-user messages; for user messages, use userChatMessage.
+// For nullable UUID fields (ModelConfigID, CreatedBy), use uuid.Nil to
+// represent NULL. For nullable int64 fields, use 0 to represent NULL.
 type chatMessage struct {
 	role                database.ChatMessageRole
 	content             pqtype.NullRawMessage
 	visibility          database.ChatMessageVisibility
 	modelConfigID       uuid.UUID
 	createdBy           uuid.UUID
-	apiKeyID            string
 	contentVersion      int16
 	compressed          bool
 	inputTokens         int64
@@ -3916,6 +3936,23 @@ type chatMessage struct {
 	totalCostMicros     int64
 	runtimeMs           int64
 	providerResponseID  string
+}
+
+// userChatMessage wraps chatMessage with a required apiKeyID so that
+// omitting it for user messages is a compile error, not a silent data bug.
+type userChatMessage struct {
+	chatMessage
+	apiKeyID string
+}
+
+func (m userChatMessage) withCreatedBy(id uuid.UUID) userChatMessage {
+	m.chatMessage = m.chatMessage.withCreatedBy(id)
+	return m
+}
+
+func (m userChatMessage) withCompressed() userChatMessage {
+	m.chatMessage = m.chatMessage.withCompressed()
+	return m
 }
 
 func newChatMessage(
@@ -3934,13 +3971,29 @@ func newChatMessage(
 	}
 }
 
-func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
-	m.createdBy = id
-	return m
+// newUserChatMessage creates a user message. apiKeyID is required so
+// that forgetting it is a compile error rather than a silent data bug.
+func newUserChatMessage(
+	apiKeyID string,
+	content pqtype.NullRawMessage,
+	visibility database.ChatMessageVisibility,
+	modelConfigID uuid.UUID,
+	contentVersion int16,
+) userChatMessage {
+	return userChatMessage{
+		chatMessage: newChatMessage(
+			database.ChatMessageRoleUser,
+			content,
+			visibility,
+			modelConfigID,
+			contentVersion,
+		),
+		apiKeyID: apiKeyID,
+	}
 }
 
-func (m chatMessage) withAPIKeyID(id string) chatMessage {
-	m.apiKeyID = id
+func (m chatMessage) withCreatedBy(id uuid.UUID) chatMessage {
+	m.createdBy = id
 	return m
 }
 
@@ -3982,13 +4035,16 @@ func (m chatMessage) withProviderResponseID(id string) chatMessage {
 	return m
 }
 
-// appendChatMessage appends a single message to the batch insert params.
-func appendChatMessage(
+// appendMessageFields writes all chatMessage fields into the batch insert
+// params. apiKeyID is explicit so non-user messages always get "" while
+// user messages carry the caller's key for AI Gateway routing.
+func appendMessageFields(
 	params *database.InsertChatMessagesParams,
 	msg chatMessage,
+	apiKeyID string,
 ) {
 	params.CreatedBy = append(params.CreatedBy, msg.createdBy)
-	params.APIKeyID = append(params.APIKeyID, msg.apiKeyID)
+	params.APIKeyID = append(params.APIKeyID, apiKeyID)
 	params.ModelConfigID = append(params.ModelConfigID, msg.modelConfigID)
 	params.Role = append(params.Role, msg.role)
 	params.Content = append(params.Content, string(msg.content.RawMessage))
@@ -4007,25 +4063,44 @@ func appendChatMessage(
 	params.ProviderResponseID = append(params.ProviderResponseID, msg.providerResponseID)
 }
 
-// BuildSingleChatMessageInsertParams creates batch insert params for one
-// message using the shared chat message builder.
-func BuildSingleChatMessageInsertParams(
+// appendChatMessage appends a non-user message to the batch insert params.
+func appendChatMessage(
+	params *database.InsertChatMessagesParams,
+	msg chatMessage,
+) {
+	if msg.role == database.ChatMessageRoleUser {
+		panic("developer error: use appendUserChatMessage for user-role messages")
+	}
+	appendMessageFields(params, msg, "")
+}
+
+// appendUserChatMessage inserts a user message with its apiKeyID preserved.
+func appendUserChatMessage(
+	params *database.InsertChatMessagesParams,
+	msg userChatMessage,
+) {
+	appendMessageFields(params, msg.chatMessage, msg.apiKeyID)
+}
+
+// BuildSingleUserChatMessageInsertParams creates batch insert params for
+// one user message, requiring an apiKeyID for AI Gateway attribution.
+func BuildSingleUserChatMessageInsertParams(
 	chatID uuid.UUID,
-	role database.ChatMessageRole,
+	apiKeyID string,
 	content pqtype.NullRawMessage,
 	visibility database.ChatMessageVisibility,
 	modelConfigID uuid.UUID,
 	contentVersion int16,
 	createdBy uuid.UUID,
 ) database.InsertChatMessagesParams {
-	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	params := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 		ChatID: chatID,
 	}
-	msg := newChatMessage(role, content, visibility, modelConfigID, contentVersion)
+	msg := newUserChatMessage(apiKeyID, content, visibility, modelConfigID, contentVersion)
 	if createdBy != uuid.Nil {
 		msg = msg.withCreatedBy(createdBy)
 	}
-	appendChatMessage(&params, msg)
+	appendUserChatMessage(&params, msg)
 	return params
 }
 
@@ -4040,16 +4115,18 @@ func insertUserMessageAndSetPending(
 	createdBy uuid.UUID,
 	apiKeyID string,
 ) (database.ChatMessage, database.Chat, error) {
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 		ChatID: lockedChat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	insertUserMsg := newUserChatMessage(
+		apiKeyID,
 		content,
 		database.ChatMessageVisibilityBoth,
 		modelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(createdBy).withAPIKeyID(apiKeyID))
+	)
+	insertUserMsg = insertUserMsg.withCreatedBy(createdBy)
+	appendUserChatMessage(&msgParams, insertUserMsg)
 	messages, err := insertChatMessageWithStore(ctx, store, msgParams)
 	if err != nil {
 		return database.ChatMessage{}, database.Chat{}, err
@@ -5862,11 +5939,11 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		return nil, nil, false, xerrors.New("popped queued message out of order")
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 		ChatID: chat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	queuedUserMsg := newUserChatMessage(
+		nextQueued.APIKeyID.String,
 		pqtype.NullRawMessage{
 			RawMessage: nextQueued.Content,
 			Valid:      len(nextQueued.Content) > 0,
@@ -5874,7 +5951,9 @@ func (p *Server) tryAutoPromoteQueuedMessage(
 		database.ChatMessageVisibilityBoth,
 		effectiveModelConfigID,
 		chatprompt.CurrentContentVersion,
-	).withCreatedBy(chat.OwnerID).withAPIKeyID(nextQueued.APIKeyID.String))
+	)
+	queuedUserMsg = queuedUserMsg.withCreatedBy(chat.OwnerID)
+	appendUserChatMessage(&msgParams, queuedUserMsg)
 	msgs, err := insertChatMessageWithStore(ctx, tx, msgParams)
 	if err != nil {
 		return nil, nil, false, xerrors.Errorf("insert promoted message: %w", err)
@@ -6400,22 +6479,14 @@ type runChatResult struct {
 	HistoryTipMessageID     int64
 }
 
-func contextWithActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
-	apiKeyID, ok := activeTurnAPIKeyIDFromMessages(messages)
-	if !ok {
-		return ctx
-	}
-	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
-}
-
 func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
 		if message.Role != database.ChatMessageRoleUser {
 			continue
 		}
-		if message.Visibility != database.ChatMessageVisibilityBoth &&
-			message.Visibility != database.ChatMessageVisibilityUser {
+		if !isUserVisibleChatMessage(message) &&
+			!(message.Visibility == database.ChatMessageVisibilityModel && message.Compressed) {
 			continue
 		}
 		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
@@ -6424,6 +6495,11 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 		return message.APIKeyID.String, true
 	}
 	return "", false
+}
+
+func isUserVisibleChatMessage(message database.ChatMessage) bool {
+	return message.Visibility == database.ChatMessageVisibilityBoth ||
+		message.Visibility == database.ChatMessageVisibilityUser
 }
 
 func allToolNames(allTools []fantasy.AgentTool) []string {
@@ -7056,7 +7132,9 @@ func (p *Server) runChat(
 		return result, xerrors.Errorf("get chat messages: %w", err)
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+	if modelOpts.ActiveAPIKeyID != "" {
+		ctx = aibridge.WithDelegatedAPIKeyID(ctx, modelOpts.ActiveAPIKeyID)
+	}
 
 	// Load MCP server configs and user tokens in parallel with model
 	// resolution. These queries have no dependencies on each other and all
@@ -7763,6 +7841,7 @@ func (p *Server) runChat(
 				persistCtx,
 				chat.ID,
 				modelConfig.ID,
+				modelOpts.ActiveAPIKeyID,
 				compactionToolCallID,
 				result,
 			); err != nil {
@@ -8392,12 +8471,14 @@ func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.P
 	return tools
 }
 
-// persistChatContextSummary persists a chat context summary to the database.
-// This is invoked via the chat loop's compaction callback.
+// persistChatContextSummary is called from the chat loop's compaction
+// callback. activeAPIKeyID is stamped onto the summary user message. When
+// empty, it falls back to the delegated key in ctx.
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
 	modelConfigID uuid.UUID,
+	activeAPIKeyID string,
 	toolCallID string,
 	result chatloop.CompactionResult,
 ) error {
@@ -8446,21 +8527,28 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
 
+	summaryAPIKeyID := activeAPIKeyID
+	if summaryAPIKeyID == "" {
+		summaryAPIKeyID, _ = aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	}
+
 	var insertedMessages []database.ChatMessage
 
 	txErr := p.db.InTx(func(tx database.Store) error {
-		summaryParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		summaryParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by append[User]ChatMessage.
 			ChatID: chatID,
 		}
 
 		// Hidden summary user message (not published to subscribers).
-		appendChatMessage(&summaryParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		summaryUserMsg := newUserChatMessage(
+			summaryAPIKeyID,
 			systemContent,
 			database.ChatMessageVisibilityModel,
 			modelConfigID,
 			chatprompt.CurrentContentVersion,
-		).withCompressed())
+		)
+		summaryUserMsg = summaryUserMsg.withCompressed()
+		appendUserChatMessage(&summaryParams, summaryUserMsg)
 
 		// Assistant tool-call message.
 		appendChatMessage(&summaryParams, newChatMessage(
@@ -8991,11 +9079,12 @@ func (p *Server) persistInstructionFiles(
 		if err != nil {
 			return "", nil, nil
 		}
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+		contextAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 			ChatID: chat.ID,
 		}
-		appendChatMessage(&msgParams, newChatMessage(
-			database.ChatMessageRoleUser,
+		appendUserChatMessage(&msgParams, newUserChatMessage(
+			contextAPIKeyID,
 			content,
 			database.ChatMessageVisibilityBoth,
 			modelConfigID,
@@ -9014,11 +9103,12 @@ func (p *Server) persistInstructionFiles(
 		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
+	contextAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
 		ChatID: chat.ID,
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		database.ChatMessageRoleUser,
+	appendUserChatMessage(&msgParams, newUserChatMessage(
+		contextAPIKeyID,
 		content,
 		database.ChatMessageVisibilityBoth,
 		modelConfigID,

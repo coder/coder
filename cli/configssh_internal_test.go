@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func Test_sshConfigSplitOnCoderSection(t *testing.T) {
@@ -300,6 +302,140 @@ func Test_sshConfigExecEscapeSeparatorForce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_mergeSSHOptions_RejectsUnsafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		coderd  codersdk.SSHConfigResponse
+		wantErr string
+	}{
+		{
+			name: "HostnameSuffix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "coder\nHost *",
+			},
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name: "HostnamePrefix",
+			coderd: codersdk.SSHConfigResponse{
+				HostnamePrefix: "coder.\nHost *",
+			},
+			wantErr: "workspace hostname prefix",
+		},
+		{
+			name: "ProxyCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyCommand": "ssh -W %h:%p bastion"},
+			},
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
+		},
+		{
+			name: "PermitLocalCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PermitLocalCommand": "yes"},
+			},
+			wantErr: `ssh config option "PermitLocalCommand" is not allowed`,
+		},
+		{
+			name: "KnownHostsCommand",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"KnownHostsCommand": "echo key"},
+			},
+			wantErr: `ssh config option "KnownHostsCommand" is not allowed`,
+		},
+		{
+			name: "PKCS11Provider",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"PKCS11Provider": "/tmp/evil.so"},
+			},
+			wantErr: `ssh config option "PKCS11Provider" is not allowed`,
+		},
+		{
+			name: "NewlineInValue",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"UserKnownHostsFile": "/tmp/known_hosts\nHost *"},
+			},
+			wantErr: `ssh config option "UserKnownHostsFile" must not contain carriage return, newline, or NUL characters`,
+		},
+		{
+			name: "SmartcardDevice",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"SmartcardDevice": "/path/to/lib"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "XAuthLocation",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"XAuthLocation": "/usr/bin/xauth"},
+			},
+			wantErr: `not allowed`,
+		},
+		{
+			name: "ProxyJump",
+			coderd: codersdk.SSHConfigResponse{
+				SSHConfigOptions: map[string]string{"ProxyJump": "bastion.example.com"},
+			},
+			wantErr: `conflicts with`,
+		},
+		{
+			name: "HostnameSuffixGlob",
+			coderd: codersdk.SSHConfigResponse{
+				HostnameSuffix: "*",
+			},
+			wantErr: `glob`,
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := mergeSSHOptions(sshConfigOptions{}, tt.coderd, t.TempDir(), "/tmp/coder")
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+func Test_mergeSSHOptions_UserOptionsOverrideServerConfig(t *testing.T) {
+	t.Parallel()
+
+	user := sshConfigOptions{
+		userHostPrefix: "dev.",
+		hostnameSuffix: "local",
+	}
+	got, err := mergeSSHOptions(user, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "dev.", got.userHostPrefix)
+	require.Equal(t, "local", got.hostnameSuffix)
+}
+
+func Test_mergeSSHOptions_AllowsSafeServerConfig(t *testing.T) {
+	t.Parallel()
+
+	got, err := mergeSSHOptions(sshConfigOptions{}, codersdk.SSHConfigResponse{
+		HostnamePrefix: "coder.",
+		HostnameSuffix: "coder",
+		SSHConfigOptions: map[string]string{
+			"HostName":           "example.com",
+			"User":               "coder",
+			"Port":               "22",
+			"SetEnv":             "FOO=bar BAZ=qux",
+			"UserKnownHostsFile": "/tmp/coder_known_hosts",
+		},
+	}, t.TempDir(), "/tmp/coder")
+	require.NoError(t, err)
+	require.Equal(t, "coder.", got.userHostPrefix)
+	require.Equal(t, "coder", got.hostnameSuffix)
+	require.Contains(t, got.sshOptions, "HostName example.com")
+	require.Contains(t, got.sshOptions, "SetEnv FOO=bar BAZ=qux")
 }
 
 func Test_sshConfigOptions_addOption(t *testing.T) {

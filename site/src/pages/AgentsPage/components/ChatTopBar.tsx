@@ -9,6 +9,7 @@ import {
 	PanelRightOpenIcon,
 	Share2Icon,
 	Trash2Icon,
+	UsersIcon,
 	WandSparklesIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
@@ -54,6 +55,7 @@ type ChatTopBarProps = {
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
+	isSharedChat?: boolean;
 	renderChatSharingContent?: (open: boolean) => ReactNode;
 };
 
@@ -105,6 +107,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
+	isSharedChat,
 	renderChatSharingContent,
 }) => {
 	const { isEmbedded } = useEmbedContext();
@@ -186,6 +189,12 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						>
 							{chatTitle}
 						</span>
+						{isSharedChat && (
+							<UsersIcon
+								className="size-3.5 shrink-0 text-content-secondary"
+								aria-label="Shared chat"
+							/>
+						)}
 						{isRegeneratingTitle && (
 							<Spinner
 								aria-label="Regenerating title"

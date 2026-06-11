@@ -122,10 +122,10 @@ type Manager struct {
 	closed      chan (struct{})
 	closeCancel context.CancelFunc
 
-	self     database.Replica
-	mutex    sync.Mutex
-	peers    []database.Replica
-	callback func()
+	self      database.Replica
+	mutex     sync.Mutex
+	peers     []database.Replica
+	callbacks map[string]func()
 }
 
 func (m *Manager) ID() uuid.UUID {
@@ -359,8 +359,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		}
 	}
 	m.self = replica
-	if m.callback != nil {
-		go m.callback()
+	for _, callback := range m.callbacks {
+		go callback()
 	}
 	return nil
 }
@@ -414,6 +414,14 @@ func (m *Manager) AllPrimary() []database.Replica {
 	return replicas
 }
 
+func (m *Manager) PrimaryPeerAddresses() []string {
+	addresses := make([]string, 0, len(m.AllPrimary()))
+	for _, replica := range m.AllPrimary() {
+		addresses = append(addresses, replica.RelayAddress)
+	}
+	return addresses
+}
+
 // InRegion returns every replica in the given DERP region excluding itself.
 func (m *Manager) InRegion(regionID int32) []database.Replica {
 	m.mutex.Lock()
@@ -439,12 +447,20 @@ func (m *Manager) regionID() int32 {
 	return m.self.RegionID
 }
 
-// SetCallback sets a function to execute whenever new peers
-// are refreshed or updated.
-func (m *Manager) SetCallback(callback func()) {
+// SetCallback sets a named function to execute whenever new peers are refreshed
+// or updated. Calling SetCallback again with the same name replaces the prior
+// callback. Passing nil removes the named callback.
+func (m *Manager) SetCallback(name string, callback func()) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	m.callback = callback
+	if callback == nil {
+		delete(m.callbacks, name)
+		return
+	}
+	if m.callbacks == nil {
+		m.callbacks = make(map[string]func())
+	}
+	m.callbacks[name] = callback
 	// Instantly call the callback to inform replicas!
 	go callback()
 }

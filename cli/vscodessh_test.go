@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -69,7 +68,6 @@ func TestVSCodeSSH(t *testing.T) {
 		"--network-info-interval", "25ms",
 		fmt.Sprintf("coder-vscode--%s--%s", user.Username, workspace.Name),
 	)
-	ptytest.New(t).Attach(inv)
 
 	waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -17,6 +18,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/quartz"
@@ -27,9 +29,10 @@ type SubAgentAPI struct {
 	OrganizationID uuid.UUID
 	AgentFn        func(context.Context) (database.WorkspaceAgent, error)
 
-	Log      slog.Logger
-	Clock    quartz.Clock
-	Database database.Store
+	Log        slog.Logger
+	Clock      quartz.Clock
+	Database   database.Store
+	PortSharer *atomic.Pointer[portsharing.PortSharer]
 }
 
 func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.CreateSubAgentRequest) (*agentproto.CreateSubAgentResponse, error) {
@@ -129,6 +132,21 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			Detail: fmt.Sprintf("agent name %q does not match regex %q", agentName, provisioner.AgentNameRegex),
 		}
 	}
+	var template database.Template
+	if len(req.Apps) > 0 {
+		workspace, err := a.Database.GetWorkspaceByAgentID(ctx, parentAgent.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace by agent id: %w", err)
+		}
+
+		// Intentional: SubAgentAPI auth context enforces template ACL.
+		// Normal workspace operations depend on this.
+		template, err = a.Database.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template policy: %w. If template access was recently changed, restart the workspace to refresh agent permissions", err)
+		}
+	}
+
 	subAgent, err := a.Database.InsertWorkspaceAgent(ctx, database.InsertWorkspaceAgentParams{
 		ID:                       uuid.New(),
 		ParentID:                 uuid.NullUUID{Valid: true, UUID: parentAgent.ID},
@@ -153,6 +171,14 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert sub agent: %w", err)
+	}
+
+	// A nil PortSharer uses the AGPL default, which permits all share levels.
+	portSharer := portsharing.DefaultPortSharer
+	if a.PortSharer != nil {
+		if loaded := a.PortSharer.Load(); loaded != nil {
+			portSharer = *loaded
+		}
 	}
 
 	var appCreationErrors []*agentproto.CreateSubAgentResponse_AppCreationError
@@ -198,6 +224,18 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				}
 			}
 			sharingLevel := database.AppSharingLevel(strings.ToLower(protoSharingLevel))
+			// Clamp instead of rejecting so a too-permissive app share level does
+			// not block the sub-agent from starting.
+			if err := portSharer.AuthorizedLevel(template, codersdk.WorkspaceAgentPortShareLevel(sharingLevel)); err != nil {
+				a.Log.Warn(ctx, "clamping sub-agent app sharing level to template max port sharing level",
+					slog.F("sub_agent_name", subAgent.Name),
+					slog.F("sub_agent_id", subAgent.ID),
+					slog.F("app_slug", slug),
+					slog.F("requested_share_level", sharingLevel),
+					slog.F("max_port_share_level", template.MaxPortSharingLevel),
+					slog.Error(err))
+				sharingLevel = template.MaxPortSharingLevel
+			}
 
 			var openIn database.WorkspaceAppOpenIn
 			switch app.GetOpenIn() {
@@ -221,8 +259,9 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 			slugHashEnc := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString(slugHash[:])
 			computedSlug := strings.ToLower(slugHashEnc[:8]) + "-" + app.Slug
 
+			appID := uuid.New()
 			_, err := a.Database.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
-				ID:          uuid.New(), // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
+				ID:          appID, // NOTE: we may need to maintain the app's ID here for stability, but for now we'll leave this as-is.
 				CreatedAt:   createdAt,
 				AgentID:     subAgent.ID,
 				Slug:        computedSlug,
@@ -253,6 +292,12 @@ func (a *SubAgentAPI) CreateSubAgent(ctx context.Context, req *agentproto.Create
 				Tooltip: "", // tooltips are not currently supported in subagent workspaces, default to empty string
 			})
 			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					// The upsert's ON CONFLICT guard refused to rebind an
+					// existing workspace-owned app to an agent outside that
+					// workspace, including agents that resolve to no workspace.
+					return xerrors.Errorf("workspace app slug %q with ID %q is already bound to a workspace-owned agent and cannot be rebound to an agent in another workspace or to an agent without a workspace; refusing to rebind to agent ID %q", computedSlug, appID, subAgent.ID)
+				}
 				return xerrors.Errorf("insert workspace app: %w", err)
 			}
 

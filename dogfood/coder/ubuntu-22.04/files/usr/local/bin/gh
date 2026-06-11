@@ -10,6 +10,11 @@
 
 REAL_GH="/usr/bin/gh"
 
+# ENG-2842: prevent gh from probing terminal colors before interactive prompts.
+if [ -z "${NO_COLOR+x}" ]; then
+  export NO_COLOR=1
+fi
+
 # If GH_TOKEN or GITHUB_TOKEN is already set, defer to the real gh.
 if [ -n "${GH_TOKEN:-}" ] || [ -n "${GITHUB_TOKEN:-}" ]; then
   exec "$REAL_GH" "$@"

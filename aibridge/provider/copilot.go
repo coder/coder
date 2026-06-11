@@ -78,6 +78,8 @@ func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
 
+func (*Copilot) Enabled() bool { return true }
+
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
 }
@@ -105,6 +107,11 @@ func (*Copilot) PassthroughRoutes() []string {
 
 func (*Copilot) AuthHeader() string {
 	return "Authorization"
+}
+
+// KeyPool returns nil. Copilot is always BYOK and has no key pool.
+func (*Copilot) KeyPool() *keypool.Pool {
+	return nil
 }
 
 // KeyFailoverConfig returns a config with a nil Pool, which makes

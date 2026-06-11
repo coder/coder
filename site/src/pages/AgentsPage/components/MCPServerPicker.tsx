@@ -272,7 +272,7 @@ export const MCPServerPicker: FC<MCPServerPickerProps> = ({
 				<button
 					type="button"
 					disabled={disabled}
-					aria-label="MCP Servers"
+					aria-label="MCP servers"
 					className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 				>
 					<span>MCP</span>

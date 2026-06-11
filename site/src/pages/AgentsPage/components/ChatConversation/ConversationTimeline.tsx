@@ -28,7 +28,6 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
@@ -38,7 +37,7 @@ import {
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -48,8 +47,8 @@ import {
 import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
 import {
+	buildDisplayMessages,
 	deriveMessageDisplayState,
-	groupSequentialReadFileMessages,
 } from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
@@ -155,21 +154,19 @@ const ReasoningDisclosure = memo<{
 
 		return (
 			<div data-transcript-row="">
-				<ToolCollapsible
+				<ToolCall.Root
 					className="w-full"
+					status={isStreaming ? "running" : "completed"}
+					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
-					header={
-						isStreaming ? (
-							<Shimmer as="span" className="text-[13px]">
-								{title}
-							</Shimmer>
-						) : (
-							<span className="text-[13px]">{title}</span>
-						)
-					}
 				>
-					{hasText && (
+					<ToolCall.Header
+						iconName="thinking"
+						label={title}
+						showStatus={false}
+					/>
+					<ToolCall.Content>
 						<div
 							ref={previewScrollRef}
 							className={cn(
@@ -185,8 +182,8 @@ const ReasoningDisclosure = memo<{
 								{body}
 							</Response>
 						</div>
-					)}
-				</ToolCollapsible>
+					</ToolCall.Content>
+				</ToolCall.Root>
 			</div>
 		);
 	},
@@ -293,7 +290,7 @@ export const BlockList: FC<{
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.shell_tool_display_mode || "auto";
+		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
@@ -529,6 +526,11 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
+	// The bottom spacer fakes the height of the hidden action bar so
+	// chain-end messages keep even spacing before the next bubble.
+	// The last transcript message has nothing after it, so the spacer
+	// would render as a dangling blank at the end of the chat.
+	isLastMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -557,6 +559,7 @@ const ChatMessageItem = memo<{
 		hideActions = false,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
+		isLastMessage = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -740,7 +743,7 @@ const ChatMessageItem = memo<{
 								)}
 						</div>
 					)}
-				{displayState.needsAssistantBottomSpacer && (
+				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
 				{previewImage && (
@@ -1141,7 +1144,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
-		const displayMessages = groupSequentialReadFileMessages(parsedMessages);
+		const displayMessages = buildDisplayMessages(parsedMessages);
 		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
 		if (parsedMessages.length === 0) {
@@ -1285,6 +1288,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								hideActions={!isLastInChain}
 								hasActiveStream={Boolean(hasActiveStream)}
 								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								isLastMessage={msgIdx === displayMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

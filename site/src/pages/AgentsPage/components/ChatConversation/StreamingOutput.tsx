@@ -7,39 +7,26 @@ import {
 	MessageContent,
 	Shimmer,
 } from "../ChatElements";
-import { TranscriptRow } from "../ChatElements/TranscriptRow";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
-import type { MergedTool, RenderBlock, StreamState } from "./types";
+import { shouldShowGenericThinking } from "./streamingActivity";
+import type { MergedTool, StreamState } from "./types";
 
-const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
-	liveStatus.phase === "starting" ||
-	liveStatus.phase === "retrying" ||
-	liveStatus.phase === "reconnecting";
+const hasCalloutLiveStatus = (liveStatus: LiveStatusModel): boolean =>
+	liveStatus.phase === "retrying" || liveStatus.phase === "reconnecting";
 
-/**
- * True when the block list contains at least one text or reasoning
- * block. Tool-call blocks don't count; the placeholder should
- * remain visible between tool calls so the user knows the model
- * is still working.
- */
-const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some((b) => b.type === "response" || b.type === "thinking");
-
-/**
- * Placeholder shown during streaming before text or reasoning
- * blocks arrive. Uses the same shimmer animation and typography
- * as the ChatStatusCallout status placeholder.
- */
-const StreamingThinkingPlaceholder: FC = () => (
-	<div data-transcript-row="" className="text-content-secondary">
-		<TranscriptRow className="w-full gap-2">
-			<Shimmer as="span" className="text-[13px] leading-relaxed">
-				Thinking
-			</Shimmer>
-		</TranscriptRow>
+const LiveActivitySlot: FC = () => (
+	<div
+		data-testid="live-activity-slot"
+		className="flex h-6 items-center gap-2 text-content-secondary"
+	>
+		<ToolIcon name="thinking" isError={false} />
+		<Shimmer as="span" className="text-[13px] leading-6">
+			Thinking
+		</Shimmer>
 	</div>
 );
 
@@ -50,7 +37,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
@@ -60,7 +46,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -73,21 +58,11 @@ export const StreamingOutput: FC<{
 		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
 
-	// During streaming, keep showing the "Thinking..." indicator
-	// until text or reasoning blocks arrive. This bridges the
-	// visual gap between the "starting" phase placeholder and the
-	// first visible content, preventing the indicator from
-	// flickering away when only tool-call parts (or whitespace-
-	// only text deltas) have been received so far.
-	const needsStreamingThinking =
-		isStreaming && !hasTextOrReasoningBlock(blocks);
-
-	const shouldShowStatusCallout =
-		hasTransientLiveStatus(liveStatus) || needsStreamingThinking;
-
-	if (!shouldShowBlocks && !shouldShowStatusCallout) {
-		return null;
-	}
+	const showActivity = shouldShowGenericThinking({
+		liveStatus,
+		streamState,
+		streamTools,
+	});
 
 	const conversationItemProps = { role: "assistant" as const };
 
@@ -109,13 +84,10 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
-						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
-							<ChatStatusCallout
-								status={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
+						{hasCalloutLiveStatus(liveStatus) && (
+							<ChatStatusCallout status={liveStatus} />
 						)}
+						{showActivity && <LiveActivitySlot />}
 					</div>
 				</MessageContent>
 			</Message>

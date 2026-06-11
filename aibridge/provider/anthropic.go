@@ -69,7 +69,7 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 	if cfg.KeyPool == nil && cfg.Key != "" {
 		// keypool.New only fails on empty or duplicate keys,
 		// neither possible with a single non-empty key.
-		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
 		if err != nil {
 			panic(fmt.Sprintf("anthropic provider: build single-key pool: %s", err))
 		}
@@ -94,6 +94,8 @@ func (*Anthropic) Type() string {
 func (p *Anthropic) Name() string {
 	return p.cfg.Name
 }
+
+func (*Anthropic) Enabled() bool { return true }
 
 func (p *Anthropic) RoutePrefix() string {
 	return fmt.Sprintf("/%s", p.Name())
@@ -168,15 +170,10 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		authHeaderName = "Authorization"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
-			credSecret = key.Value()
-		}
 	}
-
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	var interceptor intercept.Interceptor
@@ -197,11 +194,14 @@ func (*Anthropic) AuthHeader() string {
 	return "X-Api-Key"
 }
 
+func (p *Anthropic) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
+}
+
 func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{
-		Pool:         p.cfg.KeyPool,
-		ProviderName: p.Name(),
-		Logger:       logger,
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("X-Api-Key") != "" || r.Header.Get("Authorization") != ""
 		},

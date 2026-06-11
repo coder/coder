@@ -59,7 +59,7 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.KeyPool == nil && cfg.Key != "" {
 		// keypool.New only fails on empty or duplicate keys,
 		// neither possible with a single non-empty key.
-		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
 		if err != nil {
 			panic(fmt.Sprintf("openai provider: build single-key pool: %s", err))
 		}
@@ -83,6 +83,8 @@ func (*OpenAI) Type() string {
 func (p *OpenAI) Name() string {
 	return p.cfg.Name
 }
+
+func (*OpenAI) Enabled() bool { return true }
 
 func (p *OpenAI) RoutePrefix() string {
 	// Route prefix includes version to match default OpenAI base URL.
@@ -141,14 +143,10 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		cfg.KeyPool = nil
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if key, keyPoolErr := cfg.KeyPool.Walker().Next(); keyPoolErr == nil {
-			credSecret = key.Value()
-		}
 	}
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -196,11 +194,14 @@ func (*OpenAI) AuthHeader() string {
 	return "Authorization"
 }
 
+func (p *OpenAI) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
+}
+
 func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{
-		Pool:         p.cfg.KeyPool,
-		ProviderName: p.Name(),
-		Logger:       logger,
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("Authorization") != ""
 		},

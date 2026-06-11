@@ -3,11 +3,14 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"charm.land/fantasy"
+	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
@@ -667,6 +670,100 @@ func TestFallbackTurnStatusLabel(t *testing.T) {
 	}
 }
 
+func TestGenerateStructuredTitleWithUsage_OpenAICompatibleRequiredToolChoice(t *testing.T) {
+	t.Parallel()
+
+	server, requests := newOpenAICompatStructuredOutputServer(t, "propose_title", `{"title":"Failed workspace logs"}`)
+	model := openAICompatTestModel(t, server.URL)
+
+	title, _, err := generateStructuredTitleWithUsage(
+		t.Context(),
+		model,
+		titleGenerationPrompt,
+		"summarize failed workspace build logs",
+	)
+	require.NoError(t, err)
+	require.Equal(t, "Failed workspace logs", title)
+
+	body := testutil.TryReceive(t.Context(), t, requests)
+	require.Equal(t, "required", body["tool_choice"])
+}
+
+func newOpenAICompatStructuredOutputServer(
+	t *testing.T,
+	toolName string,
+	arguments string,
+) (*httptest.Server, <-chan map[string]any) {
+	t.Helper()
+
+	requests := make(chan map[string]any, 10)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		requests <- body
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":      "chatcmpl-structured-output",
+			"object":  "chat.completion",
+			"created": time.Now().Unix(),
+			"model":   "anthropic/claude-4-5-sonnet",
+			"choices": []map[string]any{
+				{
+					"index": 0,
+					"message": map[string]any{
+						"role":    "assistant",
+						"content": "",
+						"tool_calls": []map[string]any{
+							{
+								"id":   "call_structured_output",
+								"type": "function",
+								"function": map[string]any{
+									"name":      toolName,
+									"arguments": arguments,
+								},
+							},
+						},
+					},
+					"finish_reason": "tool_calls",
+				},
+			},
+			"usage": map[string]any{
+				"prompt_tokens":     10,
+				"completion_tokens": 5,
+				"total_tokens":      15,
+			},
+		})
+	}))
+	t.Cleanup(server.Close)
+	return server, requests
+}
+
+func openAICompatTestModel(t *testing.T, baseURL string) fantasy.LanguageModel {
+	t.Helper()
+
+	model, err := chatprovider.ModelFromConfig(
+		fantasyopenaicompat.Name,
+		"anthropic/claude-4-5-sonnet",
+		chatprovider.ProviderAPIKeys{
+			ByProvider: map[string]string{
+				fantasyopenaicompat.Name: "test-key",
+			},
+			BaseURLByProvider: map[string]string{
+				fantasyopenaicompat.Name: baseURL,
+			},
+		},
+		chatprovider.UserAgent(),
+		nil,
+		nil,
+	)
+	require.NoError(t, err)
+	return model
+}
+
 func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 	t.Parallel()
 
@@ -682,9 +779,24 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		label, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
 		require.NoError(t, err)
 		require.Equal(t, "Submitted PR", label)
+	})
+
+	t.Run("sends required tool_choice to openai-compatible provider", func(t *testing.T) {
+		t.Parallel()
+
+		server, requests := newOpenAICompatStructuredOutputServer(t, "propose_turn_status_label", `{"label":"Submitted PR"}`)
+		model := openAICompatTestModel(t, server.URL)
+
+		label, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
+		require.NoError(t, err)
+		require.Equal(t, "Submitted PR", label)
+		require.Len(t, requests, 1)
+
+		body := testutil.TryReceive(t.Context(), t, requests)
+		require.Equal(t, "required", body["tool_choice"])
 	})
 
 	t.Run("rejects narrative label", func(t *testing.T) {
@@ -698,7 +810,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 			},
 		}
 
-		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "done")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "done")
 		require.ErrorContains(t, err, "generated turn status label was invalid")
 	})
 
@@ -706,7 +818,7 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 		t.Parallel()
 
 		model := &chattest.FakeModel{}
-		_, err := generateStructuredTurnStatusLabel(context.Background(), model, turnStatusLabelPrompt, "  ")
+		_, err := generateStructuredTurnStatusLabel(t.Context(), model, turnStatusLabelPrompt, "  ")
 		require.ErrorContains(t, err, "turn status label input was empty")
 	})
 }

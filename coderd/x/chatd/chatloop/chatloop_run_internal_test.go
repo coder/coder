@@ -581,13 +581,13 @@ func TestRun_OnRetryEnrichesProvider(t *testing.T) {
 	)
 }
 
-func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
+func TestStreamSilenceGuard_DisarmAndFireRace(t *testing.T) {
 	t.Parallel()
 
 	for range 128 {
 		var cancels atomic.Int32
-		guard := newStartupGuard(quartz.NewReal(), time.Hour, func(err error) {
-			if errors.Is(err, errStartupTimeout) {
+		guard := newStreamSilenceGuard(quartz.NewReal(), time.Hour, func(err error) {
+			if errors.Is(err, errStreamSilenceTimeout) {
 				cancels.Add(1)
 			}
 		})
@@ -618,17 +618,17 @@ func TestStartupGuard_DisarmAndFireRace(t *testing.T) {
 	}
 }
 
-func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
+func TestStreamSilenceGuard_DisarmPreservesPermanentError(t *testing.T) {
 	t.Parallel()
 
 	attemptCtx, cancelAttempt := context.WithCancelCause(context.Background())
 	defer cancelAttempt(nil)
 
-	guard := newStartupGuard(quartz.NewReal(), time.Hour, cancelAttempt)
+	guard := newStreamSilenceGuard(quartz.NewReal(), time.Hour, cancelAttempt)
 	guard.Disarm()
 	guard.onTimeout()
 
-	classified := chaterror.Classify(classifyStartupTimeout(
+	classified := chaterror.Classify(classifyStreamSilenceTimeout(
 		attemptCtx,
 		"openai",
 		xerrors.New("invalid model"),
@@ -638,10 +638,10 @@ func TestStartupGuard_DisarmPreservesPermanentError(t *testing.T) {
 	require.Nil(t, context.Cause(attemptCtx))
 }
 
-func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
+func TestRun_RetriesSilenceTimeoutWhileOpeningStream(t *testing.T) {
 	t.Parallel()
 
-	const startupTimeout = 5 * time.Millisecond
+	const silenceTimeout = 5 * time.Millisecond
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -650,7 +650,7 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	defer cancel()
 
 	mClock := quartz.NewMock(t)
-	trap := mClock.Trap().AfterFunc("startupGuard")
+	trap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
 	defer trap.Close()
 
 	attempts := 0
@@ -675,10 +675,10 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(context.Background(), RunOptions{
-			Model:          model,
-			MaxSteps:       1,
-			StartupTimeout: startupTimeout,
-			Clock:          mClock,
+			Model:                model,
+			MaxSteps:             1,
+			StreamSilenceTimeout: silenceTimeout,
+			Clock:                mClock,
 			PersistStep: func(_ context.Context, _ PersistedStep) error {
 				return nil
 			},
@@ -694,25 +694,25 @@ func TestRun_RetriesStartupTimeoutWhileOpeningStream(t *testing.T) {
 	}()
 
 	trap.MustWait(ctx).MustRelease(ctx)
-	mClock.Advance(startupTimeout).MustWait(ctx)
+	mClock.Advance(silenceTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {
 	case cause := <-attemptCause:
-		require.ErrorIs(t, cause, errStartupTimeout)
+		require.ErrorIs(t, cause, errStreamSilenceTimeout)
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for startup timeout cause")
+		t.Fatal("timed out waiting for silence timeout cause")
 	}
 }
 
@@ -728,7 +728,7 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 		t.Run(provider, func(t *testing.T) {
 			t.Parallel()
 
-			const startupTimeout = 5 * time.Millisecond
+			const silenceTimeout = 5 * time.Millisecond
 
 			ctx, cancel := context.WithTimeout(
 				context.Background(),
@@ -737,7 +737,7 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 			defer cancel()
 
 			mClock := quartz.NewMock(t)
-			trap := mClock.Trap().AfterFunc("startupGuard")
+			trap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
 			defer trap.Close()
 
 			attempts := 0
@@ -763,10 +763,10 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				done <- Run(context.Background(), RunOptions{
-					Model:          model,
-					MaxSteps:       1,
-					StartupTimeout: startupTimeout,
-					Clock:          mClock,
+					Model:                model,
+					MaxSteps:             1,
+					StreamSilenceTimeout: silenceTimeout,
+					Clock:                mClock,
 					PersistStep: func(_ context.Context, _ PersistedStep) error {
 						return nil
 					},
@@ -795,10 +795,78 @@ func TestRun_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 	}
 }
 
-func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
+func TestRun_RetriesProviderContextCanceledStreamError(t *testing.T) {
 	t.Parallel()
 
-	const startupTimeout = 5 * time.Millisecond
+	attempts := 0
+	retryErrs := make(chan error, chatretry.MaxAttempts)
+	retries := make(chan chatretry.ClassifiedError, chatretry.MaxAttempts)
+	var persisted []fantasy.Content
+	ctx := testutil.Context(t, testutil.WaitShort)
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return streamFromParts([]fantasy.StreamPart{
+					{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"},
+					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "partial"},
+					{Type: fantasy.StreamPartTypeError, Error: context.Canceled},
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{
+				{Type: fantasy.StreamPartTypeTextStart, ID: "text-2"},
+				{Type: fantasy.StreamPartTypeTextDelta, ID: "text-2", Delta: "done"},
+				{Type: fantasy.StreamPartTypeTextEnd, ID: "text-2"},
+				{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+			}), nil
+		},
+	}
+
+	err := Run(ctx, RunOptions{
+		Model:                model,
+		MaxSteps:             1,
+		ContextLimitFallback: 4096,
+		PersistStep: func(_ context.Context, step PersistedStep) error {
+			persisted = append([]fantasy.Content(nil), step.Content...)
+			return nil
+		},
+		OnRetry: func(
+			_ int,
+			retryErr error,
+			classified chatretry.ClassifiedError,
+			_ time.Duration,
+		) {
+			retryErrs <- retryErr
+			retries <- classified
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, attempts)
+	require.Len(t, retryErrs, 1)
+	require.Len(t, retries, 1)
+	retryErr := testutil.RequireReceive(ctx, t, retryErrs)
+	classified := testutil.RequireReceive(ctx, t, retries)
+	require.ErrorIs(t, retryErr, chaterror.ErrProviderTransportReset)
+	require.ErrorIs(t, retryErr, context.Canceled)
+	require.Equal(t, codersdk.ChatErrorKindTimeout, classified.Kind)
+	require.True(t, classified.Retryable)
+	require.Equal(t, "openai", classified.Provider)
+	require.Equal(t, "OpenAI is temporarily unavailable.", classified.Message)
+
+	text := requireTextContent(t, persisted, "done")
+	require.Equal(t, "done", text.Text)
+	for _, block := range persisted {
+		if text, ok := fantasy.AsContentType[fantasy.TextContent](block); ok {
+			require.NotContains(t, text.Text, "partial")
+		}
+	}
+}
+
+func TestRun_RetriesSilenceTimeoutBeforeFirstPart(t *testing.T) {
+	t.Parallel()
+
+	const silenceTimeout = 5 * time.Millisecond
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -807,7 +875,7 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	defer cancel()
 
 	mClock := quartz.NewMock(t)
-	trap := mClock.Trap().AfterFunc("startupGuard")
+	trap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
 	defer trap.Close()
 
 	attempts := 0
@@ -837,10 +905,10 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(context.Background(), RunOptions{
-			Model:          model,
-			MaxSteps:       1,
-			StartupTimeout: startupTimeout,
-			Clock:          mClock,
+			Model:                model,
+			MaxSteps:             1,
+			StreamSilenceTimeout: silenceTimeout,
+			Clock:                mClock,
 			PersistStep: func(_ context.Context, _ PersistedStep) error {
 				return nil
 			},
@@ -856,32 +924,32 @@ func TestRun_RetriesStartupTimeoutBeforeFirstPart(t *testing.T) {
 	}()
 
 	trap.MustWait(ctx).MustRelease(ctx)
-	mClock.Advance(startupTimeout).MustWait(ctx)
+	mClock.Advance(silenceTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {
 	case cause := <-attemptCause:
-		require.ErrorIs(t, cause, errStartupTimeout)
+		require.ErrorIs(t, cause, errStreamSilenceTimeout)
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for startup timeout cause")
+		t.Fatal("timed out waiting for silence timeout cause")
 	}
 }
 
-func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
+func TestRun_StreamPartsResetSilenceTimeout(t *testing.T) {
 	t.Parallel()
 
-	const startupTimeout = 5 * time.Millisecond
+	const silenceTimeout = 5 * time.Millisecond
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -890,12 +958,17 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	defer cancel()
 
 	mClock := quartz.NewMock(t)
-	trap := mClock.Trap().AfterFunc("startupGuard")
+	armTrap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
+	defer armTrap.Close()
+	resetTrap := mClock.Trap().TimerReset(streamSilenceGuardTimerTag)
+	defer resetTrap.Close()
 
 	attempts := 0
 	retried := false
 	firstPartYielded := make(chan struct{}, 1)
-	continueStream := make(chan struct{})
+	secondPartYielded := make(chan struct{}, 1)
+	continueToSecond := make(chan struct{})
+	continueToFinish := make(chan struct{})
 	model := &chattest.FakeModel{
 		ProviderName: "openai",
 		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
@@ -910,7 +983,29 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 				}
 
 				select {
-				case <-continueStream:
+				case <-continueToSecond:
+				case <-ctx.Done():
+					_ = yield(fantasy.StreamPart{
+						Type:  fantasy.StreamPartTypeError,
+						Error: ctx.Err(),
+					})
+					return
+				}
+
+				if !yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeTextDelta,
+					ID:    "text-1",
+					Delta: "done",
+				}) {
+					return
+				}
+				select {
+				case secondPartYielded <- struct{}{}:
+				default:
+				}
+
+				select {
+				case <-continueToFinish:
 				case <-ctx.Done():
 					_ = yield(fantasy.StreamPart{
 						Type:  fantasy.StreamPartTypeError,
@@ -920,7 +1015,6 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 				}
 
 				parts := []fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextDelta, ID: "text-1", Delta: "done"},
 					{Type: fantasy.StreamPartTypeTextEnd, ID: "text-1"},
 					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
 				}
@@ -936,10 +1030,10 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(context.Background(), RunOptions{
-			Model:          model,
-			MaxSteps:       1,
-			StartupTimeout: startupTimeout,
-			Clock:          mClock,
+			Model:                model,
+			MaxSteps:             1,
+			StreamSilenceTimeout: silenceTimeout,
+			Clock:                mClock,
 			PersistStep: func(_ context.Context, _ PersistedStep) error {
 				return nil
 			},
@@ -954,21 +1048,128 @@ func TestRun_FirstPartDisarmsStartupTimeout(t *testing.T) {
 		})
 	}()
 
-	trap.MustWait(ctx).MustRelease(ctx)
-	trap.Close()
-
+	armTrap.MustWait(ctx).MustRelease(ctx)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
 	select {
 	case <-firstPartYielded:
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for first stream part")
 	}
 
-	mClock.Advance(startupTimeout).MustWait(ctx)
-	close(continueStream)
+	mClock.Advance(silenceTimeout / 2).MustWait(ctx)
+	close(continueToSecond)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	select {
+	case <-secondPartYielded:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for second stream part")
+	}
+
+	mClock.Advance(silenceTimeout / 2).MustWait(ctx)
+	close(continueToFinish)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
 
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 1, attempts)
 	require.False(t, retried)
+}
+
+func TestRun_RetriesSilenceTimeoutBetweenParts(t *testing.T) {
+	t.Parallel()
+
+	const silenceTimeout = 5 * time.Millisecond
+
+	ctx, cancel := context.WithTimeout(
+		context.Background(),
+		testutil.WaitLong,
+	)
+	defer cancel()
+
+	mClock := quartz.NewMock(t)
+	armTrap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
+	defer armTrap.Close()
+	resetTrap := mClock.Trap().TimerReset(streamSilenceGuardTimerTag)
+	defer resetTrap.Close()
+
+	attempts := 0
+	firstPartYielded := make(chan struct{}, 1)
+	attemptCause := make(chan error, 1)
+	var retries []chatretry.ClassifiedError
+	model := &chattest.FakeModel{
+		ProviderName: "openai",
+		StreamFn: func(ctx context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
+			if attempts == 1 {
+				return iter.Seq[fantasy.StreamPart](func(yield func(fantasy.StreamPart) bool) {
+					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeTextStart, ID: "text-1"}) {
+						return
+					}
+					select {
+					case firstPartYielded <- struct{}{}:
+					default:
+					}
+
+					<-ctx.Done()
+					attemptCause <- context.Cause(ctx)
+					_ = yield(fantasy.StreamPart{
+						Type:  fantasy.StreamPartTypeError,
+						Error: ctx.Err(),
+					})
+				}), nil
+			}
+			return streamFromParts([]fantasy.StreamPart{{
+				Type:         fantasy.StreamPartTypeFinish,
+				FinishReason: fantasy.FinishReasonStop,
+			}}), nil
+		},
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), RunOptions{
+			Model:                model,
+			MaxSteps:             1,
+			StreamSilenceTimeout: silenceTimeout,
+			Clock:                mClock,
+			PersistStep: func(_ context.Context, _ PersistedStep) error {
+				return nil
+			},
+			OnRetry: func(
+				_ int,
+				_ error,
+				classified chatretry.ClassifiedError,
+				_ time.Duration,
+			) {
+				retries = append(retries, classified)
+			},
+		})
+	}()
+
+	armTrap.MustWait(ctx).MustRelease(ctx)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+	select {
+	case <-firstPartYielded:
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for first stream part")
+	}
+
+	mClock.Advance(silenceTimeout).MustWait(ctx)
+	armTrap.MustWait(ctx).MustRelease(ctx)
+	resetTrap.MustWait(ctx).MustRelease(ctx)
+
+	require.NoError(t, awaitRunResult(ctx, t, done))
+	require.Equal(t, 2, attempts)
+	require.Len(t, retries, 1)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
+	require.True(t, retries[0].Retryable)
+	require.Equal(t, "openai", retries[0].Provider)
+	select {
+	case cause := <-attemptCause:
+		require.ErrorIs(t, cause, errStreamSilenceTimeout)
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for silence timeout cause")
+	}
 }
 
 func TestRun_PanicInPublishMessagePartReleasesAttempt(t *testing.T) {
@@ -1014,10 +1215,10 @@ func TestRun_PanicInPublishMessagePartReleasesAttempt(t *testing.T) {
 	t.Fatal("expected Run to panic")
 }
 
-func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
+func TestRun_RetriesSilenceTimeoutWhenStreamStaysSilent(t *testing.T) {
 	t.Parallel()
 
-	const startupTimeout = 5 * time.Millisecond
+	const silenceTimeout = 5 * time.Millisecond
 
 	ctx, cancel := context.WithTimeout(
 		context.Background(),
@@ -1026,7 +1227,7 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	defer cancel()
 
 	mClock := quartz.NewMock(t)
-	trap := mClock.Trap().AfterFunc("startupGuard")
+	trap := mClock.Trap().AfterFunc(streamSilenceGuardTimerTag)
 	defer trap.Close()
 
 	attempts := 0
@@ -1052,10 +1253,10 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(context.Background(), RunOptions{
-			Model:          model,
-			MaxSteps:       1,
-			StartupTimeout: startupTimeout,
-			Clock:          mClock,
+			Model:                model,
+			MaxSteps:             1,
+			StreamSilenceTimeout: silenceTimeout,
+			Clock:                mClock,
 			PersistStep: func(_ context.Context, _ PersistedStep) error {
 				return nil
 			},
@@ -1071,25 +1272,25 @@ func TestRun_RetriesStartupTimeoutWhenStreamClosesSilently(t *testing.T) {
 	}()
 
 	trap.MustWait(ctx).MustRelease(ctx)
-	mClock.Advance(startupTimeout).MustWait(ctx)
+	mClock.Advance(silenceTimeout).MustWait(ctx)
 	trap.MustWait(ctx).MustRelease(ctx)
 
 	require.NoError(t, awaitRunResult(ctx, t, done))
 	require.Equal(t, 2, attempts)
 	require.Len(t, retries, 1)
-	require.Equal(t, codersdk.ChatErrorKindStartupTimeout, retries[0].Kind)
+	require.Equal(t, codersdk.ChatErrorKindStreamSilenceTimeout, retries[0].Kind)
 	require.True(t, retries[0].Retryable)
 	require.Equal(t, "openai", retries[0].Provider)
 	require.Equal(
 		t,
-		"OpenAI did not start responding in time.",
+		"OpenAI did not send response data in time.",
 		retries[0].Message,
 	)
 	select {
 	case cause := <-attemptCause:
-		require.ErrorIs(t, cause, errStartupTimeout)
+		require.ErrorIs(t, cause, errStreamSilenceTimeout)
 	case <-ctx.Done():
-		t.Fatal("timed out waiting for startup timeout cause")
+		t.Fatal("timed out waiting for silence timeout cause")
 	}
 }
 

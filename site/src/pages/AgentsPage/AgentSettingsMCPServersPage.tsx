@@ -23,7 +23,7 @@ const AgentSettingsMCPServersPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<MCPServerAdminPanel
-				sectionLabel="MCP Servers"
+				sectionLabel="MCP servers"
 				sectionDescription="Configure external MCP servers that provide additional tools for Coder Agents."
 				serversData={serversQuery.data}
 				isLoadingServers={serversQuery.isLoading}
