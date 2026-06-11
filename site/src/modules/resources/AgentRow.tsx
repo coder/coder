@@ -58,7 +58,10 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getAgentConnectivityIssues } from "#/modules/workspaces/health";
+import {
+	getAgentConnectivityIssues,
+	getAgentScriptIssues,
+} from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -163,16 +166,21 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const runningScriptsCount = agent.scripts.filter(
 		(s) => s.run_on_start && !s.status,
 	).length;
-	// Use connectivity issues for agent panel styling and visibility decisions.
-	// Script issues are handled separately in the log tabs.
+	// Connectivity issues drive agent panel styling (border color, warning
+	// badge). Script issues are kept out of that styling so a failed script
+	// does not imply a connectivity problem, but they still auto-expand the
+	// logs so the failing script's tab surfaces on its own.
 	const connectivityIssues = getAgentConnectivityIssues(agent);
 	const hasConnectivityIssues = connectivityIssues.length > 0;
 	const hasWarningConnectivityIssues = connectivityIssues.some(
 		(i) => i.severity === "warning",
 	);
+	const hasScriptIssues = getAgentScriptIssues(agent).length > 0;
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		(agent.lifecycle_state !== "ready" || hasConnectivityIssues) &&
+		(agent.lifecycle_state !== "ready" ||
+			hasConnectivityIssues ||
+			hasScriptIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -182,10 +190,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 	useEffect(() => {
 		setShowLogs(
-			(agent.lifecycle_state !== "ready" || hasConnectivityIssues) &&
+			(agent.lifecycle_state !== "ready" ||
+				hasConnectivityIssues ||
+				hasScriptIssues) &&
 				hasStartupFeatures,
 		);
-	}, [agent.lifecycle_state, hasConnectivityIssues, hasStartupFeatures]);
+	}, [
+		agent.lifecycle_state,
+		hasConnectivityIssues,
+		hasScriptIssues,
+		hasStartupFeatures,
+	]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
