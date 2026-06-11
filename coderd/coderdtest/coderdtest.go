@@ -1220,9 +1220,10 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
 // from cancelation, an error, or from completing successfully. The wait is bounded by
-// testutil.WaitLong, which is sized for fast in-memory provisioners such as echo. Tests
-// that run a real provisioner should use AwaitTemplateVersionJobCompletedCtx with a
-// deadline sized for real builds.
+// testutil.WaitLong, which is enough for the echo provisioner used by most tests, but
+// can be exceeded by a real provisioner such as terraform. Tests that run a real
+// provisioner should use AwaitTemplateVersionJobCompletedCtx with a deadline sized for
+// real builds.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
 
@@ -1257,8 +1258,9 @@ func AwaitTemplateVersionJobCompletedCtx(ctx context.Context, t testing.TB, clie
 }
 
 // AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
-// status. The wait is bounded by testutil.WaitMedium, which is sized for fast in-memory
-// provisioners such as echo. Tests that run a real provisioner should use
+// status. The wait is bounded by testutil.WaitMedium, which is enough for the echo
+// provisioner used by most tests, but can be exceeded by a real provisioner such as
+// terraform. Tests that run a real provisioner should use
 // AwaitWorkspaceBuildJobCompletedCtx with a deadline sized for real builds.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
