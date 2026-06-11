@@ -34,10 +34,11 @@ func TestCommandEnvExecer_Prepare(t *testing.T) {
 		t.Parallel()
 
 		name, args, dir, env := e.prepare(context.Background(), "echo", "hello", "world")
-		// The command is run as: shell -c "$@" shell <argv...> so that the
-		// shell re-emits argv without re-parsing it.
+		// The command is run as: shell -c "$@" "" <argv...> so that the
+		// shell re-emits argv without re-parsing it. The empty $0 slot is
+		// discarded.
 		require.Equal(t, shell, name)
-		require.Equal(t, []string{"-c", `"$@"`, shell, "echo", "hello", "world"}, args)
+		require.Equal(t, []string{"-c", `"$@"`, "", "echo", "hello", "world"}, args)
 		require.Equal(t, "/tmp", dir)
 		require.Equal(t, []string{"FOO=bar"}, env)
 	})
