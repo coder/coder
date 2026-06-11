@@ -560,6 +560,23 @@ func TestEffectiveHost(t *testing.T) {
 
 		middleware(nextHandler).ServeHTTP(httptest.NewRecorder(), r)
 	})
+
+	t.Run("MalformedRemoteAddrFallsBackToReceivedHost", func(t *testing.T) {
+		t.Parallel()
+
+		config := &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{cidr32(t, "17.18.19.20")},
+			TrustedHeaders: []string{"X-Real-Ip"},
+		}
+
+		r := httptest.NewRequest(http.MethodGet, "http://received.test", nil)
+		// A RemoteAddr that cannot be parsed into an IP must be treated as
+		// untrusted, so the forwarded host is ignored.
+		r.RemoteAddr = "garbage"
+		r.Header.Set(httpapi.XForwardedHostHeader, "app.test.coder.com")
+
+		require.Equal(t, "received.test", httpmw.EffectiveHost(config, r))
+	})
 }
 
 // TestApplicationProxy checks headers passed to DevURL services are as expected.
