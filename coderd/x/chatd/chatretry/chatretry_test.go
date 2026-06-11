@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,80 +16,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
 )
-
-func TestIsRetryableDelegatesToClassification(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		err       error
-		retryable bool
-	}{
-		{name: "Nil", err: nil, retryable: false},
-		{name: "RetryableExplicitStatus429", err: xerrors.New("received status 429 from upstream"), retryable: true},
-		{name: "RetryableTimeout", err: xerrors.New("service unavailable"), retryable: true},
-		{
-			name: "RetryableAnthropicMissingMessageStop",
-			err: xerrors.Errorf(
-				"anthropic stream closed before message_stop: %w",
-				io.EOF,
-			),
-			retryable: true,
-		},
-		{
-			name: "RetryableOpenAIResponsesMissingTerminalEvent",
-			err: xerrors.Errorf(
-				"openai responses stream closed before terminal event: %w",
-				io.EOF,
-			),
-			retryable: true,
-		},
-		{name: "NonRetryableAuth", err: xerrors.New("invalid api key"), retryable: false},
-		{name: "NonRetryableGeneric", err: xerrors.New("boom"), retryable: false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			require.Equal(t, tt.retryable, chatretry.IsRetryable(tt.err))
-			require.Equal(t, chaterror.Classify(tt.err).Retryable, chatretry.IsRetryable(tt.err))
-		})
-	}
-}
-
-func TestRetryabilityFromClassifyStatusCodes(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		code      int
-		retryable bool
-	}{
-		{408, true},
-		{429, true},
-		{500, true},
-		{502, true},
-		{503, true},
-		{504, true},
-		{529, true},
-		{200, false},
-		{400, false},
-		{401, false},
-		{403, false},
-		{404, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("Status%d", tt.code), func(t *testing.T) {
-			t.Parallel()
-
-			err := xerrors.Errorf("status %d from upstream", tt.code)
-			classified := chaterror.Classify(err)
-			require.Equal(t, tt.retryable, classified.Retryable)
-			require.Equal(t, classified.Retryable, chatretry.IsRetryable(err))
-		})
-	}
-}
 
 func TestDelay(t *testing.T) {
 	t.Parallel()

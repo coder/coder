@@ -1,6 +1,8 @@
 package chatd
 
 import (
+	"database/sql"
+
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 
@@ -12,7 +14,7 @@ import (
 // newChatMachine constructs a chat-scoped state machine handle bound to
 // the server's database and pubsub.
 func (p *Server) newChatMachine(chatID uuid.UUID) *chatstate.ChatMachine {
-	return chatstate.NewChatMachine(p.db, p.pubsub, chatID, chatstate.Options{})
+	return chatstate.NewChatMachine(p.db, p.pubsub, chatID)
 }
 
 // systemMessage builds a chatstate.Message representing a system
@@ -27,9 +29,7 @@ func systemMessage(rawContent pqtype.NullRawMessage, modelConfigID uuid.UUID) ch
 	}
 }
 
-// userMessage builds a chatstate.Message representing a user message
-// for CreateChat, SendMessage, or EditMessage.
-func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID) chatstate.Message {
+func userMessageWithAPIKeyID(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid.UUID, apiKeyID string) chatstate.Message {
 	return chatstate.Message{
 		Role:           database.ChatMessageRoleUser,
 		Content:        rawContent,
@@ -37,6 +37,7 @@ func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid
 		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 		CreatedBy:      uuid.NullUUID{UUID: createdBy, Valid: createdBy != uuid.Nil},
 		ContentVersion: chatprompt.CurrentContentVersion,
+		APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
 	}
 }
 

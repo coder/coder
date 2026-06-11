@@ -1296,6 +1296,12 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = chat
 
+	// Kick off best-effort automatic title generation now that the
+	// chat and its initial user message are persisted. It runs
+	// detached so it never blocks the create response, and only acts
+	// on the first user turn.
+	api.chatDaemon.GenerateChatTitleAsync(ctx, chat)
+
 	chatFiles := api.fetchChatFileMetadata(ctx, chat.ID)
 	response := db2sdk.Chat(chat, nil, chatFiles)
 	if len(unlinked) > 0 {

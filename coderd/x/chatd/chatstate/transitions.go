@@ -244,6 +244,7 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message) (database.
 		Content:       rawContent,
 		ModelConfigID: m.ModelConfigID,
 		CreatedBy:     createdBy,
+		APIKeyID:      m.APIKeyID,
 	})
 }
 

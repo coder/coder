@@ -2565,9 +2565,13 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if locked.OwnerID != workspace.OwnerID {
 			return errChatDoesNotBelongToWorkspaceOwner
 		}
+		apiKeyID, err := resolveAgentChatContextAPIKeyID(sysCtx, tx, locked)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
 			chat.ID,
-			"", // Agent-initiated context injection has no caller API key.
+			apiKeyID,
 			content,
 			database.ChatMessageVisibilityBoth,
 			locked.LastModelConfigID,
@@ -2584,6 +2588,12 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 	if err != nil {
 		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
 			writeAgentChatError(ctx, rw, err)
+			return
+		}
+		if errors.Is(err, errChatAPIKeyAttributionUnavailable) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot modify context: chat has no API key attribution.",
+			})
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -2658,6 +2668,7 @@ var (
 	errChatNotActive                     = xerrors.New("chat is not active")
 	errChatDoesNotBelongToAgent          = xerrors.New("chat does not belong to this agent")
 	errChatDoesNotBelongToWorkspaceOwner = xerrors.New("chat does not belong to this workspace owner")
+	errChatAPIKeyAttributionUnavailable  = xerrors.New("chat has no API key attribution")
 )
 
 type multipleActiveChatsError struct {
@@ -2754,6 +2765,56 @@ func isActiveAgentChat(chat database.Chat) bool {
 	default:
 		return false
 	}
+}
+
+func resolveAgentChatContextAPIKeyID(ctx context.Context, db database.Store, chat database.Chat) (string, error) {
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("load chat messages for API key attribution: %w", err)
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
+			continue
+		}
+		return message.APIKeyID.String, nil
+	}
+
+	loginTypes := []database.LoginType{
+		database.LoginTypePassword,
+		database.LoginTypeOIDC,
+		database.LoginTypeGithub,
+		database.LoginTypeToken,
+		database.LoginTypeNone,
+	}
+	var newest database.APIKey
+	hasNewest := false
+	for _, loginType := range loginTypes {
+		keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+			LoginType:      loginType,
+			UserID:         chat.OwnerID,
+			IncludeExpired: false,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("load owner API keys for attribution: %w", err)
+		}
+		for _, key := range keys {
+			if !hasNewest || key.CreatedAt.After(newest.CreatedAt) {
+				newest = key
+				hasNewest = true
+			}
+		}
+	}
+	if !hasNewest {
+		return "", errChatAPIKeyAttributionUnavailable
+	}
+	return newest.ID, nil
 }
 
 func clearAgentChatContext(
