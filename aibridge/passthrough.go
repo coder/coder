@@ -2,6 +2,7 @@ package aibridge
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -49,8 +50,13 @@ func newPassthroughRouter(prov provider.Provider, logger slog.Logger, m *metrics
 		},
 		Transport: apidump.NewPassthroughMiddleware(t, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
 		ErrorHandler: func(rw http.ResponseWriter, req *http.Request, e error) {
-			logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
-			http.Error(rw, "upstream proxy error", http.StatusBadGateway)
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(e, &maxBytesErr) {
+				writeRequestBodyTooLarge(rw)
+			} else {
+				logger.Warn(req.Context(), "reverse proxy error", slog.Error(e), slog.F("path", req.URL.Path))
+				http.Error(rw, "upstream proxy error", http.StatusBadGateway)
+			}
 		},
 	}
 

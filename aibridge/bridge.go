@@ -2,6 +2,7 @@ package aibridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -30,6 +31,21 @@ import (
 const (
 	// The duration after which an async recording will be aborted.
 	recordingTimeout = time.Second * 5
+
+	// maxRequestBodyBytes caps the request body size for AI Bridge
+	// provider endpoints to prevent denial-of-service via memory exhaustion.
+	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
+	// and 20 MB on Amazon Bedrock.
+	// See https://docs.anthropic.com/en/api/overview#request-size-limits
+	// OpenAI and GitHub Copilot do not document an equivalent HTTP body size limit.
+	// Using highest documented provider limit (32 MiB).
+	//
+	// NOTE: aibridge does not currently proxy file-upload endpoints
+	// (e.g. /v1/files). Those endpoints accept much larger bodies
+	// (up to 500 MB for Anthropic, 50 MB for OpenAI). If file-upload
+	// routes are added, they will need a per-route limit instead of
+	// this single global cap.
+	maxRequestBodyBytes = 32 << 20 // 32 MiB
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -186,8 +202,13 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
-			logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
-			http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				writeRequestBodyTooLarge(w)
+			} else {
+				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
+				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -283,6 +304,15 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 	}
 }
 
+// writeRequestBodyTooLarge writes a human-readable 413 response indicating that
+// the request body exceeded maxRequestBodyBytes.
+func writeRequestBodyTooLarge(w http.ResponseWriter) {
+	http.Error(w, fmt.Sprintf(
+		"Request body too large. The maximum allowed request body size is %dMiB.",
+		maxRequestBodyBytes>>20,
+	), http.StatusRequestEntityTooLarge)
+}
+
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -305,6 +335,9 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		b.inflightWG.Done()
 	}()
 
+	// Enforce the request body size limit. MaxBytesReader counts bytes as
+	// they are read from the connection and fails when the limit is exceeded.
+	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
 	b.mux.ServeHTTP(rw, r.WithContext(ctx))
 }
 
