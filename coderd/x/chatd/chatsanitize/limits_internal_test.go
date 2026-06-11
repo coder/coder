@@ -46,16 +46,6 @@ func TestValidatePromptLimits(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("Rejects encrypted PDFs", func(t *testing.T) {
-		t.Parallel()
-
-		data := append(validPDFWithPages(1), []byte("\ntrailer << /Encrypt 5 0 R >>")...)
-		err := ValidatePromptLimits(fantasyanthropic.Name, 200_000, promptWithPDF(pdfPart("locked.pdf", data)))
-		classified := requireRejected(t, err)
-		require.Contains(t, classified.Message, "locked.pdf")
-		require.Contains(t, err.Error(), "reason=encrypted_pdf")
-	})
-
 	t.Run("Applies Bedrock caps and skips uncapped providers", func(t *testing.T) {
 		t.Parallel()
 

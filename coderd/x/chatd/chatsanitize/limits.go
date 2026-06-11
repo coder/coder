@@ -77,9 +77,9 @@ func limitsFor(provider string, contextLimit int64) (limits, bool) {
 }
 
 // ValidatePromptLimits rejects prompts that Anthropic or Bedrock-hosted Claude
-// requests are known to reject: PDF attachments that are invalid, encrypted,
-// or over the documented page caps, and requests whose estimated body size
-// exceeds the provider's request size limit. provider must be the canonical
+// requests are known to reject: PDF attachments that are invalid or over the
+// documented page caps, and requests whose estimated body size exceeds the
+// provider's request size limit. provider must be the canonical
 // fantasy provider name; for uncapped or unrecognized providers it is a no-op.
 // A returned error is classified as a non-retryable configuration error
 // carrying a user-facing message, so callers can propagate it directly.
@@ -130,16 +130,10 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 
 func (v *validator) checkPDF(file fantasy.FilePart) error {
 	name := strings.TrimSpace(file.Filename)
-	switch {
-	case !chatfiles.IsPDF(file.Data):
+	if !chatfiles.IsPDF(file.Data) {
 		return v.reject(
 			fmt.Sprintf("%s is not a valid PDF. Re-upload the original document.", attachmentLabel(name)),
 			"reason=invalid_pdf file=%q data_bytes=%d", name, len(file.Data),
-		)
-	case chatfiles.IsEncryptedPDF(file.Data):
-		return v.reject(
-			fmt.Sprintf("%s is encrypted or password-protected. Upload an unlocked copy.", attachmentLabel(name)),
-			"reason=encrypted_pdf file=%q data_bytes=%d", name, len(file.Data),
 		)
 	}
 
