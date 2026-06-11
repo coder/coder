@@ -1,6 +1,6 @@
+import { renderComponent } from "testHelpers/renderHelpers";
 import { screen } from "@testing-library/react";
-import type { Line } from "#/components/Logs/LogLine";
-import { renderComponent } from "#/testHelpers/renderHelpers";
+import type { Line } from "components/Logs/LogLine";
 import { AgentLogLine } from "./AgentLogLine";
 
 const line: Line = {
@@ -13,7 +13,15 @@ const line: Line = {
 
 describe("AgentLogLine", () => {
 	it("renders log HTML as escaped text", () => {
-		renderComponent(<AgentLogLine line={line} sourceIcon={null} style={{}} />);
+		renderComponent(
+			<AgentLogLine
+				line={line}
+				number={1}
+				maxLineNumber={1}
+				sourceIcon={null}
+				style={{}}
+			/>,
+		);
 
 		expect(screen.queryByTestId("agent-log-xss")).not.toBeInTheDocument();
 		expect(
