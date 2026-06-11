@@ -120,7 +120,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -146,7 +146,37 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidAddressBitsError{Bits: 64}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidAddressBitsError{Bits: 64})}.Error())
+	assertEventuallyLost(ctx, t, store, agent.ID)
+}
+
+func TestPGCoordinatorSingle_AgentInvalidAllowedIP(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+	// A valid self-address paired with an AllowedIP belonging to a different
+	// (victim) agent must be rejected.
+	victim := agpl.TailscaleServicePrefix.PrefixFromUUID(uuid.New())
+	agent.UpdateNode(&proto.Node{
+		Addresses: []string{
+			agpl.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+		},
+		AllowedIps:    []string{victim.String()},
+		PreferredDerp: 10,
+	})
+
+	// The agent connection should be closed after sending an invalid AllowedIP.
+	agent.AssertEventuallyResponsesClosed(
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("AllowedIps: %w", agpl.InvalidNodeAddressError{Addr: victim.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
