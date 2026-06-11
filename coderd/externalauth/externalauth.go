@@ -401,8 +401,8 @@ func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth
 		return c.TokenSource(ctx, existingToken).Token()
 	}
 
-	// A near-zero positive timeout is nondeterministic on coarse-clock
-	// platforms, so a negative value explicitly disables retries.
+	// A negative RefreshRetryTimeout disables retries entirely, so make a
+	// single attempt and return.
 	if c.RefreshRetryTimeout < 0 {
 		return c.TokenSource(ctx, existingToken).Token()
 	}
