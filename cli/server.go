@@ -428,6 +428,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
+			configSSHOptions, err := vals.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+			}
+			sshConfigResponse := codersdk.SSHConfigResponse{
+				HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
+				HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
+				SSHConfigOptions: configSSHOptions,
+			}
+			if err := sshConfigResponse.Validate(); err != nil {
+				return xerrors.Errorf("invalid ssh config: %w", err)
+			}
+
 			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
@@ -638,20 +651,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
-			configSSHOptions, err := vals.SSHConfig.ParseOptions()
-			if err != nil {
-				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
-			}
-
-			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
-			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
-			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
-			// 'en.coder' but not 'encoder'.
-			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
-				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
-					vals.WorkspaceHostnameSuffix.String())
-			}
-
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -681,14 +680,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				HTTPClient:                  httpClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
-				SSHConfig: codersdk.SSHConfigResponse{
-					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
-					SSHConfigOptions: configSSHOptions,
-					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
-				},
-				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
-				Entitlements:          entitlements.New(),
-				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				SSHConfig:                   sshConfigResponse,
+				AllowWorkspaceRenames:       vals.AllowWorkspaceRenames.Value(),
+				Entitlements:                entitlements.New(),
+				NotificationsEnqueuer:       notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
