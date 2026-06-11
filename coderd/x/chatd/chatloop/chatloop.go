@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatpdf"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
@@ -778,10 +777,10 @@ func prepareMessagesForRequest(
 		)
 		return canonical, nil, err
 	}
-	// ValidatePrompt returns an already-classified configuration error, so a
-	// context wrap is enough; chaterror.Classify unwraps to find it.
-	if err = chatpdf.ValidatePrompt(provider, opts.ContextLimitFallback, prompt); err != nil {
-		return canonical, nil, xerrors.Errorf("validate PDF attachments: %w", err)
+	// ValidatePromptLimits returns an already-classified configuration error,
+	// so a context wrap is enough; chaterror.Classify unwraps to find it.
+	if err = chatsanitize.ValidatePromptLimits(provider, opts.ContextLimitFallback, prompt); err != nil {
+		return canonical, nil, xerrors.Errorf("preflight prompt: %w", err)
 	}
 	if shouldApplyAnthropicPromptCaching(opts.Model) {
 		addAnthropicPromptCaching(prompt)

@@ -17,7 +17,7 @@ import (
 func TestPrepareMessagesForRequest_AnthropicPDFPreflightClassifiesInvalidPDF(t *testing.T) {
 	t.Parallel()
 
-	model := &chattest.FakeModel{ProviderName: " ANTHROPIC ", ModelName: "claude-test"}
+	model := &chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-test"}
 	messages := []fantasy.Message{
 		{
 			Role: fantasy.MessageRoleUser,

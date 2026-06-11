@@ -1,4 +1,4 @@
-package chatpdf
+package chatsanitize
 
 import (
 	"encoding/base64"
@@ -13,18 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func TestValidatePDFPrompt(t *testing.T) {
+func TestValidatePromptLimits(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Rejects invalid Anthropic PDF bytes", func(t *testing.T) {
 		t.Parallel()
 
-		err := ValidatePrompt(
-			" ANTHROPIC ", 200_000,
+		err := ValidatePromptLimits(
+			fantasyanthropic.Name, 200_000,
 			promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))),
 		)
 		classified := requireRejected(t, err)
@@ -34,11 +33,23 @@ func TestValidatePDFPrompt(t *testing.T) {
 		require.Contains(t, err.Error(), "reason=invalid_pdf")
 	})
 
+	t.Run("Fails open for non-canonical provider names", func(t *testing.T) {
+		t.Parallel()
+
+		// Like ApplyAnthropicProviderToolGuard, preflight expects canonical
+		// fantasy provider names and skips anything else.
+		err := ValidatePromptLimits(
+			" ANTHROPIC ", 200_000,
+			promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))),
+		)
+		require.NoError(t, err)
+	})
+
 	t.Run("Rejects encrypted PDFs", func(t *testing.T) {
 		t.Parallel()
 
 		data := append(validPDFWithPages(1), []byte("\ntrailer << /Encrypt 5 0 R >>")...)
-		err := ValidatePrompt(fantasyanthropic.Name, 200_000, promptWithPDF(pdfPart("locked.pdf", data)))
+		err := ValidatePromptLimits(fantasyanthropic.Name, 200_000, promptWithPDF(pdfPart("locked.pdf", data)))
 		classified := requireRejected(t, err)
 		require.Contains(t, classified.Message, "locked.pdf")
 		require.Contains(t, err.Error(), "reason=encrypted_pdf")
@@ -47,10 +58,10 @@ func TestValidatePDFPrompt(t *testing.T) {
 	t.Run("Applies Bedrock caps and skips uncapped providers", func(t *testing.T) {
 		t.Parallel()
 
-		err := ValidatePrompt(fantasybedrock.Name, 200_000, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
+		err := ValidatePromptLimits(fantasybedrock.Name, 200_000, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
 		require.Equal(t, fantasybedrock.Name, requireRejected(t, err).Provider)
 
-		err = ValidatePrompt(fantasyopenai.Name, 0, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
+		err = ValidatePromptLimits(fantasyopenai.Name, 0, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
 		require.NoError(t, err)
 	})
 
@@ -58,15 +69,15 @@ func TestValidatePDFPrompt(t *testing.T) {
 		t.Parallel()
 
 		prompt := promptWithPDF(pdfPart("long.pdf", validPDFWithPages(101)))
-		err := ValidatePrompt(fantasyanthropic.Name, 200_000, prompt)
+		err := ValidatePromptLimits(fantasyanthropic.Name, 200_000, prompt)
 		require.Contains(t, err.Error(), "page_cap=100")
 
-		err = ValidatePrompt(fantasyanthropic.Name, 200_001, prompt)
+		err = ValidatePromptLimits(fantasyanthropic.Name, 200_001, prompt)
 		require.NoError(t, err)
 	})
 }
 
-func TestValidatePDFPromptWithCaps(t *testing.T) {
+func TestValidatePromptLimitsWithCaps(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Counts repeated PDF parts and aggregate pages", func(t *testing.T) {
@@ -94,8 +105,51 @@ func TestValidatePDFPromptWithCaps(t *testing.T) {
 			},
 		)
 		classified := requireRejected(t, err)
-		require.Contains(t, classified.Message, "request limit")
+		require.Contains(t, classified.Message, "too large")
 		require.Contains(t, err.Error(), "reason=payload_cap")
+	})
+
+	t.Run("Counts every part type toward the request estimate", func(t *testing.T) {
+		t.Parallel()
+
+		// The estimate is a lower bound on the real request body, so every
+		// part type must contribute. Each prompt alone fits under the
+		// injected cap; together they exceed it.
+		caps := limits{requestPayloadBytes: 40, pageCap: 100}
+		parts := []fantasy.MessagePart{
+			fantasy.TextPart{Text: strings.Repeat("x", 30)},
+			fantasy.ToolCallPart{ToolName: "grep", Input: strings.Repeat("y", 30)},
+			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentText{Text: strings.Repeat("z", 30)}},
+		}
+		for _, part := range parts {
+			require.NoError(t, validateWithCaps(promptWithParts(part), caps))
+			err := validateWithCaps(promptWithParts(part, part), caps)
+			requireRejected(t, err)
+			require.Contains(t, err.Error(), "reason=payload_cap")
+		}
+	})
+
+	t.Run("Rejects oversized requests without PDFs", func(t *testing.T) {
+		t.Parallel()
+
+		err := validateWithCaps(promptWithParts(
+			fantasy.TextPart{Text: strings.Repeat("x", 11)},
+		), limits{requestPayloadBytes: 10, pageCap: 100})
+		requireRejected(t, err)
+		require.Contains(t, err.Error(), "reason=payload_cap")
+	})
+
+	t.Run("Tolerates typed-nil tool parts", func(t *testing.T) {
+		t.Parallel()
+
+		// Replayed history hands the walker arbitrary parts, and
+		// fantasy.AsMessagePart dereferences typed-nil pointers, so the
+		// estimate must use the package's nil-safe casts.
+		err := validateWithCaps(promptWithParts(
+			(*fantasy.ToolCallPart)(nil),
+			(*fantasy.ToolResultPart)(nil),
+		), limits{requestPayloadBytes: 1 << 20, pageCap: 100})
+		require.NoError(t, err)
 	})
 
 	t.Run("Allows PDFs with unknown page count", func(t *testing.T) {
@@ -112,11 +166,10 @@ func TestValidatePDFPromptWithCaps(t *testing.T) {
 // validateWithCaps exercises the walker with injected caps so aggregation
 // behavior can be tested independently of provider cap derivation.
 func validateWithCaps(prompt []fantasy.Message, caps limits) error {
-	return (&validator{
-		provider:    fantasyanthropic.Name,
-		displayName: chatprovider.ProviderDisplayName(fantasyanthropic.Name),
-		caps:        caps,
-	}).validate(prompt)
+	if caps.displayName == "" {
+		caps.displayName = "Anthropic"
+	}
+	return (&validator{provider: fantasyanthropic.Name, caps: caps}).validate(prompt)
 }
 
 func requireRejected(t *testing.T, err error) chaterror.ClassifiedError {
@@ -134,7 +187,11 @@ func promptWithPDF(parts ...fantasy.FilePart) []fantasy.Message {
 	for _, part := range parts {
 		content = append(content, part)
 	}
-	return []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: content}}
+	return promptWithParts(content...)
+}
+
+func promptWithParts(parts ...fantasy.MessagePart) []fantasy.Message {
+	return []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: parts}}
 }
 
 func pdfPart(name string, data []byte) fantasy.FilePart {
