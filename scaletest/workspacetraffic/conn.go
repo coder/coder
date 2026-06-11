@@ -154,8 +154,11 @@ func (c *rptyConn) Close() (err error) {
 	if _, err = c.writeNoLock([]byte("\u0003")); err != nil {
 		// We couldn't interrupt the command, force close the connection to
 		// unblock the read before returning.
-		cerr := c.forceClose()
-		return errors.Join(xerrors.Errorf("write ctrl+c: %w", err), cerr)
+		if cerr := c.forceClose(); cerr != nil {
+			cerr = xerrors.Errorf("force close: %w", cerr)
+			return errors.Join(xerrors.Errorf("write ctrl+c: %w", err), cerr)
+		}
+		return xerrors.Errorf("write ctrl+c: %w", err)
 	}
 
 	// Wait for the server to close the connection, which unblocks the read. If
@@ -171,7 +174,7 @@ func (c *rptyConn) Close() (err error) {
 		return err
 	case <-t.C:
 		if err := c.forceClose(); err != nil {
-			return err
+			return xerrors.Errorf("force close: %w", err)
 		}
 		return errRPTYGracefulCloseTimeout
 	}
