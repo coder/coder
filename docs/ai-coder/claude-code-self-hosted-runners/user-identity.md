@@ -44,15 +44,15 @@ on the `on-demand-user-identity` branch.
 Compared to [System identity](./system-identity.md), user identity
 restores the per-developer audit trail across the whole stack:
 
-| Concern                  | System identity                                          | User identity                                                              |
-|--------------------------|----------------------------------------------------------|----------------------------------------------------------------------------|
-| Coder workspace owner    | A bot service account                                    | The Coder user who matches the Claude Code session creator                 |
-| Git push credential      | A fleet-wide bot PAT delivered as a Terraform variable   | The user's own git push credential via Coder external auth                 |
-| Git author on commits    | The bot                                                  | The developer's identity (via Coder external auth)                         |
-| Coder audit log          | Attributes to the bot service account                    | Attributes to the user, with the service account shown as on-behalf-of creator |
-| Routing                  | Anthropic picks any free runner; the runner locks on first session | The orchestrator's hook creates a workspace per session, owned by the matching user |
-| Pool size / concurrency  | Fixed: at most `instances` concurrent Anthropic users    | Dynamic: one workspace per session, spawned on demand                      |
-| Unknown user handling    | Not possible to detect: the workspace runs as the bot    | Hook rejects with exit 1 so the session backs off; the user can be onboarded before the next retry |
+| Concern                 | System identity                                                    | User identity                                                                                      |
+|-------------------------|--------------------------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Coder workspace owner   | A bot service account                                              | The Coder user who matches the Claude Code session creator                                         |
+| Git push credential     | A fleet-wide bot PAT delivered as a Terraform variable             | The user's own git push credential via Coder external auth                                         |
+| Git author on commits   | The bot                                                            | The developer's identity (via Coder external auth)                                                 |
+| Coder audit log         | Attributes to the bot service account                              | Attributes to the user, with the service account shown as on-behalf-of creator                     |
+| Routing                 | Anthropic picks any free runner; the runner locks on first session | The orchestrator's hook creates a workspace per session, owned by the matching user                |
+| Pool size / concurrency | Fixed: at most `instances` concurrent Anthropic users              | Dynamic: one workspace per session, spawned on demand                                              |
+| Unknown user handling   | Not possible to detect: the workspace runs as the bot              | Hook rejects with exit 1 so the session backs off; the user can be onboarded before the next retry |
 
 The single biggest practical win is that **per-developer git push,
 external-auth refresh, and Coder audit log all just work the way the

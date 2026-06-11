@@ -22,20 +22,20 @@ WIDTH="${3:-1280}"
 HEIGHT="${4:-2400}"
 
 if [[ -z "$URL" || -z "$OUT" ]]; then
-  echo "usage: $0 <docs-url> <output-png> [viewport-width] [page-height]" >&2
-  exit 2
+	echo "usage: $0 <docs-url> <output-png> [viewport-width] [page-height]" >&2
+	exit 2
 fi
 
 BROWSER=""
 for c in google-chrome chromium chromium-browser; do
-  if command -v "$c" >/dev/null 2>&1; then
-    BROWSER="$c"
-    break
-  fi
+	if command -v "$c" >/dev/null 2>&1; then
+		BROWSER="$c"
+		break
+	fi
 done
 if [[ -z "$BROWSER" ]]; then
-  echo "no chrome or chromium found in PATH" >&2
-  exit 1
+	echo "no chrome or chromium found in PATH" >&2
+	exit 1
 fi
 
 # Use a fresh user-data-dir per invocation to avoid clashing with any
@@ -49,20 +49,20 @@ SEP="?"
 URL_CB="${URL}${SEP}t=$(date +%s%N)"
 
 "$BROWSER" \
-  --headless=new \
-  --disable-gpu \
-  --no-sandbox \
-  --disable-dev-shm-usage \
-  --hide-scrollbars \
-  --user-data-dir="$TMP_PROFILE" \
-  --window-size="${WIDTH},${HEIGHT}" \
-  --screenshot="$OUT" \
-  "$URL_CB" 2>&1 |
-  grep -vE 'dbus|GPU process|registration_request|TensorFlow|XNNPACK' || true
+	--headless=new \
+	--disable-gpu \
+	--no-sandbox \
+	--disable-dev-shm-usage \
+	--hide-scrollbars \
+	--user-data-dir="$TMP_PROFILE" \
+	--window-size="${WIDTH},${HEIGHT}" \
+	--screenshot="$OUT" \
+	"$URL_CB" 2>&1 |
+	grep -vE 'dbus|GPU process|registration_request|TensorFlow|XNNPACK' || true
 
 if [[ ! -s "$OUT" ]]; then
-  echo "screenshot failed: $OUT is empty or missing" >&2
-  exit 1
+	echo "screenshot failed: $OUT is empty or missing" >&2
+	exit 1
 fi
 
 echo "saved $OUT"

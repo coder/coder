@@ -1100,6 +1100,12 @@
 							"description": "Design history, sub-stages, and open questions tracked alongside the delivery.",
 							"path": "./ai-coder/claude-code-self-hosted-runners/plan.md",
 							"state": ["early access"]
+						},
+						{
+							"title": "On-demand runners",
+							"description": "Claude Code self-hosted runners on demand instead of maintaining a fixed fleet.",
+							"path": "./ai-coder/claude-code-self-hosted-runners/on-demand.md",
+							"state": ["early access"]
 						}
 					]
 				},
