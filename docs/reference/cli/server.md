@@ -971,7 +971,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code>   |
 | YAML        | <code>networking.proxyTrustedOrigins</code> |
 
-Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
 ### --cache-dir
 
