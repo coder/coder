@@ -498,7 +498,7 @@ func withGroupRestrictedTemplateACL(t testing.TB, db database.Store, org databas
 }
 
 type devcontainerSubAgentDRPCClient struct {
-	proto.DRPCAgentClient28
+	proto.DRPCAgentClient26
 	api *agentapi.SubAgentAPI
 }
 
