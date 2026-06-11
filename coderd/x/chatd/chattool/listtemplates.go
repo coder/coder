@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/frontmatter"
 )
 
 const listTemplatesPageSize = 10
@@ -115,6 +116,23 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			}
 			pageTemplates := templates[start:end]
 
+			// Fetch the active version READMEs for this page in one batched
+			// query so we can surface agent_description for targeted selection
+			// without an N+1. Best-effort: a failure must not fail
+			// list_templates.
+			readmeByVersion := make(map[uuid.UUID]string, len(pageTemplates))
+			versionIDs := make([]uuid.UUID, 0, len(pageTemplates))
+			for _, t := range pageTemplates {
+				versionIDs = append(versionIDs, t.ActiveVersionID)
+			}
+			if len(versionIDs) > 0 {
+				if versions, vErr := db.GetTemplateVersionsByIDs(ctx, versionIDs); vErr == nil {
+					for _, v := range versions {
+						readmeByVersion[v.ID] = v.Readme
+					}
+				}
+			}
+
 			items := make([]map[string]any, 0, len(pageTemplates))
 			for _, t := range pageTemplates {
 				item := map[string]any{
@@ -127,6 +145,13 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				}
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
+				}
+				// agent_description is the longer, agent-only routing context
+				// from the active version README frontmatter. It is surfaced in
+				// full so the agent can pick a template from a single
+				// list_templates call.
+				if agentDesc := frontmatter.AgentDescription(readmeByVersion[t.ActiveVersionID]); agentDesc != "" {
+					item["agent_description"] = agentDesc
 				}
 				if count, ok := ownerCounts[t.ID]; ok && count > 0 {
 					item["active_developers"] = count

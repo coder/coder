@@ -3,6 +3,7 @@ package chattool_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -300,4 +301,69 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.False(t, createCalled, "CreateFn should not be called for blocked template")
 		})
 	})
+}
+
+func TestListTemplates_AgentDescription(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// A long agent_description (well over the 200-rune `description` cap) lets
+	// us prove the list surfaces it in full, untruncated.
+	longDesc := strings.Repeat("Go with Docker. ", 40) // 640 chars
+	longDesc = strings.TrimSpace(longDesc)
+	withDesc := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Readme:         "---\nagent_description: " + longDesc + "\n---\n# Title\n",
+	})
+	tWith := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		CreatedBy:       user.ID,
+		Name:            "with-desc",
+		ActiveVersionID: withDesc.ID,
+	})
+
+	noDesc := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Readme:         "# Just a heading\n\nNo frontmatter here.\n",
+	})
+	tWithout := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		CreatedBy:       user.ID,
+		Name:            "no-desc",
+		ActiveVersionID: noDesc.ID,
+	})
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{OwnerID: user.ID})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "list", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	items := result["templates"].([]any)
+
+	byID := make(map[string]map[string]any, len(items))
+	for _, it := range items {
+		m := it.(map[string]any)
+		byID[m["id"].(string)] = m
+	}
+
+	with := byID[tWith.ID.String()]
+	require.NotNil(t, with)
+	require.Equal(t, longDesc, with["agent_description"], "agent_description must be surfaced in full, untruncated")
+
+	without := byID[tWithout.ID.String()]
+	require.NotNil(t, without)
+	_, ok := without["agent_description"]
+	require.False(t, ok, "agent_description should be omitted when the README has no frontmatter")
 }
