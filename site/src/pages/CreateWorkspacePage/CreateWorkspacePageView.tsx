@@ -590,7 +590,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										auth={auth}
 										isLoading={externalAuthPollingState[auth.id] === "polling"}
 										onStartPolling={() => startPollingExternalAuth(auth.id)}
-										displayRetry={externalAuthPollingState[auth.id] === "abandoned"}
+										displayRetry={
+											externalAuthPollingState[auth.id] === "abandoned"
+										}
 									/>
 								))}
 							</div>

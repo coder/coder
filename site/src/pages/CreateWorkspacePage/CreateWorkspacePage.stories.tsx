@@ -10,7 +10,10 @@ import {
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
 } from "#/testHelpers/entities";
-import { withAuthProvider, withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import CreateWorkspacePage from "./CreateWorkspacePage";
 
 const MockGitLabExternalAuth: TemplateVersionExternalAuth = {
@@ -219,8 +222,9 @@ export const SequentialAuthFlow: Story = {
 			// Polling picks up the updated mock that returns GitHub as
 			// authenticated. The "Authenticated" text replaces the button.
 			await waitFor(() => {
-				expect(canvas.queryByRole("button", { name: /login with github/i }))
-					.not.toBeInTheDocument();
+				expect(
+					canvas.queryByRole("button", { name: /login with github/i }),
+				).not.toBeInTheDocument();
 			});
 		});
 

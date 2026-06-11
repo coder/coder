@@ -436,10 +436,8 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 	versionId,
 	missedExternalAuth,
 }) => {
-	const {
-		startPollingExternalAuth,
-		externalAuthPollingState,
-	} = useExternalAuth(versionId);
+	const { startPollingExternalAuth, externalAuthPollingState } =
+		useExternalAuth(versionId);
 
 	return missedExternalAuth.map((auth) => {
 		return (
@@ -447,7 +445,10 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 				<Button
 					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
-					disabled={externalAuthPollingState[auth.id] === "polling" || auth.authenticated}
+					disabled={
+						externalAuthPollingState[auth.id] === "polling" ||
+						auth.authenticated
+					}
 					onClick={() => {
 						window.open(
 							auth.authenticate_url,
@@ -463,23 +464,24 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 					Connect to {auth.display_name}
 				</Button>
 
-				{externalAuthPollingState[auth.id] === "abandoned" && !auth.authenticated && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="outline"
-								size="icon"
-								onClick={() => startPollingExternalAuth(auth.id)}
-							>
-								<RedoIcon />
-								<span className="sr-only">Refresh external auth</span>
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent>
-							Retry connecting to {auth.display_name}
-						</TooltipContent>
-					</Tooltip>
-				)}
+				{externalAuthPollingState[auth.id] === "abandoned" &&
+					!auth.authenticated && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={() => startPollingExternalAuth(auth.id)}
+								>
+									<RedoIcon />
+									<span className="sr-only">Refresh external auth</span>
+								</Button>
+							</TooltipTrigger>
+							<TooltipContent>
+								Retry connecting to {auth.display_name}
+							</TooltipContent>
+						</Tooltip>
+					)}
 			</div>
 		);
 	});

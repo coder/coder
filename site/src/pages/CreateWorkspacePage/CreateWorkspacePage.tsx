@@ -470,9 +470,7 @@ const useExternalAuth = (versionId: string | undefined) => {
 		setPollingState((prev) => ({ ...prev, [providerId]: "polling" }));
 	}, []);
 
-	const isAnyPolling = Object.values(pollingState).some(
-		(s) => s === "polling",
-	);
+	const isAnyPolling = Object.values(pollingState).some((s) => s === "polling");
 
 	const { data: externalAuth, isLoading: isLoadingExternalAuth } = useQuery({
 		...templateVersionExternalAuth(versionId ?? ""),
