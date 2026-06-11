@@ -12,10 +12,10 @@ Codex CLI can be configured to use AI Gateway by setting up a custom model provi
 To configure Codex CLI to use AI Gateway, set the following configuration options in your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
-model_provider = "aibridge"
+model_provider = "ai_gateway"
 
-[model_providers.aibridge]
-name = "AI Bridge"
+[model_providers.ai_gateway]
+name = "AI Gateway"
 base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
@@ -27,17 +27,17 @@ To authenticate with AI Gateway, get your **[Coder API token](../../../admin/use
 export OPENAI_API_KEY="<your-coder-api-token>"
 ```
 
-Run Codex as usual. It will automatically use the `aibridge` model provider from your configuration.
+Run Codex as usual. It will automatically use the `ai_gateway` model provider from your configuration.
 
 ## BYOK (Personal API Key)
 
 Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
-model_provider = "aibridge"
+model_provider = "ai_gateway"
 
-[model_providers.aibridge]
-name = "AI Bridge"
+[model_providers.ai_gateway]
+name = "AI Gateway"
 base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
 wire_api = "responses"
 requires_openai_auth = true
@@ -59,10 +59,10 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
-model_provider = "aibridge"
+model_provider = "ai_gateway"
 
-[model_providers.aibridge]
-name = "AI Bridge"
+[model_providers.ai_gateway]
+name = "AI Gateway"
 base_url = "<your-deployment-url>/api/v2/aibridge/chatgpt/v1"
 wire_api = "responses"
 requires_openai_auth = true

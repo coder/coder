@@ -30,6 +30,7 @@ func (m *MockProvider) BridgedRoutes() []string     { return m.Bridged }
 func (m *MockProvider) PassthroughRoutes() []string { return m.Passthrough }
 func (*MockProvider) AuthHeader() string            { return "Authorization" }
 
+func (*MockProvider) KeyPool() *keypool.Pool { return nil }
 func (*MockProvider) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
 	return keypool.KeyFailoverConfig{}
 }

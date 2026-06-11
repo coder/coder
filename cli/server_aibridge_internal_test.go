@@ -744,7 +744,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			provider, err := buildAIProviderFromRow(tt.row, nil, codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
-			})
+			}, nil)
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 			assert.Equal(t, tt.expectedType, provider.Type())
@@ -762,7 +762,7 @@ func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}, nil, codersdk.AIBridgeConfig{
 		AllowBYOK: serpent.Bool(true),
-	})
+	}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }

@@ -78,7 +78,7 @@ func TestOpenAI_KeyFailover(t *testing.T) {
 				successBody = fix.NonStreaming()
 			}
 
-			pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+			pool, err := keypool.New(config.ProviderOpenAI, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 			require.NoError(t, err)
 
 			var requestCount atomic.Int32
@@ -185,7 +185,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			pool, err := keypool.New([]string{"k0", "k1"}, quartz.NewMock(t))
+			pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 			require.NoError(t, err)
 
 			var requestCount atomic.Int32

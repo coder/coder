@@ -2010,6 +2010,14 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetHighestGroupAIBudgetByUser(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetHighestGroupAIBudgetByUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetHighestGroupAIBudgetByUser").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetInboxNotificationByID(ctx, id)
