@@ -58,7 +58,7 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import { getAgentConnectivityIssues } from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -104,9 +104,11 @@ const statusBorderClassByLifecycle: Partial<
 	starting: "border-border-pending",
 	shutting_down: "border-border-pending",
 	ready: "border-border-success",
-	start_timeout: "border-border-warning",
+	// Script errors and timeouts do not affect agent connectivity; they are
+	// surfaced in the per-script log tabs instead.
+	start_timeout: "border-border-success",
 	shutdown_timeout: "border-border-warning",
-	start_error: "border-border-warning",
+	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
 	off: "border-border",
 };
@@ -161,13 +163,16 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const runningScriptsCount = agent.scripts.filter(
 		(s) => s.run_on_start && !s.status,
 	).length;
-	const healthIssues = getAgentHealthIssues(agent);
-	const hasAgentIssues = healthIssues.length > 0;
-	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
+	// Use connectivity issues for agent panel styling and visibility decisions.
+	// Script issues are handled separately in the log tabs.
+	const connectivityIssues = getAgentConnectivityIssues(agent);
+	const hasConnectivityIssues = connectivityIssues.length > 0;
+	const hasWarningConnectivityIssues = connectivityIssues.some(
+		(i) => i.severity === "warning",
+	);
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
-			hasAgentIssues) &&
+		(agent.lifecycle_state !== "ready" || hasConnectivityIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -177,10 +182,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 	useEffect(() => {
 		setShowLogs(
-			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+			(agent.lifecycle_state !== "ready" || hasConnectivityIssues) &&
 				hasStartupFeatures,
 		);
-	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
+	}, [agent.lifecycle_state, hasConnectivityIssues, hasStartupFeatures]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
@@ -331,7 +336,8 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
-	const shouldExpandLogs = showLogs || (!hasStartupFeatures && hasAgentIssues);
+	const shouldExpandLogs =
+		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
 	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
 	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
@@ -542,7 +548,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<span>Logs</span>
 						{agent.lifecycle_state === "starting" &&
 							runningScriptsCount > 0 &&
-							healthIssues.length === 0 && (
+							connectivityIssues.length === 0 && (
 								<Badge
 									variant="default"
 									size="xs"
@@ -557,18 +563,18 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<span>{runningScriptsCount}</span>
 								</Badge>
 							)}
-						{hasAgentIssues && (
+						{hasConnectivityIssues && (
 							<Badge
-								variant={hasWarningIssues ? "warning" : "info"}
+								variant={hasWarningConnectivityIssues ? "warning" : "info"}
 								size="xs"
 								className="ml-1.5"
 							>
-								{hasWarningIssues ? (
+								{hasWarningConnectivityIssues ? (
 									<TriangleAlertIcon className="-ml-0.5" />
 								) : (
 									<InfoIcon className="-ml-0.5" />
 								)}
-								<span>{healthIssues.length}</span>
+								<span>{connectivityIssues.length}</span>
 							</Badge>
 						)}
 					</Button>
@@ -579,12 +585,13 @@ export const AgentRow: FC<AgentRowProps> = ({
 						  Collapse's `in` condition is needed here,
 							or else the Spinner will also show as Collapse is closing
 						*/}
-						{shouldExpandLogs && !(hasAgentIssues || shouldShowLogsTabs) && (
-							<Spinner size="lg" loading className="block mx-auto" />
-						)}
-						{hasAgentIssues && (
+						{shouldExpandLogs &&
+							!(hasConnectivityIssues || shouldShowLogsTabs) && (
+								<Spinner size="lg" loading className="block mx-auto" />
+							)}
+						{hasConnectivityIssues && (
 							<div className="mb-4 flex flex-col gap-3">
-								{healthIssues.map((issue) => (
+								{connectivityIssues.map((issue) => (
 									<AgentAlert
 										key={`${issue.title}-${issue.detail}`}
 										{...issue}
