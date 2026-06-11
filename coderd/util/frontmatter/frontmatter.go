@@ -63,9 +63,10 @@ func AgentDescription(readme string) string {
 }
 
 // separate returns the raw YAML frontmatter and the markdown body. Frontmatter
-// lines are preserved verbatim (indentation intact) so nested YAML parses
-// correctly, and the body is returned verbatim (everything after the closing
-// fence line) to match the example generator's previous output exactly.
+// lines keep their indentation (so nested YAML parses correctly) but are
+// normalized to "\n" line endings, with any trailing "\r" stripped. The body is
+// returned verbatim (everything after the closing fence line) to match the
+// example generator's previous output exactly.
 func separate(readme string) (raw string, body string, err error) {
 	if strings.TrimSpace(readme) == "" {
 		return "", "", xerrors.New("readme is empty")
