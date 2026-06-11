@@ -26,7 +26,7 @@ AI Gateway Proxy operates in two modes depending on the destination:
 
 Clients authenticate by passing their Coder token in the proxy credentials.
 
-<!-- TODO(ssncferreira): Add diagram showing how AI Gateway Proxy works in tunnel and MITM modes -->
+![AI Gateway Proxy MITM and tunnel modes](../../../images/aibridge/ai-gateway-proxy-modes.png)
 
 ## When to use AI Gateway Proxy
 
