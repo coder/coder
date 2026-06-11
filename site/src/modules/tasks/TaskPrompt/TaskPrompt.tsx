@@ -440,15 +440,16 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 		useExternalAuth(versionId);
 
 	return missedExternalAuth.map((auth) => {
+		const isPollingExternalAuth =
+			externalAuthPollingState[auth.id] === "polling";
+		const shouldRetry = externalAuthPollingState[auth.id] === "abandoned";
+
 		return (
 			<div className="flex items-center gap-2" key={auth.id}>
 				<Button
 					className="bg-surface-tertiary hover:bg-surface-quaternary rounded-full text-content-primary"
 					size="sm"
-					disabled={
-						externalAuthPollingState[auth.id] === "polling" ||
-						auth.authenticated
-					}
+					disabled={isPollingExternalAuth || auth.authenticated}
 					onClick={() => {
 						window.open(
 							auth.authenticate_url,
@@ -458,30 +459,29 @@ const ExternalAuthButtons: FC<ExternalAuthButtonProps> = ({
 						startPollingExternalAuth(auth.id);
 					}}
 				>
-					<Spinner loading={externalAuthPollingState[auth.id] === "polling"}>
+					<Spinner loading={isPollingExternalAuth}>
 						<ExternalImage src={auth.display_icon} />
 					</Spinner>
 					Connect to {auth.display_name}
 				</Button>
 
-				{externalAuthPollingState[auth.id] === "abandoned" &&
-					!auth.authenticated && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<Button
-									variant="outline"
-									size="icon"
-									onClick={() => startPollingExternalAuth(auth.id)}
-								>
-									<RedoIcon />
-									<span className="sr-only">Refresh external auth</span>
-								</Button>
-							</TooltipTrigger>
-							<TooltipContent>
-								Retry connecting to {auth.display_name}
-							</TooltipContent>
-						</Tooltip>
-					)}
+				{shouldRetry && !auth.authenticated && (
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<Button
+								variant="outline"
+								size="icon"
+								onClick={() => startPollingExternalAuth(auth.id)}
+							>
+								<RedoIcon />
+								<span className="sr-only">Refresh external auth</span>
+							</Button>
+						</TooltipTrigger>
+						<TooltipContent>
+							Retry connecting to {auth.display_name}
+						</TooltipContent>
+					</Tooltip>
+				)}
 			</div>
 		);
 	});
