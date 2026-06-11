@@ -779,8 +779,8 @@ chat:
 aibridge:
   # Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead.
   # Whether to start an in-memory aibridged instance.
-  # (default: true, type: bool)
-  enabled: true
+  # (default: false, type: bool)
+  enabled: false
   # Deprecated: use --ai-gateway-openai-base-url or CODER_AI_GATEWAY_OPENAI_BASE_URL
   # instead. The base URL of the OpenAI API.
   # (default: https://api.openai.com/v1/, type: string)
@@ -878,8 +878,8 @@ aibridge:
   circuit_breaker_max_requests: 3
 ai_gateway:
   # Whether to start an in-memory AI Gateway instance.
-  # (default: true, type: bool)
-  enabled: true
+  # (default: false, type: bool)
+  enabled: false
   # Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this
   # option seeds provider configuration at startup only exactly once. It will not be
   # used in service runtime. The base URL of the OpenAI API.

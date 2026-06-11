@@ -1053,10 +1053,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
-			// in AGPL builds it does not exist at all. The daemon starts here
-			// unconditionally when the bridge feature is enabled by config so
-			// chatd can use it regardless of license entitlement.
-			if vals.AI.BridgeConfig.Enabled.Value() {
+			// in AGPL builds it does not exist at all.
+			//
+			// The daemon must run whenever either consumer needs it: the
+			// external/licensed AI Gateway HTTP API (CODER_AI_GATEWAY_ENABLED)
+			// or Coder Agents routing chat traffic through the in-process
+			// transport (CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED). Agents get
+			// access regardless of license entitlement; the external HTTP
+			// route stays license-gated.
+			if vals.AI.BridgeConfig.Enabled.Value() || vals.AI.Chat.AIGatewayRoutingEnabled.Value() {
 				aibridgeReg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
 				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
 				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
