@@ -351,6 +351,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 		params := database.UpdateAIProviderParams{
 			ID:          old.ID,
+			Type:        old.Type,
 			DisplayName: displayName,
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
 			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),

@@ -71,21 +71,38 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 	}
 
 	if upd := req.GetUpdateSelf(); upd != nil {
-		for _, addrStr := range upd.Node.Addresses {
-			pre, err := netip.ParsePrefix(addrStr)
-			if err != nil {
-				return xerrors.Errorf("parse node address: %w", err)
-			}
+		// Both Addresses and AllowedIPs are installed into the WireGuard peer
+		// config and drive routing, so an agent may only advertise prefixes
+		// derived from its own UUID. Without this an agent could claim a victim
+		// agent's IP and have traffic routed to it.
+		if err := a.authorizeNodePrefixes(upd.Node.Addresses); err != nil {
+			return xerrors.Errorf("Addresses: %w", err)
+		}
+		if err := a.authorizeNodePrefixes(upd.Node.AllowedIps); err != nil {
+			return xerrors.Errorf("AllowedIps: %w", err)
+		}
+	}
 
-			if pre.Bits() != 128 {
-				return InvalidAddressBitsError{pre.Bits()}
-			}
+	return nil
+}
 
-			if TailscaleServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
-				CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
-				legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
-				return InvalidNodeAddressError{pre.Addr().String()}
-			}
+// authorizeNodePrefixes verifies that every prefix is a /128 address derived
+// from the agent's own UUID (or the legacy workspace agent IP).
+func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
+	for _, prefixStr := range prefixes {
+		pre, err := netip.ParsePrefix(prefixStr)
+		if err != nil {
+			return xerrors.Errorf("parse node address: %w", err)
+		}
+
+		if pre.Bits() != 128 {
+			return InvalidAddressBitsError{pre.Bits()}
+		}
+
+		if TailscaleServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
+			CoderServicePrefix.AddrFromUUID(a.ID).Compare(pre.Addr()) != 0 &&
+			legacyWorkspaceAgentIP.Compare(pre.Addr()) != 0 {
+			return InvalidNodeAddressError{pre.Addr().String()}
 		}
 	}
 

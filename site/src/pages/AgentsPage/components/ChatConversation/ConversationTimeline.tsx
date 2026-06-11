@@ -28,7 +28,6 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
@@ -38,8 +37,7 @@ import {
 	ReadFileTool,
 } from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
-import { ToolIcon } from "../ChatElements/tools/ToolIcon";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
@@ -156,24 +154,19 @@ const ReasoningDisclosure = memo<{
 
 		return (
 			<div data-transcript-row="">
-				<ToolCollapsible
+				<ToolCall.Root
 					className="w-full"
+					status={isStreaming ? "running" : "completed"}
+					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
-					header={
-						<>
-							<ToolIcon name="thinking" isError={false} />
-							{isStreaming ? (
-								<Shimmer as="span" className="text-[13px] leading-6">
-									{title}
-								</Shimmer>
-							) : (
-								<span className="text-[13px] leading-6">{title}</span>
-							)}
-						</>
-					}
 				>
-					{hasText && (
+					<ToolCall.Header
+						iconName="thinking"
+						label={title}
+						showStatus={false}
+					/>
+					<ToolCall.Content>
 						<div
 							ref={previewScrollRef}
 							className={cn(
@@ -189,8 +182,8 @@ const ReasoningDisclosure = memo<{
 								{body}
 							</Response>
 						</div>
-					)}
-				</ToolCollapsible>
+					</ToolCall.Content>
+				</ToolCall.Root>
 			</div>
 		);
 	},
@@ -533,6 +526,11 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
+	// The bottom spacer fakes the height of the hidden action bar so
+	// chain-end messages keep even spacing before the next bubble.
+	// The last transcript message has nothing after it, so the spacer
+	// would render as a dangling blank at the end of the chat.
+	isLastMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -561,6 +559,7 @@ const ChatMessageItem = memo<{
 		hideActions = false,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
+		isLastMessage = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -744,7 +743,7 @@ const ChatMessageItem = memo<{
 								)}
 						</div>
 					)}
-				{displayState.needsAssistantBottomSpacer && (
+				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
 				{previewImage && (
@@ -1289,6 +1288,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								hideActions={!isLastInChain}
 								hasActiveStream={Boolean(hasActiveStream)}
 								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								isLastMessage={msgIdx === displayMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

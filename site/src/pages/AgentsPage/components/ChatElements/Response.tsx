@@ -3,7 +3,7 @@ import {
 	File as FileViewer,
 	type SupportedLanguages,
 } from "@pierre/diffs/react";
-import type { ComponentPropsWithRef, CSSProperties, ReactNode } from "react";
+import type { ComponentPropsWithRef, ReactNode } from "react";
 import {
 	type Components,
 	defaultRehypePlugins,
@@ -98,7 +98,7 @@ const markdownFileViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "12px",
 	"--diffs-line-height": "20px",
-} as CSSProperties;
+};
 
 const createComponents = (
 	fileViewerThemeType: FileViewerThemeType,

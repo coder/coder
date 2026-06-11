@@ -1,6 +1,6 @@
 import type { MotionProps } from "motion/react";
 import { MotionConfig, motion } from "motion/react";
-import type { CSSProperties, ElementType, JSX } from "react";
+import type { ElementType, JSX } from "react";
 
 import { cn } from "#/utils/cn";
 
@@ -53,13 +53,11 @@ const ShimmerComponent = ({
 					className,
 				)}
 				initial={{ backgroundPosition: "100% center" }}
-				style={
-					{
-						"--spread": `${dynamicSpread}px`,
-						backgroundImage:
-							"var(--bg), linear-gradient(hsl(var(--content-secondary)), hsl(var(--content-secondary)))",
-					} as CSSProperties
-				}
+				style={{
+					"--spread": `${dynamicSpread}px`,
+					backgroundImage:
+						"var(--bg), linear-gradient(hsl(var(--content-secondary)), hsl(var(--content-secondary)))",
+				}}
 				transition={{
 					duration,
 					ease: "linear",

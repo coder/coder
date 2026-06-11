@@ -5,6 +5,7 @@ package dbmetrics
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"slices"
 	"time"
@@ -182,6 +183,14 @@ func (m queryMetricsStore) AutoArchiveInactiveChats(ctx context.Context, arg dat
 	r0, r1 := m.s.AutoArchiveInactiveChats(ctx, arg)
 	m.queryLatencies.WithLabelValues("AutoArchiveInactiveChats").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "AutoArchiveInactiveChats").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	start := time.Now()
+	r0, r1 := m.s.BackfillChatModelConfigProvider(ctx, arg)
+	m.queryLatencies.WithLabelValues("BackfillChatModelConfigProvider").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackfillChatModelConfigProvider").Inc()
 	return r0, r1
 }
 
@@ -1998,6 +2007,14 @@ func (m queryMetricsStore) GetHealthSettings(ctx context.Context) (string, error
 	r0, r1 := m.s.GetHealthSettings(ctx)
 	m.queryLatencies.WithLabelValues("GetHealthSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetHealthSettings").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetHighestGroupAIBudgetByUser(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetHighestGroupAIBudgetByUser").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetHighestGroupAIBudgetByUser").Inc()
 	return r0, r1
 }
 

@@ -110,7 +110,7 @@ For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Config
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 For proxy setup details, see [AI Gateway Proxy setup](../ai-gateway-proxy/setup.md).

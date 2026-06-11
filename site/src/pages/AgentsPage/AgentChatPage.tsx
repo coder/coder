@@ -63,7 +63,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
@@ -1130,31 +1129,6 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const isAdmin = permissions.editDeploymentConfig;
-	const agentSetupNotice = (() => {
-		// Admin: show when providers or models are missing
-		if (
-			isAdmin &&
-			providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		) {
-			return (
-				<AgentSetupNotice
-					isAdmin
-					providerCount={providerCount}
-					modelCount={modelCount}
-				/>
-			);
-		}
-		// Member: show when no models are available
-		if (!isAdmin && modelCount !== undefined && modelCount === 0) {
-			return (
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			);
-		}
-		return undefined;
-	})();
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
@@ -1506,7 +1480,7 @@ const AgentChatPage: FC = () => {
 		if (!response.queued) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
-			// "Thinking..." indicator appears immediately.
+			// Thinking indicator appears immediately.
 			// The server accepted the message (not queued),
 			// so it will start processing. The WebSocket
 			// status:running event no-ops via the
@@ -1602,6 +1576,7 @@ const AgentChatPage: FC = () => {
 
 	return (
 		<AgentChatPageView
+			key={agentId}
 			agentId={agentId}
 			sendShortcut={getAgentChatSendShortcut(
 				preferencesQuery.data?.agent_chat_send_shortcut,
@@ -1625,7 +1600,9 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			providerCount={providerCount}
+			modelCount={modelCount}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

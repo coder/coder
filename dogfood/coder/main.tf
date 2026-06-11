@@ -411,7 +411,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.4"
+  version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -1039,7 +1039,7 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.0.0"
+  version           = "5.1.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value

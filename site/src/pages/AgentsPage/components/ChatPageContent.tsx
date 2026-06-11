@@ -169,7 +169,9 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
-	agentSetupNotice?: ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -234,7 +236,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -490,7 +494,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
 		/>
 	);
 
@@ -501,11 +507,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	return (
 		<div>
 			{inputElement}
-			{modelSelectorHelp && (
-				<div className="px-3 pt-1 text-2xs text-content-secondary">
-					{modelSelectorHelp}
-				</div>
-			)}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
 		</div>
 	);
 };

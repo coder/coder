@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -70,6 +71,11 @@ type sqlcQuerier interface {
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
+	// old_provider is matched as text; new_provider is also cast to ai_provider_type
+	// for the EXISTS check against ai_providers.type.
+	// ai_provider_id IS NOT NULL is defensive; the check constraint already
+	// enforces that non-deleted rows always have a provider ID.
+	BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
@@ -503,6 +509,13 @@ type sqlcQuerier interface {
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
+	// Returns the highest group AI budget across the groups the user belongs to,
+	// breaking ties by group name ascending. Implements the "highest" budget policy.
+	// group_members_expanded is a UNION of group_members and organization_members,
+	// so the implicit "Everyone" group (group_id == organization_id) is included.
+	// Returns no rows when the user has no budgeted groups; callers should treat
+	// sql.ErrNoRows as "no group budget".
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID

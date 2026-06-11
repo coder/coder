@@ -738,19 +738,21 @@ const updateAIProvider = `-- name: UpdateAIProvider :one
 UPDATE
     ai_providers
 SET
-    display_name = $1::text,
-    enabled = $2::boolean,
-    base_url = $3::text,
-    settings = $4::text,
-    settings_key_id = $5::text,
+    type = $1::ai_provider_type,
+    display_name = $2::text,
+    enabled = $3::boolean,
+    base_url = $4::text,
+    settings = $5::text,
+    settings_key_id = $6::text,
     updated_at = NOW()
 WHERE
-    id = $6::uuid AND deleted = FALSE
+    id = $7::uuid AND deleted = FALSE
 RETURNING
     id, type, name, display_name, enabled, deleted, base_url, settings, settings_key_id, created_at, updated_at
 `
 
 type UpdateAIProviderParams struct {
+	Type          AIProviderType `db:"type" json:"type"`
 	DisplayName   sql.NullString `db:"display_name" json:"display_name"`
 	Enabled       bool           `db:"enabled" json:"enabled"`
 	BaseUrl       string         `db:"base_url" json:"base_url"`
@@ -761,6 +763,7 @@ type UpdateAIProviderParams struct {
 
 func (q *sqlQuerier) UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error) {
 	row := q.db.QueryRowContext(ctx, updateAIProvider,
+		arg.Type,
 		arg.DisplayName,
 		arg.Enabled,
 		arg.BaseUrl,
@@ -2614,6 +2617,41 @@ func (q *sqlQuerier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (G
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
+	return i, err
+}
+
+const getHighestGroupAIBudgetByUser = `-- name: GetHighestGroupAIBudgetByUser :one
+SELECT
+	gaib.group_id,
+	gaib.spend_limit_micros
+FROM group_ai_budgets gaib
+JOIN group_members_expanded gme ON gme.group_id = gaib.group_id
+WHERE gme.user_id = $1
+ORDER BY
+	gaib.spend_limit_micros DESC, -- highest wins
+	gme.group_name ASC,           -- alphabetical tiebreak
+	-- Final tiebreak on the group id makes the result deterministic when two
+	-- groups share both name and limit, which is possible across organizations
+	-- (groups are unique on (organization_id, name), not name alone).
+	gaib.group_id ASC
+LIMIT 1
+`
+
+type GetHighestGroupAIBudgetByUserRow struct {
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+}
+
+// Returns the highest group AI budget across the groups the user belongs to,
+// breaking ties by group name ascending. Implements the "highest" budget policy.
+// group_members_expanded is a UNION of group_members and organization_members,
+// so the implicit "Everyone" group (group_id == organization_id) is included.
+// Returns no rows when the user has no budgeted groups; callers should treat
+// sql.ErrNoRows as "no group budget".
+func (q *sqlQuerier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error) {
+	row := q.db.QueryRowContext(ctx, getHighestGroupAIBudgetByUser, userID)
+	var i GetHighestGroupAIBudgetByUserRow
+	err := row.Scan(&i.GroupID, &i.SpendLimitMicros)
 	return i, err
 }
 
@@ -5514,6 +5552,37 @@ func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsig
 		return nil, err
 	}
 	return items, nil
+}
+
+const backfillChatModelConfigProvider = `-- name: BackfillChatModelConfigProvider :execresult
+UPDATE
+    chat_model_configs
+SET
+    provider   = $1::text,
+    updated_at = NOW()
+WHERE
+    provider          = $2::text
+    AND deleted       = FALSE
+    AND ai_provider_id IS NOT NULL
+    AND EXISTS (
+        SELECT 1 FROM ai_providers
+        WHERE  id      = chat_model_configs.ai_provider_id
+          AND  type    = $1::ai_provider_type
+          AND  deleted = FALSE
+    )
+`
+
+type BackfillChatModelConfigProviderParams struct {
+	NewProvider string `db:"new_provider" json:"new_provider"`
+	OldProvider string `db:"old_provider" json:"old_provider"`
+}
+
+// old_provider is matched as text; new_provider is also cast to ai_provider_type
+// for the EXISTS check against ai_providers.type.
+// ai_provider_id IS NOT NULL is defensive; the check constraint already
+// enforces that non-deleted rows always have a provider ID.
+func (q *sqlQuerier) BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, backfillChatModelConfigProvider, arg.NewProvider, arg.OldProvider)
 }
 
 const deleteChatModelConfigByID = `-- name: DeleteChatModelConfigByID :exec
@@ -33203,6 +33272,42 @@ ON CONFLICT (id) DO UPDATE SET
     agent_id = EXCLUDED.agent_id,
     slug = EXCLUDED.slug,
     tooltip = EXCLUDED.tooltip
+WHERE
+    -- Prevent cross-tenant/cross-workspace agent rebinding (SEC-91).
+    -- App IDs persist across builds of the same workspace, but agent IDs are
+    -- regenerated every build, so compare by the workspace that owns the agent
+    -- rather than by agent_id. Permit unowned apps to be claimed and permit
+    -- same-workspace rebuilds. If an existing app belongs to a workspace, block
+    -- moves to both different workspaces and template import or dry-run agents
+    -- that resolve to no workspace. The conflicting row is then left untouched,
+    -- and the :one query returns no row, which the caller treats as a
+    -- rejection.
+    NOT EXISTS (
+        SELECT 1
+        FROM workspace_agents AS existing_agent
+        INNER JOIN workspace_resources AS existing_resource
+            ON existing_agent.resource_id = existing_resource.id
+        INNER JOIN workspace_builds AS existing_build
+            ON existing_resource.job_id = existing_build.job_id
+        WHERE existing_agent.id = workspace_apps.agent_id
+    )
+    OR EXISTS (
+        SELECT 1
+        FROM workspace_agents AS existing_agent
+        INNER JOIN workspace_resources AS existing_resource
+            ON existing_agent.resource_id = existing_resource.id
+        INNER JOIN workspace_builds AS existing_build
+            ON existing_resource.job_id = existing_build.job_id
+        INNER JOIN workspace_agents AS incoming_agent
+            ON incoming_agent.id = EXCLUDED.agent_id
+        INNER JOIN workspace_resources AS incoming_resource
+            ON incoming_agent.resource_id = incoming_resource.id
+        INNER JOIN workspace_builds AS incoming_build
+            ON incoming_resource.job_id = incoming_build.job_id
+        WHERE
+            existing_agent.id = workspace_apps.agent_id
+            AND existing_build.workspace_id = incoming_build.workspace_id
+    )
 RETURNING id, created_at, agent_id, display_name, icon, command, url, healthcheck_url, healthcheck_interval, healthcheck_threshold, health, subdomain, sharing_level, slug, external, display_order, hidden, open_in, display_group, tooltip
 `
 
@@ -36201,15 +36306,20 @@ WHERE
 			END
 		) OR
 
-		-- A workspace may be eligible for failed stop if the following are true:
+		-- A workspace may be eligible for failed cleanup if the following are true:
 		--   * The template has a failure ttl set.
-		--   * The workspace build was a start transition.
+		--   * The workspace build was a start or stop transition. A failed start
+		--     is cleaned up by stopping it; a failed stop is retried by issuing
+		--     another stop.
 		--   * The provisioner job failed.
 		--   * The provisioner job had completed.
 		--   * The provisioner job has been completed for longer than the failure ttl.
 		(
 			templates.failure_ttl > 0 AND
-			workspace_builds.transition = 'start'::workspace_transition AND
+			(
+				workspace_builds.transition = 'start'::workspace_transition OR
+				workspace_builds.transition = 'stop'::workspace_transition
+			) AND
 			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
 			provisioner_jobs.completed_at IS NOT NULL AND
 			($1 :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))

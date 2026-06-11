@@ -1701,6 +1701,13 @@ func (q *querier) AutoArchiveInactiveChats(ctx context.Context, arg database.Aut
 	return q.db.AutoArchiveInactiveChats(ctx, arg)
 }
 
+func (q *querier) BackfillChatModelConfigProvider(ctx context.Context, arg database.BackfillChatModelConfigProviderParams) (sql.Result, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return nil, err
+	}
+	return q.db.BackfillChatModelConfigProvider(ctx, arg)
+}
+
 func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	// This is a system-level operation used by the gitsync
 	// background worker to reschedule failed refreshes. Same
@@ -3623,6 +3630,13 @@ func (q *querier) GetGroups(ctx context.Context, arg database.GetGroupsParams) (
 func (q *querier) GetHealthSettings(ctx context.Context) (string, error) {
 	// No authz checks
 	return q.db.GetHealthSettings(ctx)
+}
+
+func (q *querier) GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error) {
+	if _, err := q.GetUserByID(ctx, userID); err != nil { // AuthZ check
+		return database.GetHighestGroupAIBudgetByUserRow{}, err
+	}
+	return q.db.GetHighestGroupAIBudgetByUser(ctx, userID)
 }
 
 func (q *querier) GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (database.InboxNotification, error) {

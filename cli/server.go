@@ -57,6 +57,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -430,6 +431,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
+			configSSHOptions, err := vals.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+			}
+			sshConfigResponse := codersdk.SSHConfigResponse{
+				HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
+				HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
+				SSHConfigOptions: configSSHOptions,
+			}
+			if err := sshConfigResponse.Validate(); err != nil {
+				return xerrors.Errorf("invalid ssh config: %w", err)
+			}
+
 			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
@@ -640,20 +654,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
-			configSSHOptions, err := vals.SSHConfig.ParseOptions()
-			if err != nil {
-				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
-			}
-
-			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
-			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
-			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
-			// 'en.coder' but not 'encoder'.
-			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
-				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
-					vals.WorkspaceHostnameSuffix.String())
-			}
-
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -683,14 +683,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				HTTPClient:                  httpClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
-				SSHConfig: codersdk.SSHConfigResponse{
-					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
-					SSHConfigOptions: configSSHOptions,
-					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
-				},
-				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
-				Entitlements:          entitlements.New(),
-				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				SSHConfig:                   sshConfigResponse,
+				AllowWorkspaceRenames:       vals.AllowWorkspaceRenames.Value(),
+				Entitlements:                entitlements.New(),
+				NotificationsEnqueuer:       notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -1052,6 +1048,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			); err != nil {
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
+			// Must run after newAPI so options.Database is dbcrypt-wrapped.
+			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
+			// Must run after BackfillBedrockProviderType; shares aibridgeInitCtx so
+			// a timeout on the first backfill will skip this one until next startup.
+			coderd.BackfillChatModelConfigProviderStrings(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
@@ -1061,12 +1062,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
+				aibridgeReg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
+				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -2906,11 +2909,22 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // external auth providers. A prefix is provided to support the legacy
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
-	// The index numbers must be in-order.
-	slices.Sort(environ)
+	parsed := serpent.ParseEnviron(environ, prefix)
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	// A lexicographic sort would order PROVIDER_10 between PROVIDER_1 and
+	// PROVIDER_2 and trip the "provider num skipped" check below.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range serpent.ParseEnviron(environ, prefix) {
+	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)

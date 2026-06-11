@@ -4,7 +4,7 @@ import type { WorkspaceAgent } from "#/api/typesGenerated";
  * Canonical messages for startup and shutdown script issues.
  * Used by the per-agent-row tooltips in AgentStatus; the
  * start-related entries are also shared with per-agent health
- * classification in getAgentHealthIssues.
+ * classification in getAgentScriptIssues.
  */
 export const agentScriptMessages = {
 	start_error: {
@@ -62,9 +62,12 @@ interface AgentHealthIssue {
 }
 
 /**
- * Classifies all health issues for an individual agent.
+ * Classifies connectivity-related health issues for an individual agent.
+ * These issues affect the agent panel border color and warning visibility.
+ * Script failures are excluded from this function to prevent them from
+ * incorrectly suggesting agent connectivity problems.
  */
-export function getAgentHealthIssues(
+export function getAgentConnectivityIssues(
 	agent: WorkspaceAgent,
 ): AgentHealthIssue[] {
 	const issues: AgentHealthIssue[] = [];
@@ -87,6 +90,10 @@ export function getAgentHealthIssues(
 		});
 	}
 
+	// Shutdown lifecycle states are treated as connectivity concerns rather than
+	// script concerns because the workspace is actively becoming unavailable;
+	// unlike startup script failures, the agent is no longer reachable once
+	// shutdown begins.
 	if (
 		agent.lifecycle_state === "shutting_down" ||
 		agent.lifecycle_state === "shutdown_error" ||
@@ -100,9 +107,28 @@ export function getAgentHealthIssues(
 		});
 	}
 
-	// Ignore `start_error` and `start_timeout`, as these will eventually be
-	// removed from agent health.  Instead, figure out if a script failed to start
-	// by looking directly at the scripts.
+	if (agent.status === "connecting") {
+		issues.push({
+			title: agentConnectionMessages.connecting.title,
+			detail: agentConnectionMessages.connecting.detail,
+			severity: "info",
+			prominent: false,
+		});
+	}
+
+	return issues;
+}
+
+/**
+ * Classifies script-related health issues for an individual agent.
+ * These issues are shown only in the script tabs, not in the agent panel header.
+ */
+export function getAgentScriptIssues(
+	agent: WorkspaceAgent,
+): AgentHealthIssue[] {
+	const issues: AgentHealthIssue[] = [];
+
+	// Check for script failures directly from the scripts array.
 	for (const script of agent.scripts) {
 		switch (script.status) {
 			case "timed_out":
@@ -141,14 +167,15 @@ export function getAgentHealthIssues(
 		}
 	}
 
-	if (agent.status === "connecting") {
-		issues.push({
-			title: agentConnectionMessages.connecting.title,
-			detail: agentConnectionMessages.connecting.detail,
-			severity: "info",
-			prominent: false,
-		});
-	}
-
 	return issues;
+}
+
+/**
+ * Classifies all health issues for an individual agent, combining both
+ * connectivity and script issues.
+ */
+export function getAgentHealthIssues(
+	agent: WorkspaceAgent,
+): AgentHealthIssue[] {
+	return [...getAgentConnectivityIssues(agent), ...getAgentScriptIssues(agent)];
 }

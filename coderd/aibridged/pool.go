@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/tracing"
 )
@@ -146,6 +147,18 @@ func (p *CachedBridgePool) loadProviders() []aibridge.Provider {
 		return *ptr
 	}
 	return nil
+}
+
+// KeyPools returns the key pools of the current live providers.
+func (p *CachedBridgePool) KeyPools() []*keypool.Pool {
+	providers := p.loadProviders()
+	pools := make([]*keypool.Pool, 0, len(providers))
+	for _, prov := range providers {
+		if pool := prov.KeyPool(); pool != nil {
+			pools = append(pools, pool)
+		}
+	}
+	return pools
 }
 
 // Acquire retrieves or creates a [*aibridge.RequestBridge] instance per given key.

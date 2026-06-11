@@ -1114,9 +1114,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		// waiting for an unreachable agent. The timeout scopes
 		// only dialWithLazyValidation, not ensureWorkspaceAgent
 		// or the post-dial binding steps.
-		dialCtx, dialCancel := context.WithTimeoutCause(ctx, c.server.dialTimeout, errChatDialTimeout)
+		dialCtx, dialCancelCause := context.WithCancelCause(ctx)
+		dialTimer := c.server.clock.AfterFunc(
+			c.server.dialTimeout,
+			func() { dialCancelCause(errChatDialTimeout) },
+			"chatd",
+			dialTimeoutTimerTag,
+		)
+		dialCancel := func() {
+			dialTimer.Stop()
+			dialCancelCause(nil)
+		}
 		dialResult, err := dialWithLazyValidation(
 			dialCtx,
+			c.server.clock,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
