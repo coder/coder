@@ -26,11 +26,6 @@
 							"title": "Customize workspace startup",
 							"description": "Add support for dotfiles personalization, modify workspace parameters, and add external authentication",
 							"path": "./tutorials/quickstart/customize-workspace-startup.md"
-						},
-						{
-							"title": "Add custom tools to your workspace",
-							"description": "Install custom tools and configure external hardware for your workspace",
-							"path": "./tutorials/quickstart/add-custom-workspace-tools.md"
 						}
 					]
 				},
