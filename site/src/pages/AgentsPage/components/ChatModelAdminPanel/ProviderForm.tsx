@@ -270,8 +270,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 									data-lpignore="true"
 									data-form-type="other"
 									data-bwignore
-									style={{ WebkitTextSecurity: "disc" }}
-									className="h-9 font-mono text-[13px]"
+									className="h-9 font-mono text-[13px] [-webkit-text-security:disc]"
 									placeholder={apiKeyPlaceholder}
 									required={requiresAPIKey}
 									value={apiKey}
