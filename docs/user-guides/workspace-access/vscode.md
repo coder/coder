@@ -45,8 +45,8 @@ Local telemetry is controlled by the VS Code setting `coder.telemetry.level`:
 
 | Value   | Behavior                                                      |
 |---------|---------------------------------------------------------------|
-| `local` | Record telemetry events on this machine. This is the default. |
 | `off`   | Disable extension telemetry collection.                       |
+| `local` | Record telemetry events on this machine. This is the default. |
 
 ### Stored data
 
@@ -58,20 +58,18 @@ terminal contents, tokens, or credentials.
 
 ### Tracked activity
 
-The exact events vary by extension version. They focus on support and debugging
-signals such as:
+The exact events vary by extension version. The following categories summarize
+the diagnostic signals the extension may record:
 
-- extension activation and deployment initialization
-- authentication, token refresh, logout, credential storage, and deployment
-  recovery
-- command execution and diagnostic workflows, such as telemetry export, support
-  bundles, ping, and speed tests
-- workspace selection, open, dev container handoff, start, and update prompts
-- CLI binary resolution, download, verification, and configuration
-- remote setup phases from workspace lookup through SSH handoff
-- workspace and agent state transitions
-- connection lifecycle, reconnects, SSH process health, and network samples
-- HTTP request rollups by normalized route, status class, and latency
+| Area                           | Examples                                                                                     |
+|--------------------------------|----------------------------------------------------------------------------------------------|
+| Extension lifecycle            | Activation, deployment initialization, and configuration loading.                            |
+| Authentication and credentials | Sign-in state, token refresh, logout, credential storage, and deployment recovery.           |
+| Commands and diagnostics       | Command outcomes, telemetry exports, support bundle creation, ping, and speed tests.         |
+| Workspace workflows            | Workspace selection, open attempts, dev container handoff, start, and update prompts.        |
+| CLI and remote setup           | CLI binary resolution, download, verification, configuration, and setup through SSH handoff. |
+| Connection health              | Workspace and agent state transitions, reconnects, SSH process health, and network samples.  |
+| HTTP diagnostics               | Normalized routes, status classes, and latency rollups.                                      |
 
 ### Storage and retention
 
@@ -92,8 +90,8 @@ The extension includes commands for collecting diagnostics from VS Code:
   `vscode-logs/` directory with recent VS Code extension diagnostics, including
   extension logs, proxy and Remote-SSH logs, redacted VS Code settings, and
   local telemetry files when available. The `vscode-logs/` directory is only
-  added when the bundle is created from the Coder Remote extension; bundles
-  created with the CLI alone do not include it.
+  added when the bundle is created from the VS Code Coder Remote extension;
+  bundles created with the CLI alone do not include it.
 - **Coder: View Logs** opens the extension output logs in VS Code.
 
 Support bundles can contain sensitive diagnostic data. Review the generated
