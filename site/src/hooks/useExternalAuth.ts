@@ -46,7 +46,7 @@ export const useExternalAuth = (versionId: string | undefined) => {
 	// Per-provider 60-second timeout.
 	useEffect(() => {
 		const pollingIds = Object.entries(pollingState)
-			.filter(([, s]) => s === "polling")
+			.filter(([, authPollingState]) => authPollingState === "polling")
 			.map(([id]) => id);
 
 		if (pollingIds.length === 0) {
