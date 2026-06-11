@@ -19,7 +19,7 @@ func (a *agent) apiHandler() http.Handler {
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
-		loggermw.Logger(a.logger),
+		loggermw.Logger(a.logger, nil),
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
