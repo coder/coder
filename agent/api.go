@@ -20,7 +20,7 @@ func (a *agent) apiHandler() http.Handler {
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
-		loggermw.Logger(a.logger),
+		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
