@@ -61,6 +61,7 @@ func TestValidatePromptLimits(t *testing.T) {
 
 		prompt := promptWithPDF(pdfPart("long.pdf", validPDFWithPages(101)))
 		err := ValidatePromptLimits(fantasyanthropic.Name, 200_000, prompt)
+		require.Error(t, err)
 		require.Contains(t, err.Error(), "page_cap=100")
 
 		err = ValidatePromptLimits(fantasyanthropic.Name, 200_001, prompt)
@@ -112,6 +113,7 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 			fantasy.ToolCallPart{ToolName: "grep", Input: strings.Repeat("y", 30)},
 			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentText{Text: strings.Repeat("z", 30)}},
 			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentError{Error: xerrors.New(strings.Repeat("e", 30))}},
+			fantasy.FilePart{Filename: "notes.txt", Data: []byte(strings.Repeat("t", 30)), MediaType: "text/plain"},
 		}
 		for _, part := range parts {
 			require.NoError(t, validateWithCaps(promptWithParts(part), caps))
@@ -119,6 +121,42 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 			requireRejected(t, err)
 			require.Contains(t, err.Error(), "reason=payload_cap")
 		}
+	})
+
+	t.Run("Estimates file parts by provider serialization", func(t *testing.T) {
+		t.Parallel()
+
+		// fantasy's anthropic provider base64-encodes images and PDFs,
+		// sends text files as plain-text document sources at raw size, and
+		// drops every other file media type from the request. Counting all
+		// file parts at base64 size would falsely reject text-heavy
+		// requests the provider accepts.
+		data := []byte(strings.Repeat("t", 30))
+		caps := limits{requestPayloadBytes: len(data), pageCap: 100}
+
+		// Raw text size sits exactly at the cap; base64 counting (40 bytes)
+		// would reject it.
+		require.NoError(t, validateWithCaps(promptWithParts(
+			fantasy.FilePart{Filename: "notes.txt", Data: data, MediaType: "text/plain"},
+		), caps))
+
+		// One extra byte of text trips the cap, so text bytes do count.
+		err := validateWithCaps(promptWithParts(
+			fantasy.FilePart{Filename: "notes.txt", Data: append(data, 't'), MediaType: "text/plain"},
+		), caps)
+		requireRejected(t, err)
+		require.Contains(t, err.Error(), "reason=payload_cap")
+
+		// Images are base64-encoded: 30 raw bytes encode to 40, over the cap.
+		err = validateWithCaps(promptWithParts(
+			fantasy.FilePart{Filename: "pic.png", Data: data, MediaType: "image/png"},
+		), caps)
+		requireRejected(t, err)
+
+		// Unsupported file media types never reach the provider request.
+		require.NoError(t, validateWithCaps(promptWithParts(
+			fantasy.FilePart{Filename: "data.json", Data: []byte(strings.Repeat("j", 100)), MediaType: "application/json"},
+		), caps))
 	})
 
 	t.Run("Rejects oversized requests without PDFs", func(t *testing.T) {

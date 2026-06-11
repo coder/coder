@@ -118,7 +118,7 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 	// The payload cap is enforced after the walk so every part counts
 	// regardless of order. The estimate is a lower bound on the real request
 	// body, so exceeding the cap here guarantees the provider would reject.
-	if v.caps.requestPayloadBytes > 0 && v.estimatedRequestBytes > v.caps.requestPayloadBytes {
+	if v.estimatedRequestBytes > v.caps.requestPayloadBytes {
 		return v.reject(
 			fmt.Sprintf("This request is too large for %s's request size limit. Remove or shrink attachments and retry.", v.caps.displayName),
 			"reason=payload_cap estimated_request_bytes=%d request_payload_bytes=%d",
@@ -139,7 +139,7 @@ func (v *validator) checkPDF(file fantasy.FilePart) error {
 
 	if pages, ok := chatfiles.ApproxPDFPageCount(file.Data); ok {
 		v.totalPages += pages
-		if v.caps.pageCap > 0 && v.totalPages > v.caps.pageCap {
+		if v.totalPages > v.caps.pageCap {
 			return v.reject(
 				v.pageCapMessage(name, pages),
 				"reason=page_cap file=%q file_pages=%d total_pages=%d page_cap=%d",
@@ -173,11 +173,11 @@ func attachmentLabel(name string) string {
 }
 
 // estimatePartBytes estimates a part's serialized contribution to the provider
-// request body. Binary data is counted at base64-encoded size. JSON framing
-// overhead is not modeled, so this is a lower bound on the real request size.
+// request body. JSON framing overhead is not modeled, so this is a lower bound
+// on the real request size.
 func estimatePartBytes(part fantasy.MessagePart) int {
 	if file, ok := safeMessagePart[fantasy.FilePart](part); ok {
-		return base64.StdEncoding.EncodedLen(len(file.Data))
+		return estimateFilePartBytes(file)
 	}
 	if text, ok := safeMessagePart[fantasy.TextPart](part); ok {
 		return len(text.Text)
@@ -192,6 +192,22 @@ func estimatePartBytes(part fantasy.MessagePart) int {
 		return toolResultOutputBytes(result.Output)
 	}
 	return 0
+}
+
+// estimateFilePartBytes mirrors how fantasy's anthropic provider (which the
+// bedrock provider wraps) serializes file parts: images and PDFs are
+// base64-encoded, text files are sent as plain-text document sources at raw
+// size, and any other media type is dropped from the request entirely.
+func estimateFilePartBytes(file fantasy.FilePart) int {
+	mediaType := chatfiles.BaseMediaType(file.MediaType)
+	switch {
+	case mediaType == pdfMediaType || strings.HasPrefix(mediaType, "image/"):
+		return base64.StdEncoding.EncodedLen(len(file.Data))
+	case strings.HasPrefix(mediaType, "text/"):
+		return len(file.Data)
+	default:
+		return 0
+	}
 }
 
 func toolResultOutputBytes(output fantasy.ToolResultOutputContent) int {
