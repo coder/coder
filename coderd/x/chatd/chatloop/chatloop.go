@@ -70,8 +70,9 @@ var (
 // metadata is present, its explanation and category are surfaced.
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
 	classified := chaterror.ClassifiedError{
-		Kind:     codersdk.ChatErrorKindContentFilter,
-		Provider: provider,
+		Kind:      codersdk.ChatErrorKindContentFilter,
+		Provider:  provider,
+		Retryable: false,
 	}
 	if refusal := fantasyanthropic.GetRefusalMetadata(metadata); refusal != nil {
 		classified.Message = refusal.Explanation

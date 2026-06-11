@@ -321,6 +321,38 @@ export const TerminalProviderDisabledError: Story = {
 	},
 };
 
+/** Content-filter blocks render the refusal explanation and category without retry. */
+export const TerminalContentFilterError: Story = {
+	args: {
+		...defaultArgs,
+		liveStatus: buildLiveStatus({
+			persistedError: {
+				kind: "content_filter",
+				message:
+					"This response was blocked because it violated our usage policy.",
+				detail: "cyber",
+				provider: "anthropic",
+				retryable: false,
+			},
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("heading", { name: /response blocked/i }),
+		).toBeVisible();
+		expect(
+			canvas.getByText(/blocked because it violated our usage policy/i),
+		).toBeVisible();
+		expect(canvas.getByText(/cyber/i)).toBeVisible();
+		// A provider block is terminal: no retry countdown or status link.
+		expect(canvas.queryByText(/retrying/i)).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("link", { name: /status/i }),
+		).not.toBeInTheDocument();
+	},
+};
+
 /** Generic failures do not show usage or provider CTAs. */
 export const GenericErrorDoesNotShowUsageAction: Story = {
 	args: {

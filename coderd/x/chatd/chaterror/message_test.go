@@ -97,6 +97,20 @@ func TestTerminalMessage(t *testing.T) {
 			retryable: false,
 			want:      "This conversation was started with an API key that is no longer available. Send your message again to continue.",
 		},
+		{
+			name:      "ContentFilter_Anthropic",
+			kind:      codersdk.ChatErrorKindContentFilter,
+			provider:  "anthropic",
+			retryable: false,
+			want:      "Anthropic blocked this response under its content policy.",
+		},
+		{
+			name:      "ContentFilter_UnknownProvider",
+			kind:      codersdk.ChatErrorKindContentFilter,
+			provider:  "",
+			retryable: false,
+			want:      "The AI provider blocked this response under its content policy.",
+		},
 	}
 
 	for _, tt := range tests {
