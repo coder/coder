@@ -60,7 +60,7 @@ terminal contents, tokens, or credentials.
 
 The exact events vary by extension version. For a comprehensive list of current
 events, properties, and attributes, see the
-[extension event reference](https://github.com/coder/vscode-coder/blob/b75c5e49b1c253373fb1128312918c1649e79281/src/instrumentation/EVENTS.md).
+[extension event reference](https://github.com/coder/vscode-coder/blob/main/src/instrumentation/EVENTS.md).
 The following categories summarize the diagnostic signals the extension may
 record:
 
