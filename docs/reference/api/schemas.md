@@ -3655,6 +3655,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
     "part": {
       "args": [
         0
@@ -3717,7 +3719,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text",
       "url": "string"
     },
-    "role": "system"
+    "role": "system",
+    "seq": 0
   },
   "queued_messages": [
     {
@@ -3831,14 +3834,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                 |
-|------------------------------------------------------------------------------------------|
-| `action_required`, `error`, `message`, `message_part`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
 ## codersdk.ChatStreamMessagePart
 
 ```json
 {
+  "generation_attempt": 0,
+  "history_version": 0,
   "part": {
     "args": [
       0
@@ -3901,16 +3906,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "type": "text",
     "url": "string"
   },
-  "role": "system"
+  "role": "system",
+  "seq": 0
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                 | Required | Restrictions | Description |
-|--------|------------------------------------------------------|----------|--------------|-------------|
-| `part` | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `role` | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| Name                 | Type                                                 | Required | Restrictions | Description |
+|----------------------|------------------------------------------------------|----------|--------------|-------------|
+| `generation_attempt` | integer                                              | false    |              |             |
+| `history_version`    | integer                                              | false    |              |             |
+| `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| `seq`                | integer                                              | false    |              |             |
 
 ## codersdk.ChatStreamRetry
 

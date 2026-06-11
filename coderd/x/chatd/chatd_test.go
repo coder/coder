@@ -29,7 +29,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/sqlc-dev/pqtype"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -3075,8 +3074,15 @@ func TestSubscribeSnapshotIncludesStatusEvent(t *testing.T) {
 
 	// Passive server: status is always Pending.
 	require.NotEmpty(t, snapshot)
-	require.Equal(t, codersdk.ChatStreamEventTypeStatus, snapshot[0].Type)
-	require.NotNil(t, snapshot[0].Status)
+	statusIdx := -1
+	for i, event := range snapshot {
+		if event.Type == codersdk.ChatStreamEventTypeStatus {
+			statusIdx = i
+			break
+		}
+	}
+	require.NotEqual(t, -1, statusIdx)
+	require.NotNil(t, snapshot[statusIdx].Status)
 }
 
 func TestPersistToolResultWithBinaryData(t *testing.T) {
@@ -11587,7 +11593,6 @@ func TestAdvisorGating_RootChat(t *testing.T) {
 // covers the glue from chatd wiring -> chatadvisor.Tool -> Runtime.Run ->
 // nested model call -> structured result back to the outer model.
 func TestAdvisorHappyPath_RootChat(t *testing.T) {
-	t.Skip("todo: re-enable this test after pr 4 from the chatd refactor is implemented. it depends on subscribe being implemented.")
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -11612,10 +11617,12 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 		switch streamedCallCount.Add(1) {
 		case 1:
 			// Parent turn 1: call advisor solo.
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(
+			chunk := chattest.OpenAIToolCallChunk(
 				"advisor",
 				`{"question":"how should I approach this refactor?"}`,
-			))
+			)
+			chunk.Choices[0].ToolCalls[0].ID = "advisor-happy-path-call"
+			return chattest.OpenAIStreamingResponse(chunk)
 		case 2:
 			// Nested advisor turn. The nested call has no tools because
 			// chatadvisor.RunAdvisor runs with MaxSteps=1 and no tool
@@ -11687,6 +11694,7 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 				if event.MessagePart.Role != codersdk.ChatMessageRoleTool ||
 					part.Type != codersdk.ChatMessagePartTypeToolResult ||
 					part.ToolName != chatadvisor.ToolName ||
+					part.ToolCallID != "advisor-happy-path-call" ||
 					part.ResultDelta == "" {
 					continue
 				}
@@ -11753,15 +11761,23 @@ func TestAdvisorHappyPath_RootChat(t *testing.T) {
 	require.True(t, parentSawAdvisorResult,
 		"parent must see the advisor reply in its continuation call")
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	// Stop the live collector and assert it captured the streaming
+	// advisor deltas during processing. Late subscribers no longer
+	// see committed parts because publishMessage claims them out of
+	// new snapshots, so the assertion must use the live collector.
+	require.Eventually(t, func() bool {
 		livePartsMu.Lock()
 		defer livePartsMu.Unlock()
-		assert.Equal(c, advisorDeltas, liveAdvisorDeltas,
-			"advisor nested text deltas must stream into the parent tool card")
-	}, testutil.WaitLong, testutil.IntervalFast)
-
+		return slices.Equal(advisorDeltas, liveAdvisorDeltas)
+	}, testutil.WaitLong, testutil.IntervalFast,
+		"advisor nested text deltas must stream into the parent tool card")
 	cancelLive()
 	<-liveCollectorDone
+	livePartsMu.Lock()
+	collectedAdvisorDeltas := append([]string(nil), liveAdvisorDeltas...)
+	livePartsMu.Unlock()
+	require.Equal(t, advisorDeltas, collectedAdvisorDeltas,
+		"advisor nested text deltas must stream into the parent tool card")
 
 	persisted, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  chat.ID,

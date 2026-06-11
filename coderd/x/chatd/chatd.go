@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"slices"
 	"strconv"
@@ -99,39 +98,12 @@ const (
 	DefaultChatHeartbeatInterval = 30 * time.Second
 	maxChatSteps                 = 1200
 
-	// RelaySentinelAfterID is the after_id sentinel used by cross-replica
-	// relay subscribers. It instructs the peer to skip the durable DB
-	// snapshot and only deliver buffered message_part events. The
-	// buffer itself filters committed parts out (see snapshotBufferLocked),
-	// so the sentinel resolves to "send me any in-progress streaming
-	// parts you have; I will receive durable messages through pubsub."
-	RelaySentinelAfterID = math.MaxInt64
-
 	// maxConcurrentRecordingUploads caps the number of recording
 	// stop-and-store operations that can run concurrently. Each
 	// slot buffers up to MaxRecordingSize + MaxThumbnailSize
 	// (110 MB) in memory, so this value implicitly bounds memory
 	// to roughly maxConcurrentRecordingUploads * 110 MB.
 	maxConcurrentRecordingUploads = 25
-
-	// bufferRetainGracePeriod is how long the per-chat stream
-	// state is kept after processing completes. The retained
-	// state lets late-connecting cross-replica relay subscribers
-	// register against the live stream before the next worker
-	// run starts, preventing a race between cleanupStreamIfIdle
-	// and subscriber registration. The buffer itself is no
-	// longer useful at this point: every part has been claimed
-	// by its durable assistant message and is filtered out of
-	// the subscriber snapshot.
-	bufferRetainGracePeriod = 5 * time.Second
-	// chatStreamControlFetchTimeout bounds subscriber-owned
-	// control-path DB reads when the caller has no deadline.
-	chatStreamControlFetchTimeout = 5 * time.Second
-
-	// streamJanitorInterval is how often sweepIdleStreams runs.
-	// Worst-case retention is bufferRetainGracePeriod +
-	// streamJanitorInterval.
-	streamJanitorInterval = 30 * time.Second
 
 	// agentDisconnectedRecoveryThreshold is how long the latest
 	// workspace agent must be disconnected before chatd suggests
@@ -200,7 +172,7 @@ type Server struct {
 	workerID uuid.UUID
 	logger   slog.Logger
 
-	subscribeFn SubscribeFn
+	streamPartsDialer StreamPartsDialer
 
 	agentConnFn                    AgentConnFunc
 	agentInactiveDisconnectTimeout time.Duration
@@ -221,11 +193,6 @@ type Server struct {
 	configCache                    *chatConfigCache
 	configCacheUnsubscribe         func()
 
-	// chatStreams stores per-chat stream state. Using sync.Map
-	// gives each chat independent locking — concurrent chats
-	// never contend with each other.
-	chatStreams sync.Map // uuid.UUID -> *chatStreamState
-
 	// workspaceMCPToolsCache caches workspace MCP tool definitions
 	// per chat to avoid re-fetching on every turn. The cache is
 	// keyed by chat ID and invalidated when the agent changes.
@@ -236,6 +203,7 @@ type Server struct {
 	metrics           *chatloop.Metrics
 	chatWorker        *chatWorker
 	messagePartBuffer *messagepartbuffer.Buffer
+	streamSyncPoller  *streamSyncPoller
 	recordingSem      chan struct{}
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
@@ -1236,150 +1204,6 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 
 // AgentConnFunc provides access to workspace agent connections.
 type AgentConnFunc func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error)
-
-// SubscribeFn replaces the default local-only subscription with a
-// multi-replica-aware implementation that merges pubsub notifications,
-// remote relay streams, and local parts into a single event channel.
-// When set, Subscribe delegates the event-merge goroutine to this
-// function instead of using simple local forwarding.
-//
-// Parameters:
-//   - ctx: subscription lifetime context (canceled on unsubscribe).
-//   - params: all state needed to build the merged stream.
-//
-// Returns the merged event channel. Cleanup is driven by ctx
-// cancellation — the merge goroutine tears down all relay state
-// in its defer when ctx is done.
-// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-type SubscribeFn func(
-	ctx context.Context,
-	params SubscribeFnParams,
-) <-chan codersdk.ChatStreamEvent
-
-// StatusNotification informs the enterprise relay manager of chat
-// status changes so it can open or close relay connections.
-type StatusNotification struct {
-	Status   database.ChatStatus
-	WorkerID uuid.UUID
-}
-
-// SubscribeFnParams carries the state that the enterprise
-// SubscribeFn implementation needs from the OSS Subscribe preamble.
-type SubscribeFnParams struct {
-	ChatID              uuid.UUID
-	Chat                database.Chat
-	WorkerID            uuid.UUID
-	StatusNotifications <-chan StatusNotification
-	RequestHeader       http.Header
-	DB                  database.Store
-	Logger              slog.Logger
-}
-
-// bufferedStreamPart is a buffered message_part event with its
-// committed-message linkage. Parts that have not yet been claimed by
-// a durable assistant message carry committedMessageID == 0 and are
-// considered "in progress"; when an assistant message is published
-// every still-in-progress part is claimed by that durable message
-// ID, marking the part as redundant for any subscriber that will
-// receive the durable message via REST or pubsub.
-type bufferedStreamPart struct {
-	event codersdk.ChatStreamEvent
-	// committedMessageID is the durable assistant message ID that
-	// claimed this part, or 0 while the part belongs to the
-	// in-progress turn. snapshotBufferLocked drops parts with
-	// committedMessageID != 0 because the subscriber will receive
-	// the durable message through a different channel (REST snapshot,
-	// initial DB query in SubscribeAuthorized, or pubsub).
-	committedMessageID int64
-}
-
-type chatStreamState struct {
-	mu                   sync.Mutex
-	buffer               []bufferedStreamPart
-	buffering            bool
-	durableMessages      []codersdk.ChatStreamEvent
-	durableEvictedBefore int64 // highest message ID evicted from durable cache
-	subscribers          map[uuid.UUID]chan codersdk.ChatStreamEvent
-	bufferDropCount      int64
-	bufferLastWarnAt     time.Time
-	subscriberDropCount  int64
-	subscriberLastWarnAt time.Time
-	// currentRetry records the current retry phase for late-joining
-	// same-replica subscribers. Nil when the stream is not waiting
-	// to retry.
-	currentRetry *codersdk.ChatStreamRetry
-	// bufferRetainedAt records when processing completed and
-	// the per-chat stream state entered the post-completion
-	// grace window. Zero while buffering is active. When
-	// non-zero, cleanupStreamIfIdle skips GC until the grace
-	// period expires so cross-replica relay subscribers can
-	// register without racing state deletion. The buffer
-	// itself does not deliver content here: every part is
-	// claimed by a durable assistant message before
-	// bufferRetainedAt is set, so snapshotBufferLocked
-	// returns no parts during the grace window.
-	bufferRetainedAt time.Time
-}
-
-// streamStateCollector exposes scrape-time gauges derived from
-// p.chatStreams. Scrape cost is O(n) with a brief per-state mutex
-// held for two len() reads; acceptable at typical scrape cadences.
-type streamStateCollector struct {
-	server *Server
-}
-
-var (
-	streamsActiveDesc = prometheus.NewDesc(
-		"coderd_chatd_streams_active",
-		"Current number of chat stream state entries (in-flight plus retained).",
-		nil, nil,
-	)
-	streamBufferSizeMaxDesc = prometheus.NewDesc(
-		"coderd_chatd_stream_buffer_size_max",
-		"Maximum current buffer length across all chat streams.",
-		nil, nil,
-	)
-	streamBufferEventsDesc = prometheus.NewDesc(
-		"coderd_chatd_stream_buffer_events",
-		"Sum of current buffer lengths across all chat streams.",
-		nil, nil,
-	)
-	streamSubscribersDesc = prometheus.NewDesc(
-		"coderd_chatd_stream_subscribers",
-		"Current number of chat stream subscribers across all chat streams.",
-		nil, nil,
-	)
-)
-
-func (*streamStateCollector) Describe(ch chan<- *prometheus.Desc) {
-	ch <- streamsActiveDesc
-	ch <- streamBufferSizeMaxDesc
-	ch <- streamBufferEventsDesc
-	ch <- streamSubscribersDesc
-}
-
-func (c *streamStateCollector) Collect(ch chan<- prometheus.Metric) {
-	var active, totalEvents, maxBufLen, totalSubs int
-	c.server.chatStreams.Range(func(_, v any) bool {
-		state, ok := v.(*chatStreamState)
-		if !ok {
-			return true
-		}
-		active++
-		state.mu.Lock()
-		bufLen := len(state.buffer)
-		subs := len(state.subscribers)
-		state.mu.Unlock()
-		totalEvents += bufLen
-		totalSubs += subs
-		maxBufLen = max(maxBufLen, bufLen)
-		return true
-	})
-	ch <- prometheus.MustNewConstMetric(streamsActiveDesc, prometheus.GaugeValue, float64(active))
-	ch <- prometheus.MustNewConstMetric(streamBufferSizeMaxDesc, prometheus.GaugeValue, float64(maxBufLen))
-	ch <- prometheus.MustNewConstMetric(streamBufferEventsDesc, prometheus.GaugeValue, float64(totalEvents))
-	ch <- prometheus.MustNewConstMetric(streamSubscribersDesc, prometheus.GaugeValue, float64(totalSubs))
-}
 
 var (
 	// ErrInvalidModelConfigID indicates the requested model config does not exist.
@@ -3428,10 +3252,12 @@ func BuildSingleUserChatMessageInsertParams(
 
 // Config configures a chat processor.
 type Config struct {
-	Logger                         slog.Logger
-	Database                       database.Store
-	ReplicaID                      uuid.UUID
-	SubscribeFn                    SubscribeFn
+	Logger    slog.Logger
+	Database  database.Store
+	ReplicaID uuid.UUID
+	// StreamPartsDialer dials remote stream parts. Nil uses the local
+	// in-process channel dialer for every stream.
+	StreamPartsDialer              StreamPartsDialer
 	PendingChatAcquireInterval     time.Duration
 	MaxChatsPerAcquire             int32
 	InFlightChatStaleAfter         time.Duration
@@ -3514,13 +3340,11 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	if cfg.AllowBYOKSet {
 		allowBYOK = cfg.AllowBYOK
 	}
-
 	p := &Server{
 		cancel:                         cancel,
 		db:                             cfg.Database,
 		workerID:                       workerID,
 		logger:                         cfg.Logger.Named("processor"),
-		subscribeFn:                    cfg.SubscribeFn,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,
@@ -3560,7 +3384,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	var chatAutoArchiveRecords prometheus.Counter
 	if cfg.PrometheusRegistry != nil {
 		p.metrics = chatloop.NewMetrics(cfg.PrometheusRegistry)
-		cfg.PrometheusRegistry.MustRegister(&streamStateCollector{server: p})
 		chatAutoArchiveRecords = prometheus.NewCounter(prometheus.CounterOpts{
 			Namespace: "coderd",
 			Subsystem: "chat_auto_archive",
@@ -3572,6 +3395,13 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		p.metrics = chatloop.NopMetrics()
 	}
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
+	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
+		Buffer: p.messagePartBuffer,
+		Logger: cfg.Logger,
+	})
+	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
+	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
+	p.streamSyncPoller.Start()
 	chatWorker, err := newChatWorker(p, chatWorkerOptions{
 		WorkerID:              workerID,
 		Store:                 cfg.Database,
@@ -3624,7 +3454,6 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.ctx = ctx
 
 	// Spawn background goroutines that all servers need.
-	p.wg.Go(func() { p.streamJanitorLoop(ctx) })
 
 	return p
 }
@@ -3642,225 +3471,6 @@ func (p *Server) Start() *Server {
 	return p
 }
 
-// getCachedDurableMessages returns cached durable messages with IDs
-// greater than afterID. Returns nil when the cache has no relevant
-// entries.
-func (p *Server) getCachedDurableMessages(
-	chatID uuid.UUID,
-	afterID int64,
-) []codersdk.ChatStreamEvent {
-	state := p.getOrCreateStreamState(chatID)
-	state.mu.Lock()
-	defer state.mu.Unlock()
-
-	if afterID < state.durableEvictedBefore {
-		return nil
-	}
-
-	var result []codersdk.ChatStreamEvent
-	for _, event := range state.durableMessages {
-		if event.Message != nil && event.Message.ID > afterID {
-			result = append(result, event)
-		}
-	}
-	return result
-}
-
-// snapshotBufferLocked returns the buffered message_part events that
-// the caller should receive in their initial snapshot.
-//
-// Parts whose committedMessageID != 0 are dropped: those parts were
-// claimed by a durable assistant message that the subscriber will
-// receive through a different channel (REST snapshot, the initial DB
-// query in SubscribeAuthorized, or pubsub catch-up). Delivering them
-// here would render the same content twice on the client, once in the
-// streaming UI and once as a durable message.
-//
-// Every caller receives the same view: in-progress parts are always
-// delivered and committed parts are always dropped, regardless of
-// cursor or relay sentinel. This keeps the buffer free of duplicate
-// work for every subscriber, including cross-replica relay
-// subscribers whose user-facing peers receive the durable message
-// via pubsub.
-//
-// The caller must hold the per-chat stream state lock.
-func snapshotBufferLocked(buffer []bufferedStreamPart) []codersdk.ChatStreamEvent {
-	if len(buffer) == 0 {
-		return nil
-	}
-	snapshot := make([]codersdk.ChatStreamEvent, 0, len(buffer))
-	for _, part := range buffer {
-		if part.committedMessageID != 0 {
-			continue
-		}
-		snapshot = append(snapshot, part.event)
-	}
-	return snapshot
-}
-
-// subscribeToStream registers a subscriber to the per-chat in-memory
-// stream and returns a snapshot of currently in-progress message_part
-// events plus the current retry phase, the live subscriber channel,
-// and a cancel func.
-//
-// Parts that were claimed by a committed durable assistant message
-// (committedMessageID != 0) are excluded from the snapshot. The
-// subscriber will receive those durable messages through the REST
-// snapshot, the initial DB query in SubscribeAuthorized, or pubsub,
-// so re-delivering their constituent parts here would render the
-// same content twice.
-func (p *Server) subscribeToStream(chatID uuid.UUID) (
-	[]codersdk.ChatStreamEvent,
-	*codersdk.ChatStreamRetry,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-) {
-	state := p.getOrCreateStreamState(chatID)
-	state.mu.Lock()
-	snapshot := snapshotBufferLocked(state.buffer)
-	var currentRetry *codersdk.ChatStreamRetry
-	if state.currentRetry != nil {
-		retryCopy := *state.currentRetry
-		currentRetry = &retryCopy
-	}
-	id := uuid.New()
-	ch := make(chan codersdk.ChatStreamEvent, 128)
-	state.subscribers[id] = ch
-	state.mu.Unlock()
-
-	cancel := func() {
-		state.mu.Lock()
-		// Remove the subscriber but do not close the channel.
-		// publishToStream copies subscriber references under
-		// the per-chat lock then sends outside; closing here
-		// races with that send and can panic. The channel
-		// becomes unreachable once removed and will be GC'd.
-		delete(state.subscribers, id)
-		p.cleanupStreamIfIdle(chatID, state)
-		state.mu.Unlock()
-	}
-
-	return snapshot, currentRetry, ch, cancel
-}
-
-// getOrCreateStreamState returns the per-chat stream state,
-// creating one atomically if it doesn't exist. The returned
-// state has its own mutex — callers must lock state.mu for
-// access.
-func (p *Server) getOrCreateStreamState(chatID uuid.UUID) *chatStreamState {
-	if val, ok := p.chatStreams.Load(chatID); ok {
-		state, _ := val.(*chatStreamState)
-		return state
-	}
-	val, _ := p.chatStreams.LoadOrStore(chatID, &chatStreamState{
-		subscribers: make(map[uuid.UUID]chan codersdk.ChatStreamEvent),
-	})
-	state, _ := val.(*chatStreamState)
-	return state
-}
-
-// cleanupStreamIfIdle removes the chat entry from the sync.Map when
-// there are no subscribers, the stream is not buffering, and any
-// grace period for late-connecting relay subscribers has elapsed. If
-// the grace window is still open it returns without rescheduling.
-// streamJanitorLoop is the backstop that re-checks on a timer.
-//
-// The caller must hold state.mu. The state pointer may have been
-// captured outside this lock (sync.Map.Load or Range); we use
-// CompareAndDelete so a stale pointer cannot evict a fresh entry
-// installed by a racing getOrCreateStreamState. Returns true
-// if the state was deleted, false otherwise.
-func (p *Server) cleanupStreamIfIdle(chatID uuid.UUID, state *chatStreamState) bool {
-	if state.buffering || len(state.subscribers) > 0 {
-		return false
-	}
-	// Keep stream state alive during the grace period so
-	// late-connecting cross-replica relay subscribers can
-	// register against this chat before GC.
-	if !state.bufferRetainedAt.IsZero() &&
-		p.clock.Now().Before(state.bufferRetainedAt.Add(bufferRetainGracePeriod)) {
-		return false
-	}
-	if !p.chatStreams.CompareAndDelete(chatID, state) {
-		return false
-	}
-	p.workspaceMCPToolsCache.Delete(chatID)
-	return true
-}
-
-// streamJanitorLoop periodically reaps idle chat stream states whose
-// grace period has expired. It is the backstop for the grace-window
-// early-return in cleanupStreamIfIdle; without it, a subscriber that
-// detaches inside grace (the common enterprise relay-drain case,
-// relayDrainTimeout = 200ms vs. 5s grace) pins the state forever.
-func (p *Server) streamJanitorLoop(ctx context.Context) {
-	ticker := p.clock.NewTicker(streamJanitorInterval, "chatd", "stream-janitor")
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			p.safeSweepIdleStreams(ctx)
-		}
-	}
-}
-
-// safeSweepIdleStreams runs sweepIdleStreams under a panic recovery
-// so an unexpected panic in the sweep cannot kill the janitor
-// goroutine and silently reintroduce the very leak it exists to
-// prevent. The next tick retries.
-func (p *Server) safeSweepIdleStreams(ctx context.Context) {
-	defer func() {
-		if r := recover(); r != nil {
-			p.logger.Error(ctx, "stream janitor sweep panicked, will retry next tick",
-				slog.F("panic", r))
-		}
-	}()
-	p.sweepIdleStreams()
-}
-
-// sweepIdleStreams iterates chatStreams once and delegates each entry
-// to cleanupStreamIfIdle. Range may skip entries that become reapable
-// concurrently. Any such entry is reaped on the next tick.
-func (p *Server) sweepIdleStreams() {
-	var reaped atomic.Int64
-	defer func() {
-		if count := reaped.Load(); count > 0 {
-			p.logger.Info(context.Background(), "reaped idle chat streams", slog.F("count", count))
-		}
-	}()
-	p.chatStreams.Range(func(key, value any) bool {
-		chatID, ok := key.(uuid.UUID)
-		if !ok {
-			return true
-		}
-		state, ok := value.(*chatStreamState)
-		if !ok {
-			return true
-		}
-		// guard against any panic from cleanupStreamIfIdle locking state.mu for all time
-		func() {
-			state.mu.Lock()
-			defer state.mu.Unlock()
-			if p.cleanupStreamIfIdle(chatID, state) {
-				reaped.Add(1)
-			}
-		}()
-		return true
-	})
-}
-
-// streamSubscriberControlFetchContext keeps a control-path lookup tied to the
-// requesting subscriber while applying a fallback timeout when the caller has
-// no deadline.
-func streamSubscriberControlFetchContext(ctx context.Context) (context.Context, context.CancelFunc) {
-	if _, ok := ctx.Deadline(); ok {
-		return ctx, func() {}
-	}
-	return context.WithTimeout(ctx, chatStreamControlFetchTimeout)
-}
-
 func subscribeWithInitialError(chatID uuid.UUID, message string) (
 	[]codersdk.ChatStreamEvent,
 	<-chan codersdk.ChatStreamEvent,
@@ -3874,535 +3484,6 @@ func subscribeWithInitialError(chatID uuid.UUID, message string) (
 		ChatID: chatID,
 		Error:  &codersdk.ChatError{Message: message},
 	}}, events, func() {}, true
-}
-
-func (p *Server) Subscribe(
-	ctx context.Context,
-	chatID uuid.UUID,
-	requestHeader http.Header,
-	afterMessageID int64,
-) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	if p == nil {
-		return nil, nil, nil, false
-	}
-
-	chat, err := p.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		if dbauthz.IsNotAuthorizedError(err) {
-			return nil, nil, nil, false
-		}
-		p.logger.Warn(ctx, "failed to load chat for stream subscription",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return subscribeWithInitialError(chatID, "failed to load initial snapshot")
-	}
-	return p.SubscribeAuthorized(ctx, chat, requestHeader, afterMessageID)
-}
-
-// SubscribeAuthorized subscribes an already-authorized chat to merged stream
-// updates. The passed chat row proves authorization, but SubscribeAuthorized
-// still reloads the chat after the stream subscriptions are armed so the
-// initial status and relay setup use fresh state.
-func (p *Server) SubscribeAuthorized(
-	ctx context.Context,
-	chat database.Chat,
-	requestHeader http.Header,
-	afterMessageID int64,
-) (
-	[]codersdk.ChatStreamEvent,
-	<-chan codersdk.ChatStreamEvent,
-	func(),
-	bool,
-) {
-	if p == nil {
-		return nil, nil, nil, false
-	}
-	chatID := chat.ID
-
-	// Subscribe to the local stream for message_parts and same-replica
-	// persisted messages. Capture the current retry phase under the same
-	// lock so the transient snapshot and subscriber registration reflect
-	// a single moment in time.
-	localSnapshot, localRetry, localParts, localCancel := p.subscribeToStream(chatID)
-
-	// Merge all event sources.
-	mergedCtx, mergedCancel := context.WithCancel(ctx)
-	mergedEvents := make(chan codersdk.ChatStreamEvent, 128)
-
-	var allCancels []func()
-	allCancels = append(allCancels, localCancel)
-
-	// Subscribe to pubsub for durable and structured control
-	// events (status, messages, queue updates, retry, errors).
-	// If the subscription cannot be established, deliver all local
-	// events.
-	//
-	// This MUST happen before the DB queries below so that any
-	// notification published between the query and the subscription
-	// is not lost (subscribe-first-then-query pattern).
-	notifyCh := make(chan coderdpubsub.ChatStreamNotifyMessage, 10)
-	errCh := make(chan error, 1)
-	listener := func(_ context.Context, message []byte, listenErr error) {
-		if listenErr != nil {
-			select {
-			case <-mergedCtx.Done():
-			case errCh <- listenErr:
-			}
-			return
-		}
-		var notify coderdpubsub.ChatStreamNotifyMessage
-		if unmarshalErr := json.Unmarshal(message, &notify); unmarshalErr != nil {
-			select {
-			case <-mergedCtx.Done():
-			case errCh <- xerrors.Errorf("unmarshal chat stream notify: %w", unmarshalErr):
-			}
-			return
-		}
-		select {
-		case <-mergedCtx.Done():
-		case notifyCh <- notify:
-		}
-	}
-
-	if pubsubCancel, pubsubErr := p.pubsub.SubscribeWithErr(
-		coderdpubsub.ChatStreamNotifyChannel(chatID),
-		listener,
-	); pubsubErr == nil {
-		allCancels = append(allCancels, pubsubCancel)
-	} else {
-		p.logger.Warn(ctx, "failed to subscribe to chat stream notifications",
-			slog.F("chat_id", chatID),
-			slog.Error(pubsubErr),
-		)
-	}
-
-	cancel := func() {
-		mergedCancel()
-		for _, cancelFn := range allCancels {
-			if cancelFn != nil {
-				cancelFn()
-			}
-		}
-	}
-
-	// Re-read the chat after the local/pubsub subscriptions are active so
-	// the initial status event and any enterprise relay setup use fresh
-	// state instead of the middleware-loaded row.
-	refreshCtx, refreshCancel := streamSubscriberControlFetchContext(ctx)
-	snapshotChat, err := func() (database.Chat, error) {
-		defer refreshCancel()
-		//nolint:gocritic // SubscribeAuthorized already validated the
-		// caller; this refresh only loads the latest status/worker for
-		// the already-authorized stream subscription.
-		return p.db.GetChatByID(dbauthz.AsChatd(refreshCtx), chatID)
-	}()
-	if err != nil {
-		p.logger.Warn(ctx, "failed to refresh chat for stream subscription; using stale state",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		snapshotChat = chat
-	}
-
-	// Build initial snapshot synchronously. The pubsub subscription
-	// is already active so no notifications can be lost during this
-	// window.
-	initialSnapshot := make([]codersdk.ChatStreamEvent, 0)
-	delivered := map[int64]struct{}{}
-	// Add local same-replica message_parts to the snapshot. Retry comes
-	// from state.currentRetry, not the event buffer, so late joiners see
-	// only the latest phase rather than a stale buffered retry event.
-	for _, event := range localSnapshot {
-		if event.Type == codersdk.ChatStreamEventTypeMessagePart {
-			initialSnapshot = append(initialSnapshot, event)
-		}
-	}
-
-	var retryEvent *codersdk.ChatStreamEvent
-	if localRetry != nil {
-		retryEvent = &codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeRetry,
-			ChatID: chatID,
-			Retry:  localRetry,
-		}
-	}
-
-	// Load initial messages from DB. When afterMessageID > 0 the
-	// caller already has messages up to that ID (e.g. from the REST
-	// endpoint), so we only fetch newer ones to avoid sending
-	// duplicate data.
-	messages, err := p.db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: afterMessageID,
-	})
-	if err != nil {
-		p.logger.Error(ctx, "failed to load initial chat messages",
-			slog.Error(err),
-			slog.F("chat_id", chatID),
-		)
-		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: chatID,
-			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
-		})
-	} else {
-		for _, msg := range messages {
-			sdkMsg := db2sdk.ChatMessage(msg)
-			initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-				Type:    codersdk.ChatStreamEventTypeMessage,
-				ChatID:  chatID,
-				Message: &sdkMsg,
-			})
-			delivered[msg.ID] = struct{}{}
-		}
-	}
-
-	// Load initial queue. Queue snapshots are intentionally not
-	// singleflighted because a chat-scoped key cannot distinguish the
-	// pre- and post-notification queue state.
-	queueCtx, queueCancel := streamSubscriberControlFetchContext(ctx)
-	queued, err := p.db.GetChatQueuedMessages(queueCtx, chatID)
-	queueCancel()
-	if err != nil {
-		p.logger.Error(ctx, "failed to load initial queued messages",
-			slog.Error(err),
-			slog.F("chat_id", chatID),
-		)
-		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-			Type:   codersdk.ChatStreamEventTypeError,
-			ChatID: chatID,
-			Error:  &codersdk.ChatError{Message: "failed to load initial snapshot"},
-		})
-	} else if len(queued) > 0 {
-		initialSnapshot = append(initialSnapshot, codersdk.ChatStreamEvent{
-			Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-			ChatID:         chatID,
-			QueuedMessages: db2sdk.ChatQueuedMessages(queued),
-		})
-	}
-
-	// Include the current chat status in the snapshot so the
-	// frontend can gate message_part processing correctly from
-	// the very first batch, without waiting for a separate REST
-	// query.
-	statusEvent := codersdk.ChatStreamEvent{
-		Type:   codersdk.ChatStreamEventTypeStatus,
-		ChatID: chatID,
-		Status: &codersdk.ChatStreamStatus{
-			Status: codersdk.ChatStatus(snapshotChat.Status),
-		},
-	}
-	// Prepend so the frontend sees the current stream phases
-	// before any message_part events.
-	prefix := []codersdk.ChatStreamEvent{statusEvent}
-	if retryEvent != nil {
-		prefix = append(prefix, *retryEvent)
-	}
-	initialSnapshot = append(prefix, initialSnapshot...)
-
-	// Track the highest durable message ID delivered to this subscriber,
-	// whether it came from the initial DB snapshot, the same-replica local
-	// stream, or a later DB/cache catch-up.
-	lastMessageID := afterMessageID
-	if len(messages) > 0 {
-		lastMessageID = messages[len(messages)-1].ID
-	}
-
-	// When an enterprise SubscribeFn is provided, call it to get relay events
-	// (message_parts from remote replicas). OSS owns pubsub subscription,
-	// message catch-up, queue updates, and status forwarding; enterprise only
-	// manages relay dialing.
-	var relayEvents <-chan codersdk.ChatStreamEvent
-	var statusNotifications chan StatusNotification
-	if p.subscribeFn != nil {
-		statusNotifications = make(chan StatusNotification, 10)
-		relayEvents = p.subscribeFn(mergedCtx, SubscribeFnParams{
-			ChatID:              chatID,
-			Chat:                snapshotChat,
-			WorkerID:            p.workerID,
-			StatusNotifications: statusNotifications,
-			RequestHeader:       requestHeader,
-			DB:                  p.db,
-			Logger:              p.logger,
-		})
-	}
-	// hasPubsubSubscription is only true when we actually subscribed
-	// successfully above (allCancels will contain the pubsub
-	// cancel func in that case).
-	hasPubsubSubscription := len(allCancels) > 1
-
-	//nolint:nestif
-	go func() {
-		defer close(mergedEvents)
-		if statusNotifications != nil {
-			defer close(statusNotifications)
-		}
-		for {
-			select {
-			case <-mergedCtx.Done():
-				return
-			case psErr := <-errCh:
-				p.logger.Error(mergedCtx, "chat stream pubsub error",
-					slog.F("chat_id", chatID),
-					slog.Error(psErr),
-				)
-				select {
-				case mergedEvents <- codersdk.ChatStreamEvent{
-					Type:   codersdk.ChatStreamEventTypeError,
-					ChatID: chatID,
-					Error: &codersdk.ChatError{
-						Message: psErr.Error(),
-					},
-				}:
-				case <-mergedCtx.Done():
-				}
-				return
-			case notify := <-notifyCh:
-				// Marker for ENG-2645: subscriber received pubsub notify.
-				p.logger.Debug(mergedCtx, "stream subscriber received notify",
-					slog.F("chat_id", chatID),
-					slog.F("after_message_id", notify.AfterMessageID),
-					slog.F("status", notify.Status),
-					slog.F("queue_update", notify.QueueUpdate),
-					slog.F("last_message_id", lastMessageID),
-				)
-				if notify.AfterMessageID > 0 || notify.FullRefresh {
-					if notify.FullRefresh {
-						lastMessageID = 0
-						clear(delivered)
-					}
-					var (
-						deliveredCount int
-						source         string
-					)
-					// Notifies can arrive out of order. Rescan from
-					// min(AfterMessageID, lastMessageID) to cover the gap,
-					// floored at afterMessageID to respect the subscription
-					// boundary. The delivered set deduplicates.
-					lookupAfter := lastMessageID
-					if !notify.FullRefresh {
-						lookupAfter = max(afterMessageID, min(notify.AfterMessageID, lastMessageID))
-					}
-					cached := p.getCachedDurableMessages(chatID, lookupAfter)
-					if !notify.FullRefresh && len(cached) > 0 {
-						for _, event := range cached {
-							if event.Message == nil {
-								continue
-							}
-							if _, ok := delivered[event.Message.ID]; ok {
-								continue
-							}
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- event:
-							}
-							delivered[event.Message.ID] = struct{}{}
-							if event.Message.ID > lastMessageID {
-								lastMessageID = event.Message.ID
-							}
-							deliveredCount++
-							source = "cache"
-						}
-					}
-					// DB pass picks up cross-replica messages the local cache
-					// cannot have. Delivered set dedupes against the cache pass.
-					newMessages, msgErr := p.db.GetChatMessagesByChatID(mergedCtx, database.GetChatMessagesByChatIDParams{
-						ChatID:  chatID,
-						AfterID: lookupAfter,
-					})
-					if msgErr != nil {
-						p.logger.Warn(mergedCtx, "failed to get chat messages after pubsub notification",
-							slog.F("chat_id", chatID),
-							slog.Error(msgErr),
-						)
-					} else {
-						for _, msg := range newMessages {
-							if msg.ID <= lookupAfter {
-								continue
-							}
-							if _, ok := delivered[msg.ID]; ok {
-								continue
-							}
-							sdkMsg := db2sdk.ChatMessage(msg)
-							select {
-							case <-mergedCtx.Done():
-								return
-							case mergedEvents <- codersdk.ChatStreamEvent{
-								Type:    codersdk.ChatStreamEventTypeMessage,
-								ChatID:  chatID,
-								Message: &sdkMsg,
-							}:
-							}
-							delivered[msg.ID] = struct{}{}
-							if msg.ID > lastMessageID {
-								lastMessageID = msg.ID
-							}
-							deliveredCount++
-							switch source {
-							case "":
-								source = "db"
-							case "cache":
-								source = "cache+db"
-							}
-						}
-					}
-					// Marker for ENG-2645: subscriber delivered durable messages.
-					p.logger.Debug(mergedCtx, "stream subscriber delivered messages",
-						slog.F("chat_id", chatID),
-						slog.F("after_message_id", notify.AfterMessageID),
-						slog.F("lookup_after", lookupAfter),
-						slog.F("source", source),
-						slog.F("delivered_count", deliveredCount),
-						slog.F("last_message_id", lastMessageID),
-					)
-				}
-				if notify.Status != "" {
-					status := database.ChatStatus(notify.Status)
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeStatus,
-						ChatID: chatID,
-						Status: &codersdk.ChatStreamStatus{Status: codersdk.ChatStatus(status)},
-					}:
-					}
-					// Notify enterprise relay manager if present.
-					if statusNotifications != nil {
-						workerID := uuid.Nil
-						if notify.WorkerID != "" {
-							if parsed, parseErr := uuid.Parse(notify.WorkerID); parseErr == nil {
-								workerID = parsed
-							}
-						}
-						select {
-						case statusNotifications <- StatusNotification{Status: status, WorkerID: workerID}:
-						case <-mergedCtx.Done():
-							return
-						}
-					}
-				}
-				if notify.Retry != nil {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeRetry,
-						ChatID: chatID,
-						Retry:  notify.Retry,
-					}:
-					}
-				}
-				if notify.ErrorPayload != nil {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeError,
-						ChatID: chatID,
-						Error:  notify.ErrorPayload,
-					}:
-					}
-				} else if notify.Error != "" {
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- codersdk.ChatStreamEvent{
-						Type:   codersdk.ChatStreamEventTypeError,
-						ChatID: chatID,
-						Error: &codersdk.ChatError{
-							Message: notify.Error,
-						},
-					}:
-					}
-				}
-				if notify.QueueUpdate {
-					queueCtx, queueCancel := streamSubscriberControlFetchContext(mergedCtx)
-					queuedMsgs, queueErr := p.db.GetChatQueuedMessages(queueCtx, chatID)
-					queueCancel()
-					if queueErr != nil {
-						p.logger.Warn(mergedCtx, "failed to get queued messages after pubsub notification",
-							slog.F("chat_id", chatID),
-							slog.Error(queueErr),
-						)
-					} else {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- codersdk.ChatStreamEvent{
-							Type:           codersdk.ChatStreamEventTypeQueueUpdate,
-							ChatID:         chatID,
-							QueuedMessages: db2sdk.ChatQueuedMessages(queuedMsgs),
-						}:
-						}
-					}
-				}
-			case event, ok := <-localParts:
-				if !ok {
-					localParts = nil
-					// Local parts channel closed. If pubsub is
-					// active we continue with pubsub-driven events.
-					// Otherwise terminate.
-					if !hasPubsubSubscription {
-						return
-					}
-					continue
-				}
-				if hasPubsubSubscription {
-					// Forward transient events from local.
-					// Durable events (messages, queue updates)
-					// come via pubsub + cache.  Status is
-					// included alongside message_part because
-					// both travel through the same ordered
-					// channel: publishStatus is called before
-					// the first message_part, so FIFO delivery
-					// guarantees the frontend sees
-					// status=running before any content.
-					// Pubsub will deliver a duplicate status
-					// later; the frontend deduplicates it
-					// (setChatStatus is idempotent).
-					// action_required is also transient and
-					// only published on the local stream, so
-					// it must be forwarded here.
-					if event.Type == codersdk.ChatStreamEventTypeMessagePart ||
-						event.Type == codersdk.ChatStreamEventTypeStatus ||
-						event.Type == codersdk.ChatStreamEventTypeActionRequired {
-						select {
-						case <-mergedCtx.Done():
-							return
-						case mergedEvents <- event:
-						}
-					}
-				} else {
-					// No pubsub subscription: forward all event types.
-					select {
-					case <-mergedCtx.Done():
-						return
-					case mergedEvents <- event:
-					}
-				}
-			case event, ok := <-relayEvents:
-				if !ok {
-					relayEvents = nil
-					continue
-				}
-				select {
-				case <-mergedCtx.Done():
-					return
-				case mergedEvents <- event:
-				}
-			}
-		}
-	}()
-
-	return initialSnapshot, mergedEvents, cancel, true
 }
 
 // publishChatPubsubEvents broadcasts a lifecycle event for each affected chat.
@@ -4555,7 +3636,7 @@ func (p *Server) trackWorkspaceUsage(
 		// so no prebuild guard is needed (unlike reporter.go).
 		//
 		// This fires every heartbeat (~30s) but the SQL only
-		// writes when 5% of the deadline has elapsed — most calls
+		// writes when 5% of the deadline has elapsed, most calls
 		// perform a read-only CTE lookup with no UPDATE.
 		//
 		// Scaling note: for 10,000 active chats, this could lead to
@@ -5624,7 +4705,7 @@ func (p *Server) fetchWorkspaceContext(
 
 	// Stamp server-side fields and sanitize content. The
 	// agent cannot know its own UUID, OS metadata, or
-	// directory — those are added here at the trust boundary.
+	// directory, those are added here at the trust boundary.
 	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
 
 	for i := range agentParts {
@@ -5754,7 +4835,7 @@ func (p *Server) persistInstructionFiles(
 // updateLastInjectedContext persists the injected context
 // parts (AGENTS.md files and skills) on the chat row so they
 // are directly queryable without scanning messages. This is
-// best-effort — a failure here is logged but does not block
+// best-effort, a failure here is logged but does not block
 // the turn.
 func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
 	param := pqtype.NullRawMessage{Valid: false}
@@ -6222,6 +5303,9 @@ func (p *Server) Close() error {
 		if err := p.chatWorker.Close(); err != nil {
 			p.logger.Warn(context.Background(), "failed to close chat worker", slog.Error(err))
 		}
+	}
+	if p.streamSyncPoller != nil {
+		p.streamSyncPoller.Close()
 	}
 	if p.messagePartBuffer != nil {
 		p.messagePartBuffer.Close()

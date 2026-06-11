@@ -8003,3 +8003,23 @@ func (api *API) getChatDebugRun(rw http.ResponseWriter, r *http.Request) {
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatDebugRunDetail(run, steps))
 }
+
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Stream chat parts via WebSockets
+// @ID stream-chat-parts-via-websockets
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatStreamEvent
+// @Router /api/experimental/chats/{chat}/stream/parts [get]
+// @x-apidocgen {"skip": true}
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+	if err := api.chatDaemon.ServeStreamPartsAuthorized(rw, r, chat); err != nil {
+		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
+	}
+}

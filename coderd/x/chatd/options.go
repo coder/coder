@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/xerrors"
-
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
