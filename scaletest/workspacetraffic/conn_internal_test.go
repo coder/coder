@@ -81,7 +81,7 @@ func waitDone(t *testing.T, done <-chan struct{}) {
 	_ = testutil.TryReceive(ctx, t, done)
 }
 
-func TestRPTYConnClose(t *testing.T) {
+func TestRPTYConn_Close(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Graceful", func(t *testing.T) {
