@@ -1,5 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { getWorkspaceAgents } from "#/modules/apps/workspaceApps";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import type { AgentContextUsage } from "../AgentChatInput";
 import type { ModelSelectorOption } from "../ChatElements";
 import { asString } from "../ChatElements/runtimeTypeUtils";

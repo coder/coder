@@ -16,12 +16,10 @@ import {
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
 import { cn } from "#/utils/cn";
+import { isAppBlockedByMissingWildcard } from "./apps";
 import { useAppLink } from "./useAppLink";
 import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";
-import {
-	isAppBlockedByMissingWildcard,
-	type WorkspaceAppWithAgent,
-} from "./workspaceApps";
+import type { WorkspaceAppWithAgent } from "./workspaceApps";
 
 type WorkspaceAppFrameProps = {
 	workspace: Workspace;

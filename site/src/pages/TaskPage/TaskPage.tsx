@@ -44,10 +44,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
-import {
-	getAllAppsWithAgent,
-	getWorkspaceAgents,
-} from "#/modules/apps/workspaceApps";
+import { getAllAppsWithAgent } from "#/modules/apps/workspaceApps";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
 import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
@@ -58,6 +55,7 @@ import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdated
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { relativeTime } from "#/utils/time";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,

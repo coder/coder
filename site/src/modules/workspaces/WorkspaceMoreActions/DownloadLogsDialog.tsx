@@ -12,8 +12,8 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { getWorkspaceAgents } from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,

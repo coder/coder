@@ -18,9 +18,12 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
-import { isExternalApp, needsSessionToken } from "#/modules/apps/apps";
+import {
+	isAppBlockedByMissingWildcard,
+	isExternalApp,
+	needsSessionToken,
+} from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
-import { isAppBlockedByMissingWildcard } from "#/modules/apps/workspaceApps";
 import { docs } from "#/utils/docs";
 import { AgentButton } from "../AgentButton";
 import { BaseIcon } from "./BaseIcon";
