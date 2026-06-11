@@ -14912,6 +14912,15 @@ func TestChatReadOnlySharedWriteHandlers(t *testing.T) {
 		requireSDKError(t, err, http.StatusNotFound)
 	})
 
+	t.Run("ReconcileInvalidChatState", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, _, sharedClient, chat, _ := setup(t)
+		_, err := sharedClient.ReconcileInvalidChatState(ctx, chat.ID)
+
+		requireSDKError(t, err, http.StatusNotFound)
+	})
+
 	t.Run("RegenerateChatTitle", func(t *testing.T) {
 		t.Parallel()
 

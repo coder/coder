@@ -1310,34 +1310,29 @@ func (p *Server) awaitSubagentCompletion(
 	timer := p.clock.NewTimer(timeout, "chatd", "subagent_await")
 	defer timer.Stop()
 
-	// When pubsub is available, subscribe for fast status
-	// notifications and use a less aggressive fallback poll.
-	// Without pubsub (single-instance / in-memory) fall back
-	// to the original 200ms polling.
-	pollInterval := subagentAwaitPollInterval
-	var notifyCh <-chan struct{}
-	if p.pubsub != nil {
-		pollInterval = subagentAwaitFallbackPoll
-		ch := make(chan struct{}, 1)
-		notifyCh = ch
-		cancel, subErr := p.pubsub.SubscribeWithErr(
-			coderdpubsub.ChatStreamNotifyChannel(targetChatID),
-			func(_ context.Context, _ []byte, _ error) {
-				// Non-blocking send so we never stall the
-				// pubsub dispatch goroutine.
-				select {
-				case ch <- struct{}{}:
-				default:
-				}
-			},
-		)
-		if subErr == nil {
-			defer cancel()
-		} else {
-			// Subscription failed; fall back to fast polling.
-			pollInterval = subagentAwaitPollInterval
-			notifyCh = nil
-		}
+	// Subscribe for fast status notifications and use a less
+	// aggressive fallback poll. If subscription fails, fall back to
+	// the original 200ms polling.
+	pollInterval := subagentAwaitFallbackPoll
+	ch := make(chan struct{}, 1)
+	notifyCh := (<-chan struct{})(ch)
+	cancel, subErr := p.pubsub.SubscribeWithErr(
+		coderdpubsub.ChatStreamNotifyChannel(targetChatID),
+		func(_ context.Context, _ []byte, _ error) {
+			// Non-blocking send so we never stall the
+			// pubsub dispatch goroutine.
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		},
+	)
+	if subErr == nil {
+		defer cancel()
+	} else {
+		// Subscription failed; fall back to fast polling.
+		pollInterval = subagentAwaitPollInterval
+		notifyCh = nil
 	}
 
 	ticker := p.clock.NewTicker(pollInterval, "chatd", "subagent_poll")
@@ -1401,10 +1396,18 @@ func (p *Server) closeSubagent(
 		return targetChat, nil
 	}
 
-	updatedChat := p.InterruptChat(ctx, targetChat)
-	if updatedChat.Status != database.ChatStatusWaiting {
-		return database.Chat{}, xerrors.New("set target chat waiting")
+	updatedChat, err := p.InterruptChat(ctx, targetChat)
+	if err != nil {
+		// Idle / archived chats no longer satisfy the
+		// chatstate.Interrupt precondition. Surface the error
+		// so the caller can decide whether the parent expected
+		// the subagent to already be waiting.
+		return database.Chat{}, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
+	// chatstate.Interrupt lands active runs in `interrupting`
+	// and requires-action chats in `running`. Workers finalize
+	// the transition; accept either non-active status as long as
+	// the transition committed.
 	return updatedChat, nil
 }
 

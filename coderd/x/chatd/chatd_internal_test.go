@@ -43,6 +43,14 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestNewRequiresPubsub(t *testing.T) {
+	t.Parallel()
+
+	require.PanicsWithValue(t, "chatd: Pubsub is nil", func() {
+		_ = New(Config{})
+	})
+}
+
 type testAgentTool struct {
 	info            fantasy.ToolInfo
 	providerOptions fantasy.ProviderOptions

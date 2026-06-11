@@ -44,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -259,57 +258,6 @@ func newWorkspaceToolTestServer(
 			return mockConn, func() {}, nil
 		}
 	})
-}
-
-func TestInterruptChatBroadcastsStatusAcrossInstances(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replicaA := newTestServer(t, db, ps, uuid.New())
-	replicaB := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replicaA.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "interrupt-me",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	runningWorker := uuid.New()
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: runningWorker, Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	_, events, cancel, ok := replicaB.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	t.Cleanup(cancel)
-
-	updated := replicaA.InterruptChat(ctx, chat)
-	require.Equal(t, database.ChatStatusWaiting, updated.Status)
-	require.False(t, updated.WorkerID.Valid)
-
-	require.Eventually(t, func() bool {
-		select {
-		case event := <-events:
-			if event.Type == codersdk.ChatStreamEventTypeStatus && event.Status != nil {
-				return event.Status.Status == codersdk.ChatStatusWaiting
-			}
-			t.Logf("skipping unexpected event: type=%s", event.Type)
-			return false
-		default:
-			return false
-		}
-	}, testutil.WaitMedium, testutil.IntervalFast)
 }
 
 func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
@@ -1507,91 +1455,13 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 		"ask mode should continue exposing workspace MCP tools")
 }
 
-func TestInterruptChatClearsWorkerInDatabase(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "db-transition",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	updated := replica.InterruptChat(ctx, chat)
-	require.Equal(t, database.ChatStatusWaiting, updated.Status)
-	require.False(t, updated.WorkerID.Valid)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
-}
-
-func TestArchiveChatMovesPendingChatToWaiting(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "archive-pending",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusPending,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   pqtype.NullRawMessage{},
-	})
-	require.NoError(t, err)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-	require.False(t, fromDB.WorkerID.Valid)
-	require.False(t, fromDB.StartedAt.Valid)
-	require.False(t, fromDB.HeartbeatAt.Valid)
-	require.True(t, fromDB.Archived)
-	require.Zero(t, fromDB.PinOrder)
-}
-
 // TestUnarchiveChildChat covers the deterministic branches of the
-// Server.UnarchiveChat child path: happy path, archived-parent reject,
-// and already-active no-op.
+// Server.UnarchiveChat child path: every child unarchive attempt is
+// rejected with chatd.ErrArchiveRequiresRootChat.
 func TestUnarchiveChildChat(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ChildWithActiveParentUnarchives", func(t *testing.T) {
+	t.Run("ChildWithActiveParentRejected", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
@@ -1601,11 +1471,12 @@ func TestUnarchiveChildChat(t *testing.T) {
 
 		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
 
-		require.NoError(t, replica.UnarchiveChat(ctx, child))
+		err := replica.UnarchiveChat(ctx, child)
+		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
 
 		dbChild, err := db.GetChatByID(ctx, child.ID)
 		require.NoError(t, err)
-		require.False(t, dbChild.Archived, "child should be unarchived")
+		require.True(t, dbChild.Archived, "child should remain archived")
 
 		dbParent, err := db.GetChatByID(ctx, parent.ID)
 		require.NoError(t, err)
@@ -1625,14 +1496,14 @@ func TestUnarchiveChildChat(t *testing.T) {
 		require.NoError(t, err)
 
 		err = replica.UnarchiveChat(ctx, child)
-		require.ErrorIs(t, err, chatd.ErrChildUnarchiveParentArchived)
+		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
 
 		dbChild, err := db.GetChatByID(ctx, child.ID)
 		require.NoError(t, err)
 		require.True(t, dbChild.Archived, "child should remain archived")
 	})
 
-	t.Run("AlreadyActiveChildNoOp", func(t *testing.T) {
+	t.Run("ActiveChildRejected", func(t *testing.T) {
 		t.Parallel()
 
 		db, ps := dbtestutil.NewDB(t)
@@ -1642,11 +1513,66 @@ func TestUnarchiveChildChat(t *testing.T) {
 
 		_, child := insertParentWithActiveChild(t, db, user, org, model)
 
-		require.NoError(t, replica.UnarchiveChat(ctx, child))
+		err := replica.UnarchiveChat(ctx, child)
+		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
 
 		dbChild, err := db.GetChatByID(ctx, child.ID)
 		require.NoError(t, err)
 		require.False(t, dbChild.Archived, "child should stay active")
+	})
+}
+
+// TestArchiveChat_RejectsChildChat verifies that Server.ArchiveChat
+// refuses every child chat with chatd.ErrArchiveRequiresRootChat
+// regardless of the family's current archive state. Archive state
+// changes must always be issued against the root chat so the whole
+// family flips together.
+func TestArchiveChat_RejectsChildChat(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ActiveChildRejected", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+
+		parent, child := insertParentWithActiveChild(t, db, user, org, model)
+
+		err := replica.ArchiveChat(ctx, child)
+		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat)
+
+		dbChild, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.False(t, dbChild.Archived, "child should stay active after rejected archive")
+
+		dbParent, err := db.GetChatByID(ctx, parent.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should stay active after rejected child archive")
+	})
+
+	t.Run("AlreadyArchivedChildRejected", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		replica := newTestServer(t, db, ps, uuid.New())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedChatDependencies(t, db)
+
+		parent, child := insertParentWithArchivedChild(ctx, t, db, user, org, model)
+
+		err := replica.ArchiveChat(ctx, child)
+		require.ErrorIs(t, err, chatd.ErrArchiveRequiresRootChat,
+			"child archive must be rejected even when the child is already archived")
+
+		dbChild, err := db.GetChatByID(ctx, child.ID)
+		require.NoError(t, err)
+		require.True(t, dbChild.Archived, "child archived flag should not change")
+
+		dbParent, err := db.GetChatByID(ctx, parent.ID)
+		require.NoError(t, err)
+		require.False(t, dbParent.Archived, "parent should stay active")
 	})
 }
 
@@ -1696,141 +1622,6 @@ func insertParentWithArchivedChild(
 	child, err = db.GetChatByID(ctx, child.ID)
 	require.NoError(t, err)
 	return parent, child
-}
-
-func TestArchiveChatInterruptsActiveProcessing(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	streamStarted := make(chan struct{})
-	streamCanceled := make(chan struct{})
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		chunks := make(chan chattest.OpenAIChunk, 1)
-		go func() {
-			defer close(chunks)
-			chunks <- chattest.OpenAITextChunks("partial")[0]
-			select {
-			case <-streamStarted:
-			default:
-				close(streamStarted)
-			}
-			<-req.Context().Done()
-			select {
-			case <-streamCanceled:
-			default:
-				close(streamCanceled)
-			}
-		}()
-		return chattest.OpenAIResponse{StreamingChunks: chunks}
-	})
-
-	server := newActiveTestServer(t, db, ps)
-	user, org, model := seedChatDependencies(t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "archive-interrupt",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
-	}, testutil.IntervalFast)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case <-streamStarted:
-			return true
-		default:
-			return false
-		}
-	}, testutil.IntervalFast)
-
-	_, events, cancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	defer cancel()
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	err = server.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case <-streamCanceled:
-			return true
-		default:
-			return false
-		}
-	}, testutil.IntervalFast)
-
-	gotWaitingStatus := false
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		for {
-			select {
-			case ev := <-events:
-				if ev.Type == codersdk.ChatStreamEventTypeStatus &&
-					ev.Status != nil &&
-					ev.Status.Status == codersdk.ChatStatusWaiting {
-					gotWaitingStatus = true
-					return true
-				}
-			default:
-				return gotWaitingStatus
-			}
-		}
-	}, testutil.IntervalFast)
-	require.True(t, gotWaitingStatus, "expected a waiting status event after archive")
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Archived &&
-			fromDB.Status == database.ChatStatusWaiting &&
-			!fromDB.WorkerID.Valid &&
-			!fromDB.StartedAt.Valid &&
-			!fromDB.HeartbeatAt.Valid
-	}, testutil.IntervalFast)
-
-	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queuedMessages, 1)
-	require.Equal(t, queuedResult.QueuedMessage.ID, queuedMessages[0].ID)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	userMessages := 0
-	for _, msg := range messages {
-		if msg.Role == database.ChatMessageRoleUser {
-			userMessages++
-		}
-	}
-	require.Equal(t, 1, userMessages, "expected queued message to stay queued after archive")
 }
 
 func TestUpdateChatHeartbeatsRequiresOwnership(t *testing.T) {
@@ -2073,73 +1864,6 @@ func TestPlanTurnPromptContract(t *testing.T) {
 	}
 }
 
-func TestSendMessageQueuesWhenWaitingWithQueuedBacklog(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "queue-when-waiting-with-backlog",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("older queued"),
-	})
-	require.NoError(t, err)
-	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusWaiting,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   pqtype.NullRawMessage{},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:  chat.ID,
-		Content: []codersdk.ChatMessagePart{codersdk.ChatMessageText("newer queued")},
-	})
-	require.NoError(t, err)
-	require.True(t, result.Queued)
-	require.NotNil(t, result.QueuedMessage)
-	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 2)
-
-	olderSDK := db2sdk.ChatQueuedMessage(queued[0])
-	require.Len(t, olderSDK.Content, 1)
-	require.Equal(t, "older queued", olderSDK.Content[0].Text)
-
-	newerSDK := db2sdk.ChatQueuedMessage(queued[1])
-	require.Len(t, newerSDK.Content, 1)
-	require.Equal(t, "newer queued", newerSDK.Content[0].Text)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-}
-
 func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	t.Parallel()
 
@@ -2168,185 +1892,6 @@ func TestSendMessageRejectsInvalidQueuedModelConfigID(t *testing.T) {
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Empty(t, queued)
-}
-
-func TestSendMessageInterruptBehaviorQueuesAndInterruptsWhenBusy(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newStartedTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "interrupt-when-busy",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// CreateChat calls signalWake which triggers processOnce in
-	// the background. Wait for that processing to finish so it
-	// doesn't race with the manual status update below.
-	waitForChatProcessed(ctx, t, db, chat.ID, replica)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("interrupt")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-	})
-	require.NoError(t, err)
-
-	// The message should be queued, not inserted directly.
-	require.True(t, result.Queued)
-	require.NotNil(t, result.QueuedMessage)
-
-	// The chat should transition to waiting (interrupt signal),
-	// not pending.
-	require.Equal(t, database.ChatStatusWaiting, result.Chat.Status)
-
-	fromDB, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, fromDB.Status)
-
-	// The message should be in the queue, not in chat_messages.
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 1)
-
-	// Only messages from the initial processing round should be in
-	// chat_messages (user + assistant). The "interrupt" message must
-	// be in the queue, not inserted directly.
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 2)
-}
-
-func TestEditMessageUpdatesAndTruncatesAndClearsQueue(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "edit-message",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
-	})
-	require.NoError(t, err)
-
-	initialMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, initialMessages, 1)
-	editedMessageID := initialMessages[0].ID
-
-	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("follow-up")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-	})
-	require.NoError(t, err)
-	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("another")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorInterrupt,
-	})
-	require.NoError(t, err)
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("queued"),
-	})
-	require.NoError(t, err)
-	_, err = db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-	})
-	require.NoError(t, err)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-	apiKeyID := apiKey.ID
-	editResult, err := replica.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		EditedMessageID: editedMessageID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
-		APIKeyID:        apiKeyID,
-	})
-	require.NoError(t, err)
-	// The edited message is soft-deleted and a new message is inserted,
-	// so the returned message ID will differ from the original.
-	require.NotEqual(t, editedMessageID, editResult.Message.ID)
-	require.True(t, editResult.Message.APIKeyID.Valid)
-	require.Equal(t, apiKeyID, editResult.Message.APIKeyID.String)
-	require.Equal(t, database.ChatStatusPending, editResult.Chat.Status)
-	require.False(t, editResult.Chat.WorkerID.Valid)
-
-	editedSDK := db2sdk.ChatMessage(editResult.Message)
-	require.Len(t, editedSDK.Content, 1)
-	require.Equal(t, "edited", editedSDK.Content[0].Text)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-	require.Equal(t, editResult.Message.ID, messages[0].ID)
-	require.True(t, messages[0].APIKeyID.Valid)
-	require.Equal(t, apiKeyID, messages[0].APIKeyID.String)
-	onlyMessage := db2sdk.ChatMessage(messages[0])
-	require.Len(t, onlyMessage.Content, 1)
-	require.Equal(t, "edited", onlyMessage.Content[0].Text)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Len(t, queued, 0)
-
-	// WaitUntilIdleForTest drains the debug-cleanup goroutine
-	// from EditMessage. Must be called from the test goroutine
-	// (not inside require.Eventually) to avoid Add/Wait race.
-	chatd.WaitUntilIdleForTest(replica)
-	var chatFromDB database.Chat
-	require.Eventually(t, func() bool {
-		c, e := db.GetChatByID(ctx, chat.ID)
-		if e != nil {
-			return false
-		}
-		chatFromDB = c
-		return chatFromDB.Status != database.ChatStatusRunning
-	}, testutil.WaitShort, testutil.IntervalFast)
-	require.False(t, chatFromDB.WorkerID.Valid)
 }
 
 func TestCreateChatInsertsWorkspaceAwarenessMessage(t *testing.T) {
@@ -2515,244 +2060,6 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, afterChats, len(beforeChats))
-}
-
-func TestPromoteQueuedAllowsAlreadyQueuedMessageWhenUsageLimitReached(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newStartedTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
-
-	_, err := db.UpsertChatUsageLimitConfig(ctx, database.UpsertChatUsageLimitConfigParams{
-		Enabled:            true,
-		DefaultLimitMicros: 100,
-		Period:             string(codersdk.ChatUsageLimitPeriodDay),
-	})
-	require.NoError(t, err)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "queued-limit-reached",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// CreateChat calls signalWake which triggers processOnce in
-	// the background. Wait for that processing to finish so it
-	// doesn't race with the manual status update below.
-	waitForChatProcessed(ctx, t, db, chat.ID, replica)
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		APIKeyID:     apiKey.ID,
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-	require.True(t, queuedResult.QueuedMessage.APIKeyID.Valid)
-	require.Equal(t, apiKey.ID, queuedResult.QueuedMessage.APIKeyID.String)
-
-	assistantContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-		codersdk.ChatMessageText("assistant"),
-	})
-	require.NoError(t, err)
-
-	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:          chat.ID,
-		ModelConfigID:   uuid.NullUUID{UUID: model.ID, Valid: true},
-		Role:            database.ChatMessageRoleAssistant,
-		ContentVersion:  chatprompt.CurrentContentVersion,
-		Content:         assistantContent,
-		TotalCostMicros: sql.NullInt64{Int64: 100, Valid: true},
-	})
-
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusWaiting,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-		LastError:   pqtype.NullRawMessage{},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedResult.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, database.ChatMessageRoleUser, result.PromotedMessage.Role)
-	require.True(t, result.PromotedMessage.APIKeyID.Valid)
-	require.Equal(t, apiKey.ID, result.PromotedMessage.APIKeyID.String)
-
-	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 4)
-	require.Equal(t, database.ChatMessageRoleUser, messages[3].Role)
-}
-
-func TestPromoteQueuedMessageUsesQueuedModelConfigID(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(t, db)
-	modelConfigB := insertChatModelConfigWithCallConfig(
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o-mini-promote-"+uuid.NewString(),
-		codersdk.ChatModelCallConfig{},
-	)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfigA.ID,
-		Title:             "promote queued uses stored model",
-	})
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with model b")})
-	require.NoError(t, err)
-	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  modelConfigB.ID,
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, result.PromotedMessage.ModelConfigID.UUID)
-
-	storedChat, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
-	// The processor can pick up the pending chat immediately after
-	// promotion, so this test only requires that promotion moved it out of
-	// waiting and preserved the queued model configuration.
-	require.Contains(t, []database.ChatStatus{
-		database.ChatStatusPending,
-		database.ChatStatusRunning,
-	}, storedChat.Status)
-}
-
-func TestPromoteQueuedMessageReloadsChatWhenModelConfigChangesDuringPending(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(t, db)
-	modelConfigB := insertChatModelConfigWithCallConfig(
-		t,
-		db,
-		user.ID,
-		"openai",
-		"gpt-4o-mini-promote-pending-"+uuid.NewString(),
-		codersdk.ChatModelCallConfig{},
-	)
-
-	watchEvents := make(chan struct {
-		payload codersdk.ChatWatchEvent
-		err     error
-	}, 1)
-	cancelWatch, err := ps.SubscribeWithErr(
-		coderdpubsub.ChatWatchEventChannel(user.ID),
-		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
-			select {
-			case watchEvents <- struct {
-				payload codersdk.ChatWatchEvent
-				err     error
-			}{payload: payload, err: err}:
-			default:
-			}
-		}),
-	)
-	require.NoError(t, err)
-	defer cancelWatch()
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusPending,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfigA.ID,
-		Title:             "promote queued reloads pending chat",
-	})
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued with new model")})
-	require.NoError(t, err)
-	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  modelConfigB.ID,
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
-	require.Equal(t, modelConfigB.ID, result.PromotedMessage.ModelConfigID.UUID)
-
-	storedChat, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, storedChat.Status)
-	require.Equal(t, modelConfigB.ID, storedChat.LastModelConfigID)
-
-	select {
-	case event := <-watchEvents:
-		require.NoError(t, event.err)
-		require.Equal(t, codersdk.ChatWatchEventKindStatusChange, event.payload.Kind)
-		require.Equal(t, chat.ID, event.payload.Chat.ID)
-		require.Equal(t, codersdk.ChatStatusPending, event.payload.Chat.Status)
-		require.Equal(t, modelConfigB.ID, event.payload.Chat.LastModelConfigID)
-	case <-ctx.Done():
-		t.Fatal("timed out waiting for status change watch event")
-	}
 }
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
@@ -3011,85 +2318,6 @@ func testAutoPromoteQueuedMessageFallback(t *testing.T, queuedModelConfigID uuid
 		found = true
 	}
 	require.True(t, found)
-}
-
-func TestPromoteQueuedMessageFallsBackForLegacyQueuedRows(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfigA := seedChatDependencies(t, db)
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfigA.ID,
-		Title:             "promote queued legacy fallback",
-	})
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("legacy queued row")})
-	require.NoError(t, err)
-	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
-	require.Equal(t, modelConfigA.ID, result.PromotedMessage.ModelConfigID.UUID)
-
-	storedChat, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, modelConfigA.ID, storedChat.LastModelConfigID)
-}
-
-func TestPromoteQueuedMessageFallsBackForInvalidQueuedModelConfigID(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, modelConfig := seedChatDependencies(t, db)
-
-	chat := dbgen.Chat(t, db, database.Chat{
-		OrganizationID:    org.ID,
-		OwnerID:           user.ID,
-		LastModelConfigID: modelConfig.ID,
-		Title:             "promote queued invalid fallback",
-	})
-
-	queuedContent, err := json.Marshal([]codersdk.ChatMessagePart{codersdk.ChatMessageText("invalid queued model")})
-	require.NoError(t, err)
-	queuedMessage, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  chat.ID,
-		Content: queuedContent,
-		ModelConfigID: uuid.NullUUID{
-			UUID:  uuid.New(),
-			Valid: true,
-		},
-	})
-	require.NoError(t, err)
-
-	result, err := replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.True(t, result.PromotedMessage.ModelConfigID.Valid)
-	require.Equal(t, modelConfig.ID, result.PromotedMessage.ModelConfigID.UUID)
-
-	storedChat, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, modelConfig.ID, storedChat.LastModelConfigID)
 }
 
 func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
@@ -3603,91 +2831,6 @@ func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 }
 
 // TestArchiveChatDebugCleanupDeletesPreArchiveRuns verifies that
-// ArchiveChat schedules cleanup that deletes pre-archive debug runs
-// for the archived chat. Covers the archiveCutoff sampled from
-// ArchiveChatByID's DB-stamped updated_at and the DeleteByChatID
-// delete path.
-func TestArchiveChatDebugCleanupDeletesPreArchiveRuns(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newDebugEnabledTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID:     org.ID,
-		OwnerID:            user.ID,
-		Title:              "debug-archive-cleanup",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	staleStart := time.Now().Add(-time.Hour).UTC().Truncate(time.Microsecond)
-	staleRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Kind:          "chat_turn",
-		Status:        "in_progress",
-		Provider:      sql.NullString{String: "openai", Valid: true},
-		Model:         sql.NullString{String: model.Model, Valid: true},
-		StartedAt:     sql.NullTime{Time: staleStart, Valid: true},
-		UpdatedAt:     sql.NullTime{Time: staleStart, Valid: true},
-	})
-	require.NoError(t, err)
-
-	// Freshly-inserted run inside the skew buffer must survive the
-	// fast retry for the same reason as the edit-cleanup buffer test.
-	recentStart := time.Now().Add(-time.Second).UTC().Truncate(time.Microsecond)
-	recentRun, err := db.InsertChatDebugRun(ctx, database.InsertChatDebugRunParams{
-		ChatID:        chat.ID,
-		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-		Kind:          "chat_turn",
-		Status:        "in_progress",
-		Provider:      sql.NullString{String: "openai", Valid: true},
-		Model:         sql.NullString{String: model.Model, Valid: true},
-		StartedAt:     sql.NullTime{Time: recentStart, Valid: true},
-		UpdatedAt:     sql.NullTime{Time: recentStart, Valid: true},
-	})
-	require.NoError(t, err)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	chatd.WaitUntilIdleForTest(replica)
-
-	// ErrNoRows proves the fast-retry path DELETED the row:
-	// FinalizeStale only UPDATEs in place, never deletes.
-	_, err = db.GetChatDebugRunByID(ctx, staleRun.ID)
-	require.ErrorIs(t, err, sql.ErrNoRows,
-		"pre-archive run outside the buffer should be deleted")
-
-	remaining, err := db.GetChatDebugRunByID(ctx, recentRun.ID)
-	require.NoError(t, err,
-		"runs inside the clock-skew buffer must survive the fast retry")
-	require.Equal(t, recentRun.ID, remaining.ID)
-
-	// Count the seeded survivors directly so the delete is verified
-	// not just by absence of a specific row. Scoped to seeded IDs
-	// because the archive transition may still race with other
-	// background debug writes.
-	remainingRuns, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
-		ChatID: chat.ID, LimitVal: 100,
-	})
-	require.NoError(t, err)
-	seeded := map[uuid.UUID]bool{staleRun.ID: true, recentRun.ID: true}
-	survivors := 0
-	for _, r := range remainingRuns {
-		if seeded[r.ID] {
-			survivors++
-		}
-	}
-	require.Equal(t, 1, survivors,
-		"only the recent (buffered) seeded run should survive")
-}
-
 func TestRecoverStaleChatsPeriodically(t *testing.T) {
 	t.Parallel()
 
@@ -4889,12 +4032,11 @@ func ptrRef[T any](v T) *T {
 	return &v
 }
 
-func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
+func TestSubscribeNoDuplicateMessageParts(t *testing.T) {
 	t.Parallel()
 
-	// Use nil pubsub to force the no-pubsub path.
-	db, _ := dbtestutil.NewDB(t)
-	replica := newStartedTestServer(t, db, nil, uuid.New())
+	db, ps := dbtestutil.NewDB(t)
+	replica := newTestServer(t, db, ps, uuid.New())
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	user, org, model := seedChatDependencies(t, db)
@@ -4907,14 +4049,6 @@ func TestSubscribeNoPubsubNoDuplicateMessageParts(t *testing.T) {
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
 	})
 	require.NoError(t, err)
-
-	// Wait for any wake-triggered processing to settle before
-	// subscribing, so the snapshot captures the final state.
-	// The wake signal may trigger processOnce which will fail
-	// (no LLM configured) and set the chat to error status.
-	// Poll until the chat reaches a terminal state (not pending
-	// and not running), then wait for the goroutine to finish.
-	waitForChatProcessed(ctx, t, db, chat.ID, replica)
 
 	snapshot, events, cancel, ok := replica.Subscribe(ctx, chat.ID, nil, 0)
 	require.True(t, ok)
@@ -5830,10 +4964,12 @@ func TestPassiveServerDoesNotProcess(t *testing.T) {
 
 	chatd.WaitUntilIdleForTest(server)
 
-	// Re-read from DB to catch any unexpected state transition.
+	// Re-read from DB to catch any unexpected processing.
 	stored, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, stored.Status)
+	require.Equal(t, database.ChatStatusRunning, stored.Status)
+	require.False(t, stored.WorkerID.Valid)
+	require.False(t, stored.RunnerID.Valid)
 }
 
 // newStartedTestServer creates a server with Start() called.
@@ -6402,7 +5538,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 	}, testutil.IntervalFast)
 
 	// Interrupt the chat.
-	updated := server.InterruptChat(ctx, chat)
+	updated, _ := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
 	// Wait for the chat to finish processing and return to waiting.
@@ -7304,7 +6440,7 @@ func TestInterruptChatPersistsPartialResponse(t *testing.T) {
 	require.True(t, gotMessagePart, "should have received at least one message_part event")
 
 	// Now interrupt the chat. The chatloop has processed content.
-	updated := server.InterruptChat(ctx, chat)
+	updated, _ := server.InterruptChat(ctx, chat)
 	require.Equal(t, database.ChatStatusWaiting, updated.Status)
 
 	// Wait for the partial assistant message to be persisted.
@@ -8873,71 +8009,6 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		"plan-file-path block should be part of the main system prompt, not a standalone message")
 }
 
-func TestSendMessageRejectsArchivedChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "send-archived",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	_, err = replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("should fail")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.ErrorIs(t, err, chatd.ErrChatArchived)
-}
-
-func TestEditMessageRejectsArchivedChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "edit-archived",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("original")},
-	})
-	require.NoError(t, err)
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	require.Len(t, messages, 1)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	_, err = replica.EditMessage(ctx, chatd.EditMessageOptions{
-		ChatID:          chat.ID,
-		EditedMessageID: messages[0].ID,
-		Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("edited")},
-	})
-	require.ErrorIs(t, err, chatd.ErrChatArchived)
-}
-
 // TestEditMessageWithModelConfigOverride verifies that callers can
 // change the model when editing a previous user message. The
 // replacement message must persist with the new model and the chat's
@@ -9087,521 +8158,7 @@ func TestEditMessageRejectsUnknownModelConfig(t *testing.T) {
 	require.Equal(t, modelA.ID, storedChat.LastModelConfigID)
 }
 
-func TestPromoteQueuedRejectsArchivedChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "promote-archived",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	// Queue a message by setting the chat to running first.
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: uuid.New(), Valid: true},
-		StartedAt:   sql.NullTime{Time: time.Now(), Valid: true},
-		HeartbeatAt: sql.NullTime{Time: time.Now(), Valid: true},
-	})
-	require.NoError(t, err)
-
-	queuedResult, err := replica.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-
-	// Move back to waiting, then archive.
-	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusWaiting,
-		WorkerID:    uuid.NullUUID{},
-		StartedAt:   sql.NullTime{},
-		HeartbeatAt: sql.NullTime{},
-	})
-	require.NoError(t, err)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	_, err = replica.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedResult.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.ErrorIs(t, err, chatd.ErrChatArchived)
-}
-
-// TestPromoteQueuedWhileRequiresAction guards against the
-// stops-dead failure mode: promoting on requires_action without
-// closing pending dynamic tool calls leaves the assistant turn
-// with unresolved tool_call parts that the LLM API rejects. It
-// also asserts the synthetic tool-result row is published to live
-// SSE subscribers before the promoted user message.
-func TestPromoteQueuedWhileRequiresAction(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var streamedCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("requires-action-promote")
-		}
-		if streamedCallCount.Add(1) == 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk(
-					"my_dynamic_tool",
-					`{"input":"hello"}`,
-				),
-			)
-		}
-		// Second call: the resumed run after promote completes.
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Resumed after promotion.")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps)
-
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
-		Name:        "my_dynamic_tool",
-		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		},
-	}})
-	require.NoError(t, err)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "promote-while-requires-action",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Please call the dynamic tool."),
-		},
-		DynamicTools: dynamicToolsJSON,
-	})
-	require.NoError(t, err)
-
-	var chatBeforePromote database.Chat
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		chatBeforePromote = got
-		return got.Status == database.ChatStatusRequiresAction ||
-			got.Status == database.ChatStatusError
-	}, testutil.IntervalFast)
-	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
-		"expected requires_action, got %s (last_error=%q)",
-		chatBeforePromote.Status, chatLastErrorMessage(chatBeforePromote.LastError))
-
-	var pendingToolCallID string
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if dbErr != nil {
-			return false
-		}
-		for _, msg := range messages {
-			if msg.Role != database.ChatMessageRoleAssistant {
-				continue
-			}
-			parts, parseErr := chatprompt.ParseContent(msg)
-			if parseErr != nil {
-				continue
-			}
-			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == "my_dynamic_tool" {
-					pendingToolCallID = part.ToolCallID
-					return true
-				}
-			}
-		}
-		return false
-	}, testutil.IntervalFast)
-	require.NotEmpty(t, pendingToolCallID, "expected pending dynamic tool call")
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	// Subscribe before promoting to capture published events.
-	_, events, subCancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	defer subCancel()
-	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedResult.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.Equal(t, database.ChatMessageRoleUser, promoteResult.PromotedMessage.Role)
-
-	// Synthetic row must publish before the promoted user message.
-	var (
-		syntheticPublishedAt int
-		userPublishedAt      int
-		messagesSeen         int
-	)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		for {
-			select {
-			case ev := <-events:
-				if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
-					continue
-				}
-				messagesSeen++
-				switch ev.Message.Role {
-				case codersdk.ChatMessageRoleTool:
-					if syntheticPublishedAt == 0 {
-						syntheticPublishedAt = messagesSeen
-					}
-				case codersdk.ChatMessageRoleUser:
-					if ev.Message.ID == promoteResult.PromotedMessage.ID {
-						userPublishedAt = messagesSeen
-					}
-				}
-				if syntheticPublishedAt > 0 && userPublishedAt > 0 {
-					return true
-				}
-			default:
-				return false
-			}
-		}
-	}, testutil.IntervalFast)
-
-	require.Less(t, syntheticPublishedAt, userPublishedAt,
-		"synthetic tool-result must be published before the promoted user message")
-
-	queuedAfter, err := db.GetChatQueuedMessages(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Empty(t, queuedAfter, "queued message should be removed after sync promotion")
-
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-
-	var (
-		syntheticToolResult *database.ChatMessage
-		promotedUserMessage *database.ChatMessage
-	)
-	for i := range messages {
-		msg := messages[i]
-		if msg.Role == database.ChatMessageRoleTool {
-			parts, parseErr := chatprompt.ParseContent(msg)
-			require.NoError(t, parseErr)
-			for _, part := range parts {
-				if part.Type != codersdk.ChatMessagePartTypeToolResult {
-					continue
-				}
-				if part.ToolCallID != pendingToolCallID {
-					continue
-				}
-				require.True(t, part.IsError,
-					"synthetic tool result should have IsError=true")
-				syntheticToolResult = &messages[i]
-			}
-		}
-		if msg.ID == promoteResult.PromotedMessage.ID {
-			promotedUserMessage = &messages[i]
-		}
-	}
-	require.NotNil(t, syntheticToolResult,
-		"expected a synthetic error tool result for the pending tool call")
-	require.NotNil(t, promotedUserMessage)
-	require.Less(t, syntheticToolResult.ID, promotedUserMessage.ID,
-		"synthetic tool result must precede the promoted user message")
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
-	}, testutil.IntervalFast)
-	final, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusWaiting, final.Status,
-		"chat should resume to waiting after promotion (last_error=%q)",
-		chatLastErrorMessage(final.LastError))
-}
-
 // TestPromoteQueuedWhileRequiresActionMixedTools guards against
-// duplicating already-resolved built-in tool results: synthetic
-// results must be scoped to dynamic tool names only.
-func TestPromoteQueuedWhileRequiresActionMixedTools(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var streamedCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("mixed-tools-promote")
-		}
-		if streamedCallCount.Add(1) == 1 {
-			builtinChunk := chattest.OpenAIToolCallChunk(
-				"read_file",
-				`{"path":"/tmp/test.txt"}`,
-			)
-			dynamicChunk := chattest.OpenAIToolCallChunk(
-				"my_dynamic_tool",
-				`{"input":"hello world"}`,
-			)
-			mergedChunk := builtinChunk
-			dynCall := dynamicChunk.Choices[0].ToolCalls[0]
-			dynCall.Index = 1
-			mergedChunk.Choices[0].ToolCalls = append(
-				mergedChunk.Choices[0].ToolCalls,
-				dynCall,
-			)
-			return chattest.OpenAIStreamingResponse(mergedChunk)
-		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("Resumed after mixed-tool promotion.")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	server := newActiveTestServer(t, db, ps)
-
-	dynamicToolsJSON, err := json.Marshal([]mcpgo.Tool{{
-		Name:        "my_dynamic_tool",
-		Description: "A test dynamic tool.",
-		InputSchema: mcpgo.ToolInputSchema{
-			Type: "object",
-			Properties: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		},
-	}})
-	require.NoError(t, err)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		Title:          "promote-while-requires-action-mixed",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Call both tools."),
-		},
-		DynamicTools: dynamicToolsJSON,
-	})
-	require.NoError(t, err)
-
-	var chatBeforePromote database.Chat
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		got, getErr := db.GetChatByID(ctx, chat.ID)
-		if getErr != nil {
-			return false
-		}
-		chatBeforePromote = got
-		return got.Status == database.ChatStatusRequiresAction ||
-			got.Status == database.ChatStatusError
-	}, testutil.IntervalFast)
-	require.Equal(t, database.ChatStatusRequiresAction, chatBeforePromote.Status,
-		"expected requires_action, got %s (last_error=%q)",
-		chatBeforePromote.Status, chatLastErrorMessage(chatBeforePromote.LastError))
-
-	// The built-in tool resolves before requires_action; capture
-	// its row ID to assert the dynamic synthetic comes after.
-	var (
-		dynamicToolCallID     string
-		builtinToolResultID   int64
-		builtinToolResultSeen bool
-	)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		messages, dbErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if dbErr != nil {
-			return false
-		}
-		for _, msg := range messages {
-			parts, parseErr := chatprompt.ParseContent(msg)
-			if parseErr != nil {
-				continue
-			}
-			for _, part := range parts {
-				if part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "read_file" {
-					builtinToolResultID = msg.ID
-					builtinToolResultSeen = true
-				}
-				if part.Type == codersdk.ChatMessagePartTypeToolCall && part.ToolName == "my_dynamic_tool" {
-					dynamicToolCallID = part.ToolCallID
-				}
-			}
-		}
-		return builtinToolResultSeen && dynamicToolCallID != ""
-	}, testutil.IntervalFast)
-	require.NotEmpty(t, dynamicToolCallID)
-	require.NotZero(t, builtinToolResultID)
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	_, events, subCancel, ok := server.Subscribe(ctx, chat.ID, nil, 0)
-	require.True(t, ok)
-	defer subCancel()
-	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedResult.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.NotZero(t, promoteResult.PromotedMessage.ID,
-		"requires_action promotion is synchronous and returns the inserted message")
-
-	// Only the dynamic tool's synth row publishes; the built-in's
-	// pre-existing result is not republished.
-	var (
-		syntheticPublishCount int
-		userPublished         bool
-	)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		for {
-			select {
-			case ev := <-events:
-				if ev.Type != codersdk.ChatStreamEventTypeMessage || ev.Message == nil {
-					t.Logf("subscriber consumed non-message event type=%s", ev.Type)
-					continue
-				}
-				t.Logf("subscriber consumed message id=%d role=%s match_promoted=%t", ev.Message.ID, ev.Message.Role, ev.Message.ID == promoteResult.PromotedMessage.ID)
-				switch ev.Message.Role {
-				case codersdk.ChatMessageRoleTool:
-					syntheticPublishCount++
-				case codersdk.ChatMessageRoleUser:
-					if ev.Message.ID == promoteResult.PromotedMessage.ID {
-						userPublished = true
-					}
-				}
-				if userPublished {
-					return true
-				}
-			default:
-				return false
-			}
-		}
-	}, testutil.IntervalFast)
-
-	require.Equal(t, 1, syntheticPublishCount,
-		"only the dynamic tool's synthetic result must be published; the built-in's pre-existing result must not be republished")
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chat.ID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-
-	var (
-		dynamicSyntheticCount     int
-		builtinResultsForReadFile int
-	)
-	for _, msg := range messages {
-		parts, parseErr := chatprompt.ParseContent(msg)
-		require.NoError(t, parseErr)
-		for _, part := range parts {
-			if part.Type != codersdk.ChatMessagePartTypeToolResult {
-				continue
-			}
-			switch part.ToolName {
-			case "read_file":
-				builtinResultsForReadFile++
-			case "my_dynamic_tool":
-				if part.IsError && part.ToolCallID == dynamicToolCallID && msg.ID > builtinToolResultID {
-					dynamicSyntheticCount++
-				}
-			}
-		}
-	}
-	require.Equal(t, 1, dynamicSyntheticCount,
-		"expected exactly one synthetic error tool result for the dynamic tool call")
-	require.Equal(t, 1, builtinResultsForReadFile,
-		"built-in tool result should not be duplicated by promotion")
-
-	require.Greater(t, promoteResult.PromotedMessage.ID, builtinToolResultID)
-}
-
-func TestSubmitToolResultsRejectsArchivedChat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	replica := newTestServer(t, db, ps, uuid.New())
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := replica.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "submit-tool-archived",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	err = replica.ArchiveChat(ctx, chat)
-	require.NoError(t, err)
-
-	// Set requires_action so the test exercises a realistic
-	// scenario where SubmitToolResults would be called.
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:     chat.ID,
-		Status: database.ChatStatusRequiresAction,
-	})
-	require.NoError(t, err)
-
-	err = replica.SubmitToolResults(ctx, chatd.SubmitToolResultsOptions{
-		ChatID:        chat.ID,
-		UserID:        user.ID,
-		ModelConfigID: model.ID,
-		Results: []codersdk.ToolResult{{
-			ToolCallID: "fake-tool-call-id",
-			Output:     json.RawMessage(`{"result":"ignored"}`),
-		}},
-	})
-	require.ErrorIs(t, err, chatd.ErrChatArchived)
-}
-
 func TestAcquireChatsSkipsArchivedPendingChat(t *testing.T) {
 	t.Parallel()
 
@@ -10510,310 +9067,7 @@ func seedAdvisorConfig(
 	require.NoError(t, err)
 }
 
-// TestPromoteQueuedWhileRunning guards against the data-loss
-// failure mode: promoting on a streaming chat must preserve
-// partial assistant output by deferring the user-message insert
-// to the worker's auto-promote.
-func TestPromoteQueuedWhileRunning(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	streamStarted := make(chan struct{})
-	streamCanceled := make(chan struct{})
-	var streamCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("running-promote")
-		}
-		if streamCallCount.Add(1) > 1 {
-			// Subsequent calls are the resumed run; let it settle.
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("resumed after promotion")...,
-			)
-		}
-		chunks := make(chan chattest.OpenAIChunk, 1)
-		go func() {
-			defer close(chunks)
-			chunks <- chattest.OpenAITextChunks("partial-running-output")[0]
-			select {
-			case <-streamStarted:
-			default:
-				close(streamStarted)
-			}
-			<-req.Context().Done()
-			select {
-			case <-streamCanceled:
-			default:
-				close(streamCanceled)
-			}
-		}()
-		return chattest.OpenAIResponse{StreamingChunks: chunks}
-	})
-
-	server := newActiveTestServer(t, db, ps)
-	user, org, model := seedChatDependencies(t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "promote-while-running",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
-	}, testutil.IntervalFast)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case <-streamStarted:
-			return true
-		default:
-			return false
-		}
-	}, testutil.IntervalFast)
-
-	queuedResult, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queuedResult.Queued)
-	require.NotNil(t, queuedResult.QueuedMessage)
-
-	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queuedResult.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	// Deferred promotion: no synchronous user message.
-	require.Zero(t, promoteResult.PromotedMessage.ID)
-
-	// Worker observes waiting and cancels.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case <-streamCanceled:
-			return true
-		default:
-			return false
-		}
-	}, testutil.IntervalFast)
-
-	// Partial assistant output is preserved (not lost as it was
-	// pre-fix) and precedes the promoted user message. Poll on the
-	// messages themselves: the status passes through Waiting
-	// transiently before finishActiveChat's external-Waiting case
-	// promotes the queued message and flips the chat to Pending.
-	// Both messages being persisted implies cleanup completed.
-	var (
-		partialAssistantID int64
-		promotedUserID     int64
-	)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if err != nil {
-			return false
-		}
-		var (
-			assistantID int64
-			userID      int64
-		)
-		for _, msg := range messages {
-			switch msg.Role {
-			case database.ChatMessageRoleAssistant:
-				parts, parseErr := chatprompt.ParseContent(msg)
-				if parseErr != nil {
-					continue
-				}
-				for _, part := range parts {
-					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "partial-running-output") {
-						assistantID = msg.ID
-					}
-				}
-			case database.ChatMessageRoleUser:
-				parts, parseErr := chatprompt.ParseContent(msg)
-				if parseErr != nil {
-					continue
-				}
-				for _, part := range parts {
-					if part.Type == codersdk.ChatMessagePartTypeText && strings.Contains(part.Text, "promote me") {
-						userID = msg.ID
-					}
-				}
-			}
-		}
-		if assistantID == 0 || userID == 0 {
-			return false
-		}
-		partialAssistantID = assistantID
-		promotedUserID = userID
-		return true
-	}, testutil.IntervalFast)
-	require.Less(t, partialAssistantID, promotedUserID,
-		"promoted user message must follow the persisted partial output")
-}
-
 // TestPromoteQueuedWhileRunningRespectsMessageOrder guards
-// against losing or reshuffling sibling queued messages when one
-// is promoted out-of-order.
-func TestPromoteQueuedWhileRunningRespectsMessageOrder(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	streamStarted := make(chan struct{})
-	var streamCallCount atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("running-promote-order")
-		}
-		if streamCallCount.Add(1) > 1 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("resumed")...,
-			)
-		}
-		chunks := make(chan chattest.OpenAIChunk, 1)
-		go func() {
-			defer close(chunks)
-			chunks <- chattest.OpenAITextChunks("partial")[0]
-			select {
-			case <-streamStarted:
-			default:
-				close(streamStarted)
-			}
-			<-req.Context().Done()
-		}()
-		return chattest.OpenAIResponse{StreamingChunks: chunks}
-	})
-
-	server := newActiveTestServer(t, db, ps)
-	user, org, model := seedChatDependencies(t, db)
-	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OwnerID:            user.ID,
-		OrganizationID:     org.ID,
-		Title:              "promote-while-running-order",
-		ModelConfigID:      model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
-	})
-	require.NoError(t, err)
-
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
-		if dbErr != nil {
-			return false
-		}
-		return fromDB.Status == database.ChatStatusRunning && fromDB.WorkerID.Valid
-	}, testutil.IntervalFast)
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		select {
-		case <-streamStarted:
-			return true
-		default:
-			return false
-		}
-	}, testutil.IntervalFast)
-
-	queueA, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("A")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, queueA.QueuedMessage)
-	queueB, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("B")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, queueB.QueuedMessage)
-	queueC, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("C")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.NotNil(t, queueC.QueuedMessage)
-
-	promoteResult, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queueB.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.Zero(t, promoteResult.PromotedMessage.ID,
-		"running-case promotion is deferred to auto-promote")
-
-	// Wait for the worker to drain all three queued messages into
-	// chat history, then verify ordering. Reading queue state right
-	// after PromoteQueued races the worker's auto-promote pipeline
-	// (TOCTOU), so we wait for the settled outcome instead.
-	var posB, posA, posC int
-	var foundA, foundB, foundC bool
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		messages, getErr := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-			ChatID:  chat.ID,
-			AfterID: 0,
-		})
-		if getErr != nil {
-			return false
-		}
-		foundA, foundB, foundC = false, false, false
-		for i, msg := range messages {
-			if msg.Role != database.ChatMessageRoleUser {
-				continue
-			}
-			parts, parseErr := chatprompt.ParseContent(msg)
-			if parseErr != nil {
-				return false
-			}
-			for _, part := range parts {
-				if part.Type != codersdk.ChatMessagePartTypeText {
-					continue
-				}
-				// Only A, B, C are tracked; other user messages are ignored.
-				switch part.Text {
-				case "A":
-					posA = i
-					foundA = true
-				case "B":
-					posB = i
-					foundB = true
-				case "C":
-					posC = i
-					foundC = true
-				}
-			}
-		}
-		return foundA && foundB && foundC
-	}, testutil.IntervalFast,
-		"queued messages not found in chat history: foundA=%v, foundB=%v, foundC=%v", foundA, foundB, foundC)
-
-	// PromoteQueued reorders the queue to [B, A, C], so the worker
-	// processes B first, then A, then C. Verify that ordering.
-	require.Less(t, posB, posA,
-		"promoted message B must appear before A in history")
-	require.Less(t, posA, posC,
-		"non-promoted messages must preserve relative order (A before C)")
-}
-
 // TestFinishActiveChatExternalWaitingInsertsSyntheticResults
 // asserts the cleanup TX inserts synthetic tool-result rows when
 // PromoteQueued's deferred path set Status=Waiting while the
@@ -10962,79 +9216,6 @@ func TestFinishActiveChatExternalWaitingInsertsSyntheticResults(t *testing.T) {
 }
 
 // TestPromoteQueuedFallsThroughOnStaleHeartbeat asserts a stale
-// heartbeat takes the synchronous path so the chat does not strand
-// in Waiting waiting on a worker that will not return.
-func TestPromoteQueuedFallsThroughOnStaleHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	staleAfter := 100 * time.Millisecond
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	server := chatd.New(chatd.Config{
-		Logger:                     logger,
-		Database:                   db,
-		ReplicaID:                  uuid.New(),
-		Pubsub:                     ps,
-		PendingChatAcquireInterval: testutil.WaitLong,
-		InFlightChatStaleAfter:     staleAfter,
-	})
-	t.Cleanup(func() { require.NoError(t, server.Close()) })
-
-	user, org, model := seedChatDependencies(t, db)
-
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
-		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
-		OwnerID:           user.ID,
-		Title:             "stale-heartbeat-promote-fallthrough",
-		LastModelConfigID: model.ID,
-	})
-	require.NoError(t, err)
-
-	// Place the chat in Running with a stale heartbeat. We do not
-	// start the server's run loop, so no worker will ever pick this
-	// chat up; the test isolates the fall-through decision in
-	// PromoteQueued.
-	deadWorker := uuid.New()
-	staleTime := time.Now().Add(-2 * staleAfter)
-	_, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{
-		ID:          chat.ID,
-		Status:      database.ChatStatusRunning,
-		WorkerID:    uuid.NullUUID{UUID: deadWorker, Valid: true},
-		StartedAt:   sql.NullTime{Time: staleTime, Valid: true},
-		HeartbeatAt: sql.NullTime{Time: staleTime, Valid: true},
-	})
-	require.NoError(t, err)
-
-	queued, err := server.SendMessage(ctx, chatd.SendMessageOptions{
-		ChatID:       chat.ID,
-		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText("promote me")},
-		BusyBehavior: chatd.SendMessageBusyBehaviorQueue,
-	})
-	require.NoError(t, err)
-	require.True(t, queued.Queued)
-	require.NotNil(t, queued.QueuedMessage)
-
-	result, err := server.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
-		ChatID:          chat.ID,
-		QueuedMessageID: queued.QueuedMessage.ID,
-		CreatedBy:       user.ID,
-	})
-	require.NoError(t, err)
-	require.NotZero(t, result.PromotedMessage.ID,
-		"stale heartbeat must take the synchronous path and insert a user message inline")
-
-	got, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Equal(t, database.ChatStatusPending, got.Status,
-		"synchronous promote ends Pending")
-	require.False(t, got.WorkerID.Valid,
-		"worker_id is cleared by the synchronous promote")
-}
-
 // TestRecoverStaleChatsRecoversWaitingWithQueue asserts a Waiting
 // chat with a non-empty queue and stale updated_at gets recovered
 // to Pending, closing the post-promote-stranding hole.
