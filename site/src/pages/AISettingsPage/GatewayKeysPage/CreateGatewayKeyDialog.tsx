@@ -79,7 +79,7 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				if (!nextOpen && !isBusy) {
+				if (!nextOpen && !isBusy && !createdKey) {
 					closeDialog();
 				}
 			}}
@@ -87,16 +87,6 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 			<DialogContent
 				className="max-h-[90vh] overflow-y-auto"
 				aria-describedby={undefined}
-				onInteractOutside={(event) => {
-					if (createdKey) {
-						event.preventDefault();
-					}
-				}}
-				onEscapeKeyDown={(event) => {
-					if (createdKey) {
-						event.preventDefault();
-					}
-				}}
 			>
 				<DialogHeader>
 					<DialogTitle>

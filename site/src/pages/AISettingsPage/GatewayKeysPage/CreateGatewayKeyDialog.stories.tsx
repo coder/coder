@@ -40,6 +40,23 @@ export const CreateAndReveal: Story = {
 	},
 };
 
+export const InvalidName: Story = {
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const nameField = await body.findByLabelText("Name");
+		await userEvent.type(nameField, "UPPER_CASE");
+
+		const createButton = await body.findByRole("button", { name: "Create" });
+		await userEvent.click(createButton);
+
+		await expect(
+			body.findByText(
+				"Use lowercase letters and numbers with optional single hyphens between words.",
+			),
+		).resolves.toBeVisible();
+	},
+};
+
 export const CreateError: Story = {
 	args: {
 		onCreate: fn(() =>
@@ -86,6 +103,26 @@ export const GeneralCreateError: Story = {
 
 		await expect(
 			body.findByText("Failed to create key."),
+		).resolves.toBeVisible();
+	},
+};
+
+export const EscapeDoesNotDismissCreatedKey: Story = {
+	play: async ({ args, canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const nameField = await body.findByLabelText("Name");
+		await userEvent.type(nameField, "new-gateway");
+
+		const createButton = await body.findByRole("button", { name: "Create" });
+		await userEvent.click(createButton);
+
+		await expect(args.onCreate).toHaveBeenCalledWith("new-gateway");
+		await body.findByText(MockCreateAIGatewayKeyResponse.key);
+
+		await userEvent.keyboard("{Escape}");
+
+		await expect(
+			body.findByText(MockCreateAIGatewayKeyResponse.key),
 		).resolves.toBeVisible();
 	},
 };
