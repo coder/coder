@@ -1005,6 +1005,43 @@ jobs:
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
+  storybook:
+    name: Storybook
+
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v6
+        name: Checkout
+
+      - uses: pnpm/action-setup@v6
+        name: Install dependencies
+        with:
+          run_install: true
+          cache: true
+
+      - run: pnpm storybook:build
+        working-directory: dashboard/
+        name: Build Storybook
+
+      # CLEANUP: Github Actions runners have _a_ version of Chromium preinstalled.
+      # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
+      # ...but the engine doesn't find it right now. Might be worth looking
+      # into. This step isn't exactly fast.
+      - run: pnpx playwright install --with-deps chromium
+        working-directory: dashboard/
+        name: Install Chromium
+
+      - run: pnpm pixel-storybook
+        working-directory: dashboard/
+        name: Snapshot
+        env:
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+
   # Reference guide:
   # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event
   chromatic:
@@ -1176,7 +1213,8 @@ jobs:
           egress-policy: audit
 
       - name: Ensure required checks
-        run: | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
+        run:
+          | # zizmor: ignore[template-injection] We're just reading needs.x.result here, no risk of injection
           echo "Checking required checks"
           echo "- changes: ${{ needs.changes.result }}"
           echo "- fmt: ${{ needs.fmt.result }}"
@@ -1532,7 +1570,8 @@ jobs:
       # Report attestation failures but don't fail the workflow
       - name: Check attestation status
         if: github.ref == 'refs/heads/main'
-        run: | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
+        run:
+          | # zizmor: ignore[template-injection] We're just reading steps.attest_x.outcome here, no risk of injection
           if [[ "${{ steps.attest_main.outcome }}" == "failure" ]]; then
             echo "::warning::GitHub attestation for main tag failed"
           fi
