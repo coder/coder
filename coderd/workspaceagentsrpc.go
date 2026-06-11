@@ -165,6 +165,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 		BoundaryUsageTracker:              api.BoundaryUsageTracker,
+		PortSharer:                        &api.PortSharer,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
