@@ -1114,9 +1114,20 @@ func (c *turnWorkspaceContext) getWorkspaceConn(ctx context.Context) (workspaces
 		// waiting for an unreachable agent. The timeout scopes
 		// only dialWithLazyValidation, not ensureWorkspaceAgent
 		// or the post-dial binding steps.
-		dialCtx, dialCancel := context.WithTimeoutCause(ctx, c.server.dialTimeout, errChatDialTimeout)
+		dialCtx, dialCancelCause := context.WithCancelCause(ctx)
+		dialTimer := c.server.clock.AfterFunc(
+			c.server.dialTimeout,
+			func() { dialCancelCause(errChatDialTimeout) },
+			"chatd",
+			dialTimeoutTimerTag,
+		)
+		dialCancel := func() {
+			dialTimer.Stop()
+			dialCancelCause(nil)
+		}
 		dialResult, err := dialWithLazyValidation(
 			dialCtx,
+			c.server.clock,
 			agent.ID,
 			chatSnapshot.WorkspaceID.UUID,
 			DialFunc(c.server.agentConnFn),
@@ -6468,22 +6479,14 @@ type runChatResult struct {
 	HistoryTipMessageID     int64
 }
 
-func contextWithActiveTurnAPIKeyID(ctx context.Context, messages []database.ChatMessage) context.Context {
-	apiKeyID, ok := activeTurnAPIKeyIDFromMessages(messages)
-	if !ok {
-		return ctx
-	}
-	return aibridge.WithDelegatedAPIKeyID(ctx, apiKeyID)
-}
-
 func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bool) {
 	for i := len(messages) - 1; i >= 0; i-- {
 		message := messages[i]
 		if message.Role != database.ChatMessageRoleUser {
 			continue
 		}
-		if message.Visibility != database.ChatMessageVisibilityBoth &&
-			message.Visibility != database.ChatMessageVisibilityUser {
+		if !isUserVisibleChatMessage(message) &&
+			!(message.Visibility == database.ChatMessageVisibilityModel && message.Compressed) {
 			continue
 		}
 		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
@@ -6492,6 +6495,11 @@ func activeTurnAPIKeyIDFromMessages(messages []database.ChatMessage) (string, bo
 		return message.APIKeyID.String, true
 	}
 	return "", false
+}
+
+func isUserVisibleChatMessage(message database.ChatMessage) bool {
+	return message.Visibility == database.ChatMessageVisibilityBoth ||
+		message.Visibility == database.ChatMessageVisibilityUser
 }
 
 func allToolNames(allTools []fantasy.AgentTool) []string {
@@ -7124,7 +7132,9 @@ func (p *Server) runChat(
 		return result, xerrors.Errorf("get chat messages: %w", err)
 	}
 	modelOpts := modelBuildOptionsFromMessages(messages)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
+	if modelOpts.ActiveAPIKeyID != "" {
+		ctx = aibridge.WithDelegatedAPIKeyID(ctx, modelOpts.ActiveAPIKeyID)
+	}
 
 	// Load MCP server configs and user tokens in parallel with model
 	// resolution. These queries have no dependencies on each other and all
@@ -7831,6 +7841,7 @@ func (p *Server) runChat(
 				persistCtx,
 				chat.ID,
 				modelConfig.ID,
+				modelOpts.ActiveAPIKeyID,
 				compactionToolCallID,
 				result,
 			); err != nil {
@@ -8460,12 +8471,14 @@ func buildProviderTools(options *codersdk.ChatModelProviderOptions) []chatloop.P
 	return tools
 }
 
-// persistChatContextSummary persists a chat context summary to the database.
-// This is invoked via the chat loop's compaction callback.
+// persistChatContextSummary is called from the chat loop's compaction
+// callback. activeAPIKeyID is stamped onto the summary user message. When
+// empty, it falls back to the delegated key in ctx.
 func (p *Server) persistChatContextSummary(
 	ctx context.Context,
 	chatID uuid.UUID,
 	modelConfigID uuid.UUID,
+	activeAPIKeyID string,
 	toolCallID string,
 	result chatloop.CompactionResult,
 ) error {
@@ -8514,6 +8527,11 @@ func (p *Server) persistChatContextSummary(
 		return xerrors.Errorf("encode summary tool result: %w", err)
 	}
 
+	summaryAPIKeyID := activeAPIKeyID
+	if summaryAPIKeyID == "" {
+		summaryAPIKeyID, _ = aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	}
+
 	var insertedMessages []database.ChatMessage
 
 	txErr := p.db.InTx(func(tx database.Store) error {
@@ -8522,7 +8540,6 @@ func (p *Server) persistChatContextSummary(
 		}
 
 		// Hidden summary user message (not published to subscribers).
-		summaryAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
 		summaryUserMsg := newUserChatMessage(
 			summaryAPIKeyID,
 			systemContent,

@@ -4972,6 +4972,10 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			}
 
 			clock := quartz.NewMock(t)
+			timeoutTrap := clock.Trap().AfterFunc("chatd", dialTimeoutTimerTag)
+			defer timeoutTrap.Close()
+			delayTrap := clock.Trap().NewTimer("chatd", dialValidationDelayTimerTag)
+			defer delayTrap.Close()
 			now := clock.Now()
 			disconnectedAgent := database.WorkspaceAgent{
 				ID: agentID,
@@ -5003,7 +5007,10 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    10 * time.Millisecond,
 			}
+			dialEntered := make(chan struct{})
+			var closeDialEntered sync.Once
 			server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				closeDialEntered.Do(func() { close(dialEntered) })
 				<-ctx.Done()
 				return nil, nil, ctx.Err()
 			}
@@ -5019,13 +5026,41 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			defer workspaceCtx.close()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
-			require.Nil(t, gotConn)
-			require.ErrorIs(t, err, tc.wantErr)
+			type workspaceConnResult struct {
+				conn workspacesdk.AgentConn
+				err  error
+			}
+			resultCh := make(chan workspaceConnResult, 1)
+			go func() {
+				gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+				resultCh <- workspaceConnResult{conn: gotConn, err: err}
+			}()
+
+			timeoutCall := timeoutTrap.MustWait(ctx)
+			require.Equal(t, server.dialTimeout, timeoutCall.Duration)
+			timeoutCall.MustRelease(ctx)
+			delayCall := delayTrap.MustWait(ctx)
+			require.Equal(t, workspaceDialValidationDelay, delayCall.Duration)
+			delayCall.MustRelease(ctx)
+			select {
+			case <-dialEntered:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for dial to start")
+			}
+			clock.Advance(server.dialTimeout).MustWait(ctx)
+
+			var result workspaceConnResult
+			select {
+			case result = <-resultCh:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for getWorkspaceConn")
+			}
+			require.Nil(t, result.conn)
+			require.ErrorIs(t, result.err, tc.wantErr)
 			if tc.wantRecovery {
-				require.ErrorIs(t, err, errChatAgentDisconnected)
+				require.ErrorIs(t, result.err, errChatAgentDisconnected)
 			} else {
-				require.NotErrorIs(t, err, errChatAgentDisconnected)
+				require.NotErrorIs(t, result.err, errChatAgentDisconnected)
 			}
 
 			workspaceCtx.mu.Lock()
@@ -6651,42 +6686,63 @@ func TestPersistChatContextSummarySetsAPIKeyID(t *testing.T) {
 		UserID: user.ID,
 	})
 
-	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
-
 	server := &Server{db: db}
+	persistAndAssertSummaryKey := func(
+		summaryCtx context.Context,
+		chatID uuid.UUID,
+		activeAPIKeyID string,
+		wantAPIKeyID string,
+		toolCallID string,
+	) {
+		t.Helper()
 
-	err := server.persistChatContextSummary(
-		ctx,
-		chat.ID,
-		modelConfig.ID,
-		"tool-call-id-1",
-		chatloop.CompactionResult{
-			SystemSummary:    "summarized context",
-			SummaryReport:    "context was summarized",
-			ThresholdPercent: 70,
-			UsagePercent:     85.0,
-			ContextTokens:    8500,
-			ContextLimit:     10000,
-		},
-	)
-	require.NoError(t, err)
+		err := server.persistChatContextSummary(
+			summaryCtx,
+			chatID,
+			modelConfig.ID,
+			activeAPIKeyID,
+			toolCallID,
+			chatloop.CompactionResult{
+				SystemSummary:    "summarized context",
+				SummaryReport:    "context was summarized",
+				ThresholdPercent: 70,
+				UsagePercent:     85.0,
+				ContextTokens:    8500,
+				ContextLimit:     10000,
+			},
+		)
+		require.NoError(t, err)
 
-	msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
-	require.NoError(t, err)
+		msgs, err := db.GetChatMessagesForPromptByChatID(ctx, chatID)
+		require.NoError(t, err)
 
-	// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
-	// that selects compressed=true, visibility='model'. Only the user
-	// summary qualifies; the assistant (visibility=user) and tool
-	// result (visibility=both) are excluded by the CTE filter.
-	require.NotEmpty(t, msgs)
+		// GetChatMessagesForPromptByChatID uses a compaction boundary CTE
+		// that selects compressed=true, visibility='model'. Only the user
+		// summary qualifies; the assistant (visibility=user) and tool
+		// result (visibility=both) are excluded by the CTE filter.
+		require.NotEmpty(t, msgs)
 
-	var foundUserSummary bool
-	for _, msg := range msgs {
-		if msg.Role == database.ChatMessageRoleUser {
-			foundUserSummary = true
-			require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
-			require.Equal(t, apiKey.ID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+		var foundUserSummary bool
+		for _, msg := range msgs {
+			if msg.Role == database.ChatMessageRoleUser {
+				foundUserSummary = true
+				require.True(t, msg.APIKeyID.Valid, "summary user message must have APIKeyID set")
+				require.Equal(t, wantAPIKeyID, msg.APIKeyID.String, "summary user message APIKeyID must match")
+			}
 		}
+		require.True(t, foundUserSummary, "expected to find compressed user summary message")
 	}
-	require.True(t, foundUserSummary, "expected to find compressed user summary message")
+
+	persistAndAssertSummaryKey(ctx, chat.ID, apiKey.ID, apiKey.ID, "tool-call-id-1")
+
+	fallbackChat := dbgen.Chat(t, db, database.Chat{
+		OwnerID:           user.ID,
+		OrganizationID:    org.ID,
+		LastModelConfigID: modelConfig.ID,
+	})
+	fallbackKey, _ := dbgen.APIKey(t, db, database.APIKey{
+		UserID: user.ID,
+	})
+	fallbackCtx := aibridge.WithDelegatedAPIKeyID(ctx, fallbackKey.ID)
+	persistAndAssertSummaryKey(fallbackCtx, fallbackChat.ID, "", fallbackKey.ID, "tool-call-id-2")
 }

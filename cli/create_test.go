@@ -81,7 +81,7 @@ func TestCreateDynamic(t *testing.T) {
 			doneChan <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 		err := testutil.RequireReceive(ctx, t, doneChan)
 		require.NoError(t, err)
 
@@ -110,7 +110,7 @@ func TestCreateDynamic(t *testing.T) {
 			doneChan <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err = testutil.RequireReceive(ctx, t, doneChan)
 		require.NoError(t, err)
@@ -153,14 +153,14 @@ func TestCreateDynamic(t *testing.T) {
 		}()
 
 		// CLI should prompt for the region parameter since enable_region=true
-		stdout.ExpectMatchContext(ctx, "region")
+		stdout.ExpectMatch(ctx, "region")
 		stdin.WriteLine("eu-west")
 
 		// Confirm creation
-		stdout.ExpectMatchContext(ctx, "Confirm create?")
+		stdout.ExpectMatch(ctx, "Confirm create?")
 		stdin.WriteLine("yes")
 
-		stdout.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err := <-doneChan
 		require.NoError(t, err)
@@ -314,7 +314,7 @@ func TestCreateDynamic(t *testing.T) {
 			doneChan <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx, "has been created")
+		stdout.ExpectMatch(ctx, "has been created")
 
 		err = <-doneChan
 		require.NoError(t, err, "slider=8 should succeed when max_slider=10")
@@ -368,7 +368,7 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -426,7 +426,7 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -493,7 +493,7 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -547,7 +547,7 @@ func TestCreate(t *testing.T) {
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -609,7 +609,7 @@ func TestCreate(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			stdin.WriteLine(value)
 		}
 		<-doneChan
@@ -645,7 +645,7 @@ func TestCreate(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify workspace was actually created.
@@ -682,7 +682,7 @@ func TestCreate(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		// Verify workspace was created and parameters were applied.
@@ -730,7 +730,7 @@ func TestCreate(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		stdout.ExpectMatchContext(ctx, "building in the background")
+		stdout.ExpectMatch(ctx, "building in the background")
 		_ = testutil.TryReceive(ctx, t, doneChan)
 
 		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "my-workspace", codersdk.WorkspaceOptions{})
@@ -838,11 +838,11 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Enter the value for each parameter as prompted.
 				for _, param := range params {
-					stdout.ExpectMatchContext(ctx, param.name)
+					stdout.ExpectMatch(ctx, param.name)
 					stdin.WriteLine(param.value)
 				}
 				// Confirm the creation.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 		},
@@ -859,12 +859,12 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Simply accept the defaults.
 				for _, param := range params {
-					stdout.ExpectMatchContext(ctx, param.name)
-					stdout.ExpectMatchContext(ctx, `Enter a value (default: "`+param.value+`")`)
+					stdout.ExpectMatch(ctx, param.name)
+					stdout.ExpectMatch(ctx, `Enter a value (default: "`+param.value+`")`)
 					stdin.WriteLine("")
 				}
 				// Confirm the creation.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 		},
@@ -884,7 +884,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 			},
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// No prompts, we only need to confirm.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 		},
@@ -900,7 +900,7 @@ func TestCreateWithRichParameters(t *testing.T) {
 			},
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// No prompts, we only need to confirm.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 		},
@@ -976,12 +976,12 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Simply accept the defaults.
 				for _, param := range params {
-					stdout.ExpectMatchContext(ctx, param.name)
-					stdout.ExpectMatchContext(ctx, `Enter a value (default: "`+param.value+`")`)
+					stdout.ExpectMatch(ctx, param.name)
+					stdout.ExpectMatch(ctx, `Enter a value (default: "`+param.value+`")`)
 					stdin.WriteLine("")
 				}
 				// Confirm the creation.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
@@ -994,10 +994,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Default values should get printed.
 				for _, param := range params {
-					stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
+					stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
@@ -1015,10 +1015,10 @@ func TestCreateWithRichParameters(t *testing.T) {
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Default values should get printed.
 				for _, param := range params {
-					stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
+					stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", param.name, param.value))
 				}
 				// No prompts, we only need to confirm.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 		},
@@ -1044,11 +1044,11 @@ cli_param: from file`)
 			},
 			handlePty: func(ctx context.Context, stdout *expecter.Expecter, stdin *testutil.Writer) {
 				// Should get prompted for the input param since it has no default.
-				stdout.ExpectMatchContext(ctx, "input_param")
+				stdout.ExpectMatch(ctx, "input_param")
 				stdin.WriteLine("from input")
 
 				// Confirm the creation.
-				stdout.ExpectMatchContext(ctx, "Confirm create?")
+				stdout.ExpectMatch(ctx, "Confirm create?")
 				stdin.WriteLine("yes")
 			},
 			withDefaults: true,
@@ -1284,9 +1284,9 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -1360,9 +1360,9 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the default preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' (default) applied:", defaultPreset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", thirdParameterName, thirdParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
@@ -1434,11 +1434,11 @@ func TestCreateWithPreset(t *testing.T) {
 		}()
 
 		// Should: prompt the user for the preset
-		stdout.ExpectMatchContext(ctx, "Select a preset below:")
+		stdout.ExpectMatch(ctx, "Select a preset below:")
 		// We don't actually have to respond to the selector, since we hardcode the cliui.Select to return the
 		// first option in test scenarios (c.f. cliui/select.go)
-		stdout.ExpectMatchContext(ctx, "Preset 'preset-test' applied")
-		stdout.ExpectMatchContext(ctx, "Confirm create?")
+		stdout.ExpectMatch(ctx, "Preset 'preset-test' applied")
+		stdout.ExpectMatch(ctx, "Confirm create?")
 		stdin.WriteLine("yes")
 
 		<-doneChan
@@ -1490,7 +1490,7 @@ func TestCreateWithPreset(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
-		stdout.ExpectMatchContext(ctx, "No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify if the new workspace uses expected parameters.
 		workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
@@ -1543,7 +1543,7 @@ func TestCreateWithPreset(t *testing.T) {
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		err := inv.Run()
 		require.NoError(t, err)
-		stdout.ExpectMatchContext(ctx, "No preset applied.")
+		stdout.ExpectMatch(ctx, "No preset applied.")
 
 		// Verify that the new workspace doesn't use the preset parameters.
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
@@ -1639,8 +1639,8 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameter
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
@@ -1709,8 +1709,8 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameter
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Verify if the new workspace uses expected parameters.
 		tvPresets, err := client.TemplateVersionPresets(ctx, version.ID)
@@ -1771,13 +1771,13 @@ func TestCreateWithPreset(t *testing.T) {
 
 		// Should: display the selected preset as well as its parameters
 		presetName := fmt.Sprintf("Preset '%s' applied:", preset.Name)
-		stdout.ExpectMatchContext(ctx, presetName)
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
+		stdout.ExpectMatch(ctx, presetName)
+		stdout.ExpectMatch(ctx, fmt.Sprintf("%s: '%s'", firstParameterName, secondOptionalParameterValue))
 
 		// Should: prompt for the missing parameter
-		stdout.ExpectMatchContext(ctx, thirdParameterDescription)
+		stdout.ExpectMatch(ctx, thirdParameterDescription)
 		stdin.WriteLine(thirdParameterValue)
-		stdout.ExpectMatchContext(ctx, "Confirm create?")
+		stdout.ExpectMatch(ctx, "Confirm create?")
 		stdin.WriteLine("yes")
 
 		<-doneChan
@@ -1877,7 +1877,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -1918,7 +1918,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -1959,7 +1959,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -2000,7 +2000,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -2027,9 +2027,9 @@ func TestCreateValidateRichParameters(t *testing.T) {
 			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 			clitest.Start(t, inv)
 
-			stdout.ExpectMatchContext(ctx, listOfStringsParameterName)
-			stdout.ExpectMatchContext(ctx, "aaa, bbb, ccc")
-			stdout.ExpectMatchContext(ctx, "Confirm create?")
+			stdout.ExpectMatch(ctx, listOfStringsParameterName)
+			stdout.ExpectMatch(ctx, "aaa, bbb, ccc")
+			stdout.ExpectMatch(ctx, "Confirm create?")
 			stdin.WriteLine("yes")
 		})
 
@@ -2082,7 +2082,7 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			stdout.ExpectMatchContext(ctx, match)
+			stdout.ExpectMatch(ctx, match)
 			if value != "" {
 				stdin.WriteLine(value)
 			}
@@ -2132,10 +2132,10 @@ func TestCreateWithGitAuth(t *testing.T) {
 	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 	clitest.Start(t, inv)
 
-	stdout.ExpectMatchContext(ctx, "You must authenticate with GitHub to create a workspace")
+	stdout.ExpectMatch(ctx, "You must authenticate with GitHub to create a workspace")
 	resp := coderdtest.RequestExternalAuthCallback(t, "github", member)
 	_ = resp.Body.Close()
 	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
-	stdout.ExpectMatchContext(ctx, "Confirm create?")
+	stdout.ExpectMatch(ctx, "Confirm create?")
 	stdin.WriteLine("yes")
 }

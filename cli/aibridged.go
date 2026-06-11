@@ -30,14 +30,12 @@ import (
 // database on every ai_providers change event. The returned unsubscribe
 // function tears down the subscription; callers must invoke it
 // alongside Server.Close on shutdown.
-func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg codersdk.AIBridgeConfig) (*aibridged.Server, func(), error) {
+func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg codersdk.AIBridgeConfig, reg prometheus.Registerer, metrics *aibridge.Metrics) (*aibridged.Server, func(), error) {
 	ctx := context.Background()
 	coderAPI.Logger.Debug(ctx, "starting in-memory aibridge daemon")
 
 	logger := coderAPI.Logger.Named("aibridged")
 
-	reg := prometheus.WrapRegistererWithPrefix("coder_aibridged_", coderAPI.PrometheusRegistry)
-	metrics := aibridge.NewMetrics(reg)
 	providerMetrics := aibridged.NewMetrics(reg)
 	tracer := coderAPI.TracerProvider.Tracer(tracing.TracerName)
 
@@ -47,16 +45,20 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg 
 		return nil, nil, xerrors.Errorf("create request pool: %w", err)
 	}
 
+	// Report current key pool state per provider at scrape time.
+	reg.MustRegister(keypool.NewStateCollector(pool.KeyPools))
+
 	// Subscribe to ai_providers change events so the pool tracks the
 	// database without a restart. The boot-time `providers` snapshot
 	// derives from env config and serves as a fallback if the database
 	// load fails inside the reloader.
 	reloader := &poolDBReloader{
-		pool:    pool,
-		db:      coderAPI.Database,
-		cfg:     cfg,
-		logger:  logger.Named("provider-loader"),
-		metrics: providerMetrics,
+		pool:            pool,
+		db:              coderAPI.Database,
+		cfg:             cfg,
+		logger:          logger.Named("provider-loader"),
+		aibridgeMetrics: metrics,
+		providerMetrics: providerMetrics,
 	}
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, coderAPI.Pubsub, reloader, logger.Named("provider-reload"))
 	if err != nil {
@@ -81,16 +83,17 @@ func newAIBridgeDaemon(coderAPI *coderd.API, providers []aibridge.Provider, cfg 
 // the live provider set from the database and forwarding it to the
 // pool.
 type poolDBReloader struct {
-	pool    *aibridged.CachedBridgePool
-	db      database.Store
-	cfg     codersdk.AIBridgeConfig
-	logger  slog.Logger
-	metrics *aibridged.Metrics
+	pool            *aibridged.CachedBridgePool
+	db              database.Store
+	cfg             codersdk.AIBridgeConfig
+	logger          slog.Logger
+	aibridgeMetrics *aibridge.Metrics
+	providerMetrics *aibridged.Metrics
 }
 
 func (r *poolDBReloader) Reload(ctx context.Context) error {
-	r.metrics.RecordReloadAttempt()
-	providers, outcomes, err := BuildProviders(ctx, r.db, r.cfg, r.logger)
+	r.providerMetrics.RecordReloadAttempt()
+	providers, outcomes, err := BuildProviders(ctx, r.db, r.cfg, r.logger, r.aibridgeMetrics)
 	if err != nil {
 		// Keep the previous snapshot in place: dropping all providers
 		// because the DB read failed would compound the visible failure
@@ -98,7 +101,7 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 		return xerrors.Errorf("load ai providers from database: %w", err)
 	}
 	r.pool.ReplaceProviders(providers)
-	r.metrics.RecordReloadSuccess(outcomes)
+	r.providerMetrics.RecordReloadSuccess(outcomes)
 	return nil
 }
 
@@ -114,7 +117,7 @@ func (r *poolDBReloader) Reload(ctx context.Context) error {
 // excluded from the returned snapshot; only a failure of the DB query
 // itself is propagated. This keeps a single misconfigured row from
 // taking the whole daemon down.
-func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
+func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridgeConfig, logger slog.Logger, metrics *aibridge.Metrics) ([]aibridge.Provider, []aibridged.ProviderOutcome, error) {
 	//nolint:gocritic // AsAIBridged has a minimal permission set for this purpose.
 	authCtx := dbauthz.AsAIBridged(ctx)
 
@@ -172,7 +175,7 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 		if row.Enabled {
 			enabledCount++
 		}
-		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg)
+		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg, metrics)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
 			outcome.Err = err
@@ -210,6 +213,7 @@ func buildAIProviderFromRow(
 	row database.AIProvider,
 	keys []database.AIProviderKey,
 	cfg codersdk.AIBridgeConfig,
+	metrics *aibridge.Metrics,
 ) (aibridge.Provider, error) {
 	if !row.Enabled {
 		return disabledProviderFromRow(row)
@@ -243,7 +247,7 @@ func buildAIProviderFromRow(
 		var pool *keypool.Pool
 		if len(keys) > 0 {
 			var err error
-			pool, err = buildAIProviderKeyPool(keys)
+			pool, err = buildAIProviderKeyPool(row.Name, keys, metrics)
 			if err != nil {
 				return nil, xerrors.Errorf("%s key pool: %w", row.Type, err)
 			}
@@ -275,7 +279,7 @@ func buildAIProviderFromRow(
 		var pool *keypool.Pool
 		if len(keys) > 0 {
 			var err error
-			pool, err = buildAIProviderKeyPool(keys)
+			pool, err = buildAIProviderKeyPool(row.Name, keys, metrics)
 			if err != nil {
 				return nil, xerrors.Errorf("anthropic key pool: %w", err)
 			}
@@ -314,12 +318,12 @@ func disabledProviderFromRow(row database.AIProvider) (aibridge.Provider, error)
 
 // buildAIProviderKeyPool builds a [keypool.Pool]. Callers must check
 // len(keys) > 0 first; keypool.New rejects empty input.
-func buildAIProviderKeyPool(keys []database.AIProviderKey) (*keypool.Pool, error) {
+func buildAIProviderKeyPool(providerName string, keys []database.AIProviderKey, metrics *aibridge.Metrics) (*keypool.Pool, error) {
 	raw := make([]string, 0, len(keys))
 	for _, k := range keys {
 		raw = append(raw, k.APIKey)
 	}
-	return keypool.New(raw, quartz.NewReal())
+	return keypool.New(providerName, raw, quartz.NewReal(), metrics)
 }
 
 // bedrockConfigFromRow returns nil when the settings have no Bedrock

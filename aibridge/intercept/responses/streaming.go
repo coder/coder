@@ -106,6 +106,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	shouldLoop := true
 	srv := i.newResponsesService()
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for shouldLoop {
 		shouldLoop = false
 
@@ -140,6 +145,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the
 					// SSE connection has not been opened yet.
+					totalKeyAttempts += walker.Attempts()
 					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
@@ -174,6 +180,8 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			// Stream started successfully: commit to this key.
 			break
 		}
+
+		totalKeyAttempts += walker.Attempts()
 
 		// func scope to defer steam.Close()
 		err := func() error {

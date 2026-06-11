@@ -7,6 +7,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
@@ -53,22 +54,34 @@ func (e *Error) Error() string {
 }
 
 // KeyState represents the current state of a key in the pool.
-type KeyState int
+type KeyState string
 
 const (
 	// KeyStateValid means the key is available for use.
-	KeyStateValid KeyState = iota
+	KeyStateValid KeyState = "valid"
 	// KeyStateTemporary means the key is temporarily unavailable
 	// (e.g. rate-limited) and will recover after a cooldown.
-	KeyStateTemporary
+	KeyStateTemporary KeyState = "temporary"
 	// KeyStatePermanent means the key is permanently unavailable
 	// (e.g. revoked or unauthorized) until process restart.
-	KeyStatePermanent
+	KeyStatePermanent KeyState = "permanent"
 )
 
 // defaultCooldown is applied when a key is marked temporary
 // with a zero or negative cooldown duration.
 const defaultCooldown = 60 * time.Second
+
+// Metric label values for the key pool failover metrics.
+const (
+	// Reasons for a key_pool_state_transitions_total event.
+	reasonRateLimited  = "rate_limited"
+	reasonUnauthorized = "unauthorized"
+	reasonForbidden    = "forbidden"
+
+	// Outcomes for a key_pool_exhaustions_total event.
+	outcomeRateLimited = "rate_limited"
+	outcomeAuthFailed  = "auth_failed"
+)
 
 // Key holds a key value and its runtime state.
 type Key struct {
@@ -83,18 +96,33 @@ type Key struct {
 // Pool manages a set of keys with state tracking and
 // cooldown expiry. It is safe for concurrent use.
 type Pool struct {
-	keys []Key
+	keys         []Key
+	metrics      *metrics.Metrics
+	providerName string
 }
 
-// New creates a pool from the given keys. All keys start in
-// the valid state. Returns ErrNoKeys if keys is empty and
-// ErrDuplicateKey if any key appears more than once.
-func New(keys []string, clk quartz.Clock) (*Pool, error) {
+// RecordAttempts records the total number of keys tried across an
+// interception. Each upstream request uses its own walker, so the
+// total sums the attempts across those per-request walkers. Call it
+// once when the interception finishes.
+func (p *Pool) RecordAttempts(attempts int) {
+	if p == nil || p.metrics == nil || attempts == 0 {
+		return
+	}
+	p.metrics.KeyPoolFailoverAttempts.WithLabelValues(p.providerName).Observe(float64(attempts))
+}
+
+// New creates a pool from the given keys, labeled by providerName in its
+// metrics and logs. All keys start in the valid state. Returns ErrNoKeys
+// if keys is empty and ErrDuplicateKey if any key appears more than once.
+func New(providerName string, keys []string, clk quartz.Clock, m *metrics.Metrics) (*Pool, error) {
 	if len(keys) == 0 {
 		return nil, ErrNoKeys
 	}
 	pool := &Pool{
-		keys: make([]Key, len(keys)),
+		keys:         make([]Key, len(keys)),
+		metrics:      m,
+		providerName: providerName,
 	}
 
 	seen := make(map[string]struct{}, len(keys))
@@ -231,6 +259,20 @@ func (p *Pool) keyPoolError() *Error {
 	return &Error{Kind: ErrorKindPermanent}
 }
 
+// recordExhaustion increments the exhaustion counter for the outcome
+// implied by err.Kind: a rate-limited pool can recover, a permanent
+// one cannot.
+func (p *Pool) recordExhaustion(err *Error) {
+	if p.metrics == nil {
+		return
+	}
+	outcome := outcomeRateLimited
+	if err.Kind == ErrorKindPermanent {
+		outcome = outcomeAuthFailed
+	}
+	p.metrics.KeyPoolExhaustions.WithLabelValues(p.providerName, outcome).Inc()
+}
+
 // PoolState returns a snapshot of each key's state in the pool's
 // original order, used by tests and other diagnostic callers. Use
 // Walker for the failover iteration path.
@@ -246,8 +288,9 @@ func (p *Pool) PoolState() []KeyState {
 // creates its own walker so that it can independently iterate
 // through keys without interfering with other requests.
 type Walker struct {
-	pool *Pool
-	pos  int // Next index to consider.
+	pool     *Pool
+	pos      int // Next index to consider.
+	attempts int // Number of attempts, one per upstream HTTP request.
 }
 
 // Walker creates a new Walker that follows a primary-with-fallback
@@ -270,9 +313,20 @@ func (w *Walker) Next() (*Key, *Error) {
 		}
 		// Key is available.
 		w.pos = i + 1
+		w.attempts++
 		return key, nil
 	}
 
 	// No keys available.
-	return nil, w.pool.keyPoolError()
+	err := w.pool.keyPoolError()
+	w.pool.recordExhaustion(err)
+	return nil, err
+}
+
+// Attempts returns the number of keys this walker handed out.
+func (w *Walker) Attempts() int {
+	if w == nil {
+		return 0
+	}
+	return w.attempts
 }

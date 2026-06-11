@@ -6,6 +6,7 @@ package database
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"time"
 
@@ -70,6 +71,11 @@ type sqlcQuerier interface {
 	// created_at ASC flows through to dbpurge's digest truncation; see
 	// buildDigestData in dbpurge.go for the tradeoff rationale.
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
+	// old_provider is matched as text; new_provider is also cast to ai_provider_type
+	// for the EXISTS check against ai_providers.type.
+	// ai_provider_id IS NOT NULL is defensive; the check constraint already
+	// enforces that non-deleted rows always have a provider ID.
+	BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
@@ -101,6 +107,7 @@ type sqlcQuerier interface {
 	CountUnreadInboxNotificationsByUserID(ctx context.Context, userID uuid.UUID) (int64, error)
 	CreateUserSecret(ctx context.Context, arg CreateUserSecretParams) (UserSecret, error)
 	CustomRoles(ctx context.Context, arg CustomRolesParams) ([]CustomRole, error)
+	DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (DeleteAIGatewayKeyRow, error)
 	DeleteAIProviderByID(ctx context.Context, id uuid.UUID) error
 	DeleteAIProviderKey(ctx context.Context, id uuid.UUID) error
 	DeleteAPIKeyByID(ctx context.Context, id string) error
@@ -458,6 +465,15 @@ type sqlcQuerier interface {
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
+	// GetExternalAgentTokensByTemplateID returns the auth tokens for all
+	// non-deleted external agents on the latest build of every running workspace
+	// of the given template. "Running" means the latest build has
+	// transition=start and job_status=succeeded (matches the workspace-status
+	// definition used by coderd/database/queries/workspaces.sql).
+	// An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+	// "all owners"; any other value restricts results to workspaces owned by
+	// that user.
+	GetExternalAgentTokensByTemplateID(ctx context.Context, arg GetExternalAgentTokensByTemplateIDParams) ([]GetExternalAgentTokensByTemplateIDRow, error)
 	GetExternalAuthLink(ctx context.Context, arg GetExternalAuthLinkParams) (ExternalAuthLink, error)
 	GetExternalAuthLinksByUserID(ctx context.Context, userID uuid.UUID) ([]ExternalAuthLink, error)
 	GetFailedWorkspaceBuildsByTemplateID(ctx context.Context, arg GetFailedWorkspaceBuildsByTemplateIDParams) ([]GetFailedWorkspaceBuildsByTemplateIDRow, error)
@@ -493,6 +509,13 @@ type sqlcQuerier interface {
 	// A limit of 0 means "no limit".
 	GetGroups(ctx context.Context, arg GetGroupsParams) ([]GetGroupsRow, error)
 	GetHealthSettings(ctx context.Context) (string, error)
+	// Returns the highest group AI budget across the groups the user belongs to,
+	// breaking ties by group name ascending. Implements the "highest" budget policy.
+	// group_members_expanded is a UNION of group_members and organization_members,
+	// so the implicit "Everyone" group (group_id == organization_id) is included.
+	// Returns no rows when the user has no budgeted groups; callers should treat
+	// sql.ErrNoRows as "no group budget".
+	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (GetHighestGroupAIBudgetByUserRow, error)
 	GetInboxNotificationByID(ctx context.Context, id uuid.UUID) (InboxNotification, error)
 	// Fetches inbox notifications for a user filtered by templates and targets
 	// param user_id: The user ID
@@ -914,6 +937,7 @@ type sqlcQuerier interface {
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
 	InsertAIBridgeToolUsage(ctx context.Context, arg InsertAIBridgeToolUsageParams) (AIBridgeToolUsage, error)
 	InsertAIBridgeUserPrompt(ctx context.Context, arg InsertAIBridgeUserPromptParams) (AIBridgeUserPrompt, error)
+	InsertAIGatewayKey(ctx context.Context, arg InsertAIGatewayKeyParams) (InsertAIGatewayKeyRow, error)
 	InsertAIProvider(ctx context.Context, arg InsertAIProviderParams) (AIProvider, error)
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
@@ -1048,6 +1072,7 @@ type sqlcQuerier interface {
 	ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeTokenUsage, error)
 	ListAIBridgeToolUsagesByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeToolUsage, error)
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
+	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
 	// Supports optional exclusive sequence number bounds (seq_after, seq_before)
 	// for fetching events between two known interceptions.
@@ -1298,6 +1323,10 @@ type sqlcQuerier interface {
 	UpdateUserHashedPassword(ctx context.Context, arg UpdateUserHashedPasswordParams) error
 	UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLastSeenAtParams) (User, error)
 	UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error)
+	// Backfills linked_id for legacy user_links that were created before
+	// linked_id tracking was added. Only updates when linked_id is empty
+	// to avoid overwriting a valid binding.
+	UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinkedIDParams) (UserLink, error)
 	UpdateUserLoginType(ctx context.Context, arg UpdateUserLoginTypeParams) (User, error)
 	UpdateUserNotificationPreferences(ctx context.Context, arg UpdateUserNotificationPreferencesParams) (int64, error)
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error)

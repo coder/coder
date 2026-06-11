@@ -15,6 +15,15 @@ var (
 		Type: "*",
 	}
 
+	// ResourceAIGatewayKey
+	// Valid Actions
+	//  - "ActionCreate" :: create an AI Gateway key
+	//  - "ActionDelete" :: delete an AI Gateway key
+	//  - "ActionRead" :: read AI Gateway keys
+	ResourceAIGatewayKey = Object{
+		Type: "ai_gateway_key",
+	}
+
 	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
@@ -479,6 +488,7 @@ var (
 func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
+		ResourceAIGatewayKey,
 		ResourceAiModelPrice,
 		ResourceAIProvider,
 		ResourceAiSeat,

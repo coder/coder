@@ -774,7 +774,6 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		store.setChatStatus("running");
 		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
 
-		// "Thinking..." should appear immediately.
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
@@ -782,7 +781,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		const store = createChatStore();
 		// Simulate the WS batch: [message(user), status:pending].
 		// This is the exact event order from the server when the
-		// user sends a message. "Thinking..." must appear during
+		// user sends a message. The Thinking indicator must appear during
 		// the pending phase so there is no visual gap before the
 		// server transitions to running.
 		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));

@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -145,8 +146,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Bedrock fields without an Anthropic key produce a Bedrock-
-		// authenticated Anthropic provider with no bearer keys.
+		// Bedrock fields without an Anthropic key produce a type=bedrock
+		// provider named "anthropic" with no bearer keys.
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
 				Region:          serpent.String("us-west-2"),
@@ -160,7 +161,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
+		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "us-west-2")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-haiku")
@@ -599,6 +600,44 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicting fields")
+	})
+
+	t.Run("SeedIsIdempotentAfterBedrockBackfill", func(t *testing.T) {
+		t.Parallel()
+		// Regression: seed must not treat a type=anthropic row promoted to
+		// type=bedrock by the backfill as drift.
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region:          serpent.String("us-east-1"),
+				AccessKey:       serpent.String("AKIA"),
+				AccessKeySecret: serpent.String("secret"),
+				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+			},
+		}
+
+		// Seed to get a row with correct settings, then set type=anthropic to
+		// simulate the pre-upgrade state where the old seed stored that type.
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            row.ID,
+			Type:          database.AiProviderTypeAnthropic,
+			DisplayName:   row.DisplayName,
+			Enabled:       row.Enabled,
+			BaseUrl:       row.BaseUrl,
+			Settings:      row.Settings,
+			SettingsKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		row, err = db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Equal(t, database.AiProviderTypeAnthropic, row.Type, "pre-condition: row must be anthropic before seed runs")
+
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 	})
 }
 

@@ -352,6 +352,59 @@ WHERE
 	-- Filter out deleted sub agents.
 	AND workspace_agents.deleted = FALSE;
 
+-- name: GetExternalAgentTokensByTemplateID :many
+-- GetExternalAgentTokensByTemplateID returns the auth tokens for all
+-- non-deleted external agents on the latest build of every running workspace
+-- of the given template. "Running" means the latest build has
+-- transition=start and job_status=succeeded (matches the workspace-status
+-- definition used by coderd/database/queries/workspaces.sql).
+-- An owner_id of '00000000-0000-0000-0000-000000000000' (uuid.Nil) means
+-- "all owners"; any other value restricts results to workspaces owned by
+-- that user.
+SELECT
+	workspaces.id               AS workspace_id,
+	workspaces.name             AS workspace_name,
+	workspace_agents.id         AS agent_id,
+	workspace_agents.name       AS agent_name,
+	workspace_agents.auth_token AS agent_token
+FROM
+	workspaces
+JOIN (
+	-- latest build per workspace
+	SELECT DISTINCT ON (workspace_id)
+		id, workspace_id, job_id, transition, has_external_agent
+	FROM
+		workspace_builds
+	ORDER BY
+		workspace_id, build_number DESC
+) AS latest_builds
+ON
+	latest_builds.workspace_id = workspaces.id
+JOIN
+	provisioner_jobs
+ON
+	provisioner_jobs.id = latest_builds.job_id
+JOIN
+	workspace_resources
+ON
+	workspace_resources.job_id = latest_builds.job_id
+JOIN
+	workspace_agents
+ON
+	workspace_agents.resource_id = workspace_resources.id
+WHERE
+	workspaces.template_id = @template_id
+	AND (
+		@owner_id :: uuid = '00000000-0000-0000-0000-000000000000' :: uuid
+		OR workspaces.owner_id = @owner_id
+	)
+	AND workspaces.deleted = FALSE
+	AND latest_builds.has_external_agent = TRUE
+	AND latest_builds.transition = 'start' :: workspace_transition
+	AND provisioner_jobs.job_status = 'succeeded' :: provisioner_job_status
+	AND workspace_agents.deleted = FALSE
+	AND workspace_agents.auth_instance_id IS NULL;
+
 -- GetAuthenticatedWorkspaceAgentAndBuildByAuthToken returns an authenticated
 -- workspace agent and its associated build. During normal operation, this is
 -- the latest build. During shutdown, this may be the previous START build while

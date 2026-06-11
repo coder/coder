@@ -76,7 +76,7 @@ export const UsageLimitExceeded: Story = {
 
 /**
  * Provider quota errors use the standard ChatStatusCallout instead of the
- * "View Usage" CTA (which links to Coder's analytics, not the provider's
+ * "View usage" CTA (which links to Coder's analytics, not the provider's
  * billing page).
  */
 export const ProviderQuotaExceeded: Story = {
@@ -97,7 +97,6 @@ export const ProviderQuotaExceeded: Story = {
 		expect(
 			canvas.getByText(/usage quota for openai has been exceeded/i),
 		).toBeVisible();
-		// The "View Usage" link must NOT appear for provider-originated quota errors.
 		expect(
 			canvas.queryByRole("link", { name: /view usage/i }),
 		).not.toBeInTheDocument();
@@ -258,14 +257,14 @@ export const RetryingTimeoutAnthropic: Story = {
 	},
 };
 
-/** Terminal startup timeouts get a specific heading without provider metadata. */
-export const TerminalStartupTimeoutError: Story = {
+/** Terminal stream-silence timeouts get a specific heading without provider metadata. */
+export const TerminalStreamSilenceTimeoutError: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
-				kind: "startup_timeout",
-				message: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				message: "Anthropic did not send response data in time.",
 				provider: "anthropic",
 				retryable: true,
 			},
@@ -274,10 +273,10 @@ export const TerminalStartupTimeoutError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /startup timed out/i }),
+			canvas.getByRole("heading", { name: /response stalled/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time./i),
+			canvas.getByText(/anthropic did not send response data in time./i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();

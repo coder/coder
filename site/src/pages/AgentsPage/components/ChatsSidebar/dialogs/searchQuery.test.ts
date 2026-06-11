@@ -7,7 +7,7 @@ describe("normalizeChatSearchInput", () => {
 		expect(normalizeChatSearchInput("   ")).toBeUndefined();
 	});
 
-	it("keeps key:value filters unchanged", () => {
+	it("normalizes key:value filters", () => {
 		expect(normalizeChatSearchInput("has_unread:true")).toBe("has_unread:true");
 		expect(normalizeChatSearchInput('title:"chat title" archived:true')).toBe(
 			'title:"chat title" archived:true',
@@ -20,6 +20,25 @@ describe("normalizeChatSearchInput", () => {
 				'diff_url:"https://github.com/coder/coder/pull/25391"',
 			),
 		).toBe('diff_url:"https://github.com/coder/coder/pull/25391"');
+		expect(
+			normalizeChatSearchInput(
+				"diff_url:https://github.com/coder/coder/pull/26016",
+			),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+		expect(
+			normalizeChatSearchInput("diff_url:github.com/coder/coder/pull/26016"),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+		expect(
+			normalizeChatSearchInput('diff_url:"github.com/coder/coder/pull/26016"'),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016"');
+	});
+
+	it("re-quotes passthrough values containing spaces so the result round-trips", () => {
+		const normalized = normalizeChatSearchInput('pr_status:"open merged"');
+		expect(normalized).toBe('pr_status:"open merged"');
+		expect(normalizeChatSearchInput(normalized ?? "")).toBe(
+			'pr_status:"open merged"',
+		);
 	});
 
 	it("converts bare search text into a title filter", () => {
@@ -40,6 +59,11 @@ describe("normalizeChatSearchInput", () => {
 		expect(normalizeChatSearchInput("fix has_unread:true auth")).toBe(
 			'has_unread:true title:"fix auth"',
 		);
+		expect(
+			normalizeChatSearchInput(
+				"diff_url:https://github.com/coder/coder/pull/26016 fix",
+			),
+		).toBe('diff_url:"https://github.com/coder/coder/pull/26016" title:"fix"');
 		expect(
 			normalizeChatSearchInput('archived:true title:"chat title" fix'),
 		).toBe('archived:true title:"chat title fix"');

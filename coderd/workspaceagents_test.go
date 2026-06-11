@@ -3184,7 +3184,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC29(ctx)
+	aAPI, _, err := client.ConnectRPC210(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()
@@ -3415,8 +3415,9 @@ func TestReinit(t *testing.T) {
 			triedToSubscribe: make(chan string),
 		}
 		client := coderdtest.New(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   &pubsubSpy,
+			Database:          db,
+			Pubsub:            &pubsubSpy,
+			ReplicaSyncPubsub: ps.(*pubsub.PGPubsub),
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 

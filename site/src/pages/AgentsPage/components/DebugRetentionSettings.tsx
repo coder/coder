@@ -114,7 +114,7 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
-						Chat Debug Data Retention
+						Chat debug data retention
 					</h3>
 				</div>
 				<Switch

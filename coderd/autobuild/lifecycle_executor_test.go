@@ -65,8 +65,8 @@ func TestExecutorAutostartOK(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -127,7 +127,7 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
 	// Get both clients to perform a lifecycle execution tick
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := coderdtest.NextAutostartTick(t, workspace)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, next)
 
 	startCh := make(chan struct{})
@@ -237,7 +237,7 @@ func TestExecutorBuildNumberRaceIsHandled(t *testing.T) {
 
 	p, err := coderdtest.GetProvisionerForTags(realDB, time.Now(), workspace.OrganizationID, nil)
 	require.NoError(t, err)
-	next := sched.Next(workspace.LatestBuild.CreatedAt)
+	next := coderdtest.NextAutostartTick(t, workspace)
 	coderdtest.UpdateProvisionerLastSeenAt(t, realDB, p.ID, next)
 
 	tickCh <- next
@@ -351,8 +351,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 
 			t.Log("sending autobuild tick")
 			// When: the autobuild executor ticks after the scheduled time
+			tickTime := coderdtest.NextAutostartTick(t, workspace)
 			go func() {
-				tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 				coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 				tickCh <- tickTime
 				close(tickCh)
@@ -654,7 +654,9 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Given: agent reports "working" status.
+	// Given: agent reports "working" status. ActivityBumpWorkspace uses the
+	// database NOW(), so tick times below derive from the bumped deadline to
+	// avoid minute-boundary truncation races.
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
 	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 		AppSlug: "test-app",
@@ -663,12 +665,18 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// Anchor tick times to the database deadline, not the test clock.
+	bumpedBuild, err := db.GetWorkspaceBuildByID(dbauthz.AsSystemRestricted(ctx), r.Build.ID)
+	require.NoError(t, err)
+	require.True(t, bumpedBuild.Deadline.After(now),
+		"expected activity bump to push deadline into the future, got %s", bumpedBuild.Deadline)
+
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), r.Workspace.OrganizationID, nil)
 	require.NoError(t, err)
 
-	// When: the autobuild executor ticks after the past deadline.
+	// When: the autobuild executor ticks before the bumped deadline.
 	go func() {
-		tickTime := now.Add(30 * time.Minute)
+		tickTime := bumpedBuild.Deadline.Add(-30 * time.Minute)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 	}()
@@ -678,7 +686,11 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.Len(t, stats.Errors, 0)
 	require.Len(t, stats.Transitions, 0)
 
-	// Given: agent reports "complete" status.
+	// Given: agent reports "complete" status. This invokes ActivityBumpWorkspace
+	// again, but activitybump.sql only updates the deadline once more than 5% of
+	// the activity_bump duration has elapsed since the last bump. We just bumped
+	// milliseconds ago, so the UPDATE matches zero rows and the deadline is
+	// unchanged.
 	err = agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
 		AppSlug: "test-app",
 		State:   codersdk.WorkspaceAppStatusStateComplete,
@@ -687,8 +699,9 @@ func TestExecutorAutostopAIAgentActivity(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the bumped deadline.
+	// Adding a full minute ensures the truncated tick exceeds the deadline.
 	go func() {
-		tickTime := now.Add(time.Hour).Add(time.Minute)
+		tickTime := bumpedBuild.Deadline.Add(time.Minute)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -984,8 +997,8 @@ func TestExecutorAutostartMultipleOK(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks past the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		tickCh2 <- tickTime
@@ -1054,8 +1067,8 @@ func TestExecutorAutostartWithParameters(t *testing.T) {
 	require.NoError(t, err)
 
 	// When: the autobuild executor ticks after the scheduled time
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)
@@ -1927,7 +1940,7 @@ func TestExecutorAutostartSkipsWhenNoProvisionersAvailable(t *testing.T) {
 	p, err = coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, provisionerDaemonTags)
 	require.NoError(t, err, "Error getting provisioner for workspace")
 
-	next = sched.Next(workspace.LatestBuild.CreatedAt)
+	next = coderdtest.NextAutostartTick(t, workspace)
 	notStaleTime := next.Add((-1 * provisionerdserver.StaleInterval) + 10*time.Second)
 	coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, notStaleTime)
 	// Require that the provisioner time has actually been updated to the expected value.
@@ -2051,8 +2064,8 @@ func TestExecutorTaskWorkspace(t *testing.T) {
 		require.NoError(t, err)
 
 		// When: the autobuild executor ticks after the scheduled time
+		tickTime := coderdtest.NextAutostartTick(t, workspace)
 		go func() {
-			tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 			coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 			tickCh <- tickTime
 			close(tickCh)

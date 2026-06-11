@@ -39,6 +39,17 @@ func NewStreamableHTTPServerProxy(serverName, serverURL string, headers map[stri
 		opts = append(opts, transport.WithHTTPHeaders(headers))
 	}
 
+	// Prepend an isolated HTTP client when running in tests so
+	// httptest.Server.Close() does not disrupt this proxy's
+	// connections via http.DefaultTransport.CloseIdleConnections().
+	// Caller-provided WithHTTPBasicClient in opts overrides this
+	// (last-wins).
+	if c := mcpHTTPClient(); c != nil {
+		opts = append([]transport.StreamableHTTPCOption{
+			transport.WithHTTPBasicClient(c),
+		}, opts...)
+	}
+
 	mcpClient, err := client.NewStreamableHttpClient(serverURL, opts...)
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable http client: %w", err)

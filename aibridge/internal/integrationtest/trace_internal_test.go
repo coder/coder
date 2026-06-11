@@ -147,7 +147,7 @@ func TestTraceAnthropic(t *testing.T) {
 			sr, tracer := setupTracer(t)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			opts := []bridgeOption{
 				withTracer(tracer),
@@ -263,7 +263,7 @@ func TestTraceAnthropicErr(t *testing.T) {
 			sr, tracer := setupTracer(t)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			opts := []bridgeOption{
 				withTracer(tracer),
@@ -552,7 +552,7 @@ func TestTraceOpenAI(t *testing.T) {
 			sr, tracer := setupTracer(t)
 
 			fix := fixtures.Parse(t, tc.fixture)
-			upstream := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 			bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
 				withTracer(tracer),
 			)
@@ -711,7 +711,7 @@ func TestTraceOpenAIErr(t *testing.T) {
 
 			fix := fixtures.Parse(t, tc.fixture)
 
-			mockAPI := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			mockAPI := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 			mockAPI.AllowOverflow = tc.allowOverflow
 			bridgeServer := newBridgeTestServer(ctx, t, mockAPI.URL,
 				withTracer(tracer),
@@ -753,7 +753,7 @@ func TestTracePassthrough(t *testing.T) {
 
 	fix := fixtures.Parse(t, fixtures.OaiChatFallthrough)
 
-	upstream := newMockUpstream(t.Context(), t, newFixtureResponse(fix))
+	upstream := testutil.NewMockUpstream(t.Context(), t, testutil.NewFixtureResponse(fix))
 
 	sr, tracer := setupTracer(t)
 

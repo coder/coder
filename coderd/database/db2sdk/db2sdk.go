@@ -902,10 +902,11 @@ func Organization(organization database.Organization) codersdk.Organization {
 			DisplayName: organization.DisplayName,
 			Icon:        organization.Icon,
 		},
-		Description: organization.Description,
-		CreatedAt:   organization.CreatedAt,
-		UpdatedAt:   organization.UpdatedAt,
-		IsDefault:   organization.IsDefault,
+		Description:           organization.Description,
+		CreatedAt:             organization.CreatedAt,
+		UpdatedAt:             organization.UpdatedAt,
+		IsDefault:             organization.IsDefault,
+		DefaultOrgMemberRoles: organization.DefaultOrgMemberRoles,
 	}
 }
 
@@ -1762,6 +1763,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		Title:             c.Title,
 		Status:            codersdk.ChatStatus(c.Status),
 		Archived:          c.Archived,
+		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
 		PinOrder:          c.PinOrder,
 		CreatedAt:         c.CreatedAt,
 		UpdatedAt:         c.UpdatedAt,

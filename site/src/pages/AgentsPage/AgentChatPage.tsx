@@ -63,7 +63,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
@@ -273,6 +272,32 @@ export const filterWorkspaceOptionsByOrganization = (
 	return workspaceOptions.filter(
 		(workspace) => workspace.organization_id === organizationID,
 	);
+};
+
+/** @internal Exported for testing. */
+export const getWorkspaceOptionsWithLinkedWorkspace = (
+	workspaceOptions: readonly TypesGen.Workspace[],
+	workspace: TypesGen.Workspace | undefined,
+	ownerID: string,
+): readonly TypesGen.Workspace[] => {
+	if (!workspace || workspace.owner_id !== ownerID) {
+		return workspaceOptions;
+	}
+
+	const existingIndex = workspaceOptions.findIndex(
+		(candidate) => candidate.id === workspace.id,
+	);
+	if (existingIndex === -1) {
+		return [workspace, ...workspaceOptions];
+	}
+
+	if (workspaceOptions[existingIndex] === workspace) {
+		return workspaceOptions;
+	}
+
+	const nextWorkspaceOptions = [...workspaceOptions];
+	nextWorkspaceOptions[existingIndex] = workspace;
+	return nextWorkspaceOptions;
 };
 
 const buildAttachmentMediaTypes = (
@@ -723,6 +748,7 @@ const AgentChatPage: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+	const workspace = workspaceQuery.data;
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -736,7 +762,11 @@ const AgentChatPage: FC = () => {
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -835,12 +865,12 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
+	const isSharedChat = chatRecord?.shared ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
 	const isRootChat =
@@ -1099,37 +1129,13 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const isAdmin = permissions.editDeploymentConfig;
-	const agentSetupNotice = (() => {
-		// Admin: show when providers or models are missing
-		if (
-			isAdmin &&
-			providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		) {
-			return (
-				<AgentSetupNotice
-					isAdmin
-					providerCount={providerCount}
-					modelCount={modelCount}
-				/>
-			);
-		}
-		// Member: show when no models are available
-		if (!isAdmin && modelCount !== undefined && modelCount === 0) {
-			return (
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			);
-		}
-		return undefined;
-	})();
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
 		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1474,7 +1480,7 @@ const AgentChatPage: FC = () => {
 		if (!response.queued) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
-			// "Thinking..." indicator appears immediately.
+			// Thinking indicator appears immediately.
 			// The server accepted the message (not queued),
 			// so it will start processing. The WebSocket
 			// status:running event no-ops via the
@@ -1570,6 +1576,7 @@ const AgentChatPage: FC = () => {
 
 	return (
 		<AgentChatPageView
+			key={agentId}
 			agentId={agentId}
 			sendShortcut={getAgentChatSendShortcut(
 				preferencesQuery.data?.agent_chat_send_shortcut,
@@ -1580,6 +1587,7 @@ const AgentChatPage: FC = () => {
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			isSharedChat={isSharedChat}
 			chatOwner={chatOwner}
 			canShareChat={canShareChat}
 			workspace={workspace}
@@ -1592,7 +1600,9 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			providerCount={providerCount}
+			modelCount={modelCount}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}
@@ -1603,7 +1613,9 @@ const AgentChatPage: FC = () => {
 			isInterruptPending={isInterruptPending}
 			workspaceOptions={workspaceOptions}
 			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={handleWorkspaceChange}
+			onWorkspaceChange={
+				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+			}
 			isWorkspaceLoading={isWorkspaceLoading}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}

@@ -930,6 +930,45 @@ func (db *dbCrypt) UpdateUserSecretByUserIDAndName(ctx context.Context, arg data
 	return secret, nil
 }
 
+func (db *dbCrypt) InsertGitSSHKey(ctx context.Context, params database.InsertGitSSHKeyParams) (database.GitSSHKey, error) {
+	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	key, err := db.Store.InsertGitSSHKey(ctx, params)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.GitSSHKey, error) {
+	key, err := db.Store.GetGitSSHKey(ctx, userID)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
+func (db *dbCrypt) UpdateGitSSHKey(ctx context.Context, params database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
+	if err := db.encryptField(&params.PrivateKey, &params.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	key, err := db.Store.UpdateGitSSHKey(ctx, params)
+	if err != nil {
+		return database.GitSSHKey{}, err
+	}
+	if err := db.decryptField(&key.PrivateKey, key.PrivateKeyKeyID); err != nil {
+		return database.GitSSHKey{}, err
+	}
+	return key, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {

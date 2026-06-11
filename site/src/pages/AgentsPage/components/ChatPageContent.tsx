@@ -46,7 +46,6 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface ChatPageTimelineProps {
-	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -62,7 +61,6 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
-	chatID,
 	store,
 	persistedError,
 	onEditUserMessage,
@@ -133,7 +131,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<LiveStreamTail
 					store={store}
 					persistedError={persistedError}
-					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
@@ -172,7 +169,9 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
-	agentSetupNotice?: ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -209,7 +208,7 @@ interface ChatPageInputProps {
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
-	onWorkspaceChange: (workspaceId: string | null) => void;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -237,7 +236,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -493,7 +494,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
 		/>
 	);
 
@@ -504,11 +507,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	return (
 		<div>
 			{inputElement}
-			{modelSelectorHelp && (
-				<div className="px-3 pt-1 text-2xs text-content-secondary">
-					{modelSelectorHelp}
-				</div>
-			)}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
 		</div>
 	);
 };

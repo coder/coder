@@ -324,6 +324,10 @@ const (
 	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
 	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
 	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
+	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -588,7 +592,11 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryLog,
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
-		ApiKeyScopeBoundaryLogRead:
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead:
 		return true
 	}
 	return false
@@ -822,6 +830,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead,
 	}
 }
 
@@ -3353,6 +3365,8 @@ const (
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
+	ResourceTypeUserAiBudgetOverride        ResourceType = "user_ai_budget_override"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3424,7 +3438,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
-		ResourceTypeUserSkill:
+		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride:
 		return true
 	}
 	return false
@@ -3465,6 +3481,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride,
 	}
 }
 
@@ -4435,6 +4453,17 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
+type AIGatewayKey struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4888,6 +4917,8 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+	// The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 type Group struct {
@@ -5174,6 +5205,8 @@ type Organization struct {
 	Deleted     bool      `db:"deleted" json:"deleted"`
 	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
+	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
+	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
 }
 
 type OrganizationMember struct {

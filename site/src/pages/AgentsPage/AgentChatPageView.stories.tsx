@@ -25,7 +25,6 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	createChatStore,
 	useChatSelector,
@@ -66,6 +65,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -144,6 +144,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		isSharedChat: false,
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],
@@ -188,6 +189,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		canShareChat: false,
+		canConfigureAgentSetup: true,
+		providerCount: 1,
+		modelCount: 1,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -400,6 +404,49 @@ index abc1234..def5678 100644
 	},
 };
 
+export const NarrowWithSidebarPanel: Story = {
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	decorators: [
+		(Story) => (
+			<div
+				data-testid="narrow-agents-layout"
+				style={{
+					display: "flex",
+					height: "100vh",
+					overflow: "hidden",
+					width: 1024,
+				}}
+			>
+				<div style={{ minWidth: 320, width: 320 }} />
+				<div style={{ display: "flex", flex: 1, minWidth: 0 }}>
+					<Story />
+				</div>
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("narrow-agents-layout");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const rightPanel = await canvas.findByTestId("agents-right-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const layoutRect = layout.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const rightPanelRect = rightPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
+			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
+		});
+	},
+};
+
 /**
  * Clicking the refresh button in the git panel invalidates the
  * cached PR diff contents so that React Query re-fetches from
@@ -483,9 +530,9 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -518,9 +565,9 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={1}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -549,9 +596,9 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={1}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -577,9 +624,9 @@ export const MissingProviderSetup: Story = {
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup={false}
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -673,7 +720,22 @@ export const WorkspaceAgentStartTimeout: Story = {
 };
 
 export const WorkspaceNoAgent: Story = {
-	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceOptions={[MockWorkspace]}
+			selectedWorkspaceId={MockWorkspace.id}
+			onWorkspaceChange={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).toBeVisible();
+	},
 };
 
 // ---------------------------------------------------------------------------

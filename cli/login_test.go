@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,8 +14,8 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/pretty"
 )
 
@@ -74,13 +73,16 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTY", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -105,12 +107,11 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
-		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -126,13 +127,16 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTYWithNoTrial", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -151,12 +155,11 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
-		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -172,13 +175,16 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTYNameOptional", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
@@ -203,12 +209,11 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
-		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -224,16 +229,19 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTYFlag", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		// The --force-tty flag is required on Windows, because the `isatty` library does not
 		// accurately detect Windows ptys when they are not attached to a process:
 		// https://github.com/mattn/go-isatty/issues/59
 		inv, _ := clitest.New(t, "--url", client.URL.String(), "login", "--force-tty")
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		clitest.Start(t, inv)
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with flag URL: '%s'", client.URL.String()))
 		matches := []string{
 			"first user?", "yes",
 			"username", coderdtest.FirstUserParams.Username,
@@ -252,11 +260,10 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
-		pty.ExpectMatch("Welcome to Coder")
-		ctx := testutil.Context(t, testutil.WaitShort)
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -272,6 +279,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserFlags", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
@@ -281,22 +289,23 @@ func TestLogin(t *testing.T) {
 			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
 		)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		w := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatch("firstName")
-		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
-		pty.ExpectMatch("lastName")
-		pty.WriteLine(coderdtest.TrialUserParams.LastName)
-		pty.ExpectMatch("phoneNumber")
-		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		pty.ExpectMatch("jobTitle")
-		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		pty.ExpectMatch("companyName")
-		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		stdout.ExpectMatch(ctx, "firstName")
+		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
+		stdout.ExpectMatch(ctx, "lastName")
+		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
+		stdout.ExpectMatch(ctx, "phoneNumber")
+		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		stdout.ExpectMatch(ctx, "jobTitle")
+		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		stdout.ExpectMatch(ctx, "companyName")
+		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
 		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		w.RequireSuccess()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -312,6 +321,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserFlagsNameOptional", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		inv, _ := clitest.New(
 			t, "login", client.URL.String(),
@@ -320,22 +330,23 @@ func TestLogin(t *testing.T) {
 			"--first-user-password", coderdtest.FirstUserParams.Password,
 			"--first-user-trial",
 		)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		w := clitest.StartWithWaiter(t, inv)
-		pty.ExpectMatch("firstName")
-		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
-		pty.ExpectMatch("lastName")
-		pty.WriteLine(coderdtest.TrialUserParams.LastName)
-		pty.ExpectMatch("phoneNumber")
-		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		pty.ExpectMatch("jobTitle")
-		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		pty.ExpectMatch("companyName")
-		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		stdout.ExpectMatch(ctx, "firstName")
+		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
+		stdout.ExpectMatch(ctx, "lastName")
+		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
+		stdout.ExpectMatch(ctx, "phoneNumber")
+		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		stdout.ExpectMatch(ctx, "jobTitle")
+		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		stdout.ExpectMatch(ctx, "companyName")
+		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
 		// `developers` and `country` `cliui.Select` automatically selects the first option during tests.
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		w.RequireSuccess()
-		ctx := testutil.Context(t, testutil.WaitShort)
 		resp, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
 			Email:    coderdtest.FirstUserParams.Email,
 			Password: coderdtest.FirstUserParams.Password,
@@ -351,6 +362,7 @@ func TestLogin(t *testing.T) {
 
 	t.Run("InitialUserTTYConfirmPasswordFailAndReprompt", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		client := coderdtest.New(t, nil)
@@ -359,7 +371,8 @@ func TestLogin(t *testing.T) {
 		// https://github.com/mattn/go-isatty/issues/59
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String())
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
 		go func() {
 			defer close(doneChan)
 			err := root.WithContext(ctx).Run()
@@ -377,59 +390,60 @@ func TestLogin(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
+			stdout.ExpectMatch(ctx, match)
+			stdin.WriteLine(value)
 		}
 
 		// Validate that we reprompt for matching passwords.
-		pty.ExpectMatch("Passwords do not match")
-		pty.ExpectMatch("Enter a " + pretty.Sprint(cliui.DefaultStyles.Field, "password"))
-		pty.WriteLine(coderdtest.FirstUserParams.Password)
-		pty.ExpectMatch("Confirm")
-		pty.WriteLine(coderdtest.FirstUserParams.Password)
-		pty.ExpectMatch("trial")
-		pty.WriteLine("yes")
-		pty.ExpectMatch("firstName")
-		pty.WriteLine(coderdtest.TrialUserParams.FirstName)
-		pty.ExpectMatch("lastName")
-		pty.WriteLine(coderdtest.TrialUserParams.LastName)
-		pty.ExpectMatch("phoneNumber")
-		pty.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
-		pty.ExpectMatch("jobTitle")
-		pty.WriteLine(coderdtest.TrialUserParams.JobTitle)
-		pty.ExpectMatch("companyName")
-		pty.WriteLine(coderdtest.TrialUserParams.CompanyName)
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, "Passwords do not match")
+		stdout.ExpectMatch(ctx, "Enter a "+pretty.Sprint(cliui.DefaultStyles.Field, "password"))
+		stdin.WriteLine(coderdtest.FirstUserParams.Password)
+		stdout.ExpectMatch(ctx, "Confirm")
+		stdin.WriteLine(coderdtest.FirstUserParams.Password)
+		stdout.ExpectMatch(ctx, "trial")
+		stdin.WriteLine("yes")
+		stdout.ExpectMatch(ctx, "firstName")
+		stdin.WriteLine(coderdtest.TrialUserParams.FirstName)
+		stdout.ExpectMatch(ctx, "lastName")
+		stdin.WriteLine(coderdtest.TrialUserParams.LastName)
+		stdout.ExpectMatch(ctx, "phoneNumber")
+		stdin.WriteLine(coderdtest.TrialUserParams.PhoneNumber)
+		stdout.ExpectMatch(ctx, "jobTitle")
+		stdin.WriteLine(coderdtest.TrialUserParams.JobTitle)
+		stdout.ExpectMatch(ctx, "companyName")
+		stdin.WriteLine(coderdtest.TrialUserParams.CompanyName)
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 	})
 
 	t.Run("ExistingUserValidTokenTTY", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", "--force-tty", client.URL.String(), "--no-open")
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
 		go func() {
 			defer close(doneChan)
 			err := root.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
-		if runtime.GOOS != "windows" {
-			// For some reason, the match does not show up on Windows.
-			pty.ExpectMatch(client.SessionToken())
-		}
-		pty.ExpectMatch("Welcome to Coder")
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with argument URL: '%s'", client.URL.String()))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, "Welcome to Coder")
 		<-doneChan
 	})
 
 	t.Run("ExistingUserURLSavedInConfig", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		url := client.URL.String()
 		coderdtest.CreateFirstUser(t, client)
@@ -438,21 +452,24 @@ func TestLogin(t *testing.T) {
 		clitest.SetupConfig(t, client, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with config URL: '%s'", url))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
 		<-doneChan
 	})
 
 	t.Run("ExistingUserURLSavedInEnv", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, nil)
 		url := client.URL.String()
 		coderdtest.CreateFirstUser(t, client)
@@ -461,21 +478,23 @@ func TestLogin(t *testing.T) {
 		inv.Environ.Set("CODER_URL", url)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch(fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine(client.SessionToken())
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Attempting to authenticate with environment URL: '%s'", url))
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine(client.SessionToken())
 		<-doneChan
 	})
 
 	t.Run("ExistingUserInvalidTokenTTY", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 
@@ -483,7 +502,8 @@ func TestLogin(t *testing.T) {
 		defer cancelFunc()
 		doneChan := make(chan struct{})
 		root, _ := clitest.New(t, "login", client.URL.String(), "--no-open")
-		pty := ptytest.New(t).Attach(root)
+		stdout := expecter.NewAttachedToInvocation(t, root)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), root)
 		go func() {
 			defer close(doneChan)
 			err := root.WithContext(ctx).Run()
@@ -491,13 +511,9 @@ func TestLogin(t *testing.T) {
 			assert.Error(t, err)
 		}()
 
-		pty.ExpectMatch("Paste your token here:")
-		pty.WriteLine("an-invalid-token")
-		if runtime.GOOS != "windows" {
-			// For some reason, the match does not show up on Windows.
-			pty.ExpectMatch("an-invalid-token")
-		}
-		pty.ExpectMatch("That's not a valid token!")
+		stdout.ExpectMatch(ctx, "Paste your token here:")
+		stdin.WriteLine("an-invalid-token")
+		stdout.ExpectMatch(ctx, "That's not a valid token!")
 		cancelFunc()
 		<-doneChan
 	})
@@ -582,12 +598,12 @@ func TestLoginToken(t *testing.T) {
 
 		inv, root := clitest.New(t, "login", "token", "--url", client.URL.String())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(client.SessionToken())
+		stdout.ExpectMatch(ctx, client.SessionToken())
 	})
 
 	t.Run("NoTokenStored", func(t *testing.T) {

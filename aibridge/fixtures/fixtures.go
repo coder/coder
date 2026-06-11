@@ -24,6 +24,9 @@ var (
 	//go:embed anthropic/single_injected_tool.txtar
 	AntSingleInjectedTool []byte
 
+	//go:embed anthropic/single_injected_tool_no_preamble.txtar
+	AntSingleInjectedToolNoPreamble []byte
+
 	//go:embed anthropic/fallthrough.txtar
 	AntFallthrough []byte
 

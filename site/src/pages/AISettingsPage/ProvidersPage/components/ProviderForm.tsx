@@ -81,6 +81,10 @@ const providerDefaults: Partial<
 		name: "azure",
 		baseUrl: "https://YOUR-RESOURCE.openai.azure.com/openai/v1",
 	},
+	copilot: {
+		name: "copilot",
+		baseUrl: "https://api.business.githubcopilot.com",
+	},
 	google: {
 		name: "google",
 		baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -164,6 +168,20 @@ const makeBedrockSchema = (editing: boolean) =>
 		enabled: Yup.boolean(),
 	});
 
+const makeCopilotSchema = (editing: boolean) =>
+	Yup.object({
+		type: Yup.string()
+			.oneOf(["copilot"] as const)
+			.required(),
+		name: makeNameSchema(editing),
+		displayName: makeDisplayNameSchema(editing),
+		baseUrl: Yup.string()
+			.url("Endpoint must be a valid URL")
+			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
+			.required("Endpoint is required"),
+		enabled: Yup.boolean(),
+	});
+
 const getProviderFormSchema = (editing: boolean) =>
 	Yup.lazy((value: { type?: AIProviderType } | undefined) => {
 		switch (value?.type) {
@@ -177,6 +195,8 @@ const getProviderFormSchema = (editing: boolean) =>
 				return makeOpenAiAnthropicSchema(editing);
 			case "bedrock":
 				return makeBedrockSchema(editing);
+			case "copilot":
+				return makeCopilotSchema(editing);
 			default:
 				return Yup.object({
 					type: Yup.string()
@@ -185,6 +205,7 @@ const getProviderFormSchema = (editing: boolean) =>
 							"anthropic",
 							"bedrock",
 							"azure",
+							"copilot",
 							"google",
 							"openai-compat",
 							"openrouter",
@@ -238,6 +259,21 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	const typeDefaults =
 		providerDefaults[resolvedType as keyof typeof providerDefaults];
 
+	// Seed Bedrock credentials with the mask when on file; focus clears it,
+	// and a re-submitted "" tells the API mapping to keep the value.
+	const maskedAccessKey = bedrockSavedAccessCredentials
+		? SAVED_CREDENTIAL_MASK
+		: "";
+	const maskedAccessKeySecret = bedrockSavedAccessCredentials
+		? SAVED_CREDENTIAL_MASK
+		: "";
+	// Same pattern for openai/anthropic. Prefer the API-supplied masked
+	// rendering so the user sees the key's identifying suffix.
+	const maskedApiKey = openAiAnthropicSavedApiKey
+		? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
+		: "";
+
+	const didSubmit = useRef(false);
 	const form = useFormik<ProviderFormValues>({
 		initialValues: {
 			...defaultInitialValues,
@@ -245,21 +281,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 			// Edit overrides prefills with server values; create gets them as-is.
 			...(typeDefaults ?? {}),
 			...initialValues,
-			// Seed Bedrock credentials with the mask when on file; focus clears it,
-			// and a re-submitted "" tells the API mapping to keep the value.
-			accessKey: bedrockSavedAccessCredentials ? SAVED_CREDENTIAL_MASK : "",
-			accessKeySecret: bedrockSavedAccessCredentials
-				? SAVED_CREDENTIAL_MASK
-				: "",
-			// Same pattern for openai/anthropic. Prefer the API-supplied masked
-			// rendering so the user sees the key's identifying suffix.
-			apiKey: openAiAnthropicSavedApiKey
-				? (openAiAnthropicMaskedApiKey ?? SAVED_CREDENTIAL_MASK)
-				: "",
+			accessKey: maskedAccessKey,
+			accessKeySecret: maskedAccessKeySecret,
+			apiKey: maskedApiKey,
 		},
 		validationSchema: getProviderFormSchema(editing),
 		validateOnMount: true,
-		onSubmit: onSubmit ?? (() => {}),
+		onSubmit: (values) => {
+			didSubmit.current = true;
+			return onSubmit?.(values);
+		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
@@ -276,17 +307,46 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		}
 	};
 
+	// Restores the mask when the user leaves the field without entering
+	// a new value, keeping the saved-credential appearance.
+	const handleCredentialBlur = (
+		field: "apiKey" | "accessKey" | "accessKeySecret",
+	) => {
+		const initial = form.initialValues[field];
+		if (form.values[field] === "" && initial !== "") {
+			void form.setFieldValue(field, initial);
+		}
+	};
+
 	// When the parent's mutation finishes without an error, treat the just-
 	// submitted values as the new baseline so the unsaved-changes prompt does
 	// not fire on subsequent navigations. React Query reports a missing error
 	// as `null`, so a truthy check covers both null and undefined.
 	const previousIsLoading = useRef(isLoading);
 	useEffect(() => {
-		if (previousIsLoading.current && !isLoading && !submitError) {
-			form.resetForm({ values: form.values });
+		if (previousIsLoading.current && !isLoading) {
+			if (didSubmit.current && !submitError) {
+				// Restore credential fields to their initial masked sentinels so
+				// the raw key is never left visible after a successful save.
+				const remaskedValues = {
+					...form.values,
+					apiKey: maskedApiKey,
+					accessKey: maskedAccessKey,
+					accessKeySecret: maskedAccessKeySecret,
+				};
+				form.resetForm({ values: remaskedValues });
+			}
+			didSubmit.current = false;
 		}
 		previousIsLoading.current = isLoading;
-	}, [isLoading, submitError, form]);
+	}, [
+		isLoading,
+		submitError,
+		form,
+		maskedApiKey,
+		maskedAccessKey,
+		maskedAccessKeySecret,
+	]);
 
 	const unsavedChanges = useUnsavedChangesPrompt(
 		form.dirty && !form.isSubmitting,
@@ -319,18 +379,39 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							required
 							field={getFieldHelpers("baseUrl")}
 							label="Endpoint"
-							description="The base URL where the provider's API is hosted."
+							description={
+								typeSelectValue === "copilot" ? (
+									<>
+										The base URL for your Copilot tier:{" "}
+										<code>https://api.individual.githubcopilot.com</code>,{" "}
+										<code>https://api.business.githubcopilot.com</code>, or{" "}
+										<code>https://api.enterprise.githubcopilot.com</code>.
+									</>
+								) : (
+									"The base URL where the provider's API is hosted."
+								)
+							}
 							className="w-full"
 							placeholder={baseUrlPlaceholder(form.values.type)}
 						/>
-						<CredentialField
-							required
-							label="API key"
-							helpers={getFieldHelpers("apiKey")}
-							onFocus={() => handleCredentialFocus("apiKey")}
-							autoComplete="new-password"
-							placeholder={apiKeyPlaceholder(form.values.type)}
-						/>
+						{typeSelectValue === "copilot" ? (
+							<p className="text-sm text-content-secondary m-0">
+								Copilot authenticates with each user's GitHub OAuth token at
+								request time, so there is no API key to configure here. This
+								requires a GitHub external authentication provider to be
+								configured.
+							</p>
+						) : (
+							<CredentialField
+								required
+								label="API key"
+								helpers={getFieldHelpers("apiKey")}
+								onBlur={() => handleCredentialBlur("apiKey")}
+								onFocus={() => handleCredentialFocus("apiKey")}
+								autoComplete="new-password"
+								placeholder={apiKeyPlaceholder(form.values.type)}
+							/>
+						)}
 					</>
 				)}
 
@@ -389,12 +470,15 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								required
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
+								onBlur={() => handleCredentialBlur("accessKey")}
 								onFocus={() => handleCredentialFocus("accessKey")}
+								autoComplete="new-password"
 							/>
 							<CredentialField
 								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
+								onBlur={() => handleCredentialBlur("accessKeySecret")}
 								onFocus={() => handleCredentialFocus("accessKeySecret")}
 								autoComplete="new-password"
 							/>
@@ -409,7 +493,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</Button>
 					</Link>
 					<Button
-						disabled={isLoading || !form.dirty || !form.isValid}
+						disabled={isLoading || !form.isValid || (editing && !form.dirty)}
 						type="submit"
 					>
 						<Spinner loading={isLoading} />
