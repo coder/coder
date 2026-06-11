@@ -1261,9 +1261,11 @@ func TestWorkspaceBuildStatus(t *testing.T) {
 	// Audit logs are written asynchronously to build completion, so poll
 	// until the expected log appears.
 	require.Eventually(t, func() bool {
-		logs := auditor.AuditLogs()
-		return len(logs) == numLogs &&
-			assert.Equal(t, database.AuditActionStop, logs[numLogs-1].Action)
+		return len(auditor.AuditLogs()) == numLogs &&
+			auditor.Contains(t, database.AuditLog{
+				Action:       database.AuditActionStop,
+				ResourceType: database.ResourceTypeWorkspaceBuild,
+			})
 	}, testutil.WaitShort, testutil.IntervalFast)
 
 	_ = closeDaemon.Close()

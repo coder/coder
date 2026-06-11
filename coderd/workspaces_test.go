@@ -4614,16 +4614,16 @@ func TestWorkspaceDormant(t *testing.T) {
 		// start. Audit logs are written asynchronously to build completion,
 		// so poll until both appear.
 		require.Eventually(t, func() bool {
-			return len(auditor.AuditLogs()) == 2
+			return len(auditor.AuditLogs()) == 2 &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionWrite,
+					ResourceType: database.ResourceTypeWorkspace,
+				}) &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionStart,
+					ResourceType: database.ResourceTypeWorkspaceBuild,
+				})
 		}, testutil.WaitShort, testutil.IntervalFast)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionWrite,
-			ResourceType: database.ResourceTypeWorkspace,
-		}))
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionStart,
-			ResourceType: database.ResourceTypeWorkspaceBuild,
-		}))
 	})
 }
 
