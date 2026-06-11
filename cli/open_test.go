@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -698,8 +699,14 @@ func TestOpenApp(t *testing.T) {
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
 
-		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
-		mainAgent := r.Agents[0]
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agents, err := store.GetWorkspaceAgentsByWorkspaceAndBuildNumber(dbauthz.AsSystemRestricted(ctx), database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: r.Workspace.ID,
+			BuildNumber: r.Build.BuildNumber,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, agents, "expected at least one workspace agent")
+		mainAgent := agents[0]
 
 		subAgent := dbgen.WorkspaceSubAgent(t, store, mainAgent, database.WorkspaceAgent{
 			Name: "devcontainer",
@@ -744,8 +751,14 @@ func TestOpenApp(t *testing.T) {
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
 
-		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
-		mainAgent := r.Agents[0]
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agents, err := store.GetWorkspaceAgentsByWorkspaceAndBuildNumber(dbauthz.AsSystemRestricted(ctx), database.GetWorkspaceAgentsByWorkspaceAndBuildNumberParams{
+			WorkspaceID: r.Workspace.ID,
+			BuildNumber: r.Build.BuildNumber,
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, agents, "expected at least one workspace agent")
+		mainAgent := agents[0]
 
 		subAgent := dbgen.WorkspaceSubAgent(t, store, mainAgent, database.WorkspaceAgent{
 			Name: "devcontainer",
