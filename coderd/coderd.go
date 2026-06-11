@@ -811,7 +811,8 @@ func New(options *Options) *API {
 			providerAPIKeys = *options.ChatProviderAPIKeys
 		}
 
-		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
+		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
+			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
 
 		api.chatDaemon = chatd.New(chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
