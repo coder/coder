@@ -272,10 +272,6 @@ CODER_AIBRIDGE_PROXY_UPSTREAM_CA=/path/to/corporate-ca.crt
 
 If the system already trusts the upstream proxy's CA certificate, [`CODER_AIBRIDGE_PROXY_UPSTREAM_CA`](../../../reference/cli/server.md#--aibridge-proxy-upstream-ca) is not required.
 
-<!-- TODO(ssncferreira): Add Client Configuration section -->
-
-<!-- TODO(ssncferreira): Add Troubleshooting section -->
-
 ## Client Configuration
 
 To use AI Gateway Proxy, AI tools must be configured to:
@@ -374,3 +370,21 @@ This provides a seamless experience where users don't need to configure anything
 <!-- TODO(ssncferreira): Add registry link for AI Gateway Proxy module for Coder workspaces: https://github.com/coder/internal/issues/1187 -->
 
 For tool-specific configuration details, check the [client compatibility table](../clients/index.md#compatibility) for clients that require proxy-based integration.
+
+## Troubleshooting
+
+### TLS certificate verification failures
+
+When the Coder access URL uses HTTPS, AI Gateway Proxy must trust the TLS certificate served at that URL (either Coder's
+own certificate or a load balancer's, if TLS is terminated there) to forward intercepted requests to AI Gateway.
+This primarily affects deployments using a self-signed or internal CA, since publicly trusted CAs are typically already
+in the system trust store.
+If the certificate is signed by a CA not in the system trust store, the connection fails and the Coder server logs:
+
+```shell
+WARN: Cannot read TLS response from mitm'd server tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+To resolve, add the CA that signed that certificate to the [system trust store](#system-trust-store) of the host running
+AI Gateway Proxy (the same host as `coderd`, since the proxy runs in-process), then restart Coder so AI Gateway Proxy
+reloads the trust store.
