@@ -246,10 +246,8 @@ export const CommentableDiffViewer: FC<CommentableDiffViewerProps> = ({
 		fileName: string,
 		range: SelectedLineRange | null,
 	) => {
-		const result = commentBoxFromRange(fileName, range);
-		if (result === "ignore") return;
 		setPreviewSelection(null);
-		updateCommentBox(result);
+		updateCommentBox(commentBoxFromRange(fileName, range));
 	};
 
 	const handleLineSelectionChange = (

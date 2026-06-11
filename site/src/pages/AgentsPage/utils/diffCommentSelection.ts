@@ -45,23 +45,16 @@ export interface CommentBoxState {
  *
  * Returns:
  * - `null`        when the range is null (selection cleared).
- * - `"ignore"`    when the range is a same-side single-line click
- *                 (these are handled by `handleLineNumberClick`
- *                 instead).
  * - A `CommentBoxState` otherwise.
  */
 export function commentBoxFromRange(
 	fileName: string,
 	range: LineSelectionRange | null,
-): CommentBoxState | null | "ignore" {
+): CommentBoxState | null {
 	if (!range) return null;
 
 	const startSide = range.side ?? "additions";
 	const endSide = range.endSide ?? startSide;
-
-	// Single-line same-side selections are handled by the line
-	// number click handler, not the range selection handler.
-	if (range.start === range.end && startSide === endSide) return "ignore";
 
 	return {
 		fileName,
