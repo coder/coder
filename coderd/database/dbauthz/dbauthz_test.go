@@ -3419,10 +3419,8 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead)
 	}))
 	s.Run("GetTemplateRankingSignalsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		// Deny path: when any requested template is missing from the
-		// authorized set, the call is rejected and the underlying query is
-		// never reached. No expectation is registered for
-		// GetTemplateRankingSignalsByOwnerID, so reaching it fails the test.
+		// Deny path: an unauthorized template ID rejects the call before the
+		// query runs (no query expectation is registered).
 		arg := database.GetTemplateRankingSignalsByOwnerIDParams{
 			OwnerID:        uuid.New(),
 			OrganizationID: uuid.New(),

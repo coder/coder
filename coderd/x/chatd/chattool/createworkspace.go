@@ -75,7 +75,7 @@ type CreateWorkspaceOptions struct {
 }
 
 type createWorkspaceArgs struct {
-	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates recommended_template_id or a ranked template."`
+	TemplateID string            `json:"template_id" description:"The UUIDv4 of the template to create the workspace from. Obtain this from list_templates."`
 	Name       string            `json:"name,omitempty" description:"The name of the workspace to create. If not provided, a random name will be generated."`
 	Parameters map[string]string `json:"parameters,omitempty" description:"Key-value pairs of template parameters to use when creating the workspace. Obtain available parameters from read_template when needed."`
 	PresetID   string            `json:"preset_id,omitempty" description:"The UUIDv4 of a template version preset to use. Obtain available presets from read_template when needed. When provided, the preset's parameters are applied automatically and the workspace may claim a prebuilt instance for faster startup."`
@@ -95,20 +95,12 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 			"or when the user explicitly asks for one. Do not use this as a "+
 			"default first step for requests answerable from conversation "+
 			"context, provider tools, or external MCP tools. Requires a "+
-			"template_id from list_templates. Use recommended_template_id "+
-			"or rank 1 when list_templates reports a confident choice. "+
-			"If list_templates returned user_selection_required true, "+
-			"or selection_hint no_confident_match or ambiguous_top_matches, "+
-			"do not call create_workspace. Ask the user to choose a "+
-			"template unless the user already explicitly selected one. "+
-			"Optionally provide a name and parameter values from "+
-			"read_template. If no name is given, one will be generated. "+
-			"Provide a preset_id from read_template to apply "+
-			"preset parameters and potentially claim a prebuilt "+
-			"workspace for faster startup. "+
-			"This tool is idempotent. If the chat already has a "+
-			"workspace that is building or running, the existing "+
-			"workspace is returned.",
+			"template_id from list_templates; follow its "+NextStepField+" "+
+			"before calling. Optionally provide a name (one is generated if "+
+			"omitted), parameter values, and a preset_id from read_template "+
+			"to apply preset parameters and potentially claim a prebuilt "+
+			"workspace for faster startup. Idempotent: if the chat already "+
+			"has a workspace building or running, it is returned.",
 		func(ctx context.Context, args createWorkspaceArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if options.CreateFn == nil {
 				return fantasy.NewTextErrorResponse("workspace creator is not configured"), nil

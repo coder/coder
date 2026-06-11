@@ -35043,9 +35043,8 @@ func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]Ge
 
 const getTemplateRankingSignalsByOwnerID = `-- name: GetTemplateRankingSignalsByOwnerID :many
 WITH org_usage AS (
-	-- org_usage measures how many distinct developers currently have a
-	-- non-deleted workspace on each template. The prebuilds system user is
-	-- excluded so unclaimed prebuilds do not inflate popularity.
+	-- Distinct developers with a non-deleted workspace; the prebuilds system
+	-- user is excluded so unclaimed prebuilds do not inflate popularity.
 	SELECT
 		w.template_id,
 		COUNT(DISTINCT w.owner_id) AS org_devs
@@ -35064,10 +35063,8 @@ WITH org_usage AS (
 		w.template_id
 ),
 user_usage AS (
-	-- user_usage counts workspaces owned by the requesting user within the
-	-- lookback window, splitting active from recently deleted so deleted
-	-- history can be counted at reduced weight. The window is keyed on
-	-- last_used_at.
+	-- The owner's workspaces used within the lookback window, split into
+	-- active and recently-deleted counts.
 	SELECT
 		w.template_id,
 		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
@@ -35115,16 +35112,11 @@ type GetTemplateRankingSignalsByOwnerIDRow struct {
 	OrgDevs            int64        `db:"org_devs" json:"org_devs"`
 }
 
-// GetTemplateRankingSignalsByOwnerID returns the raw ranking signals for the
-// given templates relative to a single owner: how many active and recently
-// deleted workspaces the owner used within the lookback window, when the
-// template was last used, and how many distinct developers in the organization
-// currently have a non-deleted workspace on it. The affinity score itself is
-// computed in Go (see listtemplates.go) because sqlc type inference is fragile
-// around complex parameterized expressions unless inputs are explicitly cast
-// and nested selects are kept simple. This query returns the exact raw signals
-// the score is built from. The lookback window is applied with a
-// caller-computed cutoff timestamp.
+// GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
+// one owner: in-window active and recently-deleted workspace counts, the last
+// in-window usage, and distinct active developers per template. The affinity
+// score is computed in Go (see listtemplates.go) because sqlc type inference
+// is fragile around complex parameterized expressions.
 func (q *sqlQuerier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error) {
 	rows, err := q.db.QueryContext(ctx, getTemplateRankingSignalsByOwnerID,
 		pq.Array(arg.TemplateIDs),

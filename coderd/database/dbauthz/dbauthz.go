@@ -4397,8 +4397,7 @@ func (q *querier) GetTemplatePresetsWithPrebuilds(ctx context.Context, templateI
 }
 
 func (q *querier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg database.GetTemplateRankingSignalsByOwnerIDParams) ([]database.GetTemplateRankingSignalsByOwnerIDRow, error) {
-	// The personal frecency signal reads the owner's own workspaces, which a
-	// user can always read.
+	// The personal signal reads only the owner's own workspaces.
 	workspaceObj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String())
 	if arg.OrganizationID != uuid.Nil {
 		workspaceObj = workspaceObj.InOrg(arg.OrganizationID)
@@ -4408,12 +4407,8 @@ func (q *querier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg da
 	if err := q.authorizeContext(ctx, policy.ActionRead, workspaceObj); err != nil {
 		return nil, err
 	}
-	// The org-popularity signal is a cross-user COUNT(DISTINCT owner_id) that we
-	// treat as template popularity metadata, not as permission to read other
-	// users' workspaces. Callers only ever pass template IDs already authorized
-	// via GetTemplatesWithFilter, and we verify those exact IDs here with the
-	// same prepared-filter semantics so ACL-only template readers keep their
-	// ranking signals without requiring broad org-wide template read.
+	// The cross-user popularity count is template metadata, not workspace
+	// reads, so it only requires read access to every requested template.
 	if len(arg.TemplateIDs) > 0 {
 		prep, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceTemplate.Type)
 		if err != nil {

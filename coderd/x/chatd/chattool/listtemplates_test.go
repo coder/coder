@@ -85,8 +85,7 @@ func TestListTemplates_OrganizationFilter(t *testing.T) {
 		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 		templates := result["templates"].([]any)
 		require.Len(t, templates, 2)
-		require.Equal(t, "no_confident_match", result["selection_hint"])
-		require.Equal(t, "no_ranking_signal", result["recommendation_reason"])
+		require.Equal(t, chattool.NextStepAskUser, result["next_step"])
 		_, ok := result["recommended_template_id"]
 		require.False(t, ok)
 	})
@@ -166,35 +165,29 @@ func TestListTemplates_QueryMatchesDisplayNameAndDescription(t *testing.T) {
 	templates := listTemplateItems(t, result)
 	require.Len(t, templates, 1)
 	require.Equal(t, displayTemplate.ID.String(), templates[0]["id"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
-	require.Equal(t, false, result["user_selection_required"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, displayTemplate.ID.String(), result["recommended_template_id"])
-	require.Equal(t, "matches_query", templates[0]["relevance_signals"])
 
 	result = runListTemplates(ctx, t, tool, `{"query":"TypeScript"}`)
 	templates = listTemplateItems(t, result)
 	require.Len(t, templates, 1)
 	require.Equal(t, descriptionTemplate.ID.String(), templates[0]["id"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, descriptionTemplate.ID.String(), result["recommended_template_id"])
 
 	result = runListTemplates(ctx, t, tool, `{"query":"-"}`)
 	templates = listTemplateItems(t, result)
 	require.Empty(t, templates)
-	require.Equal(t, float64(0), result["total_count"])
-	require.Equal(t, float64(3), result["available_template_count"])
-	require.Equal(t, "no_confident_match", result["selection_hint"])
-	require.Equal(t, true, result["user_selection_required"])
-	require.Equal(t, "no_matching_templates", result["recommendation_reason"])
+	require.Equal(t, chattool.NextStepNoMatches, result["next_step"])
+	_, ok := result["recommended_template_id"]
+	require.False(t, ok)
 
 	result = runListTemplates(ctx, t, tool, `{"query":"does-not-exist"}`)
 	templates = listTemplateItems(t, result)
 	require.Empty(t, templates)
-	require.Equal(t, float64(0), result["total_count"])
-	require.Equal(t, float64(3), result["available_template_count"])
-	require.Equal(t, "no_confident_match", result["selection_hint"])
-	require.Equal(t, true, result["user_selection_required"])
-	require.Equal(t, "no_matching_templates", result["recommendation_reason"])
+	require.Equal(t, chattool.NextStepNoMatches, result["next_step"])
+	_, ok = result["recommended_template_id"]
+	require.False(t, ok)
 }
 
 func TestListTemplates_QueryScoreTiers(t *testing.T) {
@@ -298,22 +291,20 @@ func TestListTemplates_RanksAllCandidatesBeforePagination(t *testing.T) {
 	result := runListTemplates(ctx, t, tool, `{}`)
 	templates := listTemplateItems(t, result)
 	require.Len(t, templates, 10)
-	require.Equal(t, float64(11), result["total_count"])
-	require.Equal(t, float64(2), result["total_pages"])
+	require.Equal(t, float64(1), result["page"])
+	require.Equal(t, float64(2), result["next_page"])
 	require.Equal(t, target.ID.String(), templates[0]["id"])
-	require.Equal(t, float64(1), templates[0]["rank"])
 	require.Equal(t, float64(1), templates[0]["your_workspace_count"])
 	require.NotEmpty(t, templates[0]["last_used_by_you"])
-	require.Equal(t, true, templates[0]["recommended"])
-	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, target.ID.String(), result["recommended_template_id"])
 
 	result = runListTemplates(ctx, t, tool, `{"page":2}`)
 	templates = listTemplateItems(t, result)
 	require.Len(t, templates, 1)
 	require.Equal(t, float64(2), result["page"])
-	require.Equal(t, float64(11), templates[0]["rank"])
+	_, hasNextPage := result["next_page"]
+	require.False(t, hasNextPage)
 }
 
 func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
@@ -354,9 +345,7 @@ func TestListTemplates_QueryRelevanceOutranksPersonalUsage(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, target.ID.String(), templates[0]["id"])
 	require.Equal(t, used.ID.String(), templates[1]["id"])
-	require.Equal(t, "matches_query", templates[0]["relevance_signals"])
-	require.Equal(t, "matches_query_and_used_by_you", templates[1]["relevance_signals"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, target.ID.String(), result["recommended_template_id"])
 }
 
@@ -396,8 +385,7 @@ func TestListTemplates_PersonalUsageBreaksEqualQueryScoreTie(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, used.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
-	require.Equal(t, "matches_query_and_used_by_you", templates[0]["relevance_signals"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, used.ID.String(), result["recommended_template_id"])
 }
 
@@ -445,8 +433,7 @@ func TestListTemplates_OrgPopularityFallback(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, popular.ID.String(), templates[0]["id"])
 	require.Equal(t, float64(2), templates[0]["active_developers"])
-	require.Equal(t, "popular_in_org", templates[0]["relevance_signals"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, popular.ID.String(), result["recommended_template_id"])
 }
 
@@ -487,8 +474,7 @@ func TestListTemplates_WeakOrgPopularityDoesNotRecommend(t *testing.T) {
 	require.Equal(t, usedByOne.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
 	require.Equal(t, float64(1), templates[0]["active_developers"])
-	require.Equal(t, "no_confident_match", result["selection_hint"])
-	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
+	require.Equal(t, chattool.NextStepAskUser, result["next_step"])
 	_, ok := result["recommended_template_id"]
 	require.False(t, ok)
 }
@@ -533,12 +519,10 @@ func TestListTemplates_StalePersonalUsageDoesNotRecommend(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, oldUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
-	// The 180-day-old workspace is outside the 60-day lookback window, so it no
-	// longer counts as in-window personal usage.
+	// 180 days old is outside the 60-day lookback window.
 	_, hasCount := templates[0]["your_workspace_count"]
 	require.False(t, hasCount)
-	require.Equal(t, "no_confident_match", result["selection_hint"])
-	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
+	require.Equal(t, chattool.NextStepAskUser, result["next_step"])
 	_, ok := result["recommended_template_id"]
 	require.False(t, ok)
 }
@@ -567,9 +551,7 @@ func TestListTemplates_StaleFrequentPersonalUsageDoesNotRecommend(t *testing.T) 
 		CreatedBy:      user.ID,
 		Name:           "unused",
 	})
-	// Two workspaces used 180 days ago. Frequency no longer dominates recency:
-	// usage outside the lookback window decays out of the personal signal, so a
-	// frequently-but-stalely-used template is no longer a confident match.
+	// Stale usage decays out of the personal signal despite its frequency.
 	for range 2 {
 		dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
@@ -588,12 +570,9 @@ func TestListTemplates_StaleFrequentPersonalUsageDoesNotRecommend(t *testing.T) 
 	require.Len(t, templates, 2)
 	require.Equal(t, staleUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
-	require.Equal(t, "no_confident_match", result["selection_hint"])
-	require.Equal(t, "weak_ranking_signal", result["recommendation_reason"])
+	require.Equal(t, chattool.NextStepAskUser, result["next_step"])
 	_, ok := result["recommended_template_id"]
 	require.False(t, ok)
-	// The stale workspaces fall outside the lookback window, so no in-window
-	// personal count is surfaced.
 	_, hasCount := templates[0]["your_workspace_count"]
 	require.False(t, hasCount)
 }
@@ -622,8 +601,7 @@ func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
 		CreatedBy:      user.ID,
 		Name:           "unused",
 	})
-	// Two workspaces used two days ago. Recent, in-window usage is a confident
-	// signal: this is the frecency improvement over the old count-only ranking.
+	// Recent in-window usage is a confident signal.
 	for range 2 {
 		dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
@@ -643,8 +621,7 @@ func TestListTemplates_RecentPersonalUsageRecommends(t *testing.T) {
 	require.Equal(t, recentUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
 	require.Equal(t, float64(2), templates[0]["your_workspace_count"])
-	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
-	require.Equal(t, "high_confidence_recommendation", result["selection_hint"])
+	require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 	require.Equal(t, recentUsage.ID.String(), result["recommended_template_id"])
 }
 
@@ -689,8 +666,6 @@ func TestListTemplates_DeletedRecentPersonalUsageShowsEvidence(t *testing.T) {
 	require.Len(t, templates, 2)
 	require.Equal(t, deletedUsage.ID.String(), templates[0]["id"])
 	require.Equal(t, unused.ID.String(), templates[1]["id"])
-	require.Equal(t, "used_by_you", templates[0]["relevance_signals"])
-	require.Equal(t, float64(1), templates[0]["your_recently_deleted_workspace_count"])
 	require.NotEmpty(t, templates[0]["last_used_by_you"])
 	_, hasActiveCount := templates[0]["your_workspace_count"]
 	require.False(t, hasActiveCount)
@@ -724,10 +699,8 @@ func TestListTemplates_AmbiguousTopMatches(t *testing.T) {
 	result := runListTemplates(ctx, t, tool, `{"query":"go"}`)
 	templates := listTemplateItems(t, result)
 	require.Len(t, templates, 2)
-	require.Equal(t, "ambiguous_top_matches", result["selection_hint"])
+	require.Equal(t, chattool.NextStepAskUser, result["next_step"])
 	_, ok := result["recommended_template_id"]
-	require.False(t, ok)
-	_, ok = templates[0]["recommended"]
 	require.False(t, ok)
 }
 
@@ -797,10 +770,8 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.Len(t, templates, 1)
 			m := templates[0].(map[string]any)
 			require.Equal(t, t1.ID.String(), m["id"].(string))
-			require.Equal(t, "only_available_template", result["selection_hint"])
+			require.Equal(t, chattool.NextStepUseRecommended, result["next_step"])
 			require.Equal(t, t1.ID.String(), result["recommended_template_id"])
-			require.Equal(t, true, m["recommended"])
-			require.Equal(t, float64(1), m["rank"])
 		})
 
 		t.Run("NoMatches", func(t *testing.T) {
@@ -815,8 +786,7 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 			require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
 			templates := result["templates"].([]any)
 			require.Empty(t, templates)
-			require.Equal(t, "no_confident_match", result["selection_hint"])
-			require.Equal(t, "no_matching_templates", result["recommendation_reason"])
+			require.Equal(t, chattool.NextStepNoTemplates, result["next_step"])
 			_, ok := result["recommended_template_id"]
 			require.False(t, ok)
 		})
@@ -953,8 +923,7 @@ func TestGetTemplateRankingSignalsByOwnerID(t *testing.T) {
 		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
 		LastUsedAt: deletedLastUsedAt, Deleted: true,
 	})
-	// Non-deleted but outside the lookback window: it must not count toward the
-	// in-window active count, though it still keeps the user in the org count.
+	// Outside the lookback window: excluded from in-window counts, still an org dev.
 	dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID: user.ID, OrganizationID: org.ID, TemplateID: used.ID,
 		LastUsedAt: now.Add(-90 * 24 * time.Hour),

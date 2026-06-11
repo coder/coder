@@ -54,141 +54,141 @@ func TestSelectTemplateRecommendation(t *testing.T) {
 
 	loadErr := xerrors.New("signals failed to load")
 
-	t.Run("NoMatches", func(t *testing.T) {
+	t.Run("NoTemplatesAvailable", func(t *testing.T) {
 		t.Parallel()
-		hint, id, reason := selectTemplateRecommendation(nil, 0, nil)
-		require.Equal(t, listTemplatesHintNoConfidence, hint)
+		id, next := selectTemplateRecommendation(nil, 0, nil)
 		require.Equal(t, uuid.Nil, id)
-		require.Equal(t, "no_matching_templates", reason)
+		require.Equal(t, NextStepNoTemplates, next)
+	})
+
+	t.Run("QueryFiltersEverything", func(t *testing.T) {
+		t.Parallel()
+		id, next := selectTemplateRecommendation(nil, 2, nil)
+		require.Equal(t, uuid.Nil, id)
+		require.Equal(t, NextStepNoMatches, next)
 	})
 
 	t.Run("OnlyAvailable", func(t *testing.T) {
 		t.Parallel()
 		only := uuid.New()
-		hint, id, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{{Template: database.Template{ID: only}}}, 1, loadErr,
 		)
-		require.Equal(t, listTemplatesHintOnlyAvailable, hint)
 		require.Equal(t, only, id)
-		require.Equal(t, "only_available_template", reason)
+		require.Equal(t, NextStepUseRecommended, next)
 	})
 
 	t.Run("DecisiveQueryRecommendsEvenWithLoadError", func(t *testing.T) {
 		t.Parallel()
 		top := uuid.New()
 		for _, err := range []error{nil, loadErr} {
-			hint, id, reason := selectTemplateRecommendation(
+			id, next := selectTemplateRecommendation(
 				[]rankedTemplate{
 					{Template: database.Template{ID: top}, QueryScore: queryScoreExactName},
 					{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreDescriptionMatch},
 				}, 2, err,
 			)
-			require.Equal(t, listTemplatesHintHighConfidence, hint)
 			require.Equal(t, top, id)
-			require.Equal(t, "matches_query", reason)
+			require.Equal(t, NextStepUseRecommended, next)
 		}
 	})
 
 	t.Run("QueryTieBrokenByAffinityGap", func(t *testing.T) {
 		t.Parallel()
 		top := uuid.New()
-		hint, id, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: top}, QueryScore: queryScoreNamePrefix, AffinityScore: 10, Signals: templateRankingSignals{ActiveCount: 1}},
 				{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreNamePrefix, AffinityScore: 0},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintHighConfidence, hint)
 		require.Equal(t, top, id)
-		require.Equal(t, "matches_query_and_used_by_you", reason)
+		require.Equal(t, NextStepUseRecommended, next)
 	})
 
 	t.Run("QueryTieWithSmallGapIsAmbiguous", func(t *testing.T) {
 		t.Parallel()
-		hint, id, _ := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreNamePrefix, AffinityScore: 0.1},
 				{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreNamePrefix, AffinityScore: 0},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintAmbiguous, hint)
 		require.Equal(t, uuid.Nil, id)
+		require.Equal(t, NextStepAskUser, next)
 	})
 
-	t.Run("QueryTieWithLoadErrorIsUnavailable", func(t *testing.T) {
+	t.Run("QueryTieWithLoadErrorAsksUser", func(t *testing.T) {
 		t.Parallel()
-		hint, id, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreNamePrefix},
 				{Template: database.Template{ID: uuid.New()}, QueryScore: queryScoreNamePrefix},
 			}, 2, loadErr,
 		)
-		require.Equal(t, listTemplatesHintNoConfidence, hint)
 		require.Equal(t, uuid.Nil, id)
-		require.Equal(t, "ranking_signals_unavailable", reason)
+		require.Equal(t, NextStepAskUser, next)
 	})
 
 	t.Run("NoQueryNoSignal", func(t *testing.T) {
 		t.Parallel()
-		hint, _, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}},
 				{Template: database.Template{ID: uuid.New()}},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintNoConfidence, hint)
-		require.Equal(t, "no_ranking_signal", reason)
+		require.Equal(t, uuid.Nil, id)
+		require.Equal(t, NextStepAskUser, next)
 	})
 
 	t.Run("NoQueryWeakSignalBelowFloor", func(t *testing.T) {
 		t.Parallel()
 		// One active developer scores ln(2), below the ln(3) floor.
-		hint, _, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: math.Log1p(1), Signals: templateRankingSignals{OrgDevs: 1}},
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: 0},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintNoConfidence, hint)
-		require.Equal(t, "weak_ranking_signal", reason)
+		require.Equal(t, uuid.Nil, id)
+		require.Equal(t, NextStepAskUser, next)
 	})
 
 	t.Run("NoQueryConfidentWhenLeadsRunnerUp", func(t *testing.T) {
 		t.Parallel()
 		top := uuid.New()
-		hint, id, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: top}, AffinityScore: math.Log1p(3), Signals: templateRankingSignals{OrgDevs: 3}},
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: math.Log1p(1), Signals: templateRankingSignals{OrgDevs: 1}},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintHighConfidence, hint)
 		require.Equal(t, top, id)
-		require.Equal(t, "popular_in_org", reason)
+		require.Equal(t, NextStepUseRecommended, next)
 	})
 
 	t.Run("NoQueryAmbiguousWhenBothClearFloorAndClose", func(t *testing.T) {
 		t.Parallel()
-		hint, id, _ := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: 1.20, Signals: templateRankingSignals{OrgDevs: 2}},
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: 1.15, Signals: templateRankingSignals{OrgDevs: 2}},
 			}, 2, nil,
 		)
-		require.Equal(t, listTemplatesHintAmbiguous, hint)
 		require.Equal(t, uuid.Nil, id)
+		require.Equal(t, NextStepAskUser, next)
 	})
 
-	t.Run("NoQueryLoadErrorIsUnavailable", func(t *testing.T) {
+	t.Run("NoQueryLoadErrorAsksUser", func(t *testing.T) {
 		t.Parallel()
-		hint, id, reason := selectTemplateRecommendation(
+		id, next := selectTemplateRecommendation(
 			[]rankedTemplate{
 				{Template: database.Template{ID: uuid.New()}, AffinityScore: math.Log1p(3), Signals: templateRankingSignals{OrgDevs: 3}},
 				{Template: database.Template{ID: uuid.New()}},
 			}, 2, loadErr,
 		)
-		require.Equal(t, listTemplatesHintNoConfidence, hint)
 		require.Equal(t, uuid.Nil, id)
-		require.Equal(t, "ranking_signals_unavailable", reason)
+		require.Equal(t, NextStepAskUser, next)
 	})
 }

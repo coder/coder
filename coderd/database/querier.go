@@ -726,16 +726,11 @@ type sqlcQuerier interface {
 	// It also returns the number of desired instances for each preset.
 	// If template_id is specified, only template versions associated with that template will be returned.
 	GetTemplatePresetsWithPrebuilds(ctx context.Context, templateID uuid.NullUUID) ([]GetTemplatePresetsWithPrebuildsRow, error)
-	// GetTemplateRankingSignalsByOwnerID returns the raw ranking signals for the
-	// given templates relative to a single owner: how many active and recently
-	// deleted workspaces the owner used within the lookback window, when the
-	// template was last used, and how many distinct developers in the organization
-	// currently have a non-deleted workspace on it. The affinity score itself is
-	// computed in Go (see listtemplates.go) because sqlc type inference is fragile
-	// around complex parameterized expressions unless inputs are explicitly cast
-	// and nested selects are kept simple. This query returns the exact raw signals
-	// the score is built from. The lookback window is applied with a
-	// caller-computed cutoff timestamp.
+	// GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
+	// one owner: in-window active and recently-deleted workspace counts, the last
+	// in-window usage, and distinct active developers per template. The affinity
+	// score is computed in Go (see listtemplates.go) because sqlc type inference
+	// is fragile around complex parameterized expressions.
 	GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)

@@ -1,5 +1,7 @@
 package chatd
 
+import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
+
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
 
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
@@ -9,7 +11,7 @@ Do not create or start a workspace by default. Many requests can be completed us
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace.`
 
 const workspaceDetachedAwareness = workspaceDetachedAwarenessBase + ` Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates before create_workspace. If list_templates returns user_selection_required or a no_confident_match or ambiguous_top_matches selection_hint, ask the user to choose before create_workspace. Call read_template only when you need template parameter or preset details.`
+If a workspace is needed, use list_templates before create_workspace and follow its ` + chattool.NextStepField + `. Call read_template only when you need template parameter or preset details.`
 
 const workspaceDetachedNoCreateAwareness = workspaceDetachedAwarenessBase + ` This delegated chat cannot create or start a workspace. If workspace-backed work is required, report that need to the parent agent instead of trying workspace tools.`
 
@@ -106,11 +108,8 @@ Ask the minimum number of questions needed to define the scope together.
 
 <workspace-template-selection>
 When no workspace is attached and you need to create one:
-- Call list_templates with concise search terms from the user's task when the task suggests a language, framework, image, or environment.
-- Treat recommended_template_id, or rank 1 when selection_hint is only_available_template or high_confidence_recommendation, as the default template unless the user asked for a different template.
-- If user_selection_required is true, or selection_hint is no_confident_match or ambiguous_top_matches, do not call create_workspace. Ask the user to choose a template unless the user already explicitly selected one.
-- Do not paginate unless selection_hint is ambiguous_top_matches or no_confident_match, no returned template fits the request, or the user asked to browse or compare templates.
-- Call read_template before create_workspace when you need parameter names, required parameter values, or preset IDs. Otherwise use create_workspace with the selected template_id and defaults.
+- Call list_templates with concise search terms from the user's task, then follow its ` + chattool.NextStepField + `: use the recommended template, or ask the user to choose when none is recommended.
+- Call read_template only when you need parameter or preset details before create_workspace.
 </workspace-template-selection>
 
 <planning>

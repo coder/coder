@@ -8586,7 +8586,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 
 	var tplCode, tplDocker database.Template
 	var callCount atomic.Int32
-	var sawHardRule atomic.Bool
+	var sawSelectionRule atomic.Bool
 	var sawSelectionRequiredResult atomic.Bool
 
 	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -8600,9 +8600,8 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 			for _, message := range req.Messages {
 				promptAndTools += "\n" + message.Content
 			}
-			if strings.Contains(promptAndTools, "If user_selection_required is true") &&
-				strings.Contains(promptAndTools, "do not call create_workspace") {
-				sawHardRule.Store(true)
+			if strings.Contains(promptAndTools, "follow its next_step") {
+				sawSelectionRule.Store(true)
 			}
 			return chattest.OpenAIStreamingResponse(
 				chattest.OpenAIToolCallChunk("list_templates", `{}`),
@@ -8680,7 +8679,7 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
-	require.True(t, sawHardRule.Load(), "model request should include the user-selection hard rule")
+	require.True(t, sawSelectionRule.Load(), "model request should include the next_step selection rule")
 	require.True(t, sawSelectionRequiredResult.Load(), "model should receive a list_templates result requiring user selection")
 
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
@@ -8708,27 +8707,19 @@ func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
 	}
 
 	require.NotNil(t, listTemplatesResult, "expected list_templates tool result")
-	require.Equal(t, "no_confident_match", listTemplatesResult["selection_hint"])
-	require.Equal(t, "no_ranking_signal", listTemplatesResult["recommendation_reason"])
-	require.Equal(t, true, listTemplatesResult["user_selection_required"])
+	require.Equal(t, chattool.NextStepAskUser, listTemplatesResult["next_step"])
 	require.NotContains(t, listTemplatesResult, "recommended_template_id")
 	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
-		"id":                tplCode.ID.String(),
-		"name":              "code-2",
-		"organization_id":   org.ID.String(),
-		"display_name":      "typescript-alpha",
-		"description":       "this is a long description",
-		"rank":              float64(1),
-		"relevance_signals": "ordered_by_name",
+		"id":           tplCode.ID.String(),
+		"name":         "code-2",
+		"display_name": "typescript-alpha",
+		"description":  "this is a long description",
 	}))
 	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
-		"id":                tplDocker.ID.String(),
-		"name":              "docker",
-		"organization_id":   org.ID.String(),
-		"display_name":      "Docker Containers",
-		"description":       "Provision Docker containers as Coder workspaces",
-		"rank":              float64(2),
-		"relevance_signals": "ordered_by_name",
+		"id":           tplDocker.ID.String(),
+		"name":         "docker",
+		"display_name": "Docker Containers",
+		"description":  "Provision Docker containers as Coder workspaces",
 	}))
 	require.False(t, sawCreateWorkspaceResult, "agent should ask instead of calling create_workspace")
 	require.Contains(t, assistantText, "Which template should I use?")
@@ -8744,8 +8735,7 @@ func listTemplatesResultRequiresUserSelection(messages []chattest.OpenAIMessage)
 		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
 			continue
 		}
-		required, _ := result["user_selection_required"].(bool)
-		if result["selection_hint"] == "no_confident_match" && required {
+		if result["next_step"] == chattool.NextStepAskUser {
 			return true
 		}
 	}
