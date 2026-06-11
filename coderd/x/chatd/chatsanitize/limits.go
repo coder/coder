@@ -20,10 +20,11 @@ const (
 	// for the Messages API.
 	anthropicRequestCapBytes = 32 * 1024 * 1024
 
-	// bedrockRequestCapBytes is Bedrock's InvokeModel request payload limit,
+	// bedrockRequestCapBytes is the documented body length constraint for
+	// Bedrock's InvokeModel and InvokeModelWithResponseStream operations,
 	// which is lower than Anthropic's Messages API limit and binds first for
 	// Bedrock-hosted Claude requests.
-	bedrockRequestCapBytes = 20 * 1024 * 1024
+	bedrockRequestCapBytes = 25_000_000
 
 	pdfDefaultPageCap       = 100
 	pdfLargeContextPageCap  = 600
