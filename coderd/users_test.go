@@ -1572,6 +1572,57 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
+	t.Run("UserAdminCannotResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := userAdmin.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "user-admin should not be able to reset owner password")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
+	})
+
+	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherOwner, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "another-owner@coder.com",
+			Username:        "another-owner",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserRoles(ctx, anotherOwner.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOwner().String()},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, anotherOwner.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "owner should be able to reset another owner's password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "another-owner@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "other owner should login with the new password")
+	})
+
 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
 		t.Parallel()
 
