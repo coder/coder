@@ -335,7 +335,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
-		loggermw.Logger(s.Logger),
+		loggermw.Logger(s.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(s.Options.RealIPConfig, r)
+		}),
 		prometheusMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the
