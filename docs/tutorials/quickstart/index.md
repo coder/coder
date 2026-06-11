@@ -2,11 +2,10 @@
 
 Not sure where to begin learning about Coder? This Quickstart guide is designed to get users started working in Coder and to make use of the advantages cloud development has to offer.
 
-The Quickstart guide is split into three sections:
+The Quickstart guide is split into the following sections:
 
 - [**1: Launch your first workspace**](./launch-workspace.md) guides you through the process of installing the Coder CLI, launching the Coder server, creating a template that serves as a blueprint for your workspace, and spinning up a workspace from that template. In this workspace, you can edit Git repositories and get a basic set of tools for most of the popular programming languages. Most users should start here.
 - [**2: Customize workspace startup**](./customize-workspace-startup.md) has instructions on how to personalize your workspace, including support for other programming languages, external authentication with GitHub, and dotfiles personalization.
-- [**3: Add custom tools to your workspace**](./add-custom-workspace-tools.md) includes details how to install tools like Homebrew and Mise to your workspace, configuring additional infrastructure in your workspace, and some of the Coder-specific Terraform objects.
 
 If you'd rather skip the tutorial and just install the CLI, then you can visit the [Install guide](/docs/install/index.md#localindividual-installs) for those instructions.
 

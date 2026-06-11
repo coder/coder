@@ -96,7 +96,7 @@ The next step focuses on the first two files. First, open `main.tf`.
 
 ## Step 2: Add support for a new language
 
-After line 71, add the following text, matching the indentation of the text around it:
+After line 71 in `main.tf`, add the following block, matching the indentation of the text around it:
 
 ```hcl
   option {
@@ -106,7 +106,29 @@ After line 71, add the following text, matching the indentation of the text arou
   }
 ```
 
-Save the file and publish the new version of the template:
+> [!NOTE]
+> For most practical purposes,
+> the order of HCL blocks in your `.tf` files doesn't matter.
+> However, this `option` block needs to be at the same indentation level
+> as the rest of the `option` blocks in the `coder_parameter` data source
+> for Coder to display the value correctly.
+
+Next, open `install-languages.sh.tftpl`, and add the following block at line 88:
+
+```bash
+if echo "$LANGUAGES" | grep -q "ruby"; then
+  if command -v ruby >/dev/null 2>&1; then
+    echo "Ruby: $(ruby --version | head -1)"
+  else
+    echo "Installing Ruby toolchain..."
+    apt_update
+    sudo apt-get install -y -qq ruby-full
+    echo "Installed Ruby: $(ruby --version | head -1)"
+  fi
+fi
+```
+
+Save the files and publish the new version of the template:
 
 <div class="tabs">
 
@@ -193,4 +215,76 @@ A lot of unfamiliar code is here, but the following is a short summary of the im
 - `mutable` is set to `true`, so you can change this parameter's value.
 - You have 6 options from which to choose: Python, Node.js, Go, Rust, Java, and C/C++.
 
+Modifying the parameter block adds the option to the UI, but on its own, it won't know where to install Ruby. That's why you need to add the accompanying script to *install* Ruby when a user selects the Ruby parameter:
+
+```bash
+if echo "$LANGUAGES" | grep -q "ruby"; then
+  if command -v ruby >/dev/null 2>&1; then
+    echo "Ruby: $(ruby --version | head -1)"
+  else
+    echo "Installing Ruby toolchain..."
+    apt_update
+    sudo apt-get install -y -qq ruby-full
+    echo "Installed Ruby: $(ruby --version | head -1)"
+  fi
+fi
+```
+
 </details>
+
+## Step 3: Add the Dotfiles module to your template
+
+Users may want to customize their workspace startup behavior with dotfiles.
+Coder offers a [Dotfiles module in the Coder Registry](https://registry.coder.com/modules/coder/dotfiles).
+To add support for dotfiles in your template,
+add the following block anywhere in your `main.tf` file:
+
+```hcl
+# --- Dotfiles
+
+module "dotfiles" {
+  count    = data.coder_workspace.me.start_count
+  source   = "registry.coder.com/coder/dotfiles/coder"
+  version  = "1.4.2"
+  agent_id = coder_agent.example.id
+}
+```
+
+Adding this module will show two parameters during workspace creation:
+
+- **Dotfiles Branch**, the branch to use for the dotfiles repository.
+- **Dotfiles URL**, the URL of the dotfiles repository.
+  This module supports both SSH (`git@host:user/repo`)
+  and HTTPS (`https://host/user/repo`) URLs.
+
+For more information about dotfiles and best practices,
+visit [Dotfiles](https://dotfiles.github.io/).
+
+## Step 4: Add support for external Git authentication
+
+The original Quickstart template works well for public repos,
+but private repos require manual authentication from users.
+Coder supports external authentication with OAuth 2.0
+through the `coder_external_auth` data source in Terraform.
+
+The following block adds support for GitHub external authentication:
+
+```hcl
+data "coder_external_auth" "github" {
+  id = "github"
+}
+```
+
+While this tutorial uses GitHub,
+you can apply these steps to other providers.
+For a full list of supported external authentication providers,
+visit [External Authentication](../../admin/external-auth/index.md).
+
+## Conclusion
+
+Congratulations! You now updated your template to support an additional programming language, use dotfiles to customize workspace startup behavior, and added external authentication support for private repositories.
+
+## What's next?
+
+- Learn more about extending templates by using [parameters](../../admin/templates/extending-templates/parameters.md).
+- Explore the collection of [templates on the Coder Registry](https://registry.coder.com/templates) for inspiration.
