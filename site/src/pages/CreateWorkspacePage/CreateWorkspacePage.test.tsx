@@ -41,6 +41,19 @@ describe("CreateWorkspacePage", () => {
 		});
 	};
 
+	const renderCreateWorkspacePageWithSocket = (route?: string) => {
+		mockDynamicParameterWebSocket((mockPublisher) => {
+			mockPublisher.publishOpen(new Event("open"));
+			mockPublisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify(MockDynamicParametersResponse),
+				}),
+			);
+		});
+
+		return renderCreateWorkspacePage(route);
+	};
+
 	const mockGpuPreset: Preset = {
 		ID: "preset-gpu",
 		Name: "gpu-large",
@@ -63,7 +76,6 @@ describe("CreateWorkspacePage", () => {
 		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
 		vi.spyOn(API, "createWorkspace").mockResolvedValue(MockWorkspace);
 		vi.spyOn(API, "checkAuthorization").mockResolvedValue(MockPermissions);
-		mockDynamicParameterWebSocket(MockDynamicParametersResponse);
 	});
 
 	afterEach(() => {
@@ -73,8 +85,7 @@ describe("CreateWorkspacePage", () => {
 
 	describe("WebSocket Integration", () => {
 		it("establishes WebSocket connection and receives initial parameters", async () => {
-			renderCreateWorkspacePage();
-
+			renderCreateWorkspacePageWithSocket();
 			await waitForLoaderToBeRemoved();
 
 			expect(API.templateVersionDynamicParameters).toHaveBeenCalledWith(
@@ -96,9 +107,14 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("sends parameter updates via WebSocket when form values change", async () => {
-			const [mockWebSocket] = mockDynamicParameterWebSocket(
-				MockDynamicParametersResponse,
-			);
+			const [mockWebSocket] = mockDynamicParameterWebSocket((mockPublisher) => {
+				mockPublisher.publishOpen(new Event("open"));
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify(MockDynamicParametersResponse),
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -134,7 +150,7 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("handles WebSocket error gracefully", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
+			const [_, mockPublisher] = mockDynamicParameterWebSocket();
 
 			renderCreateWorkspacePage();
 
@@ -157,7 +173,20 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("handles WebSocket close event", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([]);
+			const [_, mockPublisher] = mockDynamicParameterWebSocket(
+				(mockPublisher) => {
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify({
+								id: -1,
+								parameters: [],
+								diagnostics: [],
+							}),
+						}),
+					);
+				},
+			);
 
 			renderCreateWorkspacePage();
 
@@ -180,9 +209,18 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([
-				MockDropdownParameter,
-			]);
+			const [, mockPublisher] = mockDynamicParameterWebSocket(() => {
+				mockPublisher.publishOpen(new Event("open"));
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: -1,
+							parameters: [MockDropdownParameter],
+							diagnostics: [],
+						}),
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -215,9 +253,20 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("does not clobber user values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([
-				MockPreviewParameter,
-			]);
+			const [, mockPublisher] = mockDynamicParameterWebSocket(
+				(mockPublisher) => {
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify({
+								id: -1,
+								parameters: [MockPreviewParameter],
+								diagnostics: [],
+							}),
+						}),
+					);
+				},
+			);
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -240,8 +289,9 @@ describe("CreateWorkspacePage", () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
-							id: 1,
+							id: 2,
 							parameters: [MockPreviewParameter, MockValidationParameter],
+							diagnostics: [],
 						}),
 					}),
 				);
@@ -257,10 +307,20 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("does not clobber auto-filled values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket([
-				MockPreviewParameter,
-				MockSliderParameter,
-			]);
+			const [, mockPublisher] = mockDynamicParameterWebSocket(
+				(mockPublisher) => {
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify({
+								id: -1,
+								parameters: [MockPreviewParameter, MockSliderParameter],
+								diagnostics: [],
+							}),
+						}),
+					);
+				},
+			);
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?param.cpu_count=44&param.parameter1=auto`,
@@ -278,6 +338,7 @@ describe("CreateWorkspacePage", () => {
 								MockSliderParameter,
 								MockValidationParameter,
 							],
+							diagnostics: [],
 						}),
 					}),
 				);
@@ -295,7 +356,14 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			mockDynamicParameterWebSocket(MockDynamicParametersResponseWithError);
+			mockDynamicParameterWebSocket((mockPublisher) => {
+				mockPublisher.publishOpen(new Event("open"));
+				mockPublisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify(MockDynamicParametersResponseWithError),
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -339,14 +407,22 @@ describe("CreateWorkspacePage", () => {
 				diagnostics: [],
 			};
 
-			const [mockWebSocket, publisher] =
-				mockDynamicParameterWebSocket(mockResponseInitial);
+			const [mockWebSocket, mockPublisher] = mockDynamicParameterWebSocket(
+				(mockPublisher) => {
+					mockPublisher.publishOpen(new Event("open"));
+					mockPublisher.publishMessage(
+						new MessageEvent("message", {
+							data: JSON.stringify(mockResponseInitial),
+						}),
+					);
+				},
+			);
 			const originalSend = mockWebSocket.send;
 			mockWebSocket.send = vi.fn((data) => {
 				originalSend.call(mockWebSocket, data);
 
 				if (typeof data === "string" && data.includes('"200"')) {
-					publisher.publishMessage(
+					mockPublisher.publishMessage(
 						new MessageEvent("message", {
 							data: JSON.stringify(mockResponseWithError),
 						}),
@@ -400,7 +476,7 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			renderCreateWorkspacePage();
+			renderCreateWorkspacePageWithSocket();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -416,7 +492,7 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithubAuthenticated,
 			]);
 
-			renderCreateWorkspacePage();
+			renderCreateWorkspacePageWithSocket();
 			await waitForLoaderToBeRemoved();
 
 			await waitFor(() => {
@@ -430,7 +506,7 @@ describe("CreateWorkspacePage", () => {
 				MockTemplateVersionExternalAuthGithub,
 			]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&version=${MockTemplate.id}`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -457,7 +533,7 @@ describe("CreateWorkspacePage", () => {
 				new Error("Auto-creation failed"),
 			);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?mode=auto`,
 			);
 
@@ -482,7 +558,7 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Form Submission", () => {
 		it("creates workspace with correct parameters", async () => {
-			renderCreateWorkspacePage();
+			renderCreateWorkspacePageWithSocket();
 			await waitForLoaderToBeRemoved();
 
 			expect(screen.getByText(/instance type/i)).toBeInTheDocument();
@@ -523,7 +599,7 @@ describe("CreateWorkspacePage", () => {
 
 	describe("URL Parameters", () => {
 		it("pre-fills parameters from URL", async () => {
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?param.instance_type=t3.large&param.cpu_count=4`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -535,7 +611,7 @@ describe("CreateWorkspacePage", () => {
 		it("uses custom template version when specified", async () => {
 			const customVersionId = "custom-version-123";
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?version=${customVersionId}`,
 			);
 
@@ -551,7 +627,7 @@ describe("CreateWorkspacePage", () => {
 		it("pre-fills workspace name from URL", async () => {
 			const workspaceName = "my-custom-workspace";
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?name=${workspaceName}`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -571,7 +647,7 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?preset=gpu-large`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -586,7 +662,7 @@ describe("CreateWorkspacePage", () => {
 				.spyOn(API, "getTemplateVersionPresets")
 				.mockResolvedValue([mockGpuPreset]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?version=custom-version&preset=gpu-large`,
 			);
 
@@ -605,7 +681,7 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=missing`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -632,7 +708,7 @@ describe("CreateWorkspacePage", () => {
 				new Error("presets unavailable"),
 			);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -654,7 +730,7 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?preset=gpu-large&param.instance_type=t3.small&param.cpu_count=99`,
 			);
 			await waitForLoaderToBeRemoved();
@@ -695,7 +771,7 @@ describe("CreateWorkspacePage", () => {
 				mockGpuPreset,
 			]);
 
-			renderCreateWorkspacePage(
+			renderCreateWorkspacePageWithSocket(
 				`/templates/${MockTemplate.name}/workspace?mode=auto&preset=gpu-large&name=preset-workspace`,
 			);
 
@@ -719,7 +795,7 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Navigation", () => {
 		it("navigates to workspace after successful creation", async () => {
-			const { router } = renderCreateWorkspacePage();
+			const { router } = renderCreateWorkspacePageWithSocket();
 			await waitForLoaderToBeRemoved();
 
 			const nameInput = screen.getByRole("textbox", {
