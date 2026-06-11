@@ -8,11 +8,15 @@ import (
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -366,4 +370,65 @@ func TestListTemplates_AgentDescription(t *testing.T) {
 	require.NotNil(t, without)
 	_, ok := without["agent_description"]
 	require.False(t, ok, "agent_description should be omitted when the README has no frontmatter")
+}
+
+// TestListTemplates_AgentDescription_NonOwnerRBAC runs list_templates under a
+// real dbauthz wrapper as an ordinary org member (not the site owner) and
+// asserts agent_description is still surfaced. This guards against regressing
+// to a system-scoped version query that only the owner role can run.
+func TestListTemplates_AgentDescription_NonOwnerRBAC(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	member := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         member.ID,
+		OrganizationID: org.ID,
+	})
+	ctx := testutil.Context(t, testutil.WaitShort)
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      member.ID,
+		Readme:         "---\nagent_description: Member-visible routing context.\n---\n# Title\n",
+	})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		CreatedBy:       member.ID,
+		Name:            "with-desc",
+		ActiveVersionID: tv.ID,
+	})
+	// Link the version to the template so GetTemplateVersionByID authorizes via
+	// the parent template (the production path), not the broader org-level
+	// fallback used for unlinked versions.
+	require.NoError(t, db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+		ID:         tv.ID,
+		TemplateID: uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+		UpdatedAt:  tv.UpdatedAt,
+		Name:       tv.Name,
+		Message:    tv.Message,
+	}))
+
+	// Seed with the raw store, but run the tool through a dbauthz-wrapped store
+	// so the tool executes under real RBAC as the member.
+	authzDB := dbauthz.New(
+		db,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, nil),
+		testAccessControlStorePointer(),
+	)
+
+	tool := chattool.ListTemplates(authzDB, org.ID, chattool.ListTemplatesOptions{OwnerID: member.ID})
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "list", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+	var result map[string]any
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+	items := result["templates"].([]any)
+	require.Len(t, items, 1)
+	m := items[0].(map[string]any)
+	require.Equal(t, tmpl.ID.String(), m["id"])
+	require.Equal(t, "Member-visible routing context.", m["agent_description"],
+		"a non-owner member must still receive agent_description")
 }
