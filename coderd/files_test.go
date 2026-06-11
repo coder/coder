@@ -2,8 +2,11 @@ package coderd_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"context"
+	"encoding/binary"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -14,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/archive/archivetest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -21,6 +25,19 @@ import (
 
 func TestPostFiles(t *testing.T) {
 	t.Parallel()
+	buildZipWithFile := func(t *testing.T, name string, writeContents func(w io.Writer) error) []byte {
+		t.Helper()
+
+		var zipBytes bytes.Buffer
+		zw := zip.NewWriter(&zipBytes)
+		w, err := zw.Create(name)
+		require.NoError(t, err)
+		require.NoError(t, writeContents(w))
+		require.NoError(t, zw.Close())
+
+		return zipBytes.Bytes()
+	}
+
 	t.Run("BadContentType", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -71,6 +88,41 @@ func TestPostFiles(t *testing.T) {
 		_, err = client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(data))
 		require.NoError(t, err)
 	})
+	t.Run("InvalidZipMetadata", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		corruptZipUncompressedSize := func(t *testing.T, zipBytes []byte, size uint32) []byte {
+			t.Helper()
+
+			const (
+				directoryHeaderSignature = "PK\x01\x02"
+				uncompressedSizeOffset   = 24
+			)
+			hdrOffset := bytes.Index(zipBytes, []byte(directoryHeaderSignature))
+			require.NotEqual(t, -1, hdrOffset, "missing ZIP central directory header")
+			corrupted := bytes.Clone(zipBytes)
+			sizeBytes := corrupted[hdrOffset+uncompressedSizeOffset : hdrOffset+uncompressedSizeOffset+4]
+			binary.LittleEndian.PutUint32(sizeBytes, size)
+
+			return corrupted
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		zipBytes := buildZipWithFile(t, "hello.txt", func(w io.Writer) error {
+			_, err := w.Write([]byte("hello"))
+			return err
+		})
+		zipBytes = corruptZipUncompressedSize(t, zipBytes, 6)
+
+		_, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipBytes))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
 	t.Run("InsertConcurrent", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -94,6 +146,46 @@ func TestPostFiles(t *testing.T) {
 		}
 		wg.Done()
 		end.Wait()
+	})
+	//nolint:paralleltest // This subtest is intentionally serial to
+	// avoid extra memory pressure.
+	t.Run("OversizedZipExpansion", func(t *testing.T) {
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		buildZipWithSizedFile := func(t *testing.T, name string, size int64) []byte {
+			return buildZipWithFile(t, name, func(w io.Writer) error {
+				chunk := bytes.Repeat([]byte("a"), 32*1024)
+				for written := int64(0); written < size; {
+					n := len(chunk)
+					if remaining := size - written; int64(n) > remaining {
+						n = int(remaining)
+					}
+
+					_, err := w.Write(chunk[:n])
+					if err != nil {
+						return err
+					}
+					written += int64(n)
+				}
+
+				return nil
+			})
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Leave only enough room for the tar trailer. The single
+		// entry header then pushes the converted tar output over the
+		// file size limit.
+		size := int64(coderd.HTTPFileMaxBytes - 1024)
+		zipBytes := buildZipWithSizedFile(t, "oversized.txt", size)
+
+		_, err := client.Upload(ctx, codersdk.ContentTypeZip, bytes.NewReader(zipBytes))
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusRequestEntityTooLarge, apiErr.StatusCode())
 	})
 }
 
