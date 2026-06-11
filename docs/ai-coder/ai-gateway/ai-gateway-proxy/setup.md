@@ -248,7 +248,9 @@ Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy 
 MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then communicates with AI providers.
 To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the Coder server process.
 
-<!-- TODO(ssncferreira): Add diagram showing how AI Gateway Proxy integrates with upstream proxies -->
+![AI Gateway Proxy with an upstream corporate proxy](../../../images/aibridge/ai-gateway-proxy-upstream.png)
+
+AI Gateway Proxy must be the first hop: tunneled traffic is chained to the upstream proxy, while MITM'd traffic reaches the upstream proxy through AI Gateway only when the Coder server process is configured to use it.
 
 > [!NOTE]
 > When an upstream proxy is configured, AI Gateway Proxy validates the destination IP before forwarding the request.
@@ -367,7 +369,21 @@ For other operating systems, refer to the system's documentation for instruction
 For AI tools running inside Coder workspaces, template administrators can pre-configure the proxy settings and CA certificate in the workspace template.
 This provides a seamless experience where users don't need to configure anything manually.
 
-<!-- TODO(ssncferreira): Add registry link for AI Gateway Proxy module for Coder workspaces: https://github.com/coder/internal/issues/1187 -->
+The [AI Gateway Proxy module](https://registry.coder.com/modules/coder/aibridge-proxy) automates this setup.
+It downloads the proxy's CA certificate into the workspace and exposes `proxy_auth_url` and `cert_path` outputs that tool-specific modules (such as the GitHub Copilot module) consume to route their traffic through the proxy.
+The module does not set proxy environment variables globally on the workspace.
+
+```tf
+module "aibridge-proxy" {
+  source    = "registry.coder.com/coder/aibridge-proxy/coder"
+  version   = "1.0.0"
+  agent_id  = coder_agent.main.id
+  proxy_url = "https://aiproxy.example.com"
+}
+```
+
+> [!NOTE]
+> The module source path retains the former `aibridge-proxy` name even though the feature is now called AI Gateway Proxy.
 
 For tool-specific configuration details, check the [client compatibility table](../clients/index.md#compatibility) for clients that require proxy-based integration.
 
@@ -388,3 +404,28 @@ WARN: Cannot read TLS response from mitm'd server tls: failed to verify certific
 To resolve, add the CA that signed that certificate to the [system trust store](#system-trust-store) of the host running
 AI Gateway Proxy (the same host as `coderd`, since the proxy runs in-process), then restart Coder so AI Gateway Proxy
 reloads the trust store.
+
+### AI tool does not trust the proxy CA certificate
+
+If an AI tool fails its TLS handshake (for example `x509: certificate signed by unknown authority`), it has not been
+configured to trust the MITM CA certificate the proxy presents for allowlisted provider domains.
+See [Trusting the CA certificate](#trusting-the-ca-certificate). When [TLS is enabled](#proxy-tls-configuration) on the
+listener, the tool must also trust the TLS listener certificate.
+
+### Requests are not being intercepted
+
+If a provider's traffic does not appear in AI Gateway, the proxy is tunneling it instead of intercepting it.
+Only `api.anthropic.com`, `api.openai.com`, and `api.individual.githubcopilot.com` are intercepted; all other domains
+tunnel through without decryption. Confirm the tool targets a supported domain and that `HTTPS_PROXY` points at the proxy.
+
+### Authentication failures
+
+The Coder token must be supplied as the password in the proxy credentials, for example
+`https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888`. A `407 Proxy Authentication Required` from the proxy means no
+token was provided; a `401 Unauthorized` from AI Gateway means the token was rejected as expired or invalid. Confirm the
+token is current and set in the password field.
+
+### Connections to internal services are blocked
+
+Tunneled requests to private or reserved IP ranges are blocked by default. To allow specific internal networks, set
+[`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](#restricting-proxy-access).
