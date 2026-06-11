@@ -1674,7 +1674,7 @@ func TestProxy_AIBridgeTLSVerification(t *testing.T) {
 
 	srv := newTestProxy(t,
 		withCoderAccessURL(aibridgeServer.URL),
-		withProviderHosts(aibridgeproxyd.HostAnthropic),
+		withDomainAllowlist(aibridgeproxyd.HostAnthropic),
 	)
 
 	client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t), false)
