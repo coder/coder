@@ -1876,6 +1876,51 @@ func TestWorkspaceAgentRecreateDevcontainer(t *testing.T) {
 	})
 }
 
+func TestWorkspaceAgentRecreateDevcontainerAuthorization(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name string
+		role func(uuid.UUID) rbac.RoleIdentifier
+	}{
+		{
+			name: "TemplateAdmin",
+			role: func(uuid.UUID) rbac.RoleIdentifier {
+				return rbac.RoleTemplateAdmin()
+			},
+		},
+		{
+			name: "OrgTemplateAdmin",
+			role: rbac.ScopedRoleOrgTemplateAdmin,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				ctx                    = testutil.Context(t, testutil.WaitMedium)
+				client, db             = coderdtest.NewWithDatabase(t, nil)
+				admin                  = coderdtest.CreateFirstUser(t, client)
+				_, workspaceOwner      = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				templateAdminClient, _ = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID, tc.role(admin.OrganizationID))
+				workspace              = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        workspaceOwner.ID,
+				}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+					return agents
+				}).Do()
+			)
+
+			_, err := templateAdminClient.WorkspaceAgentRecreateDevcontainer(ctx, workspace.Agents[0].ID, uuid.NewString())
+			require.Error(t, err)
+
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+		})
+	}
+}
+
 func TestWorkspaceAgentDeleteDevcontainer(t *testing.T) {
 	t.Parallel()
 
