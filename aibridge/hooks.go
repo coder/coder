@@ -179,6 +179,13 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 		if res.RequestBody != nil {
 			payload = payload.WithBody(res.RequestBody)
 		}
+		// Apply transform header overrides to the request before the interceptor
+		// captures r.Header. Transport, auth, and hop-by-hop headers are
+		// sanitized downstream by intercept.PrepareClientHeaders, so a policy
+		// cannot inject credentials or corrupt framing this way.
+		for k, v := range res.Headers {
+			r.Header.Set(k, v)
+		}
 		annotations = mergeAnnotations(annotations, res.Annotations)
 		modifications = mergeAnnotations(modifications, res.Modifications)
 	}
@@ -268,10 +275,15 @@ func (g *policyToolGate) EvaluateToolCall(ctx context.Context, call intercept.To
 	if res.Verdict.Blocks() {
 		g.logger.Debug(ctx, "tool call blocked by policy",
 			slog.F("tool", call.Name), slog.F("policy", res.BlockedBy))
+		reason := fmt.Sprintf("tool call %q blocked by policy %q", call.Name, res.BlockedBy)
+		// An author-supplied message overrides the generic reason.
+		if res.Message != "" {
+			reason = res.Message
+		}
 		return intercept.ToolGateDecision{
 			Block:     true,
 			BlockedBy: res.BlockedBy,
-			Reason:    fmt.Sprintf("tool call %q blocked by policy %q", call.Name, res.BlockedBy),
+			Reason:    reason,
 		}, nil
 	}
 	return intercept.ToolGateDecision{}, nil
@@ -302,6 +314,10 @@ func (h policyHooks) evaluate(w http.ResponseWriter, ctx context.Context, pipe *
 		msg := blockedByPolicyMessage
 		if res.BlockedBy != "" {
 			msg = fmt.Sprintf("request blocked by policy %q", res.BlockedBy)
+		}
+		// An author-supplied message overrides the generic one.
+		if res.Message != "" {
+			msg = res.Message
 		}
 		logger.Debug(ctx, "request blocked by policy", slog.F("policy", res.BlockedBy))
 		http.Error(w, msg, http.StatusBadRequest)

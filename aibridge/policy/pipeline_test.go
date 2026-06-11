@@ -115,6 +115,70 @@ func TestPipeline_FailMode(t *testing.T) {
 	})
 }
 
+func TestPipeline_TransformHeadersSurfaced(t *testing.T) {
+	t.Parallel()
+
+	tr, err := policy.NewTransform("header-injector", `
+headers := {"x-coder-policy": "applied"} if startswith(input.request.body.model, "claude")
+`)
+	require.NoError(t, err)
+	pipe, err := policy.NewPipeline(policy.PipelineConfig{Transform: []*policy.Transform{tr}})
+	require.NoError(t, err)
+
+	// Matching request: headers surface for the host to apply; body is untouched.
+	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"x-coder-policy": "applied"}, res.Headers)
+	require.Nil(t, res.RequestBody)
+
+	// Non-matching request: no header override.
+	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
+	require.NoError(t, err)
+	require.Nil(t, res.Headers)
+}
+
+func TestNewPreAuthPipeline_RejectsRouteAndTransform(t *testing.T) {
+	t.Parallel()
+
+	// Pre-auth permits only classify and decide: the request-mutating kinds
+	// (route, transform) must be rejected, mirroring the pre-tool constraint.
+	route, err := policy.NewRoute("r", `model := "gpt-4o"`)
+	require.NoError(t, err)
+	_, err = policy.NewPreAuthPipeline(policy.PipelineConfig{Route: route})
+	require.ErrorContains(t, err, "route")
+
+	tr, err := policy.NewTransform("t", `body := {}`)
+	require.NoError(t, err)
+	_, err = policy.NewPreAuthPipeline(policy.PipelineConfig{Transform: []*policy.Transform{tr}})
+	require.ErrorContains(t, err, "transform")
+}
+
+func TestPipeline_BlockMessageSurfaced(t *testing.T) {
+	t.Parallel()
+
+	const msg = "no opus for you"
+	decide := mustDecide(t, `
+default verdict := "ALLOW"
+verdict := "BLOCK" if contains(input.request.body.model, "opus")
+message := "`+msg+`" if contains(input.request.body.model, "opus")
+`)
+	pipe, err := policy.NewPipeline(policy.PipelineConfig{Decide: []*policy.Decide{decide}})
+	require.NoError(t, err)
+
+	// Blocking request carries the author's message.
+	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{}))
+	require.NoError(t, err)
+	require.Equal(t, policy.VerdictBlock, res.Verdict)
+	require.Equal(t, "test-decide", res.BlockedBy)
+	require.Equal(t, msg, res.Message)
+
+	// Allowed request carries no message.
+	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
+	require.NoError(t, err)
+	require.Equal(t, policy.VerdictAllow, res.Verdict)
+	require.Empty(t, res.Message)
+}
+
 func TestPipeline_BlockShortCircuitsTransform(t *testing.T) {
 	t.Parallel()
 

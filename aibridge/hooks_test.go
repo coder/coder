@@ -46,6 +46,7 @@ func (*fakeInterceptor) ProcessRequest(w http.ResponseWriter, _ *http.Request) e
 type capture struct {
 	called  bool
 	payload intercept.Payload
+	request *http.Request
 }
 
 func mustDecide(t *testing.T, name, module string) *policy.Decide {
@@ -63,9 +64,10 @@ func newPolicyBridge(t *testing.T, preReq *policy.Pipeline) (http.Handler, *test
 	prov := &testutil.MockProvider{
 		NameStr: "mock",
 		Bridged: []string{"/v1/messages"},
-		InterceptorFunc: func(_ http.ResponseWriter, _ *http.Request, payload intercept.Payload, _ trace.Tracer) (intercept.Interceptor, error) {
+		InterceptorFunc: func(_ http.ResponseWriter, r *http.Request, payload intercept.Payload, _ trace.Tracer) (intercept.Interceptor, error) {
 			cap.called = true
 			cap.payload = payload
+			cap.request = r
 			return &fakeInterceptor{id: uuid.New(), model: payload.Model()}, nil
 		},
 	}
@@ -105,6 +107,27 @@ verdict := "BLOCK" if input.request.body.model == "blocked"
 	resp := policyRequest(t, bridge, `{"model":"blocked"}`)
 	assert.Equal(t, http.StatusBadRequest, resp.Code)
 	assert.Contains(t, resp.Body.String(), `request blocked by policy "model-blocker"`)
+	assert.False(t, cap.called, "interceptor must not be created when blocked")
+}
+
+func TestBridgePolicy_BlockCustomMessage(t *testing.T) {
+	t.Parallel()
+
+	const msg = "This model is not permitted on your plan."
+	pipe, err := policy.NewPipeline(policy.PipelineConfig{
+		Decide: []*policy.Decide{mustDecide(t, "model-blocker", `
+default verdict := "ALLOW"
+verdict := "BLOCK" if input.request.body.model == "blocked"
+message := "`+msg+`" if input.request.body.model == "blocked"
+`)},
+	})
+	require.NoError(t, err)
+	bridge, _, cap := newPolicyBridge(t, pipe)
+
+	resp := policyRequest(t, bridge, `{"model":"blocked"}`)
+	assert.Equal(t, http.StatusBadRequest, resp.Code)
+	assert.Contains(t, resp.Body.String(), msg)
+	assert.NotContains(t, resp.Body.String(), "request blocked by policy")
 	assert.False(t, cap.called, "interceptor must not be created when blocked")
 }
 
@@ -172,6 +195,26 @@ body := object.union(input.request.body, {"max_tokens": ceiling}) if object.get(
 	var got map[string]any
 	require.NoError(t, json.Unmarshal(cap.payload.Body(), &got))
 	assert.EqualValues(t, 8192, got["max_tokens"], "transform must reach the interceptor")
+}
+
+func TestBridgePolicy_TransformHeaders(t *testing.T) {
+	t.Parallel()
+
+	tr, err := policy.NewTransform("header-injector", `
+headers := {"X-Coder-Policy": "applied"}
+`)
+	require.NoError(t, err)
+	pipe, err := policy.NewPipeline(policy.PipelineConfig{Transform: []*policy.Transform{tr}})
+	require.NoError(t, err)
+	bridge, _, cap := newPolicyBridge(t, pipe)
+
+	resp := policyRequest(t, bridge, `{"model":"gpt-4o"}`)
+	require.Equal(t, http.StatusOK, resp.Code)
+	require.True(t, cap.called)
+	require.NotNil(t, cap.request)
+	// The header override is applied to the request before the interceptor
+	// captures it for upstream forwarding.
+	assert.Equal(t, "applied", cap.request.Header.Get("X-Coder-Policy"))
 }
 
 func TestBridgePolicy_ClassificationsRecorded(t *testing.T) {

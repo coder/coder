@@ -50,9 +50,11 @@ and configurable as code.
 - **[DECIDED] Typed policy *kinds*.** A kind = `(input schema + version, output
   schema, host applier)`. The Rego evaluation core is identical for every kind;
   only the output document and the applier vary. Adopted kinds:
-  - **Decision** → a `verdict` rule → applier maps it to a pipeline action.
-  - **Transform** → a patch or rewritten body → applier rewrites the
-    request/response.
+  - **Decision** → a required `verdict` rule (+ an optional `message` rule) →
+    applier maps the verdict to a pipeline action and surfaces the message to
+    the user on a block.
+  - **Transform** → a rewritten `body` and/or `headers` overrides → applier
+    rewrites the outgoing request/response.
   - **Classification** → a structured label/score document → applier writes
     annotations into metadata/audit/telemetry and the host threads them into
     downstream stages' envelopes.
@@ -69,11 +71,24 @@ and configurable as code.
   an eventual requirement (§12). NOTE: within a single policy, overlapping
   `verdict` conditions that yield different values are a Rego **conflict error** —
   conditions must be mutually exclusive or use `else` (see §7).
+- **[DECIDED] Optional decision `message` (v1) [AS BUILT].** A decide policy may
+  define an optional `message` string rule (`data.gateway.message`) to override
+  the generic "request blocked by policy" text shown to the user on a block. It
+  is evaluated only on the blocking path; an undefined, blank, or non-string
+  value falls back to the host default and never errors or alters the verdict
+  (so an author's message bug cannot, e.g. under fail-open, downgrade a
+  deliberate block). The verdict is the contract; the message is best-effort.
 - **[DECIDED] Transform model: the policy computes the change; a Go host utility
   applies it.** Rego builds the rewritten body directly with `object.remove` /
   `object.union` / object & array comprehensions, or emits RFC 6902 ops, or
   applies them in-language via `json.patch`. The host **re-validates** the
-  mutated body against the provider schema before forwarding.
+  mutated body against the provider schema before forwarding. A transform may
+  additionally define an optional `headers` rule (`data.gateway.headers`, an
+  object of string values) to set/replace outgoing request headers; the host
+  applies them before the interceptor captures the request, and
+  `intercept.PrepareClientHeaders` strips transport, auth, and hop-by-hop
+  headers, so a policy cannot inject credentials or corrupt framing this way.
+  Both `body` and `headers` are optional and independent. [AS BUILT]
 - **[DECIDED] Input envelope:** typed per kind *and per hook* (see §3), always
   carrying identity / groups / attributes (RBAC + ABAC) once available, plus
   request-specific fields and, for traversal policies, the raw `/v1/messages`
@@ -188,6 +203,12 @@ are typed, owned by `aibridge/policy`, and frozen by the shape guard (§10.4):
 | pre-tool | + the assembled tool_call (per call) | classification, decision |
 | post-resp (buffered) | + full response | classification, decision, transform |
 | post-resp (windowed stream) | + rolling window of the response | classification, decision **only** |
+
+The two decision-only hooks (**pre-auth** and **pre-tool**) reject the
+request-mutating kinds (routing, transform) both at registration and defensively
+at load: their pipelines are built through constrained constructors
+(`NewPreAuthPipeline` / `NewToolPipeline`) so a route/transform smuggled past the
+kind-validity check cannot modify the request. [AS BUILT]
 
 **Guardrails are orthogonal to kinds.** A guardrail is not listed in the "valid
 kinds" column because it is not a kind; it is the head-of-hook stage (§3a) that
@@ -1008,12 +1029,19 @@ defend a case the structural guarantee already covers.
   the alternative (per-version envelopes) is a permanent complexity tax for a
   low-probability, reviewable event.
 - **Output contract: widen, never narrow.** The host *consumes* policy output, so
-  the rule is the mirror image: the accepted output per kind (entrypoint rule +
-  type) may be **widened** (bumps `CurrentOutputSchemaVersion`) but never
-  narrowed/renamed. A genuinely new output *role* gets a **new kind**, never a
-  reused kind with a changed output shape (kind = semantic role, immutable on the
-  policy; a kind change is a new policy, not a new version, so it is reserved for
-  new roles like a hypothetical `redact`, not for shape revisions).
+  the rule is the mirror image: a kind's output contract is the bounded set of
+  rules it may emit (the entrypoint rule plus any optional auxiliary rules) and,
+  per rule, its accepted type, value set (enum), required-ness, and
+   blank/undefined fallback. The contract may be **widened** (add an optional rule,
+   loosen a type) but never narrowed/renamed/dropped. The optional `decide.message`
+   and `transform.headers` rules are recent widenings. While the output schema is
+   still **pre-stable** it stays at v1 and additive widenings update the v1 golden
+   in place; once frozen, a widening **bumps `CurrentOutputSchemaVersion`** and
+   writes a new `vN.json`. A genuinely new output
+   *role* gets a **new kind**, never a reused kind with a changed output shape
+  (kind = semantic role, immutable on the policy; a kind change is a new policy,
+  not a new version, so it is reserved for new roles like a hypothetical `redact`,
+  not for shape revisions).
 - **Shape guards (as built), shape-change ⇒ version-bump coupling.** Two
   in-package Go tests enforce the above by inspecting the **real contract**, not
   the Go structs:
@@ -1021,10 +1049,16 @@ defend a case the structural guarantee already covers.
     `ast.Value`, and pins a `path:type` snapshot of the **fixed** skeleton
     (excluding the variable-content subtrees `request.*` and
     `tool_call.arguments.*`) against `testdata/envelope_shape/vN.json`.
-  - `output_guard_test.go` feeds each kind's representative output through the
-    real consumer (`{decide,classify,route,transform}.Evaluate`) to catch a
-    narrowed type assertion or renamed entrypoint rule, and pins
-    (kind → rule, accepts) against `testdata/output_shape/vN.json`.
+  - `output_guard_test.go` declares each kind's bounded output set (per-rule
+    `type` / `required` / `enum` / `blank_uses_default`) and verifies every
+    declared property **behaviorally** against the real consumer
+    (`{decide,classify,route,transform}.Evaluate`). For example: `decide.verdict`
+    accepts exactly `{ALLOW,LOG,BLOCK}` and a non-member errors, that
+    `decide.message` surfaces only strings and falls back to the default on
+    blank/undefined/non-string, that `transform.body` accepts any JSON value
+    while `transform.headers` accepts only an object of string values, and that
+    each entrypoint matches `EntrypointRule`. The declaration cannot drift from
+    real consumer behavior, and is pinned against `testdata/output_shape/vN.json`.
   - The golden filename is the current version, and the guard asserts the current
     shape differs from every frozen prior `vN`, so a shape/contract change cannot
     land without bumping the version (the stamp cannot silently lie). Regenerate

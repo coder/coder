@@ -1,18 +1,40 @@
 {
   "classify": {
-    "accepts": "object of arbitrary annotation keys",
-    "rule": "annotations"
+    "annotations": {
+      "type": "object",
+      "required": false
+    }
   },
   "decide": {
-    "accepts": "string verdict in {ALLOW,LOG,BLOCK}",
-    "rule": "verdict"
+    "message": {
+      "type": "string",
+      "required": false,
+      "blank_uses_default": true
+    },
+    "verdict": {
+      "type": "string",
+      "required": true,
+      "enum": [
+        "ALLOW",
+        "LOG",
+        "BLOCK"
+      ]
+    }
   },
   "route": {
-    "accepts": "string model name",
-    "rule": "model"
+    "model": {
+      "type": "string",
+      "required": false
+    }
   },
   "transform": {
-    "accepts": "JSON object body",
-    "rule": "body"
+    "body": {
+      "type": "json",
+      "required": false
+    },
+    "headers": {
+      "type": "object\u003cstring\u003e",
+      "required": false
+    }
   }
 }

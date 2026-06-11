@@ -2,6 +2,9 @@
 # forces the assistant to always answer "banana".
 #
 # Rule queried by the transform kind: data.gateway.body
+# Optional rule for request header overrides: data.gateway.headers (object of
+# string values; transport, auth, and hop-by-hop headers are sanitized by the
+# host before forwarding).
 #
 # Only applies to Anthropic ("claude*") requests. The whole `system` field is
 # replaced (regardless of whether it was absent, a string, or an array of
@@ -17,5 +20,11 @@ directive := concat(" ", [
 ])
 
 body := object.union(input.request.body, {"system": directive}) if {
+	startswith(input.request.body.model, "claude")
+}
+
+# Optional: stamp a header on transformed requests so the upstream (or an
+# observer) can tell the policy was applied.
+headers := {"X-Coder-Policy": "bananabot"} if {
 	startswith(input.request.body.model, "claude")
 }

@@ -61,17 +61,31 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	}, nil
 }
 
+// newDecisionOnlyPipeline builds a pipeline for a hook that permits only
+// classify and decide, rejecting the request-mutating kinds (route, transform).
+// hook names the hook for error messages.
+func newDecisionOnlyPipeline(hook string, cfg PipelineConfig) (*Pipeline, error) {
+	if cfg.Route != nil {
+		return nil, xerrors.Errorf("route policy is not valid at the %s hook", hook)
+	}
+	if len(cfg.Transform) > 0 {
+		return nil, xerrors.Errorf("transform policy is not valid at the %s hook", hook)
+	}
+	return NewPipeline(cfg)
+}
+
+// NewPreAuthPipeline builds a pipeline for the pre-auth hook. Only classify and
+// decide are valid there: there is no request body to route or transform, so the
+// request-mutating kinds are rejected.
+func NewPreAuthPipeline(cfg PipelineConfig) (*Pipeline, error) {
+	return newDecisionOnlyPipeline("pre-auth", cfg)
+}
+
 // NewToolPipeline builds a pipeline for the pre-tool hook. Only classify and
 // decide are valid there (the request is already dispatched, so route and
 // transform are rejected), and classify is capped at one.
 func NewToolPipeline(cfg PipelineConfig) (*Pipeline, error) {
-	if cfg.Route != nil {
-		return nil, xerrors.New("route policy is not valid at the pre-tool hook")
-	}
-	if len(cfg.Transform) > 0 {
-		return nil, xerrors.New("transform policy is not valid at the pre-tool hook")
-	}
-	return NewPipeline(cfg)
+	return newDecisionOnlyPipeline("pre-tool", cfg)
 }
 
 // Result is the combined outcome of a pipeline.
@@ -82,6 +96,11 @@ type Result struct {
 	// empty when the verdict is not BLOCK. Used to surface a useful error to
 	// the client.
 	BlockedBy string
+	// Message is the optional, author-supplied explanation from the blocking
+	// decide policy's `message` rule. Empty when the verdict is not BLOCK or
+	// the blocking policy supplied no message. When set it overrides the
+	// generic block message shown to the user.
+	Message string
 	// Annotations are the classify outputs, recorded under
 	// Metadata["classifications"].
 	Annotations map[string]any
@@ -92,6 +111,10 @@ type Result struct {
 	// RequestBody is the final request body after route/transform, or nil when
 	// neither mutated it.
 	RequestBody []byte
+	// Headers are request header overrides produced by a transform policy,
+	// applied (set/replace) to the outgoing upstream request. Nil when no
+	// transform set headers.
+	Headers map[string]string
 }
 
 // Evaluate runs every stage against in and returns the combined Result. On a
@@ -161,10 +184,10 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 	}
 
 	// decide: reduce verdicts, BLOCK short-circuits.
-	var blockingDecide string
+	var blockingDecide, blockMessage string
 	verdicts := []Verdict{VerdictAllow}
 	for _, d := range p.decide {
-		v, err := evalStage1(ctx, func(sctx context.Context) (Verdict, error) {
+		dec, err := evalStage1(ctx, func(sctx context.Context) (Decision, error) {
 			return d.Evaluate(sctx, cur)
 		})
 		if err != nil {
@@ -173,20 +196,24 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 			}
 			continue
 		}
-		verdicts = append(verdicts, v)
-		if v.Blocks() {
+		verdicts = append(verdicts, dec.Verdict)
+		if dec.Verdict.Blocks() {
 			blockingDecide = d.name
+			blockMessage = dec.Message
 			break
 		}
 	}
 	res.Verdict = ReduceVerdicts(verdicts...)
 	if res.Verdict.Blocks() {
-		return blockedBy(blockingDecide), nil
+		r := blockedBy(blockingDecide)
+		r.Message = blockMessage
+		return r, nil
 	}
 
-	// transform: replace the whole request body (host re-validates downstream).
+	// transform: replace the whole request body (host re-validates downstream)
+	// and/or override request headers.
 	for _, t := range p.transform {
-		body, ok, err := evalStage(ctx, func(sctx context.Context) ([]byte, bool, error) {
+		tf, ok, err := evalStage(ctx, func(sctx context.Context) (Transformation, bool, error) {
 			return t.Evaluate(sctx, cur)
 		})
 		if err != nil {
@@ -198,12 +225,17 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 		if !ok {
 			continue
 		}
-		cur, err = cur.WithRequest(body)
-		if err != nil {
-			return Result{}, err
+		if tf.Body != nil {
+			cur, err = cur.WithRequest(tf.Body)
+			if err != nil {
+				return Result{}, err
+			}
+			finalBody = tf.Body
+			mutated = true
 		}
-		finalBody = body
-		mutated = true
+		if len(tf.Headers) > 0 {
+			res.Headers = mergeHeaders(res.Headers, tf.Headers)
+		}
 	}
 
 	if mutated {
@@ -235,6 +267,16 @@ func addModification(dst map[string]any, name string, mod map[string]any) map[st
 		dst = make(map[string]any, 1)
 	}
 	dst[name] = mod
+	return dst
+}
+
+// mergeHeaders merges src header overrides into dst, allocating on first use.
+// Later policies (there is at most one transform today) win on key conflicts.
+func mergeHeaders(dst, src map[string]string) map[string]string {
+	if dst == nil {
+		dst = make(map[string]string, len(src))
+	}
+	maps.Copy(dst, src)
 	return dst
 }
 

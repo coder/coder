@@ -128,11 +128,15 @@ func BuildProviderPipelines(ctx context.Context, db database.Store, logger slog.
 
 	out := make(map[string]aibridge.ProviderPipelines)
 	for key, cfg := range configs {
-		// The pre-tool hook permits only classify and decide; build it through
-		// the constrained constructor so a route/transform smuggled past the
-		// kind-validity check is rejected.
+		// The pre-auth and pre-tool hooks permit only classify and decide; build
+		// them through the constrained constructors so a route/transform smuggled
+		// past the kind-validity check (which would modify the request) is
+		// rejected.
 		newPipe := policy.NewPipeline
-		if key.hook == database.AIGatewayHookPreTool {
+		switch key.hook {
+		case database.AIGatewayHookPreAuth:
+			newPipe = policy.NewPreAuthPipeline
+		case database.AIGatewayHookPreTool:
 			newPipe = policy.NewToolPipeline
 		}
 		pipe, err := newPipe(*cfg)
