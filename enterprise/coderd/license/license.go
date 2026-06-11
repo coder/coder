@@ -494,9 +494,10 @@ func LicensesEntitlements(
 			feature := entitlements.Features[codersdk.FeatureAIGovernanceUserLimit]
 			switch {
 			case feature.Entitlement == codersdk.EntitlementNotEntitled:
-				// If the limit is not set
-				entitlements.Errors = append(entitlements.Errors,
-					fmt.Sprintf("Your deployment has %d active AI Governance seats but the license is not entitled to this feature.", actual))
+				// Not-entitled deployments can accumulate phantom ai_seat_state
+				// rows from prior Gateway testing or Task usage. Surfacing an
+				// error here is alarming and inactionable for customers who
+				// never purchased the AI Governance addon.
 			case feature.Entitlement == codersdk.EntitlementGracePeriod && feature.Limit != nil:
 				entitlements.Warnings = append(entitlements.Warnings,
 					fmt.Sprintf(
