@@ -34,26 +34,18 @@ func TestValidatePromptLimits(t *testing.T) {
 		require.Contains(t, err.Error(), "reason=invalid_pdf")
 	})
 
-	t.Run("Fails open for non-canonical provider names", func(t *testing.T) {
+	t.Run("Gates on canonical provider names", func(t *testing.T) {
 		t.Parallel()
 
-		// Like ApplyAnthropicProviderToolGuard, preflight expects canonical
-		// fantasy provider names and skips anything else.
-		err := ValidatePromptLimits(
-			" ANTHROPIC ", 200_000,
-			promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))),
-		)
-		require.NoError(t, err)
-	})
+		badPDF := promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf")))
 
-	t.Run("Applies Bedrock caps and skips uncapped providers", func(t *testing.T) {
-		t.Parallel()
-
-		err := ValidatePromptLimits(fantasybedrock.Name, 200_000, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
+		err := ValidatePromptLimits(fantasybedrock.Name, 200_000, badPDF)
 		require.Equal(t, fantasybedrock.Name, requireRejected(t, err).Provider)
 
-		err = ValidatePromptLimits(fantasyopenai.Name, 0, promptWithPDF(pdfPart("bad.pdf", []byte("not a pdf"))))
-		require.NoError(t, err)
+		// Uncapped and non-canonical provider names fail open, like
+		// ApplyAnthropicProviderToolGuard.
+		require.NoError(t, ValidatePromptLimits(fantasyopenai.Name, 0, badPDF))
+		require.NoError(t, ValidatePromptLimits(" ANTHROPIC ", 200_000, badPDF))
 	})
 
 	t.Run("Uses larger page cap for larger context models", func(t *testing.T) {
@@ -67,6 +59,21 @@ func TestValidatePromptLimits(t *testing.T) {
 		err = ValidatePromptLimits(fantasyanthropic.Name, 200_001, prompt)
 		require.NoError(t, err)
 	})
+}
+
+func TestPDFHelpers(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, isPDF([]byte("%PDF-1.7\n")))
+	require.False(t, isPDF([]byte("%PDF")))
+
+	count, ok := approxPDFPageCount([]byte("%PDF-1.7\n<< /Type /Page >>\n<< /Type\t/Page >>"))
+	require.True(t, ok)
+	require.Equal(t, 2, count)
+
+	// /Pages container objects are not page markers.
+	_, ok = approxPDFPageCount([]byte("%PDF-1.7\n<< /Type /Pages /Count 2 >>"))
+	require.False(t, ok)
 }
 
 func TestValidatePromptLimitsWithCaps(t *testing.T) {
@@ -104,9 +111,8 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 	t.Run("Counts every part type toward the request estimate", func(t *testing.T) {
 		t.Parallel()
 
-		// The estimate is a lower bound on the real request body, so every
-		// part type must contribute. Each prompt alone fits under the
-		// injected cap; together they exceed it.
+		// Every part type must contribute to the lower-bound estimate. Each
+		// part alone fits under the injected cap; two together exceed it.
 		caps := limits{requestPayloadBytes: 40, pageCap: 100}
 		parts := []fantasy.MessagePart{
 			fantasy.TextPart{Text: strings.Repeat("x", 30)},
@@ -126,11 +132,9 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 	t.Run("Estimates file parts by provider serialization", func(t *testing.T) {
 		t.Parallel()
 
-		// fantasy's anthropic provider base64-encodes images and PDFs,
-		// sends text files as plain-text document sources at raw size, and
-		// drops every other file media type from the request. Counting all
-		// file parts at base64 size would falsely reject text-heavy
-		// requests the provider accepts.
+		// fantasy's anthropic provider base64-encodes images and PDFs, sends
+		// text files at raw size, and drops other file media types; counting
+		// everything at base64 size would falsely reject text-heavy requests.
 		data := []byte(strings.Repeat("t", 30))
 		caps := limits{requestPayloadBytes: len(data), pageCap: 100}
 
@@ -172,8 +176,7 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 	t.Run("Tolerates typed-nil parts", func(t *testing.T) {
 		t.Parallel()
 
-		// Replayed history hands the walker arbitrary parts, and
-		// fantasy.AsMessagePart and fantasy.AsToolResultOutputType
+		// fantasy.AsMessagePart and fantasy.AsToolResultOutputType both
 		// dereference typed-nil pointers, so the walker must use the
 		// package's nil-safe casts for every part and output type.
 		err := validateWithCaps(promptWithParts(

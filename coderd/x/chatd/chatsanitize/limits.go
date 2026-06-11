@@ -1,8 +1,10 @@
 package chatsanitize
 
 import (
+	"bytes"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"charm.land/fantasy"
@@ -35,6 +37,11 @@ const (
 	pdfMediaType = "application/pdf"
 )
 
+var (
+	pdfHeader            = []byte("%PDF-")
+	pdfPageObjectPattern = regexp.MustCompile(`/Type\s*/Page\b`)
+)
+
 // limits describes the preflight caps that apply to a request, plus the
 // user-facing provider name used when reporting a violated cap.
 type limits struct {
@@ -44,11 +51,10 @@ type limits struct {
 }
 
 // limitsFor returns the preflight caps for provider, or (zero, false) when no
-// documented cap applies. provider must be the canonical fantasy provider
-// name; like ApplyAnthropicProviderToolGuard, this fails open for
-// unrecognized names. Bedrock shares Anthropic's PDF page caps because
-// fantasy's bedrock provider wraps the anthropic client, but uses Anthropic's
-// lower documented request size limit for Bedrock-hosted requests.
+// documented cap applies. Like ApplyAnthropicProviderToolGuard, it expects
+// canonical fantasy provider names and fails open for anything else. Bedrock
+// shares Anthropic's page caps (fantasy's bedrock provider wraps the anthropic
+// client) but uses the lower Bedrock-hosted request size limit.
 func limitsFor(provider string, contextLimit int64) (limits, bool) {
 	switch provider {
 	case fantasyanthropic.Name, fantasybedrock.Name:
@@ -76,13 +82,11 @@ func limitsFor(provider string, contextLimit int64) (limits, bool) {
 	}
 }
 
-// ValidatePromptLimits rejects prompts that Anthropic or Bedrock-hosted Claude
-// requests are known to reject: PDF attachments that are invalid or over the
-// documented page caps, and requests whose estimated body size exceeds the
-// provider's request size limit. provider must be the canonical
-// fantasy provider name; for uncapped or unrecognized providers it is a no-op.
-// A returned error is classified as a non-retryable configuration error
-// carrying a user-facing message, so callers can propagate it directly.
+// ValidatePromptLimits rejects prompts Anthropic or Bedrock-hosted Claude are
+// known to reject: invalid PDF attachments, aggregate PDF pages over the
+// documented cap, and estimated request bodies over the provider's size limit.
+// Errors are classified as non-retryable configuration errors carrying a
+// user-facing message. For uncapped or unrecognized providers it is a no-op.
 func ValidatePromptLimits(provider string, contextLimit int64, prompt []fantasy.Message) error {
 	caps, ok := limitsFor(provider, contextLimit)
 	if !ok {
@@ -115,9 +119,8 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 			}
 		}
 	}
-	// The payload cap is enforced after the walk so every part counts
-	// regardless of order. The estimate is a lower bound on the real request
-	// body, so exceeding the cap here guarantees the provider would reject.
+	// Enforced after the walk so every part counts regardless of order. The
+	// estimate is a lower bound, so exceeding the cap guarantees rejection.
 	if v.estimatedRequestBytes > v.caps.requestPayloadBytes {
 		return v.reject(
 			fmt.Sprintf("This request is too large for %s's request size limit. Remove or shrink attachments and retry.", v.caps.displayName),
@@ -130,14 +133,14 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 
 func (v *validator) checkPDF(file fantasy.FilePart) error {
 	name := strings.TrimSpace(file.Filename)
-	if !chatfiles.IsPDF(file.Data) {
+	if !isPDF(file.Data) {
 		return v.reject(
 			fmt.Sprintf("%s is not a valid PDF. Re-upload the original document.", attachmentLabel(name)),
 			"reason=invalid_pdf file=%q data_bytes=%d", name, len(file.Data),
 		)
 	}
 
-	if pages, ok := chatfiles.ApproxPDFPageCount(file.Data); ok {
+	if pages, ok := approxPDFPageCount(file.Data); ok {
 		v.totalPages += pages
 		if v.totalPages > v.caps.pageCap {
 			return v.reject(
@@ -170,6 +173,21 @@ func attachmentLabel(name string) string {
 		return "PDF attachment"
 	}
 	return fmt.Sprintf("PDF attachment %q", name)
+}
+
+// isPDF reports whether data begins with the standard PDF header.
+func isPDF(data []byte) bool {
+	return bytes.HasPrefix(data, pdfHeader)
+}
+
+// approxPDFPageCount counts /Type /Page markers in data. ok is false when none
+// are found, so PDFs with unrecognized structure are not falsely rejected.
+func approxPDFPageCount(data []byte) (count int, ok bool) {
+	matches := pdfPageObjectPattern.FindAllIndex(data, -1)
+	if len(matches) == 0 {
+		return 0, false
+	}
+	return len(matches), true
 }
 
 // estimatePartBytes estimates a part's serialized contribution to the provider
