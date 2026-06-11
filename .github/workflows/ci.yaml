@@ -957,7 +957,7 @@ jobs:
           cache: true
 
       - run: pnpm storybook:build
-        working-directory: dashboard/
+        working-directory: site/
         name: Build Storybook
 
       # CLEANUP: Github Actions runners have _a_ version of Chromium preinstalled.
@@ -965,11 +965,11 @@ jobs:
       # ...but the engine doesn't find it right now. Might be worth looking
       # into. This step isn't exactly fast.
       - run: pnpx playwright install --with-deps chromium
-        working-directory: dashboard/
+        working-directory: site/
         name: Install Chromium
 
       - run: pnpm pixel-storybook
-        working-directory: dashboard/
+        working-directory: site/
         name: Snapshot
         env:
           PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
