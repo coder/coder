@@ -4,6 +4,63 @@
 for now we can just attach policy pipelines to provider routes, because that means
 we don't need to rewrite the payload if switch between providers/endpoints
 
+### Revision note (2026-06-11): stage model & staged rollout
+
+This revision resolves the "guardrails are suspiciously close to kinds" tension
+and redesigns pre-production evaluation. Headlines (details inline, marked
+[DECIDED, revised 2026-06] where they supersede earlier decisions):
+
+- **Two-axis stage model.** Every pipeline member is a *stage*: (substrate:
+  Rego | networked adapter) x (effect mask over one shared result type). Kinds
+  are single-effect Rego stages; guardrails are multi-effect networked stages
+  pinned to the head slot. Guardrails are still not kinds, but they are no
+  longer an exception, just a different point in the lattice (§2).
+- **Unified stage-result algebra.** Policies and guardrails yield the same
+  `StageResult`; one reducer/applier enforces everything, and failures are
+  synthesized into ordinary results via `fail_mode` (no special-cased timeout)
+  (§2).
+- **Annotation namespacing + immutable names.** All producers write under
+  `input.annotations.<stage_name>`; stage names are immutable at create (§3).
+- **Staged rollout via version-targeted evaluation.** No pending pointer, no
+  shadow mode: `activate` defaults to false, activation propagates by *minting*
+  (never promoting) pipeline versions on the tip, and an owner-only header
+  (`X-Coder-AI-Gateway-Pipeline-Version`) evaluates any version against real
+  traffic before an explicit promote (§10.1, §10.9).
+
+### Customer feedback note (2026-06-11): priorities — recorded, no scope change
+
+Direct feedback from a customer call (security-team-led, GitLab-pipeline-driven
+shop with test/prod environments). **Recorded as prioritisation signal only**:
+no decision, phasing, or scope in this document is changed by this note. Their
+ranked importance:
+
+1. **Guardrails / AI governance** — explicitly the top priority for their
+   security team relative to the other policy types.
+2. **Terraform + API-first management** — must be API/Terraform-first from day
+   one; click-based editing is viewed as risky for large-scale production use.
+   Cue: ship the control plane (API coverage + Terraform provider) before
+   investing heavily in point-and-click UX.
+3. **Automated testing / CI integration** — automated tests against pipelines
+   plus CI-style evaluation checks before changes are merged or promoted;
+   policy validation should fit CI/CD rather than rely mainly on manual live
+   testing. (Incorporated as **FR22**.)
+4. **Audit logging + traceability** — enough logging to understand what
+   happened in real time and support incident response, including tracing
+   actions back to user or agent behavior. (Incorporated into **FR17**.)
+5. **Observability of policy impact** — see the impact of policies as they
+   run: evaluation volume, failures, and spikes in blocked traffic after
+   changes. (Incorporated as **FR23**.)
+6. **Low latency / performance safety** — important, but as a guardrail rather
+   than the top differentiator; the system cannot noticeably degrade user
+   experience.
+
+Additional cues noted (not acted on here): bias phase one toward
+security/governance use cases (guardrails, logging, policy auditability) over
+prompt-transform / model-routing polish; invest in safe rollout + block-rate
+visibility for confidence when enabling rules at scale; preserve backward
+compatibility because policy breakage could affect many users (the versioned
+envelopes + deterministic testing of §10.4 match this expectation).
+
 # Coder AI Gateway — Policy Engine Design Summary
 
 A consolidated record of the design decisions reached so far, plus requirements,
@@ -37,11 +94,6 @@ and configurable as code.
   Coder already ships internally. Evaluated on the native topdown interpreter
   (NOT compiled to Wasm — Wasm is slower here; see §9). Chosen over CEL,
   Rego-via-Wasm, AssemblyScript, QuickJS-in-wasm, and Goja (see §8).
-- **[OPEN / likely drop] Escape hatch.** The QuickJS-in-wasm escape hatch we
-  considered under CEL is probably unnecessary with Rego, whose expressiveness
-  (iteration, comprehensions, object manipulation) closes most of the gap.
-  Reserve the idea only for genuinely imperative needs; don't build it
-  speculatively.
 - **[DECIDED] Policies are hermetic.** No shared state, no cross-policy
   influence, no network/IO from inside a policy. (Rego *can* `http.send`; this
   must be **explicitly disabled** along with other network/time built-ins to
@@ -100,21 +152,66 @@ and configurable as code.
   them. This replaces the earlier "host pre-fetches an opaque signal" wording:
   there is one enrichment mechanism, the guardrail stage, not a separate ad-hoc
   pre-fetch.
-- **[DECIDED] Guardrails: SEPARATE transport + config, SHARED stage plumbing,
-  NOT a kind (see §3a).** Networked checks are host-orchestrated (per-guardrail
-  network timeout, fail-open/closed). There is no industry-standard guardrail I/O
+- **[DECIDED, revised 2026-06] Two-axis stage model. Guardrails: SEPARATE
+  transport + config, SHARED stage plumbing, NOT a kind (see §3a).** Every
+  pipeline member is a *stage*, classified on two orthogonal axes:
+  **substrate** (hermetic Rego vs networked adapter) and **effect mask** (which
+  fields of the shared `StageResult` it may emit; next bullet). A *kind* is a
+  single-effect Rego stage; a *guardrail* is a multi-effect networked stage
+  pinned to the head-of-hook slot. A guardrail is not a kind because it differs
+  in **substrate** (network adapter vs Rego, concurrent vs sequential, its own
+  timeout/failure envelope, secret-bearing config), not merely in output shape;
+  making it a kind would poison every "for each kind" assumption (validation
+  gate, shape guards, cardinality indexes) while unifying only a name. Its
+  multi-effect result is a *concession to vendor wire formats* (one HTTP
+  response carries score + mask + verdict and cannot be un-bundled), not a
+  convenience to emulate in Rego; hermetic kinds stay decomposed (single
+  effect each). Networked checks are host-orchestrated (per-guardrail network
+  timeout, fail-open/closed). There is no industry-standard guardrail I/O
   format, so they integrate via per-provider **adapters composed over a base**
-  modelled on litellm's *Generic Guardrail API* (extract texts/tools/tool_calls/
-  structured messages → POST → block / pass / intervene-with-modification). A
-  guardrail is **not** a policy kind: it is a uniform **head-of-hook stage** whose
-  result is a superset `{action, reason, annotations, body_patch}` that reuses the
-  existing reduction (`BLOCK > LOG > ALLOW`), annotation threading, and
-  transform/validate-after-mutate plumbing. Each guardrail runs in one of two
-  modes: **advisory** (annotate-only; a Rego `decide` policy turns the signal into
-  a verdict) or **enforcing** (may `BLOCK`/mutate directly *and* always annotates).
-  What is genuinely separate is the transport and the (secret-bearing) config
-  persistence, not the abstraction. A guardrail `BLOCK` returns **HTTP 400**, as
-  does a policy `BLOCK` (both block paths return 400). [AS BUILT]
+  modelled on litellm's *Generic Guardrail API* (extract texts/tools/
+  tool_calls/structured messages → POST → block / pass /
+  intervene-with-modification). Each guardrail runs in one of two modes:
+  **advisory** (annotate-only; a Rego `decide` policy turns the signal into a
+  verdict) or **enforcing** (may `BLOCK`/mutate directly *and* always
+  annotates). What is genuinely separate is the transport and the
+  (secret-bearing) config persistence, not the abstraction. A guardrail
+  `BLOCK` returns **HTTP 400**, as does a policy `BLOCK` (both block paths
+  return 400). [AS BUILT, except the unified result type below]
+- **[DECIDED] Unified stage-result algebra.** Every stage, Rego policy or
+  guardrail, projects into one result type, enforced by a **single
+  reducer/applier**:
+
+  ```
+  StageResult {
+    verdict:     ALLOW | LOG | BLOCK   // default ALLOW
+    message:     string                // surfaced to the user on BLOCK
+    annotations: map[string]any        // unioned under the stage's namespace
+    body_patch:  optional              // chained, re-validated per mutation point
+    route:       optional              // pre-req only, single slot
+  }
+  ```
+
+  A stage *type* is an **effect mask** over this struct (classify =
+  annotations-only; decide = verdict+message; route = route; transform =
+  body_patch+headers; advisory guardrail = annotations; enforcing guardrail =
+  verdict+message+annotations+body_patch), enforced at registration and
+  defensively at load, exactly like kind-validity-by-hook. The reducer,
+  short-circuit, audit record, and HTTP mapping are written once; every stage,
+  including a dead vendor, produces exactly one result. **Failures are result
+  synthesis, not a parallel error path:** any stage failure (eval error,
+  network error, timeout, conflict) is normalized through the membership's
+  `fail_mode` into an ordinary result:
+  `fail_closed → {verdict: BLOCK, message: <generic>}`;
+  `fail_open → {verdict: LOG, message: <error summary>}` (LOG, not ALLOW: a
+  fail-open outage must be visible in the log stream, not silent). The failing
+  stage's identity (e.g. "guardrail X unreachable") goes to **audit/logs
+  only**, never the client-facing message; telling an adversary the DLP
+  scanner is down is an invitation to retry until it stays down. There is **no
+  special-cased timeout**: the global 1s eval timeout flows through the same
+  rule (an attacker-induced timeout bypassing a fail-open stage is what
+  fail-open *means*; singling out timeout bought no security and broke
+  uniformity).
 - **[DECIDED] Versioning.** Policies are versioned; input *and* output types are
   versioned; a policy is bound to a type version at compile/registration time.
   Output-shape conformance is checked via **`opa check` with input/output JSON
@@ -141,9 +238,12 @@ and configurable as code.
   are a first-class capability (a Rego advantage CEL lacked). A host-function
   "standard library" (custom OPA built-ins, in Go) covers PII detection,
   normalization, hashing, tokenization.
-- **[DECIDED] Failure semantics are configurable** per policy/route: fail-open
-  vs fail-closed on error; timeout behavior (block/log/flag); eval-limit-exceeded
-  behavior; size gate before evaluation.
+- **[DECIDED, revised 2026-06] Failure semantics are configurable** per
+  membership (`fail_mode`), uniformly applied via result synthesis (see the
+  unified algebra above): every failure class (eval error, network error,
+  timeout, eval-limit-exceeded) normalizes through the same rule; no failure
+  class bypasses `fail_mode`. The size gate before evaluation remains a host
+  concern.
 
 ---
 
@@ -190,6 +290,18 @@ are typed, owned by `aibridge/policy`, and frozen by the shape guard (§10.4):
   `x-remote-addr`), present from pre-auth onward.
 - `input.annotations` = the threaded classify/guardrail outputs, seeded `{}` at
   every hook so a read is defined-but-empty rather than undefined.
+  **[DECIDED, revised 2026-06] The host owns the first level of this map:**
+  every producer, classify and guardrail alike, writes under its own stage name
+  (`input.annotations.<stage_name>.<keys>`); no top-level writes. Name
+  collisions are rejected at pipeline-version create (member policy names and
+  guardrail names must not overlap; validated in Go, since cross-table
+  uniqueness cannot be a DB index). The same producer attached at multiple
+  hooks **replaces its own namespace wholesale** at the later hook
+  (last-write-wins per namespace, no deep-merge: merged documents nobody
+  authored are unpredictable). Stage `name`s are **immutable at create**
+  (`display_name` is the mutable label; a true rename is a fork), so annotation
+  paths consumed by downstream `decide`s can never silently go `undefined` via
+  a rename.
 - **post-resp** — original request + response (+ annotations accumulated from
   earlier hooks). Output inspection / transform. Has two execution modes for
   streamed responses (see "Output inspection").
@@ -210,13 +322,13 @@ at load: their pipelines are built through constrained constructors
 (`NewPreAuthPipeline` / `NewToolPipeline`) so a route/transform smuggled past the
 kind-validity check cannot modify the request. [AS BUILT]
 
-**Guardrails are orthogonal to kinds.** A guardrail is not listed in the "valid
-kinds" column because it is not a kind; it is the head-of-hook stage (§3a) that
-may attach to any hook. Its three effects (block / annotate / mutate) are
-constrained by the hook just as kinds are: at pre-auth a guardrail may block and
-annotate but not mutate the body (no resolved identity / body contract yet); at
-pre-req it may do all three. Output guardrails follow the post-resp constraints
-(§3a, §12).
+**Guardrails are orthogonal to kinds (two-axis model, §2).** A guardrail is not
+listed in the "valid kinds" column because it is not a kind; it is the
+head-of-hook stage (§3a) that may attach to any hook. Its effect mask
+(verdict / annotations / body_patch) is constrained by the hook just as kinds
+are: at pre-auth a guardrail may block and annotate but not mutate the body (no
+resolved identity / body contract yet); at pre-req it may do all three. Output
+guardrails follow the post-resp constraints (§3a, §12).
 
 ### Per-hook ordering
 
@@ -229,7 +341,13 @@ in the windowed streaming mode).
   annotations are visible to classification and every later stage, an enforcing
   guardrail's `body_patch` is applied (and re-validated) before any policy sees
   the body, and an enforcing `BLOCK` short-circuits the hook before policy
-  evaluation.
+  evaluation. **The head slot is a security invariant, not a scheduling
+  default [DECIDED]:** a masking guardrail must precede every Rego stage that
+  reads the body, otherwise a classifier could read unmasked PII and copy it
+  into annotations, which thread into audit/telemetry and later envelopes.
+  Guardrail placement is therefore not operator-choosable. (Conditional
+  guardrail *invocation*, skipping the vendor call for some requests, is
+  deferred; §12.)
 - **Classification runs first** among the *policy* stages. The host threads its output (annotations) into
   the envelopes of the later stages *and later hooks*. This is how policies
   compose without calling each other — hermeticity preserved. Annotations
@@ -257,23 +375,18 @@ host-function stdlib + canned Rego (and the dropped QuickJS escape hatch, §2).
 The guardrail abstraction covers exactly the **networked-webhook** transport. The
 modes map 1:1 onto effects the engine already has: detect/tool-gate → a `BLOCK`;
 score/moderate → annotations; mask/redact → a `body_patch`; route → deferred
-(§12); log → `LOG`.
+(§12); vendor "log-only" modes → annotations (rendered into a `LOG` verdict by
+a consuming `decide`, if desired).
 
-**Uniform result.** Each guardrail invocation yields:
-
-```
-GuardrailResult {
-  action:      ALLOW | BLOCK        // BLOCK short-circuits the hook (HTTP 400)
-  reason:      string               // surfaced in the 400 body + audit
-  annotations: map[string]any       // scores, categories, detected entities
-  body_patch:  optional rewrite     // masking / redaction
-}
-```
-
-reused via the existing plumbing: `action` feeds the `BLOCK > LOG > ALLOW`
-reduction and short-circuits; `annotations` flow through the existing
-annotation-threading channel (consumed by classify/route/decide); `body_patch`
-flows through the transform applier + validate-after-mutate.
+**Uniform result.** Each guardrail invocation yields a `StageResult` (§2) under
+the enforcing effect mask (`verdict` ∈ {ALLOW, BLOCK} from the adapter, plus
+`message`, `annotations`, `body_patch`) or the advisory mask (`annotations`
+only). The single reducer/applier handles it like any policy result: `verdict`
+feeds the `BLOCK > LOG > ALLOW` reduction and short-circuits (HTTP 400);
+`annotations` flow through the annotation-threading channel under the
+guardrail's namespace (§3); `body_patch` flows through the transform applier +
+validate-after-mutate. A `LOG` verdict never originates from an adapter; it
+arises only from fail-open failure synthesis (§2).
 
 **[AS BUILT] What text is scanned.** The stage extracts the **latest user
 prompt** and passes it to adapters (`guardrail.UserPromptTexts`), addressed by
@@ -323,11 +436,13 @@ The policy `transform` then runs at the tail on the already-masked body with its
 own re-validate (two mutation points total, each re-validated).
 
 **Failure/latency envelope.** Each guardrail carries its own **network timeout**
-and reuses the per-membership **fail_mode** (fail-open / fail-closed on
-unreachable / timeout / 5xx; default fail-closed, mirroring litellm's
-`unreachable_fallback`). The concurrent stage is bounded by the slowest
-guardrail's timeout plus an overall stage deadline. **Retries are off and there
-is no response caching in v1.**
+and reuses the per-membership **fail_mode** (default fail-closed, mirroring
+litellm's `unreachable_fallback`). Failures (unreachable / timeout / 5xx) are
+**synthesized into ordinary StageResults** (§2): fail-closed → BLOCK with a
+generic client message; fail-open → LOG with the error summary. The vendor's
+identity appears in audit/logs only, never the client-facing message. The
+concurrent stage is bounded by the slowest guardrail's timeout plus an overall
+stage deadline. **Retries are off and there is no response caching in v1.**
 
 **Phasing.** v1 ships **serial pre-req input guardrails** only: prompt-injection
 detection, input PII/secret masking, tool-call gating, and moderation →
@@ -379,7 +494,8 @@ call with the full body in hand and return **HTTP 400** on BLOCK (so a client
 cannot bypass the gate by requesting non-streaming).
 
 **Stopping conditions / caps.** The hold is bounded: the per-stage 1s eval
-timeout fails closed; a byte cap (`HoldMaxBytes`, 4 MiB) and a wall-clock hold
+timeout is normalized through the member's fail mode like any other failure
+(§2); a byte cap (`HoldMaxBytes`, 4 MiB) and a wall-clock hold
 deadline (`HoldDeadline`, 5 min) bound a stalled/oversized block; a client
 disconnect tears everything down via the existing stream context. These are
 hardcoded (generous) in v1, not operator-configurable. A cap breach or an
@@ -450,7 +566,7 @@ flowchart TD
     direction TB
     GR["guardrails<br/>concurrent · BLOCK wins (400)<br/>annotate · mask + re-validate"] --> CL["classify"]
     CL --> RO["route"]
-    RO --> DE["decide<br/>concurrent · BLOCK wins"]
+    RO --> DE["decide<br/>sequential · BLOCK wins"]
     DE --> TR["transform<br/>patch + re-validate"]
   end
 
@@ -531,23 +647,56 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
 - **FR14** Author policies via API / CLI / frontend / Terraform / LLM-assist;
   compile-on-ingest (prepared query); store raw Rego text (see §10).
 - **FR15** Version policies and input/output types; bind at registration; **expose
-  a drift metric** when a pipeline pins a non-current policy or schema version;
-  assist (operator-confirmed) upgrades.
+  a drift metric** when a pipeline pins a non-current policy or schema version.
+  Under explicit promotion (§10.1, §10.9), drift is the normal "unpromoted
+  changes exist" workqueue state, not an anomaly.
 - **FR16** Validate at upload (in-process Go, no `opa` CLI): compile with schemas,
   assert each kind's entrypoint rule is defined and yields a result conforming to
-  the kind's **output schema**, plus standard per-kind smoke tests. (Operator-
-  supplied tests are deferred, §12.)
+  the kind's **output schema**, plus standard per-kind smoke tests. Pipeline-
+  version validation additionally emits best-effort **annotation-flow warnings**
+  (§10.3): an advisory guardrail whose namespace no later member reads, and a
+  `decide` reading a namespace no member produces. (Operator-supplied tests are
+  deferred, §12.)
 - **FR17** Per-execution logging + unique execution id; expose verdict, latency,
   per-policy pass/fail, **and the `pipeline_version_id` / member
-  `policy_version_id`s that evaluated the request**.
-- **FR18** Failure semantics: per-membership `fail_mode` (fail-open/closed) + a
-  **global 1s evaluation timeout that fails closed**. (Per-policy timeout / eval-
-  limit / size-gate configurability is out of scope for v1.)
+  `policy_version_id`s that evaluated the request**. *(extended per customer
+  feedback, 2026-06)* Each execution record also carries **actor attribution**
+  (the initiating user identity and, where known, the agent/session acting on
+  their behalf) so an enforcement action can be traced back to user or agent
+  behavior in real time during incident response.
+- **FR18** Failure semantics: per-membership `fail_mode` (fail-open/closed),
+  uniformly applied by **failure-as-result-synthesis** (§2): every failure
+  class, including the global 1s evaluation timeout, normalizes to BLOCK
+  (fail-closed) or LOG (fail-open); no failure class bypasses `fail_mode`.
+  (Per-policy timeout / eval-limit / size-gate configurability is out of scope
+  for v1.)
 - **FR19** Atomic, non-disruptive version swaps via `active_version_id`; retired
   snapshots GC'd in-memory.
 - **FR20** Pause enforcement without deletion: an `enabled` flag on the **pipeline**
   (whole posture off) and on each **pipeline+policy membership** (a policy off
   within one pipeline). Policies themselves have no global enabled flag (see §10).
+- **FR21** Version-targeted evaluation: an owner-only request header
+  (`X-Coder-AI-Gateway-Pipeline-Version`) evaluates a specific, typically
+  unpromoted, pipeline version against real traffic at full fidelity: same
+  engine behavior, different audience. Non-owners receive 403; no header means
+  the active version. See §10.9.
+- **FR22** *(customer, 2026-06)* **CI-fit validation.** Expose the registration
+  validation gate (§10.3: compile + schemas + per-kind smoke tests + pipeline
+  structural checks) as a **headless, side-effect-free check** — an API dry-run
+  endpoint and/or CLI verb that validates a policy/pipeline artifact **without
+  persisting or activating anything** — so changes managed as code can be
+  evaluated in an external CI pipeline (e.g. GitLab) before merge, and
+  promotion can be gated on a green check rather than manual live testing
+  alone. Complements, not replaces, version-targeted evaluation (§10.9): CI
+  checks the artifact pre-merge; the header rehearses it against real traffic
+  pre-promote.
+- **FR23** *(customer, 2026-06)* **Policy-impact observability.** Per-pipeline
+  **verdict/volume counters** (`{provider, hook, verdict, pipeline_version}`)
+  covering evaluation volume, synthesized failures (§2), and **block rate**, so
+  a spike in blocked traffic after an activation/promotion is immediately
+  visible. Generalizes the pre-tool-only verdict metrics (§3b) to all hooks and
+  pairs with the propagation report / drift gauge (§10.1, §10.7 D3) as the
+  post-rollout safety net.
 
 ---
 
@@ -570,7 +719,8 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
   already paid; prepared queries keep per-eval cheap. Per-eval memory is hard to
   hard-cap on the interpreter (a known OPA constraint).
 - **Observable** — latency, verdict, per-policy attribution, execution id; OPA
-  decision logs available out of the box.
+  decision logs available out of the box. Plus verdict-volume / block-rate
+  counters per pipeline version (FR23) so policy impact is visible as it runs.
 - **Deterministic & reproducible** — pure evaluation once network/time built-ins
   are disabled; prepared queries are reusable.
 - **Memory-safe** — Go + OPA.
@@ -731,15 +881,44 @@ Policies and pipelines are stored in Postgres, versioned, and made live in
 - **[DECIDED] Membership pins `policy_version_id`** (not a floating
   `active_version_id`). An immutable pipeline version forces pinning, so
   composition history is exact and rollback is possible.
-- **[DECIDED, as built] Assisted upgrade auto-propagates an activated policy
-  version.** Pure pinning surprised operators (editing a policy did not change
-  what runs). Resolution: when a policy version is **activated** — on edit
-  (new version + activate) *or* revert (activate an older version) — the host,
-  in the same transaction, re-pins **every live pipeline that references that
-  policy** to the activated version by minting a new pipeline version and
-  activating it. History is still preserved (each pipeline gets a new version);
-  the edit just propagates automatically instead of requiring a separate
-  per-pipeline step. The drift gauge surfaces any residual mismatch.
+- **[DECIDED, revised 2026-06; supersedes the as-built auto-activate] Explicit
+  two-stage rollout: activation propagates by minting, never promoting.**
+  `POST .../versions` (policy, pipeline, guardrail) defaults `activate=false`:
+  it mints only, and nothing changes anywhere (explicit actions are the safer
+  default; BC with the prior as-built behavior is not a concern pre-GA). When a
+  policy version is **activated** (explicitly, or via `activate=true` on
+  create), the host, in the same transaction, re-pins **every pipeline that
+  references that policy** by minting a new pipeline version on each pipeline's
+  **tip** (see next bullet), but does **not** activate it. Live posture changes
+  only on an explicit per-pipeline **promotion** (the existing
+  activate-a-version PATCH, same path as revert). An optional `promote: true`
+  on the activation request collapses the chain (mint + promote, all-or-nothing
+  across referencing pipelines) for the urgent-hole-patch path; it is opt-in,
+  never default. Selective rollout = activate without promote, then promote
+  pipelines individually. The original rationale for auto-activation ("editing
+  a policy did not change what runs" surprised operators) is answered
+  differently now: editing still doesn't change what runs, *and the system says
+  so*: every activation returns a **propagation report**
+  (`{pipeline, minted_version, promoted}` per referencing pipeline) rendered
+  loudly in UI/CLI, and the drift gauge becomes the "unpromoted changes exist"
+  workqueue indicator (§10.7 D3). Guardrail versions get identical treatment.
+- **[DECIDED] Minting bases on the tip.** New pipeline versions (propagation or
+  direct membership edits, which also default to mint-don't-activate) base
+  their membership on the pipeline's **latest** version, not the active one, so
+  staged changes accumulate as one linear draft lineage and the tip is always
+  the testable "everything staged so far" (§10.9). Accepted cost: the tip is
+  shared mutable staging; an abandoned experiment sits in the lineage, and a
+  colleague's unrelated activation mints on top of it. The promote-time diff
+  (live vs candidate membership, already derivable) is the safety net showing
+  everything that would go live, not just the latest change. Acceptable at POC
+  scale with owner-only access; "mint from an arbitrary base" is an additive
+  escape hatch if it bites.
+- **[DECIDED] Stage names are immutable at create.** `name` (policy and
+  guardrail) cannot change after creation; `display_name` is the mutable
+  cosmetic label, and a true rename is a fork. Names key annotation namespaces
+  (§3) and downstream Rego references (`input.annotations.<name>`); a rename
+  would silently turn consumer reads `undefined` (Rego's silent-no-match
+  footgun, §7), so the identifier is frozen by construction.
 - **[DECIDED] `kind` is intrinsic and immutable on the policy**, denormalized onto
   the membership row only to power the per-hook cardinality partial-unique
   indexes (Postgres cannot index across the join).
@@ -1000,6 +1179,22 @@ ever persisted. **No shelling out** — use the OPA Go libraries:
   test** (a probe call to the endpoint). Pipeline-membership validation that
   *is* built: `pre_req`-only hook, required mode/fail_mode, and that the
   referenced guardrail version exists.
+- **Member-name collision check [DECIDED, not built].** Pipeline-version create
+  rejects a version whose member policy names and guardrail names overlap:
+  names key annotation namespaces (§3), and cross-table uniqueness cannot be a
+  DB index, so it is validated in Go alongside the other structural rules.
+- **Annotation-flow warnings (warn, never reject) [DECIDED, not built].** Using
+  the compiled ASTs already in hand at the gate, walk each member policy's
+  references into `input.annotations.<name>` and emit best-effort warnings in
+  both directions: (a) an **advisory guardrail whose namespace no
+  same-or-later-hook member reads**: an orphaned signal is a silently dead DLP,
+  paying vendor latency on every request while enforcing nothing; (b) a
+  **`decide` reading a namespace no member produces**: the typo'd-name case
+  Rego would otherwise fail silent-open on (§7). Warnings, not rejections:
+  dynamic addressing (`input.annotations[name]`) defeats the static walk, and
+  "attach the guardrail today, the consuming decide tomorrow" is a legitimate
+  staging sequence on an unpromoted tip (§10.9). Surfaced in the version-create
+  response and on the promote diff.
 
 ### 10.4 Backward compatibility (HARD requirement: never break an existing policy) [AS BUILT]
 
@@ -1095,6 +1290,13 @@ defend a case the structural guarantee already covers.
 - **Compile-cache keyed by `policy_version_id`** (immutable ⇒ a prepared query is
   reusable across reloads and across pipelines sharing the version). This is the
   main per-reload performance lever.
+- **Lazy compile for version-targeted evaluation (§10.9).** Non-active versions
+  referenced by the evaluation header are compiled on first use and cached by
+  pipeline-version id; the `policy_version_id` compile-cache is shared
+  underneath, so a version differing by one membership costs one prepared
+  query, not a recompile. The same snapshot-query filtering (disabled members,
+  soft-deleted parents) applies to arbitrary versions. No eviction at the
+  expected 3-5 pipeline scale.
 - **Consistency:** load each active pipeline version + membership + pinned policy
   versions in a single consistent read (one join / repeatable-read txn); `Publish`
   strictly **post-commit** (never inside `InTx`) so `Reload` cannot race a
@@ -1108,11 +1310,15 @@ defend a case the structural guarantee already covers.
   with no policy enforcement. This matches current behaviour and is intentional;
   visibility comes from the per-provider active-snapshot-version metric (below),
   not a hard default-deny.
-- **[DECIDED] Eval is bounded and fails closed.** Each policy stage evaluates under
-  a **1s `context.WithTimeout`**; on timeout the stage is treated as a
-  fail-closed error (BLOCK), regardless of the stage's configured `fail_mode`.
-  This needs wiring in `prepare()` / `Pipeline.Evaluate` (today neither sets a
-  deadline or eval limit). Expose a **timeout counter** metric.
+- **[DECIDED, revised 2026-06] Eval is bounded; timeouts honor `fail_mode`.**
+  Each policy stage evaluates under a **1s `context.WithTimeout`**; a timeout
+  is synthesized through the member's `fail_mode` like every other failure
+  (§2): fail-closed → BLOCK, fail-open → LOG. The earlier "timeout fails closed
+  regardless of fail_mode" special case is removed: an attacker-induced timeout
+  bypassing a fail-open stage is what fail-open *means*; the special case
+  bought no security, broke uniformity, and contradicted §3b. This needs wiring
+  in `prepare()` / `Pipeline.Evaluate` (today neither sets a deadline or eval
+  limit). Expose a **timeout counter** metric.
 - **[DECIDED] Block delete of an in-use policy.** Soft-deleting an
   `ai_gateway_policies` row is rejected while any of its versions is referenced by
   an **active** pipeline version. The operator must first mint a pipeline version
@@ -1148,7 +1354,10 @@ defend a case the structural guarantee already covers.
   active-snapshot metric so reduced enforcement is visible.
 - **[DECIDED] Drift is a metric (D3).** When a pipeline pins a policy version that
   is not that policy's `active_version_id`, or a policy binds a non-latest schema
-  version, expose a drift gauge. No bespoke drift UX for v1.
+  version, expose a drift gauge. Under explicit promotion (§10.9) the gauge's
+  meaning shifts from anomaly signal to **workqueue indicator**: "unpromoted
+  changes exist" is a normal, visible state, and the propagation report is its
+  receipt. No bespoke drift UX for v1.
 - **[DECIDED] Decide short-circuit, partial attribution (C2).** Only `decide` is
   many-per-hook. Decisions reduce with a BLOCK short-circuit, so policies after
   the first blocker do not run and their per-policy result is unknown; per-policy
@@ -1156,9 +1365,14 @@ defend a case the structural guarantee already covers.
 - **[DECIDED] Routing is within-provider model override only.** Cross-provider
   routing (which would require rewriting the request body for a different provider
   type, and changing which pipeline applies) is deferred (§12).
-- **[DECIDED] Annotations are an opaque, unvalidated map.** The threaded
-  `annotations` subtree carries classifier-defined keys and is **not** covered by
-  the per-hook input schema; validating inter-policy value flows is deferred (§12).
+- **[DECIDED, revised 2026-06] Annotations are host-namespaced; values stay
+  opaque.** The first level of the threaded `annotations` subtree is host-owned
+  (one namespace per producing stage, keyed by immutable stage name; collisions
+  rejected at version-create; later-hook self-writes replace the namespace
+  wholesale; see §3). The *values* under each namespace remain opaque,
+  unvalidated, and **not** covered by the per-hook input schema; full
+  inter-policy value-flow validation is deferred (§12), with the best-effort
+  produced/consumed warnings of §10.3 as the interim control.
 
 ### 10.8 As-built API, UI & observability
 
@@ -1205,6 +1419,50 @@ defend a case the structural guarantee already covers.
     (`guardrail evaluation failed guardrail=… error=…`) so a vendor outage,
     wrong endpoint, or timeout is visible (the generic 400 reason hides it).
 
+### 10.9 Staged rollout & version-targeted evaluation [DECIDED, not built]
+
+How operators evaluate a posture before it goes live. The engine's behavior is
+never forked (no shadow or dry-run mode: what you test is byte-for-byte what
+you promote); only the **audience** is. Any minted-but-unpromoted pipeline
+version is already a complete, immutable, addressable artifact, and a request
+header selects it per request.
+
+- **Selection header:** `X-Coder-AI-Gateway-Pipeline-Version: <version uuid>`
+  on the normal provider route. Deliberately a header, not a route or query
+  param: SDKs join `base_url + "/v1/messages"` and routinely mangle or drop
+  query strings on base URLs; a path prefix needs mux surgery; and the audience
+  is owners by definition, who live in curl/SDKs where `default_headers` is
+  trivial (Anthropic/OpenAI SDKs and Claude Code all support it).
+- **Authorization:** owner-only. Non-owner with the header → **403**, never a
+  silent fallthrough to the active version (a typo'd staging test must fail
+  loudly, not quietly exercise production posture). Unknown version, or a
+  version belonging to another provider's pipeline → 4xx, same reasoning. No
+  header → active version, untouched hot path.
+- **Full fidelity:** the targeted version evaluates exactly as live: real
+  guardrail network calls (real credentials), real failure synthesis (§2), real
+  BLOCKs (HTTP 400), real masking. Rollback rehearsal falls out for free: the
+  header can target an *older* version to verify a rollback candidate against
+  real traffic before repointing.
+- **Workflow** (with §10.1's explicit two-stage semantics): edit policy → save
+  with `activate=true` (or activate explicitly later) → propagation mints
+  re-pinned versions on each referencing pipeline's tip → point a test client
+  at the tip via the header → promote per pipeline (existing PATCH). The
+  test-before-*activate* loop (rehearsing a draft policy version that was never
+  activated) is a known residual gap, accepted: activation is low-stakes by
+  construction (it changes no live posture), so activating an untested version
+  costs only the policy's "current" pointer moving.
+- **Observability:** decision logs already stamp `pipeline_version`, which
+  disambiguates staged evaluations by itself; metrics additionally carry a
+  `staged` label (targeted version ≠ active). The propagation report (§10.1)
+  and the promote-time live-vs-candidate membership diff are the operator's
+  receipt and safety net.
+- **Schema impact: none.** No pending pointer, no `live` column, no new route.
+  The mechanism is the existing version rows + the active pointer + one header.
+- **Deferred (§12): traffic mirroring.** The header sees only traffic
+  deliberately pointed at it; tuning false-positive rates needs the real
+  traffic distribution. Asynchronously evaluating an unpromoted version against
+  live traffic (log-only, never affecting responses) is the phase-2 answer.
+
 ---
 
 ## 11. Open questions / next steps
@@ -1217,8 +1475,11 @@ defend a case the structural guarantee already covers.
 - Pipeline ordering is **resolved** to a per-hook partial order
   (`classify → route → decide → transform`, validate-after-mutate). Residual:
   re-evaluation if a transform changes inputs a prior decision already saw.
-- Specify **body- and annotation-threading** semantics across a mixed pipeline
-  and across hooks.
+- **Resolved (2026-06): body- and annotation-threading semantics.** Annotations
+  are host-namespaced per stage with last-write-wins-per-namespace across hooks
+  (§3); body mutation points are the guardrail patch chain + the transform
+  tail, each re-validated (§3a). Residual: only the deferred value-flow
+  validation (§12).
 - Streaming is **resolved** to an operator per-route choice with a phase split.
   Residual: window sizing defaults; halt-stream client UX; per-event cost budget.
 - Scope the **host-function standard library** (custom OPA built-ins, in Go) —
@@ -1230,9 +1491,15 @@ defend a case the structural guarantee already covers.
   built (§10, §10.8).** Residual: the in-binary schema-registry layout + the CI
   breaking-change guard; the **Terraform** surface (`coderd` provider) over these
   tables; per-execution decision logging beyond the `pipeline_version` log field
-  (FR17 store + UI); and the post-resp/streaming machinery (§12). Assisted upgrade
-  is built as **automatic** propagation on activate/revert (not per-pipeline
-  operator confirmation) — revisit if operators want a confirm step.
+  (FR17 store + UI, now including actor attribution); the **headless CI
+  validation surface** (FR22); the **all-hook verdict/block-rate counters**
+  (FR23); and the post-resp/streaming machinery (§12). **Newly
+  decided, not built (2026-06):** the unified StageResult reducer + failure
+  synthesis (§2), annotation namespacing + immutable names (§3, §10.1),
+  explicit activation/promotion with tip-based minting + the propagation report
+  (§10.1), the version-targeted evaluation header (§10.9), and the §10.3
+  name-collision check + annotation-flow warnings. The as-built auto-activating
+  propagation and the as-built activate-on-create default are superseded.
 - Map the **registry taxonomy** to OWASP LLM Top 10 / NIST AI RMF. (Reusable Rego
   modules are deferred — §12.)
 - Confirm the **escape hatch is unnecessary** (Rego's expressiveness should cover
@@ -1271,4 +1538,19 @@ Explicitly out of scope for v1; recorded so the v1 schema/runtime leave room.
    a different provider type and resolving which pipeline applies.
 7. **Inter-policy value-flow validation.** Validate the threaded `annotations`
    subtree (classifier-defined keys consumed by later stages/hooks) rather than
-   treating it as an opaque, unvalidated map.
+   treating it as an opaque, unvalidated map. (The §10.3 produced/consumed
+   warnings are the interim control.)
+8. **Conditional guardrail execution.** A guardrail membership MAY carry an
+   invocation condition (e.g. an annotation-key gate) so the vendor call is
+   skipped for requests that don't need it (cost/latency). A skipped guardrail
+   synthesizes `{verdict: ALLOW}` with a `skipped` audit marker; skipping is a
+   deliberate operator decision, not a failure, so `fail_mode` is not
+   consulted. IFF the condition needs resolved identity before the pre-req
+   guardrail stage, introduce a **post-auth hook** at that point (body-less
+   envelope: identity/headers/path only, preserving §3's masked-body invariant;
+   classify + decide only), and not before it's needed.
+9. **Traffic mirroring for staged versions.** Asynchronously evaluate an
+   unpromoted pipeline version against live traffic (log-only, never affecting
+   responses) to tune false-positive rates against the real traffic
+   distribution: the gap version-targeted evaluation (§10.9) deliberately does
+   not cover.
