@@ -95,12 +95,12 @@ export const MultipleExternalAuth: Story = {
 		const githubButton = await canvas.findByRole("button", {
 			name: /login with github/i,
 		});
-		const gitlabButton = await canvas.findByRole("button", {
-			name: /login with gitlab/i,
+		const azureButton = await canvas.findByRole("button", {
+			name: /login with azure/i,
 		});
 
 		expect(githubButton).toBeEnabled();
-		expect(gitlabButton).toBeEnabled();
+		expect(azureButton).toBeEnabled();
 	},
 };
 
@@ -124,19 +124,19 @@ export const ClickingOneAuthDoesNotDisableOthers: Story = {
 		const githubButton = await canvas.findByRole("button", {
 			name: /login with github/i,
 		});
-		const gitlabButton = await canvas.findByRole("button", {
-			name: /login with gitlab/i,
+		const azureButton = await canvas.findByRole("button", {
+			name: /login with azure/i,
 		});
 
 		await step("Click GitHub auth button", async () => {
 			await userEvent.click(githubButton);
 		});
 
-		await step("GitLab button remains enabled", async () => {
+		await step("Azure button remains enabled", async () => {
 			// After the fix, each provider tracks its own polling state so
 			// only the clicked provider shows a loading spinner.
 			await waitFor(() => {
-				expect(gitlabButton).toBeEnabled();
+				expect(azureButton).toBeEnabled();
 			});
 		});
 	},
@@ -162,11 +162,11 @@ export const OneProviderAuthenticated: Story = {
 			await canvas.findByText("Authenticated");
 		});
 
-		await step("GitLab login button is still enabled", async () => {
-			const gitlabButton = await canvas.findByRole("button", {
-				name: /login with gitlab/i,
+		await step("Azure login button is still enabled", async () => {
+			const azureButton = await canvas.findByRole("button", {
+				name: /login with azure/i,
 			});
-			expect(gitlabButton).toBeEnabled();
+			expect(azureButton).toBeEnabled();
 		});
 	},
 };
@@ -196,7 +196,7 @@ export const SequentialAuthFlow: Story = {
 
 		await step("Both buttons render initially", async () => {
 			await canvas.findByRole("button", { name: /login with github/i });
-			await canvas.findByRole("button", { name: /login with gitlab/i });
+			await canvas.findByRole("button", { name: /login with azure/i });
 		});
 
 		await step("Click GitHub and wait for it to authenticate", async () => {
@@ -214,11 +214,11 @@ export const SequentialAuthFlow: Story = {
 			});
 		});
 
-		await step("GitLab button is still clickable", async () => {
-			const gitlabButton = await canvas.findByRole("button", {
-				name: /login with gitlab/i,
+		await step("Azure button is still clickable", async () => {
+			const azureButton = await canvas.findByRole("button", {
+				name: /login with azure/i,
 			});
-			expect(gitlabButton).toBeEnabled();
+			expect(azureButton).toBeEnabled();
 		});
 	},
 };
