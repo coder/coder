@@ -2,10 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import type { TemplateVersionExternalAuth } from "#/api/typesGenerated";
 import {
 	MockTemplate,
 	MockTemplateVersion,
+	MockTemplateVersionExternalAuthAzure,
 	MockTemplateVersionExternalAuthGithub,
 	MockTemplateVersionExternalAuthGithubAuthenticated,
 	MockUserOwner,
@@ -15,20 +15,6 @@ import {
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
 import CreateWorkspacePage from "./CreateWorkspacePage";
-
-const MockGitLabExternalAuth: TemplateVersionExternalAuth = {
-	id: "gitlab",
-	type: "gitlab",
-	authenticate_url: "https://example.com/external-auth/gitlab",
-	authenticated: false,
-	display_icon: "/icon/gitlab.svg",
-	display_name: "GitLab",
-};
-
-const MockGitLabExternalAuthAuthenticated: TemplateVersionExternalAuth = {
-	...MockGitLabExternalAuth,
-	authenticated: true,
-};
 
 /**
  * Mocks API.templateVersionDynamicParameters to immediately send an empty
@@ -100,7 +86,7 @@ export const MultipleExternalAuth: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithub,
-			MockGitLabExternalAuth,
+			MockTemplateVersionExternalAuthAzure,
 		]);
 	},
 	play: async ({ canvasElement }) => {
@@ -129,7 +115,7 @@ export const ClickingOneAuthDoesNotDisableOthers: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithub,
-			MockGitLabExternalAuth,
+			MockTemplateVersionExternalAuthAzure,
 		]);
 	},
 	play: async ({ canvasElement, step }) => {
@@ -166,7 +152,7 @@ export const OneProviderAuthenticated: Story = {
 	beforeEach: () => {
 		spyOn(API, "getTemplateVersionExternalAuth").mockResolvedValue([
 			MockTemplateVersionExternalAuthGithubAuthenticated,
-			MockGitLabExternalAuth,
+			MockTemplateVersionExternalAuthAzure,
 		]);
 	},
 	play: async ({ canvasElement, step }) => {
@@ -198,11 +184,11 @@ export const SequentialAuthFlow: Story = {
 		spyOn(API, "getTemplateVersionExternalAuth")
 			.mockResolvedValueOnce([
 				MockTemplateVersionExternalAuthGithub,
-				MockGitLabExternalAuth,
+				MockTemplateVersionExternalAuthAzure,
 			])
 			.mockResolvedValue([
 				MockTemplateVersionExternalAuthGithubAuthenticated,
-				MockGitLabExternalAuth,
+				MockTemplateVersionExternalAuthAzure,
 			]);
 	},
 	play: async ({ canvasElement, step }) => {
