@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -1348,27 +1349,39 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verifiedRaw, ok := mergedClaims["email_verified"]
-	if ok {
-		verified, ok := verifiedRaw.(bool)
-		if ok && !verified {
-			if !api.OIDCConfig.IgnoreEmailVerified {
-				site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
-					Status:     http.StatusForbidden,
-					HideStatus: true,
-					Title:      "Email not verified",
-					Description: fmt.Sprintf(
-						"Verify the %q email address on your OIDC provider to authenticate!",
-						email,
-					),
-					Actions: []site.Action{
-						{URL: "/login", Text: "Back to login"},
-					},
-				})
-				return
-			}
-			logger.Warn(ctx, "allowing unverified oidc email", slog.F("email", email))
+	// Determine whether the email is verified. Default to unverified
+	// so that a missing claim or an unrecognized type is fail-closed.
+	emailVerified := false
+	verifiedRaw, hasVerifiedClaim := mergedClaims["email_verified"]
+	if hasVerifiedClaim {
+		v, coerceOK := coerceEmailVerified(verifiedRaw)
+		if coerceOK {
+			emailVerified = v
+		} else {
+			logger.Warn(ctx, "unrecognized email_verified claim type, treating as unverified",
+				slog.F("type", fmt.Sprintf("%T", verifiedRaw)),
+				slog.F("value", verifiedRaw),
+			)
 		}
+	}
+
+	if !emailVerified {
+		if !api.OIDCConfig.IgnoreEmailVerified {
+			site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+				Status:     http.StatusForbidden,
+				HideStatus: true,
+				Title:      "Email not verified",
+				Description: fmt.Sprintf(
+					"Verify the %q email address on your OIDC provider to authenticate!",
+					email,
+				),
+				Actions: []site.Action{
+					{URL: "/login", Text: "Back to login"},
+				},
+			})
+			return
+		}
+		logger.Warn(ctx, "allowing unverified oidc email", slog.F("email", email))
 	}
 
 	// The username is a required property in Coder. We make a best-effort
@@ -2233,5 +2246,41 @@ func wrongLoginTypeHTTPError(user database.LoginType, params database.LoginType)
 		Msg:              "Incorrect login type",
 		Detail: fmt.Sprintf("Attempting to use login type %q, but the user has the login type %q.%s",
 			params, user, addedMsg),
+	}
+}
+
+// coerceEmailVerified attempts to convert an OIDC email_verified claim to a
+// boolean. Some IdPs (e.g. SAML-to-OIDC bridges, certain Azure AD B2C
+// configurations) return email_verified as a string ("true"/"false") or a
+// number (1/0) rather than a native JSON boolean. This function handles
+// those variants so that non-bool representations cannot silently bypass
+// the verification check.
+//
+// Returns (value, true) on successful coercion, or (false, false) if the
+// value is nil or an unrecognized type.
+func coerceEmailVerified(v interface{}) (verified bool, ok bool) {
+	switch val := v.(type) {
+	case bool:
+		return val, true
+	case string:
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			return false, false
+		}
+		return b, true
+	case json.Number:
+		n, err := val.Int64()
+		if err != nil {
+			return false, false
+		}
+		return n != 0, true
+	case float64:
+		return val != 0, true
+	case int64:
+		return val != 0, true
+	case int:
+		return val != 0, true
+	default:
+		return false, false
 	}
 }
