@@ -962,7 +962,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store

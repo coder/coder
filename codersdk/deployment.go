@@ -2839,7 +2839,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Proxy Trusted Origins",
 			Flag:        "proxy-trusted-origins",
 			Env:         "CODER_PROXY_TRUSTED_ORIGINS",
-			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24.",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.",
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
