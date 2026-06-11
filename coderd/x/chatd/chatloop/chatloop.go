@@ -598,14 +598,14 @@ func Run(ctx context.Context, opts RunOptions) error {
 				"normal_persist", step, result.finishReason, result.content,
 			)
 			if len(result.content) == 0 {
-				lastUsage = result.usage
-				lastProviderMetadata = result.providerMetadata
 				// A content-filter finish with no content is a provider
 				// block (e.g. Anthropic refusal), not a normal stop. End the
 				// turn as a user-visible error instead of silently.
 				if result.finishReason == fantasy.FinishReasonContentFilter {
 					return contentFilterError(provider, result.providerMetadata)
 				}
+				lastUsage = result.usage
+				lastProviderMetadata = result.providerMetadata
 				stoppedByModel = true
 				break
 			}
