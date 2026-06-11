@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -102,7 +103,7 @@ func TestCoordinator(t *testing.T) {
 			PreferredDerp: 10,
 		})
 		agent.AssertEventuallyResponsesClosed(
-			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", tailnet.InvalidNodeAddressError{Addr: prefix.Addr().String()})}.Error())
 	})
 
 	t.Run("AgentWithoutClients_InvalidAllowedIP", func(t *testing.T) {
@@ -127,7 +128,7 @@ func TestCoordinator(t *testing.T) {
 			PreferredDerp: 10,
 		})
 		agent.AssertEventuallyResponsesClosed(
-			tailnet.AuthorizationError{Wrapped: tailnet.InvalidNodeAddressError{Addr: victim.Addr().String()}}.Error())
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("AllowedIps: %w", tailnet.InvalidNodeAddressError{Addr: victim.Addr().String()})}.Error())
 	})
 
 	t.Run("AgentWithoutClients_InvalidBits", func(t *testing.T) {
@@ -149,7 +150,7 @@ func TestCoordinator(t *testing.T) {
 			PreferredDerp: 10,
 		})
 		agent.AssertEventuallyResponsesClosed(
-			tailnet.AuthorizationError{Wrapped: tailnet.InvalidAddressBitsError{Bits: 64}}.Error())
+			tailnet.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", tailnet.InvalidAddressBitsError{Bits: 64})}.Error())
 	})
 
 	t.Run("AgentWithClient", func(t *testing.T) {

@@ -120,7 +120,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -146,7 +146,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidAddressBitsError{Bits: 64}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidAddressBitsError{Bits: 64})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -174,9 +174,9 @@ func TestPGCoordinatorSingle_AgentInvalidAllowedIP(t *testing.T) {
 		PreferredDerp: 10,
 	})
 
-	// The agent connection should be closed immediately after sending an invalid addr
+	// The agent connection should be closed after sending an invalid AllowedIP.
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidNodeAddressError{Addr: victim.Addr().String()}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("AllowedIps: %w", agpl.InvalidNodeAddressError{Addr: victim.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 

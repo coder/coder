@@ -76,10 +76,10 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 		// derived from its own UUID. Without this an agent could claim a victim
 		// agent's IP and have traffic routed to it.
 		if err := a.authorizeNodePrefixes(upd.Node.Addresses); err != nil {
-			return err
+			return xerrors.Errorf("Addresses: %w", err)
 		}
 		if err := a.authorizeNodePrefixes(upd.Node.AllowedIps); err != nil {
-			return err
+			return xerrors.Errorf("AllowedIps: %w", err)
 		}
 	}
 
@@ -89,8 +89,8 @@ func (a AgentCoordinateeAuth) Authorize(_ context.Context, req *proto.Coordinate
 // authorizeNodePrefixes verifies that every prefix is a /128 address derived
 // from the agent's own UUID (or the legacy workspace agent IP).
 func (a AgentCoordinateeAuth) authorizeNodePrefixes(prefixes []string) error {
-	for _, addrStr := range prefixes {
-		pre, err := netip.ParsePrefix(addrStr)
+	for _, prefixStr := range prefixes {
+		pre, err := netip.ParsePrefix(prefixStr)
 		if err != nil {
 			return xerrors.Errorf("parse node address: %w", err)
 		}
