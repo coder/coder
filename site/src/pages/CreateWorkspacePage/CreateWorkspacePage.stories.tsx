@@ -132,12 +132,8 @@ export const ClickingOneAuthDoesNotDisableOthers: Story = {
 			await userEvent.click(githubButton);
 		});
 
-		await step("Azure button remains enabled", async () => {
-			// After the fix, each provider tracks its own polling state so
-			// only the clicked provider shows a loading spinner.
-			await waitFor(() => {
-				expect(azureButton).toBeEnabled();
-			});
+		await step("Azure button remains enabled", () => {
+			expect(azureButton).toBeEnabled();
 		});
 	},
 };
