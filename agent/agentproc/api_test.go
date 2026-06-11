@@ -152,7 +152,7 @@ func TestAccessLogIncludesChatID(t *testing.T) {
 	t.Cleanup(func() {
 		_ = api.Close()
 	})
-	handler := tracing.StatusWriterMiddleware(loggermw.Logger(logger)(
+	handler := tracing.StatusWriterMiddleware(loggermw.Logger(logger, nil)(
 		agentchat.Middleware(api.Routes()),
 	))
 
