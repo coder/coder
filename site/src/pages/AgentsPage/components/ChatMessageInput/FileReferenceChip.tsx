@@ -91,7 +91,6 @@ type FileReferenceChipSelectedProps = Pick<
 type FileReferenceChipProps = FileReferenceChipBaseProps &
 	FileReferenceChipSelectedProps;
 
-// Rendered messages should not expose inactive controls to assistive tech.
 export function FileReferenceChip({
 	fileName,
 	startLine,
@@ -121,7 +120,6 @@ export function FileReferenceChip({
 	);
 }
 
-// Lexical editor chips need explicit actions for opening and removal.
 export function EditableFileReferenceChip({
 	fileName,
 	startLine,
@@ -146,7 +144,7 @@ export function EditableFileReferenceChip({
 			data-slot="file-reference-chip"
 			className={cn(
 				fileReferenceChipVariants({ interactive: true, selected }),
-				"border-border-secondary",
+				"border-border-secondary bg-surface-tertiary text-content-primary hover:bg-surface-quaternary",
 				className,
 			)}
 			contentEditable={false}
