@@ -297,7 +297,10 @@ const ChatSearchResultRow: FC<ChatSearchResultRowProps> = ({
 						aria-hidden="true"
 					/>
 				)}
-				{shortRelativeTime(chat.updated_at)}
+				{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+				<span data-chromatic="ignore" className="inline-block w-7 text-right">
+					{shortRelativeTime(chat.updated_at)}
+				</span>
 			</span>
 		</Link>
 	);

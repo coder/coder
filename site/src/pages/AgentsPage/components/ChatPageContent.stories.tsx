@@ -37,6 +37,8 @@ const buildThinkingSpacerStore = () => {
 				text: "I should think before answering.",
 			},
 		]),
+		// A following message is needed so the spacer renders.
+		buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
 	]);
 
 	return store;

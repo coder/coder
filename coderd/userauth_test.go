@@ -2001,6 +2001,53 @@ func TestUserOIDC(t *testing.T) {
 			"linked_id must not be modified when the login is blocked")
 	})
 
+	t.Run("OIDCSuspended", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Pre-existing OIDC user that has been suspended by an admin.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+			Status:    database.UserStatusSuspended,
+		})
+
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   uuid.NewString(),
+		})
+		// The OIDC handler should reject the login with an explanatory
+		// 403 instead of silently issuing a session and letting the SPA
+		// bounce the user back to /login with no message.
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "suspended", "error page should explain why login was rejected")
+
+		// The user's status must remain suspended; nothing in the OAuth
+		// transaction should have been committed.
+		//nolint:gocritic // System read for verification.
+		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.UserStatusSuspended, dbUser.Status)
+	})
+
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()
 

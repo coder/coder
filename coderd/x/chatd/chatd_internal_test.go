@@ -4972,6 +4972,10 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			}
 
 			clock := quartz.NewMock(t)
+			timeoutTrap := clock.Trap().AfterFunc("chatd", dialTimeoutTimerTag)
+			defer timeoutTrap.Close()
+			delayTrap := clock.Trap().NewTimer("chatd", dialValidationDelayTimerTag)
+			defer delayTrap.Close()
 			now := clock.Now()
 			disconnectedAgent := database.WorkspaceAgent{
 				ID: agentID,
@@ -5003,7 +5007,10 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 				agentInactiveDisconnectTimeout: 30 * time.Second,
 				dialTimeout:                    10 * time.Millisecond,
 			}
+			dialEntered := make(chan struct{})
+			var closeDialEntered sync.Once
 			server.agentConnFn = func(ctx context.Context, _ uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				closeDialEntered.Do(func() { close(dialEntered) })
 				<-ctx.Done()
 				return nil, nil, ctx.Err()
 			}
@@ -5019,13 +5026,41 @@ func TestGetWorkspaceConn_DialTimeoutDisconnectedRecoveryThreshold(t *testing.T)
 			defer workspaceCtx.close()
 
 			ctx := testutil.Context(t, testutil.WaitShort)
-			gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
-			require.Nil(t, gotConn)
-			require.ErrorIs(t, err, tc.wantErr)
+			type workspaceConnResult struct {
+				conn workspacesdk.AgentConn
+				err  error
+			}
+			resultCh := make(chan workspaceConnResult, 1)
+			go func() {
+				gotConn, err := workspaceCtx.getWorkspaceConn(ctx)
+				resultCh <- workspaceConnResult{conn: gotConn, err: err}
+			}()
+
+			timeoutCall := timeoutTrap.MustWait(ctx)
+			require.Equal(t, server.dialTimeout, timeoutCall.Duration)
+			timeoutCall.MustRelease(ctx)
+			delayCall := delayTrap.MustWait(ctx)
+			require.Equal(t, workspaceDialValidationDelay, delayCall.Duration)
+			delayCall.MustRelease(ctx)
+			select {
+			case <-dialEntered:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for dial to start")
+			}
+			clock.Advance(server.dialTimeout).MustWait(ctx)
+
+			var result workspaceConnResult
+			select {
+			case result = <-resultCh:
+			case <-ctx.Done():
+				t.Fatal("timed out waiting for getWorkspaceConn")
+			}
+			require.Nil(t, result.conn)
+			require.ErrorIs(t, result.err, tc.wantErr)
 			if tc.wantRecovery {
-				require.ErrorIs(t, err, errChatAgentDisconnected)
+				require.ErrorIs(t, result.err, errChatAgentDisconnected)
 			} else {
-				require.NotErrorIs(t, err, errChatAgentDisconnected)
+				require.NotErrorIs(t, result.err, errChatAgentDisconnected)
 			}
 
 			workspaceCtx.mu.Lock()

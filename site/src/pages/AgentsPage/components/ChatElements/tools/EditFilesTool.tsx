@@ -4,6 +4,7 @@ import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
@@ -85,6 +86,9 @@ export const EditFilesTool: React.FC<{
 									fileDiff={stripNoNewline(diff)}
 									options={getDiffViewerOptions(isDark)}
 									style={DIFFS_FONT_STYLE}
+									renderCustomHeader={(fileDiff) => (
+										<DiffFileHeader file={fileDiff} />
+									)}
 								/>
 							</ScrollArea>
 						) : null,
