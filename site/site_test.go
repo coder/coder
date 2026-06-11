@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -38,6 +40,82 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type staticAppearanceFetcher struct {
+	cfg codersdk.AppearanceConfig
+}
+
+func (f staticAppearanceFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
+	return f.cfg, nil
+}
+
+func TestInjectionAppearanceEscapesMetaAttributes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		applicationName = `Coder"><script>alert(1)</script>`
+		logoURL         = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+	)
+
+	tests := []struct {
+		name          string
+		authenticated bool
+	}{
+		{
+			name: "unauthenticated",
+		},
+		{
+			name:          "authenticated",
+			authenticated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte(`<meta name="application-name" content="{{ .ApplicationName }}" /><meta property="logo-url" content="{{ .LogoURL }}" />`),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+			fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{
+				ApplicationName: applicationName,
+				LogoURL:         logoURL,
+			}})
+			appearanceFetcher.Store(&fetcher)
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				Database:          db,
+				SiteFS:            siteFS,
+				AppearanceFetcher: &appearanceFetcher,
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			if tt.authenticated {
+				user := dbgen.User(t, db, database.User{})
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: time.Now().Add(time.Hour),
+				})
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+			}
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			body := rw.Body.String()
+
+			require.True(t, strings.Contains(body, html.EscapeString(applicationName)), "application name must be HTML escaped")
+			require.True(t, strings.Contains(body, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
+			require.False(t, strings.Contains(body, applicationName), "raw application name must not be rendered")
+			require.False(t, strings.Contains(body, logoURL), "raw logo URL must not be rendered")
+		})
+	}
+}
 
 func TestInjection(t *testing.T) {
 	t.Parallel()
