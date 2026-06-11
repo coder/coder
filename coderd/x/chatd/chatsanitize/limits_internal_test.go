@@ -11,6 +11,7 @@ import (
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/codersdk"
@@ -120,6 +121,7 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 			fantasy.TextPart{Text: strings.Repeat("x", 30)},
 			fantasy.ToolCallPart{ToolName: "grep", Input: strings.Repeat("y", 30)},
 			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentText{Text: strings.Repeat("z", 30)}},
+			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentError{Error: xerrors.New(strings.Repeat("e", 30))}},
 		}
 		for _, part := range parts {
 			require.NoError(t, validateWithCaps(promptWithParts(part), caps))

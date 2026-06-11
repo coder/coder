@@ -208,6 +208,11 @@ func toolResultOutputBytes(output fantasy.ToolResultOutputContent) int {
 		// Media data is already base64-encoded.
 		return len(media.Data) + len(media.Text)
 	}
+	// Failed tool results are serialized back into the provider request with
+	// their full error text, so they count toward the body size too.
+	if errOutput, ok := safeToolResultOutput[fantasy.ToolResultOutputContentError](output); ok && errOutput.Error != nil {
+		return len(errOutput.Error.Error())
+	}
 	return 0
 }
 
