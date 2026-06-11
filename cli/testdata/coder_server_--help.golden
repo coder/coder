@@ -454,8 +454,8 @@ NETWORKING OPTIONS:
           True-Client-Ip, X-Forwarded-For.
 
       --proxy-trusted-origins string-array, $CODER_PROXY_TRUSTED_ORIGINS
-          Origin addresses to respect "proxy-trusted-headers". e.g.
-          192.168.1.0/24.
+          Origin addresses to respect "proxy-trusted-headers" and
+          X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
       --redirect-to-access-url bool, $CODER_REDIRECT_TO_ACCESS_URL
           Specifies whether to redirect requests that do not match the access
