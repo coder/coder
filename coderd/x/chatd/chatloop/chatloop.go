@@ -54,10 +54,8 @@ var (
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
 
-	// ErrContentFiltered is returned when the model produced no content and
-	// finished with a content-filter reason (e.g. Anthropic's "refusal"
-	// stop reason). It carries a classification so the turn ends as a
-	// user-visible blocked error instead of a silent empty turn.
+	// ErrContentFiltered is returned when the model finishes with
+	// FinishReasonContentFilter and produces no content.
 	ErrContentFiltered = xerrors.New("model response blocked by content filter")
 
 	errStreamSilenceTimeout = xerrors.New(
@@ -65,9 +63,8 @@ var (
 	)
 )
 
-// contentFilterError builds a classified, user-visible error for a turn that
-// produced no content because the provider blocked it. When Anthropic refusal
-// metadata is present, its explanation and category are surfaced.
+// contentFilterError builds a classified error from a content-filter finish.
+// Anthropic refusal metadata is surfaced when present.
 func contentFilterError(provider string, metadata fantasy.ProviderMetadata) error {
 	classified := chaterror.ClassifiedError{
 		Kind:      codersdk.ChatErrorKindContentFilter,
@@ -599,9 +596,8 @@ func Run(ctx context.Context, opts RunOptions) error {
 				"normal_persist", step, result.finishReason, result.content,
 			)
 			if len(result.content) == 0 {
-				// A content-filter finish with no content is a provider
-				// block (e.g. Anthropic refusal), not a normal stop. End the
-				// turn as a user-visible error instead of silently.
+				// A content-filter finish with empty content is a provider
+				// block, not a normal empty stop.
 				if result.finishReason == fantasy.FinishReasonContentFilter {
 					return contentFilterError(provider, result.providerMetadata)
 				}
