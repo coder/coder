@@ -73,6 +73,8 @@ type sqlcQuerier interface {
 	AutoArchiveInactiveChats(ctx context.Context, arg AutoArchiveInactiveChatsParams) ([]AutoArchiveInactiveChatsRow, error)
 	// old_provider is matched as text; new_provider is also cast to ai_provider_type
 	// for the EXISTS check against ai_providers.type.
+	// ai_provider_id IS NOT NULL is defensive; the check constraint already
+	// enforces that non-deleted rows always have a provider ID.
 	BackfillChatModelConfigProvider(ctx context.Context, arg BackfillChatModelConfigProviderParams) (sql.Result, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error

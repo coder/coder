@@ -91,6 +91,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			native := dbgen.AIProvider(t, db, database.AIProvider{
 				Type: database.AiProviderTypeAnthropic,
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, native.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
@@ -104,6 +105,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Type:     database.AiProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
+			require.Equal(t, database.AiProviderTypeBedrock, native.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
@@ -117,6 +119,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, deleted.Type, "pre-condition")
 			require.NoError(t, db.DeleteAIProviderByID(ctx, deleted.ID))
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
@@ -142,6 +145,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Enabled:  false,
 				Settings: bedrockSettings,
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, disabled.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
@@ -158,6 +162,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{}", Valid: true},
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, nonBedrock.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
@@ -171,10 +176,12 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{", Valid: true},
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, malformed.Type, "pre-condition")
 			good := dbgen.AIProvider(t, db, database.AIProvider{
 				Type:     database.AiProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
+			require.Equal(t, database.AiProviderTypeAnthropic, good.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
