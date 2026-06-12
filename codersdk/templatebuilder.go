@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 )
 
 // TemplateBuilderVariableType enumerates the variable types
@@ -23,7 +24,6 @@ type TemplateBuilderModuleVariable struct {
 	Default     json.RawMessage             `json:"default,omitempty"`
 	Required    bool                        `json:"required"`
 	Sensitive   bool                        `json:"sensitive"`
-	Computed    bool                        `json:"computed"`
 }
 
 // TemplateBuilderModule is the API response type returned by
@@ -41,6 +41,7 @@ type TemplateBuilderModule struct {
 	Variables     []TemplateBuilderModuleVariable `json:"variables"`
 }
 
+// TemplateBuilderModulesResponse is the response body for listing template builder modules.
 type TemplateBuilderModulesResponse struct {
 	Modules []TemplateBuilderModule `json:"modules"`
 }
@@ -72,5 +73,25 @@ func (c *Client) TemplateBuilderBases(ctx context.Context) (TemplateBuilderBases
 		return TemplateBuilderBasesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderBasesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// TemplateBuilderModules returns the list of modules available for a given
+// base template. If base is empty, all modules are returned.
+func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (TemplateBuilderModulesResponse, error) {
+	path := "/api/v2/templatebuilder/modules"
+	if base != "" {
+		q := url.Values{"base": {base}}
+		path += "?" + q.Encode()
+	}
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return TemplateBuilderModulesResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateBuilderModulesResponse{}, ReadBodyAsError(res)
+	}
+	var resp TemplateBuilderModulesResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

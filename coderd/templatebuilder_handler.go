@@ -67,3 +67,54 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		Bases: bases,
 	})
 }
+
+// @Summary List template builder modules
+// @ID list-template-builder-modules
+// @Security CoderSessionToken
+// @Produce json
+// @Tags TemplateBuilder
+// @Param base query string false "Base template example ID for OS-compatibility filtering"
+// @Success 200 {object} codersdk.TemplateBuilderModulesResponse
+// @Router /api/v2/templatebuilder/modules [get]
+func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	manifests, err := templatebuilder.LoadModules()
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error loading module catalog.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Resolve OS filter from the base query param.
+	var filterOS templatebuilder.BaseOS
+	if base := r.URL.Query().Get("base"); base != "" {
+		filterOS = templatebuilder.BaseTemplateOS(base)
+		if filterOS == "" {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Unknown base template.",
+				Detail:  "The \"base\" query parameter must be a valid base template ID.",
+			})
+			return
+		}
+	}
+
+	modules := make([]codersdk.TemplateBuilderModule, 0, len(manifests))
+	for _, m := range manifests {
+		if filterOS != "" && !m.CompatibleWithOS(string(filterOS)) {
+			continue
+		}
+		modules = append(modules, m.ToSDK())
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderModulesResponse{
+		Modules: modules,
+	})
+}

@@ -8204,10 +8204,12 @@ export interface TemplateBuilderModuleVariable {
 	readonly default?: Record<string, string>;
 	readonly required: boolean;
 	readonly sensitive: boolean;
-	readonly computed: boolean;
 }
 
 // From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModulesResponse is the response body for listing template builder modules.
+ */
 export interface TemplateBuilderModulesResponse {
 	readonly modules: readonly TemplateBuilderModule[];
 }

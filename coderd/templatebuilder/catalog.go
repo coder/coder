@@ -137,11 +137,31 @@ func parseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
 	return modules, nil
 }
 
+// CompatibleWithOS reports whether the module is compatible with the given OS.
+// Modules with an empty CompatibleOS list are compatible with all platforms.
+func (m ModuleManifest) CompatibleWithOS(os string) bool {
+	if len(m.CompatibleOS) == 0 {
+		return true
+	}
+	for _, supported := range m.CompatibleOS {
+		if supported == os {
+			return true
+		}
+	}
+	return false
+}
+
 // ToSDK converts a ModuleManifest to the API response type.
 // PinnedVersion is mapped to Version; tags are not part of the API surface.
+// Computed variables are excluded from the output.
 func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 	variables := make([]codersdk.TemplateBuilderModuleVariable, 0, len(m.Variables))
 	for _, v := range m.Variables {
+		// Computed variables (e.g. agent_id) are wired by the builder
+		// automatically and must not be surfaced to the user.
+		if v.Computed {
+			continue
+		}
 		variables = append(variables, codersdk.TemplateBuilderModuleVariable{
 			Name:        v.Name,
 			Type:        validVariableTypes[v.Type],
@@ -149,7 +169,6 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 			Default:     v.Default,
 			Required:    v.Required,
 			Sensitive:   v.Sensitive,
-			Computed:    v.Computed,
 		})
 	}
 

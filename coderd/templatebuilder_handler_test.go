@@ -81,3 +81,107 @@ func TestTemplateBuilderBases(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
+
+func TestTemplateBuilderModules(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.TemplateBuilderModules(ctx, "")
+		require.NoError(t, err)
+		require.NotEmpty(t, resp.Modules)
+
+		for _, m := range resp.Modules {
+			require.NotEmpty(t, m.ID)
+			require.NotEmpty(t, m.Version)
+		}
+	})
+
+	t.Run("FilteredByBase", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.TemplateBuilderModules(ctx, "docker")
+		require.NoError(t, err)
+
+		for _, m := range resp.Modules {
+			if len(m.CompatibleOS) > 0 {
+				require.Contains(t, m.CompatibleOS, "linux",
+					"module %q should be compatible with linux when filtered by docker base", m.ID)
+			}
+		}
+	})
+
+	t.Run("ComputedVariablesExcluded", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.TemplateBuilderModules(ctx, "")
+		require.NoError(t, err)
+
+		// The embedded code-server module has agent_id with computed=true.
+		// It must not appear in the API response.
+		var found bool
+		for _, m := range resp.Modules {
+			if m.ID == "code-server" {
+				found = true
+				for _, v := range m.Variables {
+					require.NotEqual(t, "agent_id", v.Name,
+						"computed variable agent_id must not appear in API response")
+				}
+			}
+		}
+		require.True(t, found, "code-server module must be in the catalog")
+	})
+
+	t.Run("UnknownBaseReturns400", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateBuilderModules(ctx, "nonexistent")
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("DisabledReturns404", func(t *testing.T) {
+		t.Parallel()
+		dv := coderdtest.DeploymentValues(t)
+		dv.TemplateBuilder.Disabled = true
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.TemplateBuilderModules(ctx, "")
+		require.Error(t, err)
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
