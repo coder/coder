@@ -79,7 +79,8 @@ export const RightPanelAddTabControl: FC<{
 }) => {
 	const [open, setOpen] = useState(false);
 	const userApps = agent?.apps.filter((app) => !app.hidden) ?? [];
-	const canCreateTerminal = workspace !== undefined && agent !== undefined;
+	const canCreateTerminal =
+		workspace !== undefined && agent !== undefined && isRunning;
 
 	return (
 		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">

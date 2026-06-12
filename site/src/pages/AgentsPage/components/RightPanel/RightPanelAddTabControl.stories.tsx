@@ -154,12 +154,12 @@ export const DisconnectedWorkspace: Story = {
 
 		const body = within(document.body);
 		await waitFor(() => {
-			// Creating a terminal is gated on workspace/agent presence, not on
-			// the workspace running.
+			// Creating a terminal is disabled while the workspace is not
+			// running, since the agent cannot accept a PTY session.
 			const terminalItem = body
 				.getByText("New Terminal")
 				.closest("[role=menuitem]");
-			expect(terminalItem).not.toHaveAttribute("aria-disabled", "true");
+			expect(terminalItem).toHaveAttribute("aria-disabled", "true");
 
 			// App items render but are disabled while the workspace is not
 			// running.
