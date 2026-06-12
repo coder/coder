@@ -140,6 +140,17 @@ if [[ " $* " == *" --check "* ]]; then
 	fi
 fi
 
+# Committed testdata encodes linux/amd64 values from coder_provisioner.
+# Regenerating elsewhere bakes in the host OS/arch.
+if [[ "$(uname)" != "Linux" ]]; then
+	if ((upgrade)); then
+		echo "ERROR: --upgrade is not supported on $(uname); run on Linux or via CI."
+		exit 1
+	fi
+	echo "Note: skipping testdata regeneration on $(uname); regenerate on Linux or via CI."
+	exit 0
+fi
+
 # Filter flags from positional args to get directory names.
 declare -a dirs=()
 for arg in "$@"; do
