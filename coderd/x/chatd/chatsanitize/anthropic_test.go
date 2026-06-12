@@ -6,6 +6,7 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -318,6 +319,25 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 		{
 			name:     "removes unpaired call and keeps text",
 			provider: fantasyanthropic.Name,
+			messages: []fantasy.Message{{
+				Role: fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{
+					textPart,
+					providerCall("srvtoolu_orphan_call"),
+				},
+			}},
+			want: []fantasy.Message{{
+				Role:    fantasy.MessageRoleAssistant,
+				Content: []fantasy.MessagePart{textPart},
+			}},
+			wantRemovedCalls: 1,
+		},
+		{
+			// Regression: fantasy's bedrock provider reports Provider() ==
+			// "bedrock"; it must be sanitized identically to "anthropic".
+			// Before IsAnthropicFamily this case was skipped (call kept).
+			name:     "bedrock is treated as anthropic-family",
+			provider: fantasybedrock.Name,
 			messages: []fantasy.Message{{
 				Role: fantasy.MessageRoleAssistant,
 				Content: []fantasy.MessagePart{
@@ -925,7 +945,7 @@ func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {
 			require.Equal(t, tc.wantRemovedResults, stats.RemovedToolResults)
 			require.Equal(t, tc.wantDropped, stats.DroppedMessages)
 			require.Equal(t, tc.want, sanitized)
-			if tc.provider == fantasyanthropic.Name {
+			if chatsanitize.IsAnthropicFamily(tc.provider) {
 				require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(sanitized))
 			}
 		})

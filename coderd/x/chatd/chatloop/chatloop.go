@@ -1385,7 +1385,7 @@ func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {
 	if model == nil {
 		return false
 	}
-	return model.Provider() == fantasyanthropic.Name
+	return chatsanitize.IsAnthropicFamily(model.Provider())
 }
 
 // addAnthropicPromptCaching mutates messages in-place, setting

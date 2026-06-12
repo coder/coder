@@ -7,12 +7,25 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
+	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 )
 
 const maxAnthropicProviderToolViolationLogDetails = 32
+
+// IsAnthropicFamily reports whether a provider speaks the Anthropic Messages
+// wire format and so needs Anthropic-specific handling (prompt caching, the
+// provider-executed tool guard, tool-history sanitization).
+//
+// fantasy's bedrock provider is the Anthropic provider wrapped with
+// WithName("bedrock"): it emits identical payloads but reports a different
+// Provider() string, so a bare == fantasyanthropic.Name check excludes it. Only
+// Anthropic models reach this provider, so matching on the id is sufficient.
+func IsAnthropicFamily(provider string) bool {
+	return provider == fantasyanthropic.Name || provider == fantasybedrock.Name
+}
 
 // Anthropic replay contract. Signed or redacted reasoning parts are preserved.
 // Provider-executed tool calls without matching results are incomplete
@@ -219,7 +232,7 @@ func AnthropicProviderToolPartsToRemove(
 	parts []fantasy.MessagePart,
 ) (map[int]struct{}, []AnthropicProviderToolHistoryViolation) {
 	remove := make(map[int]struct{})
-	if provider != fantasyanthropic.Name || len(parts) == 0 {
+	if !IsAnthropicFamily(provider) || len(parts) == 0 {
 		return remove, nil
 	}
 
@@ -246,7 +259,7 @@ func SanitizeAnthropicProviderToolHistory(
 	messages []fantasy.Message,
 ) ([]fantasy.Message, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
-	if provider != fantasyanthropic.Name || len(messages) == 0 {
+	if !IsAnthropicFamily(provider) || len(messages) == 0 {
 		return messages, stats
 	}
 
@@ -333,7 +346,7 @@ func SanitizeAnthropicProviderToolContent(
 	content []fantasy.Content,
 ) ([]fantasy.Content, AnthropicProviderToolSanitizationStats) {
 	var stats AnthropicProviderToolSanitizationStats
-	if provider != fantasyanthropic.Name || len(content) == 0 {
+	if !IsAnthropicFamily(provider) || len(content) == 0 {
 		return content, stats
 	}
 	if contentHasAnthropicSignedReasoning(content) {
@@ -477,7 +490,7 @@ func ApplyAnthropicProviderToolGuard(
 	modelName string,
 	messages []fantasy.Message,
 ) ([]fantasy.Message, error) {
-	if provider != fantasyanthropic.Name || len(messages) == 0 {
+	if !IsAnthropicFamily(provider) || len(messages) == 0 {
 		return messages, nil
 	}
 
