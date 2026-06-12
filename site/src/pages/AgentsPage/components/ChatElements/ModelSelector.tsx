@@ -270,7 +270,26 @@ const ModelPickerPanel: FC<ModelPickerPanelProps> = ({
 					className="h-10 text-sm"
 					aria-label="Search models"
 				/>
-				<CommandList className="max-h-[280px] border-t-0">
+				<CommandList
+					className={cn(
+						// Keep the default top border from `Command`'s list (drawn
+						// with the theme `border-border` token) so there is a clean
+						// rule between the search input and the model rows in both
+						// dark and light themes.
+						"max-h-[280px]",
+						// Slimmer custom scrollbar. The 8px width keeps a usable
+						// hit area for the thumb while taking less visual weight
+						// than the default browser scrollbar. `scrollbar-width:
+						// thin` covers Firefox; the `::-webkit-scrollbar` rules
+						// cover Chromium and Safari.
+						"[scrollbar-width:thin]",
+						"[&::-webkit-scrollbar]:w-2",
+						"[&::-webkit-scrollbar-track]:bg-transparent",
+						"[&::-webkit-scrollbar-thumb]:rounded-full",
+						"[&::-webkit-scrollbar-thumb]:bg-surface-quaternary",
+						"[&::-webkit-scrollbar-thumb:hover]:bg-surface-tertiary",
+					)}
+				>
 					<CommandEmpty className="py-6 text-center text-sm text-content-secondary">
 						{options.length === 0 ? emptyMessage : "No matching models."}
 					</CommandEmpty>
