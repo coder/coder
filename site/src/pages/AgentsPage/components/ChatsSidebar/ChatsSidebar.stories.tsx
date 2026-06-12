@@ -117,6 +117,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
+		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),

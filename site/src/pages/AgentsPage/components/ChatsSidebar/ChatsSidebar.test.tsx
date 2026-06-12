@@ -134,9 +134,82 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	isCreating: false,
 	sidebarFilters: defaultSidebarFilters,
 	onSidebarFiltersChange: vi.fn(),
+	currentUserId: MockUserOwner.id,
 };
 
 // ---- Tests ----
+
+describe("ChatsSidebar sections", () => {
+	it("renders unpinned shared chats in Shared with you before date sections", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-shared-chat",
+							title: "Pinned shared chat",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user-id",
+							shared: true,
+						}),
+						buildChat({
+							id: "owned-shared-chat",
+							title: "Owned shared chat",
+							shared: true,
+							updated_at: new Date().toISOString(),
+						}),
+						buildChat({
+							id: "owned-chat",
+							title: "Owned chat",
+							updated_at: new Date().toISOString(),
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const pinnedSection = screen.getByTestId("agents-section-toggle-Pinned");
+		const pinnedSharedNode = screen.getByTestId(
+			"agents-tree-node-pinned-shared-chat",
+		);
+		const sharedSection = screen.getByTestId(
+			"agents-section-toggle-Shared-with-you",
+		);
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		const todaySection = screen.getByTestId("agents-section-toggle-Today");
+		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
+
+		expect(pinnedSection).toHaveTextContent("Pinned (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(todaySection).toHaveTextContent("Today (2)");
+		expect(
+			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			pinnedSharedNode.compareDocumentPosition(sharedSection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedSection.compareDocumentPosition(sharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedNode.compareDocumentPosition(todaySection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			todaySection.compareDocumentPosition(ownedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+});
 
 describe("ChatsSidebar filters", () => {
 	it("calls the sidebar filter change callback after Apply is clicked", async () => {

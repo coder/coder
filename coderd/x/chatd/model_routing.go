@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
@@ -27,6 +28,17 @@ type modelBuildOptions struct {
 func modelBuildOptionsFromMessages(messages []database.ChatMessage) modelBuildOptions {
 	apiKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
 	return modelBuildOptions{ActiveAPIKeyID: apiKeyID}
+}
+
+// withActiveTurnAPIKeyID augments ctx with the active turn's delegated API
+// key ID when one is known. AI Gateway routing and subagent tool callbacks
+// read this value from the context to attribute requests to the correct
+// turn. When no key is known, ctx is returned unchanged.
+func withActiveTurnAPIKeyID(ctx context.Context, opts modelBuildOptions) context.Context {
+	if opts.ActiveAPIKeyID == "" {
+		return ctx
+	}
+	return aibridge.WithDelegatedAPIKeyID(ctx, opts.ActiveAPIKeyID)
 }
 
 type modelRouteKind int

@@ -251,9 +251,10 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatSubscribeFn provides cross-replica subscription merging.
-	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatSubscribeFn chatd.SubscribeFn
+	// ChatStreamPartsDialer dials remote chat stream parts.
+	// Set by enterprise for HA deployments. Nil uses chatd's local
+	// in-process channel dialer.
+	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
@@ -814,11 +815,11 @@ func New(options *Options) *API {
 		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
 			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
 
-		api.chatDaemon = chatd.New(chatd.Config{
+		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
-			SubscribeFn:                    options.ChatSubscribeFn,
+			StreamPartsDialer:              options.ChatStreamPartsDialer,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
 			ProviderAPIKeys:                providerAPIKeys,
 			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
@@ -832,11 +833,12 @@ func New(options *Options) *API {
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			StopWorkspace:                  api.chatStopWorkspace,
-			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
 			OIDCTokenSource:                oidcMCPSrc,
+			NotificationsEnqueuer:          options.NotificationsEnqueuer,
+			Auditor:                        &api.Auditor,
 		}).Start()
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
@@ -1342,10 +1344,12 @@ func New(options *Options) *API {
 				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
+					r.Get("/parts", api.streamChatParts)
 					r.Get("/desktop", api.watchChatDesktop)
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
