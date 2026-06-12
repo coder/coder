@@ -402,6 +402,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		},
 	},
 	"ai_model_price": {
+		Name: "AIModelPrice",
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   "read AI model prices",
 			ActionUpdate: "update AI model prices",
@@ -417,6 +418,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		},
 	},
 	"ai_seat": {
+		Name: "AISeat",
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "record AI seat usage",
 			ActionRead:   "read AI seat state",

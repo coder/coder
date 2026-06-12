@@ -7,17 +7,17 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
-	ScopeAIGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
-	ScopeAIGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
-	ScopeAIGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
-	ScopeAIModelPriceRead                    ScopeName = "ai_model_price:read"
-	ScopeAIModelPriceUpdate                  ScopeName = "ai_model_price:update"
-	ScopeAIProviderCreate                    ScopeName = "ai_provider:create"
-	ScopeAIProviderDelete                    ScopeName = "ai_provider:delete"
-	ScopeAIProviderRead                      ScopeName = "ai_provider:read"
-	ScopeAIProviderUpdate                    ScopeName = "ai_provider:update"
-	ScopeAISeatCreate                        ScopeName = "ai_seat:create"
-	ScopeAISeatRead                          ScopeName = "ai_seat:read"
+	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
+	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
+	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
+	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
+	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
+	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
+	ScopeAiProviderDelete                    ScopeName = "ai_provider:delete"
+	ScopeAiProviderRead                      ScopeName = "ai_provider:read"
+	ScopeAiProviderUpdate                    ScopeName = "ai_provider:update"
+	ScopeAiSeatCreate                        ScopeName = "ai_seat:create"
+	ScopeAiSeatRead                          ScopeName = "ai_seat:read"
 	ScopeAibridgeInterceptionCreate          ScopeName = "aibridge_interception:create"
 	ScopeAibridgeInterceptionRead            ScopeName = "aibridge_interception:read"
 	ScopeAibridgeInterceptionUpdate          ScopeName = "aibridge_interception:update"
@@ -190,17 +190,17 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
-		ScopeAIGatewayKeyCreate,
-		ScopeAIGatewayKeyDelete,
-		ScopeAIGatewayKeyRead,
-		ScopeAIModelPriceRead,
-		ScopeAIModelPriceUpdate,
-		ScopeAIProviderCreate,
-		ScopeAIProviderDelete,
-		ScopeAIProviderRead,
-		ScopeAIProviderUpdate,
-		ScopeAISeatCreate,
-		ScopeAISeatRead,
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
@@ -374,17 +374,17 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
-		ScopeAIGatewayKeyCreate,
-		ScopeAIGatewayKeyDelete,
-		ScopeAIGatewayKeyRead,
-		ScopeAIModelPriceRead,
-		ScopeAIModelPriceUpdate,
-		ScopeAIProviderCreate,
-		ScopeAIProviderDelete,
-		ScopeAIProviderRead,
-		ScopeAIProviderUpdate,
-		ScopeAISeatCreate,
-		ScopeAISeatRead,
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiModelPriceRead,
+		ScopeAiModelPriceUpdate,
+		ScopeAiProviderCreate,
+		ScopeAiProviderDelete,
+		ScopeAiProviderRead,
+		ScopeAiProviderUpdate,
+		ScopeAiSeatCreate,
+		ScopeAiSeatRead,
 		ScopeAibridgeInterceptionCreate,
 		ScopeAibridgeInterceptionRead,
 		ScopeAibridgeInterceptionUpdate,
