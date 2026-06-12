@@ -1033,7 +1033,14 @@ resource "coder_app" "claude" {
     #!/bin/bash
     set -e
     cd "${local.repo_dir}"
-    exec tmux new-session -A -s claude claude
+    # Attach to an existing boo session if one exists, otherwise create
+    # a new one. boo exits 3 when the session is missing.
+    # https://github.com/coder/boo
+    if boo ls --json | grep -q '"name":"claude"'; then
+      exec boo attach claude
+    else
+      exec boo new claude -- claude
+    fi
   EOT
 }
 
@@ -1062,6 +1069,13 @@ resource "coder_app" "codex" {
     #!/bin/bash
     set -e
     cd "${local.repo_dir}"
-    exec tmux new-session -A -s codex codex
+    # Attach to an existing boo session if one exists, otherwise create
+    # a new one. boo exits 3 when the session is missing.
+    # https://github.com/coder/boo
+    if boo ls --json | grep -q '"name":"codex"'; then
+      exec boo attach codex
+    else
+      exec boo new codex -- codex
+    fi
   EOT
 }

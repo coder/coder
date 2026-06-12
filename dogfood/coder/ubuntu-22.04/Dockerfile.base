@@ -144,6 +144,12 @@ RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/late
 	dpkg -i gh.deb && \
 	rm gh.deb
 
+# boo: modern terminal multiplexer built on libghostty, used by the
+# Claude Code and Codex coder_apps for persistent sessions.
+ARG BOO_VERSION=0.5.13
+RUN curl -fsSL https://raw.githubusercontent.com/coder/boo/main/install.sh | \
+	BOO_VERSION="${BOO_VERSION}" BOO_INSTALL_DIR=/usr/local/bin sh
+
 # Ensure PostgreSQL binaries are in the users $PATH.
 RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/16/bin/initdb 100 && \
 	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/16/bin/postgres 100
