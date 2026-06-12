@@ -942,10 +942,6 @@ jobs:
 
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
 
-    permissions:
-      contents: read
-      packages: read
-
     steps:
       - uses: actions/checkout@v6
         name: Checkout
