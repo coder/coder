@@ -171,6 +171,33 @@ func TestGenerateAssistant_ProviderContextSurvivesStreamError(t *testing.T) {
 	require.Equal(t, "OpenAI returned an unexpected error.", classified.Message)
 }
 
+func TestGenerateAssistant_ModelProviderOverridesTransportLabel(t *testing.T) {
+	t.Parallel()
+
+	// Bedrock routed through aibridge uses the Anthropic transport, so
+	// Model.Provider() reports "anthropic". The user-facing error must use
+	// the configured provider from ModelProvider instead.
+	model := &chattest.FakeModel{
+		ProviderName: "anthropic",
+		ModelName:    "qwen3-coder-next",
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return nil, xerrors.New("upstream returned status 400")
+		},
+	}
+
+	_, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
+		Model:         model,
+		ModelProvider: "bedrock",
+		Messages: []fantasy.Message{
+			textMessage(fantasy.MessageRoleUser, "hello"),
+		},
+	})
+	require.Error(t, err)
+	classified := chaterror.Classify(err)
+	require.Equal(t, "bedrock", classified.Provider)
+	require.Equal(t, "AWS Bedrock returned an unexpected error.", classified.Message)
+}
+
 func TestGenerateAssistant_HTTP2TransportErrorClassifiedAsRetryableTimeout(t *testing.T) {
 	t.Parallel()
 

@@ -64,9 +64,9 @@ func providerErrorResponseMessage(responseDump []byte) string {
 //
 //	POST "https://bedrock-runtime...": 400 Bad Request {"message":"..."}
 //
-// When the trailing body is JSON with a top-level "message" (AWS Bedrock)
-// or a nested "error.message", that inner message is returned. Otherwise
-// msg is returned unchanged.
+// When the trailing body is JSON with a top-level "message" or a nested
+// "error.message", that inner message is returned. Otherwise msg is
+// returned unchanged.
 func unwrapTransportErrorMessage(msg string) string {
 	if msg == "" || !transportErrorPrefix.MatchString(msg) {
 		return msg

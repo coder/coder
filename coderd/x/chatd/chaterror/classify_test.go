@@ -1296,6 +1296,39 @@ func TestClassify_DoesNotUnwrapNonTransportMessage(t *testing.T) {
 	require.Equal(t, "Value {x} is not allowed.", classified.Detail)
 }
 
+func TestClassify_KeepsTransportWrapperWhenInnerBodyNotJSON(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but the trailing body
+	// has no extractable message, the wrapper is surfaced unchanged rather
+	// than dropped.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"foo\":\"bar\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t,
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"foo":"bar"}`,
+		classified.Detail)
+}
+
+func TestClassify_PrefersNestedMessageOverTopLevel(t *testing.T) {
+	t.Parallel()
+
+	// When both shapes are present, the nested error.message wins.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"top level","error":{"message":"nested wins"}}`),
+	))
+
+	require.Equal(t, "nested wins", classified.Detail)
+}
+
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 
