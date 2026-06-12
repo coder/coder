@@ -131,7 +131,12 @@ fi
 # Verify that the canonical lockfile matches provider-version.txt.
 if [[ " $* " == *" --check "* ]]; then
 	expected="$(<"$scriptdir/provider-version.txt")"
-	actual="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+	# Two sed passes instead of nested brace blocks, which BSD sed
+	# rejects. A failing check here makes `make gen` regenerate all
+	# fixtures, which is not reproducible on macOS hosts.
+	actual="$(sed -n '/coder\/coder/,/^}/p' "$canonical_lock" |
+		sed -n 's/.*version[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' |
+		head -n 1)"
 	if [[ "$expected" == "$actual" ]]; then
 		exit 0
 	else
