@@ -7093,6 +7093,79 @@ func TestActiveServer_AnthropicKeepsPairedWebSearchBeforePersist(t *testing.T) {
 	requireTextPart(t, messages[len(messages)-1], "search done")
 }
 
+// TestActiveServer_AnthropicWebSearchFollowUpHasNoSyntheticCancellation
+// reproduces a bug where sending a follow-up user message after a
+// completed provider-executed web_search turn inserted a synthetic
+// cancellation tool-result ("Tool execution interrupted by new user
+// message") for the server tool call. The provider-executed result
+// lives inside the assistant message, so the cancellation synthesizer
+// saw the call as outstanding and emitted a client-style tool-role
+// result for a srvtoolu_ ID. On the next request that result replays
+// as a plain tool_result block, which Anthropic rejects:
+//
+//	unexpected `tool_use_id` found in `tool_result` blocks:
+//	srvtoolu_... Each `tool_result` block must have a
+//	corresponding `tool_use` block in the previous message.
+func TestActiveServer_AnthropicWebSearchFollowUpHasNoSyntheticCancellation(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	requests := newAnthropicRequestRecorder()
+	var streamingRequestCount atomic.Int32
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		requests.record(req)
+		if !req.Stream {
+			return chattest.AnthropicNonStreamingResponse("title")
+		}
+		if streamingRequestCount.Add(1) == 1 {
+			return chattest.AnthropicStreamingResponse(
+				anthropicWebSearchPairChunks("srvtoolu_ws1", `{"query":"coder"}`, "search done", "end_turn")...,
+			)
+		}
+		return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("follow-up done")...)
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+	model = enableAnthropicWebSearchForTest(t, db, model)
+
+	server := newActiveTestServer(t, db, ps)
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "search for coder")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Simulate a web search turn followed by a user follow-up.
+	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:    chat.ID,
+		CreatedBy: user.ID,
+		APIKeyID:  testAPIKeyID(t, db, user.ID),
+		Content:   []codersdk.ChatMessagePart{codersdk.ChatMessageText("thanks, tell me more")},
+	})
+	require.NoError(t, err)
+
+	// Wait for the follow-up turn to run and the chat to settle.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return streamingRequestCount.Load() >= 2
+	}, testutil.IntervalFast)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// The provider-executed web_search call is answered by the
+	// provider-executed result inside the assistant message. No
+	// tool-role message may carry a synthetic result for it.
+	for _, msg := range chatMessages(ctx, t, db, chat.ID) {
+		if msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		require.NoError(t, err)
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult {
+				continue
+			}
+			require.NotEqual(t, "srvtoolu_ws1", part.ToolCallID,
+				"provider-executed web_search call received a synthetic tool-role result: %s", string(part.Result))
+		}
+	}
+}
+
 func TestActiveServer_AnthropicSanitizesWebSearchBeforeContinuation(t *testing.T) {
 	t.Parallel()
 

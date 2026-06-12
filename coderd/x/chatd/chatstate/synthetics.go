@@ -73,6 +73,15 @@ func synthesizePendingToolCancellations(
 		return nil, xerrors.Errorf("get messages after assistant: %w", err)
 	}
 	handled := make(map[string]bool)
+	// Provider-executed tool results (e.g. web_search) are persisted
+	// inside the assistant message itself, not as tool-role messages
+	// after it. Count them as handled so their calls are not treated
+	// as outstanding.
+	for _, p := range assistantParts {
+		if p.Type == codersdk.ChatMessagePartTypeToolResult {
+			handled[p.ToolCallID] = true
+		}
+	}
 	for _, msg := range afterMsgs {
 		if msg.Role != database.ChatMessageRoleTool {
 			continue
@@ -93,6 +102,13 @@ func synthesizePendingToolCancellations(
 	out := make([]Message, 0)
 	for _, part := range assistantParts {
 		if part.Type != codersdk.ChatMessagePartTypeToolCall {
+			continue
+		}
+		// Provider-executed tool calls are handled server-side by the
+		// LLM provider. A synthetic client tool-result for them is
+		// invalid replay history: Anthropic rejects a plain tool_result
+		// block that references a server_tool_use ID.
+		if part.ProviderExecuted {
 			continue
 		}
 		if dynamicOnly && !dynamicToolNames[part.ToolName] {
@@ -184,6 +200,13 @@ func outstandingToolCallIDs(ctx context.Context, store database.Store, chat data
 		return nil, xerrors.Errorf("get messages after assistant: %w", err)
 	}
 	handled := make(map[string]bool)
+	// Provider-executed tool results are persisted inside the
+	// assistant message itself; count them as handled.
+	for _, p := range parts {
+		if p.Type == codersdk.ChatMessagePartTypeToolResult {
+			handled[p.ToolCallID] = true
+		}
+	}
 	for _, msg := range afterMsgs {
 		if msg.Role != database.ChatMessageRoleTool {
 			continue
@@ -201,6 +224,11 @@ func outstandingToolCallIDs(ctx context.Context, store database.Store, chat data
 	out := make(map[string]string)
 	for _, p := range parts {
 		if p.Type != codersdk.ChatMessagePartTypeToolCall {
+			continue
+		}
+		// Provider-executed tool calls are answered server-side by the
+		// LLM provider and must never be reported as outstanding.
+		if p.ProviderExecuted {
 			continue
 		}
 		if !accept(p.ToolName) {
