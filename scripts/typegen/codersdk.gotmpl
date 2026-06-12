@@ -5,7 +5,7 @@ type RBACResource string
 
 const (
 	{{- range $element := . }}
-	Resource{{ pascalCaseName $element.FunctionName }} RBACResource = "{{ $element.Type }}"
+	Resource{{ pascalCaseNameLegacy $element.FunctionName }} RBACResource = "{{ $element.Type }}"
 	{{- end }}
 )
 
@@ -21,7 +21,7 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	{{- range $element := . }}
-    Resource{{ pascalCaseName $element.FunctionName }}: {
+    Resource{{ pascalCaseNameLegacy $element.FunctionName }}: {
         {{- range $actionValue, $_ := $element.Actions }}
             {{- actionEnum $actionValue -}},
         {{- end -}}

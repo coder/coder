@@ -155,12 +155,7 @@ func pascal(s string) string {
 	s = strings.ReplaceAll(s, ".", " ")
 	words := strings.Fields(s)
 	for i := range words {
-		switch words[i] {
-		case "ai":
-			words[i] = "AI"
-		default:
-			words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
-		}
+		words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
 	}
 	return strings.Join(words, "")
 }
