@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -28,8 +30,10 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	mAudit := audit.NewMock()
+	notifyEnq := &notificationstest.FakeEnqueuer{}
 	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
 		opts.Auditor = mAudit
+		opts.NotificationsEnqueuer = notifyEnq
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
@@ -68,6 +72,23 @@ func TestChatACLSharingLifecycle(t *testing.T) {
 		ResourceID:   chat.ID,
 		UserID:       firstUser.UserID,
 	}))
+	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateChatShared))
+	require.Len(t, sent, 2)
+	byUserID := map[uuid.UUID]*notificationstest.FakeNotification{}
+	for _, notification := range sent {
+		byUserID[notification.UserID] = notification
+	}
+	for _, userID := range []uuid.UUID{sharedUser.ID, groupMember.ID} {
+		notification := byUserID[userID]
+		require.NotNil(t, notification)
+		require.Equal(t, firstUser.UserID.String(), notification.CreatedBy)
+		require.Equal(t, map[string]string{
+			"chat_id":    chat.ID.String(),
+			"chat_title": chat.Title,
+			"initiator":  coderdtest.FirstUserParams.Username,
+		}, notification.Labels)
+		require.Equal(t, []uuid.UUID{chat.ID}, notification.Targets)
+	}
 
 	acl, err := client.GetChatACL(ctx, chat.ID)
 	require.NoError(t, err)

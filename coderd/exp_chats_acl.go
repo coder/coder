@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	slog "cdr.dev/slog/v3"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -199,7 +201,72 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := api.notifyChatShared(ctx, api.Database, aReq.New, apiKey.UserID, req); err != nil {
+		api.Logger.Warn(ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", chat.ID))
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) notifyChatShared(ctx context.Context, store database.Store, chat database.Chat, initiatorID uuid.UUID, req codersdk.UpdateChatACL) error {
+	userIDs := make([]uuid.UUID, 0, len(req.UserRoles))
+	for rawUserID, role := range req.UserRoles {
+		if role != codersdk.ChatRoleRead {
+			continue
+		}
+		userID, err := uuid.Parse(rawUserID)
+		if err != nil {
+			continue
+		}
+		userIDs = append(userIDs, userID)
+	}
+	for rawGroupID, role := range req.GroupRoles {
+		if role != codersdk.ChatRoleRead {
+			continue
+		}
+		groupID, err := uuid.Parse(rawGroupID)
+		if err != nil {
+			continue
+		}
+		members, err := store.GetGroupMembersByGroupID(ctx, database.GetGroupMembersByGroupIDParams{
+			GroupID:       groupID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			return xerrors.Errorf("get group members by group ID: %w", err)
+		}
+		for _, member := range members {
+			userIDs = append(userIDs, member.UserID)
+		}
+	}
+	userIDs = slice.Unique(userIDs)
+	if len(userIDs) == 0 {
+		return nil
+	}
+
+	initiator, err := store.GetUserByID(ctx, initiatorID)
+	if err != nil {
+		return xerrors.Errorf("get initiator: %w", err)
+	}
+	labels := map[string]string{
+		"chat_id":    chat.ID.String(),
+		"chat_title": chat.Title,
+		"initiator":  initiator.Username,
+	}
+
+	var eg errgroup.Group
+	for _, userID := range userIDs {
+		userID := userID
+		eg.Go(func() error {
+			//nolint:gocritic // Need notifier actor to enqueue notifications.
+			_, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), userID, notifications.TemplateChatShared, labels, initiatorID.String(), chat.ID)
+			if err != nil {
+				return xerrors.Errorf("enqueue chat shared notification: %w", err)
+			}
+			return nil
+		})
+	}
+	return eg.Wait()
 }
 
 func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {

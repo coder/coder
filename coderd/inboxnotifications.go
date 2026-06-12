@@ -57,6 +57,7 @@ var fallbackIcons = map[uuid.UUID]string{
 
 	// chat related notifications
 	notifications.TemplateChatAutoArchiveDigest: codersdk.InboxNotificationFallbackIconOther,
+	notifications.TemplateChatShared:            codersdk.InboxNotificationFallbackIconOther,
 }
 
 func ensureNotificationIcon(notif codersdk.InboxNotification) codersdk.InboxNotification {
