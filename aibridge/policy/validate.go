@@ -10,7 +10,7 @@ import (
 type Kind string
 
 const (
-	KindClassify  Kind = "classify"
+	KindAnnotate  Kind = "annotate"
 	KindRoute     Kind = "route"
 	KindDecide    Kind = "decide"
 	KindTransform Kind = "transform"
@@ -24,7 +24,7 @@ const (
 	HookPreAuth Hook = "pre_auth"
 	HookPreReq  Hook = "pre_req"
 	// HookPreTool fires once per assembled, client-bound tool call, before the
-	// call is released to the client. Only classify and decide are valid: the
+	// call is released to the client. Only annotate and decide are valid: the
 	// request is already dispatched (no route) and a flushed stream cannot be
 	// rewritten (no transform).
 	HookPreTool Hook = "pre_tool"
@@ -37,11 +37,11 @@ const (
 func KindValidAtHook(h Hook, k Kind) bool {
 	switch h {
 	case HookPreAuth:
-		return k == KindClassify || k == KindDecide
+		return k == KindAnnotate || k == KindDecide
 	case HookPreReq:
-		return k == KindClassify || k == KindRoute || k == KindDecide || k == KindTransform
+		return k == KindAnnotate || k == KindRoute || k == KindDecide || k == KindTransform
 	case HookPreTool:
-		return k == KindClassify || k == KindDecide
+		return k == KindAnnotate || k == KindDecide
 	default:
 		return false
 	}
@@ -62,7 +62,7 @@ const CurrentOutputSchemaVersion = SchemaV1
 // within the gateway package. ok is false for an unknown kind.
 func EntrypointRule(k Kind) (rule string, ok bool) {
 	switch k {
-	case KindClassify:
+	case KindAnnotate:
 		return "annotations", true
 	case KindRoute:
 		return "model", true

@@ -106,7 +106,7 @@ func (e PreAuthEnvelope) Build() (Input, error) {
 	return envelope(map[string]ast.Value{
 		"headers":    hVal,
 		"credential": cVal,
-		// Seed annotations as {} like the other hooks: a pre-auth classify can
+		// Seed annotations as {} like the other hooks: a pre-auth annotate can
 		// feed a pre-auth decide, and a policy reading input.annotations.* should
 		// see a defined-but-empty object rather than undefined.
 		"annotations": ast.NewObject(),

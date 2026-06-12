@@ -495,10 +495,10 @@ export interface AIGatewayPolicy {
 }
 
 // From codersdk/aigatewaypolicies.go
-export type AIGatewayPolicyKind = "classify" | "decide" | "route" | "transform";
+export type AIGatewayPolicyKind = "annotate" | "decide" | "route" | "transform";
 
 export const AIGatewayPolicyKinds: AIGatewayPolicyKind[] = [
-	"classify",
+	"annotate",
 	"decide",
 	"route",
 	"transform",

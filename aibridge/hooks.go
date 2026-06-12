@@ -77,7 +77,7 @@ type ProviderPipelines struct {
 	// rewrite the body (masking), or attach annotations that the PreReq policy
 	// pipeline can read. A nil or empty stage is a no-op.
 	PreReqGuardrails *guardrail.Stage
-	// PreTool is the per-tool-call pipeline (classify + decide only). It is
+	// PreTool is the per-tool-call pipeline (annotate + decide only). It is
 	// evaluated once per assembled, client-bound tool call before the call is
 	// released to the client. A nil pipeline is a no-op for that hook.
 	PreTool *policy.Pipeline
@@ -126,12 +126,12 @@ func WithPipelineResolver(r PipelineResolver) RequestBridgeOption {
 }
 
 // apply runs the pre-auth then pre-req pipelines for a request. It returns the
-// (possibly rewritten) payload and the accumulated classification annotations
-// to record. When it returns blocked=true it has already written the 403
-// response and the caller must stop.
+// (possibly rewritten) payload and the accumulated annotations to record. When
+// it returns blocked=true it has already written the 403 response and the
+// caller must stop.
 //
-// Classification annotations from pre-auth are threaded into the pre-req
-// envelope, so a later policy can read an earlier classifier's output.
+// Annotations from pre-auth are threaded into the pre-req envelope, so a later
+// policy can read an earlier annotate stage's output.
 func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload intercept.Payload, actor *aibcontext.Actor, ph ProviderPipelines, provider string, m *metrics.Metrics, logger slog.Logger) (_ intercept.Payload, annotations, modifications map[string]any, blocked bool) {
 	ctx := r.Context()
 	model := payload.Model()
@@ -170,23 +170,25 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 		// wrong endpoint, or timeout is visible.
 		for _, ge := range gres.Errors {
 			logger.Warn(ctx, "guardrail evaluation failed",
-				slog.F("hook", hookPreReq), slog.F("guardrail", ge.Name), slog.Error(ge.Err))
+				slog.F("hook", hookPreReq), slog.F("guardrail", ge.Stage), slog.Error(ge.Err))
 		}
-		if gres.Block {
+		if gres.Verdict.Blocks() {
 			msg := blockedByGuardrailMessage
+			// BlockedBy is set only for a deliberate enforcing block; a
+			// synthesized failure block stays anonymous to the client.
 			if gres.BlockedBy != "" {
 				msg = fmt.Sprintf("request blocked by guardrail %q", gres.BlockedBy)
-				if gres.Reason != "" {
-					msg += ": " + gres.Reason
+				if gres.Message != "" {
+					msg += ": " + gres.Message
 				}
 			}
 			logger.Debug(ctx, "request blocked by guardrail",
-				slog.F("guardrail", gres.BlockedBy), slog.F("reason", gres.Reason))
+				slog.F("guardrail", gres.BlockedBy), slog.F("reason", gres.Message))
 			http.Error(w, msg, http.StatusBadRequest)
 			return payload, nil, nil, true
 		}
-		if gres.Body != nil {
-			payload = payload.WithBody(gres.Body)
+		if gres.RequestBody != nil {
+			payload = payload.WithBody(gres.RequestBody)
 		}
 		annotations = mergeAnnotations(annotations, gres.Annotations)
 	}
@@ -450,20 +452,20 @@ func mergeAnnotations(dst, src map[string]any) map[string]any {
 	return dst
 }
 
-// metadataWithPolicyResults returns md with classify annotations attached under
-// the "classifications" key and policy modifications under the "modifications"
-// key, without mutating the caller's map. md is returned unchanged when both are
-// empty.
-func metadataWithPolicyResults(md recorder.Metadata, classifications, modifications map[string]any) recorder.Metadata {
-	if len(classifications) == 0 && len(modifications) == 0 {
+// metadataWithPolicyResults returns md with annotate/guardrail annotations
+// attached under the "annotations" key and policy modifications under the
+// "modifications" key, without mutating the caller's map. md is returned
+// unchanged when both are empty.
+func metadataWithPolicyResults(md recorder.Metadata, annotations, modifications map[string]any) recorder.Metadata {
+	if len(annotations) == 0 && len(modifications) == 0 {
 		return md
 	}
 	out := maps.Clone(md)
 	if out == nil {
 		out = recorder.Metadata{}
 	}
-	if len(classifications) > 0 {
-		out["classifications"] = classifications
+	if len(annotations) > 0 {
+		out["annotations"] = annotations
 	}
 	if len(modifications) > 0 {
 		out["modifications"] = modifications

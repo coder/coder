@@ -27,7 +27,7 @@ CREATE TYPE ai_gateway_hook AS ENUM (
 );
 
 CREATE TYPE ai_gateway_policy_kind AS ENUM (
-    'classify',
+    'annotate',
     'route',
     'decide',
     'transform'
@@ -4367,7 +4367,7 @@ CREATE UNIQUE INDEX ai_gateway_pipelines_provider_unique ON ai_gateway_pipelines
 
 CREATE UNIQUE INDEX ai_gateway_policies_name_unique ON ai_gateway_policies USING btree (name) WHERE (deleted = false);
 
-CREATE UNIQUE INDEX ai_gateway_pvp_one_classify ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'classify'::ai_gateway_policy_kind);
+CREATE UNIQUE INDEX ai_gateway_pvp_one_annotate ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'annotate'::ai_gateway_policy_kind);
 
 CREATE UNIQUE INDEX ai_gateway_pvp_one_route ON ai_gateway_pipeline_version_policies USING btree (pipeline_version_id, hook) WHERE (kind = 'route'::ai_gateway_policy_kind);
 

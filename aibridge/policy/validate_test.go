@@ -36,12 +36,12 @@ func TestValidate(t *testing.T) {
 		},
 		{
 			name:   "classify defines annotations",
-			kind:   policy.KindClassify,
+			kind:   policy.KindAnnotate,
 			module: "annotations := {\"risk\": \"high\"}",
 		},
 		{
 			name:    "classify missing annotations",
-			kind:    policy.KindClassify,
+			kind:    policy.KindAnnotate,
 			module:  "verdict := \"ALLOW\"",
 			wantErr: true,
 		},

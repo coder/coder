@@ -5,6 +5,10 @@ why. Where a piece is designed but not yet implemented, it is marked
 *(designed, not built)*. Transitional history and superseded decisions are
 omitted; see `policy-engine-design.md` for the full record.
 
+> **POC posture.** This is a proof of concept: BC breaks are fine (rename enum
+> values, edit shipped migrations in place, wipe dev DBs); no aliases or
+> compatibility shims. Simplicity and clarity of the abstractions is the goal.
+
 ## 1. What it is
 
 A policy engine inline in the AI Gateway request path. Requests flowing through
@@ -42,10 +46,23 @@ Every pipeline member is a **stage**, classified on two orthogonal axes:
 
 - **Substrate:** hermetic Rego policy vs networked adapter (guardrail).
 - **Effects:** which of the engine's effects it may produce (verdict, message,
-  annotations, body mutation, route).
+  annotations, edits, route).
 
-A **kind** is a single-effect Rego stage with its own typed output document
-(the per-kind entrypoint rule the host applies). Four kinds exist:
+**Every stage yields one `StageResult`** — `{verdict, message, annotations,
+edits, headers, route, err}` — through a uniform
+`Evaluate(ctx, Input) StageResult`, but stages do not construct it freely:
+each kind decodes its Rego output into a **typed per-kind struct**
+(`Decision`, `Annotations`, `RouteChanges`, `Transformation`) that **projects**
+into `StageResult`, and the guardrail adapter result funnels through the same
+projection. Effect masks are therefore enforced **by construction** (a
+`Decision` physically cannot carry an edit; an adapter physically cannot emit
+LOG), not by runtime checks. The annotation namespace is **host-stamped at
+projection** from the member's immutable name, so a stage cannot write into,
+or spoof, another stage's namespace. *(The unified projection/reducer is
+designed, not built; today per-kind appliers and the guardrail merge implement
+the same semantics separately.)*
+
+A **kind** is a single-effect Rego stage. Four kinds exist:
 
 - **decide** → `verdict` (+ optional `message`). Verdicts reduce by
   `BLOCK > LOG > ALLOW`; BLOCK short-circuits and returns HTTP 400 with the
@@ -55,44 +72,42 @@ A **kind** is a single-effect Rego stage with its own typed output document
   change and **re-validates** the mutated body against the provider schema
   before forwarding; header transport/auth/hop-by-hop stripping prevents
   credential injection.
-- **classify** → annotations only, threaded downstream by the host.
+- **annotate** (renamed from `classify`: the contract is "emit annotations",
+  matching its `annotations` entrypoint rule) → annotations only, threaded
+  downstream by the host.
 - **route** → within-provider model override (cross-provider routing is
   deferred).
 
 A **guardrail** is a multi-effect networked stage pinned to the head-of-hook
-slot, and it alone yields the multi-field `StageResult`:
-
-```
-StageResult {
-  verdict:     ALLOW | BLOCK         // LOG only via fail-open synthesis
-  message:     string                // surfaced to the user on BLOCK
-  annotations: map[string]any        // unioned under the guardrail's namespace
-  body_patch:  optional              // chained, re-validated after the stage
-}
-```
-
-A guardrail is deliberately *not* a kind: it differs in substrate (network
+slot. It is deliberately *not* a kind: it differs in substrate (network
 adapter, concurrent, its own timeout and secret-bearing config), and its
 multi-effect result is a concession to vendor wire formats (one HTTP response
 carries score + mask + verdict and cannot be un-bundled). Hermetic kinds stay
 single-effect; there is no reason to emulate the bundling in Rego.
 
-*(Designed, not built:)* a **unified stage-result algebra** in which every
-stage, kind and guardrail alike, projects into one shared result type, with a
-stage type defined as an effect mask over it and a single reducer/applier
-handling verdict reduction, short-circuiting, annotation threading, patch
-application, audit, and HTTP mapping for all stages. Today the per-kind
-appliers and the guardrail path implement the same semantics separately.
+**One mutation algebra: edits.** All body mutation is a list of pointer/value
+edits; a whole-body rewrite is the degenerate root edit. Transform and
+guardrail masking share one representation, one applier (edits applied in
+stage order), one re-validate per mutation point, and edit-level audit
+granularity. *(Designed, not built: transform currently replaces whole
+bodies.)*
 
-**Failures are result synthesis, not a parallel error path.** Any stage
-failure (eval error, network error, the global 1s eval timeout, conflict)
-normalizes through the membership's `fail_mode` into an ordinary result:
-`fail_closed → BLOCK` with a generic message; `fail_open → LOG` with the error
-summary (LOG, not ALLOW: a fail-open outage must be visible, not silent). The
-failing stage's identity goes to audit/logs only, never the client message:
-telling an adversary the DLP scanner is down invites retries until it stays
-down. No failure class bypasses `fail_mode`. *(Unified reducer: designed, not
-built; per-path behavior matches it.)*
+**Reducer rule: BLOCK freezes effects, never erases observations.** On BLOCK,
+verdict and message are final and no later mutating effect (edits, route)
+applies, but annotations from every stage that actually ran are always kept
+for audit. Sequential chains stop scheduling at BLOCK; a concurrent guardrail
+batch runs to completion and reduces normally (cancelling siblings would make
+the merge nondeterministic for little gain).
+
+**Failures are result synthesis at the stage boundary, not a parallel error
+path.** One `synthesize(stage, fail_mode, err)` wraps every invocation (eval
+error, network error, the global 1s eval timeout, decode failure):
+`fail_closed → BLOCK` with a generic message; `fail_open → LOG` (LOG, not
+ALLOW: a fail-open outage must be visible, not silent). The error rides an
+audit-only field on `StageResult`; the failing stage's identity never reaches
+the client message (telling an adversary the DLP scanner is down invites
+retries until it stays down). The reducer is total over `StageResult`s — no
+error branches, nothing to drift. No failure class bypasses `fail_mode`.
 
 ## 4. Hooks and pipelines
 
@@ -105,9 +120,9 @@ v1 hooks (post-resp and output inspection are deferred):
 
 | Hook | Envelope | Valid kinds |
 |---|---|---|
-| **pre-auth** | raw request, headers, credentials; no identity | classify, decide |
-| **pre-req** | + resolved identity/groups/roles, body, annotations | classify, route, decide, transform |
-| **pre-tool** | + `tool_call` {id, name, arguments, index}, per call | classify, decide |
+| **pre-auth** | raw request, headers, credentials; no identity | annotate, decide |
+| **pre-req** | + resolved identity/groups/roles, body, annotations | annotate, route, decide, transform |
+| **pre-tool** | + `tool_call` {id, name, arguments, index}, per call | annotate, decide |
 
 Pre-req is the richest hook and deliberately drops the raw credential (it is
 resolved into identity by then; re-exposing the secret is needless attack
@@ -115,14 +130,15 @@ surface). The two decision-only hooks reject request-mutating kinds both at
 registration and defensively at load via constrained pipeline constructors, so
 a smuggled route/transform cannot mutate anything.
 
-**Per-hook ordering:** `guardrails → classify → route → decide → transform`.
+**Per-hook ordering:** `guardrails → annotate → route → decide → transform`.
 
 - **Guardrails run first as a security invariant**, not a scheduling default:
   a masking guardrail must precede every Rego stage that reads the body,
-  otherwise a classifier could copy unmasked PII into annotations and thence
-  into audit/telemetry. Placement is not operator-choosable.
-- **Classify before everything else** so its annotations are visible to later
-  stages and later hooks. This is how policies compose while staying hermetic.
+  otherwise an annotate policy could copy unmasked PII into annotations and
+  thence into audit/telemetry. Placement is not operator-choosable.
+- **Annotate before the other policy stages** so its annotations are visible to
+  later stages and later hooks. This is how policies compose while staying
+  hermetic.
 - **Decides run sequentially** (ordered by name) and reduce with a BLOCK
   short-circuit; per-policy attribution after a block is best-effort.
 - **Transform runs last**, validate-after-mutate.
@@ -138,7 +154,7 @@ The host-built envelope is typed and frozen by shape guards (§7):
   upstream-forwarded actor metadata so it cannot leak to the provider; arrays
   always materialized, never undefined.
 - `input.headers` = lowercase header → first value (+ `x-remote-addr`).
-- `input.annotations` = threaded classify/guardrail outputs, seeded `{}` at
+- `input.annotations` = threaded annotate/guardrail outputs, seeded `{}` at
   every hook so reads are defined-but-empty.
 
 **Annotation namespacing.** The host owns the first level of the annotations
@@ -167,18 +183,18 @@ adapters.
 - **Advisory** — annotate-only. A Rego `decide` policy turns the signal into a
   verdict (e.g. "block contractors over moderation score X, log admins"). This
   is also the engine's *only* enrichment mechanism: policies never fetch.
-- **Enforcing** — may BLOCK (HTTP 400, same as a policy block) and/or emit a
-  `body_patch`, and always annotates. The zero-Rego "block/mask on detect"
-  path.
+- **Enforcing** — may BLOCK (HTTP 400, same as a policy block) and/or emit
+  edits, and always annotates. The zero-Rego "block/mask on detect" path.
 
 **Execution.** A hook's guardrails run **concurrently** (network-bound, unlike
-CPU-bound Rego). Annotations union under per-guardrail namespaces; verdicts
-reduce with BLOCK short-circuiting; body patches apply as a deterministic
-ordered chain with one re-validate after the guardrail stage (the policy
-transform then re-validates its own mutation: two mutation points, each
-re-validated). Each guardrail carries its own network timeout and `fail_mode`
-(default fail-closed); failures synthesize into ordinary StageResults (§3).
-No retries, no response caching in v1.
+CPU-bound Rego), and the batch runs to completion even when one blocks, then
+reduces under the shared rule (§3): annotations union under per-guardrail
+namespaces (kept even on BLOCK); a BLOCK freezes mutating effects; edits apply
+as a deterministic ordered chain (by guardrail name) with one re-validate
+after the guardrail stage (the policy transform then re-validates its own
+mutation: two mutation points, each re-validated). Each guardrail carries its
+own network timeout and `fail_mode` (default fail-closed); failures synthesize
+into ordinary StageResults (§3). No retries, no response caching in v1.
 
 **What is scanned:** the **latest user prompt**, selected cross-provider as the
 most recent role-`user` item carrying a text block (trailing system/tool-result
@@ -195,7 +211,7 @@ response buffering, since a flushed chunk cannot be un-sent.
 
 The **pre-tool** hook is the last control point before a model-requested tool
 call reaches the client, where agentic clients execute it. It fires once per
-assembled client-bound tool call (classify + decide only over
+assembled client-bound tool call (annotate + decide only over
 `input.tool_call.*`; `index` makes "at most N calls per turn" expressible
 without state).
 
@@ -271,7 +287,7 @@ FKs guarantee a parent can only activate its *own* versions):
   `policy_version_id`s (composition history is exact; rollback is possible)
   and carry per-membership `hook`, `fail_mode`, and `enabled`, since one
   reusable policy can run differently in different pipelines. Per-hook
-  cardinality (one classify/route/transform, many decides) is enforced by
+  cardinality (one annotate/route/transform, many decides) is enforced by
   partial unique indexes over a denormalized `kind` column.
 - **Guardrails** (`ai_gateway_guardrails` / `_versions`): same pattern but
   storing adapter config, not Rego. The credential column is the **one
@@ -399,7 +415,7 @@ built)*: CI checks the artifact pre-merge; the header rehearses it pre-promote.
 1. Guardrail extensions: output guardrails, the `during_call` lane
    (concurrent-with-dispatch, block-only), caching/retries.
 2. post-resp hook + output inspection (buffered with byte cap, then windowed
-   streaming, classify/decide only; you cannot un-send a flushed chunk).
+   streaming, annotate/decide only; you cannot un-send a flushed chunk).
 3. Operator-authored reusable Rego modules.
 4. Operator-supplied stored tests.
 5. FLAG verdict (`BLOCK > FLAG > LOG > ALLOW`) with a defined sink.

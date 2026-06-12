@@ -8,6 +8,7 @@ import (
 	"github.com/tidwall/gjson"
 
 	"github.com/coder/coder/v2/aibridge/guardrail"
+	"github.com/coder/coder/v2/aibridge/policy"
 )
 
 // fake is a Guardrail with a fixed result/error, for exercising the Stage.
@@ -35,8 +36,8 @@ func TestStage_EnforcingEditAppliedAndAnnotated(t *testing.T) {
 
 	res, err := st.Run(context.Background(), []byte(body), "gpt-4")
 	require.NoError(t, err)
-	require.False(t, res.Block)
-	require.Equal(t, "<REDACTED>", gjson.GetBytes(res.Body, "messages.0.content").String())
+	require.False(t, res.Verdict.Blocks())
+	require.Equal(t, "<REDACTED>", gjson.GetBytes(res.RequestBody, "messages.0.content").String())
 	require.Contains(t, res.Annotations, "redactor")
 }
 
@@ -52,9 +53,9 @@ func TestStage_BlockWinsLowestName(t *testing.T) {
 
 	res, err := st.Run(context.Background(), []byte(body), "")
 	require.NoError(t, err)
-	require.True(t, res.Block)
+	require.True(t, res.Verdict.Blocks())
 	require.Equal(t, "a", res.BlockedBy)
-	require.Equal(t, "a-reason", res.Reason)
+	require.Equal(t, "a-reason", res.Message)
 }
 
 func TestStage_BlockSuppressesBodyEdit(t *testing.T) {
@@ -71,8 +72,8 @@ func TestStage_BlockSuppressesBodyEdit(t *testing.T) {
 
 	res, err := st.Run(context.Background(), []byte(body), "")
 	require.NoError(t, err)
-	require.True(t, res.Block)
-	require.Nil(t, res.Body)
+	require.True(t, res.Verdict.Blocks())
+	require.Nil(t, res.RequestBody)
 }
 
 func TestStage_AdvisoryDropsBlockAndEdits(t *testing.T) {
@@ -88,8 +89,8 @@ func TestStage_AdvisoryDropsBlockAndEdits(t *testing.T) {
 
 	res, err := st.Run(context.Background(), []byte(body), "")
 	require.NoError(t, err)
-	require.False(t, res.Block)
-	require.Nil(t, res.Body)
+	require.False(t, res.Verdict.Blocks())
+	require.Nil(t, res.RequestBody)
 	require.Contains(t, res.Annotations, "scorer")
 }
 
@@ -101,14 +102,21 @@ func TestStage_FailModes(t *testing.T) {
 	require.NoError(t, err)
 	res, err := closed.Run(context.Background(), []byte(body), "")
 	require.NoError(t, err)
-	require.True(t, res.Block)
-	require.Equal(t, "boom", res.BlockedBy)
+	require.True(t, res.Verdict.Blocks())
+	// A synthesized failure block is anonymous to the client; the failing
+	// guardrail's identity rides the audit-only error record instead.
+	require.Empty(t, res.BlockedBy)
+	require.Len(t, res.Errors, 1)
+	require.Equal(t, "boom", res.Errors[0].Stage)
 
 	open, err := guardrail.NewStage(guardrail.Member{Guardrail: boom, Mode: guardrail.ModeEnforcing, FailMode: guardrail.FailOpen})
 	require.NoError(t, err)
 	res, err = open.Run(context.Background(), []byte(body), "")
 	require.NoError(t, err)
-	require.False(t, res.Block)
+	// Fail-open synthesizes LOG (visible), never a silent pass-through.
+	require.False(t, res.Verdict.Blocks())
+	require.Equal(t, policy.VerdictLog, res.Verdict)
+	require.Len(t, res.Errors, 1)
 }
 
 func TestStage_DuplicateNameRejected(t *testing.T) {

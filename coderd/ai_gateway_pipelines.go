@@ -58,7 +58,7 @@ func resolvePipelinePolicies(ctx context.Context, db database.Store, reqs []code
 		if !aiGatewayHookAllowsKind(hook, kind) {
 			return nil, &codersdk.Response{Message: fmt.Sprintf("policies[%d]: kind %q is not valid at hook %q", i, kind, hook)}
 		}
-		// classify/route/transform are capped at one per hook.
+		// annotate/route/transform are capped at one per hook.
 		if kind != database.AIGatewayPolicyKindDecide {
 			key := hk{hook, kind}
 			if seen[key] {
@@ -106,13 +106,13 @@ func checkMemberNameCollision(members []resolvedMember, guardrails []resolvedGua
 func aiGatewayHookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewayPolicyKind) bool {
 	switch hook {
 	case database.AIGatewayHookPreAuth:
-		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
+		return kind == database.AiGatewayPolicyKindAnnotate || kind == database.AIGatewayPolicyKindDecide
 	case database.AIGatewayHookPreReq:
 		return true
 	case database.AIGatewayHookPreTool:
 		// The request is already dispatched at pre-tool, so route and transform
-		// do not apply; only classify and decide gate a tool call.
-		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
+		// do not apply; only annotate and decide gate a tool call.
+		return kind == database.AiGatewayPolicyKindAnnotate || kind == database.AIGatewayPolicyKindDecide
 	default:
 		return false
 	}

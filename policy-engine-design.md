@@ -1,8 +1,49 @@
+> **⚠️ POC posture (read first).** This system is a **proof of concept**.
+> **Backward-compatibility breaks are fine**: rename enum values, edit shipped
+> migrations in place, change wire formats, wipe dev/dogfood databases. Do not
+> add aliases, deprecation shims, or transitional compatibility layers.
+> **Simplicity and clarity of the abstractions is the goal**; when a BC-preserving
+> path and a clean abstraction conflict, the clean abstraction wins.
+
 ### New thoughts
 
 - we don't need a new "route" abstraction instead of addressing providers directly;
 for now we can just attach policy pipelines to provider routes, because that means
 we don't need to rewrite the payload if switch between providers/endpoints
+
+### Revision note (2026-06-12): unified result type made concrete; `classify` → `annotate`
+
+This revision turns the unified stage-result algebra from an aspiration into a
+concrete Go architecture and renames the `classify` kind. Headlines (details
+inline, marked [DECIDED, revised 2026-06-12]):
+
+- **Typed per-kind decode structs, one `StageResult`, one reducer.** Every
+  stage's `Evaluate` returns `(StageResult, error → synthesized)` through a
+  per-kind typed struct (`Decision`, `Annotations`, `RouteChanges`,
+  `Transformation`) that **projects** into the single `StageResult`. Effect
+  masks are enforced **by construction** (the typed struct physically cannot
+  carry fields outside its mask), not by runtime checks (§2).
+- **`classify` is renamed `annotate`** (kind, DB enum value, API strings, UI):
+  the kind's contract is "emit annotations" (its entrypoint rule is already
+  `annotations`); "classify" described one use case. POC posture: rename in
+  place, including editing migration 000517 directly; no aliases (§2, §10.2).
+- **One mutation algebra: edits.** Body mutation is a list of pointer/value
+  `Edits`; a whole-body rewrite is the degenerate root edit. Transform and
+  guardrail masking share one representation, one applier, one
+  validate-after-mutate per mutation point (§2).
+- **Reducer rule: BLOCK freezes effects, never erases observations.**
+  Annotations from every stage that ran are always kept (audit); mutating
+  effects after a BLOCK never apply; sequential scheduling stops at BLOCK,
+  concurrent batches run to completion (§2).
+- **Failure synthesis at the stage boundary.** One `synthesize(stage,
+  fail_mode, err)` wraps every invocation; the reducer is total over
+  `StageResult`s and has no error branches. `StageError`/`GuardrailError`
+  collapse into one audit-only error record on `StageResult` (§2).
+- **Namespace is host-stamped at projection** from the immutable member name;
+  no producer-settable namespace field exists (§2, §3).
+- **Openness = widen-never-narrow only.** Contracts may gain optional
+  rules/fields (already enforced by the output-shape goldens); producers may
+  **not** emit unknown effect fields — unknown rules are simply unused (§10.4).
 
 ### Revision note (2026-06-11): stage model & staged rollout
 
@@ -97,8 +138,8 @@ and configurable as code.
 - **[DECIDED] Policies are hermetic.** No shared state, no cross-policy
   influence, no network/IO from inside a policy. (Rego *can* `http.send`; this
   must be **explicitly disabled** along with other network/time built-ins to
-  preserve the guarantee — see §7.) Composition is via classification
-  annotations threaded by the host (see §3), not policies calling each other.
+  preserve the guarantee — see §7.) Composition is via annotations threaded by
+  the host (see §3), not policies calling each other.
 - **[DECIDED] Typed policy *kinds*.** A kind = `(input schema + version, output
   schema, host applier)`. The Rego evaluation core is identical for every kind;
   only the output document and the applier vary. Adopted kinds:
@@ -107,9 +148,16 @@ and configurable as code.
     the user on a block.
   - **Transform** → a rewritten `body` and/or `headers` overrides → applier
     rewrites the outgoing request/response.
-  - **Classification** → a structured label/score document → applier writes
-    annotations into metadata/audit/telemetry and the host threads them into
-    downstream stages' envelopes.
+  - **Annotate** *(renamed from `classify`, 2026-06-12)* → a structured
+    label/score document → applier writes annotations into
+    metadata/audit/telemetry and the host threads them into downstream stages'
+    envelopes. Renamed because the kind's contract is "emit annotations" (its
+    entrypoint rule is already `annotations`); "classify" described one use
+    case, not the contract. Accepted ambiguity: "annotate" is now both a kind
+    name and an effect guardrails also produce; disambiguate in prose as
+    "annotate policy" vs "guardrail annotations". The rename is total (Go
+    constants, DB enum value, API strings, UI, goldens), with **no aliases**
+    (POC posture, see top of doc).
   - **Routing** → a destination directive (model/provider) → applier overrides
     the upstream target.
   - Out of scope: budget/quota (handled elsewhere), cache-control, approval/HITL.
@@ -130,17 +178,24 @@ and configurable as code.
   value falls back to the host default and never errors or alters the verdict
   (so an author's message bug cannot, e.g. under fail-open, downgrade a
   deliberate block). The verdict is the contract; the message is best-effort.
-- **[DECIDED] Transform model: the policy computes the change; a Go host utility
-  applies it.** Rego builds the rewritten body directly with `object.remove` /
+- **[DECIDED, revised 2026-06-12] Transform model: the policy computes the
+  change; a Go host utility applies it — and all body mutation is the **edits
+  algebra**.** Rego builds the rewritten body directly with `object.remove` /
   `object.union` / object & array comprehensions, or emits RFC 6902 ops, or
-  applies them in-language via `json.patch`. The host **re-validates** the
-  mutated body against the provider schema before forwarding. A transform may
-  additionally define an optional `headers` rule (`data.gateway.headers`, an
-  object of string values) to set/replace outgoing request headers; the host
-  applies them before the interceptor captures the request, and
+  applies them in-language via `json.patch`; the host decodes the result into
+  `Transformation.Edits` — a whole-body rewrite is the **degenerate root edit**
+  (pointer `""` → new body). This closes the previous split where transform
+  replaced whole bodies while guardrail masking chained sjson pointer edits:
+  one representation, one applier loop (apply edits in stage order), one
+  re-validate per mutation point, and edit-level audit granularity ("masked 3
+  spans") is preserved everywhere. The host **re-validates** the mutated body
+  against the provider schema before forwarding. A transform may additionally
+  define an optional `headers` rule (`data.gateway.headers`, an object of
+  string values) to set/replace outgoing request headers; the host applies
+  them before the interceptor captures the request, and
   `intercept.PrepareClientHeaders` strips transport, auth, and hop-by-hop
   headers, so a policy cannot inject credentials or corrupt framing this way.
-  Both `body` and `headers` are optional and independent. [AS BUILT]
+  Both `body` and `headers` are optional and independent.
 - **[DECIDED] Input envelope:** typed per kind *and per hook* (see §3), always
   carrying identity / groups / attributes (RBAC + ABAC) once available, plus
   request-specific fields and, for traversal policies, the raw `/v1/messages`
@@ -178,40 +233,92 @@ and configurable as code.
   (secret-bearing) config persistence, not the abstraction. A guardrail
   `BLOCK` returns **HTTP 400**, as does a policy `BLOCK` (both block paths
   return 400). [AS BUILT, except the unified result type below]
-- **[DECIDED] Unified stage-result algebra.** Every stage, Rego policy or
-  guardrail, projects into one result type, enforced by a **single
-  reducer/applier**:
+- **[DECIDED, revised 2026-06-12] Unified stage-result algebra: typed decode
+  structs project into one `StageResult`; one reducer/applier.** Every stage,
+  Rego policy or guardrail, yields exactly one `StageResult`:
 
-  ```
-  StageResult {
-    verdict:     ALLOW | LOG | BLOCK   // default ALLOW
-    message:     string                // surfaced to the user on BLOCK
-    annotations: map[string]any        // unioned under the stage's namespace
-    body_patch:  optional              // chained, re-validated per mutation point
-    route:       optional              // pre-req only, single slot
+  ```go
+  type StageResult struct {
+      Verdict     Verdict           // ALLOW | LOG | BLOCK; default ALLOW
+      Message     string            // surfaced to the user on BLOCK
+      Annotations map[string]any    // host nests under the stage's namespace
+      Edits       []Edit            // pointer/value pairs; whole-body = root edit
+      Headers     map[string]string // outgoing header overrides (transform only)
+      Route       string            // model override; pre-req only, single slot
+      Err         *StageErr         // audit-only failure record; never client-facing
   }
   ```
 
-  A stage *type* is an **effect mask** over this struct (classify =
+  The interface is uniform — every stage implements
+  `Evaluate(ctx, Input) StageResult` — but stages do **not** construct
+  `StageResult` freely. Each kind decodes its Rego output into a **typed
+  per-kind struct** and that struct **projects** into `StageResult`; the
+  guardrail adapter `Result` funnels through the same projection:
+
+  ```go
+  // kind=decide
+  type Decision struct {
+      Verdict Verdict // ALLOW | LOG | BLOCK
+      Message string  // optional; only meaningful on a blocking verdict
+  }
+  // kind=annotate (renamed from classify)
+  type Annotations struct {
+      Values map[string]any // host nests these under the stage's namespace
+  }
+  // kind=route
+  type RouteChanges struct {
+      Model string // Provider may be added later (widening)
+  }
+  // kind=transform
+  type Transformation struct {
+      Edits   []Edit            // whole-body rewrite = single root edit
+      Headers map[string]string // sanitized by the host before forwarding
+  }
+  ```
+
+  A stage *type* is an **effect mask** over `StageResult` (annotate =
   annotations-only; decide = verdict+message; route = route; transform =
-  body_patch+headers; advisory guardrail = annotations; enforcing guardrail =
-  verdict+message+annotations+body_patch), enforced at registration and
-  defensively at load, exactly like kind-validity-by-hook. The reducer,
-  short-circuit, audit record, and HTTP mapping are written once; every stage,
-  including a dead vendor, produces exactly one result. **Failures are result
-  synthesis, not a parallel error path:** any stage failure (eval error,
-  network error, timeout, conflict) is normalized through the membership's
-  `fail_mode` into an ordinary result:
-  `fail_closed → {verdict: BLOCK, message: <generic>}`;
-  `fail_open → {verdict: LOG, message: <error summary>}` (LOG, not ALLOW: a
-  fail-open outage must be visible in the log stream, not silent). The failing
-  stage's identity (e.g. "guardrail X unreachable") goes to **audit/logs
-  only**, never the client-facing message; telling an adversary the DLP
-  scanner is down is an invitation to retry until it stays down. There is **no
-  special-cased timeout**: the global 1s eval timeout flows through the same
-  rule (an attacker-induced timeout bypassing a fail-open stage is what
-  fail-open *means*; singling out timeout bought no security and broke
-  uniformity).
+  edits+headers; advisory guardrail = annotations; enforcing guardrail =
+  verdict+message+annotations+edits) — but the mask is enforced **by
+  construction**, not by runtime checks: `Decision` physically cannot carry an
+  edit, the guardrail decode type's action is `{Allow, Block}` so an adapter
+  physically cannot emit LOG. Registration-time and load-time mask validation
+  remains only where construction cannot reach (kind-validity-by-hook).
+  **Namespace stamping happens at projection:** the projection takes the
+  member's immutable name and nests `Annotations` under it; no
+  producer-settable namespace field exists, so a stage cannot write into (or
+  spoof) another stage's namespace — this is what makes the
+  guardrails-before-annotate ordering a real security invariant rather than a
+  convention. The reducer, short-circuit, audit record, and HTTP mapping are
+  written once over `StageResult`; the per-kind applier blocks in
+  `Pipeline.Evaluate` and the parallel guardrail `merge` are replaced by it.
+
+  **Reducer rule: BLOCK freezes effects, never erases observations.** The
+  reducer consumes an ordered sequence of `StageResult`s. On BLOCK, verdict
+  and message are final and no mutating effect (edits, route) from that point
+  applies, but **annotations from every stage that actually ran are always
+  kept** (audit must see "lakera blocked AND presidio found 3 spans").
+  Scheduling stays per-substrate: a sequential chain stops launching stages
+  after a BLOCK; a concurrent guardrail batch that already launched runs to
+  completion and reduces normally (cancelling siblings would save little and
+  make the merge nondeterministic).
+
+  **Failures are result synthesis at the stage boundary, not a parallel error
+  path.** A single `synthesize(stage, fail_mode, err)` wraps every stage
+  invocation — Rego eval error, adapter network error, decode failure, and
+  the global 1s eval timeout alike — and returns an ordinary result:
+  `fail_closed → {Verdict: BLOCK, Message: <generic>}`;
+  `fail_open → {Verdict: LOG}` (LOG, not ALLOW: a fail-open outage must be
+  visible in the log stream, not silent). The error itself rides the
+  audit-only `Err` field — one record type, replacing the previous
+  `StageError`/`GuardrailError` twins — and the failing stage's identity
+  (e.g. "guardrail X unreachable") goes to **audit/logs only**, never the
+  client-facing message; telling an adversary the DLP scanner is down is an
+  invitation to retry until it stays down. The reducer is therefore **total
+  over `StageResult`s**: it has no error branches, and nothing to drift.
+  There is **no special-cased timeout** (an attacker-induced timeout bypassing
+  a fail-open stage is what fail-open *means*; singling out timeout bought no
+  security and broke uniformity).
 - **[DECIDED] Versioning.** Policies are versioned; input *and* output types are
   versioned; a policy is bound to a type version at compile/registration time.
   Output-shape conformance is checked via **`opa check` with input/output JSON
@@ -271,7 +378,7 @@ per hook — see §10.
   so re-exposing the raw secret is needless attack surface).
 - **pre-tool** — fires **once per assembled, client-bound tool call**, before
   the call is released to the client (see §3b). A superset of pre-req plus
-  `input.tool_call` ({id, name, arguments, index}). Only classify and decide are
+  `input.tool_call` ({id, name, arguments, index}). Only annotate and decide are
   valid: the request is already dispatched (no route) and a flushed stream cannot
   be rewritten (no transform).
 
@@ -288,10 +395,10 @@ are typed, owned by `aibridge/policy`, and frozen by the shape guard (§10.4):
   undefined); they are reserved-empty until the `IsAuthorized` RPC carries them.
 - `input.headers` = lowercase header → first value (plus synthesized
   `x-remote-addr`), present from pre-auth onward.
-- `input.annotations` = the threaded classify/guardrail outputs, seeded `{}` at
+- `input.annotations` = the threaded annotate/guardrail outputs, seeded `{}` at
   every hook so a read is defined-but-empty rather than undefined.
   **[DECIDED, revised 2026-06] The host owns the first level of this map:**
-  every producer, classify and guardrail alike, writes under its own stage name
+  every producer, annotate policy and guardrail alike, writes under its own stage name
   (`input.annotations.<stage_name>.<keys>`); no top-level writes. Name
   collisions are rejected at pipeline-version create (member policy names and
   guardrail names must not overlap; validated in Go, since cross-table
@@ -310,11 +417,11 @@ are typed, owned by `aibridge/policy`, and frozen by the shape guard (§10.4):
 
 | Hook | Inputs available | Valid kinds |
 |---|---|---|
-| pre-auth | raw request, headers, credentials (no identity) | classification, decision |
-| pre-req | + identity / groups / attributes, body, enrichment | classification, routing, decision, transform |
-| pre-tool | + the assembled tool_call (per call) | classification, decision |
-| post-resp (buffered) | + full response | classification, decision, transform |
-| post-resp (windowed stream) | + rolling window of the response | classification, decision **only** |
+| pre-auth | raw request, headers, credentials (no identity) | annotate, decide |
+| pre-req | + identity / groups / attributes, body, enrichment | annotate, route, decide, transform |
+| pre-tool | + the assembled tool_call (per call) | annotate, decide |
+| post-resp (buffered) | + full response | annotate, decide, transform |
+| post-resp (windowed stream) | + rolling window of the response | annotate, decide **only** |
 
 The two decision-only hooks (**pre-auth** and **pre-tool**) reject the
 request-mutating kinds (routing, transform) both at registration and defensively
@@ -325,30 +432,30 @@ kind-validity check cannot modify the request. [AS BUILT]
 **Guardrails are orthogonal to kinds (two-axis model, §2).** A guardrail is not
 listed in the "valid kinds" column because it is not a kind; it is the
 head-of-hook stage (§3a) that may attach to any hook. Its effect mask
-(verdict / annotations / body_patch) is constrained by the hook just as kinds
+(verdict / annotations / edits) is constrained by the hook just as kinds
 are: at pre-auth a guardrail may block and annotate but not mutate the body (no
 resolved identity / body contract yet); at pre-req it may do all three. Output
 guardrails follow the post-resp constraints (§3a, §12).
 
 ### Per-hook ordering
 
-Within a hook the stages run **`guardrails → classification → routing →
-decision → transform`** (guardrails are the networked head-of-hook stage, §3a),
+Within a hook the stages run **`guardrails → annotate → route →
+decide → transform`** (guardrails are the networked head-of-hook stage, §3a),
 projected onto what the hook supports (routing only at pre-req; transform absent
 in the windowed streaming mode).
 
 - **Guardrails run first** (§3a), ahead of all policy stages, so their
-  annotations are visible to classification and every later stage, an enforcing
-  guardrail's `body_patch` is applied (and re-validated) before any policy sees
+  annotations are visible to the annotate stage and every later stage, an enforcing
+  guardrail's edits are applied (and re-validated) before any policy sees
   the body, and an enforcing `BLOCK` short-circuits the hook before policy
   evaluation. **The head slot is a security invariant, not a scheduling
   default [DECIDED]:** a masking guardrail must precede every Rego stage that
-  reads the body, otherwise a classifier could read unmasked PII and copy it
+  reads the body, otherwise an annotate policy could read unmasked PII and copy it
   into annotations, which thread into audit/telemetry and later envelopes.
   Guardrail placement is therefore not operator-choosable. (Conditional
   guardrail *invocation*, skipping the vendor call for some requests, is
   deferred; §12.)
-- **Classification runs first** among the *policy* stages. The host threads its output (annotations) into
+- **Annotate runs first** among the *policy* stages. The host threads its output (annotations) into
   the envelopes of the later stages *and later hooks*. This is how policies
   compose without calling each other — hermeticity preserved. Annotations
   accumulate across hooks.
@@ -374,19 +481,20 @@ log). The in-process and custom-code transports are already served by the
 host-function stdlib + canned Rego (and the dropped QuickJS escape hatch, §2).
 The guardrail abstraction covers exactly the **networked-webhook** transport. The
 modes map 1:1 onto effects the engine already has: detect/tool-gate → a `BLOCK`;
-score/moderate → annotations; mask/redact → a `body_patch`; route → deferred
+score/moderate → annotations; mask/redact → edits; route → deferred
 (§12); vendor "log-only" modes → annotations (rendered into a `LOG` verdict by
 a consuming `decide`, if desired).
 
-**Uniform result.** Each guardrail invocation yields a `StageResult` (§2) under
-the enforcing effect mask (`verdict` ∈ {ALLOW, BLOCK} from the adapter, plus
-`message`, `annotations`, `body_patch`) or the advisory mask (`annotations`
-only). The single reducer/applier handles it like any policy result: `verdict`
-feeds the `BLOCK > LOG > ALLOW` reduction and short-circuits (HTTP 400);
-`annotations` flow through the annotation-threading channel under the
-guardrail's namespace (§3); `body_patch` flows through the transform applier +
-validate-after-mutate. A `LOG` verdict never originates from an adapter; it
-arises only from fail-open failure synthesis (§2).
+**Uniform result.** Each guardrail invocation projects into a `StageResult`
+(§2) under the enforcing effect mask (action ∈ {Allow, Block} from the
+adapter's typed decode result, plus `message`, `annotations`, `edits`) or the
+advisory mask (`annotations` only). The single reducer/applier handles it like
+any policy result: the verdict feeds the `BLOCK > LOG > ALLOW` reduction and
+short-circuits (HTTP 400); `annotations` are nested under the guardrail's
+namespace at projection (§3); `edits` flow through the shared edits applier +
+validate-after-mutate. A `LOG` verdict cannot originate from an adapter **by
+construction** (the adapter decode type has no LOG); it arises only from
+fail-open failure synthesis (§2).
 
 **[AS BUILT] What text is scanned.** The stage extracts the **latest user
 prompt** and passes it to adapters (`guardrail.UserPromptTexts`), addressed by
@@ -416,7 +524,7 @@ real requests. Consequences/caveats:
   `decide` policy reads `input.annotations.<guardrail>.*` and renders the verdict
   (this is how a moderation score becomes "block contractors, log admins"). This
   is the enrichment mechanism referenced in §2.
-- **Enforcing** — may `BLOCK` and/or emit a `body_patch` on its own authority,
+- **Enforcing** — may `BLOCK` and/or emit edits on its own authority,
   *and* always annotates. Gives the zero-Rego "block/mask on detect" path; an
   enforcing `BLOCK` short-circuits before any policy runs.
 
@@ -428,12 +536,15 @@ Bedrock, Presidio, OpenAI Moderation) where the native API is materially better.
 Each vendor still carries a `type` for its params.
 
 **Execution.** A hook's guardrails run **concurrently** (network-bound, unlike
-CPU-bound Rego). Results merge: annotations are unioned under a per-guardrail
-namespace (avoiding key collisions); verdicts reduce by `BLOCK > LOG > ALLOW`
-with `BLOCK` short-circuiting; `body_patch`es apply as a **deterministic ordered
-chain** (by guardrail name) with a single re-validate after the guardrail stage.
-The policy `transform` then runs at the tail on the already-masked body with its
-own re-validate (two mutation points total, each re-validated).
+CPU-bound Rego). The batch runs to completion even when one member blocks
+(cancelling siblings saves little and makes the merge nondeterministic), then
+reduces under the shared rule (§2): annotations are unioned under per-guardrail
+namespaces (all observations kept, even on BLOCK); verdicts reduce by
+`BLOCK > LOG > ALLOW`, and a BLOCK freezes mutating effects; edits apply as a
+**deterministic ordered chain** (by guardrail name) with a single re-validate
+after the guardrail stage. The policy `transform` then runs at the tail on the
+already-masked body with its own re-validate (two mutation points total, each
+re-validated).
 
 **Failure/latency envelope.** Each guardrail carries its own **network timeout**
 and reuses the per-membership **fail_mode** (default fail-closed, mirroring
@@ -454,7 +565,7 @@ annotations → `decide`. Deferred to phase 2 (§12):
 - **`during_call` lane** — fire the guardrail concurrently with the upstream
   dispatch and join before delivering the response (latency hidden under
   generation). Because the request is already dispatched, it is hard-constrained
-  to **enforcing + block-only** (no `body_patch`, no routing) and its annotations
+  to **enforcing + block-only** (no edits, no routing) and its annotations
   are **audit-only** (the policy pipeline already ran). A `during_call` block
   still incurs the upstream cost and still protects against tool-call attacks (the
   whole response, including model-requested tool calls, is discarded before
@@ -465,7 +576,7 @@ annotations → `decide`. Deferred to phase 2 (§12):
 The **pre-tool** hook is the last control point before a model-requested tool
 call reaches the client, where agentic clients execute it. It fires **once per
 assembled, client-bound tool call**: a turn with three tool calls evaluates the
-pipeline three times. Only **classify and decide** are valid (like pre-auth);
+pipeline three times. Only **annotate and decide** are valid (like pre-auth);
 route and transform are rejected at registration and defensively at load.
 
 **Envelope.** `input.tool_call` = `{id, name, arguments, index}` where
@@ -540,14 +651,14 @@ field correctness are **not** caught for free. The mechanism:
 1. **Stream-through** — full streaming, no output content policy. Lowest latency
    and memory.
 2. **Windowed streaming hook** — the host maintains a bounded rolling window of
-   the response and runs **classification / decision only** against it per SSE
+   the response and runs **annotate / decide only** against it per SSE
    event. **No transform** (you can't retroactively redact an already-flushed
    chunk; edit-before-emit across boundaries is unreliable) and no routing. A
    `BLOCK` **halts** the stream (partial output already delivered). Misses matches
    spanning beyond the window unless the window ≥ the longest match. Cheap per
    call, but cost multiplies across events × concurrent streams.
 3. **Buffered post-stream hook** — accumulate the full response, then run the
-   full post-resp pipeline (classification / decision / transform, including
+   full post-resp pipeline (annotate / decide / transform, including
    redaction). Defeats streaming and holds the response in memory × concurrent
    streams; bound with a **hard max-buffer byte cap** + fail-open/closed.
 
@@ -558,20 +669,20 @@ post-stream with a byte cap, then (2) the windowed hook, are phase 2 (§12).
 
 ```mermaid
 flowchart TD
-  C["Client — request"] --> PA["pre-auth hook<br/>guardrails · classify · decide"]
+  C["Client — request"] --> PA["pre-auth hook<br/>guardrails · annotate · decide"]
   PA --> AU["Authenticate<br/>resolve identity, groups, attrs"]
   AU --> GR
 
   subgraph PR["pre-req hook"]
     direction TB
-    GR["guardrails<br/>concurrent · BLOCK wins (400)<br/>annotate · mask + re-validate"] --> CL["classify"]
+    GR["guardrails<br/>concurrent · BLOCK wins (400)<br/>annotate · mask + re-validate"] --> CL["annotate"]
     CL --> RO["route"]
     RO --> DE["decide<br/>sequential · BLOCK wins"]
-    DE --> TR["transform<br/>patch + re-validate"]
+    DE --> TR["transform<br/>edits + re-validate"]
   end
 
   TR --> UP["Upstream provider<br/>routed model"]
-  UP --> PT["pre-tool hook<br/>per client-bound tool call<br/>classify · decide only<br/>hold · ALLOW flush / BLOCK terminate"]
+  UP --> PT["pre-tool hook<br/>per client-bound tool call<br/>annotate · decide only<br/>hold · ALLOW flush / BLOCK terminate"]
   PT --> RC["Client — response<br/>(stream-through)"]
 
   GR -. annotations .-> CL
@@ -601,8 +712,8 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
 
 - **FR1** Evaluate requests/responses inline and emit a verdict (allow/log/block).
   LOG writes to the log stream; BLOCK stops the request. (FLAG is deferred, §12.)
-- **FR2** Support request/response mutation (transform kind) via patch or
-  rewritten body.
+- **FR2** Support request/response mutation (transform kind) via the edits
+  algebra (pointer/value edits; a rewritten whole body is the root edit).
 - **FR3** Attach **one pipeline per provider** (`ai_gateway_pipelines.provider_id`,
   unique among live rows). Future: named routes / "duets" with a provider + model
   set.
@@ -610,9 +721,9 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
   (post-resp is deferred, §12) — as a single versioned unit; member policies are
   pinned to a hook. The whole pipeline is the atomic swap unit (see §10).
 - **FR5** Compose multiple policies per pipeline (per-hook ordering
-  `classify → route → decide → transform`; sequential decisions reduced with a
-  BLOCK short-circuit; one classify/route/transform per hook; classification
-  annotations threaded downstream).
+  `annotate → route → decide → transform`; sequential decisions reduced with a
+  BLOCK short-circuit; one annotate/route/transform per hook; annotations
+  threaded downstream).
 - **FR6** Provide a **per-hook input envelope**; via per-hook input schemas +
   `opa check`, flag at registration a policy referencing fields unavailable at
   its hook (best-effort, given dynamic typing).
@@ -620,7 +731,7 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
   onward (RBAC/ABAC).
 - **FR8** Allow/deny MCP tool calls.
 - **FR8a** *(AS BUILT)* **Pre-tool hook**: gate each **client-bound** tool call
-  inline at the **pre-tool** hook (classify + decide only), holding the tool
+  inline at the **pre-tool** hook (annotate + decide only), holding the tool
   block in the stream until its arguments are assembled, then ALLOW (flush) or
   BLOCK (discard + terminate the turn, HTTP 400 in blocking mode). Bounded by a
   byte/time hold cap and the per-stage timeout; cap/incomplete breaches honor the
@@ -793,7 +904,7 @@ permission/size-guard/DLP-traversal/transform — are in `rego_vs_cel_policies.m
   be ported.
 - **No state / cross-request memory** — rate limits, quotas, dedupe are host-side;
   the policy only reads pre-computed values.
-- **Streaming:** windowed hook is classify/decision only (no transform; can't
+- **Streaming:** windowed hook is annotate/decide only (no transform; can't
   un-send a chunk); misses matches beyond the window; buffered post-stream
   defeats streaming and needs a hard byte cap.
 - **Transforms can produce structurally-invalid requests** → host must
@@ -873,7 +984,7 @@ Policies and pipelines are stored in Postgres, versioned, and made live in
   later without a collapse.
 - **[DECIDED] Storage format is raw Rego text** in a `text` column. Prepared
   queries (`rego.PreparedEvalQuery`) are not serializable; `aibridged` recompiles
-  via `policy.NewClassify/NewDecide/NewRoute/NewTransform → prepare()` on load.
+  via `policy.NewAnnotate/NewDecide/NewRoute/NewTransform → prepare()` on load.
   No OPA-bundle storage (bundles are a distribution concept, not the substrate).
 - **[DECIDED] Immutable versions with monotonic `version_number`** per parent
   (`UNIQUE(parent_id, version_number)`). Edits insert new rows; rows are never
@@ -974,7 +1085,10 @@ Policies and pipelines are stored in Postgres, versioned, and made live in
 ### 10.2 Schema (DDL)
 
 ```sql
-CREATE TYPE ai_gateway_policy_kind AS ENUM ('classify','route','decide','transform');
+-- 'annotate' was renamed from 'classify' (2026-06-12) by editing migration
+-- 000517 in place (POC posture: wipe any DB that already ran it; no
+-- RENAME VALUE migration, no alias).
+CREATE TYPE ai_gateway_policy_kind AS ENUM ('annotate','route','decide','transform');
 -- v1 hooks: pre_auth, pre_req, pre_tool. 'pre_tool' was added by a follow-up
 -- migration via ALTER TYPE ... ADD VALUE; 'post_resp' is added in phase 2 the
 -- same way.
@@ -1054,10 +1168,10 @@ CREATE TABLE ai_gateway_pipeline_version_policies (
     enabled             boolean NOT NULL DEFAULT TRUE, -- disable within this pipeline only
     UNIQUE (pipeline_version_id, policy_version_id, hook) -- a policy at most once per hook
 );
--- At most one classify / route / transform per (version, hook). decide is
+-- At most one annotate / route / transform per (version, hook). decide is
 -- unconstrained (many, reduced). Rows are immutable, so no `deleted` predicate.
-CREATE UNIQUE INDEX ai_gateway_pvp_one_classify
-    ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'classify';
+CREATE UNIQUE INDEX ai_gateway_pvp_one_annotate
+    ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'annotate';
 CREATE UNIQUE INDEX ai_gateway_pvp_one_route
     ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'route';
 CREATE UNIQUE INDEX ai_gateway_pvp_one_transform
@@ -1169,7 +1283,7 @@ ever persisted. **No shelling out** — use the OPA Go libraries:
   against the **provider request schema**, which the **server maintains and
   versions** (append-only, BC-compatible across all past provider schema
   versions) — same discipline as the policy schema registry (§10.4). A guardrail's
-  `body_patch` is re-validated against the same provider request schema after the
+  edits are re-validated against the same provider request schema after the
   guardrail mutation chain (§3a).
 - **Guardrail validation (no `opa check`/`opa test`).** A guardrail version is
   config, not Rego, so the gate is different. **[AS BUILT]** registration calls
@@ -1207,7 +1321,7 @@ The hard requirement (never break a deployed policy) is met by a **structural BC
 guarantee enforced by shape guards**, not by building per-version envelopes at
 runtime. The earlier "version-keyed runtime envelope" idea was dropped as
 over-engineered: it required juggling per-policy envelope versions, mixed-version
-hooks, and overlay-threading of classify annotations across versions, all to
+hooks, and overlay-threading of annotate annotations across versions, all to
 defend a case the structural guarantee already covers.
 
 - **Per-hook envelope structs, single `Build()`.** `aibridge/policy` defines
@@ -1252,7 +1366,7 @@ defend a case the structural guarantee already covers.
   - `output_guard_test.go` declares each kind's bounded output set (per-rule
     `type` / `required` / `enum` / `blank_uses_default`) and verifies every
     declared property **behaviorally** against the real consumer
-    (`{decide,classify,route,transform}.Evaluate`). For example: `decide.verdict`
+    (`{decide,annotate,route,transform}.Evaluate`). For example: `decide.verdict`
     accepts exactly `{ALLOW,LOG,BLOCK}` and a non-member errors, that
     `decide.message` surfaces only strings and falls back to the default on
     blank/undefined/non-string, that `transform.body` accepts any JSON value
@@ -1344,7 +1458,7 @@ defend a case the structural guarantee already covers.
 - **[DECIDED, as built] v1 hooks are pre-auth, pre-req, and pre-tool.**
   `post_resp` and all output-inspection modes (FR10) are deferred to phase 2
   (§12); the `post_resp` enum value is not created in v1. The **pre-tool** hook
-  (§3b) gates client-bound tool calls inline (classify + decide only); its enum
+  (§3b) gates client-bound tool calls inline (annotate + decide only); its enum
   value was added by a follow-up `ALTER TYPE ... ADD VALUE` migration. Loader and
   registration both enforce kind-validity-by-hook for pre-tool.
 - **[DECIDED] Execution log records the evaluating versions (D1).** Each execution
@@ -1509,7 +1623,7 @@ header selects it per request.
 - Lock down the **OPA capabilities** (disable `http.send`/network/time built-ins)
   and set eval limits.
 - Pipeline ordering is **resolved** to a per-hook partial order
-  (`classify → route → decide → transform`, validate-after-mutate). Residual:
+  (`annotate → route → decide → transform`, validate-after-mutate). Residual:
   re-evaluation if a transform changes inputs a prior decision already saw.
 - **Resolved (2026-06): body- and annotation-threading semantics.** Annotations
   are host-namespaced per stage with last-write-wins-per-namespace across hooks
@@ -1536,6 +1650,20 @@ header selects it per request.
   (§10.1), the version-targeted evaluation header (§10.9), and the §10.3
   name-collision check + annotation-flow warnings. The as-built auto-activating
   propagation and the as-built activate-on-create default are superseded.
+- **Newly decided, not built (2026-06-12) — the unification refactor (§2):**
+  (1) `classify` → `annotate` rename everywhere (DB enum via in-place edit of
+  migration 000517, Go constants, codersdk, typesGenerated, UI, shape-guard
+  goldens — edit `v1.json` in place, the schema is pre-stable); (2) uniform
+  `Evaluate(ctx, Input) StageResult` across all stages, with the typed
+  per-kind decode structs (`Decision` / `Annotations` / `RouteChanges` /
+  `Transformation`) projecting into `StageResult` and namespace stamping at
+  projection; (3) the single reducer replacing the per-kind applier blocks in
+  `Pipeline.Evaluate` and `guardrail.Stage.merge`, under "BLOCK freezes
+  effects, never erases observations"; (4) the edits-only mutation algebra
+  (transform's whole-body rewrite decodes to a root edit; one applier, one
+  re-validate per mutation point); (5) `synthesize(stage, fail_mode, err)` at
+  the stage boundary, collapsing `StageError`/`GuardrailError` into one
+  audit-only record on `StageResult`.
 - Map the **registry taxonomy** to OWASP LLM Top 10 / NIST AI RMF. (Reusable Rego
   modules are deferred — §12.)
 - Confirm the **escape hatch is unnecessary** (Rego's expressiveness should cover
@@ -1573,7 +1701,7 @@ Explicitly out of scope for v1; recorded so the v1 schema/runtime leave room.
    *provider*, not just the model — which requires rewriting the request body for
    a different provider type and resolving which pipeline applies.
 7. **Inter-policy value-flow validation.** Validate the threaded `annotations`
-   subtree (classifier-defined keys consumed by later stages/hooks) rather than
+   subtree (producer-defined keys consumed by later stages/hooks) rather than
    treating it as an opaque, unvalidated map. (The §10.3 produced/consumed
    warnings are the interim control.)
 8. **Conditional guardrail execution.** A guardrail membership MAY carry an
@@ -1584,7 +1712,7 @@ Explicitly out of scope for v1; recorded so the v1 schema/runtime leave room.
    consulted. IFF the condition needs resolved identity before the pre-req
    guardrail stage, introduce a **post-auth hook** at that point (body-less
    envelope: identity/headers/path only, preserving §3's masked-body invariant;
-   classify + decide only), and not before it's needed.
+   annotate + decide only), and not before it's needed.
 9. **Traffic mirroring for staged versions.** Asynchronously evaluate an
    unpromoted pipeline version against live traffic (log-only, never affecting
    responses) to tune false-positive rates against the real traffic

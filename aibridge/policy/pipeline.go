@@ -3,59 +3,43 @@ package policy
 import (
 	"context"
 	"maps"
-	"time"
 
 	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
 )
 
-// evalTimeout bounds a single policy stage evaluation, so a pathological policy
-// cannot hang a request. A stage that exceeds it is treated as an ordinary
-// stage error and normalized through the stage's fail mode (see stageBlocks):
-// fail-closed times out to BLOCK, fail-open to LOG. There is no special case
-// for timeout; an attacker-induced timeout bypassing a fail-open stage is what
-// fail-open means.
-const evalTimeout = time.Second
-
-// stageBlocks reports whether a stage error should block the request. Every
-// error class (eval error, timeout, conflict) is normalized the same way:
-// fail-closed blocks, fail-open does not (the caller raises the verdict to LOG
-// and records the error instead).
-func stageBlocks(failMode FailMode, _ error) bool {
-	return failMode == FailClosed
-}
-
 // Pipeline runs an ordered set of policy kinds against a single Input for one
 // hook. Evaluation is sequential and the Input is threaded copy-on-write so
-// each stage sees prior stages' mutations: classify annotations, then a route
-// model override, then decisions, then a transform.
+// each stage sees prior stages' mutations: annotate annotations, then a route
+// model override, then decisions, then a transform. Every stage yields one
+// StageResult; the single Reduce combines them and ApplyEdits applies body
+// mutations.
 type Pipeline struct {
-	classify  []*Classify
+	annotate  []*Annotate
 	route     *Route
 	decide    []*Decide
 	transform []*Transform
 }
 
-// PipelineConfig declares the policies for each stage. classify and transform
+// PipelineConfig declares the policies for each stage. annotate and transform
 // are capped at one policy for now (multiple mutative policies need a defined
 // composition model); decide may be many and is reduced.
 type PipelineConfig struct {
-	Classify  []*Classify
+	Annotate  []*Annotate
 	Route     *Route
 	Decide    []*Decide
 	Transform []*Transform
 }
 
 func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
-	if len(cfg.Classify) > 1 {
-		return nil, xerrors.New("at most one classify policy per stage")
+	if len(cfg.Annotate) > 1 {
+		return nil, xerrors.New("at most one annotate policy per stage")
 	}
 	if len(cfg.Transform) > 1 {
 		return nil, xerrors.New("at most one transform policy per stage")
 	}
 	return &Pipeline{
-		classify:  cfg.Classify,
+		annotate:  cfg.Annotate,
 		route:     cfg.Route,
 		decide:    cfg.Decide,
 		transform: cfg.Transform,
@@ -63,7 +47,7 @@ func NewPipeline(cfg PipelineConfig) (*Pipeline, error) {
 }
 
 // newDecisionOnlyPipeline builds a pipeline for a hook that permits only
-// classify and decide, rejecting the request-mutating kinds (route, transform).
+// annotate and decide, rejecting the request-mutating kinds (route, transform).
 // hook names the hook for error messages.
 func newDecisionOnlyPipeline(hook string, cfg PipelineConfig) (*Pipeline, error) {
 	if cfg.Route != nil {
@@ -75,136 +59,113 @@ func newDecisionOnlyPipeline(hook string, cfg PipelineConfig) (*Pipeline, error)
 	return NewPipeline(cfg)
 }
 
-// NewPreAuthPipeline builds a pipeline for the pre-auth hook. Only classify and
+// NewPreAuthPipeline builds a pipeline for the pre-auth hook. Only annotate and
 // decide are valid there: there is no request body to route or transform, so the
 // request-mutating kinds are rejected.
 func NewPreAuthPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	return newDecisionOnlyPipeline("pre-auth", cfg)
 }
 
-// NewToolPipeline builds a pipeline for the pre-tool hook. Only classify and
+// NewToolPipeline builds a pipeline for the pre-tool hook. Only annotate and
 // decide are valid there (the request is already dispatched, so route and
-// transform are rejected), and classify is capped at one.
+// transform are rejected), and annotate is capped at one.
 func NewToolPipeline(cfg PipelineConfig) (*Pipeline, error) {
 	return newDecisionOnlyPipeline("pre-tool", cfg)
 }
 
-// Result is the combined outcome of a pipeline.
+// Result is the combined outcome of a pipeline (the reduced StageResults plus
+// the applied body/headers/modifications).
 type Result struct {
 	// Verdict is the reduced decision across the pipeline.
 	Verdict Verdict
-	// BlockedBy is the name of the policy that produced the BLOCK verdict, or
-	// empty when the verdict is not BLOCK. Used to surface a useful error to
-	// the client.
+	// BlockedBy is the name of the deliberately-blocking policy, or empty when
+	// the verdict is not BLOCK or the block was synthesized from a failure.
 	BlockedBy string
 	// Message is the optional, author-supplied explanation from the blocking
-	// decide policy's `message` rule. Empty when the verdict is not BLOCK or
-	// the blocking policy supplied no message. When set it overrides the
-	// generic block message shown to the user.
+	// decide policy. Empty when the verdict is not BLOCK, the blocking policy
+	// supplied no message, or the block was synthesized.
 	Message string
-	// Annotations are the classify outputs, recorded under
-	// Metadata["classifications"].
+	// Annotations are the annotate/threaded outputs, namespaced per producing
+	// stage, recorded under Metadata["annotations"].
 	Annotations map[string]any
 	// Modifications records request mutations made by policies, keyed by the
 	// policy name. Recorded under Metadata["modifications"]. A route policy that
 	// changes the model adds {"original_model": "<previous model>"}.
 	Modifications map[string]any
 	// RequestBody is the final request body after route/transform, or nil when
-	// neither mutated it.
+	// neither mutated it (or the request was blocked, which freezes effects).
 	RequestBody []byte
 	// Headers are request header overrides produced by a transform policy,
 	// applied (set/replace) to the outgoing upstream request. Nil when no
 	// transform set headers.
 	Headers map[string]string
-	// Errors holds every stage failure (eval error, timeout, conflict) that did
-	// not block the request, i.e. fail-open errors that were normalized to LOG.
-	// They are surfaced for host logging so a fail-open failure is visible in
-	// the log stream rather than a silent pass-through. A fail-closed error
-	// blocks and is reported via Verdict/BlockedBy instead.
-	Errors []StageError
-}
-
-// StageError pairs a stage's policy name with the error it returned. It mirrors
-// guardrail.GuardrailError so the host logs both substrates uniformly.
-type StageError struct {
-	Stage string
-	Err   error
+	// Errors holds every stage failure that rode through as a synthesized
+	// result (fail-open errors normalized to LOG, and a fail-closed error that
+	// blocked). They are surfaced for host logging.
+	Errors []StageErr
 }
 
 // Evaluate runs every stage against in and returns the combined Result. Stage
-// failures are normalized uniformly through each stage's fail mode (the unified
-// stage-result algebra): a fail-closed error blocks and short-circuits; a
-// fail-open error is recorded in Result.Errors and raises the reduced verdict to
-// LOG (never a silent pass-through), then evaluation continues.
+// failures are normalized uniformly through each stage's fail mode by the stage
+// boundary (Synthesize): a fail-closed error blocks (anonymous to the client)
+// and short-circuits; a fail-open error rides through as LOG (never a silent
+// pass-through) and evaluation continues.
 func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 	cur := in
-	res := Result{Verdict: VerdictAllow}
-	var finalBody []byte
-	mutated := false
+	var (
+		outcomes      []StageOutcome
+		finalBody     []byte
+		mutated       bool
+		headers       map[string]string
+		modifications map[string]any
+	)
 
-	// verdicts accumulates across every stage, not just decide: a fail-open
-	// error in any stage appends LOG so the request passes through visibly.
-	verdicts := []Verdict{VerdictAllow}
-	var stageErrs []StageError
-	// failOpen records a non-blocking stage error: it surfaces the error for
-	// host logging and raises the floor verdict to LOG.
-	failOpen := func(name string, err error) {
-		stageErrs = append(stageErrs, StageError{Stage: name, Err: err})
-		verdicts = append(verdicts, VerdictLog)
-	}
-	// blocked builds the terminal BLOCK result for a fail-closed stage error,
-	// carrying the recorded fail-open errors so far for logging.
-	blocked := func(name string, err error) Result {
-		r := blockedBy(name)
-		if err != nil {
-			r.Errors = append(stageErrs, StageError{Stage: name, Err: err})
-		} else {
-			r.Errors = stageErrs
+	// finalize reduces the collected outcomes and assembles the Result. On a
+	// BLOCK, mutating effects (body, headers, modifications) are frozen.
+	finalize := func() Result {
+		r := Reduce(outcomes)
+		res := Result{
+			Verdict:     r.Verdict,
+			BlockedBy:   r.BlockedBy,
+			Message:     r.Message,
+			Annotations: r.Annotations,
+			Errors:      r.Errors,
 		}
-		return r
-	}
-
-	// classify: merge annotations into the threaded Input.
-	for _, c := range p.classify {
-		ann, ok, err := evalStage(ctx, func(sctx context.Context) (map[string]any, bool, error) {
-			return c.Evaluate(sctx, cur)
-		})
-		if err != nil {
-			if stageBlocks(c.failMode, err) {
-				return blocked(c.name, err), nil
+		if !r.Verdict.Blocks() {
+			if mutated {
+				res.RequestBody = finalBody
 			}
-			failOpen(c.name, err)
-			continue
+			res.Headers = headers
+			res.Modifications = modifications
 		}
-		if !ok {
-			continue
-		}
-		// Namespace each classifier's output under its own stage name so the
-		// host owns the first level of input.annotations: producers cannot
-		// collide on a key, and a downstream decide reads
-		// input.annotations.<classify-name>.<key>. The same classifier at a
-		// later hook replaces its whole namespace (last-write-wins per
-		// namespace), since WithAnnotations merges at the top level.
-		ns := map[string]any{c.name: ann}
-		cur, err = cur.WithAnnotations(ns)
-		if err != nil {
-			return Result{}, err
-		}
-		res.Annotations = mergeAnnotations(res.Annotations, ns)
+		return res
 	}
 
-	// route: override input.request.model so later stages see the new model.
+	// annotate: thread each stage's namespaced annotations into the Input so
+	// later stages (and later hooks) can read them.
+	for _, a := range p.annotate {
+		res := a.Evaluate(ctx, cur)
+		outcomes = append(outcomes, StageOutcome{Name: a.name, Result: res})
+		if res.Verdict.Blocks() {
+			return finalize(), nil
+		}
+		if len(res.Annotations) > 0 {
+			var err error
+			cur, err = cur.WithAnnotations(res.Annotations)
+			if err != nil {
+				return Result{}, err
+			}
+		}
+	}
+
+	// route: override input.request.body.model so later stages see the new model.
 	if p.route != nil {
-		model, ok, err := evalStage(ctx, func(sctx context.Context) (string, bool, error) {
-			return p.route.Evaluate(sctx, cur)
-		})
+		res := p.route.Evaluate(ctx, cur)
+		outcomes = append(outcomes, StageOutcome{Name: p.route.name, Result: res})
 		switch {
-		case err != nil:
-			if stageBlocks(p.route.failMode, err) {
-				return blocked(p.route.name, err), nil
-			}
-			failOpen(p.route.name, err)
-		case ok:
+		case res.Verdict.Blocks():
+			return finalize(), nil
+		case res.Route != "":
 			body, err := cur.Request()
 			if err != nil {
 				return Result{}, err
@@ -212,8 +173,8 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 			original := gjson.GetBytes(body, "model").String()
 			// Only mutate and record when the model actually changes; a route
 			// that returns the current model is a no-op.
-			if model != original {
-				body, err = sjson.SetBytes(body, "model", model)
+			if res.Route != original {
+				body, _, err = ApplyEdits(body, []Edit{{Pointer: "model", Value: res.Route}})
 				if err != nil {
 					return Result{}, xerrors.Errorf("override model: %w", err)
 				}
@@ -223,7 +184,7 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 				}
 				finalBody = body
 				mutated = true
-				res.Modifications = addModification(res.Modifications, p.route.name, map[string]any{
+				modifications = addModification(modifications, p.route.name, map[string]any{
 					"original_model": original,
 				})
 			}
@@ -231,83 +192,45 @@ func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {
 	}
 
 	// decide: reduce verdicts, BLOCK short-circuits.
-	var blockingDecide, blockMessage string
 	for _, d := range p.decide {
-		dec, err := evalStage1(ctx, func(sctx context.Context) (Decision, error) {
-			return d.Evaluate(sctx, cur)
-		})
-		if err != nil {
-			if stageBlocks(d.failMode, err) {
-				return blocked(d.name, err), nil
-			}
-			failOpen(d.name, err)
-			continue
+		res := d.Evaluate(ctx, cur)
+		outcomes = append(outcomes, StageOutcome{Name: d.name, Result: res})
+		if res.Verdict.Blocks() {
+			return finalize(), nil
 		}
-		verdicts = append(verdicts, dec.Verdict)
-		if dec.Verdict.Blocks() {
-			blockingDecide = d.name
-			blockMessage = dec.Message
-			break
-		}
-	}
-	if ReduceVerdicts(verdicts...).Blocks() {
-		r := blocked(blockingDecide, nil)
-		r.Message = blockMessage
-		return r, nil
 	}
 
-	// transform: replace the whole request body (host re-validates downstream)
-	// and/or override request headers.
+	// transform: apply body edits (a whole-body rewrite is the root edit) and/or
+	// override request headers. The host re-validates the mutated body downstream.
 	for _, t := range p.transform {
-		tf, ok, err := evalStage(ctx, func(sctx context.Context) (Transformation, bool, error) {
-			return t.Evaluate(sctx, cur)
-		})
-		if err != nil {
-			if stageBlocks(t.failMode, err) {
-				return blocked(t.name, err), nil
-			}
-			failOpen(t.name, err)
-			continue
+		res := t.Evaluate(ctx, cur)
+		outcomes = append(outcomes, StageOutcome{Name: t.name, Result: res})
+		if res.Verdict.Blocks() {
+			return finalize(), nil
 		}
-		if !ok {
-			continue
-		}
-		if tf.Body != nil {
-			cur, err = cur.WithRequest(tf.Body)
+		if len(res.Edits) > 0 {
+			body, err := cur.Request()
 			if err != nil {
 				return Result{}, err
 			}
-			finalBody = tf.Body
+			body, _, err = ApplyEdits(body, res.Edits)
+			if err != nil {
+				return Result{}, err
+			}
+			cur, err = cur.WithRequest(body)
+			if err != nil {
+				return Result{}, err
+			}
+			finalBody = body
 			mutated = true
 		}
-		if len(tf.Headers) > 0 {
-			res.Headers = mergeHeaders(res.Headers, tf.Headers)
+		if len(res.Headers) > 0 {
+			headers = mergeHeaders(headers, res.Headers)
 		}
 	}
 
-	res.Verdict = ReduceVerdicts(verdicts...)
-	res.Errors = stageErrs
-	if mutated {
-		res.RequestBody = finalBody
-	}
-	return res, nil
+	return finalize(), nil
 }
-
-// evalStage runs a (value, ok, error) stage under a per-stage timeout.
-func evalStage[T any](ctx context.Context, fn func(context.Context) (T, bool, error)) (T, bool, error) {
-	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
-	defer cancel()
-	return fn(sctx)
-}
-
-// evalStage1 runs a (value, error) stage under a per-stage timeout.
-func evalStage1[T any](ctx context.Context, fn func(context.Context) (T, error)) (T, error) {
-	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
-	defer cancel()
-	return fn(sctx)
-}
-
-func blockedBy(name string) Result { return Result{Verdict: VerdictBlock, BlockedBy: name} }
 
 // addModification records a single policy's modification entry keyed by policy
 // name, allocating the map on first use.
@@ -324,14 +247,6 @@ func addModification(dst map[string]any, name string, mod map[string]any) map[st
 func mergeHeaders(dst, src map[string]string) map[string]string {
 	if dst == nil {
 		dst = make(map[string]string, len(src))
-	}
-	maps.Copy(dst, src)
-	return dst
-}
-
-func mergeAnnotations(dst, src map[string]any) map[string]any {
-	if dst == nil {
-		dst = make(map[string]any, len(src))
 	}
 	maps.Copy(dst, src)
 	return dst

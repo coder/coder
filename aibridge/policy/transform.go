@@ -2,18 +2,19 @@ package policy
 
 import (
 	"context"
-	"encoding/json"
 
 	"golang.org/x/xerrors"
 )
 
-// Transformation is the output of a transform policy: an optional replacement
-// request body and optional request header overrides. A nil field means the
-// corresponding rule was undefined, so that part of the request is unchanged.
+// Transformation is the typed decode result of a transform policy: a body
+// rewrite expressed as edits plus optional request header overrides. It
+// projects into a StageResult's Edits and Headers. A whole-body rewrite is the
+// degenerate root edit (Pointer "").
 type Transformation struct {
-	// Body is the whole replacement request body as JSON bytes, or nil when the
-	// body rule is undefined. The host re-validates it by re-parsing downstream.
-	Body []byte
+	// Edits are the body mutations. A transform that rewrites the whole body
+	// produces a single root edit; the host re-validates the mutated body
+	// downstream. Empty when the body rule is undefined.
+	Edits []Edit
 	// Headers are request header overrides (set/replace) applied to the outgoing
 	// upstream request, or nil when the headers rule is undefined. Transport,
 	// auth, and hop-by-hop headers are sanitized by the host before forwarding,
@@ -22,8 +23,9 @@ type Transformation struct {
 }
 
 // Transform rewrites the outgoing request. It evaluates data.gateway.body (the
-// whole replacement body) and the optional data.gateway.headers (an object of
-// string header overrides). ok is false when neither rule is defined.
+// whole replacement body, decoded into a root edit) and the optional
+// data.gateway.headers (an object of string header overrides). ok is false when
+// neither rule is defined.
 type Transform struct {
 	body     preparedQuery
 	headers  preparedQuery
@@ -46,7 +48,27 @@ func NewTransform(name, module string, opts ...Option) (*Transform, error) {
 	return &Transform{body: bq, headers: hq, failMode: o.failMode, name: name}, nil
 }
 
-func (t *Transform) Evaluate(ctx context.Context, in Input) (Transformation, bool, error) {
+// Name implements Stage.
+func (t *Transform) Name() string { return t.name }
+
+// Evaluate decodes the body/headers rules and projects them into a StageResult.
+// A failure is synthesized through the stage's fail mode.
+func (t *Transform) Evaluate(ctx context.Context, in Input) StageResult {
+	return runStage(ctx, t.name, t.failMode, func(sctx context.Context) (StageResult, error) {
+		tf, ok, err := t.transformation(sctx, in)
+		if err != nil {
+			return StageResult{}, err
+		}
+		if !ok {
+			return StageResult{}, nil
+		}
+		return StageResult{Edits: tf.Edits, Headers: tf.Headers}, nil
+	})
+}
+
+// transformation decodes data.gateway.body (as a root edit) and the optional
+// data.gateway.headers. ok is false when neither rule is defined.
+func (t *Transform) transformation(ctx context.Context, in Input) (Transformation, bool, error) {
 	var out Transformation
 
 	val, ok, err := evalSingle(ctx, t.body, in)
@@ -54,11 +76,9 @@ func (t *Transform) Evaluate(ctx context.Context, in Input) (Transformation, boo
 		return Transformation{}, false, err
 	}
 	if ok {
-		body, err := json.Marshal(val)
-		if err != nil {
-			return Transformation{}, false, xerrors.Errorf("encode transformed body: %w", err)
-		}
-		out.Body = body
+		// A whole-body rewrite is the degenerate root edit: pointer "" replaces
+		// the entire body with the decoded value (re-validated downstream).
+		out.Edits = []Edit{{Pointer: "", Value: val}}
 	}
 
 	hval, hok, err := evalSingle(ctx, t.headers, in)
@@ -73,7 +93,7 @@ func (t *Transform) Evaluate(ctx context.Context, in Input) (Transformation, boo
 		out.Headers = headers
 	}
 
-	return out, out.Body != nil || out.Headers != nil, nil
+	return out, len(out.Edits) > 0 || out.Headers != nil, nil
 }
 
 // toHeaderMap converts a Rego object of string values into a header map. A

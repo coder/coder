@@ -24,10 +24,10 @@ func mustDecide(t *testing.T, module string, opts ...policy.Option) *policy.Deci
 	return d
 }
 
-func TestPipeline_ClassifyAnnotationVisibleToDecide(t *testing.T) {
+func TestPipeline_AnnotateAnnotationVisibleToDecide(t *testing.T) {
 	t.Parallel()
 
-	classify, err := policy.NewClassify("test-classify", `
+	annotate, err := policy.NewAnnotate("test-annotate", `
 annotations := {"risk": "high"} if object.get(input.request.body, "max_tokens", 0) > 1000
 `)
 	require.NoError(t, err)
@@ -35,22 +35,22 @@ annotations := {"risk": "high"} if object.get(input.request.body, "max_tokens", 
 	// annotations; a BLOCK would short-circuit and is exercised separately.
 	decide := mustDecide(t, `
 default verdict := "ALLOW"
-verdict := "LOG" if input.annotations["test-classify"].risk == "high"
+verdict := "LOG" if input.annotations["test-annotate"].risk == "high"
 `)
 
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
-		Classify: []*policy.Classify{classify},
+		Annotate: []*policy.Annotate{annotate},
 		Decide:   []*policy.Decide{decide},
 	})
 	require.NoError(t, err)
 
-	// High max_tokens -> classify sets risk=high -> decide (reading the
+	// High max_tokens -> annotate sets risk=high -> decide (reading the
 	// threaded annotation) flags. The LOG proves the annotation was visible.
 	res, err := pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":5000}`, policy.Identity{}))
 	require.NoError(t, err)
 	require.Equal(t, policy.VerdictLog, res.Verdict)
-	// Annotations are namespaced under the producing classifier's name.
-	require.Equal(t, "high", res.Annotations["test-classify"].(map[string]any)["risk"])
+	// Annotations are namespaced under the producing stage's name.
+	require.Equal(t, "high", res.Annotations["test-annotate"].(map[string]any)["risk"])
 
 	// Low max_tokens -> no annotation -> allowed.
 	res, err = pipe.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o","max_tokens":100}`, policy.Identity{}))
@@ -181,7 +181,7 @@ headers := {"x-coder-policy": "applied"} if startswith(input.request.body.model,
 func TestNewPreAuthPipeline_RejectsRouteAndTransform(t *testing.T) {
 	t.Parallel()
 
-	// Pre-auth permits only classify and decide: the request-mutating kinds
+	// Pre-auth permits only annotate and decide: the request-mutating kinds
 	// (route, transform) must be rejected, mirroring the pre-tool constraint.
 	route, err := policy.NewRoute("r", `model := "gpt-4o"`)
 	require.NoError(t, err)
@@ -245,13 +245,13 @@ body := {"mutated": true}
 func TestPipeline_CardinalityValidation(t *testing.T) {
 	t.Parallel()
 
-	c1 := func() *policy.Classify {
-		c, err := policy.NewClassify("test-classify", `
+	c1 := func() *policy.Annotate {
+		c, err := policy.NewAnnotate("test-annotate", `
 annotations := {}
 `)
 		require.NoError(t, err)
 		return c
 	}
-	_, err := policy.NewPipeline(policy.PipelineConfig{Classify: []*policy.Classify{c1(), c1()}})
+	_, err := policy.NewPipeline(policy.PipelineConfig{Annotate: []*policy.Annotate{c1(), c1()}})
 	require.Error(t, err)
 }

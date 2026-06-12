@@ -47,7 +47,23 @@ func NewDecide(name, module string, opts ...Option) (*Decide, error) {
 	return &Decide{verdict: vq, message: mq, failMode: o.failMode, name: name}, nil
 }
 
-func (d *Decide) Evaluate(ctx context.Context, in Input) (Decision, error) {
+// Name implements Stage.
+func (d *Decide) Name() string { return d.name }
+
+// Evaluate decodes the verdict (and optional message) and projects it into a
+// StageResult. A failure is synthesized through the stage's fail mode.
+func (d *Decide) Evaluate(ctx context.Context, in Input) StageResult {
+	return runStage(ctx, d.name, d.failMode, func(sctx context.Context) (StageResult, error) {
+		dec, err := d.decision(sctx, in)
+		if err != nil {
+			return StageResult{}, err
+		}
+		return StageResult{Verdict: dec.Verdict, Message: dec.Message}, nil
+	})
+}
+
+// decision decodes data.gateway.verdict (+ optional message).
+func (d *Decide) decision(ctx context.Context, in Input) (Decision, error) {
 	val, ok, err := evalSingle(ctx, d.verdict, in)
 	if err != nil {
 		return Decision{}, err

@@ -9,7 +9,7 @@ import (
 
 // policyPackage is the Rego package every gateway policy is authored in. Each
 // kind binds a well-known rule within it: verdict (decide), annotations
-// (classify), model (route), body (transform).
+// (annotate), model (route), body (transform).
 const policyPackage = "gateway"
 
 // ruleQuery returns the prepared-query reference for a kind's entrypoint rule.

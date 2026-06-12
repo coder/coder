@@ -130,13 +130,13 @@ func TestKindValidAtHook(t *testing.T) {
 		kind  policy.Kind
 		valid bool
 	}{
-		{policy.HookPreAuth, policy.KindClassify, true},
+		{policy.HookPreAuth, policy.KindAnnotate, true},
 		{policy.HookPreAuth, policy.KindDecide, true},
 		{policy.HookPreAuth, policy.KindRoute, false},
 		{policy.HookPreAuth, policy.KindTransform, false},
 		{policy.HookPreReq, policy.KindRoute, true},
 		{policy.HookPreReq, policy.KindTransform, true},
-		{policy.HookPreTool, policy.KindClassify, true},
+		{policy.HookPreTool, policy.KindAnnotate, true},
 		{policy.HookPreTool, policy.KindDecide, true},
 		{policy.HookPreTool, policy.KindRoute, false},
 		{policy.HookPreTool, policy.KindTransform, false},

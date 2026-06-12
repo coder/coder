@@ -19,9 +19,9 @@ verdict := "BLOCK" if {
 }
 `
 
-// benchClassifyPolicy attaches a single annotation, to exercise pipeline
+// benchAnnotatePolicy attaches a single annotation, to exercise pipeline
 // threading cost.
-const benchClassifyPolicy = `
+const benchAnnotatePolicy = `
 annotations := {"is_haiku": contains(lower(object.get(input.request.body, "model", "")), "haiku")}
 `
 
@@ -84,18 +84,18 @@ func BenchmarkDecideEvaluate(b *testing.B) {
 		b.Run(tc.name, func(b *testing.B) {
 			b.ReportAllocs()
 			for b.Loop() {
-				if _, err := d.Evaluate(ctx, in); err != nil {
-					b.Fatal(err)
+				if res := d.Evaluate(ctx, in); res.Err != nil {
+					b.Fatal(res.Err.Err)
 				}
 			}
 		})
 	}
 }
 
-// BenchmarkPipelineEvaluate measures a classify + decide pipeline over a shared,
+// BenchmarkPipelineEvaluate measures an annotate + decide pipeline over a shared,
 // parse-once envelope.
 func BenchmarkPipelineEvaluate(b *testing.B) {
-	classify, err := policy.NewClassify("bench-classify", benchClassifyPolicy)
+	annotate, err := policy.NewAnnotate("bench-annotate", benchAnnotatePolicy)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -104,7 +104,7 @@ func BenchmarkPipelineEvaluate(b *testing.B) {
 		b.Fatal(err)
 	}
 	pipe, err := policy.NewPipeline(policy.PipelineConfig{
-		Classify: []*policy.Classify{classify},
+		Annotate: []*policy.Annotate{annotate},
 		Decide:   []*policy.Decide{decide},
 	})
 	if err != nil {

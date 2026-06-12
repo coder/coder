@@ -124,13 +124,13 @@ func buildProviderPipelines(ctx context.Context, logger slog.Logger, members []p
 		opt := policy.WithFailMode(failMode)
 
 		switch member.Kind {
-		case database.AIGatewayPolicyKindClassify:
-			p, err := policy.NewClassify(member.PolicyName, member.Rego, opt)
+		case database.AiGatewayPolicyKindAnnotate:
+			p, err := policy.NewAnnotate(member.PolicyName, member.Rego, opt)
 			if err != nil {
 				logSkipPolicy(ctx, logger, member, err)
 				continue
 			}
-			cfg.Classify = append(cfg.Classify, p)
+			cfg.Annotate = append(cfg.Annotate, p)
 		case database.AIGatewayPolicyKindRoute:
 			p, err := policy.NewRoute(member.PolicyName, member.Rego, opt)
 			if err != nil {
@@ -163,7 +163,7 @@ func buildProviderPipelines(ctx context.Context, logger slog.Logger, members []p
 
 	out := make(map[string]aibridge.ProviderPipelines)
 	for key, cfg := range configs {
-		// The pre-auth and pre-tool hooks permit only classify and decide; build
+		// The pre-auth and pre-tool hooks permit only annotate and decide; build
 		// them through the constrained constructors so a route/transform smuggled
 		// past the kind-validity check (which would modify the request) is
 		// rejected.
@@ -176,7 +176,7 @@ func buildProviderPipelines(ctx context.Context, logger slog.Logger, members []p
 		}
 		pipe, err := newPipe(*cfg)
 		if err != nil {
-			// A malformed composition (e.g. >1 classify) should be impossible
+			// A malformed composition (e.g. >1 annotate) should be impossible
 			// given the DB constraints; skip the whole hook for this provider
 			// rather than risk an inconsistent posture.
 			logger.Error(ctx, "skipping invalid policy pipeline for hook",
@@ -213,13 +213,13 @@ func buildProviderPipelines(ctx context.Context, logger slog.Logger, members []p
 func hookAllowsKind(hook database.AIGatewayHook, kind database.AIGatewayPolicyKind) bool {
 	switch hook {
 	case database.AIGatewayHookPreAuth:
-		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
+		return kind == database.AiGatewayPolicyKindAnnotate || kind == database.AIGatewayPolicyKindDecide
 	case database.AIGatewayHookPreReq:
 		return true
 	case database.AIGatewayHookPreTool:
 		// The request is already dispatched, so route and transform do not
-		// apply; only classify and decide gate a tool call.
-		return kind == database.AIGatewayPolicyKindClassify || kind == database.AIGatewayPolicyKindDecide
+		// apply; only annotate and decide gate a tool call.
+		return kind == database.AiGatewayPolicyKindAnnotate || kind == database.AIGatewayPolicyKindDecide
 	default:
 		return false
 	}

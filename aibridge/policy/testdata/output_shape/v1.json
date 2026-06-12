@@ -1,5 +1,5 @@
 {
-  "classify": {
+  "annotate": {
     "annotations": {
       "type": "object",
       "required": false

@@ -71,14 +71,14 @@ import { cn } from "#/utils/cn";
 import { RegoEditor } from "./RegoEditor";
 
 const POLICY_KINDS: AIGatewayPolicyKind[] = [
-	"classify",
+	"annotate",
 	"route",
 	"decide",
 	"transform",
 ];
 
 // Hooks a policy member can be attached to. pre_tool gates each client-bound
-// tool call (classify/decide only); the server rejects kind-invalid (hook,
+// tool call (annotate/decide only); the server rejects kind-invalid (hook,
 // policy) pairs on submit, matching how pre_auth is handled here.
 const HOOKS: AIGatewayHook[] = ["pre_auth", "pre_req", "pre_tool"];
 

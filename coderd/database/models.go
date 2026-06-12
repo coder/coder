@@ -196,7 +196,7 @@ func AllAIGatewayHookValues() []AIGatewayHook {
 type AIGatewayPolicyKind string
 
 const (
-	AIGatewayPolicyKindClassify  AIGatewayPolicyKind = "classify"
+	AiGatewayPolicyKindAnnotate  AIGatewayPolicyKind = "annotate"
 	AIGatewayPolicyKindRoute     AIGatewayPolicyKind = "route"
 	AIGatewayPolicyKindDecide    AIGatewayPolicyKind = "decide"
 	AIGatewayPolicyKindTransform AIGatewayPolicyKind = "transform"
@@ -239,7 +239,7 @@ func (ns NullAIGatewayPolicyKind) Value() (driver.Value, error) {
 
 func (e AIGatewayPolicyKind) Valid() bool {
 	switch e {
-	case AIGatewayPolicyKindClassify,
+	case AiGatewayPolicyKindAnnotate,
 		AIGatewayPolicyKindRoute,
 		AIGatewayPolicyKindDecide,
 		AIGatewayPolicyKindTransform:
@@ -250,7 +250,7 @@ func (e AIGatewayPolicyKind) Valid() bool {
 
 func AllAIGatewayPolicyKindValues() []AIGatewayPolicyKind {
 	return []AIGatewayPolicyKind{
-		AIGatewayPolicyKindClassify,
+		AiGatewayPolicyKindAnnotate,
 		AIGatewayPolicyKindRoute,
 		AIGatewayPolicyKindDecide,
 		AIGatewayPolicyKindTransform,

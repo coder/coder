@@ -20,7 +20,7 @@ var AIGatewayPolicyNameRegex = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 type AIGatewayPolicyKind string
 
 const (
-	AIGatewayPolicyKindClassify  AIGatewayPolicyKind = "classify"
+	AIGatewayPolicyKindAnnotate  AIGatewayPolicyKind = "annotate"
 	AIGatewayPolicyKindRoute     AIGatewayPolicyKind = "route"
 	AIGatewayPolicyKindDecide    AIGatewayPolicyKind = "decide"
 	AIGatewayPolicyKindTransform AIGatewayPolicyKind = "transform"
@@ -133,7 +133,7 @@ func (req UpdateAIGatewayPolicyRequest) IsEmpty() bool {
 
 func validateAIGatewayPolicyKind(kind AIGatewayPolicyKind) []ValidationError {
 	switch kind {
-	case AIGatewayPolicyKindClassify, AIGatewayPolicyKindRoute,
+	case AIGatewayPolicyKindAnnotate, AIGatewayPolicyKindRoute,
 		AIGatewayPolicyKindDecide, AIGatewayPolicyKindTransform:
 		return nil
 	case "":

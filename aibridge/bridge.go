@@ -276,8 +276,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		}
 
 		// Run the policy hooks before creating the interceptor: they may block
-		// the request, rewrite the payload, or attach classifications.
-		payload, classifications, modifications, blocked := hooks.apply(w, r, payload, actor, ph, p.Name(), m, logger)
+		// the request, rewrite the payload, or attach annotations.
+		payload, annotations, modifications, blocked := hooks.apply(w, r, payload, actor, ph, p.Name(), m, logger)
 		if blocked {
 			return
 		}
@@ -286,8 +286,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		// streaming interceptor can evaluate each assembled, client-bound tool
 		// call before releasing it. A nil gate (no pre-tool pipeline) is a
 		// no-op. The gate captures the post-pre-req body and accumulated
-		// classifications.
-		if gate := hooks.toolGate(ph, p.Name(), headerMap(r.Header, remoteIP(r)), r.Method, r.URL.Path, payload.Body(), actor, classifications, m, logger); gate != nil {
+		// annotations.
+		if gate := hooks.toolGate(ph, p.Name(), headerMap(r.Header, remoteIP(r)), r.Method, r.URL.Path, payload.Body(), actor, annotations, m, logger); gate != nil {
 			ctx = intercept.WithToolGate(ctx, gate)
 			r = r.WithContext(ctx)
 		}
@@ -328,7 +328,7 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
 			ID:                    interceptor.ID().String(),
 			InitiatorID:           actor.ID,
-			Metadata:              metadataWithPolicyResults(actor.Metadata, classifications, modifications),
+			Metadata:              metadataWithPolicyResults(actor.Metadata, annotations, modifications),
 			Model:                 interceptor.Model(),
 			Provider:              p.Type(),
 			ProviderName:          p.Name(),

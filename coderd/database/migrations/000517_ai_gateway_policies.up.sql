@@ -1,4 +1,4 @@
-CREATE TYPE ai_gateway_policy_kind AS ENUM ('classify', 'route', 'decide', 'transform');
+CREATE TYPE ai_gateway_policy_kind AS ENUM ('annotate', 'route', 'decide', 'transform');
 
 -- v1 hooks only; 'post_resp' is added in a later phase via ALTER TYPE ... ADD VALUE.
 CREATE TYPE ai_gateway_hook AS ENUM ('pre_auth', 'pre_req');
@@ -97,10 +97,10 @@ CREATE TABLE ai_gateway_pipeline_version_policies (
     UNIQUE (pipeline_version_id, policy_version_id, hook)
 );
 
--- At most one classify / route / transform per (version, hook). decide is
+-- At most one annotate / route / transform per (version, hook). decide is
 -- unconstrained (many, reduced).
-CREATE UNIQUE INDEX ai_gateway_pvp_one_classify
-    ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'classify';
+CREATE UNIQUE INDEX ai_gateway_pvp_one_annotate
+    ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'annotate';
 CREATE UNIQUE INDEX ai_gateway_pvp_one_route
     ON ai_gateway_pipeline_version_policies (pipeline_version_id, hook) WHERE kind = 'route';
 CREATE UNIQUE INDEX ai_gateway_pvp_one_transform

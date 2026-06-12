@@ -14493,9 +14493,9 @@
 		},
 		"codersdk.AIGatewayPolicyKind": {
 			"type": "string",
-			"enum": ["classify", "route", "decide", "transform"],
+			"enum": ["annotate", "route", "decide", "transform"],
 			"x-enum-varnames": [
-				"AIGatewayPolicyKindClassify",
+				"AIGatewayPolicyKindAnnotate",
 				"AIGatewayPolicyKindRoute",
 				"AIGatewayPolicyKindDecide",
 				"AIGatewayPolicyKindTransform"

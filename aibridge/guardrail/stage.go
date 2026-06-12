@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/tidwall/sjson"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/aibridge/policy"
 )
 
 // Member is a guardrail attached to a hook with its per-membership settings.
@@ -23,8 +24,9 @@ type Member struct {
 func (m Member) name() string { return m.Guardrail.Name() }
 
 // Stage is the set of guardrails for a single hook. Guardrails run
-// concurrently (they are network-bound); their results are merged
-// deterministically.
+// concurrently (they are network-bound); their results project into the shared
+// [policy.StageResult] and reduce through the single [policy.Reduce] + edits
+// applier, exactly like the Rego policy pipeline.
 type Stage struct {
 	members []Member
 }
@@ -49,34 +51,6 @@ func NewStage(members ...Member) (*Stage, error) {
 // Empty reports whether the stage has no members (a no-op stage).
 func (s *Stage) Empty() bool { return s == nil || len(s.members) == 0 }
 
-// StageResult is the merged outcome of every guardrail in the stage.
-type StageResult struct {
-	// Block reports that an enforcing guardrail rejected the request.
-	Block bool
-	// BlockedBy is the name of the blocking guardrail (lowest in name order on
-	// ties), or empty when not blocked.
-	BlockedBy string
-	// Reason is the blocking guardrail's reason.
-	Reason string
-	// Annotations maps each guardrail's name to its annotation map, ready to
-	// thread into input.annotations.
-	Annotations map[string]any
-	// Body is the request body after applying every enforcing guardrail's
-	// edits, or nil when nothing was rewritten.
-	Body []byte
-	// Errors holds every guardrail's evaluation failure (unreachable / timeout
-	// / non-2xx), for host logging. A fail-closed failure here also sets Block;
-	// a fail-open failure is recorded but not blocking. The client-facing Reason
-	// stays generic so internal details (endpoints, etc.) are not leaked.
-	Errors []GuardrailError
-}
-
-// GuardrailError pairs a guardrail's name with the error it returned.
-type GuardrailError struct {
-	Name string
-	Err  error
-}
-
 // memberOutcome is one member's evaluation, captured before the deterministic
 // merge.
 type memberOutcome struct {
@@ -86,14 +60,14 @@ type memberOutcome struct {
 	err    error
 }
 
-// Run evaluates every guardrail concurrently against body and merges the
-// results. It never returns an error for a guardrail-level failure; such
-// failures are folded into the StageResult per the member's fail mode (a
-// fail-closed failure becomes a block). An error is returned only for an
-// internal failure applying body edits.
-func (s *Stage) Run(ctx context.Context, body []byte, model string) (StageResult, error) {
+// Run evaluates every guardrail concurrently against body and reduces the
+// results into a [policy.Result]. It never returns an error for a
+// guardrail-level failure; such failures are synthesized through the member's
+// fail mode (a fail-closed failure becomes a BLOCK, fail-open a LOG). An error
+// is returned only for an internal failure applying body edits.
+func (s *Stage) Run(ctx context.Context, body []byte, model string) (policy.Result, error) {
 	if s.Empty() {
-		return StageResult{}, nil
+		return policy.Result{}, nil
 	}
 
 	req := Request{
@@ -113,11 +87,10 @@ func (s *Stage) Run(ctx context.Context, body []byte, model string) (StageResult
 	}
 	wg.Wait()
 
-	return s.merge(outcomes, body)
+	return s.reduce(outcomes, body)
 }
 
-// evalMember runs a single member under its timeout and downgrades the result
-// to the member's mode (advisory members keep annotations only).
+// evalMember runs a single member under its timeout.
 func evalMember(ctx context.Context, m Member, req Request) memberOutcome {
 	if m.Timeout > 0 {
 		var cancel context.CancelFunc
@@ -128,67 +101,73 @@ func evalMember(ctx context.Context, m Member, req Request) memberOutcome {
 	return memberOutcome{name: m.name(), mode: m.Mode, result: res, err: err}
 }
 
-// merge reduces member outcomes into a StageResult: BLOCK wins (lowest name on
-// ties), annotations are unioned under each guardrail's name, and enforcing
-// edits apply as an ordered chain.
-func (s *Stage) merge(outcomes []memberOutcome, body []byte) (StageResult, error) {
+// reduce projects each member outcome into a [policy.StageResult] (a failure is
+// synthesized through its fail mode; an advisory member contributes annotations
+// only; an enforcing member may also block and emit edits), then runs the
+// single shared reducer. Edits apply as a deterministic ordered chain by
+// guardrail name and only when the request is not blocked (BLOCK freezes
+// effects).
+func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, error) {
 	// Deterministic order by guardrail name for block attribution and the edit
 	// chain.
 	sort.Slice(outcomes, func(i, j int) bool { return outcomes[i].name < outcomes[j].name })
 
-	var (
-		out     StageResult
-		edited  = body
-		mutated bool
-	)
+	staged := make([]policy.StageOutcome, 0, len(outcomes))
+	var edits []policy.Edit
 	for _, o := range outcomes {
-		if o.err != nil {
-			// Record every failure for host logging, then apply the fail mode:
-			// fail-closed failures block; fail-open failures are skipped.
-			out.Errors = append(out.Errors, GuardrailError{Name: o.name, Err: o.err})
-			if s.failMode(o.name) == FailClosed {
-				if !out.Block {
-					out.Block = true
-					out.BlockedBy = o.name
-					out.Reason = "guardrail unavailable: " + o.name
-				}
-			}
-			continue
-		}
-
-		if len(o.result.Annotations) > 0 {
-			if out.Annotations == nil {
-				out.Annotations = make(map[string]any, len(outcomes))
-			}
-			out.Annotations[o.name] = o.result.Annotations
-		}
-
-		// Advisory members contribute annotations only.
-		if o.mode != ModeEnforcing {
-			continue
-		}
-
-		if o.result.Action == ActionBlock && !out.Block {
-			out.Block = true
-			out.BlockedBy = o.name
-			out.Reason = o.result.Reason
-		}
-
-		for _, e := range o.result.Edits {
-			next, err := sjson.SetBytes(edited, e.Pointer, e.Value)
-			if err != nil {
-				return StageResult{}, xerrors.Errorf("apply edit %q from guardrail %q: %w", e.Pointer, o.name, err)
-			}
-			edited = next
-			mutated = true
-		}
+		res := s.project(o)
+		staged = append(staged, policy.StageOutcome{Name: o.name, Result: res})
+		edits = append(edits, res.Edits...)
 	}
 
+	reduced := policy.Reduce(staged)
+	out := policy.Result{
+		Verdict:     reduced.Verdict,
+		BlockedBy:   reduced.BlockedBy,
+		Message:     reduced.Message,
+		Annotations: reduced.Annotations,
+		Errors:      reduced.Errors,
+	}
 	// A blocked request is never forwarded, so its body rewrite is moot.
-	if mutated && !out.Block {
-		out.Body = edited
+	if !reduced.Verdict.Blocks() && len(edits) > 0 {
+		edited, mutated, err := policy.ApplyEdits(body, edits)
+		if err != nil {
+			return policy.Result{}, err
+		}
+		if mutated {
+			out.RequestBody = edited
+		}
 	}
 	return out, nil
+}
+
+// project maps a member outcome to a [policy.StageResult] under its effect
+// mask. A failure is synthesized through the member's fail mode; an advisory
+// member keeps annotations only; an enforcing member may also block and emit
+// edits. Annotations are stamped under the guardrail's namespace.
+func (s *Stage) project(o memberOutcome) policy.StageResult {
+	if o.err != nil {
+		return policy.Synthesize(o.name, failModeToPolicy(s.failMode(o.name)), o.err)
+	}
+
+	res := policy.StageResult{}
+	if len(o.result.Annotations) > 0 {
+		res.Annotations = map[string]any{o.name: o.result.Annotations}
+	}
+
+	// Advisory members contribute annotations only.
+	if o.mode != ModeEnforcing {
+		return res
+	}
+
+	if o.result.Action == ActionBlock {
+		res.Verdict = policy.VerdictBlock
+		res.Message = o.result.Reason
+	}
+	for _, e := range o.result.Edits {
+		res.Edits = append(res.Edits, policy.Edit{Pointer: e.Pointer, Value: e.Value})
+	}
+	return res
 }
 
 // failMode resolves a member's fail mode by name.
@@ -199,4 +178,13 @@ func (s *Stage) failMode(name string) FailMode {
 		}
 	}
 	return FailClosed
+}
+
+// failModeToPolicy maps a guardrail fail mode to the policy fail mode the shared
+// synthesizer expects.
+func failModeToPolicy(fm FailMode) policy.FailMode {
+	if fm == FailOpen {
+		return policy.FailOpen
+	}
+	return policy.FailClosed
 }

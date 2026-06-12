@@ -21,14 +21,14 @@ import (
 // (required), the constrained value set (enum), and whether a blank/undefined
 // value falls back to the host default:
 //
-//   - classify  -> annotations (object). Nothing else.
+//   - annotate  -> annotations (object). Nothing else.
 //   - route     -> model (string): the request mutation it may influence.
 //   - transform -> body (any JSON value): the request mutation it may influence.
 //   - decide    -> verdict (required string enum {ALLOW,LOG,BLOCK}) and message
 //     (optional string; undefined or blank uses the host's default message).
 //
 // The contract is declared below and every declared property is verified
-// **behaviorally** against the real consumer in {classify,decide,route,
+// **behaviorally** against the real consumer in {annotate,decide,route,
 // transform}.go, so the declaration cannot drift from what the host actually
 // accepts. The declaration is then pinned in a golden keyed by
 // CurrentOutputSchemaVersion, coupling any contract change to a version bump,
@@ -61,7 +61,7 @@ type fieldContract struct {
 // behaviorally by TestOutputContractGuard and pinned in the golden.
 func outputContract() map[string]map[string]fieldContract {
 	return map[string]map[string]fieldContract{
-		"classify": {
+		"annotate": {
 			"annotations": {Type: "object"},
 		},
 		"route": {
@@ -93,7 +93,7 @@ func TestOutputContractGuard(t *testing.T) {
 	// Every declared entrypoint rule must match EntrypointRule (the source of
 	// truth a renamed rule would diverge from), and decide additionally carries
 	// the optional message rule.
-	for _, kind := range []Kind{KindClassify, KindRoute, KindTransform, KindDecide} {
+	for _, kind := range []Kind{KindAnnotate, KindRoute, KindTransform, KindDecide} {
 		rule, ok := EntrypointRule(kind)
 		require.Truef(t, ok, "no entrypoint rule for kind %q", kind)
 		_, has := contract[string(kind)][rule]
@@ -101,7 +101,7 @@ func TestOutputContractGuard(t *testing.T) {
 	}
 
 	// Behavioral half: prove each declared property against the real consumer.
-	verifyClassifyContract(t)
+	verifyAnnotateContract(t)
 	verifyRouteContract(t)
 	verifyTransformContract(t)
 	verifyDecideContract(t)
@@ -137,25 +137,27 @@ func TestOutputContractGuard(t *testing.T) {
 	}
 }
 
-// verifyClassifyContract proves annotations is an optional object: an object is
-// accepted, a non-object is rejected, and an undefined rule is a skip.
-func verifyClassifyContract(t *testing.T) {
+// verifyAnnotateContract proves annotations is an optional object: an object is
+// accepted, a non-object is rejected, and an undefined rule is a skip. It
+// exercises the typed decode method (annotations) directly, the per-kind struct
+// that projects into a StageResult.
+func verifyAnnotateContract(t *testing.T) {
 	t.Helper()
-	classify := func(module string) (bool, error) {
-		c, err := NewClassify("guard-classify", module)
+	annotate := func(module string) (bool, error) {
+		a, err := NewAnnotate("guard-annotate", module)
 		require.NoError(t, err)
-		_, ok, err := c.Evaluate(t.Context(), mustReqInput(t))
+		_, ok, err := a.annotations(t.Context(), mustReqInput(t))
 		return ok, err
 	}
 
-	ok, err := classify(`annotations := {"risk": "high"}`)
+	ok, err := annotate(`annotations := {"risk": "high"}`)
 	require.NoError(t, err)
 	require.True(t, ok, "object annotations must be accepted")
 
-	_, err = classify(`annotations := "high"`)
+	_, err = annotate(`annotations := "high"`)
 	require.Error(t, err, "non-object annotations must be rejected")
 
-	ok, err = classify(``)
+	ok, err = annotate(``)
 	require.NoError(t, err)
 	require.False(t, ok, "undefined annotations must be a skip (not required)")
 }
@@ -167,7 +169,7 @@ func verifyRouteContract(t *testing.T) {
 	route := func(module string) (bool, error) {
 		r, err := NewRoute("guard-route", module)
 		require.NoError(t, err)
-		_, ok, err := r.Evaluate(t.Context(), mustReqInput(t))
+		_, ok, err := r.route(t.Context(), mustReqInput(t))
 		return ok, err
 	}
 
@@ -191,7 +193,7 @@ func verifyTransformContract(t *testing.T) {
 	transform := func(module string) (Transformation, bool, error) {
 		tr, err := NewTransform("guard-transform", module)
 		require.NoError(t, err)
-		return tr.Evaluate(t.Context(), mustReqInput(t))
+		return tr.transformation(t.Context(), mustReqInput(t))
 	}
 
 	// body accepts any JSON value.
@@ -206,7 +208,7 @@ func verifyTransformContract(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, ok, "object<string> headers must be accepted")
 	require.Equal(t, map[string]string{"x-foo": "bar"}, tf.Headers)
-	require.Nil(t, tf.Body, "headers-only transform leaves the body unchanged")
+	require.Nil(t, tf.Edits, "headers-only transform leaves the body unchanged")
 
 	// a non-string header value is rejected.
 	_, _, err = transform(`headers := {"x-foo": 42}`)
@@ -229,7 +231,7 @@ func verifyDecideContract(t *testing.T) {
 	decide := func(module string) (Decision, error) {
 		d, err := NewDecide("guard-decide", module)
 		require.NoError(t, err)
-		return d.Evaluate(t.Context(), mustReqInput(t))
+		return d.decision(t.Context(), mustReqInput(t))
 	}
 
 	// verdict: exactly {ALLOW,LOG,BLOCK} accepted; any other value rejected.

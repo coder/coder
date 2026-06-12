@@ -217,14 +217,14 @@ headers := {"X-Coder-Policy": "applied"}
 	assert.Equal(t, "applied", cap.request.Header.Get("X-Coder-Policy"))
 }
 
-func TestBridgePolicy_ClassificationsRecorded(t *testing.T) {
+func TestBridgePolicy_AnnotationsRecorded(t *testing.T) {
 	t.Parallel()
 
-	classify, err := policy.NewClassify("tier-classifier", `
+	annotate, err := policy.NewAnnotate("tier-annotator", `
 annotations := {"tier": "gold"}
 `)
 	require.NoError(t, err)
-	pipe, err := policy.NewPipeline(policy.PipelineConfig{Classify: []*policy.Classify{classify}})
+	pipe, err := policy.NewPipeline(policy.PipelineConfig{Annotate: []*policy.Annotate{annotate}})
 	require.NoError(t, err)
 	bridge, rec, _ := newPolicyBridge(t, pipe)
 
@@ -233,12 +233,12 @@ annotations := {"tier": "gold"}
 
 	interceptions := rec.RecordedInterceptions()
 	require.Len(t, interceptions, 1)
-	classifications, ok := interceptions[0].Metadata["classifications"].(map[string]any)
-	require.True(t, ok, "classifications must be recorded under Metadata")
-	// Classify output is namespaced under the producing policy's name.
-	tier, ok := classifications["tier-classifier"].(map[string]any)
-	require.True(t, ok, "classification must be namespaced under the classifier name")
+	annotations, ok := interceptions[0].Metadata["annotations"].(map[string]any)
+	require.True(t, ok, "annotations must be recorded under Metadata")
+	// Annotate output is namespaced under the producing policy's name.
+	tier, ok := annotations["tier-annotator"].(map[string]any)
+	require.True(t, ok, "annotation must be namespaced under the producing stage name")
 	assert.Equal(t, "gold", tier["tier"])
-	// Existing actor metadata is preserved alongside classifications.
+	// Existing actor metadata is preserved alongside annotations.
 	assert.Equal(t, "platform", interceptions[0].Metadata["team"])
 }

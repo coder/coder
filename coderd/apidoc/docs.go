@@ -16221,13 +16221,13 @@ const docTemplate = `{
         "codersdk.AIGatewayPolicyKind": {
             "type": "string",
             "enum": [
-                "classify",
+                "annotate",
                 "route",
                 "decide",
                 "transform"
             ],
             "x-enum-varnames": [
-                "AIGatewayPolicyKindClassify",
+                "AIGatewayPolicyKindAnnotate",
                 "AIGatewayPolicyKindRoute",
                 "AIGatewayPolicyKindDecide",
                 "AIGatewayPolicyKindTransform"

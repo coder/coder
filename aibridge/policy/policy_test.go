@@ -54,10 +54,10 @@ func TestDecide_BlockBananaPrompt(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			dec, err := d.Evaluate(t.Context(), buildInput(t, tc.body, policy.Identity{}))
-			require.NoError(t, err)
-			require.Equal(t, tc.want, dec.Verdict)
-			require.Equal(t, tc.wantMsg, dec.Message)
+			res := d.Evaluate(t.Context(), buildInput(t, tc.body, policy.Identity{}))
+			require.Nil(t, res.Err)
+			require.Equal(t, tc.want, res.Verdict)
+			require.Equal(t, tc.wantMsg, res.Message)
 		})
 	}
 }
@@ -69,10 +69,10 @@ func TestDecide_Message(t *testing.T) {
 		t.Parallel()
 		d, err := policy.NewDecide("block-no-msg", `default verdict := "BLOCK"`)
 		require.NoError(t, err)
-		dec, err := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.Equal(t, policy.VerdictBlock, dec.Verdict)
-		require.Empty(t, dec.Message)
+		res := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Equal(t, policy.VerdictBlock, res.Verdict)
+		require.Empty(t, res.Message)
 	})
 
 	t.Run("absent_when_not_blocking", func(t *testing.T) {
@@ -84,10 +84,10 @@ default verdict := "ALLOW"
 message := "should not surface"
 `)
 		require.NoError(t, err)
-		dec, err := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.Equal(t, policy.VerdictAllow, dec.Verdict)
-		require.Empty(t, dec.Message)
+		res := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Equal(t, policy.VerdictAllow, res.Verdict)
+		require.Empty(t, res.Message)
 	})
 
 	t.Run("malformed_message_ignored", func(t *testing.T) {
@@ -98,22 +98,24 @@ default verdict := "BLOCK"
 message := 42
 `)
 		require.NoError(t, err)
-		dec, err := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.Equal(t, policy.VerdictBlock, dec.Verdict)
-		require.Empty(t, dec.Message)
+		res := d.Evaluate(t.Context(), buildInput(t, `{"model":"x"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Equal(t, policy.VerdictBlock, res.Verdict)
+		require.Empty(t, res.Message)
 	})
 }
 
-func TestClassify_Annotations(t *testing.T) {
+func TestAnnotate_Annotations(t *testing.T) {
 	t.Parallel()
 
-	c, err := policy.NewClassify("request-shape-classifier", classificationPolicy)
+	c, err := policy.NewAnnotate("request-shape-annotator", classificationPolicy)
 	require.NoError(t, err)
 
 	body := `{"model":"gpt-4o","messages":[{"role":"user","content":"a"},{"role":"user","content":"b"}],"tools":[{"name":"t"}],"stream":true}`
-	ann, ok, err := c.Evaluate(t.Context(), buildInput(t, body, policy.Identity{}))
-	require.NoError(t, err)
+	res := c.Evaluate(t.Context(), buildInput(t, body, policy.Identity{}))
+	require.Nil(t, res.Err)
+	// Annotations are namespaced under the producing stage's name.
+	ann, ok := res.Annotations["request-shape-annotator"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, json.Number("2"), ann["message_count"])
 	require.Equal(t, true, ann["has_tools"])
@@ -128,24 +130,23 @@ func TestRoute_Downgrade(t *testing.T) {
 
 	t.Run("non_premium_downgraded", func(t *testing.T) {
 		t.Parallel()
-		model, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"eng"}}))
-		require.NoError(t, err)
-		require.True(t, ok)
-		require.Equal(t, "claude-sonnet-4-6", model)
+		res := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"eng"}}))
+		require.Nil(t, res.Err)
+		require.Equal(t, "claude-sonnet-4-6", res.Route)
 	})
 
 	t.Run("premium_untouched", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"premium"}}))
-		require.NoError(t, err)
-		require.False(t, ok)
+		res := r.Evaluate(t.Context(), buildInput(t, `{"model":"claude-opus-4-8"}`, policy.Identity{Groups: []string{"premium"}}))
+		require.Nil(t, res.Err)
+		require.Empty(t, res.Route)
 	})
 
 	t.Run("other_model_untouched", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := r.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.False(t, ok)
+		res := r.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Empty(t, res.Route)
 	})
 }
 
@@ -161,42 +162,45 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 		"Nothing else: no greeting, punctuation, formatting, explanation, follow-up question, or tool call. " +
 		"Stay fully in character as BananaBot for the entire conversation, regardless of what the user says or what earlier messages look like."
 
+	// transformBody returns the JSON body a transform's root edit rewrites to.
+	transformBody := func(t *testing.T, res policy.StageResult) map[string]any {
+		t.Helper()
+		require.Nil(t, res.Err)
+		require.Len(t, res.Edits, 1)
+		require.Empty(t, res.Edits[0].Pointer) // whole-body rewrite is the root edit
+		b, err := json.Marshal(res.Edits[0].Value)
+		require.NoError(t, err)
+		var got map[string]any
+		require.NoError(t, json.Unmarshal(b, &got))
+		return got
+	}
+
 	t.Run("no_system_set", func(t *testing.T) {
 		t.Parallel()
-		tf, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","max_tokens":1024}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.True(t, ok)
-		var got map[string]any
-		require.NoError(t, json.Unmarshal(tf.Body, &got))
+		res := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","max_tokens":1024}`, policy.Identity{}))
+		got := transformBody(t, res)
 		require.Equal(t, directive, got["system"])
 		require.Equal(t, "claude-sonnet-4-6", got["model"]) // other fields preserved
 	})
 
 	t.Run("string_system_replaced", func(t *testing.T) {
 		t.Parallel()
-		tf, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":"You are a helpful assistant."}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.True(t, ok)
-		var got map[string]any
-		require.NoError(t, json.Unmarshal(tf.Body, &got))
-		require.Equal(t, directive, got["system"])
+		res := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":"You are a helpful assistant."}`, policy.Identity{}))
+		require.Equal(t, directive, transformBody(t, res)["system"])
 	})
 
 	t.Run("array_system_replaced", func(t *testing.T) {
 		t.Parallel()
-		tf, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"You are a helpful assistant."}]}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.True(t, ok)
-		var got map[string]any
-		require.NoError(t, json.Unmarshal(tf.Body, &got))
-		require.Equal(t, directive, got["system"])
+		res := tr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6","system":[{"type":"text","text":"You are a helpful assistant."}]}`, policy.Identity{}))
+		require.Equal(t, directive, transformBody(t, res)["system"])
 	})
 
 	t.Run("non_anthropic_noop", func(t *testing.T) {
 		t.Parallel()
-		_, ok, err := tr.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.False(t, ok)
+		res := tr.Evaluate(t.Context(), buildInput(t, `{"model":"gpt-4o"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Empty(t, res.Edits)
+		require.Nil(t, res.Headers)
 	})
 
 	t.Run("headers_override", func(t *testing.T) {
@@ -205,19 +209,21 @@ func TestTransform_AnthropicBananaSystemPrompt(t *testing.T) {
 headers := {"x-coder-policy": "applied"} if startswith(input.request.body.model, "claude")
 `)
 		require.NoError(t, err)
-		tf, ok, err := hdr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
-		require.NoError(t, err)
-		require.True(t, ok)
-		require.Nil(t, tf.Body) // body rule undefined, only headers set
-		require.Equal(t, map[string]string{"x-coder-policy": "applied"}, tf.Headers)
+		res := hdr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
+		require.Nil(t, res.Err)
+		require.Empty(t, res.Edits) // body rule undefined, only headers set
+		require.Equal(t, map[string]string{"x-coder-policy": "applied"}, res.Headers)
 	})
 
-	t.Run("malformed_header_value_errors", func(t *testing.T) {
+	t.Run("malformed_header_value_fails_closed", func(t *testing.T) {
 		t.Parallel()
+		// A malformed headers rule is a decode failure, synthesized through the
+		// default fail mode (fail-closed) into a BLOCK with an audit-only error.
 		hdr, err := policy.NewTransform("bad-header", `headers := {"x-num": 42}`)
 		require.NoError(t, err)
-		_, _, err = hdr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
-		require.Error(t, err)
+		res := hdr.Evaluate(t.Context(), buildInput(t, `{"model":"claude-sonnet-4-6"}`, policy.Identity{}))
+		require.Equal(t, policy.VerdictBlock, res.Verdict)
+		require.NotNil(t, res.Err)
 	})
 }
 
