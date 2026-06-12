@@ -3,7 +3,6 @@
  * @see {@link https://ui.shadcn.com/docs/components/scroll-area}
  */
 import { ScrollArea as ScrollAreaPrimitive } from "radix-ui";
-import { useEffect, useRef } from "react";
 import { cn } from "#/utils/cn";
 
 interface ScrollAreaProps
@@ -29,32 +28,12 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 	children,
 	...props
 }) => {
-	const viewportRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		const el = viewportRef.current;
-		if (!el || orientation === "vertical") return;
-		const handleWheel = (e: WheelEvent) => {
-			if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-			if (el.scrollWidth <= el.clientWidth) return;
-			if (el.scrollHeight > el.clientHeight) return;
-			const maxLeft = el.scrollWidth - el.clientWidth;
-			if (e.deltaY > 0 && el.scrollLeft >= maxLeft) return;
-			if (e.deltaY < 0 && el.scrollLeft <= 0) return;
-			e.preventDefault();
-			el.scrollBy({ left: e.deltaY, behavior: "smooth" });
-		};
-		el.addEventListener("wheel", handleWheel, { passive: false });
-		return () => el.removeEventListener("wheel", handleWheel);
-	}, [orientation]);
-
 	return (
 		<ScrollAreaPrimitive.Root
 			className={cn("relative overflow-hidden", className)}
 			{...props}
 		>
 			<ScrollAreaPrimitive.Viewport
-				ref={viewportRef}
 				tabIndex={viewportTabIndex}
 				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
 			>

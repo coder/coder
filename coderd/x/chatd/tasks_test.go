@@ -890,13 +890,16 @@ func (f *taskTestFixture) publishChatUpdate(t *testing.T, chat database.Chat) {
 
 func (f *taskTestFixture) requireWatchEvent(t *testing.T, chatID uuid.UUID, kind codersdk.ChatWatchEventKind) {
 	t.Helper()
-	events := f.pubsub.watchEvents(t)
-	for _, event := range events {
-		if event.Kind == kind && event.Chat.ID == chatID {
-			return
+	// Watch events are published after the corresponding database update
+	// commits, so poll instead of asserting on a single snapshot.
+	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(_ context.Context) bool {
+		for _, event := range f.pubsub.watchEvents(t) {
+			if event.Kind == kind && event.Chat.ID == chatID {
+				return true
+			}
 		}
-	}
-	t.Fatalf("missing watch event kind=%s chat_id=%s events=%v", kind, chatID, events)
+		return false
+	}, testutil.IntervalFast)
 }
 
 func (f *taskTestFixture) requireNoWatchEvents(t *testing.T) {

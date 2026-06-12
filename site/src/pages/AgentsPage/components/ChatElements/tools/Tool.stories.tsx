@@ -2091,7 +2091,7 @@ export const ReadFileTallAndWide: Story = {
 			canvas.getByRole("button", { name: /Read config.ts/i }),
 		);
 		await expectDiffText(canvasElement, "apiUrl");
-		const viewport = await waitFor(() => {
+		await waitFor(() => {
 			const target = [
 				...canvasElement.querySelectorAll<HTMLElement>(
 					"[data-radix-scroll-area-viewport]",
@@ -2102,13 +2102,7 @@ export const ReadFileTallAndWide: Story = {
 			if (!target) {
 				throw new Error("Expected a viewport overflowing on both axes.");
 			}
-			return target;
 		});
-		viewport.dispatchEvent(
-			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
-		);
-		await new Promise((resolve) => setTimeout(resolve, 400));
-		expect(viewport.scrollLeft).toBe(0);
 	},
 };
 
