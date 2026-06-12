@@ -132,21 +132,9 @@ func generateCountries() ([]byte, error) {
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
-		if upper, ok := typegenInitialisms[strings.ToLower(names[i])]; ok {
-			names[i] = upper
-			continue
-		}
 		names[i] = utilstrings.Capitalize(names[i])
 	}
 	return strings.Join(names, "")
-}
-
-// typegenInitialisms keeps Go identifier casing consistent with sqlc's
-// gen.go.initialisms list in coderd/database/sqlc.yaml so generated
-// RBAC/codersdk identifiers match the sqlc-generated database identifiers.
-var typegenInitialisms = map[string]string{
-	"ai": "AI",
-	"id": "ID",
 }
 
 type Definition struct {

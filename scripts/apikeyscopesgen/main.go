@@ -155,19 +155,7 @@ func pascal(s string) string {
 	s = strings.ReplaceAll(s, ".", " ")
 	words := strings.Fields(s)
 	for i := range words {
-		if upper, ok := pascalInitialisms[strings.ToLower(words[i])]; ok {
-			words[i] = upper
-			continue
-		}
 		words[i] = strings.ToUpper(words[i][:1]) + words[i][1:]
 	}
 	return strings.Join(words, "")
-}
-
-// pascalInitialisms keeps generated APIKeyScope identifiers consistent with
-// sqlc's gen.go.initialisms list in coderd/database/sqlc.yaml so the
-// codersdk constants match the sqlc-generated database identifiers.
-var pascalInitialisms = map[string]string{
-	"ai": "AI",
-	"id": "ID",
 }
