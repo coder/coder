@@ -37,14 +37,6 @@ INSERT INTO
 VALUES
 	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING *;
 
--- name: UpdateUserLinkedID :one
-UPDATE
-	user_links
-SET
-	linked_id = $1
-WHERE
-	user_id = $2 AND login_type = $3 RETURNING *;
-
 -- name: UpdateUserLink :one
 UPDATE
 	user_links
@@ -57,6 +49,17 @@ SET
 	claims = $6
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
+
+-- name: UpdateUserLinkedID :one
+-- Backfills linked_id for legacy user_links that were created before
+-- linked_id tracking was added. Only updates when linked_id is empty
+-- to avoid overwriting a valid binding.
+UPDATE
+	user_links
+SET
+	linked_id = @linked_id
+WHERE
+	user_id = @user_id AND login_type = @login_type AND linked_id = '' RETURNING *;
 
 -- name: OIDCClaimFields :many
 -- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.

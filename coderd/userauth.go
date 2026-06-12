@@ -1033,7 +1033,16 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), verifiedEmail.GetEmail())
+	user, link, err := findLinkedUser(ctx, api.Database, githubLinkedID(ghUser), database.LoginTypeGithub, verifiedEmail.GetEmail())
+	if errors.Is(err, errLinkedIDAlreadyBound) {
+		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
+			slog.F("email", verifiedEmail.GetEmail()),
+		)
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "This account is already linked to a different identity provider subject.",
+		})
+		return
+	}
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("gh_user", ghUser.Name), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1418,7 +1427,21 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 
 	ctx = slog.With(ctx, slog.F("email", email), slog.F("username", username), slog.F("name", name))
 
-	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), email)
+	user, link, err := findLinkedUser(ctx, api.Database, oidcLinkedID(idToken), database.LoginTypeOIDC, email)
+	if errors.Is(err, errLinkedIDAlreadyBound) {
+		logger.Warn(ctx, "oauth2: blocked login, account already linked to different identity",
+			slog.F("email", email),
+		)
+		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
+			Status:               http.StatusForbidden,
+			HideStatus:           true,
+			Title:                "Account already linked",
+			Description:          "This account is already linked to a different identity provider subject. Contact your administrator.",
+			AdditionalButtonLink: "/login",
+			AdditionalButtonText: "Back to login",
+		})
+		return
+	}
 	if err != nil {
 		logger.Error(ctx, "oauth2: unable to find linked user", slog.F("email", email), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1851,6 +1874,31 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)
 			}
+
+			// Defense-in-depth: if a concurrent transaction backfilled
+			// linked_id between findLinkedUser and this point, reject the
+			// login with a 403 instead of letting it bubble up as a 500.
+			if link.LinkedID != "" && link.LinkedID != params.LinkedID {
+				return &idpsync.HTTPError{
+					Code:             http.StatusForbidden,
+					Msg:              "Account already linked",
+					Detail:           "This account is already linked to a different identity provider subject. Contact your administrator.",
+					RenderStaticPage: true,
+				}
+			}
+
+			// Backfill linked_id for legacy links.
+			if link.LinkedID == "" && params.LinkedID != "" {
+				//nolint:gocritic // System needs to update the user link.
+				link, err = tx.UpdateUserLinkedID(dbauthz.AsSystemRestricted(ctx), database.UpdateUserLinkedIDParams{
+					LinkedID:  params.LinkedID,
+					UserID:    user.ID,
+					LoginType: params.LoginType,
+				})
+				if err != nil {
+					return xerrors.Errorf("backfill user linked id: %w", err)
+				}
+			}
 		}
 
 		err = api.IDPSync.SyncOrganizations(ctx, tx, user, params.OrganizationSync)
@@ -2071,9 +2119,17 @@ func oidcLinkedID(tok *oidc.IDToken) string {
 	return strings.Join([]string{tok.Issuer, tok.Subject}, "||")
 }
 
+// errLinkedIDAlreadyBound is returned by findLinkedUser when the user
+// found by email already has a user_link with a different linked_id.
+var errLinkedIDAlreadyBound = xerrors.New("user account is already linked to a different identity provider subject")
+
 // findLinkedUser tries to find a user by their unique OAuth-linked ID.
-// If it doesn't not find it, it returns the user by their email.
-func findLinkedUser(ctx context.Context, db database.Store, linkedID string, emails ...string) (database.User, database.UserLink, error) {
+// If it does not find a match, it falls back to email-based lookup.
+// The email fallback is restricted to first-time account linking and
+// legacy links (empty linked_id) only. If the user found by email
+// already has a link with a different linked_id, errLinkedIDAlreadyBound
+// is returned to prevent account takeover via IdP email reuse.
+func findLinkedUser(ctx context.Context, db database.Store, linkedID string, loginType database.LoginType, emails ...string) (database.User, database.UserLink, error) {
 	var (
 		user database.User
 		link database.UserLink
@@ -2118,10 +2174,17 @@ func findLinkedUser(ctx context.Context, db database.Store, linkedID string, ema
 	// possible that a user_link exists without a populated 'linked_id'.
 	link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
 		UserID:    user.ID,
-		LoginType: user.LoginType,
+		LoginType: loginType,
 	})
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return database.User{}, database.UserLink{}, xerrors.Errorf("get user link by user id and login type: %w", err)
+	}
+
+	// Block email fallback when an existing link has a different linked_id.
+	// Prevents account takeover via IdP email reuse; first-time and legacy
+	// (empty linked_id) links pass through.
+	if err == nil && link.LinkedID != "" && link.LinkedID != linkedID {
+		return database.User{}, database.UserLink{}, errLinkedIDAlreadyBound
 	}
 
 	return user, link, nil
