@@ -8,7 +8,7 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortsMenu } from "#/utils/portForward";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
-export type PortTabSource = "listening" | "shared";
+type PortTabSource = "listening" | "shared";
 
 export type PortSelection = {
 	label: string;
