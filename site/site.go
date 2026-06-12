@@ -437,8 +437,8 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		// nolint:gocritic // User is not expected to be signed in.
 		ctx := dbauthz.AsSystemRestricted(r.Context())
 		cfg, _ = af.Fetch(ctx)
-		state.ApplicationName = applicationNameOrDefault(cfg)
-		state.LogoURL = cfg.LogoURL
+		state.ApplicationName = html.EscapeString(applicationNameOrDefault(cfg))
+		state.LogoURL = html.EscapeString(cfg.LogoURL)
 		return execTmpl(tmpl, state)
 	}
 
@@ -523,8 +523,8 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 				appr, err := json.Marshal(cfg)
 				if err == nil {
 					state.Appearance = html.EscapeString(string(appr))
-					state.ApplicationName = applicationNameOrDefault(cfg)
-					state.LogoURL = cfg.LogoURL
+					state.ApplicationName = html.EscapeString(applicationNameOrDefault(cfg))
+					state.LogoURL = html.EscapeString(cfg.LogoURL)
 				}
 			}
 		}()
