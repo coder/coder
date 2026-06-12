@@ -200,7 +200,12 @@ if ((upgrade)); then
 	fi
 	if [[ -n "$src" ]]; then
 		cp "$src" "$canonical_lock"
-		version="$(sed -n '/coder\/coder/,/^}/{ /version[[:space:]]*=/{ s/.*"\(.*\)"/\1/; p; q; } }' "$canonical_lock")"
+		# Two sed passes instead of nested brace blocks, which BSD sed
+		# rejects. Otherwise $version would be empty on macOS hosts and
+		# blank out provider-version.txt.
+		version="$(sed -n '/coder\/coder/,/^}/p' "$canonical_lock" |
+			sed -n 's/.*version[[:space:]]*=[[:space:]]*"\(.*\)".*/\1/p' |
+			head -n 1)"
 		echo "$version" >"$scriptdir/provider-version.txt"
 		echo "== Updated canonical lockfile and provider-version.txt (coder provider $version)"
 	fi
