@@ -88,11 +88,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(canvas.getByLabelText("Add panel"));
-
 		const body = within(document.body);
+		const openMenu = async () => {
+			await userEvent.click(canvas.getByLabelText("Add panel"));
+		};
+
+		await openMenu();
 		await waitFor(() => {
 			expect(body.getByText("New Terminal")).toBeInTheDocument();
 			expect(body.getByText("Preview")).toBeInTheDocument();
@@ -101,11 +104,33 @@ export const Default: Story = {
 			expect(body.getByText("Ports (3)")).toBeInTheDocument();
 		});
 
+		// Radix closes the menu after each item click, so reopen between
+		// callback assertions.
+		await userEvent.click(body.getByText("New Terminal"));
+		await expect(args.onNewTerminal).toHaveBeenCalledTimes(1);
+
+		await openMenu();
+		await userEvent.click(body.getByText("Preview"));
+		await expect(args.onOpenWorkspaceApp).toHaveBeenCalledWith(
+			expect.objectContaining({ slug: "preview" }),
+		);
+
+		await openMenu();
+		await userEvent.click(body.getByText("Claude Code"));
+		await expect(args.onOpenCommandApp).toHaveBeenCalledWith(
+			expect.objectContaining({ slug: "claude-code" }),
+		);
+
+		await openMenu();
 		await userEvent.hover(body.getByText("Ports (3)"));
 		await waitFor(() => {
 			expect(body.getByText("Listening Ports")).toBeInTheDocument();
 			expect(body.getByText("8080")).toBeInTheDocument();
 		});
+		await userEvent.click(body.getByText("8080"));
+		await expect(args.onOpenPort).toHaveBeenCalledWith(
+			expect.objectContaining({ port: 8080, source: "listening" }),
+		);
 	},
 };
 

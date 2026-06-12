@@ -1,4 +1,6 @@
+import { MockWorkspaceAgent } from "#/testHelpers/entities";
 import {
+	canShowPortsMenu,
 	portForwardURL,
 	resolveLocalhostPort,
 	rewriteLocalhostURL,
@@ -193,5 +195,29 @@ describe("rewriteLocalhostURL", () => {
 		expect(
 			rewriteLocalhostURL(url, proxyHost, agent, workspace, username),
 		).toBe(url);
+	});
+});
+
+describe("canShowPortsMenu", () => {
+	it("returns true with a wildcard host and the port forwarding helper", () => {
+		expect(canShowPortsMenu(MockWorkspaceAgent, "*.proxy-host.tld")).toBe(true);
+	});
+
+	it("returns false when the wildcard host is empty", () => {
+		expect(canShowPortsMenu(MockWorkspaceAgent, "")).toBe(false);
+	});
+
+	it("returns false when the wildcard host is whitespace", () => {
+		expect(canShowPortsMenu(MockWorkspaceAgent, "   ")).toBe(false);
+	});
+
+	it("returns false when the agent lacks the port forwarding helper", () => {
+		const agent = {
+			...MockWorkspaceAgent,
+			display_apps: MockWorkspaceAgent.display_apps.filter(
+				(app) => app !== "port_forwarding_helper",
+			),
+		};
+		expect(canShowPortsMenu(agent, "*.proxy-host.tld")).toBe(false);
 	});
 });

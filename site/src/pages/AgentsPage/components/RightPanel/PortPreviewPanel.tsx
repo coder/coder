@@ -79,7 +79,7 @@ function getUnavailableMessage({
 		return "Port preview will be available once the workspace agent reconnects.";
 	}
 	if (url === "#") {
-		return "This port preview URL is unavailable.";
+		return "The wildcard access URL produced an invalid preview URL. Check the deployment's wildcard access URL configuration.";
 	}
 	return undefined;
 }

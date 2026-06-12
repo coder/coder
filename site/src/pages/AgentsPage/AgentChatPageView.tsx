@@ -53,7 +53,6 @@ import { RightPanel } from "./components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "./components/RightPanel/RightPanelAddTabControl";
 import { getWorkspaceStatus, StatusIcon } from "./components/StatusIcon";
 import { TerminalPanel } from "./components/TerminalPanel";
-import type { PortSelection } from "./components/WorkspacePillPorts";
 import { ChatWorkspaceContext } from "./context/ChatWorkspaceContext";
 import { chatWidthClass, useChatFullWidth } from "./hooks/useChatFullWidth";
 import {
@@ -63,6 +62,7 @@ import {
 	savePersistedRightPanelTabs,
 } from "./utils/rightPanelTabStorage";
 import {
+	type PortSelection,
 	type UserRightPanelTab,
 	validateUserRightPanelTabs,
 } from "./utils/rightPanelTabs";
@@ -608,7 +608,11 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						workspace={workspace}
 						workspaceAgent={workspaceAgent}
 					/>
-				) : null;
+				) : (
+					renderUnavailableTab(
+						"Terminal will be available once the workspace agent is ready.",
+					)
+				);
 			case "workspace_app": {
 				if (!workspace) {
 					return null;
@@ -649,6 +653,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 						tab={tab}
 					/>
 				);
+			}
+			default: {
+				const _exhaustive: never = tab;
+				return _exhaustive;
 			}
 		}
 	};

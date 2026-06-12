@@ -23,11 +23,9 @@ import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { AppLink } from "#/modules/resources/AppLink/AppLink";
 import { usePortsData } from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
-import {
-	canShowPortsMenu,
-	type PortSelection,
-	PortsMenuItem,
-} from "../WorkspacePillPorts";
+import { canShowPortsMenu } from "#/utils/portForward";
+import type { PortSelection } from "../../utils/rightPanelTabs";
+import { PortsMenuItem } from "../WorkspacePillPorts";
 
 // usePortsData requires a workspace and agent, which are optional props on the
 // parent control, so the hook lives in this conditionally rendered component.
@@ -60,7 +58,6 @@ const AgentPortsSubMenu: FC<{
 
 export const RightPanelAddTabControl: FC<{
 	appExperimentEnabled: boolean;
-	disabled?: boolean;
 	workspace?: Workspace;
 	agent?: WorkspaceAgent;
 	host?: string;
@@ -71,7 +68,6 @@ export const RightPanelAddTabControl: FC<{
 	onOpenPort?: (selection: PortSelection) => void;
 }> = ({
 	appExperimentEnabled,
-	disabled,
 	workspace,
 	agent,
 	host = "",
@@ -83,8 +79,7 @@ export const RightPanelAddTabControl: FC<{
 }) => {
 	const [open, setOpen] = useState(false);
 	const userApps = agent?.apps.filter((app) => !app.hidden) ?? [];
-	const canCreateTerminal =
-		!disabled && workspace !== undefined && agent !== undefined;
+	const canCreateTerminal = workspace !== undefined && agent !== undefined;
 
 	return (
 		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">

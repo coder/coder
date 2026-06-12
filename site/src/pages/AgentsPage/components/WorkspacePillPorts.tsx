@@ -16,7 +16,6 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentListeningPort,
 	WorkspaceAgentPortShare,
-	WorkspaceAgentPortShareProtocol,
 } from "#/api/typesGenerated";
 import {
 	DropdownMenuItem,
@@ -27,21 +26,7 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import type { PortsData } from "#/modules/resources/usePortsData";
 import { portForwardURL } from "#/utils/portForward";
-
-export type PortTabSource = "listening" | "shared";
-
-export type PortSelection = {
-	label: string;
-	port: number;
-	protocol: WorkspaceAgentPortShareProtocol;
-	source: PortTabSource;
-};
-
-export function canShowPortsMenu(agent: WorkspaceAgent, host: string): boolean {
-	return (
-		host.trim() !== "" && agent.display_apps.includes("port_forwarding_helper")
-	);
-}
+import type { PortSelection } from "../utils/rightPanelTabs";
 
 export const PortsMenuItem: FC<{
 	workspace: Workspace;

@@ -71,7 +71,7 @@ describe("right-panel tab validation", () => {
 			wildcardHostname: "*.apps.example.com",
 		});
 
-		expect(validated.some((tab) => tab.kind === "terminal")).toBe(false);
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "terminal"));
 	});
 
 	it("drops port tabs when wildcard access is unavailable", () => {
@@ -81,7 +81,7 @@ describe("right-panel tab validation", () => {
 			wildcardHostname: "",
 		});
 
-		expect(validated.some((tab) => tab.kind === "port")).toBe(false);
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
 	});
 
 	it("drops port tabs when the agent no longer exposes the port forwarding helper", () => {
@@ -218,10 +218,63 @@ describe("right-panel tab storage", () => {
 		expect(getPersistedDefaultTerminalHidden("chat-2")).toBe(true);
 	});
 
+	it("persists workspace_app tabs", () => {
+		const tabs: UserRightPanelTab[] = [
+			{
+				id: "app-preview",
+				kind: "workspace_app",
+				label: "Preview",
+				agentId: MockWorkspaceAgent.id,
+				appId: MockWorkspaceApp.id,
+			},
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
+	it("persists port tabs", () => {
+		const tabs: UserRightPanelTab[] = [
+			{
+				id: "port-3000",
+				kind: "port",
+				label: "Port 3000",
+				agentId: MockWorkspaceAgent.id,
+				port: 3000,
+				protocol: "http",
+				source: "listening",
+			},
+		];
+
+		savePersistedRightPanelTabs("chat-1", tabs);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual(tabs);
+	});
+
 	it("ignores invalid stored values", () => {
 		localStorage.setItem(
 			`${rightPanelTabStorageKeyPrefix}chat-1`,
 			JSON.stringify([{ id: "bad-tab", kind: "port" }]),
+		);
+
+		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);
+	});
+
+	it("ignores port tabs with out-of-range ports", () => {
+		localStorage.setItem(
+			`${rightPanelTabStorageKeyPrefix}chat-1`,
+			JSON.stringify([
+				{
+					id: "port-70000",
+					kind: "port",
+					label: "Port 70000",
+					agentId: MockWorkspaceAgent.id,
+					port: 70000,
+					protocol: "http",
+					source: "listening",
+				},
+			]),
 		);
 
 		expect(getPersistedRightPanelTabs("chat-1")).toEqual([]);

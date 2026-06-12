@@ -184,13 +184,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
-	// filter out shared ports that are not from this agent
-	const filteredSharedPorts = sharedPorts.filter(
-		(port) => port.agent_name === agent.name,
-	);
-	// we don't want to show listening ports if it's a shared port
+	// usePortsData already filters shared ports down to this agent, so only
+	// hide listening ports that are also shared.
 	const filteredListeningPorts = listeningPorts.filter((port) =>
-		filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
+		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
@@ -414,7 +411,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 				</HelpPopoverText>
 				{canSharePorts && (
 					<div>
-						{filteredSharedPorts?.map((share) => {
+						{sharedPorts.map((share) => {
 							const url = portForwardURL(
 								host,
 								share.port,
