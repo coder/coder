@@ -194,3 +194,20 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 		Variables:     variables,
 	}
 }
+
+// ModuleTemplateFS returns an fs.FS rooted at the embedded directory for
+// the given module ID, providing access to its .tf.tmpl file.
+func ModuleTemplateFS(moduleID string) (fs.FS, error) {
+	modPath := modulesDir + "/" + moduleID
+	// Verify the directory exists. fs.Sub on embed.FS silently succeeds
+	// for nonexistent paths, so we check for the expected .tf.tmpl file.
+	tmplName := moduleID + ".tf.tmpl"
+	if _, err := fs.Stat(modulesFS, modPath+"/"+tmplName); err != nil {
+		return nil, xerrors.Errorf("module %q not found in embedded catalog: %w", moduleID, err)
+	}
+	sub, err := fs.Sub(modulesFS, modPath)
+	if err != nil {
+		return nil, xerrors.Errorf("module %q sub-filesystem: %w", moduleID, err)
+	}
+	return sub, nil
+}
