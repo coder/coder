@@ -72,8 +72,8 @@ Templates are ordered by three signals, in priority order:
    match the query at all are excluded.
 2. **Your recent usage.** Workspaces you used in the last 60 days count
    toward a template's score. Recent usage counts more than old usage (the
-   weight halves every 14 days), and recently deleted workspaces count at
-   reduced weight.
+   weight halves every 14 days), and a recently deleted workspace counts
+   half as much as an active one.
 3. **Organization popularity.** The number of developers with an active
    workspace on the template. Prebuilt workspaces that have not been claimed
    are excluded so they do not inflate popularity.
