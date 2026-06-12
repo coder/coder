@@ -59,6 +59,7 @@ func TestScaleTestChat(t *testing.T) {
 		"--cleanup-job-timeout", "30s",
 		"--scaletest-prometheus-address", "127.0.0.1:0",
 		"--scaletest-prometheus-wait", "0s",
+		"--provider-propagation-wait", "10ms",
 		"--llm-mock-url", mockURL,
 	)
 	//nolint:gocritic // The scaletest chat command requires an admin client.

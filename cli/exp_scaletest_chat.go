@@ -20,17 +20,18 @@ import (
 
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
-		chatsPerWorkspace int64
-		prompt            string
-		turns             int64
-		turnStartDelay    time.Duration
-		llmMockURL        string
-		targetFlags       = &workspaceTargetFlags{allowEmpty: true}
-		tracingFlags      = &scaletestTracingFlags{}
-		prometheusFlags   = &scaletestPrometheusFlags{}
-		timeoutStrategy   = &timeoutFlags{}
-		cleanupStrategy   = newScaletestCleanupStrategy()
-		output            = &scaletestOutputFlags{}
+		chatsPerWorkspace       int64
+		prompt                  string
+		turns                   int64
+		turnStartDelay          time.Duration
+		llmMockURL              string
+		providerPropagationWait time.Duration
+		targetFlags             = &workspaceTargetFlags{allowEmpty: true}
+		tracingFlags            = &scaletestTracingFlags{}
+		prometheusFlags         = &scaletestPrometheusFlags{}
+		timeoutStrategy         = &timeoutFlags{}
+		cleanupStrategy         = newScaletestCleanupStrategy()
+		output                  = &scaletestOutputFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -76,7 +77,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			}
 
 			logger := inv.Logger
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, workspaces[0].OrganizationID)
+			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, providerPropagationWait)
 			if err != nil {
 				return err
 			}
@@ -245,6 +246,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Description: "URL of the mock LLM server (e.g. http://127.0.0.1:8080/v1). Creates or updates the Scaletest LLM Mock openai-compat provider and model config to point at this URL.",
 			Value:       serpent.StringOf(&llmMockURL),
 			Required:    true,
+		},
+		{
+			Flag:        "provider-propagation-wait",
+			Description: "Time to wait after creating or updating the mock LLM provider so every coderd replica's cached provider config expires. The default exceeds the server-side cache TTL.",
+			Default:     chat.DefaultProviderPropagationWait.String(),
+			Value:       serpent.DurationOf(&providerPropagationWait),
+			Hidden:      true,
 		},
 	}
 	targetFlags.attach(&cmd.Options)

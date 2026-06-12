@@ -10,23 +10,25 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/retry"
 )
 
 const (
-	scaletestAIProviderType           = codersdk.AIProviderTypeOpenAICompat
-	scaletestAIProviderName           = "coder-scaletest-mock"
-	scaletestAIProviderDisplayName    = "Scaletest LLM Mock"
-	scaletestAIProviderAPIKey         = "coder-scaletest"
-	scaletestModelName                = "scaletest-model"
-	scaletestModelDisplayName         = "Scaletest Model"
-	scaletestModelContextLimit        = int64(4096)
-	scaletestAIProviderProbeWait      = 15 * time.Second
-	scaletestAIProviderProbePeriod    = 500 * time.Millisecond
-	scaletestAIProviderArchiveTimeout = 5 * time.Second
-
-	scaletestProviderReloadProbePrompt = "Reply with one short sentence."
+	scaletestAIProviderType        = codersdk.AIProviderTypeOpenAICompat
+	scaletestAIProviderName        = "coder-scaletest-mock"
+	scaletestAIProviderDisplayName = "Scaletest LLM Mock"
+	scaletestAIProviderAPIKey      = "coder-scaletest"
+	scaletestModelName             = "scaletest-model"
+	scaletestModelDisplayName      = "Scaletest Model"
+	scaletestModelContextLimit     = int64(4096)
 )
+
+// DefaultProviderPropagationWait is how long to wait after creating or
+// updating the mock LLM provider before starting chats. Provider config is
+// cached per coderd replica with a 10 second TTL (see
+// coderd/x/chatd/configcache.go), and a change is only guaranteed to be
+// visible everywhere once every replica's cached entry has expired. 15
+// seconds comfortably exceeds that TTL.
+const DefaultProviderPropagationWait = 15 * time.Second
 
 type scaletestAIProviderAction string
 
@@ -37,8 +39,10 @@ const (
 )
 
 // EnsureScaletestModelConfig bootstraps the shared AI provider and model
-// config used by chat scaletests.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, organizationID uuid.UUID) (uuid.UUID, error) {
+// config used by chat scaletests. When the provider was created or updated,
+// it sleeps for propagationWait so every coderd replica's cached provider
+// config expires before chats start.
+func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
 	expClient := codersdk.NewExperimentalClient(client)
 
 	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
@@ -73,85 +77,19 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, lo
 		return uuid.Nil, err
 	}
 
-	if providerAction != scaletestAIProviderActionReused {
-		if err := waitForScaletestProviderReload(ctx, expClient, logger, modelConfigID, organizationID); err != nil {
-			return uuid.Nil, xerrors.Errorf("wait for mock LLM provider reload: %w", err)
+	if providerAction != scaletestAIProviderActionReused && propagationWait > 0 {
+		logger.Info(ctx, "waiting for mock LLM provider propagation",
+			slog.F("provider_name", provider.Name),
+			slog.F("wait", propagationWait),
+		)
+		select {
+		case <-ctx.Done():
+			return uuid.Nil, ctx.Err()
+		case <-time.After(propagationWait):
 		}
 	}
 
 	return modelConfigID, nil
-}
-
-func waitForScaletestProviderReload(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID) error {
-	logger.Info(ctx, "waiting for mock LLM provider reload", slog.F("provider_name", scaletestAIProviderName))
-	waitCtx, cancel := context.WithTimeout(ctx, scaletestAIProviderProbeWait)
-	defer cancel()
-
-	var lastErr error
-	for r := retry.New(scaletestAIProviderProbePeriod, scaletestAIProviderProbePeriod); r.Wait(waitCtx); {
-		if err := runScaletestProviderReloadProbe(waitCtx, client, logger, modelConfigID, organizationID); err != nil {
-			lastErr = err
-			logger.Debug(ctx, "mock LLM provider probe failed", slog.Error(err))
-			continue
-		}
-		return nil
-	}
-
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if lastErr != nil {
-		return xerrors.Errorf("timed out waiting for mock LLM provider reload: %w", lastErr)
-	}
-	return xerrors.New("timed out waiting for mock LLM provider reload")
-}
-
-func runScaletestProviderReloadProbe(ctx context.Context, client chatClient, logger slog.Logger, modelConfigID uuid.UUID, organizationID uuid.UUID) error {
-	chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: organizationID,
-		ModelConfigID:  &modelConfigID,
-		Content: []codersdk.ChatInputPart{{
-			Type: codersdk.ChatInputPartTypeText,
-			Text: scaletestProviderReloadProbePrompt,
-		}},
-	})
-	if err != nil {
-		return xerrors.Errorf("create probe chat: %w", err)
-	}
-	defer archiveScaletestProbeChat(ctx, client, logger, chat.ID)
-
-	events, closer, err := client.StreamChat(ctx, chat.ID, nil)
-	if err != nil {
-		return xerrors.Errorf("stream probe chat: %w", err)
-	}
-	defer closer.Close()
-
-	for event := range events {
-		switch event.Type {
-		case codersdk.ChatStreamEventTypeStatus:
-			if event.Status != nil && event.Status.Status == codersdk.ChatStatusWaiting {
-				return nil
-			}
-		case codersdk.ChatStreamEventTypeError:
-			if event.Error != nil {
-				return xerrors.Errorf("probe chat failed: %s", event.Error.Message)
-			}
-		}
-	}
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	return xerrors.New("probe chat stream ended before waiting status")
-}
-
-func archiveScaletestProbeChat(ctx context.Context, client chatClient, logger slog.Logger, chatID uuid.UUID) {
-	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), scaletestAIProviderArchiveTimeout)
-	defer cancel()
-
-	archived := true
-	if err := client.UpdateChat(cleanupCtx, chatID, codersdk.UpdateChatRequest{Archived: &archived}); err != nil {
-		logger.Warn(ctx, "failed to archive mock LLM provider probe chat", slog.Error(err))
-	}
 }
 
 func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, provider codersdk.AIProvider) (uuid.UUID, error) {
