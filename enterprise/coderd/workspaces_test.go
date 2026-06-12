@@ -3527,8 +3527,9 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 	templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts both build
+	// awaits below.
+	ctx := testutil.Context(t, 4*testutil.WaitSuperLong)
 
 	emptyTar := testutil.CreateTar(t, map[string]string{"main.tf": ""})
 	emptyFi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(emptyTar))
@@ -3566,9 +3567,8 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		TemplateID:         tpl.ID,
 	})
 	require.NoError(t, err, "failed to create template version")
-	// Allow a long wait. The default in AwaitTemplateVersionJobCompleted is
-	// too short for a real terraform build, especially on Windows where
-	// providers are not cached.
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
 	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 
 	err = templateAdmin.UpdateActiveTemplateVersion(ctx, tpl.ID, codersdk.UpdateActiveTemplateVersion{
@@ -3586,8 +3586,7 @@ func workspaceTagsTerraform(t *testing.T, tc testWorkspaceTagsTerraformCase, dyn
 		require.NoError(t, err, "failed to create workspace")
 		tagJSON, _ := json.Marshal(ws.LatestBuild.Job.Tags)
 		t.Logf("Created workspace build [%s] with tags: %s", ws.LatestBuild.Job.Type, tagJSON)
-		// As above, a real terraform workspace build can outlast the default
-		// wait in AwaitWorkspaceBuildJobCompleted.
+		// Same timeout reason as above.
 		coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	}
 }
