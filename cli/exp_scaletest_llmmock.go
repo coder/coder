@@ -38,6 +38,13 @@ func (*RootCmd) scaletestLLMMock() *serpent.Command {
 			ctx, stop := signal.NotifyContext(inv.Context(), StopSignals...)
 			defer stop()
 
+			if (minStreamDuration > 0) != (maxStreamDuration > 0) {
+				return xerrors.New("--min-stream-duration and --max-stream-duration must be set together")
+			}
+			if minStreamDuration > maxStreamDuration {
+				return xerrors.New("--min-stream-duration must not exceed --max-stream-duration")
+			}
+
 			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelInfo)
 
 			if pprofEnable {

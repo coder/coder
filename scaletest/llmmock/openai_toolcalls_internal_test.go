@@ -2,7 +2,6 @@ package llmmock
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -35,7 +34,7 @@ func TestBuildOpenAIChoice(t *testing.T) {
 		srv := &Server{toolCallsPerTurn: 1, toolCallCommand: testToolCallCommand}
 		choice := srv.buildOpenAIChoice(llmRequest{
 			Model:    "scaletest-model",
-			Messages: []openAIMessage{{Role: "system", Content: "Reply with one short sentence."}},
+			Messages: []llmRequestMessage{{Role: "system"}},
 		})
 		require.Equal(t, openAIStopFinishReason, choice.FinishReason)
 		require.Empty(t, choice.Message.ToolCalls)
@@ -204,15 +203,13 @@ func requireExecuteToolCall(t *testing.T, toolCall openAIToolCall, command strin
 func openAIExecuteRequest(completedToolCalls int) llmRequest {
 	req := llmRequest{
 		Model:    "scaletest-model",
-		Messages: []openAIMessage{{Role: "user", Content: "Reply with one short sentence."}},
+		Messages: []llmRequestMessage{{Role: "user"}},
 		Tools:    []openAITool{{Type: "function", Function: openAIToolFunction{Name: executeToolName}}},
 	}
-	for i := range completedToolCalls {
-		toolCall := executeToolCall(testToolCallCommand)
-		toolCall.ID = fmt.Sprintf("call_done_%d", i)
+	for range completedToolCalls {
 		req.Messages = append(req.Messages,
-			openAIMessage{Role: "assistant", ToolCalls: []openAIToolCall{toolCall}},
-			openAIMessage{Role: "tool", ToolCallID: toolCall.ID, Content: "ok"},
+			llmRequestMessage{Role: "assistant"},
+			llmRequestMessage{Role: "tool"},
 		)
 	}
 	return req
