@@ -54,6 +54,7 @@ bin/
 build/
 dist/
 out/
+site/static/docs-content/
 
 # Bundle analysis
 site/stats/

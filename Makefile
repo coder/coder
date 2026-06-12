@@ -582,7 +582,9 @@ site/out/index.html: \
 	site/node_modules/.installed \
 	site/static/install.sh \
 	$(SITE_GEN_FILES) \
-	$(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
+	$(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \)) \
+	docs/manifest.json \
+	$(shell find ./docs $(FIND_EXCLUSIONS) -type f -name '*.md' | sed 's: :\\ :g')
 	cd site/
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
