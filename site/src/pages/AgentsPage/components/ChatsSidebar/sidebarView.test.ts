@@ -53,13 +53,6 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("returns the providers admin settings section", () => {
-		expect(sidebarViewFromPath("/agents/settings/providers")).toEqual({
-			panel: "settings-admin",
-			section: "providers",
-		});
-	});
-
 	it("normalizes the admin index route to an undefined section", () => {
 		expect(sidebarViewFromPath("/agents/settings/admin")).toEqual({
 			panel: "settings-admin",

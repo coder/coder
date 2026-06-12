@@ -15,6 +15,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/aws.svg";
 		case "azure":
 			return "/icon/azure.svg";
+		case "copilot":
+			return "/icon/github-copilot.svg";
 		case "google":
 			return "/icon/google.svg";
 		case "vercel":
@@ -34,6 +36,8 @@ const getProviderName = (provider: string): string => {
 			return "AWS Bedrock";
 		case "azure":
 			return "Azure OpenAI";
+		case "copilot":
+			return "GitHub Copilot";
 		case "google":
 			return "Google";
 		case "openai-compat":

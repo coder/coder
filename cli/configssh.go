@@ -578,6 +578,10 @@ func mergeSSHOptions(
 ) (
 	sshConfigOptions, error,
 ) {
+	if err := coderd.Validate(); err != nil {
+		return sshConfigOptions{}, xerrors.Errorf("invalid ssh config from coderd: %w", err)
+	}
+
 	// Write agent configuration.
 	defaultOptions := []string{
 		"ConnectTimeout=0",

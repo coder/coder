@@ -311,7 +311,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 						<p className="m-0 text-xs text-content-secondary">
 							Connect a{" "}
 							<Link
-								to="/agents/settings/providers"
+								to="/ai/settings"
 								className="underline transition-colors hover:text-content-primary"
 							>
 								provider

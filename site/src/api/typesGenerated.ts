@@ -91,30 +91,6 @@ export interface AIBridgeConfig {
 }
 
 // From codersdk/aibridge.go
-export interface AIBridgeInterception {
-	readonly id: string;
-	readonly api_key_id: string | null;
-	readonly initiator: MinimalUser;
-	readonly provider: string;
-	readonly provider_name: string;
-	readonly model: string;
-	readonly client: string | null;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly started_at: string;
-	readonly ended_at: string | null;
-	readonly token_usages: readonly AIBridgeTokenUsage[];
-	readonly user_prompts: readonly AIBridgeUserPrompt[];
-	readonly tool_usages: readonly AIBridgeToolUsage[];
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsResponse {
-	readonly count: number;
-	readonly results: readonly AIBridgeInterception[];
-}
-
-// From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
 	readonly count: number;
 	readonly sessions: readonly AIBridgeSession[];
@@ -230,20 +206,6 @@ export interface AIBridgeThread {
 }
 
 // From codersdk/aibridge.go
-export interface AIBridgeTokenUsage {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly input_tokens: number;
-	readonly output_tokens: number;
-	readonly cache_read_input_tokens: number;
-	readonly cache_write_input_tokens: number;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
-}
-
-// From codersdk/aibridge.go
 /**
  * AIBridgeToolCall represents a tool call recorded during an
  * interception.
@@ -256,32 +218,6 @@ export interface AIBridgeToolCall {
 	readonly tool: string;
 	readonly injected: boolean;
 	readonly input: string;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeToolUsage {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly server_url: string;
-	readonly tool: string;
-	readonly input: string;
-	readonly injected: boolean;
-	readonly invocation_error: string;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeUserPrompt {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly prompt: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
@@ -302,6 +238,19 @@ export interface AIConfig {
 	readonly bridge?: AIBridgeConfig;
 	readonly aibridge_proxy?: AIBridgeProxyConfig;
 	readonly chat?: ChatConfig;
+}
+
+// From codersdk/aigatewaykeys.go
+/**
+ * AIGatewayKey is a shared secret used by a standalone AI Gateway
+ * to authenticate into coderd.
+ */
+export interface AIGatewayKey {
+	readonly id: string;
+	readonly name: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+	readonly last_used_at?: string;
 }
 
 // From codersdk/aiproviders.go
@@ -518,6 +467,10 @@ export interface APIKey {
 
 // From codersdk/apikey.go
 export type APIKeyScope =
+	| "ai_gateway_key:*"
+	| "ai_gateway_key:create"
+	| "ai_gateway_key:delete"
+	| "ai_gateway_key:read"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -554,6 +507,10 @@ export type APIKeyScope =
 	| "audit_log:*"
 	| "audit_log:create"
 	| "audit_log:read"
+	| "boundary_log:*"
+	| "boundary_log:create"
+	| "boundary_log:delete"
+	| "boundary_log:read"
 	| "boundary_usage:*"
 	| "boundary_usage:delete"
 	| "boundary_usage:read"
@@ -744,6 +701,10 @@ export type APIKeyScope =
 	| "workspace:update_agent";
 
 export const APIKeyScopes: APIKeyScope[] = [
+	"ai_gateway_key:*",
+	"ai_gateway_key:create",
+	"ai_gateway_key:delete",
+	"ai_gateway_key:read",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",
@@ -780,6 +741,10 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"audit_log:*",
 	"audit_log:create",
 	"audit_log:read",
+	"boundary_log:*",
+	"boundary_log:create",
+	"boundary_log:delete",
+	"boundary_log:read",
 	"boundary_usage:*",
 	"boundary_usage:delete",
 	"boundary_usage:read",
@@ -1517,6 +1482,10 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	/**
+	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
+	 */
+	readonly shared: boolean;
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
@@ -1959,9 +1928,11 @@ export type ChatErrorKind =
 	| "auth"
 	| "config"
 	| "generic"
+	| "missing_key"
 	| "overloaded"
+	| "provider_disabled"
 	| "rate_limit"
-	| "startup_timeout"
+	| "stream_silence_timeout"
 	| "timeout"
 	| "usage_limit";
 
@@ -1969,9 +1940,11 @@ export const ChatErrorKinds: ChatErrorKind[] = [
 	"auth",
 	"config",
 	"generic",
+	"missing_key",
 	"overloaded",
+	"provider_disabled",
 	"rate_limit",
-	"startup_timeout",
+	"stream_silence_timeout",
 	"timeout",
 	"usage_limit",
 ];
@@ -2111,6 +2084,14 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
 	"text",
+];
+
+// From codersdk/chats.go
+export type ChatListSource = "created_by_me" | "shared_with_me";
+
+export const ChatListSources: ChatListSource[] = [
+	"created_by_me",
+	"shared_with_me",
 ];
 
 // From codersdk/chats.go
@@ -2262,6 +2243,7 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
 	readonly effort?: string;
+	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
 	readonly allowed_domains?: readonly string[];
@@ -2719,6 +2701,7 @@ export interface ChatSourcePart {
 export type ChatStatus =
 	| "completed"
 	| "error"
+	| "interrupting"
 	| "paused"
 	| "pending"
 	| "requires_action"
@@ -2728,6 +2711,7 @@ export type ChatStatus =
 export const ChatStatuses: ChatStatus[] = [
 	"completed",
 	"error",
+	"interrupting",
 	"paused",
 	"pending",
 	"requires_action",
@@ -2763,8 +2747,10 @@ export interface ChatStreamEvent {
 export type ChatStreamEventType =
 	| "action_required"
 	| "error"
+	| "history_reset"
 	| "message"
 	| "message_part"
+	| "preview_reset"
 	| "queue_update"
 	| "retry"
 	| "status";
@@ -2772,8 +2758,10 @@ export type ChatStreamEventType =
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
 	"error",
+	"history_reset",
 	"message",
 	"message_part",
+	"preview_reset",
 	"queue_update",
 	"retry",
 	"status",
@@ -2786,6 +2774,9 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 export interface ChatStreamMessagePart {
 	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
+	readonly history_version?: number;
+	readonly generation_attempt?: number;
+	readonly seq?: number;
 }
 
 // From codersdk/chats.go
@@ -3224,12 +3215,34 @@ export interface ConvertLoginRequest {
 	readonly password: string;
 }
 
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyRequest requests a new AI Gateway key.
+ */
+export interface CreateAIGatewayKeyRequest {
+	readonly name: string;
+}
+
+// From codersdk/aigatewaykeys.go
+/**
+ * CreateAIGatewayKeyResponse returns all key information.
+ * Key value is only returned here and cannot be recovered afterwards.
+ */
+export interface CreateAIGatewayKeyResponse {
+	readonly id: string;
+	readonly name: string;
+	readonly key: string;
+	readonly key_prefix: string;
+	readonly created_at: string;
+}
+
 // From codersdk/aiproviders.go
 /**
  * CreateAIProviderRequest is the payload for creating a new AI
  * provider. Name and Type are required. APIKeys carries the plaintext
- * keys for OpenAI/Anthropic providers; Bedrock providers authenticate
- * via Settings and must omit APIKeys.
+ * keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+ * must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+ * request-time GitHub OAuth tokens).
  */
 export interface CreateAIProviderRequest {
 	readonly type: AIProviderType;
@@ -4088,6 +4101,7 @@ export interface DeploymentValues {
 	readonly agent_fallback_troubleshooting_url?: string;
 	readonly browser_only?: boolean;
 	readonly scim_api_key?: string;
+	readonly scim_use_legacy?: boolean;
 	readonly external_token_encryption_keys?: string;
 	readonly provisioner?: ProvisionerConfig;
 	readonly rate_limit?: RateLimitConfig;
@@ -4336,6 +4350,8 @@ export type Experiment =
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "minimum-implicit-member"
+	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
 	| "workspace-build-updates"
@@ -4345,6 +4361,8 @@ export const Experiments: Experiment[] = [
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"minimum-implicit-member",
+	"nats_pubsub",
 	"notifications",
 	"oauth2",
 	"workspace-build-updates",
@@ -5050,7 +5068,15 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
+	/**
+	 * Query supports raw chat search terms. If Query includes a source: term,
+	 * Source must be empty.
+	 */
 	readonly Query: string;
+	/**
+	 * Source adds a source: term to Query.
+	 */
+	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 }
 
@@ -6040,6 +6066,12 @@ export interface Organization extends MinimalOrganization {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly is_default: boolean;
+	/**
+	 * DefaultOrgMemberRoles are unioned into every member's effective
+	 * roles at request time. Changes propagate to all members on the
+	 * next request.
+	 */
+	readonly default_org_member_roles: readonly string[];
 }
 
 // From codersdk/organizations.go
@@ -6859,6 +6891,7 @@ export const RBACActions: RBACAction[] = [
 
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_model_price"
 	| "ai_seat"
@@ -6867,6 +6900,7 @@ export type RBACResource =
 	| "assign_org_role"
 	| "assign_role"
 	| "audit_log"
+	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
 	| "connection_log"
@@ -6909,6 +6943,7 @@ export type RBACResource =
 	| "workspace_proxy";
 
 export const RBACResources: RBACResource[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_model_price",
 	"ai_seat",
@@ -6917,6 +6952,7 @@ export const RBACResources: RBACResource[] = [
 	"assign_org_role",
 	"assign_role",
 	"audit_log",
+	"boundary_log",
 	"boundary_usage",
 	"chat",
 	"connection_log",
@@ -7064,6 +7100,7 @@ export interface ResolveAutostartResponse {
 
 // From codersdk/audit.go
 export type ResourceType =
+	| "ai_gateway_key"
 	| "ai_provider"
 	| "ai_provider_key"
 	| "ai_seat"
@@ -7090,6 +7127,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
 	| "workspace"
@@ -7099,6 +7137,7 @@ export type ResourceType =
 	| "workspace_proxy";
 
 export const ResourceTypes: ResourceType[] = [
+	"ai_gateway_key",
 	"ai_provider",
 	"ai_provider_key",
 	"ai_seat",
@@ -7125,6 +7164,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
 	"workspace",
@@ -7271,6 +7311,12 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally these roles would be generated from the rbac/roles.go package.
+ */
+export const RoleOrganizationWorkspaceAccess = "organization-workspace-access";
 
 // From codersdk/rbacroles.go
 /**
@@ -8111,6 +8157,49 @@ export interface TemplateBuilderConfig {
 	readonly registry_url?: string;
 }
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModule is the API response type returned by
+ * GET /api/v2/templatebuilder/modules. The Version field is
+ * populated from the catalog manifest's PinnedVersion at serving time.
+ */
+export interface TemplateBuilderModule {
+	readonly id: string;
+	readonly display_name: string;
+	readonly description: string;
+	readonly icon: string;
+	readonly category: string;
+	readonly version: string;
+	readonly compatible_os: readonly string[];
+	readonly conflicts_with: readonly string[];
+	readonly variables: readonly TemplateBuilderModuleVariable[];
+}
+
+// From codersdk/templatebuilder.go
+export interface TemplateBuilderModuleVariable {
+	readonly name: string;
+	readonly type: TemplateBuilderVariableType;
+	readonly description: string;
+	readonly default?: Record<string, string>;
+	readonly required: boolean;
+	readonly sensitive: boolean;
+	readonly computed: boolean;
+}
+
+// From codersdk/templatebuilder.go
+export interface TemplateBuilderModulesResponse {
+	readonly modules: readonly TemplateBuilderModule[];
+}
+
+// From codersdk/templatebuilder.go
+export type TemplateBuilderVariableType = "bool" | "number" | "string";
+
+export const TemplateBuilderVariableTypes: TemplateBuilderVariableType[] = [
+	"bool",
+	"number",
+	"string",
+];
+
 // From codersdk/insights.go
 /**
  * Enums define the display name of the builtin app reported.
@@ -8773,6 +8862,11 @@ export interface UpdateOrganizationRequest {
 	readonly display_name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	/**
+	 * DefaultOrgMemberRoles, when non-nil, replaces the org's default
+	 * member roles.
+	 */
+	readonly default_org_member_roles?: string[];
 }
 
 // From codersdk/users.go
@@ -9145,6 +9239,16 @@ export interface UpsertGroupAIBudgetRequest {
 	readonly spend_limit_micros: number;
 }
 
+// From codersdk/aibridge.go
+export interface UpsertUserAIBudgetOverrideRequest {
+	/**
+	 * GroupID is the group the user's spend is attributed to. The user must
+	 * be a member of this group.
+	 */
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+}
+
 // From codersdk/workspaceagentportshare.go
 export interface UpsertWorkspaceAgentPortShareRequest {
 	readonly agent_name: string;
@@ -9187,6 +9291,15 @@ export interface User extends ReducedUser {
 	 * field, even when false.
 	 */
 	readonly has_ai_seat: boolean;
+}
+
+// From codersdk/aibridge.go
+export interface UserAIBudgetOverride {
+	readonly user_id: string;
+	readonly group_id: string;
+	readonly spend_limit_micros: number;
+	readonly created_at: string;
+	readonly updated_at: string;
 }
 
 // From codersdk/chats.go

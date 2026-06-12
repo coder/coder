@@ -30,16 +30,12 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Kbd, KbdGroup } from "#/components/Kbd/Kbd";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { getOSKey } from "#/utils/platform";
 import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
 } from "../../../utils/agentSidebarFilters";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import type { ModelSelectorOption } from "../../ChatElements";
@@ -67,6 +63,7 @@ import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
+const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
@@ -102,6 +99,7 @@ interface ChatsPanelProps {
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
+	readonly currentUserId: string;
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -135,6 +133,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isSettingsPanel,
 	isChatsActive,
 	location,
+	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -160,9 +159,20 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
+	const sharedWithYouChats = unpinnedChats.filter(
+		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	);
+	const unpinnedOwnedChats = unpinnedChats.filter(
+		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
-		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length;
+		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
+		sidebarFilters.sources.length !==
+			DEFAULT_AGENT_SIDEBAR_FILTERS.sources.length ||
+		sidebarFilters.sources.some(
+			(source) => !DEFAULT_AGENT_SIDEBAR_FILTERS.sources.includes(source),
+		);
 	const disablePinnedReordering = hasAppliedResultFilters;
 
 	// Local override for pinned order during drag. Applied
@@ -311,18 +321,18 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					{
 						key: UNREAD_SECTION_KEY,
 						label: UNREAD_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
 					},
 					{
 						key: READ_SECTION_KEY,
 						label: READ_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => !chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
 					},
 				]
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedChats.filter(
+					chats: unpinnedOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
@@ -338,6 +348,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: AGENT_CHAT_STATUS_ORDER,
+			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
 
@@ -350,8 +361,11 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 			aria-hidden={isSettingsPanel}
 			inert={isSettingsPanel ? true : undefined}
 		>
-			<div className="hidden border-b border-border-default px-2 py-1.5 sm:block">
-				<div className="flex items-center justify-between mb-2.5">
+			<nav
+				aria-label="Sidebar"
+				className="hidden border-b border-border-default px-2 py-1.5 sm:flex sm:flex-col sm:gap-0.5"
+			>
+				<div className="flex items-center justify-between mb-2.5 ml-2.5">
 					<div className="flex items-center gap-2">
 						<NavLink to="/workspaces" className="inline-flex">
 							<ProductLogo className="size-6" />
@@ -391,57 +405,68 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				</div>
 				<SettingsNavItem
 					icon={SquarePenIcon}
-					label="New Agent"
+					label="New chat"
 					active={isChatsActive}
 					to={{ pathname: "/agents", search: locationSearch }}
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
-			</div>
-			<div className="relative min-h-0 flex-1">
+				{onOpenSearchDialog && (
+					<SettingsNavItem
+						icon={SearchIcon}
+						label="Search"
+						active={false}
+						ariaLabel="Search chats"
+						onClick={onOpenSearchDialog}
+						className="group focus-visible:bg-surface-tertiary/50 focus-visible:text-content-primary"
+						trailing={
+							<KbdGroup className="opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">
+								<Kbd>{getOSKey()}</Kbd>
+								<Kbd>K</Kbd>
+							</KbdGroup>
+						}
+					/>
+				)}
+			</nav>
+			<div className="relative min-h-0 flex-1 flex flex-col">
+				<div className="mx-2 pt-6 mb-1.5">
+					<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
+						<h2 className="m-0 text-sm font-normal leading-6 text-content-secondary">
+							Chats
+						</h2>
+						<div className="flex items-center gap-1">
+							{onOpenSearchDialog && (
+								<Button
+									variant="subtle"
+									size="icon"
+									aria-label="Search chats"
+									onClick={onOpenSearchDialog}
+									className="h-7 w-7 sm:hidden"
+								>
+									<SearchIcon />
+								</Button>
+							)}
+							<FilterPopover
+								filters={sidebarFilters}
+								onFiltersChange={onSidebarFiltersChange}
+							/>
+						</div>
+					</div>
+				</div>
 				<ScrollArea
-					className="h-full [&_[data-radix-scroll-area-viewport]>div]:!block"
+					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"
+					// The default 24px hit-target extends ~18px left of this narrow
+					// scrollbar, onto the row controls (actions menu, timestamp,
+					// indicators). Disable it so those controls stay clickable.
+					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
 						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"sm:[mask-image:none] sm:[-webkit-mask-image:none]",
 					)}
 				>
-					<div className="flex flex-col gap-2 px-2 pb-3 pt-6">
-						<div className="ml-2.5 mr-2 flex h-7 items-center justify-between">
-							<h2 className="m-0 text-sm font-normal leading-6 text-content-primary">
-								Chats
-							</h2>
-							<div className="flex flex-row -space-x-1">
-								<Tooltip delayDuration={500}>
-									<TooltipTrigger asChild>
-										<Button
-											variant="subtle"
-											size="icon"
-											aria-label="Search chats"
-											onClick={onOpenSearchDialog}
-											className="size-7 justify-end px-0"
-										>
-											<SearchIcon />
-										</Button>
-									</TooltipTrigger>
-									<TooltipContent side="bottom" align="end">
-										<span className="flex items-center gap-1">
-											<KbdGroup>
-												<Kbd>{getOSKey()}</Kbd>
-												<Kbd>K</Kbd>
-											</KbdGroup>
-											<span>Search chats</span>
-										</span>
-									</TooltipContent>
-								</Tooltip>
-								<FilterPopover
-									filters={sidebarFilters}
-									onFiltersChange={onSidebarFiltersChange}
-								/>
-							</div>
-						</div>
+					<div className="flex flex-col gap-2 px-2 pb-3">
 						{loadError ? (
 							<div className="space-y-3 px-1">
 								<ErrorAlert error={loadError} />
@@ -514,6 +539,13 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 															<DndContext
 																sensors={sensors}
 																collisionDetection={closestCenter}
+																modifiers={[
+																	// Restrict the drag to the y-axis only
+																	({ transform }) => ({
+																		...transform,
+																		x: 0,
+																	}),
+																]}
 																onDragEnd={handleDragEnd}
 															>
 																<SortableContext
@@ -534,6 +566,34 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																</SortableContext>
 															</DndContext>
 														))}
+												</div>
+											)}
+											{sharedWithYouChats.length > 0 && (
+												<div className="[&:not(:first-child)]:mt-3">
+													<ChatSectionHeader
+														label={SHARED_WITH_YOU_SECTION_KEY}
+														count={sharedWithYouChats.length}
+														expanded={
+															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
+														}
+														onToggle={() =>
+															toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+														}
+														testId={getSectionToggleTestId(
+															SHARED_WITH_YOU_SECTION_KEY,
+														)}
+													/>
+													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
+														<div className="flex flex-col gap-0.5">
+															{sharedWithYouChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													)}
 												</div>
 											)}
 											{chatSections.map((section) => {

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -575,6 +576,58 @@ func TestValidateLegacyAIBridgeConfig(t *testing.T) {
 	}
 }
 
+func TestWarnIfAIProvidersConfiguredFromEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoProviders", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, nil)
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("EmptyPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), "", []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("AIGatewayPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiGatewayProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+
+	t.Run("AIBridgePrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiBridgeProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiBridgeProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+}
+
 func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 	t.Parallel()
 
@@ -588,6 +641,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "OpenAI",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeOpenai,
 				Name:    "openai",
 				BaseUrl: "https://api.openai.com/",
@@ -597,6 +651,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Anthropic",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeAnthropic,
 				Name:    "anthropic",
 				BaseUrl: "https://api.anthropic.com/",
@@ -606,6 +661,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Copilot",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeCopilot,
 				Name:    "copilot",
 				BaseUrl: "https://api.githubcopilot.com/",
@@ -615,6 +671,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Azure",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeAzure,
 				Name:    "azure",
 				BaseUrl: "https://example.openai.azure.com/",
@@ -624,6 +681,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Google",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeGoogle,
 				Name:    "google",
 				BaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -633,6 +691,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "OpenAICompat",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeOpenaiCompat,
 				Name:    "openai-compat",
 				BaseUrl: "https://compat.example.com/v1/",
@@ -642,6 +701,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "OpenRouter",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeOpenrouter,
 				Name:    "openrouter",
 				BaseUrl: "https://openrouter.ai/api/v1/",
@@ -651,6 +711,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Vercel",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeVercel,
 				Name:    "vercel",
 				BaseUrl: "https://api.v0.dev/v1/",
@@ -660,6 +721,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		{
 			name: "Bedrock",
 			row: database.AIProvider{
+				Enabled: true,
 				Type:    database.AiProviderTypeBedrock,
 				Name:    "bedrock",
 				BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
@@ -682,7 +744,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			provider, err := buildAIProviderFromRow(tt.row, nil, codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
-			})
+			}, nil)
 			require.NoError(t, err)
 			assert.Equal(t, dumpDir, provider.APIDumpDir())
 			assert.Equal(t, tt.expectedType, provider.Type())
@@ -694,12 +756,13 @@ func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 	t.Parallel()
 
 	_, err := buildAIProviderFromRow(database.AIProvider{
+		Enabled: true,
 		Type:    database.AiProviderTypeBedrock,
 		Name:    "bedrock-no-settings",
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}, nil, codersdk.AIBridgeConfig{
 		AllowBYOK: serpent.Bool(true),
-	})
+	}, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
 }
@@ -710,4 +773,15 @@ func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
 		panic(err)
 	}
 	return sql.NullString{String: string(data), Valid: true}
+}
+
+func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			assert.Equal(t, expected, f.Value)
+			return
+		}
+	}
+	t.Errorf("field %q not found", name)
 }

@@ -25,7 +25,6 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	createChatStore,
 	useChatSelector,
@@ -66,6 +65,7 @@ const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -144,6 +144,7 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		persistedError: undefined as ChatDetailError | undefined,
 		parentChat: undefined as TypesGen.Chat | undefined,
 		isArchived: false,
+		isSharedChat: false,
 		chatOwner: undefined as ComponentProps<
 			typeof AgentChatPageView
 		>["chatOwner"],
@@ -153,8 +154,6 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		modelSelectorPlaceholder: "Select a model",
 		hasModelOptions: true,
 		compressionThreshold: undefined as number | undefined,
-		canUpdateOtherUserChat: false,
-		canUpdateOtherUserChatLoading: false,
 		isInputDisabled: false,
 		isSubmissionPending: false,
 		isInterruptPending: false,
@@ -190,6 +189,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		canShareChat: false,
+		canConfigureAgentSetup: true,
+		providerCount: 1,
+		modelCount: 1,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -231,7 +233,7 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/^This is not your chat/),
+			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
 	},
 };
@@ -241,38 +243,20 @@ export const Archived: Story = {
 	render: () => <StoryAgentChatPageView isArchived isInputDisabled />,
 };
 
-export const AdminViewingOtherUserChat: Story = {
+export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			canUpdateOtherUserChat
-			chatOwner={{ username: "OtherUser", name: "Other User" }}
-		/>
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This is not your chat. Prompting here will use Other User's identity.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-	},
-};
-
-export const OtherUserChatOwnerPending: Story = {
-	render: () => (
-		<StoryAgentChatPageView
-			canUpdateOtherUserChat
-			canUpdateOtherUserChatLoading
 			chatOwner={{ username: "OtherUser", name: "Other User" }}
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(
-			canvas.queryByText(/^This is not your chat/),
-		).not.toBeInTheDocument();
-		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		const banner = canvas.getByText(
+			"This chat is owned by Other User. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
 			"aria-disabled",
 			"true",
@@ -280,32 +264,20 @@ export const OtherUserChatOwnerPending: Story = {
 	},
 };
 
-export const ReadOnlyOtherUserChatOwner: Story = {
-	render: () => (
-		<StoryAgentChatPageView chatOwner={{ username: "OtherUser" }} />
-	),
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const banner = canvas.getByText(
-			"This chat is owned by @OtherUser. You have read-only access.",
-		);
-		expect(banner).toBeVisible();
-		expect(banner).toHaveAttribute("role", "status");
-	},
-};
-
-export const ReadOnlyOtherUserChatOwnerPending: Story = {
+export const OtherUserChatUsernameFallback: Story = {
 	render: () => (
 		<StoryAgentChatPageView
 			chatOwner={{ username: "OtherUser" }}
-			canUpdateOtherUserChatLoading
 			isInputDisabled
 		/>
 	),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByText(/^This chat is owned/)).not.toBeInTheDocument();
-		expect(canvas.queryByText(/other-user-id/)).not.toBeInTheDocument();
+		const banner = canvas.getByText(
+			"This chat is owned by @OtherUser. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
 		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
 			"aria-disabled",
 			"true",
@@ -313,7 +285,23 @@ export const ReadOnlyOtherUserChatOwnerPending: Story = {
 	},
 };
 
-/** Archived chats stay read-only without the identity warning banner. */
+export const OtherUserChatOwnerFallback: Story = {
+	render: () => <StoryAgentChatPageView chatOwner={{}} isInputDisabled />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const banner = canvas.getByText(
+			"This chat is owned by another user. It is read-only.",
+		);
+		expect(banner).toBeVisible();
+		expect(banner).toHaveAttribute("role", "status");
+		expect(canvas.getByLabelText("Chat message")).toHaveAttribute(
+			"aria-disabled",
+			"true",
+		);
+	},
+};
+
+/** Archived chats stay read-only without the owner banner. */
 export const ArchivedOtherUserChat: Story = {
 	render: () => (
 		<StoryAgentChatPageView
@@ -325,7 +313,7 @@ export const ArchivedOtherUserChat: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.queryByText(/^This is not your chat/),
+			canvas.queryByText(/^This chat is owned by/),
 		).not.toBeInTheDocument();
 		expect(
 			canvas.getByText("This agent has been archived and is read-only."),
@@ -416,6 +404,49 @@ index abc1234..def5678 100644
 	},
 };
 
+export const NarrowWithSidebarPanel: Story = {
+	render: () => <StoryAgentChatPageView showSidebarPanel />,
+	decorators: [
+		(Story) => (
+			<div
+				data-testid="narrow-agents-layout"
+				style={{
+					display: "flex",
+					height: "100vh",
+					overflow: "hidden",
+					width: 1024,
+				}}
+			>
+				<div style={{ minWidth: 320, width: 320 }} />
+				<div style={{ display: "flex", flex: 1, minWidth: 0 }}>
+					<Story />
+				</div>
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const layout = await canvas.findByTestId("narrow-agents-layout");
+		const chatPanel = await canvas.findByTestId("agents-chat-panel");
+		const rightPanel = await canvas.findByTestId("agents-right-panel");
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+
+		await waitFor(() => {
+			const layoutRect = layout.getBoundingClientRect();
+			const chatPanelRect = chatPanel.getBoundingClientRect();
+			const rightPanelRect = rightPanel.getBoundingClientRect();
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+
+			expect(chatPanelRect.width).toBeGreaterThanOrEqual(359);
+			expect(sendButtonRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+			expect(rightPanelRect.right).toBeLessThanOrEqual(layoutRect.right + 1);
+		});
+	},
+};
+
 /**
  * Clicking the refresh button in the git panel invalidates the
  * cached PR diff contents so that React Query re-fetches from
@@ -499,9 +530,9 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -534,9 +565,9 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={1}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -565,9 +596,9 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={1}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -593,9 +624,9 @@ export const MissingProviderSetup: Story = {
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup={false}
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -689,7 +720,22 @@ export const WorkspaceAgentStartTimeout: Story = {
 };
 
 export const WorkspaceNoAgent: Story = {
-	render: () => <StoryAgentChatPageView workspace={MockWorkspace} />,
+	render: () => (
+		<StoryAgentChatPageView
+			workspace={MockWorkspace}
+			workspaceOptions={[MockWorkspace]}
+			selectedWorkspaceId={MockWorkspace.id}
+			onWorkspaceChange={fn()}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", {
+				name: `Remove workspace ${MockWorkspace.name}`,
+			}),
+		).toBeVisible();
+	},
 };
 
 // ---------------------------------------------------------------------------
@@ -775,17 +821,24 @@ export const LoadingSidebarCollapsed: Story = {
 // Helpers for seeding stores with messages
 // ---------------------------------------------------------------------------
 
-const buildMessage = (
+const buildMessageWithContent = (
 	id: number,
 	role: TypesGen.ChatMessageRole,
-	text: string,
+	content: TypesGen.ChatMessagePart[],
 ): TypesGen.ChatMessage => ({
 	id,
 	chat_id: AGENT_ID,
 	created_at: new Date(Date.now() - (10 - id) * 60_000).toISOString(),
 	role,
-	content: [{ type: "text", text }],
+	content,
 });
+
+const buildMessage = (
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	text: string,
+): TypesGen.ChatMessage =>
+	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
@@ -795,6 +848,52 @@ const buildStoreWithMessages = (
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
 	return store;
+};
+
+const otherUserActionMessages: TypesGen.ChatMessage[] = [
+	buildMessage(1, "user", "Please review this plan."),
+	buildMessageWithContent(2, "assistant", [
+		{ type: "text", text: "I prepared a plan." },
+		{
+			type: "tool-call",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			args: { path: "/home/coder/PLAN.md" },
+		},
+		{
+			type: "tool-result",
+			tool_call_id: "other-user-plan",
+			tool_name: "propose_plan",
+			result: {
+				file_id: "other-user-plan-file",
+				content: "# Plan\n\n1. Keep this chat read-only.",
+			},
+		},
+	]),
+];
+
+export const OtherUserChatHidesInlineActions: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chatOwner={{ username: "OtherUser", name: "Other User" }}
+			isInputDisabled
+			onImplementPlan={fn()}
+			store={buildStoreWithMessages(otherUserActionMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText("This chat is owned by Other User. It is read-only."),
+		).toBeVisible();
+		expect(await canvas.findByText("Please review this plan.")).toBeVisible();
+		expect(
+			canvas.queryByRole("button", { name: "Edit message" }),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: "Implement plan" }),
+		).not.toBeInTheDocument();
+	},
 };
 
 // ---------------------------------------------------------------------------

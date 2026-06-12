@@ -35,15 +35,23 @@ explained through a cooking analogy:
 - 10 minutes of your time
 
 > [!TIP]
-> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install Docker, install Coder, create your first template, and launch a workspace).
+> If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install a container runtime, install Coder, create your first template, and launch a workspace).
 
-## Step 1: Install Docker and set up permissions
+## Step 1: Install a container runtime
+
+Coder needs a Docker-compatible container runtime running on the host, such as
+[Colima](https://colima.run), [Rancher Desktop](https://rancherdesktop.io),
+[Podman](https://podman.io), or
+[Docker Desktop](https://www.docker.com/products/docker-desktop/). If you
+already have one installed and running, skip ahead to
+[Step 2](#step-2-install-and-start-coder). Otherwise, follow the steps below to
+install a free runtime quickly on your platform.
 
 <div class="tabs">
 
 ### Linux
 
-1. Install Docker:
+1. Install Docker Engine:
 
    ```bash
    curl -sSL https://get.docker.com | sh
@@ -74,15 +82,23 @@ explained through a cooking analogy:
 
 ### macOS
 
-1. [Install Docker](https://docs.docker.com/desktop/setup/install/mac-install/).
-There is a Homebrew formula for the Docker command and a Homebrew cask of Docker
-Desktop if you prefer:
+[Colima](https://colima.run) is a free, lightweight container runtime that
+provides the Docker daemon on macOS without the overhead of Docker Desktop.
+
+1. Install Colima and the Docker CLI with [Homebrew](https://brew.sh):
 
    ```shell
-   brew install --cask docker-desktop
+   brew install colima docker
    ```
 
-1. Open Docker Desktop.
+1. Start Colima to launch the Docker daemon:
+
+   ```shell
+   colima start
+   ```
+
+   Colima exposes the Docker socket at `/var/run/docker.sock`, so the Coder
+   Quickstart template works without additional configuration.
 
 ### Windows
 
@@ -90,9 +106,32 @@ If you plan to use the built-in PostgreSQL database, ensure that the
 [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version)
 is installed.
 
-1. [Install Docker](https://docs.docker.com/desktop/install/windows-install/).
+[Podman Desktop](https://podman-desktop.io) is a free GUI for the Podman container runtime.
+Its onboarding installs and configures the required
+Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
 
-1. Open Docker Desktop.
+1. Download and install [Podman Desktop](https://podman-desktop.io/downloads).
+
+1. Follow the onboarding to configure Podman.
+
+1. If you configured Podman to use WSL2, then you will need to do either
+   upgrade WSL2 to version 2.5.1 or later
+   (which uses [cgroups](https://wikipedia.org/wiki/Cgroups) v2 by default)
+   or create a `.wslconfig` file in the `%USERPROFILE%` directory
+   with the following contents
+
+   ```text
+   [wsl2]
+   kernelCommandLine=cgroup_no_v1=all
+   ```
+
+   This is not required for Podman with Hyper-V.
+
+1. Open Podman Desktop and complete the onboarding to create and start a
+   Podman machine.
+
+   Podman Desktop enables Docker socket compatibility by default, so tools
+   that expect the Docker daemon work without additional configuration.
 
 </div>
 
@@ -275,23 +314,31 @@ When creating a workspace from a Docker template, you may see an error like:
 Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
 ```
 
-This means Docker is either not installed or not running on the machine where
-Coder is running. Docker must be running before you create a workspace from a
-Docker-based template.
+This means a container runtime is either not installed or not running on the
+machine where Coder is running. A runtime must be running before you create a
+workspace from a Docker-based template.
 
 <div class="tabs">
 
 #### macOS
 
-1. If Docker Desktop is not installed,
-   [install it](https://docs.docker.com/desktop/setup/install/mac-install/) or
-   use Homebrew:
+1. If Colima is not installed, install it with [Homebrew](https://brew.sh):
 
    ```shell
-   brew install --cask docker-desktop
+   brew install colima docker
    ```
 
-1. Open Docker Desktop and verify that it is running.
+1. Start Colima to launch the Docker daemon:
+
+   ```shell
+   colima start
+   ```
+
+1. Verify that the daemon is reachable:
+
+   ```shell
+   docker ps
+   ```
 
 #### Linux
 
@@ -324,10 +371,10 @@ Docker-based template.
 
 #### Windows
 
-1. If Docker Desktop is not installed,
-   [install it](https://docs.docker.com/desktop/install/windows-install/).
+1. If Podman Desktop is not installed,
+   [download and install it](https://podman-desktop.io/downloads).
 
-1. Open Docker Desktop and verify that it is running.
+1. Open Podman Desktop and verify that a Podman machine is running.
 
 </div>
 

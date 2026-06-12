@@ -119,3 +119,5 @@ docs/plans/
 # Local audit reports (e.g. site/scripts/audit-docs-paths.mjs output).
 # Findings live in Linear; the file is for local inspection only.
 docs/.audit/
+
+/release-action

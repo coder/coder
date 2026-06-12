@@ -1,14 +1,8 @@
 import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -18,6 +12,7 @@ import {
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
+import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
@@ -39,8 +34,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "./subagentDescriptor";
-import { ToolCollapsible } from "./ToolCollapsible";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
@@ -56,6 +50,7 @@ import {
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
+	humanizeMCPToolName,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -231,12 +226,15 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -245,7 +243,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
@@ -270,6 +268,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
 	return (
 		<ProcessOutputTool
@@ -277,6 +276,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}
+			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
@@ -493,9 +493,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		streamSubagentStatus = subagentStatusOverrides?.get(chatId) || "";
 	}
 	const subagentStatus = streamSubagentStatus || resultSubagentStatus;
-	const durationMs = rec
-		? asNumber(rec.duration_ms, { parseString: true })
-		: undefined;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
@@ -552,7 +549,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			subagentStatus={subagentStatus}
 			prompt={prompt || undefined}
 			message={subagentMessage || undefined}
-			durationMs={chatId ? durationMs : undefined}
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
@@ -829,9 +825,20 @@ const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
 		<ScrollArea
 			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
 			viewportClassName="max-h-64"
+			orientation="both"
 			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
 		>
-			<FileViewer file={file} options={options} style={DIFFS_FONT_STYLE} />
+			<FileViewer
+				file={file}
+				options={options}
+				style={DIFFS_FONT_STYLE}
+				renderCustomHeader={
+					options?.disableFileHeader
+						? undefined
+						: (file) => <DiffFileHeader file={file} />
+				}
+			/>
 		</ScrollArea>
 	</>
 );
@@ -883,6 +890,17 @@ const GenericToolContent: FC<GenericToolContentProps> = ({
 	);
 };
 
+const getGenericToolErrorMessage = ({
+	name,
+	mcpSlug,
+}: {
+	name: string;
+	mcpSlug?: string;
+}): string => {
+	const displayName = humanizeMCPToolName(mcpSlug ?? "", name);
+	return `${displayName} failed`;
+};
+
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -913,67 +931,47 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		: undefined;
 
 	const hasContent = Boolean(toolInput || fileContent || resultOutput);
-	const isRunning = status === "running";
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	const toolHeader = (
-		<>
-			<ToolIcon
-				name={name}
-				isError={status === "error" || isError}
-				iconUrl={mcpServer?.icon_url}
-				isRunning={isRunning}
-				serverName={mcpServer?.display_name}
-			/>
-			{modelIntent ? (
-				<span className="truncate text-[13px]">
-					{formatModelIntentLabel(modelIntent)}
-				</span>
-			) : (
-				<ToolLabel
-					name={name}
-					args={args}
-					result={result}
-					mcpSlug={mcpServer?.slug}
-				/>
-			)}
-		</>
-	);
-	const toolHeaderStatus = (
-		<>
-			{isError && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="size-3.5 shrink-0 text-current" />
-					</TooltipTrigger>
-					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
-				</Tooltip>
-			)}
-			{isRunning && (
-				<LoaderIcon className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-			)}
-		</>
-	);
-
-	const toolContent = (
-		<GenericToolContent
-			toolInput={toolInput}
-			fileContent={fileContent}
-			fileContentOptions={fileContentOptions}
-			isDark={isDark}
-			resultOutput={resultOutput}
-		/>
-	);
+	const fallbackErrorMessage = getGenericToolErrorMessage({
+		name,
+		mcpSlug: mcpServer?.slug,
+	});
 
 	return (
-		<ToolCollapsible
+		<ToolCall.Root
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || fallbackErrorMessage}
 			hasContent={hasContent}
-			header={toolHeader}
-			headerStatus={toolHeaderStatus}
 		>
-			{toolContent}
-		</ToolCollapsible>
+			<ToolCall.Header
+				iconName={name}
+				iconUrl={mcpServer?.icon_url}
+				serverName={mcpServer?.display_name}
+				label={
+					modelIntent ? (
+						formatModelIntentLabel(modelIntent)
+					) : (
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					)
+				}
+			/>
+			<ToolCall.Content>
+				<GenericToolContent
+					toolInput={toolInput}
+					fileContent={fileContent}
+					fileContentOptions={fileContentOptions}
+					isDark={isDark}
+					resultOutput={resultOutput}
+				/>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 

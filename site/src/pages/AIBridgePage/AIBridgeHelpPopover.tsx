@@ -16,9 +16,9 @@ export const AIBridgeHelpPopover: FC = () => {
 			<HelpPopoverIconTrigger />
 
 			<HelpPopoverContent>
-				<HelpPopoverTitle>What is AI Bridge?</HelpPopoverTitle>
+				<HelpPopoverTitle>What is AI Gateway?</HelpPopoverTitle>
 				<HelpPopoverText>
-					AI Bridge is a smart gateway for AI that provides centralized
+					AI Gateway is a smart gateway for AI that provides centralized
 					management, auditing, and attribution for LLM usage.
 				</HelpPopoverText>
 				<HelpPopoverLinksGroup>

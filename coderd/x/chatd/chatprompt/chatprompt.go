@@ -235,39 +235,6 @@ func ConvertMessagesWithFiles(
 	return prompt, nil
 }
 
-// PrependSystem prepends a system message unless an existing system
-// message already mentions create_workspace guidance.
-func PrependSystem(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	for _, message := range prompt {
-		if message.Role != fantasy.MessageRoleSystem {
-			continue
-		}
-		for _, part := range message.Content {
-			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
-			if !ok {
-				continue
-			}
-			if strings.Contains(strings.ToLower(textPart.Text), "create_workspace") {
-				return prompt
-			}
-		}
-	}
-
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleSystem,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
-	out = append(out, prompt...)
-	return out
-}
-
 // InsertSystem inserts a system message after the existing system
 // block and before the first non-system message.
 func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Message {
@@ -295,24 +262,6 @@ func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Messag
 	if !inserted {
 		out = append(out, systemMessage)
 	}
-	return out
-}
-
-// AppendUser appends an instruction as a user message at the end of
-// the prompt.
-func AppendUser(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, prompt...)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
 	return out
 }
 
@@ -1588,6 +1537,7 @@ func partsToMessageParts(
 				continue
 			}
 			result = append(result, fantasy.FilePart{
+				Filename:        name,
 				Data:            data,
 				MediaType:       mediaType,
 				ProviderOptions: opts,

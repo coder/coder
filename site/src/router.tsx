@@ -351,6 +351,9 @@ const ProvisionerJobsPage = lazy(
 const AgentsPage = lazy(() => import("./pages/AgentsPage/AgentsPage"));
 const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
 const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const DesktopPopoutPage = lazy(
+	() => import("./pages/AgentsPage/DesktopPopoutPage"),
+);
 const AgentCreatePage = lazy(
 	() => import("./pages/AgentsPage/AgentCreatePage"),
 );
@@ -380,9 +383,6 @@ const AgentSettingsUserAgentsPage = lazy(
 );
 const AgentSettingsPersonalSkillsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
-);
-const AgentSettingsProvidersPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsProvidersPage"),
 );
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
@@ -417,10 +417,6 @@ const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
-const AIBridgeRequestLogsPage = lazy(
-	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
-);
-
 const AIBridgeSessionsLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeSessionsLayout"),
 );
@@ -690,7 +686,6 @@ export const router = createBrowserRouter(
 							index
 							element={<Navigate to="/aibridge/sessions" replace />}
 						/>
-						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
 					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
@@ -788,7 +783,10 @@ export const router = createBrowserRouter(
 						<Route path="admin" element={<AgentSettingsAgentsPage />} />
 						<Route path="agents" element={<AgentSettingsAgentsPage />} />
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
-						<Route path="providers" element={<AgentSettingsProvidersPage />} />
+						<Route
+							path="providers"
+							element={<Navigate to="/ai/settings" replace />}
+						/>
 						<Route path="models" element={<AgentSettingsModelsPage />} />
 						<Route
 							path="mcp-servers"
@@ -810,6 +808,18 @@ export const router = createBrowserRouter(
 						}
 					/>
 				</Route>
+				<Route
+					path="/agents/:agentId/desktop"
+					element={
+						<Suspense
+							fallback={
+								<div className="flex h-screen w-screen items-center justify-center" />
+							}
+						>
+							<DesktopPopoutPage />
+						</Suspense>
+					}
+				/>
 			</Route>
 
 			<Route

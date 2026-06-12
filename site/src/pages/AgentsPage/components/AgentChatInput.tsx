@@ -67,6 +67,7 @@ import {
 	isChatAttachmentFile,
 } from "../utils/chatAttachments";
 import { formatProviderLabel } from "../utils/modelOptions";
+import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
 	isUploadInProgress,
@@ -183,7 +184,9 @@ interface AgentChatInputProps {
 	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
-	agentSetupNotice?: React.ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
 }
 
 export interface AttachedWorkspaceInfo {
@@ -196,7 +199,8 @@ export interface AttachedWorkspaceInfo {
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig };
+	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
+	| { kind: "planning" };
 
 // Small `X` button rendered inside pill-style badges (attached
 // workspace, MCP server, planning indicator) to dismiss or disable
@@ -211,10 +215,12 @@ const BadgeDismissButton: FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="ml-0.5 inline-flex cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-content-secondary"
+		className="group -mx-1 -my-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
-		<XIcon className="!size-2.5" />
+		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
+			<XIcon className="!size-2.5" />
+		</span>
 	</button>
 );
 
@@ -222,29 +228,64 @@ const ToolBadge: FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
 	onRemoveMcp?: (serverId: string) => void;
+	onRemovePlanning?: () => void;
+	isDisabled?: boolean;
 	className?: string;
-}> = ({ badge, onRemoveWorkspace, onRemoveMcp, className }) => {
+}> = ({
+	badge,
+	onRemoveWorkspace,
+	onRemoveMcp,
+	onRemovePlanning,
+	isDisabled,
+	className,
+}) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
 		className,
 	);
 
+	if (badge.kind === "planning") {
+		return (
+			<span data-testid="planning-badge" className={badgeCls}>
+				<PencilIcon className="size-3" />
+				Planning
+				{onRemovePlanning && (
+					<BadgeDismissButton
+						onClick={onRemovePlanning}
+						ariaLabel="Disable plan mode"
+						isDisabled={isDisabled}
+					/>
+				)}
+			</span>
+		);
+	}
+
 	if (badge.kind === "attached-workspace") {
 		return (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<Link
-						to={badge.route}
-						target="_blank"
-						rel="noreferrer"
+					<span
 						className={cn(
 							badgeCls,
-							"no-underline transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+							"transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 						)}
 					>
-						{badge.statusIcon}
-						<span className="truncate">{badge.name}</span>
-					</Link>
+						<Link
+							to={badge.route}
+							target="_blank"
+							rel="noreferrer"
+							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
+						>
+							{badge.statusIcon}
+							<span className="truncate">{badge.name}</span>
+						</Link>
+						{onRemoveWorkspace && (
+							<BadgeDismissButton
+								onClick={onRemoveWorkspace}
+								ariaLabel={`Remove workspace ${badge.name}`}
+							/>
+						)}
+					</span>
 				</TooltipTrigger>
 				<TooltipContent>{badge.statusLabel}</TooltipContent>
 			</Tooltip>
@@ -343,9 +384,16 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	sshCommand,
 	attachedWorkspace,
 	folder,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
+	const showAgentSetupNotice = canConfigureAgentSetup
+		? providerCount !== undefined &&
+			modelCount !== undefined &&
+			(providerCount === 0 || modelCount === 0)
+		: modelCount !== undefined && modelCount === 0;
 	const internalRef = useRef<ChatMessageInputRef>(null);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
@@ -491,10 +539,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const selectedWorkspace = workspaceOptions?.find(
 		(ws) => ws.id === selectedWorkspaceId,
 	);
+	const canUseWorkspacePicker =
+		Boolean(onWorkspaceChange) && !isWorkspaceLoading;
+	const linkedWorkspaceId = workspace?.id ?? attachedWorkspace?.id;
 
 	const shouldShowSelectedWorkspaceBadge = selectedWorkspace
-		? Boolean(onWorkspaceChange) &&
-			selectedWorkspace.id !== attachedWorkspace?.id
+		? selectedWorkspace.id !== linkedWorkspaceId
 		: false;
 
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
@@ -507,10 +557,15 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const badgeContainerRef = useRef<HTMLDivElement>(null);
 
 	const [overflowPopoverOpen, setOverflowPopoverOpen] = useState(false);
+	const shouldOverflowPlanningBadge =
+		planModeEnabled && contextUsage !== undefined;
 
 	// Ordered list of active tool badge data so we can determine
 	// which ones ended up in the overflow popover.
 	const allBadges: ToolBadgeData[] = [];
+	if (shouldOverflowPlanningBadge) {
+		allBadges.push({ kind: "planning" });
+	}
 	// When workspace data is available, WorkspacePill handles
 	// the display (including app dropdown). Otherwise fall back
 	// to the simple attached-workspace ToolBadge.
@@ -529,6 +584,9 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 	const overflowBadges = allBadges.slice(visibleCount);
 
 	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const removeWorkspaceHandler = onWorkspaceChange
+		? handleRemoveWorkspace
+		: undefined;
 	const handleRemoveMcp = (serverId: string) =>
 		handleMcpToggle(serverId, false);
 
@@ -996,15 +1054,31 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 					className="mb-2"
 				/>
 			)}
-			{agentSetupNotice && (
-				<div className="relative z-0 mb-[-2.5rem]">{agentSetupNotice}</div>
+			{showAgentSetupNotice && (
+				<div className="relative z-0 mb-[-2.5rem]">
+					{canConfigureAgentSetup &&
+					providerCount !== undefined &&
+					modelCount !== undefined ? (
+						<AgentSetupNotice
+							isAdmin
+							providerCount={providerCount}
+							modelCount={modelCount}
+						/>
+					) : (
+						<AgentSetupNotice
+							isAdmin={false}
+							providerCount={0}
+							modelCount={0}
+						/>
+					)}
+				</div>
 			)}
 			<div
 				ref={setComposerElement}
 				data-testid="chat-composer"
 				className={cn(
 					"relative z-10 rounded-2xl border border-border-default/80 bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-sm has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
-					agentSetupNotice && "sm:bg-surface-secondary",
+					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
 					isEditingHistoryMessage &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
@@ -1128,7 +1202,11 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									variant="subtle"
 									size="icon"
 									className="size-7 shrink-0 rounded-full [&>svg]:!size-icon-sm [&>svg]:p-0"
-									disabled={isDisabled && !agentSetupNotice}
+									disabled={
+										isDisabled &&
+										!showAgentSetupNotice &&
+										!canUseWorkspacePicker
+									}
 									aria-label="More options"
 								>
 									<PlusIcon />
@@ -1197,7 +1275,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
-													disabled={isDisabled || isWorkspaceLoading}
+													disabled={!canUseWorkspacePicker}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1213,7 +1291,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													<PopoverTrigger asChild>
 														<button
 															type="button"
-															disabled={isDisabled || isWorkspaceLoading}
+															disabled={!canUseWorkspacePicker}
 															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 														>
 															<MonitorIcon className="size-3.5 shrink-0" />
@@ -1320,13 +1398,17 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
 								formatProviderLabel={formatProviderLabel}
+								className="md:shrink"
 								dropdownSide="top"
 								dropdownAlign="center"
 								enableMobileFullWidthDropdown
 							/>
 						)}
-						{planModeEnabled && (
-							<span className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex">
+						{planModeEnabled && !shouldOverflowPlanningBadge && (
+							<span
+								data-testid="planning-badge"
+								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+							>
 								<PencilIcon className="size-3" />
 								Planning
 								{onPlanModeToggle && (
@@ -1337,7 +1419,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									/>
 								)}
 							</span>
-						)}{" "}
+						)}
 						{/* Badge row; all badges and the pill always
 						 * render so the DOM structure never changes.
 						 * Overflow badges use invisible + order-1 to
@@ -1352,6 +1434,7 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									chatId={chatId}
 									sshCommand={sshCommand}
 									folder={folder}
+									onRemoveWorkspace={removeWorkspaceHandler}
 								/>
 							</span>
 						)}
@@ -1365,8 +1448,12 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 									<ToolBadge
 										key={badge.kind === "mcp" ? badge.server.id : badge.kind}
 										badge={badge}
-										onRemoveWorkspace={handleRemoveWorkspace}
+										onRemoveWorkspace={removeWorkspaceHandler}
 										onRemoveMcp={handleRemoveMcp}
+										onRemovePlanning={
+											onPlanModeToggle ? handleDisablePlanMode : undefined
+										}
+										isDisabled={isDisabled}
 										className={isOverflow ? "invisible order-1" : undefined}
 									/>
 								);
@@ -1405,15 +1492,19 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 													: `${badge.kind}-overflow`
 											}
 											badge={badge}
-											onRemoveWorkspace={handleRemoveWorkspace}
+											onRemoveWorkspace={removeWorkspaceHandler}
 											onRemoveMcp={handleRemoveMcp}
+											onRemovePlanning={
+												onPlanModeToggle ? handleDisablePlanMode : undefined
+											}
+											isDisabled={isDisabled}
 										/>
 									))}
 								</PopoverContent>
 							</Popover>
 						</div>
 					</div>
-					<div className="flex items-center gap-2">
+					<div className="flex shrink-0 items-center gap-2">
 						{speech.isSupported && !isStreaming && (
 							<>
 								<Button
@@ -1528,7 +1619,8 @@ export const AgentChatInput: FC<AgentChatInputProps> = ({
 /**
  * Shared workspace picker used by both the mobile and desktop
  * "Attach workspace" menus. Workspaces from a different organization
- * than the chat are rendered as disabled items with a tooltip.
+ * than the chat are disabled unless already selected, so stale bindings
+ * can still be cleared.
  */
 interface WorkspacePickerListProps {
 	workspaceOptions:
@@ -1540,7 +1632,7 @@ interface WorkspacePickerListProps {
 		| undefined;
 	selectedWorkspaceId?: string | null;
 	chatOrganizationId?: string;
-	onSelect: (id: string) => void;
+	onSelect: (id: string | null) => void;
 }
 
 const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
@@ -1559,31 +1651,33 @@ const WorkspacePickerList: FC<WorkspacePickerListProps> = ({
 						const isCrossOrg =
 							!!chatOrganizationId &&
 							workspace.organization_id !== chatOrganizationId;
+						const isSelected = selectedWorkspaceId === workspace.id;
+						const isUnavailable = isCrossOrg && !isSelected;
 
 						const item = (
 							<CommandItem
 								className={cn(
 									"text-xs font-normal",
-									isCrossOrg &&
+									isUnavailable &&
 										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
 								)}
 								key={workspace.id}
 								value={workspace.name}
-								disabled={isCrossOrg}
+								disabled={isUnavailable}
 								onSelect={() => {
-									if (!isCrossOrg) {
-										onSelect(workspace.id);
+									if (!isUnavailable) {
+										onSelect(isSelected ? null : workspace.id);
 									}
 								}}
 							>
 								{workspace.name}
-								{selectedWorkspaceId === workspace.id && (
+								{isSelected && (
 									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 								)}
 							</CommandItem>
 						);
 
-						if (isCrossOrg) {
+						if (isUnavailable) {
 							return (
 								<Tooltip key={workspace.id}>
 									<TooltipTrigger asChild>

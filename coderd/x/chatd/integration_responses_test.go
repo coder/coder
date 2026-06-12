@@ -78,6 +78,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
 		Title:          uniqueResponsesTitle(t, "no-stale"),
 		ModelConfigID:  model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
@@ -92,6 +93,7 @@ func TestOpenAIResponsesNoStaleWebSearchReplay(t *testing.T) {
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
 		ModelConfigID: model.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("summarize the result without searching again"),
@@ -167,6 +169,7 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID: org.ID,
 		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
 		Title:          uniqueResponsesTitle(t, "full-replay"),
 		ModelConfigID:  firstModel.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{
@@ -181,6 +184,7 @@ func TestOpenAIResponsesFullReplayPairsReasoningAndWebSearch(t *testing.T) {
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
 		ModelConfigID: secondModel.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("summarize the result without searching again"),
@@ -253,6 +257,7 @@ func TestOpenAIResponsesChainModeSkipsWhenLocalCallPending(t *testing.T) {
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
 		ModelConfigID: model.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("continue after that tool call"),
@@ -341,6 +346,7 @@ func TestOpenAIResponsesChainModeStillFiresForProviderExecutedOnly(t *testing.T)
 	_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:        chat.ID,
 		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
 		ModelConfigID: model.ID,
 		Content: []codersdk.ChatMessagePart{
 			codersdk.ChatMessageText("what did it find"),

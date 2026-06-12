@@ -78,7 +78,7 @@ export const UsageIndicator: FC = () => {
 
 		sections.push({
 			id: "ai-usage",
-			title: `${periodLabel} Usage`,
+			title: `${periodLabel} usage`,
 			progressLabel: `${periodLabel} spend usage`,
 			percent: getPercent(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),

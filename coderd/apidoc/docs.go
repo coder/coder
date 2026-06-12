@@ -78,7 +78,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
+                        "description": "Search query. Supports title:\u003csubstring\u003e (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:\u003cdraft\\|open\\|merged\\|closed\u003e as repeated or comma-separated values, source:\u003ccreated_by_me\\|shared_with_me\u003e, diff_url:\u003curl\u003e (quote values containing colons), pr:\u003cnumber\u003e (exact PR number match), repo:\u003cowner/repo\u003e (case-insensitive substring match against git remote origin or URL), pr_title:\u003ctext\u003e (case-insensitive PR title substring). Bare terms are not supported; use title:\u003cvalue\u003e for title filtering.",
                         "name": "q",
                         "in": "query"
                     },
@@ -818,6 +818,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/experimental/chats/{chat}/reconcile-invalid": {
+            "post": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Reconcile invalid chat state",
+                "operationId": "reconcile-invalid-chat-state",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/stream": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -921,6 +957,45 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ]
+            }
+        },
+        "/api/experimental/chats/{chat}/stream/parts": {
+            "get": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Stream chat parts via WebSockets",
+                "operationId": "stream-chat-parts-via-websockets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatStreamEvent"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/chats/{chat}/title/regenerate": {
@@ -1422,49 +1497,91 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/aibridge/interceptions": {
+        "/api/v2/aibridge/keys": {
             "get": {
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "AI Bridge"
+                    "Enterprise"
                 ],
-                "summary": "List AI Bridge interceptions",
-                "operationId": "list-ai-bridge-interceptions",
-                "deprecated": true,
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, started_after, started_before.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor pagination after ID (cannot be used with offset)",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Offset pagination (cannot be used with after_id)",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
+                "summary": "List AI Gateway keys",
+                "operationId": "list-ai-gateway-keys",
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AIGatewayKey"
+                            }
                         }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Create AI Gateway key",
+                "operationId": "create-ai-gateway-key",
+                "parameters": [
+                    {
+                        "description": "Create AI Gateway key request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateAIGatewayKeyResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/aibridge/keys/{key}": {
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete AI Gateway key",
+                "operationId": "delete-ai-gateway-key",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Key ID",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
                     }
                 },
                 "security": [
@@ -9171,6 +9288,110 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/users/{user}/ai/budget": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get user AI budget override",
+                "operationId": "get-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Upsert user AI budget override",
+                "operationId": "upsert-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Upsert user AI budget override request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UpsertUserAIBudgetOverrideRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.UserAIBudgetOverride"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            },
+            "delete": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Delete user AI budget override",
+                "operationId": "delete-user-ai-budget-override",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "User ID, username, or me",
+                        "name": "user",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/users/{user}/appearance": {
             "get": {
                 "produces": [
@@ -13961,7 +14182,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -13969,7 +14190,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 },
@@ -14035,7 +14256,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -14077,7 +14298,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/coderd.SCIMUser"
+                            "$ref": "#/definitions/legacyscim.SCIMUser"
                         }
                     }
                 ],
@@ -14288,71 +14509,6 @@ const docTemplate = `{
                 "ReinitializeReasonPrebuildClaimed"
             ]
         },
-        "coderd.SCIMUser": {
-            "type": "object",
-            "properties": {
-                "active": {
-                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
-                    "type": "boolean"
-                },
-                "emails": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "display": {
-                                "type": "string"
-                            },
-                            "primary": {
-                                "type": "boolean"
-                            },
-                            "type": {
-                                "type": "string"
-                            },
-                            "value": {
-                                "type": "string",
-                                "format": "email"
-                            }
-                        }
-                    }
-                },
-                "groups": {
-                    "type": "array",
-                    "items": {}
-                },
-                "id": {
-                    "type": "string"
-                },
-                "meta": {
-                    "type": "object",
-                    "properties": {
-                        "resourceType": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "name": {
-                    "type": "object",
-                    "properties": {
-                        "familyName": {
-                            "type": "string"
-                        },
-                        "givenName": {
-                            "type": "string"
-                        }
-                    }
-                },
-                "schemas": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "userName": {
-                    "type": "string"
-                }
-            }
-        },
         "coderd.cspViolation": {
             "type": "object",
             "properties": {
@@ -14521,77 +14677,6 @@ const docTemplate = `{
                 },
                 "structured_logging": {
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.AIBridgeInterception": {
-            "type": "object",
-            "properties": {
-                "api_key_id": {
-                    "type": "string"
-                },
-                "client": {
-                    "type": "string"
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "initiator": {
-                    "$ref": "#/definitions/codersdk.MinimalUser"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "model": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "provider_name": {
-                    "type": "string"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "token_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeTokenUsage"
-                    }
-                },
-                "tool_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeToolUsage"
-                    }
-                },
-                "user_prompts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeUserPrompt"
-                    }
-                }
-            }
-        },
-        "codersdk.AIBridgeListInterceptionsResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeInterception"
-                    }
                 }
             }
         },
@@ -14857,42 +14942,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeTokenUsage": {
-            "type": "object",
-            "properties": {
-                "cache_read_input_tokens": {
-                    "type": "integer"
-                },
-                "cache_write_input_tokens": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "input_tokens": {
-                    "type": "integer"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "output_tokens": {
-                    "type": "integer"
-                },
-                "provider_response_id": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeToolCall": {
             "type": "object",
             "properties": {
@@ -14929,72 +14978,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeToolUsage": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "injected": {
-                    "type": "boolean"
-                },
-                "input": {
-                    "type": "string"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "invocation_error": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "provider_response_id": {
-                    "type": "string"
-                },
-                "server_url": {
-                    "type": "string"
-                },
-                "tool": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeUserPrompt": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "provider_response_id": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIConfig": {
             "type": "object",
             "properties": {
@@ -15006,6 +14989,29 @@ const docTemplate = `{
                 },
                 "chat": {
                     "$ref": "#/definitions/codersdk.ChatConfig"
+                }
+            }
+        },
+        "codersdk.AIGatewayKey": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -15230,6 +15236,10 @@ const docTemplate = `{
             "enum": [
                 "all",
                 "application_connect",
+                "ai_gateway_key:*",
+                "ai_gateway_key:create",
+                "ai_gateway_key:delete",
+                "ai_gateway_key:read",
                 "ai_model_price:*",
                 "ai_model_price:read",
                 "ai_model_price:update",
@@ -15264,6 +15274,10 @@ const docTemplate = `{
                 "audit_log:*",
                 "audit_log:create",
                 "audit_log:read",
+                "boundary_log:*",
+                "boundary_log:create",
+                "boundary_log:delete",
+                "boundary_log:read",
                 "boundary_usage:*",
                 "boundary_usage:delete",
                 "boundary_usage:read",
@@ -15456,6 +15470,10 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "APIKeyScopeAll",
                 "APIKeyScopeApplicationConnect",
+                "APIKeyScopeAiGatewayKeyAll",
+                "APIKeyScopeAiGatewayKeyCreate",
+                "APIKeyScopeAiGatewayKeyDelete",
+                "APIKeyScopeAiGatewayKeyRead",
                 "APIKeyScopeAiModelPriceAll",
                 "APIKeyScopeAiModelPriceRead",
                 "APIKeyScopeAiModelPriceUpdate",
@@ -15490,6 +15508,10 @@ const docTemplate = `{
                 "APIKeyScopeAuditLogAll",
                 "APIKeyScopeAuditLogCreate",
                 "APIKeyScopeAuditLogRead",
+                "APIKeyScopeBoundaryLogAll",
+                "APIKeyScopeBoundaryLogCreate",
+                "APIKeyScopeBoundaryLogDelete",
+                "APIKeyScopeBoundaryLogRead",
                 "APIKeyScopeBoundaryUsageAll",
                 "APIKeyScopeBoundaryUsageDelete",
                 "APIKeyScopeBoundaryUsageRead",
@@ -16350,6 +16372,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "shared": {
+                    "description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
+                    "type": "boolean"
+                },
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
@@ -16551,20 +16577,24 @@ const docTemplate = `{
                 "overloaded",
                 "rate_limit",
                 "timeout",
-                "startup_timeout",
+                "stream_silence_timeout",
                 "auth",
                 "config",
-                "usage_limit"
+                "usage_limit",
+                "missing_key",
+                "provider_disabled"
             ],
             "x-enum-varnames": [
                 "ChatErrorKindGeneric",
                 "ChatErrorKindOverloaded",
                 "ChatErrorKindRateLimit",
                 "ChatErrorKindTimeout",
-                "ChatErrorKindStartupTimeout",
+                "ChatErrorKindStreamSilenceTimeout",
                 "ChatErrorKindAuth",
                 "ChatErrorKindConfig",
-                "ChatErrorKindUsageLimit"
+                "ChatErrorKindUsageLimit",
+                "ChatErrorKindMissingKey",
+                "ChatErrorKindProviderDisabled"
             ]
         },
         "codersdk.ChatFileMetadata": {
@@ -17132,7 +17162,8 @@ const docTemplate = `{
                 "paused",
                 "completed",
                 "error",
-                "requires_action"
+                "requires_action",
+                "interrupting"
             ],
             "x-enum-varnames": [
                 "ChatStatusWaiting",
@@ -17141,7 +17172,8 @@ const docTemplate = `{
                 "ChatStatusPaused",
                 "ChatStatusCompleted",
                 "ChatStatusError",
-                "ChatStatusRequiresAction"
+                "ChatStatusRequiresAction",
+                "ChatStatusInterrupting"
             ]
         },
         "codersdk.ChatStreamActionRequired": {
@@ -17200,7 +17232,9 @@ const docTemplate = `{
                 "error",
                 "queue_update",
                 "retry",
-                "action_required"
+                "action_required",
+                "preview_reset",
+                "history_reset"
             ],
             "x-enum-varnames": [
                 "ChatStreamEventTypeMessagePart",
@@ -17209,17 +17243,28 @@ const docTemplate = `{
                 "ChatStreamEventTypeError",
                 "ChatStreamEventTypeQueueUpdate",
                 "ChatStreamEventTypeRetry",
-                "ChatStreamEventTypeActionRequired"
+                "ChatStreamEventTypeActionRequired",
+                "ChatStreamEventTypePreviewReset",
+                "ChatStreamEventTypeHistoryReset"
             ]
         },
         "codersdk.ChatStreamMessagePart": {
             "type": "object",
             "properties": {
+                "generation_attempt": {
+                    "type": "integer"
+                },
+                "history_version": {
+                    "type": "integer"
+                },
                 "part": {
                     "$ref": "#/definitions/codersdk.ChatMessagePart"
                 },
                 "role": {
                     "$ref": "#/definitions/codersdk.ChatMessageRole"
+                },
+                "seq": {
+                    "type": "integer"
                 }
             }
         },
@@ -17520,6 +17565,39 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.LoginType"
                         }
                     ]
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.CreateAIGatewayKeyResponse": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key": {
+                    "type": "string"
+                },
+                "key_prefix": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },
@@ -18789,6 +18867,9 @@ const docTemplate = `{
                 "scim_api_key": {
                     "type": "string"
                 },
+                "scim_use_legacy": {
+                    "type": "boolean"
+                },
                 "session_lifetime": {
                     "$ref": "#/definitions/codersdk.SessionLifetime"
                 },
@@ -19039,12 +19120,16 @@ const docTemplate = `{
                 "workspace-usage",
                 "oauth2",
                 "mcp-server-http",
-                "workspace-build-updates"
+                "workspace-build-updates",
+                "nats_pubsub",
+                "minimum-implicit-member"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
+                "ExperimentMinimumImplicitMember": "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "ExperimentNATSPubsub": "Enables embedded NATS pubsub.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentOAuth2": "Enables OAuth2 provider functionality.",
                 "ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
@@ -19057,7 +19142,9 @@ const docTemplate = `{
                 "Enables the new workspace usage tracking.",
                 "Enables OAuth2 provider functionality.",
                 "Enables the MCP HTTP server functionality.",
-                "Enables publishing workspace build updates to the all builds pubsub channel."
+                "Enables publishing workspace build updates to the all builds pubsub channel.",
+                "Enables embedded NATS pubsub.",
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19066,7 +19153,9 @@ const docTemplate = `{
                 "ExperimentWorkspaceUsage",
                 "ExperimentOAuth2",
                 "ExperimentMCPServerHTTP",
-                "ExperimentWorkspaceBuildUpdates"
+                "ExperimentWorkspaceBuildUpdates",
+                "ExperimentNATSPubsub",
+                "ExperimentMinimumImplicitMember"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -20847,6 +20936,13 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles are unioned into every member's effective\nroles at request time. Changes propagate to all members on the\nnext request.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -22275,6 +22371,7 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "*",
+                "ai_gateway_key",
                 "ai_model_price",
                 "ai_provider",
                 "ai_seat",
@@ -22283,6 +22380,7 @@ const docTemplate = `{
                 "assign_org_role",
                 "assign_role",
                 "audit_log",
+                "boundary_log",
                 "boundary_usage",
                 "chat",
                 "connection_log",
@@ -22325,6 +22423,7 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "ResourceWildcard",
+                "ResourceAIGatewayKey",
                 "ResourceAiModelPrice",
                 "ResourceAIProvider",
                 "ResourceAiSeat",
@@ -22333,6 +22432,7 @@ const docTemplate = `{
                 "ResourceAssignOrgRole",
                 "ResourceAssignRole",
                 "ResourceAuditLog",
+                "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
                 "ResourceConnectionLog",
@@ -22585,7 +22685,9 @@ const docTemplate = `{
                 "ai_seat",
                 "ai_provider",
                 "ai_provider_key",
+                "ai_gateway_key",
                 "group_ai_budget",
+                "user_ai_budget_override",
                 "chat",
                 "user_secret",
                 "user_skill"
@@ -22620,7 +22722,9 @@ const docTemplate = `{
                 "ResourceTypeAISeat",
                 "ResourceTypeAIProvider",
                 "ResourceTypeAIProviderKey",
+                "ResourceTypeAIGatewayKey",
                 "ResourceTypeGroupAIBudget",
+                "ResourceTypeUserAIBudgetOverride",
                 "ResourceTypeChat",
                 "ResourceTypeUserSecret",
                 "ResourceTypeUserSkill"
@@ -24296,6 +24400,13 @@ const docTemplate = `{
         "codersdk.UpdateOrganizationRequest": {
             "type": "object",
             "properties": {
+                "default_org_member_roles": {
+                    "description": "DefaultOrgMemberRoles, when non-nil, replaces the org's default\nmember roles.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "description": {
                     "type": "string"
                 },
@@ -24711,6 +24822,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.UpsertUserAIBudgetOverrideRequest": {
+            "type": "object",
+            "required": [
+                "group_id"
+            ],
+            "properties": {
+                "group_id": {
+                    "description": "GroupID is the group the user's spend is attributed to. The user must\nbe a member of this group.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
         "codersdk.UpsertWorkspaceAgentPortShareRequest": {
             "type": "object",
             "properties": {
@@ -24862,6 +24990,30 @@ const docTemplate = `{
                 },
                 "username": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.UserAIBudgetOverride": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "spend_limit_micros": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
                 }
             }
         },
@@ -27405,6 +27557,71 @@ const docTemplate = `{
         },
         "key.NodePublic": {
             "type": "object"
+        },
+        "legacyscim.SCIMUser": {
+            "type": "object",
+            "properties": {
+                "active": {
+                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
+                    "type": "boolean"
+                },
+                "emails": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "display": {
+                                "type": "string"
+                            },
+                            "primary": {
+                                "type": "boolean"
+                            },
+                            "type": {
+                                "type": "string"
+                            },
+                            "value": {
+                                "type": "string",
+                                "format": "email"
+                            }
+                        }
+                    }
+                },
+                "groups": {
+                    "type": "array",
+                    "items": {}
+                },
+                "id": {
+                    "type": "string"
+                },
+                "meta": {
+                    "type": "object",
+                    "properties": {
+                        "resourceType": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "name": {
+                    "type": "object",
+                    "properties": {
+                        "familyName": {
+                            "type": "string"
+                        },
+                        "givenName": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "schemas": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "userName": {
+                    "type": "string"
+                }
+            }
         },
         "netcheck.Report": {
             "type": "object",

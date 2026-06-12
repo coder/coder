@@ -333,6 +333,12 @@ func TestNoopNoDiff(t *testing.T) {
 		},
 	}, nil)
 
+	// SyncRoles fetches the org to union implicit roles into the diff filter.
+	mDB.EXPECT().GetOrganizationByID(gomock.Any(), orgID).Return(database.Organization{
+		ID:                    orgID,
+		DefaultOrgMemberRoles: []string{},
+	}, nil)
+
 	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), gomock.Any()).Return(
 		string(must(json.Marshal(idpsync.RoleSyncSettings{
 			Field:   "roles",

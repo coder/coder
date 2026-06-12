@@ -20,6 +20,9 @@ const (
 	// best-effort, so the turn proceeds without debug rows if the
 	// DB is slow or locked. Matches the manual-title budget.
 	debugCreateRunTimeout = 5 * time.Second
+	// debugFinalizeTimeout caps best-effort debug run finalization
+	// outside the runner's canceled context.
+	debugFinalizeTimeout = 5 * time.Second
 	// debugCleanupClockSkew gives cleanup cutoffs tolerance for cross-
 	// replica clock drift. The cutoff is sampled from the DB
 	// (updated_at returned by the status transition), and

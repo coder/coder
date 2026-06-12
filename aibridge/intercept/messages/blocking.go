@@ -105,9 +105,16 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Accumulate usage across the entire streaming interaction (including tool reinvocations).
 	var cumulativeUsage anthropic.Usage
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
-		resp, err = i.newMessage(ctx, svc)
+		var keyAttempts int
+		resp, keyAttempts, err = i.newMessage(ctx, svc)
+		totalKeyAttempts += keyAttempts
 		if err != nil {
 			if eventstream.IsConnError(err) {
 				// Can't write a response, just error out.
@@ -343,11 +350,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 }
 
 // newMessage routes between BYOK (single attempt) and centralized
-// failover.
-func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
+// failover, returning the upstream message, the number of key attempts
+// made for this call, and any error.
+func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		return i.newMessageWithKey(ctx, svc)
+		msg, err := i.newMessageWithKey(ctx, svc)
+		return msg, 0, err
 	}
 	return i.newMessageWithKeyFailover(ctx, svc)
 }
@@ -361,21 +370,22 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 	return svc.New(ctx, anthropic.MessageNewParams{}, opts...)
 }
 
-// newMessageWithKeyFailover walks the centralized key pool,
-// trying each key until one succeeds or the pool is exhausted.
-// Keys are marked temporary on 429 and permanent on 401/403.
-// Errors that aren't key-specific don't trigger failover and
-// are returned to the caller.
-func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
+// newMessageWithKeyFailover walks the centralized key pool, trying each key
+// until one succeeds or the pool is exhausted. Keys are marked temporary on
+// 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
+// failover and are returned to the caller. It returns the upstream message,
+// the number of key attempts made for this call, and any error.
+func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
 	walker := i.cfg.KeyPool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
-			return nil, keyPoolErr
+			return nil, walker.Attempts(), keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 		msg, err := i.newMessageWithKey(ctx, svc,
 			option.WithAPIKey(key.Value()),
@@ -389,6 +399,6 @@ func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, sv
 		}
 		// Either success (msg, nil) or a non-key error (nil, err):
 		// nothing to retry, return as-is.
-		return msg, err
+		return msg, walker.Attempts(), err
 	}
 }

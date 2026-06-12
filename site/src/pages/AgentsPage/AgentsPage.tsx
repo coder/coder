@@ -64,6 +64,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -154,6 +155,7 @@ const AgentsPage: FC = () => {
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
@@ -208,6 +210,7 @@ const AgentsPage: FC = () => {
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -231,6 +234,7 @@ const AgentsPage: FC = () => {
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
@@ -675,6 +679,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}

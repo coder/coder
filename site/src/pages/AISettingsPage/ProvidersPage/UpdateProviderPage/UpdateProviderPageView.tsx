@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
+	aiProviderKeyFor,
 	deleteAIProviderMutation,
 	updateAIProviderMutation,
 } from "#/api/queries/aiProviders";
@@ -43,8 +44,12 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	const providerIsOpenAiAnthropic =
-		provider !== undefined && !isBedrockProvider(provider);
+	// Copilot has no stored credential, and Bedrock keeps its secrets in
+	// settings, so only the remaining types surface the api_keys UI.
+	const providerUsesApiKeys =
+		provider !== undefined &&
+		!isBedrockProvider(provider) &&
+		provider.type !== "copilot";
 
 	const updateMutation = useMutation(
 		updateAIProviderMutation(queryClient, providerId ?? ""),
@@ -109,8 +114,8 @@ const UpdateProviderPageView: React.FC = () => {
 	}
 
 	const openAiAnthropicSavedApiKey =
-		providerIsOpenAiAnthropic && provider.api_keys.length > 0;
-	const openAiAnthropicMaskedApiKey = providerIsOpenAiAnthropic
+		providerUsesApiKeys && provider.api_keys.length > 0;
+	const openAiAnthropicMaskedApiKey = providerUsesApiKeys
 		? provider.api_keys[0]?.masked
 		: undefined;
 
@@ -167,6 +172,10 @@ const UpdateProviderPageView: React.FC = () => {
 									{ enabled: checked },
 									{
 										onSuccess: (updated) => {
+											queryClient.setQueryData(
+												aiProviderKeyFor(providerId),
+												updated,
+											);
 											toast.success(
 												`Provider "${updated.display_name || updated.name}" ${checked ? "enabled" : "disabled"}.`,
 											);
@@ -196,6 +205,7 @@ const UpdateProviderPageView: React.FC = () => {
 							const request = providerFormValuesToUpdate(values, provider);
 							try {
 								const updated = await updateMutation.mutateAsync(request);
+								queryClient.setQueryData(aiProviderKeyFor(providerId), updated);
 								toast.success(
 									`Provider "${updated.display_name || updated.name}" updated.`,
 								);

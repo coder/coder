@@ -226,9 +226,8 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return i.cfg.KeyPool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
 }
 

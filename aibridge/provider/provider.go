@@ -53,6 +53,8 @@ type Provider interface {
 	// Name returns the provider instance name.
 	// Defaults to Type() when not explicitly configured.
 	Name() string
+	// Enabled reports whether the provider should serve requests.
+	Enabled() bool
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string
 
@@ -80,6 +82,10 @@ type Provider interface {
 	// KeyFailoverConfig returns the per-provider configuration for
 	// automatic key failover on passthrough routes.
 	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
+
+	// KeyPool returns the provider's key pool for centralized keys, or nil
+	// when the provider is BYOK only.
+	KeyPool() *keypool.Pool
 
 	// CircuitBreakerConfig returns the circuit breaker configuration for the provider.
 	CircuitBreakerConfig() *config.CircuitBreaker

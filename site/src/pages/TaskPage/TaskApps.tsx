@@ -16,12 +16,15 @@ import { ScrollArea, ScrollBar } from "#/components/ScrollArea/ScrollArea";
 import { getTerminalHref } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import {
+	WorkspaceAppFrame,
+	WorkspaceIframe,
+} from "#/modules/apps/WorkspaceAppFrame";
+import {
 	getAllAppsWithAgent,
 	type WorkspaceAppWithAgent,
-} from "#/modules/tasks/apps";
+} from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
-import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
 	task: Task;
@@ -94,7 +97,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
 					{embeddedApps.map((app) => (
-						<TaskAppIFrame
+						<WorkspaceAppFrame
 							key={app.id}
 							active={activeAppId === app.id}
 							app={app}
@@ -102,7 +105,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 						/>
 					))}
 
-					<TaskIframe
+					<WorkspaceIframe
 						src={terminalHref}
 						title="Terminal"
 						className={cn({

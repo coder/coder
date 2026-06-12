@@ -12,61 +12,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-type AIBridgeInterception struct {
-	ID           uuid.UUID            `json:"id" format:"uuid"`
-	APIKeyID     *string              `json:"api_key_id"`
-	Initiator    MinimalUser          `json:"initiator"`
-	Provider     string               `json:"provider"`
-	ProviderName string               `json:"provider_name"`
-	Model        string               `json:"model"`
-	Client       *string              `json:"client"`
-	Metadata     map[string]any       `json:"metadata"`
-	StartedAt    time.Time            `json:"started_at" format:"date-time"`
-	EndedAt      *time.Time           `json:"ended_at" format:"date-time"`
-	TokenUsages  []AIBridgeTokenUsage `json:"token_usages"`
-	UserPrompts  []AIBridgeUserPrompt `json:"user_prompts"`
-	ToolUsages   []AIBridgeToolUsage  `json:"tool_usages"`
-}
-
-type AIBridgeTokenUsage struct {
-	ID                    uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID        uuid.UUID      `json:"interception_id" format:"uuid"`
-	ProviderResponseID    string         `json:"provider_response_id"`
-	InputTokens           int64          `json:"input_tokens"`
-	OutputTokens          int64          `json:"output_tokens"`
-	CacheReadInputTokens  int64          `json:"cache_read_input_tokens"`
-	CacheWriteInputTokens int64          `json:"cache_write_input_tokens"`
-	Metadata              map[string]any `json:"metadata"`
-	CreatedAt             time.Time      `json:"created_at" format:"date-time"`
-}
-
-type AIBridgeUserPrompt struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
-	ProviderResponseID string         `json:"provider_response_id"`
-	Prompt             string         `json:"prompt"`
-	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
-}
-
-type AIBridgeToolUsage struct {
-	ID                 uuid.UUID      `json:"id" format:"uuid"`
-	InterceptionID     uuid.UUID      `json:"interception_id" format:"uuid"`
-	ProviderResponseID string         `json:"provider_response_id"`
-	ServerURL          string         `json:"server_url"`
-	Tool               string         `json:"tool"`
-	Input              string         `json:"input"`
-	Injected           bool           `json:"injected"`
-	InvocationError    string         `json:"invocation_error"`
-	Metadata           map[string]any `json:"metadata"`
-	CreatedAt          time.Time      `json:"created_at" format:"date-time"`
-}
-
-type AIBridgeListInterceptionsResponse struct {
-	Count   int64                  `json:"count"`
-	Results []AIBridgeInterception `json:"results"`
-}
-
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -194,70 +139,6 @@ type AIBridgeListSessionsFilter struct {
 	FilterQuery string `json:"q,omitempty"`
 }
 
-// @typescript-ignore AIBridgeListInterceptionsFilter
-type AIBridgeListInterceptionsFilter struct {
-	// Limit defaults to 100, max is 1000.
-	// Offset based pagination is not supported for AI Bridge interceptions. Use
-	// cursor pagination instead with after_id.
-	Pagination Pagination `json:"pagination,omitempty"`
-
-	// Initiator is a user ID, username, or "me".
-	Initiator     string    `json:"initiator,omitempty"`
-	StartedBefore time.Time `json:"started_before,omitempty" format:"date-time"`
-	StartedAfter  time.Time `json:"started_after,omitempty" format:"date-time"`
-	// Provider matches the runtime provider type column (openai,
-	// anthropic, copilot). The runtime type collapses the configured
-	// ai_provider_type: azure, google, openai-compat, openrouter, and
-	// vercel route through openai; bedrock routes through anthropic.
-	// Retained for backward compatibility; new clients should prefer
-	// ProviderName, which scopes to a specific configured row.
-	Provider     string `json:"provider,omitempty"`
-	ProviderName string `json:"provider_name,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Client       string `json:"client,omitempty"`
-
-	FilterQuery string `json:"q,omitempty"`
-}
-
-// asRequestOption returns a function that can be used in (*Client).Request.
-// It modifies the request query parameters.
-func (f AIBridgeListInterceptionsFilter) asRequestOption() RequestOption {
-	return func(r *http.Request) {
-		var params []string
-		// Make sure all user input is quoted to ensure it's parsed as a single
-		// string.
-		if f.Initiator != "" {
-			params = append(params, fmt.Sprintf("initiator:%q", f.Initiator))
-		}
-		if !f.StartedBefore.IsZero() {
-			params = append(params, fmt.Sprintf("started_before:%q", f.StartedBefore.Format(time.RFC3339Nano)))
-		}
-		if !f.StartedAfter.IsZero() {
-			params = append(params, fmt.Sprintf("started_after:%q", f.StartedAfter.Format(time.RFC3339Nano)))
-		}
-		if f.Provider != "" {
-			params = append(params, fmt.Sprintf("provider:%q", f.Provider))
-		}
-		if f.ProviderName != "" {
-			params = append(params, fmt.Sprintf("provider_name:%q", f.ProviderName))
-		}
-		if f.Model != "" {
-			params = append(params, fmt.Sprintf("model:%q", f.Model))
-		}
-		if f.Client != "" {
-			params = append(params, fmt.Sprintf("client:%q", f.Client))
-		}
-		if f.FilterQuery != "" {
-			// If custom stuff is added, just add it on here.
-			params = append(params, f.FilterQuery)
-		}
-
-		q := r.URL.Query()
-		q.Set("q", strings.Join(params, " "))
-		r.URL.RawQuery = q.Encode()
-	}
-}
-
 // asRequestOption returns a function that can be used in (*Client).Request.
 func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 	return func(r *http.Request) {
@@ -297,24 +178,6 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		}
 		r.URL.RawQuery = q.Encode()
 	}
-}
-
-// AIBridgeListInterceptions returns AI Bridge interceptions with the given
-// filter.
-//
-// Deprecated: Use AIBridgeListSessions instead, which provides richer
-// session-level aggregation including threads and agentic actions.
-func (c *Client) AIBridgeListInterceptions(ctx context.Context, filter AIBridgeListInterceptionsFilter) (AIBridgeListInterceptionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/interceptions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption(), filter.Pagination.asRequestOption())
-	if err != nil {
-		return AIBridgeListInterceptionsResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AIBridgeListInterceptionsResponse{}, ReadBodyAsError(res)
-	}
-	var resp AIBridgeListInterceptionsResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
 // AIBridgeListSessions returns AI Bridge sessions with the given filter.
@@ -423,6 +286,74 @@ func (c *Client) UpsertGroupAIBudget(ctx context.Context, group uuid.UUID, req U
 func (c *Client) DeleteGroupAIBudget(ctx context.Context, group uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
 		fmt.Sprintf("/api/v2/groups/%s/ai/budget", group.String()),
+		nil,
+	)
+	if err != nil {
+		return xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNoContent {
+		return ReadBodyAsError(res)
+	}
+	return nil
+}
+
+type UserAIBudgetOverride struct {
+	UserID           uuid.UUID `json:"user_id" format:"uuid"`
+	GroupID          uuid.UUID `json:"group_id" format:"uuid"`
+	SpendLimitMicros int64     `json:"spend_limit_micros"`
+	CreatedAt        time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+}
+
+type UpsertUserAIBudgetOverrideRequest struct {
+	// GroupID is the group the user's spend is attributed to. The user must
+	// be a member of this group.
+	GroupID          uuid.UUID `json:"group_id" format:"uuid" validate:"required"`
+	SpendLimitMicros int64     `json:"spend_limit_micros" validate:"gte=0"`
+}
+
+// UserAIBudgetOverride returns the AI spend budget override configured for the given user.
+func (c *Client) UserAIBudgetOverride(ctx context.Context, user uuid.UUID) (UserAIBudgetOverride, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		nil,
+	)
+	if err != nil {
+		return UserAIBudgetOverride{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAIBudgetOverride{}, ReadBodyAsError(res)
+	}
+	var resp UserAIBudgetOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// UpsertUserAIBudgetOverride creates or updates the AI spend budget override for the given user.
+func (c *Client) UpsertUserAIBudgetOverride(ctx context.Context, user uuid.UUID, req UpsertUserAIBudgetOverrideRequest) (UserAIBudgetOverride, error) {
+	res, err := c.Request(ctx, http.MethodPut,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
+		req,
+	)
+	if err != nil {
+		return UserAIBudgetOverride{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return UserAIBudgetOverride{}, ReadBodyAsError(res)
+	}
+	var resp UserAIBudgetOverride
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// DeleteUserAIBudgetOverride removes the AI spend budget override for the given user.
+func (c *Client) DeleteUserAIBudgetOverride(ctx context.Context, user uuid.UUID) error {
+	res, err := c.Request(ctx, http.MethodDelete,
+		fmt.Sprintf("/api/v2/users/%s/ai/budget", user.String()),
 		nil,
 	)
 	if err != nil {

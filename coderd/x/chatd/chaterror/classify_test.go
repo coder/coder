@@ -2,6 +2,8 @@ package chaterror_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -164,6 +166,17 @@ func TestClassify(t *testing.T) {
 			},
 		},
 		{
+			name: "UsageLimitPatternDoesNotBeatConfigWith429",
+			err:  xerrors.New("status 429: invalid model quota"),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider rejected the model configuration. Check the selected model and provider settings.",
+				Kind:       codersdk.ChatErrorKindConfig,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 429,
+			},
+		},
+		{
 			name: "ServiceUnavailableClassifiesAsRetryableTimeout",
 			err:  xerrors.New("service unavailable"),
 			want: chaterror.ClassifiedError{
@@ -216,6 +229,136 @@ func TestClassify(t *testing.T) {
 				Provider:   "",
 				Retryable:  false,
 				StatusCode: 0,
+			},
+		},
+		{
+			name: "ProviderTransportResetIsRetryable",
+			err:  errors.Join(chaterror.ErrProviderTransportReset, context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "BareContextCanceledStaysNonRetryable",
+			err:  context.Canceled,
+			want: chaterror.ClassifiedError{
+				Message:    "The request was canceled before it completed.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "Status500ContextCanceledClassifiesAsRetryable",
+			err:  xerrors.Errorf("received status 500 from upstream: %w", context.Canceled),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
+			},
+		},
+		{
+			name: "ProviderStatus500ContextCanceledClassifiesAsRetryable",
+			err: xerrors.Errorf("provider stream closed: %w", errors.Join(
+				context.Canceled,
+				&fantasy.ProviderError{
+					Message:    "context canceled",
+					StatusCode: http.StatusInternalServerError,
+				},
+			)),
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider returned an unexpected error.",
+				Detail:     "context canceled",
+				Kind:       codersdk.ChatErrorKindGeneric,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: http.StatusInternalServerError,
+			},
+		},
+		// The next cases model the error that fantasy produces
+		// when aibridge's disabledProviderHandler returns a 503
+		// plain-text sentinel. Fantasy sets Title from the HTTP
+		// status text and Message from the response body (including
+		// the trailing newline written by http.Error).
+		{
+			name: "ProviderDisabled503ClassifiesAsProviderDisabled",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "openai"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The OpenAI provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "openai"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "openai",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "ProviderDisabled503UnknownProvider",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "mycustomprovider"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "mycustomprovider"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "ProviderDisabledPlainErrorString",
+			err:  xerrors.New(fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "anthropic")),
+			want: chaterror.ClassifiedError{
+				Message:    "The Anthropic provider has been disabled. Contact your Coder administrator.",
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "anthropic",
+				Retryable:  false,
+				StatusCode: 0,
+			},
+		},
+		{
+			name: "ProviderDisabledBeatsTimeout503",
+			err: &fantasy.ProviderError{
+				Title:      fantasy.ErrorTitleForStatusCode(http.StatusServiceUnavailable),
+				Message:    fmt.Sprintf("%s: AI provider %q is disabled\n", codersdk.ChatErrorKindProviderDisabled, "google"),
+				StatusCode: http.StatusServiceUnavailable,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The Google provider has been disabled. Contact your Coder administrator.",
+				Detail:     fmt.Sprintf("%s: AI provider %q is disabled", codersdk.ChatErrorKindProviderDisabled, "google"),
+				Kind:       codersdk.ChatErrorKindProviderDisabled,
+				Provider:   "google",
+				Retryable:  false,
+				StatusCode: 503,
+			},
+		},
+		{
+			name: "Generic503StillClassifiesAsTimeout",
+			err: &fantasy.ProviderError{
+				Message:    "service unavailable",
+				StatusCode: 503,
+			},
+			want: chaterror.ClassifiedError{
+				Message:    "The AI provider is temporarily unavailable.",
+				Detail:     "service unavailable",
+				Kind:       codersdk.ChatErrorKindTimeout,
+				Provider:   "",
+				Retryable:  true,
+				StatusCode: 503,
 			},
 		},
 	}
@@ -363,6 +506,7 @@ func TestClassify_PatternCoverage(t *testing.T) {
 		{name: "OperationInterruptedLiteral", err: "operation interrupted", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: false},
 		{name: "Status408", err: "status 408", wantKind: codersdk.ChatErrorKindTimeout, wantRetry: true},
 		{name: "Status500", err: "status 500", wantKind: codersdk.ChatErrorKindGeneric, wantRetry: true},
+		{name: "ProviderDisabledLiteral", err: "provider_disabled", wantKind: codersdk.ChatErrorKindProviderDisabled, wantRetry: false},
 	}
 
 	for _, tt := range tests {
@@ -746,13 +890,6 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 			wantRetry: false,
 		},
 		{
-			name:       "QuotaWith429Status",
-			err:        "status 429: insufficient_quota",
-			wantKind:   codersdk.ChatErrorKindUsageLimit,
-			wantRetry:  false,
-			wantStatus: 429,
-		},
-		{
 			name:      "PureAuthStillWorks",
 			err:       "unauthorized",
 			wantKind:  codersdk.ChatErrorKindAuth,
@@ -790,6 +927,97 @@ func TestClassify_UsageLimitBeatsAuth(t *testing.T) {
 			if tt.wantProvider != "" {
 				require.Equal(t, tt.wantProvider, classified.Provider)
 			}
+		})
+	}
+}
+
+func TestClassify_UsageLimitMatchesStructuredDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"upstream failed",
+		500,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"check your billing plan"}}`),
+	))
+
+	require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, 500, classified.StatusCode)
+	require.Equal(t, "check your billing plan", classified.Detail)
+}
+
+func TestClassify_InsufficientQuotaBeats429RateLimit(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			name: "StatusText",
+			err:  xerrors.New("status 429: insufficient_quota"),
+		},
+		{
+			name: "StructuredProviderError",
+			err: testProviderError(
+				"upstream failed",
+				429,
+				nil,
+				testProviderResponseDump(`{"error":{"message":"insufficient_quota"}}`),
+			),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindUsageLimit, classified.Kind)
+			require.False(t, classified.Retryable)
+			require.Equal(t, 429, classified.StatusCode)
+		})
+	}
+}
+
+func TestClassify_UsageLimitPatternsDoNotBeat429(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		err          error
+		wantProvider string
+	}{
+		{
+			name:         "GoogleGeminiQuotaText",
+			err:          xerrors.New("gemini status 429: Resource has been exhausted (e.g. check quota)."),
+			wantProvider: "google",
+		},
+		{
+			name:         "AzureOpenAIQuotaRemaining",
+			err:          xerrors.New("azure openai exceeded token rate limit; quota remaining: 0; status 429"),
+			wantProvider: "azure",
+		},
+		{
+			name: "BillingPlanRateLimit",
+			err:  xerrors.New("status 429: rate limited: upgrade your billing plan for higher rate limits"),
+		},
+		{
+			name: "StructuredProviderQuotaText",
+			err:  testProviderError("Resource has been exhausted (e.g. check quota).", 429, nil),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			classified := chaterror.Classify(tt.err)
+			require.Equal(t, codersdk.ChatErrorKindRateLimit, classified.Kind)
+			require.True(t, classified.Retryable)
+			require.Equal(t, 429, classified.StatusCode)
+			require.Equal(t, tt.wantProvider, classified.Provider)
 		})
 	}
 }
@@ -848,21 +1076,21 @@ func TestClassify_StatusCodeBeatsHTTP2Transport(t *testing.T) {
 	}
 }
 
-func TestClassify_StartupTimeoutWrappedClassificationWins(t *testing.T) {
+func TestClassify_StreamSilenceTimeoutWrappedClassificationWins(t *testing.T) {
 	t.Parallel()
 
 	wrapped := chaterror.WithClassification(
 		xerrors.New("context canceled"),
 		chaterror.ClassifiedError{
-			Kind:      codersdk.ChatErrorKindStartupTimeout,
+			Kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 			Provider:  "openai",
 			Retryable: true,
 		},
 	)
 
 	require.Equal(t, chaterror.ClassifiedError{
-		Message:    "OpenAI did not start responding in time.",
-		Kind:       codersdk.ChatErrorKindStartupTimeout,
+		Message:    "OpenAI did not send response data in time.",
+		Kind:       codersdk.ChatErrorKindStreamSilenceTimeout,
 		Provider:   "openai",
 		Retryable:  true,
 		StatusCode: 0,
@@ -1156,6 +1384,28 @@ func TestClassify_ChainBrokenSurvivesWithClassification(t *testing.T) {
 	require.True(t, round.ChainBroken,
 		"WithClassification round-trips ChainBroken so the retry path"+
 			" can detect it after re-classification")
+}
+
+func TestClassify_MissingKeyPreClassified(t *testing.T) {
+	t.Parallel()
+
+	raw := xerrors.New("AI Gateway routing requires the active turn API key ID")
+	wrapped := chaterror.WithClassification(raw, chaterror.ClassifiedError{
+		Kind:      codersdk.ChatErrorKindMissingKey,
+		Retryable: false,
+		Detail:    "If this error persists after resending, please report it as a bug.",
+	})
+
+	classified := chaterror.Classify(wrapped)
+	require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind)
+	require.False(t, classified.Retryable)
+	require.Equal(t, "If this error persists after resending, please report it as a bug.", classified.Detail)
+	require.Equal(t,
+		"This conversation was started with an API key that is no longer available."+
+			" Send your message again to continue.",
+		classified.Message,
+		"Message should be filled by terminalMessage when not set explicitly",
+	)
 }
 
 func testProviderError(

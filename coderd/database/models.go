@@ -320,6 +320,14 @@ const (
 	ApiKeyScopeUserSkillUpdate                     APIKeyScope = "user_skill:update"
 	ApiKeyScopeUserSkillDelete                     APIKeyScope = "user_skill:delete"
 	ApiKeyScopeUserSkill                           APIKeyScope = "user_skill:*"
+	ApiKeyScopeBoundaryLog                         APIKeyScope = "boundary_log:*"
+	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
+	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
+	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
+	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -580,7 +588,15 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeUserSkillRead,
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
-		ApiKeyScopeUserSkill:
+		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead:
 		return true
 	}
 	return false
@@ -810,6 +826,14 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeUserSkillUpdate,
 		ApiKeyScopeUserSkillDelete,
 		ApiKeyScopeUserSkill,
+		ApiKeyScopeBoundaryLog,
+		ApiKeyScopeBoundaryLogCreate,
+		ApiKeyScopeBoundaryLogDelete,
+		ApiKeyScopeBoundaryLogRead,
+		ApiKeyScopeAiGatewayKey,
+		ApiKeyScopeAiGatewayKeyCreate,
+		ApiKeyScopeAiGatewayKeyDelete,
+		ApiKeyScopeAiGatewayKeyRead,
 	}
 }
 
@@ -1543,6 +1567,7 @@ const (
 	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
+	ChatStatusInterrupting   ChatStatus = "interrupting"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1588,7 +1613,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
-		ChatStatusRequiresAction:
+		ChatStatusRequiresAction,
+		ChatStatusInterrupting:
 		return true
 	}
 	return false
@@ -1603,6 +1629,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
+		ChatStatusInterrupting,
 	}
 }
 
@@ -3341,6 +3368,8 @@ const (
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
 	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
+	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
+	ResourceTypeUserAiBudgetOverride        ResourceType = "user_ai_budget_override"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3412,7 +3441,9 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
-		ResourceTypeUserSkill:
+		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride:
 		return true
 	}
 	return false
@@ -3453,6 +3484,8 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeAIProviderKey,
 		ResourceTypeGroupAiBudget,
 		ResourceTypeUserSkill,
+		ResourceTypeAIGatewayKey,
+		ResourceTypeUserAiBudgetOverride,
 	}
 }
 
@@ -4423,6 +4456,17 @@ type AIBridgeUserPrompt struct {
 	CreatedAt          time.Time             `db:"created_at" json:"created_at"`
 }
 
+// Hashed bearer secrets used by AI Gateway standalone replicas to authenticate into coderd.
+type AIGatewayKey struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	Name      string    `db:"name" json:"name"`
+	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
+	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4543,6 +4587,8 @@ type BoundarySession struct {
 	StartedAt time.Time `db:"started_at" json:"started_at"`
 	// Time when the session was last updated.
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// The ID of the user who owns the workspace. NULL if the user has been deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 // Per-replica boundary usage statistics for telemetry aggregation.
@@ -4564,38 +4610,46 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                  uuid.UUID             `db:"id" json:"id"`
-	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title               string                `db:"title" json:"title"`
-	Status              ChatStatus            `db:"status" json:"status"`
-	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels              StringMap             `db:"labels" json:"labels"`
-	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
-	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
-	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
-	OwnerName           string                `db:"owner_name" json:"owner_name"`
+	ID                       uuid.UUID             `db:"id" json:"id"`
+	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title                    string                `db:"title" json:"title"`
+	Status                   ChatStatus            `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived                 bool                  `db:"archived" json:"archived"`
+	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap             `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext      pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
+	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
+	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                  ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
+	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
+	OwnerName                string                `db:"owner_name" json:"owner_name"`
 }
 
 type ChatDebugRun struct {
@@ -4677,6 +4731,13 @@ type ChatFileLink struct {
 	FileID uuid.UUID `db:"file_id" json:"file_id"`
 }
 
+// Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.
+type ChatHeartbeat struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	RunnerID    uuid.UUID `db:"runner_id" json:"runner_id"`
+	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -4700,6 +4761,7 @@ type ChatMessage struct {
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
+	Revision            int64                 `db:"revision" json:"revision"`
 }
 
 type ChatModelConfig struct {
@@ -4728,6 +4790,8 @@ type ChatQueuedMessage struct {
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
+	Position      int64           `db:"position" json:"position"`
+	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 }
 
 type ChatTable struct {
@@ -4761,6 +4825,17 @@ type ChatTable struct {
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
 	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
 	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
+	// Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.
+	SnapshotVersion int64 `db:"snapshot_version" json:"snapshot_version"`
+	// Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.
+	HistoryVersion int64 `db:"history_version" json:"history_version"`
+	// Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.
+	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -4874,6 +4949,8 @@ type GitSSHKey struct {
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
 	PrivateKey string    `db:"private_key" json:"private_key"`
 	PublicKey  string    `db:"public_key" json:"public_key"`
+	// The ID of the key used to encrypt the private key. If this is NULL, the private key is not encrypted.
+	PrivateKeyKeyID sql.NullString `db:"private_key_key_id" json:"private_key_key_id"`
 }
 
 type Group struct {
@@ -5160,6 +5237,8 @@ type Organization struct {
 	Deleted     bool      `db:"deleted" json:"deleted"`
 	// Controls whose workspaces can be shared: none, everyone, or service_accounts.
 	ShareableWorkspaceOwners ShareableWorkspaceOwners `db:"shareable_workspace_owners" json:"shareable_workspace_owners"`
+	// Roles granted to every member of this organization at request time. The set is unioned into each member's effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.
+	DefaultOrgMemberRoles []string `db:"default_org_member_roles" json:"default_org_member_roles"`
 }
 
 type OrganizationMember struct {
@@ -5714,6 +5793,15 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+}
+
+// Per-user AI spend override that supersedes group budget resolution.
+type UserAiBudgetOverride struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
+	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
+	CreatedAt        time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt        time.Time `db:"updated_at" json:"updated_at"`
 }
 
 // User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.

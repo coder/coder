@@ -3047,13 +3047,17 @@ class ApiMethods {
 		});
 	};
 
-	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/v2/aibridge/interceptions",
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getAIBridgeClients = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+
+		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
@@ -3074,20 +3078,6 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
-		return response.data;
-	};
-
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
-
-		const response = await this.axios.get<string[]>(url);
-		return response.data;
-	};
-
-	getAIBridgeClients = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
-
-		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
