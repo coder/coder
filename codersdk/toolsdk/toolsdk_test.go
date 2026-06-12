@@ -784,7 +784,7 @@ func TestTools(t *testing.T) {
 				})
 				require.NoError(t, err)
 				gotRunes := []rune(result.Readme)
-				require.Len(t, gotRunes, 8192)
+				require.Len(t, gotRunes, toolsdk.GetTemplateReadmeMaxRunes)
 				require.Equal(t, '…', gotRunes[len(gotRunes)-1])
 			})
 		})

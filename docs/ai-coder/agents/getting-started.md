@@ -125,9 +125,9 @@ immediately with no provisioning delay.
 
 ## Optimize your templates
 
-The agent selects templates based on their **name and description** — it does
-not read Terraform. Clear, specific descriptions are the most important factor
-in whether the agent picks the right template.
+The agent selects templates based on their **name, description, and README**.
+It does not read Terraform. Clear, specific descriptions are the most important
+factor in whether the agent picks the right template.
 
 Update your template descriptions to include:
 
@@ -138,9 +138,9 @@ Update your template descriptions to include:
 When 128 characters is not enough, put the most important routing context near
 the top of the template's
 [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
-The agent sees a bounded README excerpt, roughly the first 1,000 characters with
-frontmatter stripped, when listing templates, and the full README when
-inspecting a template in detail.
+The chat agent's template listing includes a bounded README excerpt, roughly the
+first 1,000 characters with frontmatter stripped, and template detail includes
+the README (up to roughly 8,000 characters).
 
 **Good examples:**
 

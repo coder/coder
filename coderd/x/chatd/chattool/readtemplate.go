@@ -13,9 +13,9 @@ import (
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// readTemplateReadmeMaxRunes bounds the full README returned by read_template
+// ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
 // so one large README cannot dominate a single tool response.
-const readTemplateReadmeMaxRunes = 8192
+const ReadTemplateReadmeMaxRunes = 8192
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
@@ -35,7 +35,8 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
-			"configurable parameters and available presets. Use this "+
+			"configurable parameters, available presets, and the active "+
+			"version README. Use this "+
 			"after finding a template with list_templates and before "+
 			"creating a workspace with create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -99,7 +100,7 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
 				if strings.TrimSpace(version.Readme) != "" {
 					templateInfo["readme"] = coderstrings.Truncate(
-						version.Readme, readTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
+						version.Readme, ReadTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
 					)
 				}
 			}

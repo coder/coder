@@ -47,6 +47,8 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 		"List available workspace templates. Optionally filter by a "+
 			"search query matching template name or description. "+
 			"Use this to find a template before creating a workspace. "+
+			"Each result includes a short README excerpt for routing context; "+
+			"call read_template for the full README and parameters. "+
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -133,10 +135,11 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
 				}
-				// The active version README gives the agent routing context
-				// beyond the template description. The per-version fetch is
-				// template-scoped, same as read_template, and best-effort: a
-				// missing or unreadable version must not fail list_templates.
+				// Fetch the active version README for routing context. This is
+				// template-scoped (the same RBAC path as read_template) and
+				// best-effort. A batched GetTemplateVersionsByIDs is avoided
+				// because it requires ResourceSystem and would drop the excerpt
+				// for non-owners; the N+1 is bounded by the page size.
 				if version, vErr := db.GetTemplateVersionByID(ctx, t.ActiveVersionID); vErr == nil {
 					if excerpt := readmeExcerpt(version.Readme); excerpt != "" {
 						item["readme_excerpt"] = excerpt

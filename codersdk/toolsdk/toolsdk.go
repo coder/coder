@@ -684,10 +684,10 @@ type GetTemplateArgs struct {
 	TemplateID string `json:"template_id"`
 }
 
-// getTemplateReadmeMaxRunes bounds the full README returned by
+// GetTemplateReadmeMaxRunes bounds the full README returned by
 // coder_get_template so one large README cannot dominate a single tool
 // response.
-const getTemplateReadmeMaxRunes = 8192
+const GetTemplateReadmeMaxRunes = 8192
 
 // TemplateDetail extends MinimalTemplate with the active version's
 // rich parameters and presets. Presets are omitted when the template
@@ -740,7 +740,7 @@ func toPresetView(p codersdk.Preset) presetView {
 var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetTemplate,
-		Description: `Get details about a workspace template, including its configurable parameters and available presets for the active version.
+		Description: `Get details about a workspace template, including its configurable parameters, available presets, and the active version README.
 
 Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
 
@@ -796,7 +796,7 @@ When selecting a preset: if a preset is marked default and the user has not spec
 		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
 			if strings.TrimSpace(version.Readme) != "" {
 				detail.Readme = coderstrings.Truncate(
-					version.Readme, getTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
+					version.Readme, GetTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
 				)
 			}
 		}

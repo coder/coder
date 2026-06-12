@@ -256,7 +256,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 		got, ok := tmplInfo["readme"].(string)
 		require.True(t, ok)
 		gotRunes := []rune(got)
-		require.Len(t, gotRunes, 8192)
+		require.Len(t, gotRunes, chattool.ReadTemplateReadmeMaxRunes)
 		require.Equal(t, '…', gotRunes[len(gotRunes)-1])
 	})
 
