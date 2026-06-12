@@ -17,10 +17,6 @@ interface AvatarDataProps {
 	 */
 	imgFallbackText?: string;
 
-	/**
-	 * Ignored when `avatar` is provided. Empty default marks the image as
-	 * decorative because `title` already conveys the same content.
-	 */
 	alt?: string;
 
 	/**
