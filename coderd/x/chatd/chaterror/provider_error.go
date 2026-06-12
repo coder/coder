@@ -45,24 +45,18 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 	return strings.TrimSpace(providerErr.Message)
 }
 
-// providerErrorResponseMessage extracts error.message from the common
-// provider error JSON envelope after stripping any dumped HTTP status
-// line and headers. When the extracted message is itself an SDK-formatted
-// transport error wrapper, the clean inner provider message is returned.
+// providerErrorResponseMessage extracts the human-readable message from a
+// provider error response body after stripping any dumped HTTP status line
+// and headers. It understands both the top-level `{"message":...}` shape
+// used by many providers and the nested `{"error":{"message":...}}`
+// envelope. When the extracted message is itself an SDK-formatted transport
+// error wrapper, the clean inner provider message is returned.
 func providerErrorResponseMessage(responseDump []byte) string {
 	if len(responseDump) == 0 || len(responseDump) > 64*1024 {
 		return ""
 	}
 	body := providerErrorResponseBody(responseDump)
-	var envelope struct {
-		Error struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return ""
-	}
-	return unwrapTransportErrorMessage(strings.TrimSpace(envelope.Error.Message))
+	return unwrapTransportErrorMessage(jsonErrorMessage(body))
 }
 
 // unwrapTransportErrorMessage extracts the clean provider message from an
@@ -87,8 +81,9 @@ func unwrapTransportErrorMessage(msg string) string {
 	return msg
 }
 
-// jsonErrorMessage parses both the top-level {"message":...} (AWS Bedrock)
-// and nested {"error":{"message":...}} provider error shapes.
+// jsonErrorMessage parses both the nested `{"error":{"message":...}}`
+// envelope and the top-level `{"message":...}` shape used by many
+// providers, preferring the nested form when present.
 func jsonErrorMessage(body []byte) string {
 	var nested struct {
 		Error struct {

@@ -1241,6 +1241,22 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	}, classified)
 }
 
+func TestClassify_UsesTopLevelProviderMessage(t *testing.T) {
+	t.Parallel()
+
+	// Many providers return a bare top-level message rather than the
+	// nested error envelope. Surface that message directly instead of the
+	// raw provider error string.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"The provided request is not valid"}`),
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
+}
+
 func TestClassify_UnwrapsBedrockTransportWrapper(t *testing.T) {
 	t.Parallel()
 
