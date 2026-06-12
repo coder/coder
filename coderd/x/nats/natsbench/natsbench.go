@@ -52,6 +52,9 @@ type Config struct {
 	// LocalQueueMsgs sets the per-listener queue capacity. Zero derives
 	// it from the workload so the busiest subscriber cannot overflow.
 	LocalQueueMsgs int
+	// LocalQueueBytes sets the per-subscription NATS pending byte
+	// limit. Zero derives it from the busiest subject's full burst.
+	LocalQueueBytes int
 	// MaxPending sets the embedded server's per-client outbound pending
 	// byte budget. Zero derives it from the workload.
 	MaxPending int64

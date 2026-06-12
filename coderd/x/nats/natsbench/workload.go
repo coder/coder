@@ -75,10 +75,10 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		drops:   newDropState(),
 		allDone: make(chan struct{}),
 	}
+	defer w.cancelAll()
 	if err := w.subscribe(); err != nil {
 		return nil, err
 	}
-	defer w.cancelAll()
 
 	if len(top.nodes) > 1 {
 		trackers := make([]*probeTracker, len(w.subs))
@@ -102,11 +102,11 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		return w.buildResult(time.Since(hot), time.Since(hot)), err
 	}
 	if err := errors.Join(pubErrs()...); err != nil {
-		return nil, xerrors.Errorf("publish: %w", err)
+		return w.buildResult(time.Since(hot), time.Since(hot)), xerrors.Errorf("publish: %w", err)
 	}
 	for _, idx := range uniqueInts(pl.pubNode) {
 		if err := top.nodes[idx].Flush(); err != nil {
-			return nil, xerrors.Errorf("flush publisher node %d: %w", idx, err)
+			return w.buildResult(time.Since(hot), time.Since(hot)), xerrors.Errorf("flush publisher node %d: %w", idx, err)
 		}
 	}
 	publishDur := time.Since(hot)
@@ -123,8 +123,11 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 	return res, nil
 }
 
-// subscribe registers every subscriber and flushes the involved nodes
-// so subscription interest is on the wire before anything publishes.
+// subscribe registers every subscriber. SubscribeWithErr flushes the
+// SUB on its subscribe connection before returning, so once this
+// returns every subscriber's interest is registered with its local
+// server; cross-node interest propagation is proven separately by the
+// readiness gate.
 func (w *workload) subscribe() error {
 	for j := range w.pl.subSubject {
 		st := &subscriberState{
@@ -144,11 +147,6 @@ func (w *workload) subscribe() error {
 	}
 	if w.outstanding.Load() == 0 {
 		w.doneOnce.Do(func() { close(w.allDone) })
-	}
-	for _, idx := range uniqueInts(w.pl.subNode) {
-		if err := w.top.nodes[idx].Flush(); err != nil {
-			return xerrors.Errorf("flush subscriber node %d: %w", idx, err)
-		}
 	}
 	return nil
 }

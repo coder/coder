@@ -66,7 +66,13 @@ func TestBenchMatrix(t *testing.T) {
 		// the whole matrix.
 		res, err := Run(context.Background(), logger, cfg)
 
-		results = append(results, ScenarioResult{Scenario: sc, Result: res, Err: err})
+		// Record the effective config so the report reflects overrides
+		// even when a failed run returns no Result.
+		results = append(results, ScenarioResult{
+			Scenario: Scenario{Name: sc.Name, Config: cfg},
+			Result:   res,
+			Err:      err,
+		})
 		if err != nil {
 			t.Errorf("scenario %s: %v", sc.Name, err)
 			continue

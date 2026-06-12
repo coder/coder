@@ -112,6 +112,9 @@ func pubsubOptions(cfg Config) nats.Options {
 	if cfg.LocalQueueMsgs > 0 {
 		opts.PendingLimits.Msgs = cfg.LocalQueueMsgs
 	}
+	if cfg.LocalQueueBytes > 0 {
+		opts.PendingLimits.Bytes = cfg.LocalQueueBytes
+	}
 	if cfg.MaxPending > 0 {
 		opts.MaxPending = cfg.MaxPending
 	}
