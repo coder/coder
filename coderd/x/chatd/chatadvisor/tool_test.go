@@ -12,7 +12,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestAdvisorToolSuccess(t *testing.T) {
@@ -62,12 +64,6 @@ func TestAdvisorToolSuccess(t *testing.T) {
 func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 	t.Parallel()
 
-	type publishedDelta struct {
-		toolCallID string
-		delta      string
-	}
-	var published []publishedDelta
-
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model: &chattest.FakeModel{
 			ProviderName: "test-provider",
@@ -90,17 +86,23 @@ func TestAdvisorToolPublishesAdviceDeltasWithToolCallID(t *testing.T) {
 	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
 		Runtime:                 runtime,
 		GetConversationSnapshot: func() []fantasy.Message { return nil },
-		PublishAdviceDelta: func(toolCallID string, delta string) {
-			published = append(published, publishedDelta{toolCallID: toolCallID, delta: delta})
-		},
 	})
 
-	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"})
+	var published []codersdk.ChatMessagePart
+	resp := runAdvisorToolWithPublisher(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"},
+		func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			require.Equal(t, codersdk.ChatMessageRoleTool, role)
+			published = append(published, part)
+		})
 	require.False(t, resp.IsError)
-	require.Equal(t, []publishedDelta{
-		{toolCallID: "call-1", delta: "Prefer "},
-		{toolCallID: "call-1", delta: "the small diff."},
-	}, published)
+	require.Len(t, published, 2)
+	for _, part := range published {
+		require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
+		require.Equal(t, "call-1", part.ToolCallID)
+		require.Equal(t, chatadvisor.ToolName, part.ToolName)
+	}
+	require.Equal(t, "Prefer ", published[0].ResultDelta)
+	require.Equal(t, "the small diff.", published[1].ResultDelta)
 
 	var result chatadvisor.AdvisorResult
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
@@ -116,10 +118,7 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 		toolCallID string
 		delta      string
 	}
-	var (
-		calls     int
-		published []publishedEvent
-	)
+	var calls int
 
 	runtime, err := chatadvisor.NewRuntime(chatadvisor.RuntimeConfig{
 		Model: &chattest.FakeModel{
@@ -150,22 +149,24 @@ func TestAdvisorToolPublishesAdviceResetWithToolCallID(t *testing.T) {
 	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
 		Runtime:                 runtime,
 		GetConversationSnapshot: func() []fantasy.Message { return nil },
-		PublishAdviceDelta: func(toolCallID string, delta string) {
-			published = append(published, publishedEvent{
-				kind:       "delta",
-				toolCallID: toolCallID,
-				delta:      delta,
-			})
-		},
-		PublishAdviceReset: func(toolCallID string) {
-			published = append(published, publishedEvent{
-				kind:       "reset",
-				toolCallID: toolCallID,
-			})
-		},
 	})
 
-	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"})
+	var published []publishedEvent
+	resp := runAdvisorToolWithPublisher(t, tool, chatadvisor.AdvisorArgs{Question: "What's safest?"},
+		func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			require.Equal(t, codersdk.ChatMessageRoleTool, role)
+			require.Equal(t, codersdk.ChatMessagePartTypeToolResult, part.Type)
+			require.Equal(t, chatadvisor.ToolName, part.ToolName)
+			kind := "delta"
+			if part.ResultReset {
+				kind = "reset"
+			}
+			published = append(published, publishedEvent{
+				kind:       kind,
+				toolCallID: part.ToolCallID,
+				delta:      part.ResultDelta,
+			})
+		})
 	require.False(t, resp.IsError)
 	require.Equal(t, []publishedEvent{
 		{kind: "delta", toolCallID: "call-1", delta: "stale "},
@@ -192,6 +193,30 @@ func TestAdvisorToolRejectsEmptyQuestion(t *testing.T) {
 	resp := runAdvisorTool(t, tool, chatadvisor.AdvisorArgs{Question: " \t\n "})
 	require.True(t, resp.IsError)
 	require.Contains(t, resp.Content, "question is required")
+}
+
+func TestAdvisorToolMissingPublisherReturnsError(t *testing.T) {
+	t.Parallel()
+
+	tool := chatadvisor.Tool(chatadvisor.ToolOptions{
+		Runtime: mustAdvisorRuntime(t),
+		GetConversationSnapshot: func() []fantasy.Message {
+			return nil
+		},
+	})
+
+	data, err := json.Marshal(chatadvisor.AdvisorArgs{Question: "anything?"})
+	require.NoError(t, err)
+
+	resp, err := tool.Run(t.Context(), fantasy.ToolCall{
+		ID:    "call-1",
+		Name:  "advisor",
+		Input: string(data),
+	})
+	require.NoError(t, err)
+	require.True(t, resp.IsError)
+	require.Contains(t, resp.Content, "message-part publisher")
+	require.Contains(t, resp.Content, "internal tool bug")
 }
 
 func TestAdvisorToolPassesNormalQuestion(t *testing.T) {
@@ -444,11 +469,22 @@ func runAdvisorTool(
 	args chatadvisor.AdvisorArgs,
 ) fantasy.ToolResponse {
 	t.Helper()
+	return runAdvisorToolWithPublisher(t, tool, args, func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+}
+
+func runAdvisorToolWithPublisher(
+	t *testing.T,
+	tool fantasy.AgentTool,
+	args chatadvisor.AdvisorArgs,
+	publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
+) fantasy.ToolResponse {
+	t.Helper()
 
 	data, err := json.Marshal(args)
 	require.NoError(t, err)
 
-	resp, err := tool.Run(t.Context(), fantasy.ToolCall{
+	ctx := chatloop.WithMessagePartPublisher(t.Context(), publish)
+	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    "call-1",
 		Name:  "advisor",
 		Input: string(data),

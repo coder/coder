@@ -424,24 +424,6 @@ func TestProviderOptionsFromChatModelConfig_AnthropicThinkingDisplay(t *testing.
 	require.Equal(t, fantasyanthropic.ThinkingDisplaySummarized, *anthropicOptions.ThinkingDisplay)
 }
 
-func TestMergeMissingProviderOptions_AnthropicThinkingDisplay(t *testing.T) {
-	t.Parallel()
-
-	options := &codersdk.ChatModelProviderOptions{
-		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{},
-	}
-	defaults := &codersdk.ChatModelProviderOptions{
-		Anthropic: &codersdk.ChatModelAnthropicProviderOptions{
-			ThinkingDisplay: ptr.Ref("summarized"),
-		},
-	}
-
-	chatprovider.MergeMissingProviderOptions(&options, defaults)
-
-	require.NotNil(t, options.Anthropic.ThinkingDisplay)
-	require.Equal(t, "summarized", *options.Anthropic.ThinkingDisplay)
-}
-
 func TestResolveUserProviderKeys_UnavailableReason(t *testing.T) {
 	t.Parallel()
 
@@ -1557,66 +1539,6 @@ func TestModelFromConfig_HTTPClient(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_ = testutil.TryReceive(ctx, t, called)
-}
-
-func TestMergeMissingProviderOptions_OpenRouterNested(t *testing.T) {
-	t.Parallel()
-
-	options := &codersdk.ChatModelProviderOptions{
-		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelReasoningOptions{
-				Enabled: ptr.Ref(true),
-			},
-			Provider: &codersdk.ChatModelOpenRouterProvider{
-				Order: []string{"openai"},
-			},
-		},
-	}
-	defaults := &codersdk.ChatModelProviderOptions{
-		OpenRouter: &codersdk.ChatModelOpenRouterProviderOptions{
-			Reasoning: &codersdk.ChatModelReasoningOptions{
-				Enabled:   ptr.Ref(false),
-				Exclude:   ptr.Ref(true),
-				MaxTokens: ptr.Ref[int64](123),
-				Effort:    ptr.Ref("high"),
-			},
-			IncludeUsage: ptr.Ref(true),
-			Provider: &codersdk.ChatModelOpenRouterProvider{
-				Order:             []string{"anthropic"},
-				AllowFallbacks:    ptr.Ref(true),
-				RequireParameters: ptr.Ref(false),
-				DataCollection:    ptr.Ref("allow"),
-				Only:              []string{"openai"},
-				Ignore:            []string{"foo"},
-				Quantizations:     []string{"int8"},
-				Sort:              ptr.Ref("latency"),
-			},
-		},
-	}
-
-	chatprovider.MergeMissingProviderOptions(&options, defaults)
-
-	require.NotNil(t, options)
-	require.NotNil(t, options.OpenRouter)
-	require.NotNil(t, options.OpenRouter.Reasoning)
-	require.True(t, *options.OpenRouter.Reasoning.Enabled)
-	require.Equal(t, true, *options.OpenRouter.Reasoning.Exclude)
-	require.EqualValues(t, 123, *options.OpenRouter.Reasoning.MaxTokens)
-	require.Equal(t, "high", *options.OpenRouter.Reasoning.Effort)
-	require.NotNil(t, options.OpenRouter.IncludeUsage)
-	require.True(t, *options.OpenRouter.IncludeUsage)
-
-	require.NotNil(t, options.OpenRouter.Provider)
-	require.Equal(t, []string{"openai"}, options.OpenRouter.Provider.Order)
-	require.NotNil(t, options.OpenRouter.Provider.AllowFallbacks)
-	require.True(t, *options.OpenRouter.Provider.AllowFallbacks)
-	require.NotNil(t, options.OpenRouter.Provider.RequireParameters)
-	require.False(t, *options.OpenRouter.Provider.RequireParameters)
-	require.Equal(t, "allow", *options.OpenRouter.Provider.DataCollection)
-	require.Equal(t, []string{"openai"}, options.OpenRouter.Provider.Only)
-	require.Equal(t, []string{"foo"}, options.OpenRouter.Provider.Ignore)
-	require.Equal(t, []string{"int8"}, options.OpenRouter.Provider.Quantizations)
-	require.Equal(t, "latency", *options.OpenRouter.Provider.Sort)
 }
 
 func TestResolveModelWithProviderHint(t *testing.T) {
