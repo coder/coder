@@ -101,18 +101,20 @@ export function resolveRelativeDocLink(
 }
 
 // Builds a raw.githubusercontent.com URL for a docs asset, pinned to the
-// git tag matching this build. Uses the same version normalization as
-// utils/docs.ts: strip build metadata after "+", strip a "-devel" suffix,
-// and keep "-rc.X" suffixes. Dev builds (v0.0.0) fall back to main.
+// git tag matching this build. Version normalization: strip build metadata
+// after "+", then use ref "main" for v0.0.0, undefined, or any version
+// containing "-devel" (devel/dogfood builds never have a matching tag).
+// Keep "-rc.X" suffixes for release candidates so they pin to their
+// pre-release tag.
 export function githubDocsAssetUrl(
 	docsRelativePath: string,
 	version: string | undefined,
 ): string {
 	let ref = "main";
 	if (version) {
-		const normalized = version.split("+")[0].replace(/-devel$/, "");
-		if (normalized !== "v0.0.0") {
-			ref = normalized;
+		const withoutMeta = version.split("+")[0];
+		if (withoutMeta !== "v0.0.0" && !withoutMeta.includes("-devel")) {
+			ref = withoutMeta;
 		}
 	}
 	return `https://raw.githubusercontent.com/coder/coder/${ref}/docs/${docsRelativePath}`;

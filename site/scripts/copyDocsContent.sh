@@ -12,6 +12,14 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# Source builds that vendor only site/ (for example the nix flake) have
+# no docs directory; skip the copy so the build still succeeds, just
+# without embedded docs content.
+if [[ ! -d ../docs ]]; then
+	echo "copyDocsContent.sh: ../docs not found, skipping docs content copy" >&2
+	exit 0
+fi
+
 if ! command -v rsync >/dev/null; then
 	echo "copyDocsContent.sh: rsync is required but not installed" >&2
 	exit 1

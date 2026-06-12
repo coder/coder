@@ -115,9 +115,15 @@ describe("githubDocsAssetUrl", () => {
 		);
 	});
 
-	it("strips build metadata and -devel, falling back to main for dev builds", () => {
+	it("strips build metadata, keeping non-devel versions pinned to their tag", () => {
 		expect(githubDocsAssetUrl("images/a.png", "v2.25.0+abc123")).toBe(
 			"https://raw.githubusercontent.com/coder/coder/v2.25.0/docs/images/a.png",
+		);
+	});
+
+	it("uses main for devel builds regardless of the version prefix", () => {
+		expect(githubDocsAssetUrl("images/a.png", "v2.26.0-devel+abc123")).toBe(
+			"https://raw.githubusercontent.com/coder/coder/main/docs/images/a.png",
 		);
 		expect(githubDocsAssetUrl("images/a.png", "v0.0.0-devel+abc")).toBe(
 			"https://raw.githubusercontent.com/coder/coder/main/docs/images/a.png",

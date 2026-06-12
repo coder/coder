@@ -294,6 +294,12 @@ func ShouldCacheFile(reqFile string) bool {
 		}
 	}
 
+	// Embedded docs content lives at version-stable URLs, so caching it would
+	// keep serving the previous version's docs after an upgrade.
+	if strings.HasPrefix(reqFile, "docs-content/") {
+		return false
+	}
+
 	return true
 }
 
