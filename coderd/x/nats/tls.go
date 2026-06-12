@@ -10,6 +10,7 @@ import (
 	"crypto/x509/pkix"
 	"math/big"
 	"net"
+	"net/url"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -42,6 +43,27 @@ type ClusterTLSOptions struct {
 	// the address peers dial, or route TLS handshakes fail with a
 	// hostname verification error.
 	SANHost string
+}
+
+// ClusterTLSOptionsFromRelayURL derives ClusterTLSOptions from this
+// replica's relay URL, whose host is the address peers dial for
+// cluster routes and therefore the leaf certificate's IP SAN. The
+// relay host must be an IP address.
+func ClusterTLSOptionsFromRelayURL(relayURL *url.URL, caCert *x509.Certificate, caKey crypto.Signer) (*ClusterTLSOptions, error) {
+	if relayURL == nil {
+		return nil, xerrors.New("cluster TLS: relay URL is required")
+	}
+	opts := &ClusterTLSOptions{
+		CACert:  caCert,
+		CAKey:   caKey,
+		SANHost: relayURL.Hostname(),
+	}
+	// Surface invalid options at construction time rather than at
+	// server startup.
+	if _, err := buildClusterTLSConfig(*opts); err != nil {
+		return nil, err
+	}
+	return opts, nil
 }
 
 // buildClusterTLSConfig mints an ephemeral ECDSA P-256 leaf certificate

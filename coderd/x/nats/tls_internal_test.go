@@ -9,6 +9,7 @@ import (
 	"crypto/x509/pkix"
 	"math/big"
 	"net"
+	"net/url"
 	"testing"
 	"time"
 
@@ -228,5 +229,55 @@ func Test_buildServerOptions_ClusterTLS(t *testing.T) {
 			},
 		})
 		require.ErrorContains(t, err, "is not an IP address")
+	})
+}
+
+func Test_ClusterTLSOptionsFromRelayURL(t *testing.T) {
+	t.Parallel()
+
+	caCert, caKey := generateTestCA(t)
+
+	mustParse := func(raw string) *url.URL {
+		u, err := url.Parse(raw)
+		require.NoError(t, err)
+		return u
+	}
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		opts, err := ClusterTLSOptionsFromRelayURL(mustParse("http://10.0.1.5:3457"), caCert, caKey)
+		require.NoError(t, err)
+		require.Equal(t, "10.0.1.5", opts.SANHost)
+		require.Equal(t, caCert, opts.CACert)
+	})
+
+	t.Run("IPv6", func(t *testing.T) {
+		t.Parallel()
+
+		opts, err := ClusterTLSOptionsFromRelayURL(mustParse("http://[fd12:3456:789a::1]:3457"), caCert, caKey)
+		require.NoError(t, err)
+		require.Equal(t, "fd12:3456:789a::1", opts.SANHost)
+	})
+
+	t.Run("NilRelayURL", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ClusterTLSOptionsFromRelayURL(nil, caCert, caKey)
+		require.ErrorContains(t, err, "relay URL is required")
+	})
+
+	t.Run("HostnameRelayURL", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ClusterTLSOptionsFromRelayURL(mustParse("http://coderd-0.coderd:3457"), caCert, caKey)
+		require.ErrorContains(t, err, "is not an IP address")
+	})
+
+	t.Run("MissingCA", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := ClusterTLSOptionsFromRelayURL(mustParse("http://10.0.1.5:3457"), nil, nil)
+		require.ErrorContains(t, err, "CA certificate is required")
 	})
 }
