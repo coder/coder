@@ -5155,6 +5155,7 @@ const (
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
+	ExperimentEmbeddedDocs          Experiment = "embedded-docs"           // Serves version-matched documentation inside the dashboard.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5181,6 +5182,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Cost Control"
 	case ExperimentAgentAppTabs:
 		return "Coder Agents App and Port Tabs"
+	case ExperimentEmbeddedDocs:
+		return "Embedded Documentation"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5202,6 +5205,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
 	ExperimentAgentAppTabs,
+	ExperimentEmbeddedDocs,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
