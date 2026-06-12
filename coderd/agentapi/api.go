@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -83,6 +84,7 @@ type Options struct {
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
+	PortSharer                        *atomic.Pointer[portsharing.PortSharer]
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -216,6 +218,7 @@ func New(opts Options, workspace database.Workspace) *API {
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
+		PortSharer:     opts.PortSharer,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
