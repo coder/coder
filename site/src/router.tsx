@@ -417,10 +417,6 @@ const TaskPage = lazy(() => import("./pages/TaskPage/TaskPage"));
 const AIBridgeLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeLayout"),
 );
-const AIBridgeRequestLogsPage = lazy(
-	() => import("./pages/AIBridgePage/RequestLogsPage/RequestLogsPage"),
-);
-
 const AIBridgeSessionsLayout = lazy(
 	() => import("./pages/AIBridgePage/AIBridgeSessionsLayout"),
 );
@@ -690,7 +686,6 @@ export const router = createBrowserRouter(
 							index
 							element={<Navigate to="/aibridge/sessions" replace />}
 						/>
-						<Route path="request-logs" element={<AIBridgeRequestLogsPage />} />
 					</Route>
 
 					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>

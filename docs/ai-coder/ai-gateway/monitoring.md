@@ -101,29 +101,10 @@ Available query filters:
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
-- `started_after` - Filter interceptions after a timestamp
-- `started_before` - Filter interceptions before a timestamp
+- `started_after` - Filter sessions after a timestamp
+- `started_before` - Filter sessions before a timestamp
 
 See the [API documentation](../../reference/api/aibridge.md) for full details.
-
-### CLI
-
-Export interceptions as JSON using the CLI:
-
-```sh
-coder aibridge interceptions list --initiator me --limit 1000
-```
-
-You can filter by time range, provider, model, and user:
-
-```sh
-coder aibridge interceptions list \
-  --started-after "2025-01-01T00:00:00Z" \
-  --started-before "2025-02-01T00:00:00Z" \
-  --provider anthropic
-```
-
-See `coder aibridge interceptions list --help` for all options.
 
 ## Data Retention
 

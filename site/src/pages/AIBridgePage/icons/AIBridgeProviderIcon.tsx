@@ -1,5 +1,4 @@
 import { CircleQuestionMarkIcon } from "lucide-react";
-import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { cn } from "#/utils/cn";
 
@@ -8,7 +7,7 @@ export const AIBridgeProviderIcon = ({
 	className,
 	...props
 }: {
-	provider: AIBridgeInterception["provider"];
+	provider: string;
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "flex-shrink-0";
 	switch (provider) {
@@ -20,13 +19,6 @@ export const AIBridgeProviderIcon = ({
 				/>
 			);
 		case "anthropic":
-			return (
-				<ExternalImage
-					src="/icon/anthropic.svg"
-					className={cn(iconClassName, className)}
-				/>
-			);
-		case "anthropic-neue":
 			return (
 				<ExternalImage
 					src="/icon/anthropic.svg"

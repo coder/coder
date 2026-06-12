@@ -1,5 +1,4 @@
 import { CircleQuestionMarkIcon } from "lucide-react";
-import type { AIBridgeInterception } from "#/api/typesGenerated";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { cn } from "#/utils/cn";
 
@@ -8,7 +7,7 @@ export const AIBridgeClientIcon = ({
 	className,
 	...props
 }: {
-	client: AIBridgeInterception["client"];
+	client: string | null;
 } & React.ComponentProps<"svg">) => {
 	const iconClassName = "flex-shrink-0";
 	// This should be kept in sync with the client names in

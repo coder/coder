@@ -1422,58 +1422,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/aibridge/interceptions": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "AI Bridge"
-                ],
-                "summary": "List AI Bridge interceptions",
-                "operationId": "list-ai-bridge-interceptions",
-                "deprecated": true,
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Search query in the format ` + "`" + `key:value` + "`" + `. Available keys are: initiator, provider, provider_name, model, started_after, started_before.",
-                        "name": "q",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Page limit",
-                        "name": "limit",
-                        "in": "query"
-                    },
-                    {
-                        "type": "string",
-                        "description": "Cursor pagination after ID (cannot be used with offset)",
-                        "name": "after_id",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "description": "Offset pagination (cannot be used with after_id)",
-                        "name": "offset",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.AIBridgeListInterceptionsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/aibridge/keys": {
             "get": {
                 "produces": [
@@ -14657,77 +14605,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeInterception": {
-            "type": "object",
-            "properties": {
-                "api_key_id": {
-                    "type": "string"
-                },
-                "client": {
-                    "type": "string"
-                },
-                "ended_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "initiator": {
-                    "$ref": "#/definitions/codersdk.MinimalUser"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "model": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "provider_name": {
-                    "type": "string"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "token_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeTokenUsage"
-                    }
-                },
-                "tool_usages": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeToolUsage"
-                    }
-                },
-                "user_prompts": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeUserPrompt"
-                    }
-                }
-            }
-        },
-        "codersdk.AIBridgeListInterceptionsResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "results": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.AIBridgeInterception"
-                    }
-                }
-            }
-        },
         "codersdk.AIBridgeListSessionsResponse": {
             "type": "object",
             "properties": {
@@ -14990,42 +14867,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIBridgeTokenUsage": {
-            "type": "object",
-            "properties": {
-                "cache_read_input_tokens": {
-                    "type": "integer"
-                },
-                "cache_write_input_tokens": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "input_tokens": {
-                    "type": "integer"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "output_tokens": {
-                    "type": "integer"
-                },
-                "provider_response_id": {
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.AIBridgeToolCall": {
             "type": "object",
             "properties": {
@@ -15058,72 +14899,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "tool": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeToolUsage": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "injected": {
-                    "type": "boolean"
-                },
-                "input": {
-                    "type": "string"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "invocation_error": {
-                    "type": "string"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "provider_response_id": {
-                    "type": "string"
-                },
-                "server_url": {
-                    "type": "string"
-                },
-                "tool": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.AIBridgeUserPrompt": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "interception_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "metadata": {
-                    "type": "object",
-                    "additionalProperties": {}
-                },
-                "prompt": {
-                    "type": "string"
-                },
-                "provider_response_id": {
                     "type": "string"
                 }
             }
