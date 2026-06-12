@@ -55,6 +55,12 @@ func GuessSessionID(client Client, r *http.Request) *string {
 		}
 		return cleanRef(matches[1])
 	case ClientCodex:
+		// Codex renamed the header from "session_id" to "session-id" in
+		// newer releases. Check the current name first, then fall back to
+		// the legacy name for older Codex versions.
+		if sid := cleanRef(r.Header.Get("session-id")); sid != nil {
+			return sid
+		}
 		return cleanRef(r.Header.Get("session_id"))
 	case ClientMux:
 		return cleanRef(r.Header.Get("X-Mux-Workspace-Id"))
