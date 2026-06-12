@@ -35,7 +35,7 @@ docs, see the [routing table](#routing-table) for the correct destination.
 3. Is it a record of what changed in a release (including performance
    improvements and bug fixes)? **Changelog**, not docs.
 4. Is it about what to do when the product fails or misbehaves?
-   **Support KB (Pilon)**, not docs.
+   **Support KB (Pylon)**, not docs.
 5. Is it about contributing to the Coder codebase or writing style?
    **GitHub** (or public Notion), not docs.
 6. Is it already documented by a third-party vendor (Terraform, AWS,
@@ -99,8 +99,18 @@ minutes" can't drift-fail, but `300s default` can.
 A PR that introduces or changes a user-facing feature should include the
 documentation for it, in the same PR, or land at the same time.
 
+A feature is **user-facing** once it's visible by default: it appears in
+`--help` output for a CLI command, in the UI under a section, in a public
+API listing, or in a public configuration surface. A backend or API
+change that's technically possible but not exposed to users by default,
+including anything guarded by an unsafe experiment flag, doesn't qualify
+until it's visible. See
+[Experiments versus feature stages](#experiments-versus-feature-stages)
+below for the experiment-vs-stage distinction.
+
 *Why:* Docs written at PR time are written while the behavior is freshest
-and are verifiable against the diff.
+and are verifiable against the diff. Tying the docs bar to default
+visibility keeps backend-only plumbing PRs out of the docs queue.
 
 Three corollaries:
 
@@ -115,6 +125,34 @@ Three corollaries:
    feature as it will exist at launch. They must never read as a promise
    of what's coming. No "will support", "in a future release", "coming
    soon", or roadmap framing.
+
+### Experiments versus feature stages
+
+Coder has two related but distinct concepts. Don't conflate them:
+
+- **Experiments** are the feature flagging system: the `--experiments`
+  flag on `coder server` and the `CODER_EXPERIMENTS` environment
+  variable. An experiment is either *safe* (ready for users to try) or
+  *unsafe* (active development, not designed for users at all).
+- **Feature stages** describe how production-ready a feature is: Early
+  Access, Beta, or General Availability. See
+  [Feature stages](../../install/releases/feature-stages.md).
+
+Practical impact for docs:
+
+- **Unsafe experiments** don't need docs. The feature is in active
+  development, hidden behind a flag the user wouldn't enable on a real
+  deployment, and may be reverted at any time.
+- **Safe experiments and Early Access features** need at least a single
+  docs page covering how to enable the feature, what it does, and known
+  limitations.
+- **Beta features** get full docs (how to use, configure, and operate),
+  with the `Beta` label.
+- **GA features** get full docs across reference, tutorials, and guides
+  as appropriate.
+
+*Why:* Holding unsafe-experiment PRs to the docs bar is noise. Holding
+Early Access or Beta PRs to a lower bar is drift.
 
 ## What belongs in the docs
 
@@ -268,14 +306,14 @@ includes the destination and the reason.
   for the CI workflows that will eventually enforce it.
 
 - **Support and troubleshooting content.** Route to the support
-  knowledge base (Pilon). Troubleshooting documentation is primarily
+  knowledge base (Pylon). Troubleshooting documentation is primarily
   owned by Support, with Docs as secondary owner where needed.
 
   *Why:* The docs explain how the product works and how to use it; the
   KB covers what to do when things go wrong. Support should own the
   content they produce.
 
-  *Connection point:* Docs pages should surface relevant Pilon KB
+  *Connection point:* Docs pages should surface relevant Pylon KB
   articles via an embedded widget, scoped to the section or page. This
   keeps docs and support content separate while still giving users quick
   answers to troubleshooting questions in context. (Implementation under
@@ -331,7 +369,7 @@ When content doesn't belong in the docs, here's where it goes.
 | Performance improvements                 | Changelog or blog                      | No change to how the user interacts with the product                                                                                                 |
 | Release-by-release changes               | Changelog                              | The changelog is the record of what changed and when                                                                                                 |
 | Known bugs or undesired behavior         | Changelog                              | Docs shouldn't highlight deficiencies (see exception above)                                                                                          |
-| Troubleshooting ("when things go wrong") | Support KB (Pilon)                     | Support is primary owner of failure-mode content (Docs secondary where needed); docs own intended behavior and link to the KB via an embedded widget |
+| Troubleshooting ("when things go wrong") | Support KB (Pylon)                     | Support is primary owner of failure-mode content (Docs secondary where needed); docs own intended behavior and link to the KB via an embedded widget |
 | Contributing guides                      | GitHub (or public Notion)              | Audience is contributors, not end users                                                                                                              |
 | Style guides (code and docs)             | GitHub, with the codebase              | Same audience as contributing guides; enables CI enforcement                                                                                         |
 | Third-party tool or cloud instructions   | Vendor docs (linked)                   | Vendor docs are the source of truth; ours would drift                                                                                                |
@@ -342,7 +380,7 @@ When content doesn't belong in the docs, here's where it goes.
 These items have been agreed in principle but the mechanics are still
 under investigation. Update this section as they land.
 
-- **Pilon KB widget implementation.** The direction is decided (embedded
+- **Pylon KB widget implementation.** The direction is decided (embedded
   widget surfacing relevant KB articles per page or section); the
   mechanics are still under investigation.
 - **Automated screenshot generation.** Today, doc-check only analyzes and

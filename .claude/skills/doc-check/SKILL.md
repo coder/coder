@@ -73,6 +73,13 @@ They have no user-visible documentation surface.
 - **Dependency bumps** without behavior changes.
 - **Pure code reorganizations** (moves, renames, package restructuring
   with no API or behavior change).
+- **Features guarded by an unsafe experiment flag.** Features behind an
+  unsafe experiment are not designed for users yet and may be reverted.
+  See
+  [Experiments versus feature stages](../../../docs/.style/content-guidelines.md#experiments-versus-feature-stages)
+  in the content guidelines for the experiment-vs-stage distinction. A
+  safe experiment or an Early Access feature does need at least a
+  single-page doc, so don't apply this rule to those.
 
 If a diff is a mix of one of the above with a user-facing change, comment
 only on the user-facing portion.

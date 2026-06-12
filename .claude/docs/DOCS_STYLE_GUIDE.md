@@ -239,47 +239,33 @@ Document exact values from code:
 
 ## Documentation lands with the change
 
-A PR that introduces or changes a user-facing feature should include the
-documentation for it, in the same PR, or land at the same time. This
-replaces the older "proactive documentation" pattern.
-
-Three corollaries:
-
-1. **Features that introduce or change behavior get documented in the PR
-   that introduces or changes them.** Don't merge a behavior change
-   without the matching doc update.
-2. **Features that are not yet confirmed to exist do not get
-   documented.** No speculative docs for unmerged or uncommitted work.
-3. **Multi-PR launch exception.** For a body of work that spans several
-   PRs and is spec'd to launch together by a particular date, docs may
-   be written ahead of those merges, in the present tense, describing
-   the feature as it will exist at launch. They must never read as a
-   promise of what's coming. Avoid "will support", "in a future
-   release", "coming soon", or roadmap framing.
-
-See
+This rule lives in the canonical content guidelines. See
 [Documentation lands with the change](../../docs/.style/content-guidelines.md#documentation-lands-with-the-change)
-in the canonical content guidelines for the full rationale.
+in `docs/.style/content-guidelines.md` for the rule, the definition of
+"user-facing," the three corollaries, and the experiments-versus-feature-stages
+distinction.
 
 ## Special Sections
+
+### Prerequisites
+
+- Bullet or numbered list
+- Include version requirements, dependencies, permissions
+
+## Sections that don't belong
 
 ### Troubleshooting
 
 Troubleshooting and failure-mode content routes to the Support
-knowledge base (Pilon), not the docs. Support is the primary owner;
+knowledge base (Pylon), not the docs. Support is the primary owner;
 Docs is secondary owner where needed. See the
 [routing table](../../docs/.style/content-guidelines.md#routing-table)
 in the canonical content guidelines.
 
 Don't add a Troubleshooting section to a docs page. If a page would
 benefit from troubleshooting context, surface it via the embedded
-Pilon KB widget when that work lands; until then, link out to the
-relevant Pilon article from the page body.
-
-### Prerequisites
-
-- Bullet or numbered list
-- Include version requirements, dependencies, permissions
+Pylon KB widget when that work lands; until then, link out to the
+relevant Pylon article from the page body.
 
 ## Formatting and Linting
 
