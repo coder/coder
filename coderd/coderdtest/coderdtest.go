@@ -1220,21 +1220,18 @@ func AwaitTemplateVersionJobRunning(t testing.TB, client *codersdk.Client, versi
 
 // AwaitTemplateVersionJobCompleted waits for the build to be completed. This may result
 // from cancelation, an error, or from completing successfully. The wait is bounded by
-// testutil.WaitLong; use AwaitTemplateVersionJobCompletedCtx to wait with a custom
-// deadline.
+// testutil.WaitLong; use AwaitTemplateVersionJobCompletedWithTimeout to wait longer.
 func AwaitTemplateVersionJobCompleted(t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
 	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
-	defer cancel()
-
-	return AwaitTemplateVersionJobCompletedCtx(ctx, t, client, version)
+	return AwaitTemplateVersionJobCompletedWithTimeout(t, client, version, testutil.WaitLong)
 }
 
-// AwaitTemplateVersionJobCompletedCtx is like AwaitTemplateVersionJobCompleted, but
-// polls until the deadline of the provided context, which must have a deadline set.
-func AwaitTemplateVersionJobCompletedCtx(ctx context.Context, t testing.TB, client *codersdk.Client, version uuid.UUID) codersdk.TemplateVersion {
+// AwaitTemplateVersionJobCompletedWithTimeout is like AwaitTemplateVersionJobCompleted
+// with a caller-provided wait bound.
+func AwaitTemplateVersionJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, version uuid.UUID, timeout time.Duration) codersdk.TemplateVersion {
 	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for template version %s build job to complete", version)
 	var templateVersion codersdk.TemplateVersion
@@ -1257,20 +1254,18 @@ func AwaitTemplateVersionJobCompletedCtx(ctx context.Context, t testing.TB, clie
 
 // AwaitWorkspaceBuildJobCompleted waits for a workspace provision job to reach completed
 // status. The wait is bounded by testutil.WaitMedium; use
-// AwaitWorkspaceBuildJobCompletedCtx to wait with a custom deadline.
+// AwaitWorkspaceBuildJobCompletedWithTimeout to wait longer.
 func AwaitWorkspaceBuildJobCompleted(t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
 	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-	defer cancel()
-
-	return AwaitWorkspaceBuildJobCompletedCtx(ctx, t, client, build)
+	return AwaitWorkspaceBuildJobCompletedWithTimeout(t, client, build, testutil.WaitMedium)
 }
 
-// AwaitWorkspaceBuildJobCompletedCtx is like AwaitWorkspaceBuildJobCompleted, but
-// polls until the deadline of the provided context, which must have a deadline set.
-func AwaitWorkspaceBuildJobCompletedCtx(ctx context.Context, t testing.TB, client *codersdk.Client, build uuid.UUID) codersdk.WorkspaceBuild {
+// AwaitWorkspaceBuildJobCompletedWithTimeout is like AwaitWorkspaceBuildJobCompleted
+// with a caller-provided wait bound.
+func AwaitWorkspaceBuildJobCompletedWithTimeout(t testing.TB, client *codersdk.Client, build uuid.UUID, timeout time.Duration) codersdk.WorkspaceBuild {
 	t.Helper()
+
+	ctx := testutil.Context(t, timeout)
 
 	t.Logf("waiting for workspace build job %s", build)
 	var workspaceBuild codersdk.WorkspaceBuild
