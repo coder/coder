@@ -3,9 +3,10 @@
 # action and ref" step of deploy-docs.yaml. The workflow translates a
 # stable vX.Y.Z release tag into its release/X.Y branch and skips
 # prereleases or non-semver tags. This script exercises that bash
-# block against the 11 event scenarios documented in DOCS-327 so we
-# can catch regressions in the regex, the prerelease gate, or either
-# early-exit path without spinning up the full workflow.
+# block against the documented event sources (push, workflow_dispatch,
+# release.published) plus regex boundary cases so we can catch
+# regressions in the regex, the prerelease gate, or either early-exit
+# path without spinning up the full workflow.
 #
 # Keep compute_action_ref below in sync with deploy-docs.yaml. The
 # workflow comment "Tested in test-deploy-docs-release.sh" is the
@@ -99,9 +100,8 @@ assert_equals() {
 	fi
 }
 
-# Scenarios mirror the behavior table in PR #26070's description. Each
-# case names its event-source row so a future reader can match a test
-# to its scenario without reading the workflow.
+# Each scenario names its event source so a future reader can match a
+# test to the workflow path it exercises without reading the bash.
 
 # ---------------------------------------------------------------
 start_section "push event (existing behavior)"
