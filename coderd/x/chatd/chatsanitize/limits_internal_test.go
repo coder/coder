@@ -68,7 +68,11 @@ func TestValidatePromptLimits(t *testing.T) {
 
 		prompt := promptWithPDF(pdfPart("long.pdf", validPDFWithPages(101)))
 		err := ValidatePromptLimits(fantasyanthropic.Name, 200_000, prompt)
-		require.Error(t, err)
+		// A single file over the cap takes the single-file message branch,
+		// which names the file and suggests splitting it.
+		classified := requireRejected(t, err)
+		require.Contains(t, classified.Message, "long.pdf")
+		require.Contains(t, classified.Message, "Split the PDF")
 		require.Contains(t, err.Error(), "page_cap=100")
 
 		err = ValidatePromptLimits(fantasyanthropic.Name, 200_001, prompt)
