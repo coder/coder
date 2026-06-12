@@ -94,6 +94,10 @@ const providerDefaults: Partial<
 	vercel: { name: "vercel", baseUrl: "https://ai-gateway.vercel.sh/v1" },
 };
 
+const baseUrlPlaceholders: Partial<Record<AIProviderType, string>> = {
+	"openai-compat": "https://provider.example.com/v1",
+};
+
 const makeOpenAiAnthropicSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -243,6 +247,7 @@ const apiKeyPlaceholder = (provider: string) => {
 };
 
 const baseUrlPlaceholder = (provider: string) =>
+	baseUrlPlaceholders[provider as keyof typeof baseUrlPlaceholders] ??
 	providerDefaults[provider as keyof typeof providerDefaults]?.baseUrl;
 
 export const ProviderForm: FC<ProviderFormProps> = ({
