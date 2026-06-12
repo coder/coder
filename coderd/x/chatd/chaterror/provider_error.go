@@ -13,10 +13,11 @@ import (
 	"charm.land/fantasy"
 )
 
-// transportErrorPrefix matches the Go HTTP client / Anthropic SDK error
-// format `METHOD "URL": <status> <status text> ` that wraps the real
-// provider response body. AWS Bedrock errors arrive through aibridge with
-// this wrapper, hiding the useful message inside a trailing JSON body.
+// transportErrorPrefix matches the Anthropic SDK transport error format
+// `METHOD "URL": <status> <status text> ` that wraps the real provider
+// response body. The SDK emits this when it cannot parse a non-Anthropic
+// response, so AWS Bedrock errors arrive through aibridge with this
+// wrapper, hiding the useful message inside a trailing JSON body.
 var transportErrorPrefix = regexp.MustCompile(`^[A-Z]+ "[^"]+": \d{3} `)
 
 type providerErrorDetails struct {
@@ -68,14 +69,18 @@ func providerErrorResponseMessage(responseDump []byte) string {
 // "error.message", that inner message is returned. Otherwise msg is
 // returned unchanged.
 func unwrapTransportErrorMessage(msg string) string {
-	if msg == "" || !transportErrorPrefix.MatchString(msg) {
+	loc := transportErrorPrefix.FindStringIndex(msg)
+	if loc == nil {
 		return msg
 	}
-	start := strings.IndexByte(msg, '{')
+	// Search for the JSON body after the matched prefix so a brace inside
+	// the URL or status text cannot be mistaken for the body.
+	rest := msg[loc[1]:]
+	start := strings.IndexByte(rest, '{')
 	if start < 0 {
 		return msg
 	}
-	if inner := jsonErrorMessage([]byte(msg[start:])); inner != "" {
+	if inner := jsonErrorMessage([]byte(rest[start:])); inner != "" {
 		return inner
 	}
 	return msg

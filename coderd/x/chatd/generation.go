@@ -47,10 +47,8 @@ type generationPrepared struct {
 	ModelRoute        resolvedModelRoute
 	ModelBuildOptions modelBuildOptions
 
-	// ResolvedProvider is the configured provider identity (e.g. "bedrock")
-	// used for user-facing error copy. It differs from Model.Provider(),
-	// which reflects the fantasy transport client and is "anthropic" for
-	// Bedrock routed through aibridge.
+	// ResolvedProvider is the configured provider identity used to label
+	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
 	ResolvedProvider string
 
 	ModelConfigID        uuid.UUID
@@ -615,7 +613,7 @@ func (s *taskStarter) generateAssistant(
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model,
-		ModelProvider:        prepared.ResolvedProvider,
+		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
 		ActiveTools:          prepared.ActiveTools,

@@ -187,7 +187,7 @@ func TestGenerateAssistant_ModelProviderOverridesTransportLabel(t *testing.T) {
 
 	_, err := GenerateAssistant(context.Background(), GenerateAssistantOptions{
 		Model:         model,
-		ModelProvider: "bedrock",
+		ErrorProvider: "bedrock",
 		Messages: []fantasy.Message{
 			textMessage(fantasy.MessageRoleUser, "hello"),
 		},

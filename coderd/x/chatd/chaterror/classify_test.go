@@ -1296,6 +1296,22 @@ func TestClassify_DoesNotUnwrapNonTransportMessage(t *testing.T) {
 	require.Equal(t, "Value {x} is not allowed.", classified.Detail)
 }
 
+func TestClassify_UnwrapsTransportWrapperWithBraceInURL(t *testing.T) {
+	t.Parallel()
+
+	// A templated URL containing a brace must not be mistaken for the JSON
+	// body; the inner message is still extracted.
+	wrapped := `POST \"https://example.com/{resource}/invoke\": 400 Bad Request {\"message\":\"real error\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t, "real error", classified.Detail)
+}
+
 func TestClassify_KeepsTransportWrapperWhenInnerBodyNotJSON(t *testing.T) {
 	t.Parallel()
 

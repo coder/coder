@@ -1,6 +1,7 @@
 package chatloop
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -211,11 +212,12 @@ type RunOptions struct {
 // GenerateAssistantOptions configures one assistant model call.
 type GenerateAssistantOptions struct {
 	Model fantasy.LanguageModel
-	// ModelProvider labels user-facing errors with the configured provider
+	// ErrorProvider labels user-facing errors with the configured provider
 	// identity (e.g. "bedrock"). It differs from Model.Provider(), which
 	// reflects the fantasy transport client and is "anthropic" for Bedrock
-	// routed through aibridge. When empty, Model.Provider() is used.
-	ModelProvider        string
+	// routed through aibridge. Metrics and prompt preparation keep using
+	// Model.Provider(). When empty, Model.Provider() is used.
+	ErrorProvider        string
 	Messages             []fantasy.Message
 	Tools                []fantasy.AgentTool
 	ActiveTools          []string
@@ -349,15 +351,11 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 
 	provider := opts.Model.Provider()
 	modelName := opts.Model.Model()
-	// errorProvider labels user-facing errors with the configured provider.
-	// opts.Model.Provider() reflects the fantasy transport client, which is
-	// "anthropic" for Bedrock routed through aibridge and would mislabel
-	// errors. The transport provider is still used for prompt preparation,
-	// Anthropic history sanitization, and metric labels below.
-	errorProvider := opts.ModelProvider
-	if errorProvider == "" {
-		errorProvider = provider
-	}
+	// errorProvider labels user-facing errors with the configured provider;
+	// see GenerateAssistantOptions.ErrorProvider. The transport provider is
+	// kept for prompt preparation, Anthropic history sanitization, and the
+	// metric labels below.
+	errorProvider := cmp.Or(opts.ErrorProvider, provider)
 	runOpts := RunOptions{
 		Model:  opts.Model,
 		Logger: opts.Logger,
