@@ -200,11 +200,11 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				)}
 			</div>
 			<header
-				className="flex items-center justify-between
+				className="flex items-center justify-between flex-wrap
 				gap-6 px-4 pl-8 leading-6
 				md:gap-4"
 			>
-				<div className="flex-1 min-w-0 flex items-center gap-6 text-xs text-content-secondary">
+				<div className="flex-1 min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}
