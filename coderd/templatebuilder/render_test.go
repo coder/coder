@@ -16,14 +16,18 @@ var updateGolden = flag.Bool("update", false, "update golden files")
 func TestRenderBaseTemplate(t *testing.T) {
 	t.Parallel()
 
+	t.Run("UnknownBase", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.RenderBaseTemplate("nonexistent", "main.tf.tmpl", templatebuilder.BaseRenderContext{})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "unknown base template")
+	})
+
 	t.Run("InvalidPath", func(t *testing.T) {
 		t.Parallel()
-		fsys, err := templatebuilder.BaseTemplateFS("docker")
-		require.NoError(t, err)
-
-		_, err = templatebuilder.RenderBaseTemplate(fsys, "nonexistent.tf.tmpl", templatebuilder.BaseRenderContext{})
+		_, err := templatebuilder.RenderBaseTemplate("docker", "nonexistent.tf.tmpl", templatebuilder.BaseRenderContext{})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "read template")
+		require.Contains(t, err.Error(), "not found")
 	})
 
 	imageOpts := []templatebuilder.ImageOption{
@@ -33,14 +37,12 @@ func TestRenderBaseTemplate(t *testing.T) {
 
 	t.Run("DockerWithImageOptions", func(t *testing.T) {
 		t.Parallel()
-		fsys, err := templatebuilder.BaseTemplateFS("docker")
-		require.NoError(t, err)
 
 		renderCtx := templatebuilder.BaseRenderContext{
 			ContainerImage: "custom/image:latest",
 			ImageOptions:   imageOpts,
 		}
-		out, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
+		out, err := templatebuilder.RenderBaseTemplate("docker", "main.tf.tmpl", renderCtx)
 		require.NoError(t, err)
 		rendered := string(out)
 		require.Contains(t, rendered, `data.coder_parameter.container_image.value`)
@@ -51,14 +53,12 @@ func TestRenderBaseTemplate(t *testing.T) {
 
 	t.Run("KubernetesWithImageOptions", func(t *testing.T) {
 		t.Parallel()
-		fsys, err := templatebuilder.BaseTemplateFS("kubernetes")
-		require.NoError(t, err)
 
 		renderCtx := templatebuilder.BaseRenderContext{
 			ContainerImage: "custom/image:latest",
 			ImageOptions:   imageOpts,
 		}
-		out, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
+		out, err := templatebuilder.RenderBaseTemplate("kubernetes", "main.tf.tmpl", renderCtx)
 		require.NoError(t, err)
 		rendered := string(out)
 		require.Contains(t, rendered, `data.coder_parameter.container_image.value`)
@@ -84,11 +84,8 @@ func TestBaseTemplateSnapshot(t *testing.T) {
 		t.Run(tc.exampleID, func(t *testing.T) {
 			t.Parallel()
 
-			fsys, err := templatebuilder.BaseTemplateFS(tc.exampleID)
-			require.NoError(t, err)
-
 			renderCtx := templatebuilder.DefaultBaseRenderContext(tc.exampleID)
-			rendered, err := templatebuilder.RenderBaseTemplate(fsys, "main.tf.tmpl", renderCtx)
+			rendered, err := templatebuilder.RenderBaseTemplate(tc.exampleID, "main.tf.tmpl", renderCtx)
 			require.NoError(t, err)
 			require.NotEmpty(t, rendered)
 

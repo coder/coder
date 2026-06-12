@@ -2,8 +2,6 @@ package templatebuilder
 
 import (
 	"bytes"
-	"io/fs"
-	"text/template"
 
 	"golang.org/x/xerrors"
 )
@@ -21,18 +19,23 @@ type BaseRenderContext struct {
 	Variables      map[string]string
 }
 
-// RenderBaseTemplate parses and executes a .tf.tmpl file from the given
-// filesystem, applying the provided render context. The templatePath
-// should be relative to fsys (e.g. "main.tf.tmpl").
-func RenderBaseTemplate(fsys fs.FS, templatePath string, renderCtx BaseRenderContext) ([]byte, error) {
-	raw, err := fs.ReadFile(fsys, templatePath)
+// RenderBaseTemplate executes a pre-parsed .tf.tmpl template for the given
+// base, applying the provided render context. Templates are parsed once at
+// startup; parse errors surface on first access rather than at render time.
+func RenderBaseTemplate(exampleID, templatePath string, renderCtx BaseRenderContext) ([]byte, error) {
+	bases, err := loadBases()
 	if err != nil {
-		return nil, xerrors.Errorf("read template %s: %w", templatePath, err)
+		return nil, xerrors.Errorf("load base catalog: %w", err)
 	}
 
-	tmpl, err := template.New(templatePath).Parse(string(raw))
-	if err != nil {
-		return nil, xerrors.Errorf("parse template %s: %w", templatePath, err)
+	base, ok := bases[exampleID]
+	if !ok {
+		return nil, xerrors.Errorf("unknown base template %q", exampleID)
+	}
+
+	tmpl, ok := base.Templates[templatePath]
+	if !ok {
+		return nil, xerrors.Errorf("template %s not found in base %q", templatePath, exampleID)
 	}
 
 	var buf bytes.Buffer
