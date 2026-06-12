@@ -3,9 +3,12 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"maps"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	slog "cdr.dev/slog/v3"
@@ -15,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/acl"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -145,6 +149,7 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var oldChat database.Chat
 	err := api.Database.InTx(func(tx database.Store) error {
 		current, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
 		if err != nil {
@@ -156,6 +161,9 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		if current.GroupACL == nil {
 			current.GroupACL = database.ChatACL{}
 		}
+		oldChat = current
+		oldChat.UserACL = maps.Clone(current.UserACL)
+		oldChat.GroupACL = maps.Clone(current.GroupACL)
 
 		for id, role := range req.UserRoles {
 			if role == codersdk.ChatRoleDeleted {
@@ -199,7 +207,100 @@ func (api *API) patchChatACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := api.notifyChatShared(ctx, oldChat, aReq.New, apiKey.UserID); err != nil {
+		api.Logger.Warn(ctx, "failed to enqueue chat shared notification", slog.Error(err), slog.F("chat_id", chat.ID))
+	}
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+func (api *API) notifyChatShared(ctx context.Context, oldChat database.Chat, newChat database.Chat, initiatorID uuid.UUID) error {
+	oldReaders, err := api.effectiveChatReaders(ctx, oldChat)
+	if err != nil {
+		return xerrors.Errorf("resolve previous chat readers: %w", err)
+	}
+	newReaders, err := api.effectiveChatReaders(ctx, newChat)
+	if err != nil {
+		return xerrors.Errorf("resolve current chat readers: %w", err)
+	}
+
+	recipientIDs := make([]uuid.UUID, 0, len(newReaders))
+	for userID := range newReaders {
+		if _, alreadyReader := oldReaders[userID]; alreadyReader {
+			continue
+		}
+		// The initiator is sharing the chat, so they should not be told the
+		// chat was shared with them.
+		if userID == initiatorID {
+			continue
+		}
+		recipientIDs = append(recipientIDs, userID)
+	}
+	if len(recipientIDs) == 0 {
+		return nil
+	}
+
+	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
+	if err != nil {
+		return xerrors.Errorf("get initiator: %w", err)
+	}
+	labels := map[string]string{
+		"chat_id":    newChat.ID.String(),
+		"chat_title": newChat.Title,
+		"initiator":  initiator.Username,
+	}
+
+	var eg errgroup.Group
+	eg.SetLimit(10)
+	for _, userID := range recipientIDs {
+		eg.Go(func() error {
+			//nolint:gocritic // Need notifier actor to enqueue notifications.
+			_, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), userID, notifications.TemplateChatShared, labels, initiatorID.String(), newChat.ID)
+			if err != nil {
+				return xerrors.Errorf("enqueue chat shared notification: %w", err)
+			}
+			return nil
+		})
+	}
+	return eg.Wait()
+}
+
+func (api *API) effectiveChatReaders(ctx context.Context, chat database.Chat) (map[uuid.UUID]struct{}, error) {
+	readers := map[uuid.UUID]struct{}{chat.OwnerID: {}}
+
+	for rawUserID, entry := range chat.UserACL {
+		if !slices.Contains(entry.Permissions, policy.ActionRead) {
+			continue
+		}
+		userID, err := uuid.Parse(rawUserID)
+		if err != nil {
+			continue
+		}
+		readers[userID] = struct{}{}
+	}
+
+	for rawGroupID, entry := range chat.GroupACL {
+		if !slices.Contains(entry.Permissions, policy.ActionRead) {
+			continue
+		}
+		groupID, err := uuid.Parse(rawGroupID)
+		if err != nil {
+			continue
+		}
+		//nolint:gocritic // Notifier reads group members to deliver notifications to them.
+		members, err := api.Database.GetGroupMembersByGroupID(dbauthz.AsNotifier(ctx), database.GetGroupMembersByGroupIDParams{
+			GroupID:       groupID,
+			IncludeSystem: false,
+		})
+		if err != nil {
+			return nil, xerrors.Errorf("get members for group %s: %w", groupID, err)
+		}
+		for _, member := range members {
+			readers[member.UserID] = struct{}{}
+		}
+	}
+
+	return readers, nil
 }
 
 func (api *API) chatACLUsers(ctx context.Context, rw http.ResponseWriter, chat database.Chat, entries database.ChatACL) ([]codersdk.ChatUser, bool) {
