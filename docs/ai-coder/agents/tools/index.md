@@ -78,6 +78,12 @@ Templates are ordered by three signals, in priority order:
    workspace on the template. Prebuilt workspaces that have not been claimed
    are excluded so they do not inflate popularity.
 
+Each template is scored independently from its own signals; one template's
+usage never affects another's score. The score is internal and only
+determines ordering and the recommendation. The response carries the raw
+evidence instead: `active_developers`, `your_workspace_count`, and
+`last_used_by_you` appear on each template when they are non-zero.
+
 #### Recommendation and next_step
 
 Beyond the ranked list, the result tells the agent what to do next:
@@ -97,7 +103,20 @@ Beyond the ranked list, the result tells the agent what to do next:
 When the agent is told to ask, it presents the choices instead of guessing.
 You can always override the recommendation by naming a template yourself.
 
-#### Result
+#### Example
+
+A user asks for "a workspace to debug a Docker image". The agent extracts a
+search term and calls `list_templates` with:
+
+```json
+{
+  "query": "docker"
+}
+```
+
+The response lists matching templates best-first. Here `docker` is an exact
+name match while `docker-gpu` is only a prefix match, so the top template is
+a clear winner and is recommended:
 
 ```json
 {
@@ -110,6 +129,13 @@ You can always override the recommendation by naming a template yourself.
       "active_developers": 14,
       "your_workspace_count": 2,
       "last_used_by_you": "2026-06-09T10:04:18.123456Z"
+    },
+    {
+      "id": "8d2cf2a1-55b0-4c4e-9a3f-41be8a5cd1f0",
+      "name": "docker-gpu",
+      "display_name": "Docker GPU",
+      "description": "Docker workspaces with NVIDIA GPU access.",
+      "active_developers": 3
     }
   ],
   "page": 1,
@@ -118,8 +144,12 @@ You can always override the recommendation by naming a template yourself.
 }
 ```
 
-Each template includes evidence for its position: `active_developers`,
-`your_workspace_count`, and `last_used_by_you` appear when they are non-zero.
+The agent follows `next_step` and calls `create_workspace` with the
+recommended template. Had the two templates tied (for example, both plain
+substring matches with similar usage), the response would omit
+`recommended_template_id` and `next_step` would instruct the agent to ask
+you to choose.
+
 `next_page` is present only when more results exist.
 
 ### read_template
