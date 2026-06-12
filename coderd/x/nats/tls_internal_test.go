@@ -183,3 +183,50 @@ func Test_buildClusterTLSConfig_UniqueLeafKeys(t *testing.T) {
 	require.False(t, firstKey.Equal(secondKey))
 	require.NotEqual(t, first.Certificates[0].Leaf.SerialNumber, second.Certificates[0].Leaf.SerialNumber)
 }
+
+func Test_buildServerOptions_ClusterTLS(t *testing.T) {
+	t.Parallel()
+
+	caCert, caKey := generateTestCA(t)
+
+	t.Run("Enabled", func(t *testing.T) {
+		t.Parallel()
+
+		sopts, err := buildServerOptions(Options{
+			ClusterAuthToken: "token",
+			ClusterTLS: &ClusterTLSOptions{
+				CACert:  caCert,
+				CAKey:   caKey,
+				SANHost: "127.0.0.1",
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, sopts.Cluster.TLSConfig)
+		require.Equal(t, tls.RequireAndVerifyClientCert, sopts.Cluster.TLSConfig.ClientAuth)
+		require.Equal(t, clusterTLSTimeout.Seconds(), sopts.Cluster.TLSTimeout)
+	})
+
+	t.Run("Disabled", func(t *testing.T) {
+		t.Parallel()
+
+		sopts, err := buildServerOptions(Options{
+			ClusterAuthToken: "token",
+		})
+		require.NoError(t, err)
+		require.Nil(t, sopts.Cluster.TLSConfig)
+		require.Zero(t, sopts.Cluster.TLSTimeout)
+	})
+
+	t.Run("InvalidOptions", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := buildServerOptions(Options{
+			ClusterTLS: &ClusterTLSOptions{
+				CACert:  caCert,
+				CAKey:   caKey,
+				SANHost: "not-an-ip",
+			},
+		})
+		require.ErrorContains(t, err, "is not an IP address")
+	})
+}

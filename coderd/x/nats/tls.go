@@ -21,6 +21,10 @@ import (
 // expected process lifetime between restarts.
 const leafCertValidity = 30 * 24 * time.Hour
 
+// clusterTLSTimeout bounds the route TLS handshake. It replaces the
+// NATS default of 2s, which is tight under CI load.
+const clusterTLSTimeout = 10 * time.Second
+
 // ClusterTLSOptions configures mutual TLS for the inter-replica NATS
 // cluster route listener. The CA signs an ephemeral per-replica leaf
 // certificate at startup; the leaf private key is never persisted.

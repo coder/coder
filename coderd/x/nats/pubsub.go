@@ -129,6 +129,11 @@ type Options struct {
 	// default when cluster mode is enabled.
 	RoutePoolSize int
 
+	// ClusterTLS enables mutual TLS on the cluster route listener. A
+	// per-replica leaf certificate is minted from the configured CA at
+	// startup. Nil keeps routes plaintext (token auth only).
+	ClusterTLS *ClusterTLSOptions
+
 	// disableCluster is intended only for testing. Since we cannot reload a server
 	// with a cluster host/port after initialization, we start all production servers
 	// with clustering enabled.

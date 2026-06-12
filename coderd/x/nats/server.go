@@ -62,6 +62,16 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			sopts.Cluster.Username = defaultClusterTokenUsername
 			sopts.Cluster.Password = opts.ClusterAuthToken
 		}
+		if opts.ClusterTLS != nil {
+			tlsConfig, err := buildClusterTLSConfig(*opts.ClusterTLS)
+			if err != nil {
+				return nil, err
+			}
+			sopts.Cluster.TLSConfig = tlsConfig
+			// The NATS default route TLS timeout is 2s, which is tight
+			// under CI load.
+			sopts.Cluster.TLSTimeout = clusterTLSTimeout.Seconds()
+		}
 	}
 
 	return sopts, nil
