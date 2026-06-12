@@ -246,20 +246,23 @@ newStream:
 				if block, ok := event.AsContentBlockStart().ContentBlock.AsAny().(anthropic.ToolUseBlock); ok {
 					lastToolName = block.Name
 
-					if i.mcpProxy != nil && i.mcpProxy.GetTool(block.Name) != nil {
+					resolvedToolName := i.resolveToolID(block.Name)
+					if i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedToolName) != nil {
 						pendingToolCalls[block.Name] = block.ID
 						// Don't relay this event back, otherwise the client will try invoke the tool as well.
 						continue
 					}
 				}
 			case string(constant.ValueOf[constant.ContentBlockDelta]()):
-				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(lastToolName) != nil {
+				resolvedLastToolName := i.resolveToolID(lastToolName)
+				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedLastToolName) != nil {
 					// We're busy with a tool call, don't relay this event back.
 					continue
 				}
 			case string(constant.ValueOf[constant.ContentBlockStop]()):
 				// Reset the tool name
-				isInjected := i.mcpProxy != nil && i.mcpProxy.GetTool(lastToolName) != nil
+				resolvedLastToolName := i.resolveToolID(lastToolName)
+				isInjected := i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedLastToolName) != nil
 				lastToolName = ""
 
 				if len(pendingToolCalls) > 0 && isInjected {
@@ -302,14 +305,16 @@ newStream:
 				})
 
 				// Don't relay message_delta events which indicate injected tool use.
-				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(lastToolName) != nil {
+				resolvedLastToolName := i.resolveToolID(lastToolName)
+				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedLastToolName) != nil {
 					continue
 				}
 
 				// If currently calling a tool.
 				if len(message.Content) > 0 && message.Content[len(message.Content)-1].Type == string(constant.ValueOf[constant.ToolUse]()) {
 					toolName := message.Content[len(message.Content)-1].AsToolUse().Name
-					if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(toolName) != nil {
+					resolvedToolName := i.resolveToolID(toolName)
+					if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedToolName) != nil {
 						continue
 					}
 				}
@@ -351,12 +356,13 @@ newStream:
 							continue
 						}
 
-						if i.mcpProxy.GetTool(name) == nil {
+						resolvedName := i.resolveToolID(name)
+						if i.mcpProxy.GetTool(resolvedName) == nil {
 							// Not an MCP proxy call, don't do anything.
 							continue
 						}
 
-						tool := i.mcpProxy.GetTool(name)
+						tool := i.mcpProxy.GetTool(resolvedName)
 						if tool == nil {
 							logger.Warn(ctx, "tool not found in manager", slog.F("tool_name", name))
 							continue
@@ -501,7 +507,8 @@ newStream:
 				// Find all the non-injected tools and track their uses.
 				for _, block := range message.Content {
 					if variant, ok := block.AsAny().(anthropic.ToolUseBlock); ok {
-						if i.mcpProxy != nil && i.mcpProxy.GetTool(variant.Name) != nil {
+						resolvedVariantName := i.resolveToolID(variant.Name)
+						if i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedVariantName) != nil {
 							continue
 						}
 

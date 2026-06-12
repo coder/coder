@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1200,6 +1201,75 @@ func TestWriteUpstreamError(t *testing.T) {
 			if tc.expectBodyContains != "" {
 				assert.Contains(t, w.Body.String(), tc.expectBodyContains, "response body")
 			}
+		})
+	}
+}
+
+func TestSanitizeToolName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty_string",
+			input:    "",
+			expected: "unknown_tool",
+		},
+		{
+			name:     "valid_alphanumeric",
+			input:    "my_tool",
+			expected: "my_tool",
+		},
+		{
+			name:     "dots_converted_to_underscores",
+			input:    "awslabs.aws_documentation_mcp_server__read_documentation",
+			expected: "awslabs_aws_documentation_mcp_server__read_documentation",
+		},
+		{
+			name:     "hyphens_preserved",
+			input:    "my-tool-name",
+			expected: "my-tool-name",
+		},
+		{
+			name:     "mixed_special_characters",
+			input:    "tool@with#special$chars",
+			expected: "tool_with_special_chars",
+		},
+		{
+			name:     "exceeds_128_characters",
+			input:    strings.Repeat("a", 150),
+			expected: strings.Repeat("a", 128),
+			},
+			{
+				name:     "exceeds_128_after_sanitization",
+				input:    strings.Repeat("a.", 70), // 140 chars, becomes 140 underscores
+				expected: strings.Repeat("a_", 64), // 128 chars
+			},
+			{
+				name:     "only_special_characters",
+				input:    "@#$%^&*()",
+				expected: "_________",
+			},
+		}
+
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result := sanitizeToolName(tc.input)
+			assert.Equal(t, tc.expected, result)
+			// Verify result matches Bedrock pattern: ^[a-zA-Z0-9_-]{1,128}$
+			assert.LessOrEqual(t, len(result), 128, "result should be <= 128 chars")
+			for _, c := range result {
+				assert.True(t,
+					(c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-',
+					"character %c not allowed in Bedrock tool name", c,
+				)
+			}
+			assert.Greater(t, len(result), 0, "result should not be empty")
 		})
 	}
 }

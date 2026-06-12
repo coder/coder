@@ -83,6 +83,9 @@ type interceptionBase struct {
 	recorder   recorder.Recorder
 	mcpProxy   mcp.ServerProxier
 	credential intercept.CredentialInfo
+
+	// sanitizedToolNames maps from sanitized tool names for Bedrock to original MCP tool IDs.
+	sanitizedToolNames map[string]string
 }
 
 func (i *interceptionBase) ID() uuid.UUID {
@@ -138,16 +141,24 @@ func (i *interceptionBase) injectTools() {
 
 	i.disableParallelToolCalls()
 
+	// Initialize the sanitized tool names map.
+	i.sanitizedToolNames = make(map[string]string)
+
 	// Inject tools.
 	var injectedTools []anthropic.ToolUnionParam
 	for _, tool := range i.mcpProxy.ListTools() {
+		// Sanitize tool names for Bedrock compatibility.
+		sanitizedName := sanitizeToolName(tool.ID)
+		// Track the mapping from sanitized to original.
+		i.sanitizedToolNames[sanitizedName] = tool.ID
+
 		injectedTools = append(injectedTools, anthropic.ToolUnionParam{
 			OfTool: &anthropic.ToolParam{
 				InputSchema: anthropic.ToolInputSchemaParam{
 					Properties: tool.Params,
 					Required:   tool.Required,
 				},
-				Name:        tool.ID,
+				Name:        sanitizedName,
 				Description: anthropic.String(tool.Description),
 				Type:        anthropic.ToolTypeCustom,
 			},
@@ -174,6 +185,23 @@ func (i *interceptionBase) disableParallelToolCalls() {
 		return
 	}
 	i.reqPayload = updated
+}
+
+// resolveToolID attempts to resolve a tool name (possibly sanitized) back to the original
+// MCP tool ID. This is needed when Bedrock returns sanitized tool names in the response.
+// If no mapping exists (not using Bedrock or tool is not MCP-injected), the name is returned unchanged.
+func (i *interceptionBase) resolveToolID(toolName string) string {
+	if i.sanitizedToolNames == nil || len(i.sanitizedToolNames) == 0 {
+		return toolName
+	}
+
+	// Check if this is a sanitized name that we need to resolve.
+	if originalID, ok := i.sanitizedToolNames[toolName]; ok {
+		return originalID
+	}
+
+	// Not a sanitized name, return as-is.
+	return toolName
 }
 
 // extractModelThoughts returns any thinking blocks that were returned in the response.
@@ -676,4 +704,36 @@ func (e *ResponseError) ToResponse() *http.Response {
 		body = []byte(`{"type":"error","error":{"type":"error","message":"error marshaling upstream error"}}`)
 	}
 	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
+}
+
+// sanitizeToolName converts a tool name to be compatible with Bedrock's requirements.
+// Bedrock requires tool names to match the pattern: ^[a-zA-Z0-9_-]{1,128}$
+// This function replaces invalid characters with underscores and truncates to 128 chars.
+func sanitizeToolName(name string) string {
+	if name == "" {
+		return "unknown_tool"
+	}
+
+	// Replace any character that is not alphanumeric, underscore, or hyphen with underscore.
+	var sb strings.Builder
+	for _, c := range name {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' {
+			sb.WriteRune(c)
+		} else {
+			sb.WriteRune('_')
+		}
+	}
+	sanitized := sb.String()
+
+	// Truncate to 128 characters (Bedrock limit).
+	if len(sanitized) > 128 {
+		sanitized = sanitized[:128]
+	}
+
+	// If we end up with an empty string, use a default.
+	if sanitized == "" {
+		return "unknown_tool"
+	}
+
+	return sanitized
 }

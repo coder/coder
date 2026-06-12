@@ -180,7 +180,10 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				continue
 			}
 
-			if i.mcpProxy != nil && i.mcpProxy.GetTool(toolUse.Name) != nil {
+			// Resolve the tool ID in case the model returned a sanitized name (for Bedrock).
+			resolvedToolName := i.resolveToolID(toolUse.Name)
+
+			if i.mcpProxy != nil && i.mcpProxy.GetTool(resolvedToolName) != nil {
 				pendingToolCalls = append(pendingToolCalls, toolUse)
 				continue
 			}
@@ -210,9 +213,12 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				continue
 			}
 
-			tool := i.mcpProxy.GetTool(tc.Name)
+			// Resolve the tool ID in case the model returned a sanitized name (for Bedrock).
+			resolvedToolName := i.resolveToolID(tc.Name)
+
+			tool := i.mcpProxy.GetTool(resolvedToolName)
 			if tool == nil {
-				logger.Warn(ctx, "tool not found in manager", slog.F("tool", tc.Name))
+				logger.Warn(ctx, "tool not found in manager", slog.F("tool", resolvedToolName), slog.F("original_name", tc.Name))
 				// Continue to next tool call, but still append an error tool_result
 				loopMessages = append(loopMessages,
 					anthropic.NewUserMessage(anthropic.NewToolResultBlock(tc.ID, fmt.Sprintf("Error: tool %s not found", tc.Name), true)),
