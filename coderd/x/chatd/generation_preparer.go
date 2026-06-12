@@ -587,6 +587,7 @@ func (server *Server) prepareGeneration(
 		ProviderKeys:         providerKeys,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
+		ResolvedProvider:     debugProvider,
 		ModelConfigID:        modelConfig.ID,
 		ModelConfig:          callConfig,
 		ProviderOptions:      providerOptions,

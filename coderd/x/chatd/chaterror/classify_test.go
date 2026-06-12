@@ -1241,6 +1241,45 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	}, classified)
 }
 
+func TestClassify_UnwrapsBedrockTransportWrapper(t *testing.T) {
+	t.Parallel()
+
+	// AWS Bedrock errors reach chatd wrapped twice: aibridge returns the
+	// nested Anthropic envelope, but error.message is itself the Anthropic
+	// SDK transport string that embeds the raw Bedrock body.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"message\":\"The provided request is not valid\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`","type":"api_error"}}`),
+	)).WithProvider("bedrock")
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "AWS Bedrock returned an unexpected error.",
+		Detail:     "The provided request is not valid",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "bedrock",
+		Retryable:  false,
+		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_DoesNotUnwrapNonTransportMessage(t *testing.T) {
+	t.Parallel()
+
+	// A plain nested message that does not match the transport wrapper
+	// prefix must pass through unchanged, braces and all.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Value {x} is not allowed."}}`),
+	))
+
+	require.Equal(t, "Value {x} is not allowed.", classified.Detail)
+}
+
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 

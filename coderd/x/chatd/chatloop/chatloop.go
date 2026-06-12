@@ -210,7 +210,12 @@ type RunOptions struct {
 
 // GenerateAssistantOptions configures one assistant model call.
 type GenerateAssistantOptions struct {
-	Model                fantasy.LanguageModel
+	Model fantasy.LanguageModel
+	// ModelProvider labels user-facing errors with the configured provider
+	// identity (e.g. "bedrock"). It differs from Model.Provider(), which
+	// reflects the fantasy transport client and is "anthropic" for Bedrock
+	// routed through aibridge. When empty, Model.Provider() is used.
+	ModelProvider        string
 	Messages             []fantasy.Message
 	Tools                []fantasy.AgentTool
 	ActiveTools          []string
@@ -344,6 +349,15 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 
 	provider := opts.Model.Provider()
 	modelName := opts.Model.Model()
+	// errorProvider labels user-facing errors with the configured provider.
+	// opts.Model.Provider() reflects the fantasy transport client, which is
+	// "anthropic" for Bedrock routed through aibridge and would mislabel
+	// errors. The transport provider is still used for prompt preparation,
+	// Anthropic history sanitization, and metric labels below.
+	errorProvider := opts.ModelProvider
+	if errorProvider == "" {
+		errorProvider = provider
+	}
 	runOpts := RunOptions{
 		Model:  opts.Model,
 		Logger: opts.Logger,
@@ -382,8 +396,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		opts.Metrics,
 	)
 	if streamErr != nil {
-		wrappedErr := wrapProviderStreamError(provider, streamErr)
-		classified := chaterror.Classify(wrappedErr).WithProvider(provider)
+		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
@@ -396,8 +410,8 @@ func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (Assi
 		if errors.Is(err, ErrInterrupted) {
 			return AssistantOutcome{}, ErrInterrupted
 		}
-		wrappedErr := wrapProviderStreamError(provider, err)
-		classified := chaterror.Classify(wrappedErr).WithProvider(provider)
+		wrappedErr := wrapProviderStreamError(errorProvider, err)
+		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
 		if classified.Retryable {
 			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
