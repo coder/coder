@@ -546,7 +546,7 @@ func (m queryMetricsStore) DeleteExternalAuthLink(ctx context.Context, arg datab
 	return r0
 }
 
-func (m queryMetricsStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m queryMetricsStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteGroupAIBudget(ctx, groupID)
 	m.queryLatencies.WithLabelValues("DeleteGroupAIBudget").Observe(time.Since(start).Seconds())
@@ -802,7 +802,7 @@ func (m queryMetricsStore) DeleteTask(ctx context.Context, arg database.DeleteTa
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m queryMetricsStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteUserAIBudgetOverride(ctx, userID)
 	m.queryLatencies.WithLabelValues("DeleteUserAIBudgetOverride").Observe(time.Since(start).Seconds())
@@ -1042,7 +1042,7 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetAIModelPriceByProviderModel").Observe(time.Since(start).Seconds())
@@ -1922,7 +1922,7 @@ func (m queryMetricsStore) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m queryMetricsStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetGroupAIBudget(ctx, groupID)
 	m.queryLatencies.WithLabelValues("GetGroupAIBudget").Observe(time.Since(start).Seconds())
@@ -2938,7 +2938,7 @@ func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIBudgetOverride(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserAIBudgetOverride").Observe(time.Since(start).Seconds())
@@ -2946,7 +2946,7 @@ func (m queryMetricsStore) GetUserAIBudgetOverride(ctx context.Context, userID u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
+func (m queryMetricsStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIProviderKeyByProviderID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserAIProviderKeyByProviderID").Observe(time.Since(start).Seconds())
@@ -2954,7 +2954,7 @@ func (m queryMetricsStore) GetUserAIProviderKeyByProviderID(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAiProviderKey, error) {
+func (m queryMetricsStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIProviderKeys(ctx)
 	m.queryLatencies.WithLabelValues("GetUserAIProviderKeys").Observe(time.Since(start).Seconds())
@@ -2962,7 +2962,7 @@ func (m queryMetricsStore) GetUserAIProviderKeys(ctx context.Context) ([]databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAiProviderKey, error) {
+func (m queryMetricsStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserAIProviderKeysByUserID(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserAIProviderKeysByUserID").Observe(time.Since(start).Seconds())
@@ -4978,7 +4978,7 @@ func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m queryMetricsStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateEncryptedUserAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateEncryptedUserAIProviderKey").Observe(time.Since(start).Seconds())
@@ -5314,7 +5314,7 @@ func (m queryMetricsStore) UpdateUsageEventsPostPublish(ctx context.Context, arg
 	return r0
 }
 
-func (m queryMetricsStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m queryMetricsStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpdateUserAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateUserAIProviderKey").Observe(time.Since(start).Seconds())
@@ -5962,7 +5962,7 @@ func (m queryMetricsStore) UpsertDefaultProxy(ctx context.Context, arg database.
 	return r0
 }
 
-func (m queryMetricsStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAiBudget, error) {
+func (m queryMetricsStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertGroupAIBudget(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertGroupAIBudget").Observe(time.Since(start).Seconds())
@@ -6106,7 +6106,7 @@ func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
 	return r0
 }
 
-func (m queryMetricsStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+func (m queryMetricsStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertUserAIBudgetOverride(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertUserAIBudgetOverride").Observe(time.Since(start).Seconds())
@@ -6114,7 +6114,7 @@ func (m queryMetricsStore) UpsertUserAIBudgetOverride(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m queryMetricsStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertUserAIProviderKey(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertUserAIProviderKey").Observe(time.Since(start).Seconds())

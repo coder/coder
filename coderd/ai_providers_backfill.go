@@ -32,7 +32,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 	}
 	var promoted int
 	for _, provider := range providers {
-		if provider.Type != database.AiProviderTypeAnthropic {
+		if provider.Type != database.AIProviderTypeAnthropic {
 			continue
 		}
 		settings, err := db2sdk.AIProviderSettings(provider.Settings)
@@ -46,7 +46,7 @@ func BackfillBedrockProviderType(ctx context.Context, db database.Store, logger 
 		}
 		_, err = db.UpdateAIProvider(sysCtx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
-			Type:        database.AiProviderTypeBedrock,
+			Type:        database.AIProviderTypeBedrock,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,

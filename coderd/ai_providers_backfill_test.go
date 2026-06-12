@@ -49,16 +49,16 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 
 		t.Run("PromotesLegacyRow", func(t *testing.T) {
 			legacy := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, legacy.Type, "pre-condition: row must start as anthropic")
+			require.Equal(t, database.AIProviderTypeAnthropic, legacy.Type, "pre-condition: row must start as anthropic")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			row, err := db.GetAIProviderByName(ctx, legacy.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeBedrock, row.Type)
+			require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		})
 
 		t.Run("Idempotent", func(t *testing.T) {
@@ -70,7 +70,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			})
 			require.NoError(t, err)
 			for _, r := range before {
-				require.Equal(t, database.AiProviderTypeBedrock, r.Type,
+				require.Equal(t, database.AIProviderTypeBedrock, r.Type,
 					"pre-condition: all rows must already be promoted before testing idempotency")
 			}
 
@@ -89,37 +89,37 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 
 		t.Run("PreservesNativeAnthropicRow", func(t *testing.T) {
 			native := dbgen.AIProvider(t, db, database.AIProvider{
-				Type: database.AiProviderTypeAnthropic,
+				Type: database.AIProviderTypeAnthropic,
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, native.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, native.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			row, err := db.GetAIProviderByName(ctx, native.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
+			require.Equal(t, database.AIProviderTypeAnthropic, row.Type)
 		})
 
 		t.Run("PreservesNativeBedrockRow", func(t *testing.T) {
 			native := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeBedrock,
+				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
-			require.Equal(t, database.AiProviderTypeBedrock, native.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeBedrock, native.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			row, err := db.GetAIProviderByName(ctx, native.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeBedrock, row.Type)
+			require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		})
 
 		t.Run("SkipsDeletedRows", func(t *testing.T) {
 			deleted := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, deleted.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, deleted.Type, "pre-condition")
 			require.NoError(t, db.DeleteAIProviderByID(ctx, deleted.ID))
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
@@ -133,7 +133,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			for _, r := range row {
 				if r.ID == deleted.ID {
 					found = true
-					require.Equal(t, database.AiProviderTypeAnthropic, r.Type, "deleted row must not be promoted")
+					require.Equal(t, database.AIProviderTypeAnthropic, r.Type, "deleted row must not be promoted")
 				}
 			}
 			require.True(t, found, "deleted row must appear in IncludeDeleted result set")
@@ -141,17 +141,17 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 
 		t.Run("IncludesDisabledRows", func(t *testing.T) {
 			disabled := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Enabled:  false,
 				Settings: bedrockSettings,
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, disabled.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, disabled.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			row, err := db.GetAIProviderByName(ctx, disabled.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeBedrock, row.Type, "disabled legacy row must be promoted")
+			require.Equal(t, database.AIProviderTypeBedrock, row.Type, "disabled legacy row must be promoted")
 		})
 
 		t.Run("PreservesAnthropicRowWithNonBedrockSettings", func(t *testing.T) {
@@ -159,39 +159,39 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			// and the row is skipped via the unparsable-settings path, not the
 			// settings.Bedrock == nil guard. Either way the row must stay anthropic.
 			nonBedrock := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{}", Valid: true},
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, nonBedrock.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, nonBedrock.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			row, err := db.GetAIProviderByName(ctx, nonBedrock.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeAnthropic, row.Type, "anthropic row with non-bedrock settings must not be promoted")
+			require.Equal(t, database.AIProviderTypeAnthropic, row.Type, "anthropic row with non-bedrock settings must not be promoted")
 		})
 
 		t.Run("SkipsUnparsableSettings", func(t *testing.T) {
 			malformed := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: sql.NullString{String: "{", Valid: true},
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, malformed.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, malformed.Type, "pre-condition")
 			good := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			})
-			require.Equal(t, database.AiProviderTypeAnthropic, good.Type, "pre-condition")
+			require.Equal(t, database.AIProviderTypeAnthropic, good.Type, "pre-condition")
 
 			coderd.BackfillBedrockProviderType(ctx, db, logger)
 
 			malformedRow, err := db.GetAIProviderByName(ctx, malformed.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeAnthropic, malformedRow.Type, "row with unparsable settings must not be touched")
+			require.Equal(t, database.AIProviderTypeAnthropic, malformedRow.Type, "row with unparsable settings must not be touched")
 
 			goodRow, err := db.GetAIProviderByName(ctx, good.Name)
 			require.NoError(t, err)
-			require.Equal(t, database.AiProviderTypeBedrock, goodRow.Type, "valid row alongside unparsable one must still be promoted")
+			require.Equal(t, database.AIProviderTypeBedrock, goodRow.Type, "valid row alongside unparsable one must still be promoted")
 		})
 
 		// --- chat_model_configs.provider backfill ---
@@ -203,7 +203,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			// type=anthropic. The stored provider string is "anthropic" but the
 			// linked provider row now has type=bedrock.
 			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeBedrock,
+				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
 			staleConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -240,7 +240,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			// A model config with provider="openai" linked to a Bedrock provider
 			// must not be touched. Only "anthropic" → "bedrock" is in scope.
 			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeBedrock,
+				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
 			openAIConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -261,7 +261,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			// the linked provider is deleted and therefore excluded by the
 			// AND deleted = FALSE condition in the query.
 			deletedProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeBedrock,
+				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
 			staleConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -281,7 +281,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 			// The SQL query guards on deleted = FALSE. Capture the config ID
 			// before deletion so we delete the right row regardless of ordering.
 			bedrockProvider := dbgen.AIProvider(t, db, database.AIProvider{
-				Type:     database.AiProviderTypeBedrock,
+				Type:     database.AIProviderTypeBedrock,
 				Settings: bedrockSettings,
 			})
 			cfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
@@ -323,7 +323,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		db.EXPECT().
 			GetAIProviders(gomock.Any(), gomock.Any()).
 			Return([]database.AIProvider{{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			}}, nil)
 		db.EXPECT().
@@ -342,7 +342,7 @@ func TestBackfillBedrockProviderType(t *testing.T) {
 		db.EXPECT().
 			GetAIProviders(gomock.Any(), gomock.Any()).
 			Return([]database.AIProvider{{
-				Type:     database.AiProviderTypeAnthropic,
+				Type:     database.AIProviderTypeAnthropic,
 				Settings: bedrockSettings,
 			}}, nil)
 		db.EXPECT().

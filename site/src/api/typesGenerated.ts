@@ -6883,8 +6883,8 @@ export const RBACActions: RBACAction[] = [
 // From codersdk/rbacresources_gen.go
 export type RBACResource =
 	| "ai_gateway_key"
-	| "ai_provider"
 	| "ai_model_price"
+	| "ai_provider"
 	| "ai_seat"
 	| "aibridge_interception"
 	| "api_key"
@@ -6935,8 +6935,8 @@ export type RBACResource =
 
 export const RBACResources: RBACResource[] = [
 	"ai_gateway_key",
-	"ai_provider",
 	"ai_model_price",
+	"ai_provider",
 	"ai_seat",
 	"aibridge_interception",
 	"api_key",

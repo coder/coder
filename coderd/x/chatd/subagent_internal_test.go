@@ -399,7 +399,7 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
-		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", true)
 		now := time.Now()
 		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
 			ID:           uuid.New(),
@@ -425,7 +425,7 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		server.allowBYOK = false
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
-		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", true)
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", true)
 		now := time.Now()
 		_, err := db.UpsertUserAIProviderKey(ctx, database.UpsertUserAIProviderKeyParams{
 			ID:           uuid.New(),
@@ -449,7 +449,7 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
-		insertInternalAIProvider(t, db, database.AiProviderTypeAzure, "provider-api-key", true)
+		insertInternalAIProvider(t, db, database.AIProviderTypeAzure, "provider-api-key", true)
 
 		keys, err := server.resolveUserProviderAPIKeysForProviderType(ctx, user.ID, "azure")
 		require.NoError(t, err)
@@ -463,7 +463,7 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
-		provider := insertInternalAIProvider(t, db, database.AiProviderTypeBedrock, "", true)
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeBedrock, "", true)
 
 		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
 		require.NoError(t, err)
@@ -478,8 +478,8 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 		ctx := chatdTestContext(t)
 		user, _, _ := seedInternalChatDeps(t, db)
-		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "first-provider-api-key", true)
-		insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "second-provider-api-key", true)
+		insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "first-provider-api-key", true)
+		insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "second-provider-api-key", true)
 
 		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, uuid.Nil)
 		require.ErrorContains(t, err, "multiple enabled AI providers use provider type")
@@ -493,7 +493,7 @@ func TestResolveChatModel_AIProviderDisabled(t *testing.T) {
 	ctx := chatdTestContext(t)
 	db, ps := dbtestutil.NewDB(t)
 	user, org, _ := seedInternalChatDeps(t, db)
-	provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", false)
+	provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 		Provider: "openai",
 		Model:    "gpt-4o-mini",

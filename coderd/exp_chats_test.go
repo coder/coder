@@ -1715,7 +1715,7 @@ func TestListChatModels(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		providerType := database.AiProviderTypeAnthropic
+		providerType := database.AIProviderTypeAnthropic
 		provider := createAIProviderForTest(t, client, string(providerType), "")
 
 		contextLimit := int64(4096)
@@ -3956,7 +3956,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     string(database.AiProviderTypeOpenai),
+			Provider:     string(database.AIProviderTypeOpenai),
 			Model:        "anthropic/claude-opus-4.6",
 			AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
 		})

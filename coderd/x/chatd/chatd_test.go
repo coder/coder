@@ -6305,7 +6305,7 @@ func setOpenAIProviderBaseURL(
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	require.NoError(t, err)
 	for _, provider := range providers {
-		if provider.Type != database.AiProviderTypeOpenai {
+		if provider.Type != database.AIProviderTypeOpenai {
 			continue
 		}
 		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
@@ -7441,12 +7441,12 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		OrganizationID: org.ID,
 	})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai-" + uuid.NewString(),
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     string(database.AiProviderTypeOpenai),
+		Provider:     string(database.AIProviderTypeOpenai),
 		Model:        "gpt-4o-mini",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},

@@ -200,7 +200,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 	}
 	provType := seed.Type
 	if provType == "" {
-		provType = database.AiProviderTypeOpenai
+		provType = database.AIProviderTypeOpenai
 	}
 	name := takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t))
 	displayName := seed.DisplayName
