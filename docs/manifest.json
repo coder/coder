@@ -1006,18 +1006,18 @@
 							"path": "./ai-coder/agents/chat-search-syntax.md",
 							"state": ["beta"]
 						},
-							{
-								"title": "Architecture",
-								"description": "How the agent in the control plane communicates with workspaces",
-								"path": "./ai-coder/agents/architecture.md",
-								"state": ["beta"]
-							},
-							{
-								"title": "Feature Comparison",
-								"description": "How Coder Agents and Coder Tasks compare to Claude Code, OpenAI Codex, Cursor, and Devin",
-								"path": "./ai-coder/agents/comparison.md",
-								"state": ["beta"]
-							},
+						{
+							"title": "Architecture",
+							"description": "How the agent in the control plane communicates with workspaces",
+							"path": "./ai-coder/agents/architecture.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Feature Comparison",
+							"description": "How Coder Agents and Coder Tasks compare to Claude Code, OpenAI Codex, Cursor, and Devin",
+							"path": "./ai-coder/agents/comparison.md",
+							"state": ["beta"]
+						},
 						{
 							"title": "Chat Sharing",
 							"description": "Share Coder Agents conversations with users and groups",
