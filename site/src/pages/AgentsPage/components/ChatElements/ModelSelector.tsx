@@ -280,9 +280,11 @@ const ModelPickerPanel: FC<ModelPickerPanelProps> = ({
 							<CommandGroup
 								key={provider}
 								heading={providerLabel}
-								// Spacing tightened to match the dense vertical
-								// rhythm in the design.
-								className="px-1.5 py-1.5 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:text-content-secondary"
+								// Tightened spacing matches the dense vertical rhythm
+								// in the design. The 2px gap between items keeps each
+								// row's hover background visually separated from its
+								// neighbours so mouseover state has a clear edge.
+								className="px-1.5 py-1.5 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:text-[13px] [&_[cmdk-group-heading]]:font-normal [&_[cmdk-group-heading]]:text-content-secondary [&_[cmdk-group-items]]:flex [&_[cmdk-group-items]]:flex-col [&_[cmdk-group-items]]:gap-1"
 							>
 								{providerOptions.map((option) => (
 									<ModelRow
@@ -359,7 +361,7 @@ const ModelRow: FC<ModelRowProps> = ({
 			className={cn(
 				// Reset the default cmdk "selected = highlighted" treatment so
 				// keyboard focus does not visually collide with the chosen row.
-				"group flex h-9 cursor-pointer items-center gap-2 rounded-md px-2 py-0",
+				"group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2.5 py-0",
 				"text-sm font-normal text-content-primary",
 				"data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary",
 				// The persistent "this is the chosen value" treatment.
@@ -408,23 +410,33 @@ interface EffortRowProps {
 }
 
 /**
- * Read-only display of the model's admin-configured reasoning effort.
- * The slider is non-interactive on purpose: per-chat effort selection
- * requires a backend change (see PR description).
+ * Interactive effort picker, capped at the admin-configured value.
+ *
+ * NOTE: this is a frontend-only demo. The selected value lives in
+ * local state and is never sent to the backend; the chat behaves
+ * the same as if the slider were not touched. Making the user's
+ * choice take effect requires a backend change to plumb a per-chat
+ * `reasoning_effort` through to the provider call.
  */
 const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 	const tooltipId = useId();
-	const [hint, setHint] = useState<string>("");
+	const adminIndex = EFFORT_LEVELS.indexOf(effort);
+	// Local-only state: starts at the admin's value, can be dragged
+	// down. Resets each time the dropdown is reopened (the EffortRow
+	// remounts).
+	const [selectedIndex, setSelectedIndex] = useState(adminIndex);
+	// If the admin's value changes (e.g. user picks a different model),
+	// snap back to the new admin max so the slider stays within bounds.
 	useEffect(() => {
-		setHint(
-			providerLabel
-				? `Configured on the ${providerLabel} model. Per-chat override coming soon.`
-				: "Configured on the model. Per-chat override coming soon.",
-		);
-	}, [providerLabel]);
+		setSelectedIndex(adminIndex);
+	}, [adminIndex]);
 
-	const sliderValue = EFFORT_LEVELS.indexOf(effort);
-	const label = EFFORT_LABELS[effort];
+	const clamped = Math.min(Math.max(selectedIndex, 0), adminIndex);
+	const currentLevel = EFFORT_LEVELS[clamped] ?? effort;
+	const currentLabel = EFFORT_LABELS[currentLevel];
+	const hint = providerLabel
+		? `Drag to lower the effort below the ${providerLabel} model's configured max (${EFFORT_LABELS[effort]}). Preview only.`
+		: `Drag to lower the effort below the model's configured max (${EFFORT_LABELS[effort]}). Preview only.`;
 
 	return (
 		<div
@@ -455,7 +467,7 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 					<TooltipContent
 						id={tooltipId}
 						side="top"
-						className="max-w-[220px] px-2.5 py-1.5"
+						className="max-w-[240px] px-2.5 py-1.5"
 					>
 						<span className="block text-content-primary leading-snug">
 							{hint}
@@ -465,26 +477,29 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 			</div>
 			<Slider
 				aria-label="Reasoning effort"
-				aria-readonly="true"
-				aria-valuetext={label}
+				aria-valuetext={currentLabel}
 				min={0}
-				max={EFFORT_LEVELS.length - 1}
+				// Cap the slider's max at the admin-configured effort so the
+				// user can only lower it, not raise it past the model's limit.
+				max={Math.max(adminIndex, 1)}
 				step={1}
-				value={[sliderValue]}
-				disabled
-				// `Slider` dims the track at 40% when disabled; the read-only
-				// effort display should stay at full opacity since it is
-				// communicating real configuration.
-				className="grow opacity-100 data-[disabled]:opacity-100 [&_[data-disabled]]:opacity-100"
+				value={[clamped]}
+				onValueChange={(values) => {
+					const next = values[0];
+					if (typeof next === "number") {
+						setSelectedIndex(next);
+					}
+				}}
+				className="grow"
 			/>
 			<span
 				className={cn(
 					"inline-flex h-6 shrink-0 items-center rounded-md px-2",
 					"border border-solid border-border-default bg-surface-secondary",
-					"text-xs font-medium text-content-primary",
+					"text-xs font-medium text-content-primary tabular-nums",
 				)}
 			>
-				{label}
+				{currentLabel}
 			</span>
 		</div>
 	);
