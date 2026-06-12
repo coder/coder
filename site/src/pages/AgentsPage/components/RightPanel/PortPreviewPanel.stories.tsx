@@ -11,7 +11,6 @@ const previewTab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	agentId: MockWorkspaceAgent.id,
 	port: 3000,
 	protocol: "http",
-	source: "listening",
 };
 
 const meta = {

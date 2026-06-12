@@ -129,7 +129,7 @@ export const Default: Story = {
 		});
 		await userEvent.click(body.getByText("8080"));
 		await expect(args.onOpenPort).toHaveBeenCalledWith(
-			expect.objectContaining({ port: 8080, source: "listening" }),
+			expect.objectContaining({ port: 8080 }),
 		);
 	},
 };

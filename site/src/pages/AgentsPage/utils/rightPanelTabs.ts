@@ -8,13 +8,10 @@ import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { canShowPortsMenu } from "#/utils/portForward";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
-type PortTabSource = "listening" | "shared";
-
 export type PortSelection = {
 	label: string;
 	port: number;
 	protocol: WorkspaceAgentPortShareProtocol;
-	source: PortTabSource;
 };
 
 export type UserRightPanelTab =
@@ -51,7 +48,6 @@ export type UserRightPanelTab =
 			agentId: string;
 			port: number;
 			protocol: WorkspaceAgentPortShareProtocol;
-			source: PortTabSource;
 	  };
 
 type ValidateUserRightPanelTabsOptions = {
@@ -98,8 +94,7 @@ export function isUserRightPanelTab(
 			Number.isInteger(record.port) &&
 			record.port >= 1 &&
 			record.port <= 65535 &&
-			(record.protocol === "http" || record.protocol === "https") &&
-			(record.source === "listening" || record.source === "shared")
+			(record.protocol === "http" || record.protocol === "https")
 		);
 	}
 

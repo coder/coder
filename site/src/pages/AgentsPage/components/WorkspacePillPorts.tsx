@@ -235,14 +235,6 @@ const ListeningPortItem: FC<{
 	protocol,
 	onPortSelect,
 }) => {
-	const url = portForwardURL(
-		host,
-		port.port,
-		agentName,
-		workspaceName,
-		ownerName,
-		protocol,
-	);
 	if (onPortSelect) {
 		return (
 			<DropdownMenuItem
@@ -251,7 +243,6 @@ const ListeningPortItem: FC<{
 						label: `Port ${port.port}`,
 						port: port.port,
 						protocol,
-						source: "listening",
 					})
 				}
 			>
@@ -266,6 +257,14 @@ const ListeningPortItem: FC<{
 		);
 	}
 
+	const url = portForwardURL(
+		host,
+		port.port,
+		agentName,
+		workspaceName,
+		ownerName,
+		protocol,
+	);
 	return (
 		<DropdownMenuItem asChild>
 			<a href={url} target="_blank" rel="noreferrer">
@@ -290,14 +289,6 @@ const SharedPortItem: FC<{
 	ownerName: string;
 	onPortSelect?: (selection: PortSelection) => void;
 }> = ({ share, host, agentName, workspaceName, ownerName, onPortSelect }) => {
-	const url = portForwardURL(
-		host,
-		share.port,
-		agentName,
-		workspaceName,
-		ownerName,
-		share.protocol,
-	);
 	const ShareIcon =
 		share.share_level === "public"
 			? LockOpenIcon
@@ -312,7 +303,6 @@ const SharedPortItem: FC<{
 						label: `Port ${share.port}`,
 						port: share.port,
 						protocol: share.protocol,
-						source: "shared",
 					})
 				}
 			>
@@ -325,6 +315,14 @@ const SharedPortItem: FC<{
 		);
 	}
 
+	const url = portForwardURL(
+		host,
+		share.port,
+		agentName,
+		workspaceName,
+		ownerName,
+		share.protocol,
+	);
 	return (
 		<DropdownMenuItem asChild>
 			<a href={url} target="_blank" rel="noreferrer">

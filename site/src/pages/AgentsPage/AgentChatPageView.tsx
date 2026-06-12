@@ -424,12 +424,13 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
 		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
-	// Dense terminal numbering: position among terminal tabs, after the
-	// built-in Terminal when visible. Closing a terminal renumbers the
-	// ones after it.
+	// Dense terminal numbering: position among unlabeled terminal tabs,
+	// after the built-in Terminal when visible. Labeled terminals (command
+	// apps) display their own label, so they don't consume a number.
+	// Closing a terminal renumbers the ones after it.
 	const terminalNumbers = new Map(
 		validatedUserRightPanelTabs
-			.filter((tab) => tab.kind === "terminal")
+			.filter((tab) => tab.kind === "terminal" && tab.label === undefined)
 			.map(
 				(tab, index) =>
 					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
@@ -579,7 +580,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			port: selection.port,
 			protocol: selection.protocol,
-			source: selection.source,
 		};
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);

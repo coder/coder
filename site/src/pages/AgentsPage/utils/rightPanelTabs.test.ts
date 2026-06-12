@@ -50,7 +50,6 @@ describe("right-panel tab validation", () => {
 			agentId: MockWorkspaceAgent.id,
 			port: 3000,
 			protocol: "http",
-			source: "listening",
 		},
 	];
 
@@ -243,7 +242,6 @@ describe("right-panel tab storage", () => {
 				agentId: MockWorkspaceAgent.id,
 				port: 3000,
 				protocol: "http",
-				source: "listening",
 			},
 		];
 
@@ -272,7 +270,6 @@ describe("right-panel tab storage", () => {
 					agentId: MockWorkspaceAgent.id,
 					port: 70000,
 					protocol: "http",
-					source: "listening",
 				},
 			]),
 		);
