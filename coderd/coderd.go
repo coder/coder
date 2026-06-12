@@ -258,6 +258,9 @@ type Options struct {
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker.
+	ChatWorkerDisabled bool
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -839,7 +842,10 @@ func New(options *Options) *API {
 			OIDCTokenSource:                oidcMCPSrc,
 			NotificationsEnqueuer:          options.NotificationsEnqueuer,
 			Auditor:                        &api.Auditor,
-		}).Start()
+		})
+		if !options.ChatWorkerDisabled {
+			api.chatDaemon.Start()
+		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
