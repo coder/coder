@@ -7333,6 +7333,31 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templatebuilder/bases": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "List template builder base templates",
+                "operationId": "list-template-builder-base-templates",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderBasesResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/templates": {
             "get": {
                 "description": "Returns a list of templates.\nBy default, only non-deprecated templates are returned.\nTo include deprecated templates, specify ` + "`" + `deprecated:true` + "`" + ` in the search query.",
@@ -23595,6 +23620,37 @@ const docTemplate = `{
             "type": "object",
             "additionalProperties": {
                 "$ref": "#/definitions/codersdk.TransitionStats"
+            }
+        },
+        "codersdk.TemplateBuilderBase": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "os": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderBasesResponse": {
+            "type": "object",
+            "properties": {
+                "bases": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderBase"
+                    }
+                }
             }
         },
         "codersdk.TemplateBuilderConfig": {
