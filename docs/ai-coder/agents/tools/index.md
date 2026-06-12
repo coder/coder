@@ -63,34 +63,65 @@ use, and what the rest of the organization uses.
 
 #### How templates are ranked
 
-Templates are ordered by three signals, in priority order:
+Templates are ordered by query relevance first (when a query is provided),
+then by an affinity score computed from your recent usage and organization
+popularity. Name and ID break any remaining ties so the order is stable.
 
-1. **Query relevance.** When a query is provided, an exact name match ranks
-   above a name prefix match, then a name substring match, then a description
-   match. Matching is case-insensitive and ignores spaces, hyphens, and
-   underscores, so `python gpu` matches `python-gpu`. Templates that do not
-   match the query at all are excluded.
-2. **Your recent usage.** Workspaces you used in the last 60 days count
-   toward a template's score. Recent usage counts more than old usage (the
-   weight halves every 14 days), and a recently deleted workspace counts
-   half as much as an active one.
-3. **Organization popularity.** The number of developers with an active
-   workspace on the template. Prebuilt workspaces that have not been claimed
-   are excluded so they do not inflate popularity.
+##### Query relevance tiers
 
-Each template is scored independently from its own signals; one template's
-usage never affects another's score. The score is internal and only
-determines ordering and the recommendation. The response carries the raw
-evidence instead: `active_developers`, `your_workspace_count`, and
-`last_used_by_you` appear on each template when they are non-zero.
+When a query is provided, each template receives the highest tier that any
+of its fields matches:
+
+| Tier | Match                                               |
+|------|-----------------------------------------------------|
+| 4    | The name or display name equals the query           |
+| 3    | The name or display name starts with the query      |
+| 2    | The name or display name contains the query         |
+| 1    | The description contains the query                  |
+| 0    | No match. The template is excluded from the results |
+
+The description is checked only when neither the name nor the display name
+matched. Matching is case-insensitive and ignores spaces, hyphens, and
+underscores, so `python gpu` matches `python-gpu`. A higher tier always
+outranks a lower tier, regardless of usage.
+
+##### Affinity score
+
+Within a relevance tier, or when no query is given, templates are ordered by
+an affinity score:
+
+```text
+affinity = 10 x (active + 0.5 x deleted) x 0.5^(days_since_last_use / 14)
+         + ln(1 + active_developers)
+```
+
+- `active`: your workspaces on the template used in the last 60 days.
+- `deleted`: your recently deleted workspaces used in the last 60 days,
+  counted at half the weight of active ones.
+- `days_since_last_use`: days since you last used the template. The personal
+  term halves every 14 days and is zero when you have no usage in the last
+  60 days.
+- `active_developers`: developers in the organization with an active
+  workspace on the template, excluding unclaimed prebuilt workspaces.
+
+Personal usage carries ten times the weight of organization popularity, and
+popularity grows logarithmically so heavily used templates do not drown out
+your own history. Each template is scored independently from its own
+signals; one template's usage never affects another's score. The score is
+internal and only determines ordering and the recommendation. The response
+carries the raw evidence instead: `active_developers`,
+`your_workspace_count`, and `last_used_by_you` appear on each template when
+they are non-zero.
 
 #### Recommendation and next_step
 
 Beyond the ranked list, the result tells the agent what to do next:
 
 - `recommended_template_id` is present only when the top template is a clear
-  winner: it is the only available template, it decisively matches the query,
-  or your usage and organization usage clearly favor it over the runner-up.
+  winner: it is the only available template, it matches the query at a
+  strictly higher tier than every other match, or its affinity score reaches
+  at least the score of two active developers and leads the runner-up by a
+  clear margin.
 - `next_step` is always present and contains one of four fixed instructions:
 
 | Situation                           | `next_step` instruction for the agent                 |
