@@ -12150,6 +12150,114 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `disabled`     | boolean | false    |              |             |
 | `registry_url` | string  | false    |              |             |
 
+## codersdk.TemplateBuilderCreateTemplateRequest
+
+```json
+{
+  "base_template_id": "string",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                    | Required | Restrictions | Description |
+|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                                  | false    |              |             |
+| `description`      | string                                                                                  | false    |              |             |
+| `display_name`     | string                                                                                  | false    |              |             |
+| `icon`             | string                                                                                  | false    |              |             |
+| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`             | string                                                                                  | true     |              |             |
+| `organization_id`  | string                                                                                  | true     |              |             |
+| `provisioner_tags` | object                                                                                  | false    |              |             |
+| » `[any property]` | string                                                                                  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateResponse
+
+```json
+{
+  "template": {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": [
+        "monday"
+      ]
+    },
+    "autostop_requirement": {
+      "days_of_week": [
+        "monday"
+      ],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "cors_behavior": "simple",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deleted": true,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "disable_module_cache": true,
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                   | Required | Restrictions | Description |
+|------------|----------------------------------------|----------|--------------|-------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
+
 ## codersdk.TemplateBuilderModule
 
 ```json

@@ -8204,14 +8204,8 @@ export interface TemplateBuilderConfig {
  * POST /api/v2/templatebuilder/compose/template.
  */
 export interface TemplateBuilderCreateTemplateRequest {
-	/**
-	 * Compose parameters.
-	 */
 	readonly base_template_id: string;
 	readonly modules: readonly TemplateBuilderComposeModule[];
-	/**
-	 * Template creation parameters.
-	 */
 	readonly organization_id: string;
 	readonly name: string;
 	readonly display_name?: string;
