@@ -964,7 +964,7 @@ jobs:
       # https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md
       # ...but the engine doesn't find it right now. Might be worth looking
       # into. This step isn't exactly fast.
-      - run: pnpx playwright install --with-deps chromium
+      - run: pnpm playwright:install
         working-directory: site/
         name: Install Chromium
 
