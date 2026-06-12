@@ -62,9 +62,9 @@ describe("WorkspaceParametersPageExperimental", () => {
 	});
 
 	it("does not clobber touched parameters", async () => {
-		const [, mockPublisher] = mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: -1,

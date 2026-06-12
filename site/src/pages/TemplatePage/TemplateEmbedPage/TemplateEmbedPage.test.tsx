@@ -63,9 +63,9 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("populates parameters", async () => {
-		mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: 0,
@@ -98,9 +98,9 @@ describe("TemplateEmbedPage", () => {
 			ephemeral: true,
 		};
 
-		mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: 0,
@@ -134,9 +134,9 @@ describe("TemplateEmbedPage", () => {
 			order: 0,
 		};
 
-		mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: 0,
@@ -181,9 +181,9 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("changes mode to auto when selected", async () => {
-		mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: 0,
@@ -226,9 +226,9 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("sends updated values when a parameter changes", async () => {
-		const [mockWebSocket] = mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		const [mockWebSocket] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: 0,
@@ -257,20 +257,18 @@ describe("TemplateEmbedPage", () => {
 	});
 
 	it("updates form state when server responds", async () => {
-		const [_, mockPublisher] = mockDynamicParameterWebSocket(
-			(mockPublisher) => {
-				mockPublisher.publishOpen(new Event("open"));
-				mockPublisher.publishMessage(
-					new MessageEvent("message", {
-						data: JSON.stringify({
-							id: 0,
-							parameters: [paramRegion],
-							diagnostics: [],
-						}),
+		const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: 0,
+						parameters: [paramRegion],
+						diagnostics: [],
 					}),
-				);
-			},
-		);
+				}),
+			);
+		});
 
 		renderEmbedPage();
 

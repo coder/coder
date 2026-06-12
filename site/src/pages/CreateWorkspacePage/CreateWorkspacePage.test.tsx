@@ -42,9 +42,9 @@ describe("CreateWorkspacePage", () => {
 	};
 
 	const renderCreateWorkspacePageWithSocket = (route?: string) => {
-		mockDynamicParameterWebSocket((mockPublisher) => {
-			mockPublisher.publishOpen(new Event("open"));
-			mockPublisher.publishMessage(
+		mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
 				new MessageEvent("message", {
 					data: JSON.stringify(MockDynamicParametersResponse),
 				}),
@@ -107,9 +107,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("sends parameter updates via WebSocket when form values change", async () => {
-			const [mockWebSocket] = mockDynamicParameterWebSocket((mockPublisher) => {
-				mockPublisher.publishOpen(new Event("open"));
-				mockPublisher.publishMessage(
+			const [mockWebSocket] = mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify(MockDynamicParametersResponse),
 					}),
@@ -173,20 +173,18 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("handles WebSocket close event", async () => {
-			const [_, mockPublisher] = mockDynamicParameterWebSocket(
-				(mockPublisher) => {
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: -1,
-								parameters: [],
-								diagnostics: [],
-							}),
+			const [_, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: -1,
+							parameters: [],
+							diagnostics: [],
 						}),
-					);
-				},
-			);
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage();
 
@@ -209,9 +207,9 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("only parameters from latest response are displayed", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket(() => {
-				mockPublisher.publishOpen(new Event("open"));
-				mockPublisher.publishMessage(
+			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: -1,
@@ -253,20 +251,18 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("does not clobber user values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket(
-				(mockPublisher) => {
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: -1,
-								parameters: [MockPreviewParameter],
-								diagnostics: [],
-							}),
+			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: -1,
+							parameters: [MockPreviewParameter],
+							diagnostics: [],
 						}),
-					);
-				},
-			);
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
@@ -307,20 +303,18 @@ describe("CreateWorkspacePage", () => {
 		});
 
 		it("does not clobber auto-filled values", async () => {
-			const [, mockPublisher] = mockDynamicParameterWebSocket(
-				(mockPublisher) => {
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
-						new MessageEvent("message", {
-							data: JSON.stringify({
-								id: -1,
-								parameters: [MockPreviewParameter, MockSliderParameter],
-								diagnostics: [],
-							}),
+			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
+					new MessageEvent("message", {
+						data: JSON.stringify({
+							id: -1,
+							parameters: [MockPreviewParameter, MockSliderParameter],
+							diagnostics: [],
 						}),
-					);
-				},
-			);
+					}),
+				);
+			});
 
 			renderCreateWorkspacePage(
 				`/templates/${MockTemplate.name}/workspace?param.cpu_count=44&param.parameter1=auto`,
@@ -356,9 +350,9 @@ describe("CreateWorkspacePage", () => {
 
 	describe("Dynamic Parameter Types", () => {
 		it("displays parameter validation errors", async () => {
-			mockDynamicParameterWebSocket((mockPublisher) => {
-				mockPublisher.publishOpen(new Event("open"));
-				mockPublisher.publishMessage(
+			mockDynamicParameterWebSocket((publisher) => {
+				publisher.publishOpen(new Event("open"));
+				publisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify(MockDynamicParametersResponseWithError),
 					}),
@@ -408,9 +402,9 @@ describe("CreateWorkspacePage", () => {
 			};
 
 			const [mockWebSocket, mockPublisher] = mockDynamicParameterWebSocket(
-				(mockPublisher) => {
-					mockPublisher.publishOpen(new Event("open"));
-					mockPublisher.publishMessage(
+				(publisher) => {
+					publisher.publishOpen(new Event("open"));
+					publisher.publishMessage(
 						new MessageEvent("message", {
 							data: JSON.stringify(mockResponseInitial),
 						}),
