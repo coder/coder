@@ -12090,6 +12090,50 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |---------|-----------------------------------------------------------------------|----------|--------------|-------------|
 | `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
 
+## codersdk.TemplateBuilderComposeModule
+
+```json
+{
+  "id": "string",
+  "variables": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `variables`        | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+
+## codersdk.TemplateBuilderComposeRequest
+
+```json
+{
+  "base_template_id": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                    | Required | Restrictions | Description |
+|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                                  | false    |              |             |
+| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+
 ## codersdk.TemplateBuilderConfig
 
 ```json
