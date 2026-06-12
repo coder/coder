@@ -48,7 +48,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			"search query matching template name or description. "+
 			"Use this to find a template before creating a workspace. "+
 			"Each result includes a short README excerpt for routing context; "+
-			"call read_template for the full README and parameters. "+
+			"call read_template for the README and parameters. "+
 			"Results are ordered by number of active developers (most popular first). "+
 			"Returns 10 per page. Use the page parameter to paginate through results.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
