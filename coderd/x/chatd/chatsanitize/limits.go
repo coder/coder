@@ -30,9 +30,9 @@ const (
 	// instead of being falsely rejected here.
 	bedrockRequestCapBytes = 20 * 1024 * 1024
 
-	pdfDefaultPageCap       = 100
-	pdfLargeContextPageCap  = 600
-	pdfLargeContextMinToken = 200_000
+	pdfDefaultPageCap        = 100
+	pdfLargeContextPageCap   = 600
+	pdfLargeContextThreshold = 200_000
 
 	pdfMediaType = "application/pdf"
 )
@@ -40,6 +40,10 @@ const (
 var (
 	pdfHeader            = []byte("%PDF-")
 	pdfPageObjectPattern = regexp.MustCompile(`/Type\s*/Page\b`)
+	// pdfIndirectObjectPattern matches indirect object headers ("12 0 obj")
+	// and captures the object number, which identifies an object across the
+	// superseded copies left behind by incremental saves.
+	pdfIndirectObjectPattern = regexp.MustCompile(`(\d+)\s+\d+\s+obj\b`)
 )
 
 // limits describes the preflight caps that apply to a request, plus the
@@ -61,7 +65,7 @@ func limitsFor(provider string, contextLimit int64) (limits, bool) {
 		pageCap := pdfDefaultPageCap
 		// A missing context limit is treated as a 200k-token model so preflight
 		// does not allow a request Anthropic may reject for page count.
-		if contextLimit > pdfLargeContextMinToken {
+		if contextLimit > pdfLargeContextThreshold {
 			pageCap = pdfLargeContextPageCap
 		}
 		// Display names mirror chatprovider.ProviderDisplayName, which cannot
@@ -123,7 +127,7 @@ func (v *validator) validate(prompt []fantasy.Message) error {
 	// estimate is a lower bound, so exceeding the cap guarantees rejection.
 	if v.estimatedRequestBytes > v.caps.requestPayloadBytes {
 		return v.reject(
-			fmt.Sprintf("This request is too large for %s's request size limit. Remove or shrink attachments and retry.", v.caps.displayName),
+			fmt.Sprintf("This request is too large for %s's request size limit. Remove attachments or start a shorter conversation and retry.", v.caps.displayName),
 			"reason=payload_cap estimated_request_bytes=%d request_payload_bytes=%d",
 			v.estimatedRequestBytes, v.caps.requestPayloadBytes,
 		)
@@ -163,7 +167,7 @@ func (v *validator) pageCapMessage(name string, filePages int) string {
 		)
 	}
 	return fmt.Sprintf(
-		"PDF attachments include about %d pages, but %s accepts at most %d pages for this model. Split the PDF and retry.",
+		"PDF attachments include about %d pages, but %s accepts at most %d pages for this model. Remove some PDF attachments or reduce total pages and retry.",
 		v.totalPages, v.caps.displayName, v.caps.pageCap,
 	)
 }
@@ -175,19 +179,41 @@ func attachmentLabel(name string) string {
 	return fmt.Sprintf("PDF attachment %q", name)
 }
 
-// isPDF reports whether data begins with the standard PDF header.
 func isPDF(data []byte) bool {
 	return bytes.HasPrefix(data, pdfHeader)
 }
 
-// approxPDFPageCount counts /Type /Page markers in data. ok is false when none
-// are found, so PDFs with unrecognized structure are not falsely rejected.
+// approxPDFPageCount counts /Type /Page markers in data, deduplicated by the
+// indirect object number each marker appears in. Incremental saves append new
+// revisions of a page object instead of rewriting the file, so counting raw
+// markers would overcount the superseded copies and falsely reject documents
+// with few logical pages. Markers outside any indirect object count
+// individually. ok is false when no markers are found, so PDFs with
+// unrecognized structure (such as pages inside compressed object streams) are
+// not falsely rejected.
 func approxPDFPageCount(data []byte) (count int, ok bool) {
-	matches := pdfPageObjectPattern.FindAllIndex(data, -1)
-	if len(matches) == 0 {
+	markers := pdfPageObjectPattern.FindAllIndex(data, -1)
+	if len(markers) == 0 {
 		return 0, false
 	}
-	return len(matches), true
+	headers := pdfIndirectObjectPattern.FindAllSubmatchIndex(data, -1)
+	pageObjects := make(map[string]struct{})
+	loose := 0
+	last := -1 // Index in headers of the last header starting before the marker.
+	next := 0
+	for _, marker := range markers {
+		for next < len(headers) && headers[next][0] < marker[0] {
+			last = next
+			next++
+		}
+		if last < 0 {
+			loose++
+			continue
+		}
+		objectNumber := string(data[headers[last][2]:headers[last][3]])
+		pageObjects[objectNumber] = struct{}{}
+	}
+	return len(pageObjects) + loose, true
 }
 
 // estimatePartBytes estimates a part's serialized contribution to the provider

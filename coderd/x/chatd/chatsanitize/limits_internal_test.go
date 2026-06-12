@@ -48,6 +48,21 @@ func TestValidatePromptLimits(t *testing.T) {
 		require.NoError(t, ValidatePromptLimits(" ANTHROPIC ", 200_000, badPDF))
 	})
 
+	t.Run("Applies Bedrock's lower request size cap", func(t *testing.T) {
+		t.Parallel()
+
+		// 21 MiB sits between Bedrock's 20 MiB cap and Anthropic's 32 MiB
+		// cap, so only Bedrock rejects it.
+		prompt := promptWithParts(fantasy.TextPart{Text: strings.Repeat("x", 21<<20)})
+
+		err := ValidatePromptLimits(fantasybedrock.Name, 200_000, prompt)
+		classified := requireRejected(t, err)
+		require.Contains(t, classified.Message, "AWS Bedrock")
+		require.Contains(t, err.Error(), "reason=payload_cap")
+
+		require.NoError(t, ValidatePromptLimits(fantasyanthropic.Name, 200_000, prompt))
+	})
+
 	t.Run("Uses larger page cap for larger context models", func(t *testing.T) {
 		t.Parallel()
 
@@ -74,6 +89,17 @@ func TestPDFHelpers(t *testing.T) {
 	// /Pages container objects are not page markers.
 	_, ok = approxPDFPageCount([]byte("%PDF-1.7\n<< /Type /Pages /Count 2 >>"))
 	require.False(t, ok)
+
+	// Incremental saves append superseded revisions of the same object
+	// number; only distinct page objects count.
+	count, ok = approxPDFPageCount([]byte(
+		"%PDF-1.7\n" +
+			"1 0 obj << /Type /Page >> endobj\n" +
+			"2 0 obj << /Type /Page >> endobj\n" +
+			"1 0 obj << /Type /Page /Rotate 90 >> endobj\n",
+	))
+	require.True(t, ok)
+	require.Equal(t, 2, count)
 }
 
 func TestValidatePromptLimitsWithCaps(t *testing.T) {
@@ -116,8 +142,10 @@ func TestValidatePromptLimitsWithCaps(t *testing.T) {
 		caps := limits{requestPayloadBytes: 40, pageCap: 100}
 		parts := []fantasy.MessagePart{
 			fantasy.TextPart{Text: strings.Repeat("x", 30)},
+			fantasy.ReasoningPart{Text: strings.Repeat("r", 30)},
 			fantasy.ToolCallPart{ToolName: "grep", Input: strings.Repeat("y", 30)},
 			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentText{Text: strings.Repeat("z", 30)}},
+			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentMedia{Data: strings.Repeat("m", 30)}},
 			fantasy.ToolResultPart{Output: fantasy.ToolResultOutputContentError{Error: xerrors.New(strings.Repeat("e", 30))}},
 			fantasy.FilePart{Filename: "notes.txt", Data: []byte(strings.Repeat("t", 30)), MediaType: "text/plain"},
 		}
