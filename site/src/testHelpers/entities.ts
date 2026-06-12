@@ -3441,6 +3441,46 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	order: 0,
 };
 
+// A text parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter1.
+export const MockPreviewParameter1: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter1.name,
+	display_name: MockTemplateVersionParameter1.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter1.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter1.default_value },
+};
+
+// A number parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter2.
+export const MockPreviewParameter2: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter2.name,
+	display_name: MockTemplateVersionParameter2.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter2.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter2.default_value },
+};
+
+// A text parameter that is required and immutable.  Maps to
+// MockTemplateVersionParameter4.
+export const MockPreviewParameter4: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter4.name,
+	display_name: MockTemplateVersionParameter4.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter4.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter4.default_value },
+	mutable: false,
+};
+
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
 	...MockPreviewParameter,
 	name: "instance_type",
