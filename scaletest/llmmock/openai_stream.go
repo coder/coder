@@ -136,7 +136,7 @@ func (s *Server) sendOpenAIStream(ctx context.Context, w http.ResponseWriter, re
 func (s *Server) writeOpenAITextStream(ctx context.Context, writer openAIStreamWriter, content string) bool {
 	first := true
 	for chunk := range s.streamContentChunks(ctx, s.randomStreamDuration(), content) {
-		delta := openAITextDelta("", chunk)
+		delta := openAIStreamDelta{Content: &chunk}
 		if first {
 			delta.Role = "assistant"
 			first = false
@@ -146,13 +146,6 @@ func (s *Server) writeOpenAITextStream(ctx context.Context, writer openAIStreamW
 		}
 	}
 	return ctx.Err() == nil
-}
-
-func openAITextDelta(role string, content string) openAIStreamDelta {
-	return openAIStreamDelta{
-		Role:    role,
-		Content: &content,
-	}
 }
 
 func openAIStreamToolCallDeltas(toolCalls []openAIToolCall) []openAIToolCallDelta {

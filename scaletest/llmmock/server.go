@@ -74,17 +74,24 @@ type Config struct {
 }
 
 type llmRequest struct {
-	Model    string          `json:"model"`
-	Messages []openAIMessage `json:"messages,omitempty"`
-	Tools    []openAITool    `json:"tools,omitempty"`
-	Stream   bool            `json:"stream,omitempty"`
+	Model    string              `json:"model"`
+	Messages []llmRequestMessage `json:"messages,omitempty"`
+	Tools    []openAITool        `json:"tools,omitempty"`
+	Stream   bool                `json:"stream,omitempty"`
 }
 
+// llmRequestMessage decodes only the request message fields the mock
+// inspects. Content is intentionally omitted: providers send it as either a
+// string or an array of content blocks, and the mock never reads it.
+type llmRequestMessage struct {
+	Role string `json:"role"`
+}
+
+// openAIMessage is the assistant message shape used in responses.
 type openAIMessage struct {
-	Role       string           `json:"role"`
-	Content    string           `json:"content,omitempty"`
-	ToolCalls  []openAIToolCall `json:"tool_calls,omitempty"`
-	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Role      string           `json:"role"`
+	Content   string           `json:"content,omitempty"`
+	ToolCalls []openAIToolCall `json:"tool_calls,omitempty"`
 }
 
 type openAITool struct {
