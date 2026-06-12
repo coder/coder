@@ -11,7 +11,7 @@ AI Gateway records the last `user` prompt, token usage, model reasoning, and eve
 
 ![User Leaderboard](../../images/aibridge/grafana_user_leaderboard.png)
 
-We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](https://github.com/coder/coder/blob/main/examples/monitoring/dashboards/grafana/aibridge/README.md).
+We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](../../../examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
