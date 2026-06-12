@@ -1,20 +1,6 @@
-import type {
-	WorkspaceAgent,
-	WorkspaceAgentPortShareProtocol,
-} from "#/api/typesGenerated";
+import type { WorkspaceAgentPortShareProtocol } from "#/api/typesGenerated";
 
 const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
-
-/**
- * Whether port-forwarding UI (ports menus, port preview tabs) can be shown
- * for the agent: requires a configured wildcard access URL and the agent
- * exposing the port forwarding helper.
- */
-export function canShowPortsMenu(agent: WorkspaceAgent, host: string): boolean {
-	return (
-		host.trim() !== "" && agent.display_apps.includes("port_forwarding_helper")
-	);
-}
 
 /**
  * Parse a port string from a URL, falling back to the protocol default

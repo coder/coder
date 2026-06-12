@@ -5,7 +5,7 @@ import type {
 } from "#/api/typesGenerated";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { canShowPortsMenu } from "#/utils/portForward";
+import { canShowPortForwarding } from "#/modules/resources/usePortsData";
 import { findWorkspaceAgent } from "#/utils/workspace";
 
 export type PortSelection = {
@@ -21,17 +21,11 @@ export type UserRightPanelTab =
 			label?: string;
 			reconnectionToken: string;
 			/**
-			 * Command run when the PTY session is first created. Used by command
-			 * apps that open as a renamed terminal tab instead of a browser
-			 * window. The backend only runs the command for a fresh reconnect
-			 * token, so reattaching after a reload does not re-run it.
+			 * Command run when the PTY session is first created. The backend only
+			 * runs it for a fresh reconnect token, so reattaching does not re-run it.
 			 */
 			initialCommand?: string;
-			/**
-			 * Set when the terminal was opened from a command app. Used to
-			 * deduplicate so reopening the same command app activates the
-			 * existing terminal tab instead of starting another session.
-			 */
+			/** ID of the command app that opened this terminal, used to dedupe tabs. */
 			sourceAppId?: string;
 	  }
 	| {
@@ -126,6 +120,8 @@ export function validateUserRightPanelTabs(
 		// Mirror the add-menu gate so a persisted port tab disappears when
 		// the agent stops exposing the port forwarding helper.
 		const agent = findWorkspaceAgent(workspace, tab.agentId);
-		return agent !== undefined && canShowPortsMenu(agent, wildcardHostname);
+		return (
+			agent !== undefined && canShowPortForwarding(agent, wildcardHostname)
+		);
 	});
 }

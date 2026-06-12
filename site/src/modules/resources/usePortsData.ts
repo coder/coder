@@ -1,6 +1,6 @@
 import { useQuery } from "react-query";
-import { API } from "#/api/api";
 import { workspacePortShares } from "#/api/queries/workspaceportsharing";
+import { agentListeningPorts } from "#/api/queries/workspaces";
 import type {
 	Workspace,
 	WorkspaceAgent,
@@ -8,6 +8,20 @@ import type {
 	WorkspaceAgentPortShare,
 } from "#/api/typesGenerated";
 import { getWorkspaceListeningPortsProtocol } from "#/utils/portForward";
+
+/**
+ * Whether port-forwarding UI (ports menus, port preview tabs) should be shown
+ * for the agent: requires a configured wildcard access URL and the agent
+ * opting into the port_forwarding_helper display app.
+ */
+export const canShowPortForwarding = (
+	agent: WorkspaceAgent,
+	host: string,
+): boolean => {
+	return (
+		host.trim() !== "" && agent.display_apps.includes("port_forwarding_helper")
+	);
+};
 
 export interface PortsData {
 	listeningPorts: readonly WorkspaceAgentListeningPort[] | undefined;
@@ -30,8 +44,7 @@ export const usePortsData = (
 	const protocol = getWorkspaceListeningPortsProtocol(workspace.id);
 
 	const { data: listeningPorts } = useQuery({
-		queryKey: ["portForward", agent.id],
-		queryFn: () => API.getAgentListeningPorts(agent.id),
+		...agentListeningPorts(agent.id),
 		enabled,
 		refetchInterval: enabled ? 5_000 : false,
 		staleTime: 0,

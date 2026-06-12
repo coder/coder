@@ -44,9 +44,11 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
-import { usePortsData } from "#/modules/resources/usePortsData";
+import {
+	canShowPortForwarding,
+	usePortsData,
+} from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
-import { canShowPortsMenu } from "#/utils/portForward";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
 import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
@@ -84,7 +86,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const hasVSCode = builtinApps.has("vscode");
 	const hasVSCodeInsiders = builtinApps.has("vscode_insiders");
 	const hasTerminal = builtinApps.has("web_terminal");
-	const portForwardingEnabled = canShowPortsMenu(agent, host);
+	const portForwardingEnabled = canShowPortForwarding(agent, host);
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
 

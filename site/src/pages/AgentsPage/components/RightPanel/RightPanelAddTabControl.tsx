@@ -21,9 +21,11 @@ import {
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { AppLink } from "#/modules/resources/AppLink/AppLink";
-import { usePortsData } from "#/modules/resources/usePortsData";
+import {
+	canShowPortForwarding,
+	usePortsData,
+} from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
-import { canShowPortsMenu } from "#/utils/portForward";
 import type { PortSelection } from "../../utils/rightPanelTabs";
 import { PortsMenuItem } from "../WorkspacePillPorts";
 
@@ -188,7 +190,7 @@ export const RightPanelAddTabControl: FC<{
 						{workspace &&
 							agent &&
 							onOpenPort &&
-							canShowPortsMenu(agent, host) && (
+							canShowPortForwarding(agent, host) && (
 								<>
 									<DropdownMenuSeparator className="my-1" />
 									<AgentPortsSubMenu

@@ -219,6 +219,91 @@ interface AgentChatPageViewProps {
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 }
 
+const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
+	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
+		{message}
+	</div>
+);
+
+interface UserTabContentProps {
+	tab: UserRightPanelTab;
+	chatId: string;
+	workspace: TypesGen.Workspace | undefined;
+	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
+	wildcardHostname: string;
+	sidebarVisible: boolean;
+	isActive: boolean;
+	isPending: boolean;
+	onTerminalReady: (tabId: string) => void;
+}
+
+const UserTabContent: FC<UserTabContentProps> = ({
+	tab,
+	chatId,
+	workspace,
+	workspaceAgent,
+	wildcardHostname,
+	sidebarVisible,
+	isActive,
+	isPending,
+	onTerminalReady,
+}) => {
+	switch (tab.kind) {
+		case "terminal":
+			return workspace && workspaceAgent ? (
+				<TerminalPanel
+					chatId={chatId}
+					reconnectionToken={tab.reconnectionToken}
+					initialCommand={tab.initialCommand}
+					isHot={sidebarVisible && (isActive || isPending)}
+					autoFocus={sidebarVisible && isActive}
+					onReady={() => onTerminalReady(tab.id)}
+					workspace={workspace}
+					workspaceAgent={workspaceAgent}
+				/>
+			) : (
+				<UnavailableTabMessage message="Terminal will be available once the workspace agent is ready." />
+			);
+		case "workspace_app": {
+			if (!workspace) {
+				return null;
+			}
+			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
+			if (!app || !isWorkspaceAppEmbeddable(app)) {
+				return (
+					<UnavailableTabMessage message="This workspace app is no longer available as a right-panel tab." />
+				);
+			}
+			return (
+				<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
+			);
+		}
+		case "port": {
+			if (!workspace) {
+				return null;
+			}
+			const agent = findWorkspaceAgent(workspace, tab.agentId);
+			if (!agent) {
+				return (
+					<UnavailableTabMessage message="This port preview tab is no longer available." />
+				);
+			}
+			return (
+				<PortPreviewPanel
+					workspace={workspace}
+					agent={agent}
+					host={wildcardHostname}
+					tab={tab}
+				/>
+			);
+		}
+		default: {
+			const _exhaustive: never = tab;
+			return _exhaustive;
+		}
+	}
+};
+
 export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	agentId,
 	sendShortcut,
@@ -585,82 +670,6 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		activateRightPanelTab(tab.id);
 	};
 
-	const renderUnavailableTab = (message: string): ReactNode => (
-		<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-			{message}
-		</div>
-	);
-
-	const renderUserTabContent = (tab: UserRightPanelTab): ReactNode => {
-		switch (tab.kind) {
-			case "terminal":
-				return workspace && workspaceAgent ? (
-					<TerminalPanel
-						chatId={agentId}
-						reconnectionToken={tab.reconnectionToken}
-						initialCommand={tab.initialCommand}
-						isHot={
-							shouldShowSidebar &&
-							(effectiveSidebarTabId === tab.id || pendingTabId === tab.id)
-						}
-						autoFocus={shouldShowSidebar && effectiveSidebarTabId === tab.id}
-						onReady={() => handleTerminalTabReady(tab.id)}
-						workspace={workspace}
-						workspaceAgent={workspaceAgent}
-					/>
-				) : (
-					renderUnavailableTab(
-						"Terminal will be available once the workspace agent is ready.",
-					)
-				);
-			case "workspace_app": {
-				if (!workspace) {
-					return null;
-				}
-				const app = findWorkspaceAppWithAgent(
-					workspace,
-					tab.agentId,
-					tab.appId,
-				);
-				if (!app || !isWorkspaceAppEmbeddable(app)) {
-					return renderUnavailableTab(
-						"This workspace app is no longer available as a right-panel tab.",
-					);
-				}
-				return (
-					<WorkspaceAppFrame
-						workspace={workspace}
-						app={app}
-						active={effectiveSidebarTabId === tab.id}
-					/>
-				);
-			}
-			case "port": {
-				if (!workspace) {
-					return null;
-				}
-				const agent = findWorkspaceAgent(workspace, tab.agentId);
-				if (!agent) {
-					return renderUnavailableTab(
-						"This port preview tab is no longer available.",
-					);
-				}
-				return (
-					<PortPreviewPanel
-						workspace={workspace}
-						agent={agent}
-						host={wildcardHostname}
-						tab={tab}
-					/>
-				);
-			}
-			default: {
-				const _exhaustive: never = tab;
-				return _exhaustive;
-			}
-		}
-	};
-
 	const renderTabContent = (tabId: string): ReactNode => {
 		switch (tabId) {
 			case "git":
@@ -717,7 +726,19 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 				const userTab = validatedUserRightPanelTabs.find(
 					(tab) => tab.id === tabId,
 				);
-				return userTab ? renderUserTabContent(userTab) : null;
+				return userTab ? (
+					<UserTabContent
+						tab={userTab}
+						chatId={agentId}
+						workspace={workspace}
+						workspaceAgent={workspaceAgent}
+						wildcardHostname={wildcardHostname}
+						sidebarVisible={shouldShowSidebar}
+						isActive={effectiveSidebarTabId === userTab.id}
+						isPending={pendingTabId === userTab.id}
+						onTerminalReady={handleTerminalTabReady}
+					/>
+				) : null;
 			}
 		}
 	};
