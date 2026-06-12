@@ -169,6 +169,62 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, err.Error(), `unknown module "nonexistent-module"`)
 	})
 
+	t.Run("UnknownVariableKeyRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{
+					ID: "code-server",
+					Variables: map[string]string{
+						"nonexistent_var": `"value"`,
+					},
+				},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `module "code-server"`)
+		require.Contains(t, err.Error(), `unknown variable "nonexistent_var"`)
+	})
+
+	t.Run("InvalidVariableValueRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{
+					ID: "code-server",
+					Variables: map[string]string{
+						"port": "not-a-number",
+					},
+				},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `module "code-server"`)
+		require.Contains(t, err.Error(), `variable "port"`)
+	})
+
+	t.Run("HCLInjectionRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+			Modules: []templatebuilder.ComposeModule{
+				{
+					ID: "code-server",
+					Variables: map[string]string{
+						"folder": `"${var.evil}"`,
+					},
+				},
+			},
+		})
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "interpolation")
+	})
+
 	t.Run("MissingRequiredVariable", func(t *testing.T) {
 		t.Parallel()
 		// git-clone has a required "url" variable with no default.
