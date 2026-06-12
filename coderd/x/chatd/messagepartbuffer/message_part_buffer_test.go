@@ -19,6 +19,7 @@ func TestBuffer_CreateEpisodeRejectsDuplicate(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.ErrorIs(t, buffer.CreateEpisode(key), messagepartbuffer.ErrEpisodeExists)
@@ -28,6 +29,7 @@ func TestBuffer_AddPartAndGetParts(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("hello")))
@@ -44,6 +46,7 @@ func TestBuffer_AddPartMissingEpisodeReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	err := buffer.AddPart(testEpisodeKey(), codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("hello"))
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 }
@@ -52,6 +55,7 @@ func TestBuffer_GetPartsMissingEpisodeReturnsNotFound(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	_, err := buffer.GetParts(testEpisodeKey())
 	require.ErrorIs(t, err, messagepartbuffer.ErrEpisodeNotFound)
 }
@@ -60,6 +64,7 @@ func TestBuffer_AddPartFullEpisodeReturnsFull(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{MaxEpisodeBytes: 1})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	err := buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("hello"))
@@ -73,6 +78,7 @@ func TestBuffer_CloseEpisodeMissingCreatesClosedEpisode(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CloseEpisode(key))
 	parts, err := buffer.GetParts(key)
@@ -86,6 +92,7 @@ func TestBuffer_CloseEpisodeIdempotent(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.CloseEpisode(key))
@@ -96,6 +103,7 @@ func TestBuffer_SubscribeExistingReplaysThenStreamsLiveParts(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("before")))
@@ -114,6 +122,7 @@ func TestBuffer_SubscribeClosedEpisodeReplaysThenCloses(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("before")))
@@ -131,6 +140,7 @@ func TestBuffer_SubscribeBeforeCreateReturnsAndWaitsWithoutNotFound(t *testing.T
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
@@ -152,6 +162,7 @@ func TestBuffer_AddPartAssignsContiguousSeq(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	for i := range 3 {
@@ -168,6 +179,7 @@ func TestBuffer_EpisodeByteLimitUsesJSONAccounting(t *testing.T) {
 	part := codersdk.ChatMessageText("hello")
 	limit := serializedPartBytes(t, messagepartbuffer.Part{Seq: 1, Role: codersdk.ChatMessageRoleAssistant, MessagePart: part})
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{MaxEpisodeBytes: limit})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, part))
@@ -186,6 +198,7 @@ func TestBuffer_GCClosedEpisodeAfterGraceAndNoSubscribers(t *testing.T) {
 		ClosedEpisodeRetention: time.Minute,
 		SubscriberSendTimeout:  10 * time.Minute,
 	})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("held")))
@@ -217,6 +230,7 @@ func TestBuffer_GCRetainedSubscribedEpisodeDoesNotBlockOtherExpiredEpisodes(t *t
 		ClosedEpisodeRetention: time.Minute,
 		SubscriberSendTimeout:  10 * time.Minute,
 	})
+	defer buffer.Close()
 	retainedKey := testEpisodeKey()
 	collectedKey := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(retainedKey))
@@ -257,6 +271,7 @@ func TestBuffer_SlowSubscriberClosed(t *testing.T) {
 		Clock:                 clock,
 		SubscriberSendTimeout: time.Second,
 	})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -277,6 +292,7 @@ func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{SubscriberChannelSize: 1})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -297,6 +313,7 @@ func TestBuffer_SubscribeCanceledBeforeCreateCanCreateEpisode(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx, cancel := context.WithCancel(context.Background())
 	ch, cancelSub, err := buffer.SubscribeToEpisode(ctx, key)
@@ -311,6 +328,7 @@ func TestBuffer_SubscribeCanceledWithoutCreateReclaimsEpisode(t *testing.T) {
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ch, cancelSub, err := buffer.SubscribeToEpisode(ctx, key)
@@ -329,6 +347,7 @@ func TestBuffer_CloseClosesPendingSubscriptionAndRejectsOperations(t *testing.T)
 	t.Parallel()
 
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	key := testEpisodeKey()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ch, cancel, err := buffer.SubscribeToEpisode(ctx, key)
