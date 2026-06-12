@@ -348,6 +348,14 @@ jobs:
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
       - name: POST to coder.com docs indexer
+        # Sentinel guard. The Compute step has two release-event
+        # early-exit paths (prerelease skip, non-semver tag skip) that
+        # succeed without writing action/ref to GITHUB_OUTPUT. Without
+        # this guard, the POST would still fire with empty ACTION and
+        # REF env vars, sending stray no-op traffic to the production
+        # handler. The step only writes `action` on the success path,
+        # so its presence is a reliable proceed signal. See DOCS-327.
+        if: steps.input.outputs.action != ''
         env:
           ACTION: ${{ steps.input.outputs.action }}
           REF: ${{ steps.input.outputs.ref }}
