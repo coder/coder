@@ -29,11 +29,8 @@ import {
 	PortsMenuItem,
 } from "../WorkspacePillPorts";
 
-/**
- * Ports submenu for the add-tab control. Fetches port data only while the menu
- * is open and reuses the shared WorkspacePillPorts menu item, configured to
- * create a port preview tab instead of opening the port in a new browser tab.
- */
+// usePortsData requires a workspace and agent, which are optional props on the
+// parent control, so the hook lives in this conditionally rendered component.
 const AgentPortsSubMenu: FC<{
 	workspace: Workspace;
 	agent: WorkspaceAgent;
@@ -88,11 +85,6 @@ export const RightPanelAddTabControl: FC<{
 	const userApps = agent?.apps.filter((app) => !app.hidden) ?? [];
 	const canCreateTerminal =
 		!disabled && workspace !== undefined && agent !== undefined;
-	const canShowPorts =
-		onOpenPort !== undefined &&
-		workspace !== undefined &&
-		agent !== undefined &&
-		canShowPortsMenu(agent, host);
 
 	return (
 		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid border-border-default bg-surface-primary text-content-secondary">
@@ -197,19 +189,22 @@ export const RightPanelAddTabControl: FC<{
 							</>
 						)}
 
-						{workspace && agent && canShowPorts && onOpenPort && (
-							<>
-								<DropdownMenuSeparator className="my-1" />
-								<AgentPortsSubMenu
-									workspace={workspace}
-									agent={agent}
-									host={host}
-									isOpen={open}
-									isRunning={isRunning}
-									onPortSelect={onOpenPort}
-								/>
-							</>
-						)}
+						{workspace &&
+							agent &&
+							onOpenPort &&
+							canShowPortsMenu(agent, host) && (
+								<>
+									<DropdownMenuSeparator className="my-1" />
+									<AgentPortsSubMenu
+										workspace={workspace}
+										agent={agent}
+										host={host}
+										isOpen={open}
+										isRunning={isRunning}
+										onPortSelect={onOpenPort}
+									/>
+								</>
+							)}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			)}

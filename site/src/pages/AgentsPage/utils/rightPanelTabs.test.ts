@@ -84,6 +84,23 @@ describe("right-panel tab validation", () => {
 		expect(validated.some((tab) => tab.kind === "port")).toBe(false);
 	});
 
+	it("drops port tabs when the agent no longer exposes the port forwarding helper", () => {
+		const agent: WorkspaceAgent = {
+			...MockWorkspaceAgent,
+			display_apps: MockWorkspaceAgent.display_apps.filter(
+				(app) => app !== "port_forwarding_helper",
+			),
+		};
+
+		const validated = validateUserRightPanelTabs(tabs, {
+			workspace: buildWorkspace([agent]),
+			workspaceAgent: agent,
+			wildcardHostname: "*.apps.example.com",
+		});
+
+		expect(validated).toEqual(tabs.filter((tab) => tab.kind !== "port"));
+	});
+
 	it("drops app tabs when the app no longer exists", () => {
 		const validated = validateUserRightPanelTabs(
 			[

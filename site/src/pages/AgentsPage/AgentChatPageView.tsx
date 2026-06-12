@@ -406,17 +406,14 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// When app and port tabs are gated off, persisted tabs of those kinds
 	// are hidden rather than deleted; the save effect persists the raw tab
 	// state, so they reappear if the gate lifts.
-	const getValidatedUserRightPanelTabs = (
-		tabs: readonly UserRightPanelTab[],
-	): UserRightPanelTab[] =>
-		validateUserRightPanelTabs(tabs, {
-			workspace,
-			workspaceAgent,
-			wildcardHostname,
-		}).filter((tab) => userAppTabsEnabled || tab.kind === "terminal");
-	const validatedUserRightPanelTabs =
-		getValidatedUserRightPanelTabs(userRightPanelTabs);
+	const validatedUserRightPanelTabs = validateUserRightPanelTabs(
+		userRightPanelTabs,
+		{ workspace, workspaceAgent, wildcardHostname },
+	).filter((tab) => userAppTabsEnabled || tab.kind === "terminal");
 
+	const hasBuiltInTerminal = Boolean(
+		workspace && workspaceAgent && !defaultTerminalHidden,
+	);
 	// Single source of truth for available tabs and their order. The list
 	// of tab IDs used by `getEffectiveTabId` is derived from this so a
 	// new tab can never be added to one without the other going out of
@@ -425,19 +422,18 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 		{ id: "git", label: "Git" },
 		...(debugLoggingEnabled ? [{ id: "debug", label: "Debug" }] : []),
 		...(availableDesktopChatId ? [{ id: "desktop", label: "Desktop" }] : []),
-		...(workspace && workspaceAgent && !defaultTerminalHidden
-			? [{ id: "terminal", label: "Terminal" }]
-			: []),
+		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
 	];
-	const baseTerminalOffset =
-		workspace && workspaceAgent && !defaultTerminalHidden ? 1 : 0;
 	// Dense terminal numbering: position among terminal tabs, after the
 	// built-in Terminal when visible. Closing a terminal renumbers the
 	// ones after it.
 	const terminalNumbers = new Map(
 		validatedUserRightPanelTabs
 			.filter((tab) => tab.kind === "terminal")
-			.map((tab, index) => [tab.id, baseTerminalOffset + index + 1] as const),
+			.map(
+				(tab, index) =>
+					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
+			),
 	);
 	const sidebarTabConfigs = [
 		...builtInSidebarTabConfigs,

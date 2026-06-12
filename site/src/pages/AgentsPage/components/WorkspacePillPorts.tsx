@@ -28,16 +28,8 @@ import {
 import type { PortsData } from "#/modules/resources/usePortsData";
 import { portForwardURL } from "#/utils/portForward";
 
-/**
- * Source of a port preview tab. Listening ports come from the agent's detected
- * open ports; shared ports come from configured port shares.
- */
 export type PortTabSource = "listening" | "shared";
 
-/**
- * A port chosen from the ports menu. The right-panel add-tab control turns this
- * into a port preview tab instead of opening the port in a new browser tab.
- */
 export type PortSelection = {
 	label: string;
 	port: number;
@@ -45,10 +37,6 @@ export type PortSelection = {
 	source: PortTabSource;
 };
 
-/**
- * Whether the ports menu can be shown for an agent. Requires a configured
- * wildcard access URL (host) and the agent's port-forwarding helper.
- */
 export function canShowPortsMenu(agent: WorkspaceAgent, host: string): boolean {
 	return (
 		host.trim() !== "" && agent.display_apps.includes("port_forwarding_helper")
@@ -270,16 +258,18 @@ const ListeningPortItem: FC<{
 		ownerName,
 		protocol,
 	);
-	const selection: PortSelection = {
-		label: `Port ${port.port}`,
-		port: port.port,
-		protocol,
-		source: "listening",
-	};
-
 	if (onPortSelect) {
 		return (
-			<DropdownMenuItem onSelect={() => onPortSelect(selection)}>
+			<DropdownMenuItem
+				onSelect={() =>
+					onPortSelect({
+						label: `Port ${port.port}`,
+						port: port.port,
+						protocol,
+						source: "listening",
+					})
+				}
+			>
 				<RadioIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{port.port}</span>
 				{port.process_name !== "" && (
@@ -329,16 +319,18 @@ const SharedPortItem: FC<{
 			: share.share_level === "organization"
 				? BuildingIcon
 				: LockIcon;
-	const selection: PortSelection = {
-		label: `Port ${share.port}`,
-		port: share.port,
-		protocol: share.protocol,
-		source: "shared",
-	};
-
 	if (onPortSelect) {
 		return (
-			<DropdownMenuItem onSelect={() => onPortSelect(selection)}>
+			<DropdownMenuItem
+				onSelect={() =>
+					onPortSelect({
+						label: `Port ${share.port}`,
+						port: share.port,
+						protocol: share.protocol,
+						source: "shared",
+					})
+				}
+			>
 				<ShareIcon className="size-3.5 shrink-0" />
 				<span className="font-mono tabular-nums">{share.port}</span>
 				<span className="truncate capitalize text-content-tertiary">

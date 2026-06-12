@@ -19,10 +19,8 @@ export interface PortsData {
 }
 
 /**
- * Fetches an agent's listening ports and the workspace's shared ports, filtered
- * to the given agent. Shared by the workspace port-forward button and the
- * AgentsPage right-panel ports menu so both stay on the same query keys and
- * refresh cadence.
+ * Used by both the workspace port-forward button and the AgentsPage right-panel
+ * ports menu so they stay on the same query keys and refresh cadence.
  */
 export const usePortsData = (
 	workspace: Workspace,

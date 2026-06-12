@@ -6,7 +6,10 @@ import type {
 import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { findWorkspaceAgent } from "#/utils/workspace";
-import type { PortTabSource } from "../components/WorkspacePillPorts";
+import {
+	canShowPortsMenu,
+	type PortTabSource,
+} from "../components/WorkspacePillPorts";
 
 export type UserRightPanelTab =
 	| {
@@ -118,9 +121,9 @@ export function validateUserRightPanelTabs(
 			return app !== undefined && isWorkspaceAppEmbeddable(app);
 		}
 
-		return (
-			wildcardHostname.trim() !== "" &&
-			findWorkspaceAgent(workspace, tab.agentId) !== undefined
-		);
+		// Mirror the add-menu gate so a persisted port tab disappears when
+		// the agent stops exposing the port forwarding helper.
+		const agent = findWorkspaceAgent(workspace, tab.agentId);
+		return agent !== undefined && canShowPortsMenu(agent, wildcardHostname);
 	});
 }

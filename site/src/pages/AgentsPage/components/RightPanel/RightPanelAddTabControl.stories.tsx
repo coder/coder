@@ -118,6 +118,38 @@ export const DisconnectedWorkspace: Story = {
 		},
 		isRunning: false,
 	},
+	parameters: {
+		// No seeded port data: the ports query does not run while the agent
+		// is disconnected, so the trigger shows no count.
+		queries: [],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByLabelText("Add panel"));
+
+		const body = within(document.body);
+		await waitFor(() => {
+			// Creating a terminal is gated on workspace/agent presence, not on
+			// the workspace running.
+			const terminalItem = body
+				.getByText("New Terminal")
+				.closest("[role=menuitem]");
+			expect(terminalItem).not.toHaveAttribute("aria-disabled", "true");
+
+			// App items render but are disabled while the workspace is not
+			// running.
+			const previewItem = body.getByText("Preview").closest("[role=menuitem]");
+			expect(previewItem).toHaveAttribute("aria-disabled", "true");
+			const commandItem = body
+				.getByText("Claude Code")
+				.closest("[role=menuitem]");
+			expect(commandItem).toHaveAttribute("aria-disabled", "true");
+
+			// Ports sub-trigger is disabled, with no stale port count.
+			const portsItem = body.getByText("Ports").closest("[role=menuitem]");
+			expect(portsItem).toHaveAttribute("aria-disabled", "true");
+		});
+	},
 };
 
 export const AppExperimentDisabled: Story = {
