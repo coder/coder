@@ -93,7 +93,8 @@ jobs:
   #   paths_json:        a JSON array of {path, status} objects, or "[]"
   #                      when no markdown changes are eligible for
   #                      surgical mode (manifest-only push, an
-  #                      uncomputable diff, a workflow_dispatch trigger,
+  #                      uncomputable diff, a non-push event
+  #                      (workflow_dispatch or release.published),
   #                      or a diff that exceeds the surgical-mode cap).
   #                      An empty array tells the handler to fall back
   #                      to whole-branch reindex.
