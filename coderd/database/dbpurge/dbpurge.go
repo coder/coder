@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"io"
-	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -56,10 +54,7 @@ func WithClock(clk quartz.Clock) Option {
 
 // New creates a new periodically purging database instance.
 // Callers must Close the returned instance.
-//
-// The auditor pointer is accepted for compatibility with other background
-// services. Dbpurge does not emit audit logs directly.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, _ *atomic.Pointer[audit.Auditor], opts ...Option) io.Closer {
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -139,11 +134,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 	// the tx so the failed iteration is operator-visible via metric and
 	// logs.
 	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
+	purgeChats := chatRetentionErr == nil
 	if chatRetentionErr != nil {
 		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge this tick", slog.Error(chatRetentionErr))
 	}
 
 	chatDebugRetentionDays, chatDebugRetentionErr := db.GetChatDebugRetentionDays(ctx, codersdk.DefaultChatDebugRetentionDays)
+	purgeChatDebugRuns := chatDebugRetentionErr == nil
 	if chatDebugRetentionErr != nil {
 		i.logger.Error(ctx, "failed to read chat debug retention config: skipping chat debug purge this tick", slog.Error(chatDebugRetentionErr))
 	}
@@ -255,13 +252,13 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 		}
 
 		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
-		if chatRetentionErr == nil {
+		if purgeChats {
 			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
 			if err != nil {
 				return xerrors.Errorf("failed to purge chats: %w", err)
 			}
 		}
-		if chatDebugRetentionErr == nil && chatDebugRetentionDays > 0 {
+		if purgeChatDebugRuns && chatDebugRetentionDays > 0 {
 			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
 			// updated_at is the retention clock, so the window starts after
 			// the run stops being written to. There is intentionally no
