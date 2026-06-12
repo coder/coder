@@ -625,9 +625,9 @@ var (
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceAiModelPrice.Type:         {policy.ActionUpdate}, // Required for the startup price seeder.
-					rbac.ResourceAiSeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
-					rbac.ResourceAIProvider.Type:           {policy.ActionRead},   // Required to load the provider snapshot (and per-provider keys) at startup.
+					rbac.ResourceAiModelPrice.Type:         {policy.ActionRead, policy.ActionUpdate}, // Read: per-interception cost lookup. Update: startup price seeder.
+					rbac.ResourceAiSeat.Type:               {policy.ActionCreate},                    // Required for UpsertAISeatState.
+					rbac.ResourceAIProvider.Type:           {policy.ActionRead},                      // Required to load the provider snapshot (and per-provider keys) at startup.
 				}),
 				User:    []rbac.Permission{},
 				ByOrgID: map[string]rbac.OrgPermissions{},
