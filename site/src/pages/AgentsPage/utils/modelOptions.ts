@@ -2,6 +2,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ModelSelectorOption } from "../components/ChatElements";
 import {
 	asNumber,
+	asRecord,
 	asString,
 } from "../components/ChatElements/runtimeTypeUtils";
 
@@ -165,6 +166,48 @@ export const resolveModelOptionId = (
 	return "";
 };
 
+// Maps a provider name to the JSON path inside ChatModelCallConfig
+// where the model's reasoning-effort value lives. The path is provider
+// specific because the API surfaces OpenAI as `reasoning_effort` and
+// Anthropic as `effort` under different provider option objects.
+const EFFORT_PROVIDER_PATHS: Record<string, readonly [string, string]> = {
+	openai: ["openai", "reasoning_effort"],
+	openaicompat: ["openaicompat", "reasoning_effort"],
+	anthropic: ["anthropic", "effort"],
+};
+
+/**
+ * Reads the admin-configured reasoning effort off a ChatModelConfig.
+ * Returns the canonical lowercase string (e.g. "high") or undefined
+ * when the model has no effort set or the provider does not expose
+ * one.
+ */
+const extractEffort = (
+	provider: string,
+	config: ModelOptionConfigLike,
+): string | undefined => {
+	const path = EFFORT_PROVIDER_PATHS[provider];
+	if (!path) {
+		return undefined;
+	}
+	const modelConfig = asRecord(
+		(config as { readonly model_config?: unknown }).model_config,
+	);
+	if (!modelConfig) {
+		return undefined;
+	}
+	const providerOptions = asRecord(modelConfig.provider_options);
+	if (!providerOptions) {
+		return undefined;
+	}
+	const providerBlock = asRecord(providerOptions[path[0]]);
+	if (!providerBlock) {
+		return undefined;
+	}
+	const raw = asString(providerBlock[path[1]]).trim().toLowerCase();
+	return raw === "" ? undefined : raw;
+};
+
 export const getModelOptionsFromConfigs = (
 	configs: readonly TypesGen.ChatModelConfig[] | null | undefined,
 	catalog: TypesGen.ChatModelsResponse | null | undefined,
@@ -192,12 +235,14 @@ export const getModelOptionsFromConfigs = (
 
 		const displayName = asString(config.display_name).trim() || model;
 		const contextLimit = asNumber(config.context_limit);
+		const effort = extractEffort(provider, config);
 		options.push({
 			id: configID,
 			provider,
 			model,
 			displayName,
 			...(contextLimit !== undefined ? { contextLimit } : {}),
+			...(effort ? { effort } : {}),
 		});
 	}
 
