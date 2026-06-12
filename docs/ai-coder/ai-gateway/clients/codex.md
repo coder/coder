@@ -56,6 +56,11 @@ export CODER_API_TOKEN="<your-coder-api-token>"
 
 ## BYOK (ChatGPT Subscription)
 
+> [!IMPORTANT]
+> This flow requires a [ChatGPT provider](../providers.md#chatgpt) on
+> the deployment. Without it, Codex requests fail with
+> `404 route not supported: POST /chatgpt/v1/responses`.
+
 Add the following to your Codex configuration file (e.g., `~/.codex/config.toml`):
 
 ```toml
@@ -87,16 +92,53 @@ When you run Codex, it will prompt you to log in with your ChatGPT account.
 ## Pre-configuring in Templates
 
 If configuring within a Coder workspace, you can use the
-[Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module:
+[Codex CLI](https://registry.coder.com/modules/coder-labs/codex) module.
+
+For the centralized API key flow, set `enable_ai_gateway`:
 
 ```tf
 module "codex" {
   source            = "registry.coder.com/coder-labs/codex/coder"
-  version           = "~> 4.1"
+  version           = "~> 5.0"
   agent_id          = coder_agent.main.id
   workdir           = "/path/to/project"  # Set to your project directory
   enable_ai_gateway = true
 }
 ```
+
+For the ChatGPT subscription flow, pass the provider configuration
+through `base_config_toml` and inject the Coder API token with a
+`coder_env` resource. Users authenticate by running `codex login` with
+their ChatGPT account:
+
+```tf
+resource "coder_env" "coder_api_token" {
+  agent_id = coder_agent.main.id
+  name     = "CODER_API_TOKEN"
+  value    = data.coder_workspace_owner.me.session_token
+}
+
+module "codex" {
+  source   = "registry.coder.com/coder-labs/codex/coder"
+  version  = "~> 5.0"
+  agent_id = coder_agent.main.id
+  workdir  = "/path/to/project" # Set to your project directory
+
+  base_config_toml = <<-TOML
+    model_provider = "ai_gateway"
+
+    [model_providers.ai_gateway]
+    name = "AI Gateway"
+    base_url = "${data.coder_workspace.me.access_url}/api/v2/aibridge/chatgpt/v1"
+    wire_api = "responses"
+    requires_openai_auth = true
+    env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
+  TOML
+}
+```
+
+Do not set `OPENAI_API_KEY` in the workspace when using the ChatGPT
+subscription flow, or Codex authenticates with the API key instead of
+the ChatGPT login.
 
 **References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-advanced)
