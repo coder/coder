@@ -616,7 +616,13 @@ export const router = createBrowserRouter(
 
 					<Route path="/tasks" element={<TasksPage />} />
 
-					<Route path="/docs/*" element={<DocsPage />} />
+					{/* Both registrations are needed: a bare splat route ties with
+              the /:username/:workspace index route in route ranking for
+              two-segment paths like /docs/install, and the tie resolves
+              against the docs page. The static-plus-param form outranks
+              the dynamic pair. */}
+					<Route path="/docs" element={<DocsPage />} />
+					<Route path="/docs/:page/*" element={<DocsPage />} />
 
 					<Route path="/organizations" element={<OrganizationSettingsLayout />}>
 						<Route path="new" element={<CreateOrganizationPage />} />

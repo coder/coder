@@ -20,7 +20,10 @@ import {
 
 const DocsPage: FC = () => {
 	const params = useParams();
-	const activeRoute = (params["*"] ?? "").replace(/\/+$/, "");
+	const activeRoute = [params.page, params["*"]]
+		.filter(Boolean)
+		.join("/")
+		.replace(/\/+$/, "");
 	const manifestQuery = useQuery(docsManifestQuery());
 
 	if (manifestQuery.error) {
