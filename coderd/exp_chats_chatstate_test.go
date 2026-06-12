@@ -172,7 +172,9 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, func(o *coderdtest.Options) {
+		o.ChatWorkerDisabled = true
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
