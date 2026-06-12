@@ -1364,6 +1364,21 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateChatShared",
+			id:   notifications.TemplateChatShared,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"chat_id":    "00000000-0000-0000-0000-000000000001",
+					"chat_title": "Onboarding kickoff",
+					"initiator":  "alice",
+				},
+				Data: map[string]any{},
+			},
+		},
+		{
 			// Default branch: multiple visible chats, retention enabled,
 			// no overflow. Body phrasing is number-neutral so this also
 			// covers the n>1 grammar shape without a dedicated branch in
