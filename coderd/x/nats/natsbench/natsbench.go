@@ -12,14 +12,10 @@ import (
 
 const (
 	// DefaultMessages is the default total message count for a run.
-	DefaultMessages = 100_000
+	DefaultMessages = 100000
 	// Payload8KB and Payload64KB are the standard matrix payload sizes.
 	Payload8KB  = 8 << 10
 	Payload64KB = 64 << 10
-
-	// defaultTimeout bounds each workload phase when Config.Timeout is
-	// unset.
-	defaultTimeout = 60 * time.Second
 )
 
 // Config describes one benchmark run.
@@ -58,15 +54,15 @@ type Config struct {
 	// MaxPending sets the embedded server's per-client outbound pending
 	// byte budget. Zero derives it from the workload.
 	MaxPending int64
-	// Timeout bounds each phase (readiness, publish, deliver). Zero
-	// means 60s.
+	// Timeout bounds each phase (readiness, publish, deliver). It must
+	// be positive.
 	Timeout time.Duration
 }
 
 // Result reports one run's exact accounting and throughput.
 type Result struct {
 	// Config is the fully resolved configuration the run used,
-	// including defaults and derived sizing.
+	// including derived sizing.
 	Config Config
 
 	// Published is the number of successfully published messages.
@@ -93,17 +89,6 @@ type Result struct {
 	DeliveriesPerSec float64
 }
 
-// withDefaults fills unset optional fields.
-func (c Config) withDefaults() Config {
-	if c.Messages == 0 {
-		c.Messages = DefaultMessages
-	}
-	if c.Timeout <= 0 {
-		c.Timeout = defaultTimeout
-	}
-	return c
-}
-
 // validate rejects configurations the engine cannot run.
 func (c Config) validate() error {
 	if c.Messages < 1 {
@@ -127,15 +112,18 @@ func (c Config) validate() error {
 	if c.Replicas < 1 {
 		return xerrors.Errorf("replicas must be at least 1, got %d", c.Replicas)
 	}
+	if c.Timeout <= 0 {
+		return xerrors.Errorf("timeout must be positive, got %s", c.Timeout)
+	}
 	return nil
 }
 
 // Run executes one benchmark run: build the deterministic plan, start
-// the topology, and drive the workload. On failure it returns any
-// partial Result alongside the error for diagnostics; such a result
-// must never be reported as a valid measurement.
+// the topology, and drive the workload. The config must be fully
+// populated; Run applies no defaults beyond derived sizing. On failure
+// it returns any partial Result alongside the error for diagnostics;
+// such a result must never be reported as a valid measurement.
 func Run(ctx context.Context, logger slog.Logger, cfg Config) (*Result, error) {
-	cfg = cfg.withDefaults()
 	if err := cfg.validate(); err != nil {
 		return nil, xerrors.Errorf("validate config: %w", err)
 	}

@@ -49,32 +49,17 @@ func TestProbeTracker(t *testing.T) {
 	require.Empty(t, tracker.missing(nil))
 }
 
-func TestPublisherNodeSubjects(t *testing.T) {
-	t.Parallel()
-
-	pl := buildPlan(Config{
-		Messages: 30, Publishers: 5, Subjects: 2, Subscribers: 2, Replicas: 3,
-	})
-	// Publishers: 0->s0/n0, 1->s1/n1, 2->s0/n2, 3->s1/n0, 4->s0/n1.
-	require.Equal(t, map[int][]int{
-		0: {0, 1},
-		1: {0, 1},
-		2: {0},
-	}, publisherNodeSubjects(pl))
-}
-
-func TestRequiredNodesPerSubscriber(t *testing.T) {
+func TestSubjectNodes(t *testing.T) {
 	t.Parallel()
 
 	pl := buildPlan(Config{
 		Messages: 30, Publishers: 5, Subjects: 2, Subscribers: 3, Replicas: 3,
 	})
-	required := requiredNodesPerSubscriber(pl)
-	require.Len(t, required, 3)
-	// Subject 0 is published from nodes 0, 1, 2; subject 1 from 0, 1.
-	require.Equal(t, map[int]struct{}{0: {}, 1: {}, 2: {}}, required[0])
-	require.Equal(t, map[int]struct{}{0: {}, 1: {}}, required[1])
-	require.Equal(t, map[int]struct{}{0: {}, 1: {}, 2: {}}, required[2])
+	// Publishers: 0->s0/n0, 1->s1/n1, 2->s0/n2, 3->s1/n0, 4->s0/n1.
+	require.Equal(t, map[int]map[int]struct{}{
+		0: {0: {}, 1: {}, 2: {}},
+		1: {0: {}, 1: {}},
+	}, subjectNodes(pl))
 }
 
 func TestReadinessConverged(t *testing.T) {

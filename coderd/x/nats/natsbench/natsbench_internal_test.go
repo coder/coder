@@ -14,6 +14,7 @@ func TestConfigValidate(t *testing.T) {
 
 	base := Config{
 		Messages: 100, PayloadSize: 1024, Subjects: 1, Publishers: 1, Subscribers: 1, Replicas: 1,
+		Timeout: testutil.WaitShort,
 	}
 	require.NoError(t, base.validate())
 
@@ -28,6 +29,7 @@ func TestConfigValidate(t *testing.T) {
 		{"NoSubscribers", func(c *Config) { c.Subscribers = 0 }},
 		{"NoReplicas", func(c *Config) { c.Replicas = 0 }},
 		{"NegativeMessages", func(c *Config) { c.Messages = -1 }},
+		{"NoTimeout", func(c *Config) { c.Timeout = 0 }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -39,18 +41,6 @@ func TestConfigValidate(t *testing.T) {
 	}
 }
 
-func TestConfigWithDefaults(t *testing.T) {
-	t.Parallel()
-
-	cfg := Config{}.withDefaults()
-	require.Equal(t, DefaultMessages, cfg.Messages)
-	require.Equal(t, defaultTimeout, cfg.Timeout)
-
-	cfg = Config{Messages: 7, Timeout: testutil.WaitShort}.withDefaults()
-	require.Equal(t, 7, cfg.Messages)
-	require.Equal(t, testutil.WaitShort, cfg.Timeout)
-}
-
 func TestRunSingleNode(t *testing.T) {
 	t.Parallel()
 
@@ -58,7 +48,7 @@ func TestRunSingleNode(t *testing.T) {
 	logger := testutil.Logger(t)
 
 	cfg := Config{
-		Messages:    1_000,
+		Messages:    1000,
 		PayloadSize: 1024,
 		Subjects:    2,
 		Publishers:  4,
@@ -70,7 +60,7 @@ func TestRunSingleNode(t *testing.T) {
 	res, err := Run(ctx, logger, cfg)
 	require.NoError(t, err)
 
-	pl := buildPlan(cfg.withDefaults())
+	pl := buildPlan(cfg)
 	require.EqualValues(t, cfg.Messages, res.Published)
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Greater(t, res.Delivered, res.Published, "fan-out must exceed publishes")
@@ -102,7 +92,7 @@ func TestRunCluster(t *testing.T) {
 	res, err := Run(ctx, logger, cfg)
 	require.NoError(t, err)
 
-	pl := buildPlan(cfg.withDefaults())
+	pl := buildPlan(cfg)
 	require.EqualValues(t, cfg.Messages, res.Published)
 	require.EqualValues(t, pl.totalExpected, res.Delivered)
 	require.Zero(t, res.Drops)

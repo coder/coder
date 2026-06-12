@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestFormatInt(t *testing.T) {
@@ -33,25 +35,25 @@ func TestRenderMarkdown(t *testing.T) {
 	valid := ScenarioResult{
 		Scenario: Scenario{
 			Name:   "8KiB-1r",
-			Config: Config{Messages: 100_000, PayloadSize: Payload8KB, Replicas: 1},
+			Config: Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 1},
 		},
 		Result: &Result{
-			Config:           Config{Messages: 100_000, PayloadSize: Payload8KB, Replicas: 1},
-			Published:        100_000,
-			Delivered:        500_000,
+			Config:           Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 1},
+			Published:        100000,
+			Delivered:        500000,
 			PublishDuration:  time.Second,
 			DeliverDuration:  2 * time.Second,
-			PubsPerSec:       100_000,
-			DeliveriesPerSec: 250_000,
+			PubsPerSec:       100000,
+			DeliveriesPerSec: 250000,
 		},
 	}
 	dropped := ScenarioResult{
 		Scenario: Scenario{
 			Name:   "8KiB-5r",
-			Config: Config{Messages: 100_000, PayloadSize: Payload8KB, Replicas: 5},
+			Config: Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 5},
 		},
 		Result: &Result{
-			Config: Config{Messages: 100_000, PayloadSize: Payload8KB, Replicas: 5},
+			Config: Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 5},
 			Drops:  3,
 		},
 		Err: xerrors.New("invalid run: 3 dropped-message signals observed"),
@@ -59,7 +61,7 @@ func TestRenderMarkdown(t *testing.T) {
 	failed := ScenarioResult{
 		Scenario: Scenario{
 			Name:   "64KiB-10r",
-			Config: Config{Messages: 20_000, PayloadSize: Payload64KB, Replicas: 10},
+			Config: Config{Messages: 20000, PayloadSize: Payload64KB, Replicas: 10},
 		},
 		Err: xerrors.New("readiness gate: timed out\nsecond line is omitted"),
 	}
@@ -86,7 +88,9 @@ func TestDefaultScenarios(t *testing.T) {
 	seen := make(map[string]struct{})
 	for _, sc := range scenarios {
 		seen[sc.Name] = struct{}{}
-		require.NoError(t, sc.Config.withDefaults().validate())
+		cfg := sc.Config
+		cfg.Timeout = testutil.WaitShort
+		require.NoError(t, cfg.validate())
 		if sc.Config.PayloadSize == Payload64KB && sc.Config.Replicas > 1 {
 			require.Less(t, sc.Config.Messages, DefaultMessages,
 				"64KiB cluster runs must reduce the message count")

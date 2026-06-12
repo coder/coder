@@ -64,7 +64,7 @@ func groupByPayload(results []ScenarioResult) []payloadGroup {
 }
 
 func renderRow(b *strings.Builder, row ScenarioResult) {
-	cfg := row.Scenario.Config.withDefaults()
+	cfg := row.Scenario.Config
 	if row.Result != nil {
 		cfg = row.Result.Config
 	}

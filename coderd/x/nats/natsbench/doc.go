@@ -27,7 +27,8 @@
 //     with diagnostics (per-subscriber shortfalls, per-node server
 //     stats, goroutine dump) instead of hanging.
 //
-// The package is an importable library driven by a go test matrix
-// runner (TestBenchMatrix) that is gated behind CODER_TEST_NATS_BENCH=1
-// so it never runs in normal CI.
+// The package is an importable library; cmd/natsbench is a small CLI
+// that runs the default scenario matrix, one named scenario, or a
+// custom shape, and renders the grouped markdown report. The heavy
+// benchmarks only run through that command, never in CI.
 package natsbench

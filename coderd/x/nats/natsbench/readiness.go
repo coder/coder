@@ -81,43 +81,19 @@ func (t *probeTracker) missing(required map[int]struct{}) []int {
 	return out
 }
 
-// publisherNodeSubjects returns, per publisher node, the sorted subject
-// indexes that node publishes to.
-func publisherNodeSubjects(pl plan) map[int][]int {
-	sets := make(map[int]map[int]struct{})
-	for i, node := range pl.pubNode {
-		if sets[node] == nil {
-			sets[node] = make(map[int]struct{})
-		}
-		sets[node][pl.pubSubject[i]] = struct{}{}
-	}
-	out := make(map[int][]int, len(sets))
-	for node, subjects := range sets {
-		list := make([]int, 0, len(subjects))
-		for subject := range subjects {
-			list = append(list, subject)
-		}
-		slices.Sort(list)
-		out[node] = list
-	}
-	return out
-}
-
-// requiredNodesPerSubscriber returns, per subscriber, the set of
-// publisher nodes that target its subject. A subscriber whose subject
-// has no publishers requires nothing.
-func requiredNodesPerSubscriber(pl plan) []map[int]struct{} {
-	subjectNodes := make(map[int]map[int]struct{})
+// subjectNodes maps each subject index to the set of publisher node
+// indexes that publish to it. This single mapping drives the whole
+// gate: it is both the probe schedule (each node probes its subjects)
+// and, looked up by a subscriber's subject, that subscriber's required
+// probe set. Subjects without publishers are absent (nothing required).
+func subjectNodes(pl plan) map[int]map[int]struct{} {
+	out := make(map[int]map[int]struct{})
 	for i, node := range pl.pubNode {
 		subject := pl.pubSubject[i]
-		if subjectNodes[subject] == nil {
-			subjectNodes[subject] = make(map[int]struct{})
+		if out[subject] == nil {
+			out[subject] = make(map[int]struct{})
 		}
-		subjectNodes[subject][node] = struct{}{}
-	}
-	out := make([]map[int]struct{}, len(pl.subSubject))
-	for j, subject := range pl.subSubject {
-		out[j] = subjectNodes[subject]
+		out[subject][node] = struct{}{}
 	}
 	return out
 }
@@ -129,8 +105,11 @@ func requiredNodesPerSubscriber(pl plan) []map[int]struct{} {
 // probe from every publisher node targeting its subject. Without this,
 // routed deliveries silently undercount on fresh clusters.
 func awaitReadiness(ctx context.Context, top *topology, pl plan, timeout time.Duration, trackers []*probeTracker) error {
-	nodeSubjects := publisherNodeSubjects(pl)
-	required := requiredNodesPerSubscriber(pl)
+	bySubject := subjectNodes(pl)
+	required := make([]map[int]struct{}, len(pl.subSubject))
+	for j, subject := range pl.subSubject {
+		required[j] = bySubject[subject]
+	}
 
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -138,12 +117,14 @@ func awaitReadiness(ctx context.Context, top *topology, pl plan, timeout time.Du
 	defer ticker.Stop()
 
 	for {
-		for node, subjects := range nodeSubjects {
-			for _, subject := range subjects {
+		for subject, nodes := range bySubject {
+			for node := range nodes {
 				if err := top.nodes[node].Publish(subjectName(subject), probePayload(node)); err != nil {
 					return xerrors.Errorf("publish probe from node %d on %s: %w", node, subjectName(subject), err)
 				}
 			}
+		}
+		for _, node := range uniqueInts(pl.pubNode) {
 			if err := top.nodes[node].Flush(); err != nil {
 				return xerrors.Errorf("flush probes from node %d: %w", node, err)
 			}

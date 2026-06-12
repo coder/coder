@@ -17,7 +17,7 @@ func DefaultScenarios() []Scenario {
 		subjects        = 10
 		publishers      = 10
 		subscribers     = 50
-		reducedMessages = 20_000
+		reducedMessages = 20000
 	)
 	payloads := []struct {
 		label string

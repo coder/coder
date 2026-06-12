@@ -145,6 +145,10 @@ func (w *workload) subscribe() error {
 		}
 		w.cancels = append(w.cancels, cancel)
 	}
+	// Listeners close allDone when the last subscriber reaches its
+	// expected count; this pre-close only handles the degenerate plan
+	// where every subscriber expects zero messages, since no listener
+	// would ever fire.
 	if w.outstanding.Load() == 0 {
 		w.doneOnce.Do(func() { close(w.allDone) })
 	}
@@ -182,8 +186,10 @@ func (w *workload) cancelAll() {
 }
 
 // startPublishers launches one goroutine per publisher, all parked on
-// the start barrier. It returns a channel closed when every publisher
-// finished and an accessor for their errors (valid only after done).
+// the start barrier so spawn overhead happens before the clock starts
+// and every publisher begins publishing at the same instant. It returns
+// a channel closed when every publisher finished and an accessor for
+// their errors (valid only after done).
 func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, func() []error) {
 	payload := make([]byte, w.cfg.PayloadSize)
 	errs := make([]error, len(w.pl.perPubMsgs))

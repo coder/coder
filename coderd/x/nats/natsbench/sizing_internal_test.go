@@ -21,8 +21,8 @@ func TestDerivedLocalQueueMsgs(t *testing.T) {
 
 	t.Run("TracksBusiestSubscriberPlusHeadroom", func(t *testing.T) {
 		t.Parallel()
-		pl := plan{expectPerSub: []int{10_000, 90_000, 50_000}}
-		require.Equal(t, 90_000+probeHeadroom, derivedLocalQueueMsgs(pl))
+		pl := plan{expectPerSub: []int{10000, 90000, 50000}}
+		require.Equal(t, 90000+probeHeadroom, derivedLocalQueueMsgs(pl))
 	})
 
 	t.Run("Caps", func(t *testing.T) {
@@ -48,9 +48,9 @@ func TestDerivedMaxPending(t *testing.T) {
 		// 10 subjects across 5 nodes: each node's lone subscribe conn
 		// carries two coalesced subscriptions of 10k messages each.
 		pl := buildPlan(Config{
-			Messages: 100_000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 5,
+			Messages: 100000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 5,
 		})
-		want := 2 * int64(10_000+probeHeadroom) * int64(Payload64KB+perMessageOverhead)
+		want := 2 * int64(10000+probeHeadroom) * int64(Payload64KB+perMessageOverhead)
 		require.Equal(t, want, derivedMaxPending(pl, Payload64KB))
 		require.Greater(t, want, nats.DefaultMaxPending)
 	})
@@ -58,9 +58,9 @@ func TestDerivedMaxPending(t *testing.T) {
 	t.Run("SingleNodeCarriesAllSubjects", func(t *testing.T) {
 		t.Parallel()
 		pl := buildPlan(Config{
-			Messages: 100_000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 1,
+			Messages: 100000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 1,
 		})
-		want := 10 * int64(10_000+probeHeadroom) * int64(Payload64KB+perMessageOverhead)
+		want := 10 * int64(10000+probeHeadroom) * int64(Payload64KB+perMessageOverhead)
 		require.Equal(t, want, derivedMaxPending(pl, Payload64KB))
 	})
 }
@@ -69,9 +69,9 @@ func TestDerivedQueueBytes(t *testing.T) {
 	t.Parallel()
 
 	pl := buildPlan(Config{
-		Messages: 100_000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 1,
+		Messages: 100000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 1,
 	})
-	want := (10_000 + probeHeadroom) * (Payload64KB + perMessageOverhead)
+	want := (10000 + probeHeadroom) * (Payload64KB + perMessageOverhead)
 	require.Equal(t, want, derivedQueueBytes(pl, Payload64KB))
 }
 
@@ -79,14 +79,14 @@ func TestApplySizing(t *testing.T) {
 	t.Parallel()
 
 	pl := buildPlan(Config{
-		Messages: 10_000, Publishers: 1, Subjects: 1, Subscribers: 1, Replicas: 1,
+		Messages: 10000, Publishers: 1, Subjects: 1, Subscribers: 1, Replicas: 1,
 	})
 
 	t.Run("DerivesWhenUnset", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		cfg := applySizing(ctx, slog.Make(), Config{PayloadSize: Payload64KB}, pl)
-		require.Equal(t, 10_000+probeHeadroom, cfg.LocalQueueMsgs)
+		require.Equal(t, 10000+probeHeadroom, cfg.LocalQueueMsgs)
 		require.Equal(t, derivedQueueBytes(pl, Payload64KB), cfg.LocalQueueBytes)
 		require.Equal(t, derivedMaxPending(pl, Payload64KB), cfg.MaxPending)
 	})
