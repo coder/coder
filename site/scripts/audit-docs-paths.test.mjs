@@ -16,6 +16,7 @@ import {
 	runCli,
 	stripQueryAndFragment,
 	suggestedFixForKind,
+	walk,
 } from "./audit-docs-paths.mjs";
 import fs from "node:fs";
 import os from "node:os";
@@ -462,6 +463,111 @@ describe("buildReport", () => {
 		});
 		expect(report).toContain("## Unclassified findings");
 		expect(report).toContain("/var/tmp/foo.ts:1");
+	});
+});
+
+describe("walk", () => {
+	// Builds a temp tree of the shape:
+	//   <tmpDir>/a.ts
+	//   <tmpDir>/b.tsx
+	//   <tmpDir>/c.js
+	//   <tmpDir>/nested/d.ts
+	//   <tmpDir>/nested/e.md
+	//   <tmpDir>/node_modules/skipme.ts
+	//   <tmpDir>/dist/also-skipped.ts
+	//   <tmpDir>/.audit/audit-report.ts
+	const buildTree = (root) => {
+		fs.writeFileSync(path.join(root, "a.ts"), "export const a = 1;");
+		fs.writeFileSync(path.join(root, "b.tsx"), "export const B = () => null;");
+		fs.writeFileSync(path.join(root, "c.js"), "module.exports = {};");
+		fs.mkdirSync(path.join(root, "nested"));
+		fs.writeFileSync(path.join(root, "nested", "d.ts"), "export const d = 1;");
+		fs.writeFileSync(path.join(root, "nested", "e.md"), "# notes");
+		fs.mkdirSync(path.join(root, "node_modules"));
+		fs.writeFileSync(
+			path.join(root, "node_modules", "skipme.ts"),
+			"export const x = 1;",
+		);
+		fs.mkdirSync(path.join(root, "dist"));
+		fs.writeFileSync(
+			path.join(root, "dist", "also-skipped.ts"),
+			"export const x = 1;",
+		);
+		fs.mkdirSync(path.join(root, ".audit"));
+		fs.writeFileSync(
+			path.join(root, ".audit", "audit-report.ts"),
+			"export const x = 1;",
+		);
+	};
+
+	it("returns matching files, recurses, and filters by extension", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-walk-"));
+		try {
+			buildTree(tmpDir);
+			const found = walk(tmpDir, [".ts", ".tsx"]).sort();
+			const rel = found.map((f) => path.relative(tmpDir, f)).sort();
+			expect(rel).toEqual([
+				"a.ts",
+				"b.tsx",
+				path.join("nested", "d.ts"),
+			]);
+			// c.js excluded by extension filter; e.md excluded by extension filter;
+			// node_modules/dist/.audit excluded by SKIP_DIRS.
+			expect(rel).not.toContain("c.js");
+			expect(rel).not.toContain(path.join("nested", "e.md"));
+			expect(rel).not.toContain(path.join("node_modules", "skipme.ts"));
+			expect(rel).not.toContain(path.join("dist", "also-skipped.ts"));
+			expect(rel).not.toContain(path.join(".audit", "audit-report.ts"));
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("honors the extension filter (.tsx only)", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-walk-"));
+		try {
+			buildTree(tmpDir);
+			const found = walk(tmpDir, [".tsx"]);
+			const rel = found.map((f) => path.relative(tmpDir, f));
+			expect(rel).toEqual(["b.tsx"]);
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns an empty array when the directory does not exist", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-walk-"));
+		try {
+			const missing = path.join(tmpDir, "does-not-exist");
+			expect(walk(missing, [".ts"])).toEqual([]);
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns an empty array when handed a file instead of a directory", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-walk-"));
+		try {
+			const filePath = path.join(tmpDir, "a.ts");
+			fs.writeFileSync(filePath, "export const a = 1;");
+			expect(walk(filePath, [".ts"])).toEqual([]);
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("appends to an existing results array instead of replacing it", () => {
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-walk-"));
+		try {
+			fs.writeFileSync(path.join(tmpDir, "a.ts"), "export const a = 1;");
+			const seed = ["/seed/value.ts"];
+			const out = walk(tmpDir, [".ts"], seed);
+			expect(out).toBe(seed);
+			expect(out).toContain("/seed/value.ts");
+			expect(out.some((f) => f.endsWith("a.ts"))).toBe(true);
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
 	});
 });
 
