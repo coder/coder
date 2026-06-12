@@ -132,7 +132,12 @@ func generateCountries() ([]byte, error) {
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
-		names[i] = utilstrings.Capitalize(names[i])
+		switch names[i] {
+		case "ai":
+			names[i] = "AI"
+		default:
+			names[i] = utilstrings.Capitalize(names[i])
+		}
 	}
 	return strings.Join(names, "")
 }
