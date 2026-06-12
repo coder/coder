@@ -123,6 +123,27 @@ OAuth token, so do not attach API keys. For client-side setup (proxy,
 certificates, IDE configuration), see
 [GitHub Copilot client configuration](./clients/copilot.md).
 
+### ChatGPT
+
+ChatGPT subscriptions (Plus, Pro, Business) are supported through a
+provider of type `openai` with a specific name and base URL:
+
+| Field    | Value                                   |
+|----------|-----------------------------------------|
+| Type     | `openai`                                |
+| Name     | `chatgpt`                               |
+| Base URL | `https://chatgpt.com/backend-api/codex` |
+
+The name must be exactly `chatgpt`. It determines the route clients use
+to reach the provider: `/api/v2/aibridge/chatgpt/v1`. If no provider
+with this name exists, requests to that route fail with
+`404 route not supported`.
+
+Do not attach API keys. ChatGPT providers authenticate with each user's
+ChatGPT OAuth token through [BYOK](./auth.md#bring-your-own-key-byok),
+so BYOK must remain enabled. For client-side setup, see the
+[Codex CLI ChatGPT subscription configuration](./clients/codex.md#byok-chatgpt-subscription).
+
 ### OpenAI-compatible providers
 
 Azure-hosted OpenAI, Google, OpenRouter, Vercel, and any other

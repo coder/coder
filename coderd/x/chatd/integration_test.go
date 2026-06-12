@@ -113,7 +113,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// --- Step 1: Send a message that triggers web_search ---
+	// Step 1: Send a message that triggers web_search.
 	t.Log("Creating chat with web search query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -172,7 +172,7 @@ func TestAnthropicWebSearchRoundTrip(t *testing.T) {
 		}
 	}
 
-	// --- Step 2: Send a follow-up message ---
+	// Step 2: Send a follow-up message.
 	// This is the critical test: if PE tool results were lost during
 	// persistence, the reconstructed conversation will be rejected
 	// by Anthropic because server_tool_use has no matching
@@ -374,7 +374,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// --- Step 1: Send a message that triggers reasoning ---
+	// Step 1: Send a message that triggers reasoning.
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -418,7 +418,7 @@ func TestOpenAIReasoningRoundTrip(t *testing.T) {
 	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
 		"assistant message should contain a text part")
 
-	// --- Step 2: Send a follow-up message ---
+	// Step 2: Send a follow-up message.
 	// This is the critical test: if reasoning items are sent back
 	// without their required following item, the API will reject
 	// the request with:
@@ -524,7 +524,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// --- Step 1: Send a message that triggers reasoning ---
+	// Step 1: Send a message that triggers reasoning.
 	t.Log("Creating chat with reasoning query...")
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
@@ -568,7 +568,7 @@ func TestOpenAIReasoningRoundTripStoreFalse(t *testing.T) {
 	require.Contains(t, partTypes, codersdk.ChatMessagePartTypeText,
 		"assistant message should contain a text part")
 
-	// --- Step 2: Send a follow-up message ---
+	// Step 2: Send a follow-up message.
 	// This is the critical test: when Store is false, item IDs are
 	// ephemeral and cannot be looked up from OpenAI later.
 	t.Log("Sending follow-up message...")

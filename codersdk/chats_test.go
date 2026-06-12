@@ -172,6 +172,42 @@ func TestChatErrorKind_JSONRoundTrip(t *testing.T) {
 	require.Equal(t, codersdk.ChatErrorKindUsageLimit, decodedRetry.Kind)
 }
 
+func TestChatStreamEvent_JSONRoundTripIncludesResetTypesAndPartMetadata(t *testing.T) {
+	t.Parallel()
+
+	chatID := uuid.New()
+	events := []codersdk.ChatStreamEvent{
+		{Type: codersdk.ChatStreamEventTypePreviewReset, ChatID: chatID},
+		{Type: codersdk.ChatStreamEventTypeHistoryReset, ChatID: chatID},
+		{
+			Type:   codersdk.ChatStreamEventTypeMessagePart,
+			ChatID: chatID,
+			MessagePart: &codersdk.ChatStreamMessagePart{
+				Role:              codersdk.ChatMessageRoleAssistant,
+				Part:              codersdk.ChatMessageText("partial"),
+				HistoryVersion:    12,
+				GenerationAttempt: 3,
+				Seq:               4,
+			},
+		},
+	}
+	data, err := json.Marshal(events)
+	require.NoError(t, err)
+	require.Contains(t, string(data), `"type":"preview_reset"`)
+	require.Contains(t, string(data), `"type":"history_reset"`)
+	require.Contains(t, string(data), `"history_version":12`)
+	require.Contains(t, string(data), `"generation_attempt":3`)
+	require.Contains(t, string(data), `"seq":4`)
+
+	var decoded []codersdk.ChatStreamEvent
+	require.NoError(t, json.Unmarshal(data, &decoded))
+	require.Equal(t, codersdk.ChatStreamEventTypePreviewReset, decoded[0].Type)
+	require.Equal(t, codersdk.ChatStreamEventTypeHistoryReset, decoded[1].Type)
+	require.Equal(t, int64(12), decoded[2].MessagePart.HistoryVersion)
+	require.Equal(t, int64(3), decoded[2].MessagePart.GenerationAttempt)
+	require.Equal(t, int64(4), decoded[2].MessagePart.Seq)
+}
+
 func TestChatMessagePart_StripInternal(t *testing.T) {
 	t.Parallel()
 

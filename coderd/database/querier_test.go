@@ -7558,6 +7558,178 @@ func TestWorkspaceAgentNameUniqueTrigger(t *testing.T) {
 	})
 }
 
+func TestUpsertWorkspaceAppCannotRebindAcrossWorkspaces(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// createWorkspace builds the owner -> template -> version -> workspace chain
+	// and returns the workspace plus its template version so callers can create
+	// additional builds (and thus agents) within the same workspace.
+	createWorkspace := func(t *testing.T) (database.WorkspaceTable, uuid.UUID) {
+		t.Helper()
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+		})
+		return workspace, version.ID
+	}
+
+	// addAgent creates a build, resource, and agent for the workspace. The
+	// build's JobID matches the resource's JobID so the upsert's
+	// agent -> resource -> workspace_builds(job_id) -> workspace_id traversal
+	// resolves to the workspace.
+	addAgent := func(t *testing.T, workspace database.WorkspaceTable, versionID uuid.UUID, buildNumber int32) database.WorkspaceAgent {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			OrganizationID: org.ID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			BuildNumber:       buildNumber,
+			JobID:             job.ID,
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: versionID,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+	}
+
+	upsertApp := func(appID, agentID uuid.UUID, slug string) (database.WorkspaceApp, error) {
+		return db.UpsertWorkspaceApp(ctx, database.UpsertWorkspaceAppParams{
+			ID:           appID,
+			CreatedAt:    dbtime.Now(),
+			AgentID:      agentID,
+			Slug:         slug,
+			DisplayName:  "Code Server",
+			Icon:         "/icon.png",
+			SharingLevel: database.AppSharingLevelOwner,
+			Health:       database.WorkspaceAppHealthDisabled,
+			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
+		})
+	}
+
+	// Given: two independent workspaces, each with an agent that resolves to its
+	// own workspace.
+	workspaceA, versionA := createWorkspace(t)
+	workspaceB, versionB := createWorkspace(t)
+	agentA := addAgent(t, workspaceA, versionA, 1)
+	agentB := addAgent(t, workspaceB, versionB, 1)
+
+	gotA, err := db.GetWorkspaceByAgentID(ctx, agentA.ID)
+	require.NoError(t, err)
+	require.Equal(t, workspaceA.ID, gotA.ID)
+	gotB, err := db.GetWorkspaceByAgentID(ctx, agentB.ID)
+	require.NoError(t, err)
+	require.Equal(t, workspaceB.ID, gotB.ID)
+
+	appID := uuid.New()
+	const originalSlug = "code-server"
+
+	// Initial insert under workspace A's agent succeeds (no conflict).
+	app, err := upsertApp(appID, agentA.ID, originalSlug)
+	require.NoError(t, err)
+	require.Equal(t, appID, app.ID)
+	require.Equal(t, agentA.ID, app.AgentID)
+	require.Equal(t, originalSlug, app.Slug)
+
+	// Upserting the same app id onto workspace B's agent is rejected because the
+	// existing row and the incoming agent resolve to different workspaces. The
+	// guard updates zero rows, so the :one query returns sql.ErrNoRows.
+	_, err = upsertApp(appID, agentB.ID, "hijacked")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	// The app remains bound to workspace A's agent, unchanged.
+	appsA, err := db.GetWorkspaceAppsByAgentID(ctx, agentA.ID)
+	require.NoError(t, err)
+	require.Len(t, appsA, 1)
+	require.Equal(t, appID, appsA[0].ID)
+	require.Equal(t, agentA.ID, appsA[0].AgentID)
+	require.Equal(t, originalSlug, appsA[0].Slug)
+
+	// Workspace B's agent has no app.
+	appsB, err := db.GetWorkspaceAppsByAgentID(ctx, agentB.ID)
+	require.NoError(t, err)
+	require.Empty(t, appsB)
+
+	// A legitimate rebuild of workspace A produces a new agent (agent IDs are
+	// regenerated every build). Rebinding the persistent app to it succeeds
+	// because both agents resolve to workspace A.
+	agentA2 := addAgent(t, workspaceA, versionA, 2)
+	app, err = upsertApp(appID, agentA2.ID, "code-server-v2")
+	require.NoError(t, err)
+	require.Equal(t, agentA2.ID, app.AgentID)
+	require.Equal(t, "code-server-v2", app.Slug)
+
+	appsA2, err := db.GetWorkspaceAppsByAgentID(ctx, agentA2.ID)
+	require.NoError(t, err)
+	require.Len(t, appsA2, 1)
+	require.Equal(t, appID, appsA2[0].ID)
+
+	// Set up a template-import agent. It is intentionally not associated with
+	// a workspace build, so it resolves to no workspace.
+	importJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+		OrganizationID: org.ID,
+	})
+	importResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: importJob.ID,
+	})
+	importAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: importResource.ID,
+	})
+	_, err = db.GetWorkspaceByAgentID(ctx, importAgent.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "import agent must not resolve to a workspace")
+
+	// An app that already belongs to a workspace cannot be rebound to a
+	// template-import agent. Otherwise a second update could move it from
+	// the import agent to a different workspace.
+	_, err = upsertApp(appID, importAgent.ID, "hijacked-by-import")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	appsA2, err = db.GetWorkspaceAppsByAgentID(ctx, agentA2.ID)
+	require.NoError(t, err)
+	require.Len(t, appsA2, 1)
+	require.Equal(t, appID, appsA2[0].ID)
+	require.Equal(t, agentA2.ID, appsA2[0].AgentID)
+	require.Equal(t, "code-server-v2", appsA2[0].Slug)
+
+	appsImport, err := db.GetWorkspaceAppsByAgentID(ctx, importAgent.ID)
+	require.NoError(t, err)
+	require.Empty(t, appsImport)
+
+	_, err = upsertApp(appID, agentB.ID, "hijacked-after-import")
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	unownedAppID := uuid.New()
+	_, err = upsertApp(unownedAppID, importAgent.ID, "import-app")
+	require.NoError(t, err)
+
+	// An app whose existing agent belongs to a template-import job resolves to
+	// no workspace, so rebinding it is permitted. It is not a cross-tenant
+	// victim.
+	rebound, err := upsertApp(unownedAppID, agentA.ID, "import-app")
+	require.NoError(t, err)
+	require.Equal(t, agentA.ID, rebound.AgentID)
+}
+
 func TestGetWorkspaceAgentsByParentID(t *testing.T) {
 	t.Parallel()
 
@@ -10891,10 +11063,12 @@ func TestInsertChatMessages(t *testing.T) {
 
 	insertMessage := func(t *testing.T, store database.Store, ctx context.Context, chatID, userID, modelConfigID uuid.UUID, content string) {
 		t.Helper()
+		apiKey, _ := dbgen.APIKey(t, store, database.APIKey{ID: uuid.NewString(), UserID: userID})
 
 		_, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chatID,
 			CreatedBy:           []uuid.UUID{userID},
+			APIKeyID:            []string{apiKey.ID},
 			ModelConfigID:       []uuid.UUID{modelConfigID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
@@ -10953,10 +11127,12 @@ func TestInsertChatMessages(t *testing.T) {
 		t.Parallel()
 
 		store, ctx, user, chat, _, modelConfigA := setupChat(t)
+		apiKey, _ := dbgen.APIKey(t, store, database.APIKey{ID: uuid.NewString(), UserID: user.ID})
 
 		msgs, err := store.InsertChatMessages(ctx, database.InsertChatMessagesParams{
 			ChatID:              chat.ID,
 			CreatedBy:           []uuid.UUID{user.ID, uuid.Nil, uuid.Nil},
+			APIKeyID:            []string{apiKey.ID, "", ""},
 			ModelConfigID:       []uuid.UUID{modelConfigA.ID, modelConfigA.ID, modelConfigA.ID},
 			Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleAssistant, database.ChatMessageRoleTool},
 			ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
@@ -12572,9 +12748,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	affected, err := db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "resolved the issue", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "resolved the issue", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12585,9 +12761,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: " \n\t ", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: " \n\t ", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12598,9 +12774,9 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.Equal(t, chat.UpdatedAt, fetched.UpdatedAt)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "fresh summary", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "fresh summary", Valid: true},
 	})
 	require.NoError(t, err)
 	require.EqualValues(t, 1, affected)
@@ -12614,17 +12790,54 @@ func TestUpdateChatLastTurnSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
-		ID:                chat.ID,
-		ExpectedUpdatedAt: chat.UpdatedAt,
-		LastTurnSummary:   sql.NullString{String: "stale summary", Valid: true},
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "still fresh summary", Valid: true},
+	})
+	require.NoError(t, err)
+	require.EqualValues(t, 1, affected)
+
+	fetched, err = db.GetChatByID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+
+	_, err = db.LockChatAndBumpSnapshotVersion(ctx, chat.ID)
+	require.NoError(t, err)
+	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           []uuid.UUID{owner.ID},
+		ModelConfigID:       []uuid.UUID{modelCfg.ID},
+		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
+		Content:             []string{`[{"type":"text","text":"new request"}]`},
+		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
+		InputTokens:         []int64{0},
+		OutputTokens:        []int64{0},
+		TotalTokens:         []int64{0},
+		ReasoningTokens:     []int64{0},
+		CacheCreationTokens: []int64{0},
+		CacheReadTokens:     []int64{0},
+		ContextLimit:        []int64{0},
+		Compressed:          []bool{false},
+		TotalCostMicros:     []int64{0},
+		RuntimeMs:           []int64{0},
+		ProviderResponseID:  []string{""},
+	})
+	require.NoError(t, err)
+
+	affected, err = db.UpdateChatLastTurnSummary(ctx, database.UpdateChatLastTurnSummaryParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: chat.HistoryVersion,
+		LastTurnSummary:        sql.NullString{String: "stale summary", Valid: true},
 	})
 	require.NoError(t, err)
 	require.Zero(t, affected)
 
 	fetched, err = db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.Equal(t, sql.NullString{String: "fresh summary", Valid: true}, fetched.LastTurnSummary)
-	require.Equal(t, advancedUpdatedAt, fetched.UpdatedAt)
+	require.Equal(t, sql.NullString{String: "still fresh summary", Valid: true}, fetched.LastTurnSummary)
+	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
 }
 
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {

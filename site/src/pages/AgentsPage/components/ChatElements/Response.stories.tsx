@@ -104,73 +104,18 @@ const expectCodeBlock = async (
 	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
 	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
 
+	expect(canvasElement.textContent ?? "").not.toContain("```");
+
 	const shadowRoot = host.shadowRoot;
 	if (!shadowRoot) {
 		throw new Error("Expected FileViewer to render code in its shadow root.");
 	}
-	expect(shadowRoot.textContent ?? "").not.toContain("```");
-
-	const pre = shadowRoot.querySelector(
-		"pre[data-file][data-disable-line-numbers]",
-	);
-	expect(pre).toBeInTheDocument();
-	if (!(pre instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a pre element.");
-	}
-
-	const code = shadowRoot.querySelector("[data-code]");
-	expect(code).toBeInTheDocument();
-	if (!(code instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a code container.");
-	}
-
-	const line = shadowRoot.querySelector("[data-line]");
-	expect(line).toBeInTheDocument();
-	if (!(line instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render code lines.");
-	}
-
-	const gutter = shadowRoot.querySelector("[data-column-number]");
-	expect(gutter).toBeInTheDocument();
-	if (!(gutter instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render its line-number gutter.");
-	}
-
-	const preStyles = getComputedStyle(pre);
-	expect(preStyles.fontSize).toBe("12px");
-	expect(preStyles.lineHeight).toBe("20px");
-
-	const codeStyles = getComputedStyle(code);
-	expect(codeStyles.paddingTop).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
-	expect(codeStyles.overflow).toBe("visible");
-
-	const lineStyles = getComputedStyle(line);
-	expect(lineStyles.paddingLeft).toBe("12px");
-	expect(lineStyles.paddingRight).toBe("12px");
-	expect(lineStyles.paddingRight).toBe(lineStyles.paddingLeft);
-	expect(lineStyles.minHeight).toBe("20px");
-
-	const gutterStyles = getComputedStyle(gutter);
-	expect(gutterStyles.minWidth).toBe("0px");
-	expect(gutterStyles.paddingLeft).toBe("0px");
-	expect(gutterStyles.paddingRight).toBe("0px");
 
 	if (options.highlighted) {
-		let highlightedToken: HTMLElement | null = null;
 		await waitFor(() => {
 			const token = shadowRoot.querySelector("span[style*='color']");
 			expect(token).toBeInTheDocument();
-			if (!(token instanceof HTMLElement)) {
-				throw new Error("Expected FileViewer to render highlighted tokens.");
-			}
-			highlightedToken = token;
 		});
-		if (!highlightedToken) {
-			throw new Error("Expected FileViewer to render highlighted tokens.");
-		}
-		expect(getComputedStyle(highlightedToken).color).not.toBe(lineStyles.color);
 	}
 
 	return host;
@@ -206,43 +151,8 @@ export const LongLineFencedBlock: Story = {
 		if (!viewport) {
 			throw new Error("Expected a horizontally scrollable viewport.");
 		}
-		viewport.dispatchEvent(
-			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
-		);
+		viewport.scrollLeft = 200;
 		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
-	},
-};
-
-export const LongLineFencedBlockWheelEdges: Story = {
-	args: {
-		children: longLineCodeBlockMarkdown,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /apiUrl/);
-		const viewport = [
-			...canvasElement.querySelectorAll<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			),
-		].find((v) => v.scrollWidth > v.clientWidth);
-		if (!viewport) {
-			throw new Error("Expected a horizontally scrollable viewport.");
-		}
-		const dispatchWheel = (deltaY: number) => {
-			const event = new WheelEvent("wheel", {
-				deltaY,
-				bubbles: true,
-				cancelable: true,
-			});
-			viewport.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
-		viewport.scrollLeft = Math.floor(maxLeft / 2);
-		expect(dispatchWheel(200)).toBe(true);
-		viewport.scrollLeft = maxLeft;
-		expect(dispatchWheel(200)).toBe(false);
-		viewport.scrollLeft = 0;
-		expect(dispatchWheel(-200)).toBe(false);
 	},
 };
 

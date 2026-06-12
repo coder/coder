@@ -18,7 +18,6 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
-import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -471,9 +470,9 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: (
-			<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-		),
+		canConfigureAgentSetup: true,
+		providerCount: 0,
+		modelCount: 0,
 		modelCatalog: { providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,

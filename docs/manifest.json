@@ -1636,21 +1636,6 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
-							"title": "aibridge",
-							"description": "Manage AI Bridge.",
-							"path": "reference/cli/aibridge.md"
-						},
-						{
-							"title": "aibridge interceptions",
-							"description": "Manage AI Bridge interceptions.",
-							"path": "reference/cli/aibridge_interceptions.md"
-						},
-						{
-							"title": "aibridge interceptions list",
-							"description": "List AI Bridge interceptions as JSON.",
-							"path": "reference/cli/aibridge_interceptions_list.md"
-						},
-						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"

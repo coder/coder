@@ -11,13 +11,13 @@ Chat sharing lets you give other users or groups read-only access to a Coder Age
 1. Click **Add member** to grant **Read** access.
 1. Copy the chat URL from your browser and send it to the recipients.
 
-Coder does not create a separate share link or notify recipients. They must open the chat from the URL you send them.
+Coder does not create a separate share link or notify recipients. Recipients need the chat URL for initial access.
 
 ## Shared chat access
 
-Viewers can open the chat from a direct link, view messages, stream live updates, and download chat attachments. They reach sub-agent chats by following sub-agent links inside the parent chat or by opening a direct URL.
+Viewers can open the chat from a direct link, view messages, stream live updates, and download chat attachments. Chats shared by other users can appear in the sidebar under **Shared with you** when they are in the chat list. Pinned shared chats appear under **Pinned**. Viewers reach sub-agent chats by following sub-agent links inside the parent chat or by opening a direct URL.
 
-Shared chats do not appear in the viewer's normal chat list. Viewers have read-only access: they cannot send or edit messages, regenerate the chat title, archive the chat, or change its sharing settings.
+Viewers have read-only access: they cannot send or edit messages, regenerate the chat title, archive the chat, or change its sharing settings.
 
 ## Disable chat sharing
 

@@ -107,6 +107,28 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "Google", providers[1].DisplayName)
 		assert.Equal(t, "/icon/google.svg", providers[1].DisplayIcon)
 	})
+
+	// Regression test: when more than 10 providers are configured the
+	// previous lexicographic sort placed PROVIDER_10 between PROVIDER_1
+	// and PROVIDER_2 and the parser failed with "provider num skipped".
+	t.Run("MoreThan10Providers", func(t *testing.T) {
+		t.Parallel()
+		const count = 12
+		environ := make([]string, 0, count*2)
+		for i := 0; i < count; i++ {
+			environ = append(environ,
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_ID=id-%d", i, i),
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_TYPE=type-%d", i, i),
+			)
+		}
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(environ)
+		require.NoError(t, err)
+		require.Len(t, providers, count)
+		for i := 0; i < count; i++ {
+			assert.Equal(t, fmt.Sprintf("id-%d", i), providers[i].ID)
+			assert.Equal(t, fmt.Sprintf("type-%d", i), providers[i].Type)
+		}
+	})
 }
 
 func TestReadExternalAuthProvidersFromEnv_APIBaseURL(t *testing.T) {

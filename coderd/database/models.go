@@ -1567,6 +1567,7 @@ const (
 	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
+	ChatStatusInterrupting   ChatStatus = "interrupting"
 )
 
 func (e *ChatStatus) Scan(src interface{}) error {
@@ -1612,7 +1613,8 @@ func (e ChatStatus) Valid() bool {
 		ChatStatusPaused,
 		ChatStatusCompleted,
 		ChatStatusError,
-		ChatStatusRequiresAction:
+		ChatStatusRequiresAction,
+		ChatStatusInterrupting:
 		return true
 	}
 	return false
@@ -1627,6 +1629,7 @@ func AllChatStatusValues() []ChatStatus {
 		ChatStatusCompleted,
 		ChatStatusError,
 		ChatStatusRequiresAction,
+		ChatStatusInterrupting,
 	}
 }
 
@@ -4613,38 +4616,46 @@ type BoundaryUsageStat struct {
 }
 
 type Chat struct {
-	ID                  uuid.UUID             `db:"id" json:"id"`
-	OwnerID             uuid.UUID             `db:"owner_id" json:"owner_id"`
-	WorkspaceID         uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
-	Title               string                `db:"title" json:"title"`
-	Status              ChatStatus            `db:"status" json:"status"`
-	WorkerID            uuid.NullUUID         `db:"worker_id" json:"worker_id"`
-	StartedAt           sql.NullTime          `db:"started_at" json:"started_at"`
-	HeartbeatAt         sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
-	CreatedAt           time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt           time.Time             `db:"updated_at" json:"updated_at"`
-	ParentChatID        uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
-	RootChatID          uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
-	LastModelConfigID   uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
-	Archived            bool                  `db:"archived" json:"archived"`
-	LastError           pqtype.NullRawMessage `db:"last_error" json:"last_error"`
-	Mode                NullChatMode          `db:"mode" json:"mode"`
-	MCPServerIDs        []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
-	Labels              StringMap             `db:"labels" json:"labels"`
-	BuildID             uuid.NullUUID         `db:"build_id" json:"build_id"`
-	AgentID             uuid.NullUUID         `db:"agent_id" json:"agent_id"`
-	PinOrder            int32                 `db:"pin_order" json:"pin_order"`
-	LastReadMessageID   sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
-	LastInjectedContext pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
-	DynamicTools        pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
-	OrganizationID      uuid.UUID             `db:"organization_id" json:"organization_id"`
-	PlanMode            NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
-	ClientType          ChatClientType        `db:"client_type" json:"client_type"`
-	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
-	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
-	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
-	OwnerUsername       string                `db:"owner_username" json:"owner_username"`
-	OwnerName           string                `db:"owner_name" json:"owner_name"`
+	ID                       uuid.UUID             `db:"id" json:"id"`
+	OwnerID                  uuid.UUID             `db:"owner_id" json:"owner_id"`
+	WorkspaceID              uuid.NullUUID         `db:"workspace_id" json:"workspace_id"`
+	Title                    string                `db:"title" json:"title"`
+	Status                   ChatStatus            `db:"status" json:"status"`
+	WorkerID                 uuid.NullUUID         `db:"worker_id" json:"worker_id"`
+	StartedAt                sql.NullTime          `db:"started_at" json:"started_at"`
+	HeartbeatAt              sql.NullTime          `db:"heartbeat_at" json:"heartbeat_at"`
+	CreatedAt                time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time             `db:"updated_at" json:"updated_at"`
+	ParentChatID             uuid.NullUUID         `db:"parent_chat_id" json:"parent_chat_id"`
+	RootChatID               uuid.NullUUID         `db:"root_chat_id" json:"root_chat_id"`
+	LastModelConfigID        uuid.UUID             `db:"last_model_config_id" json:"last_model_config_id"`
+	Archived                 bool                  `db:"archived" json:"archived"`
+	LastError                pqtype.NullRawMessage `db:"last_error" json:"last_error"`
+	Mode                     NullChatMode          `db:"mode" json:"mode"`
+	MCPServerIDs             []uuid.UUID           `db:"mcp_server_ids" json:"mcp_server_ids"`
+	Labels                   StringMap             `db:"labels" json:"labels"`
+	BuildID                  uuid.NullUUID         `db:"build_id" json:"build_id"`
+	AgentID                  uuid.NullUUID         `db:"agent_id" json:"agent_id"`
+	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
+	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
+	LastInjectedContext      pqtype.NullRawMessage `db:"last_injected_context" json:"last_injected_context"`
+	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
+	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
+	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
+	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
+	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
+	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	UserACL                  ChatACL               `db:"user_acl" json:"user_acl"`
+	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
+	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
+	OwnerName                string                `db:"owner_name" json:"owner_name"`
 }
 
 type ChatDebugRun struct {
@@ -4726,6 +4737,13 @@ type ChatFileLink struct {
 	FileID uuid.UUID `db:"file_id" json:"file_id"`
 }
 
+// Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.
+type ChatHeartbeat struct {
+	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
+	RunnerID    uuid.UUID `db:"runner_id" json:"runner_id"`
+	HeartbeatAt time.Time `db:"heartbeat_at" json:"heartbeat_at"`
+}
+
 type ChatMessage struct {
 	ID                  int64                 `db:"id" json:"id"`
 	ChatID              uuid.UUID             `db:"chat_id" json:"chat_id"`
@@ -4749,6 +4767,7 @@ type ChatMessage struct {
 	Deleted             bool                  `db:"deleted" json:"deleted"`
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
+	Revision            int64                 `db:"revision" json:"revision"`
 }
 
 type ChatModelConfig struct {
@@ -4777,6 +4796,8 @@ type ChatQueuedMessage struct {
 	CreatedAt     time.Time       `db:"created_at" json:"created_at"`
 	ModelConfigID uuid.NullUUID   `db:"model_config_id" json:"model_config_id"`
 	APIKeyID      sql.NullString  `db:"api_key_id" json:"api_key_id"`
+	Position      int64           `db:"position" json:"position"`
+	CreatedBy     uuid.UUID       `db:"created_by" json:"created_by"`
 }
 
 type ChatTable struct {
@@ -4810,6 +4831,17 @@ type ChatTable struct {
 	LastTurnSummary     sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
 	UserACL             ChatACL               `db:"user_acl" json:"user_acl"`
 	GroupACL            ChatACL               `db:"group_acl" json:"group_acl"`
+	// Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.
+	SnapshotVersion int64 `db:"snapshot_version" json:"snapshot_version"`
+	// Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.
+	HistoryVersion int64 `db:"history_version" json:"history_version"`
+	// Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.
+	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
+	GenerationAttempt        int64                 `db:"generation_attempt" json:"generation_attempt"`
+	RetryState               pqtype.NullRawMessage `db:"retry_state" json:"retry_state"`
+	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
+	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
+	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
 }
 
 type ChatUsageLimitConfig struct {

@@ -990,24 +990,35 @@ describe("constants", () => {
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-line-height", "1.5");
 	});
 
-	it("fileViewerCSS is a non-empty string", () => {
-		expect(typeof fileViewerCSS).toBe("string");
-		expect(fileViewerCSS.length).toBeGreaterThan(0);
+	it("DIFFS_FONT_STYLE uses theme-aware diff variables", () => {
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-addition-color-override",
+			"hsl(var(--git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-deletion-color-override",
+			"hsl(var(--git-deleted))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-addition-override",
+			"hsl(var(--surface-git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-deletion-override",
+			"hsl(var(--surface-git-deleted))",
+		);
 	});
 
-	it("diffViewerCSS includes border-left style", () => {
-		expect(diffViewerCSS).toContain("border-left");
+	it("fileViewerCSS keeps file viewer backgrounds transparent", () => {
+		expect(fileViewerCSS).toContain("background-color: transparent");
+		expect(fileViewerCSS).toContain("[data-diffs-header]");
+		expect(fileViewerCSS).not.toContain("[data-code]");
 	});
 
-	it("diffViewerCSS uses theme-aware changed line backgrounds", () => {
-		expect(diffViewerCSS).toContain("--diffs-addition-color-override");
-		expect(diffViewerCSS).toContain("--diffs-deletion-color-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-addition-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-deletion-override");
-		expect(diffViewerCSS).toContain("var(--surface-git-added)");
-		expect(diffViewerCSS).toContain("var(--surface-git-deleted)");
-		expect(diffViewerCSS).toContain("[data-line-type='change-addition']");
-		expect(diffViewerCSS).toContain("[data-line-type='change-deletion']");
+	it("diffViewerCSS keeps hunk separator styling scoped", () => {
+		expect(diffViewerCSS).toContain("[data-separator='line-info']");
+		expect(diffViewerCSS).toContain("[data-separator-content]");
+		expect(diffViewerCSS).not.toContain("[data-diffs-header]");
 	});
 });
 
@@ -1063,6 +1074,27 @@ describe("parseServerEditResults", () => {
 });
 
 describe("parseServerEditDiffText", () => {
+	const changedLineContents = (
+		diff: NonNullable<ReturnType<typeof parseServerEditDiffText>>,
+	) =>
+		diff.hunks.flatMap((hunk) =>
+			hunk.hunkContent.flatMap((content) => {
+				if (content.type !== "change") {
+					return [];
+				}
+				return [
+					...diff.deletionLines.slice(
+						content.deletionLineIndex,
+						content.deletionLineIndex + content.deletions,
+					),
+					...diff.additionLines.slice(
+						content.additionLineIndex,
+						content.additionLineIndex + content.additions,
+					),
+				].map((line) => line.trimEnd());
+			}),
+		);
+
 	it("returns null for an empty string (no-op edit)", () => {
 		expect(parseServerEditDiffText("")).toBeNull();
 	});
@@ -1073,6 +1105,46 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+
+	it("parses quoted git diff headers", () => {
+		const diff = parseServerEditDiffText(
+			[
+				'diff --git "a/path with spaces.ts" "b/path with spaces.ts"',
+				"index 1111111..2222222 100644",
+				'--- "a/path with spaces.ts"',
+				'+++ "b/path with spaces.ts"',
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("path with spaces.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
+	});
+
+	it("parses diffs that include git patch footer metadata", () => {
+		const diff = parseServerEditDiffText(
+			[
+				"diff --git a/example.ts b/example.ts",
+				"index 1111111..2222222 100644",
+				"--- a/example.ts",
+				"+++ b/example.ts",
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"-- ",
+				"2.45.0",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("example.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
 	});
 });
 

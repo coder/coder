@@ -115,13 +115,23 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	if seed.Content.Valid {
 		content = string(seed.Content.RawMessage)
 	}
+	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
+	apiKeyID := seed.APIKeyID.String
+	// Mint a real API key for user turns so the api_key_id foreign key is
+	// satisfied. Without a creator we leave it empty, which the insert query
+	// stores as NULL.
+	if role == database.ChatMessageRoleUser && apiKeyID == "" &&
+		seed.CreatedBy.Valid && seed.CreatedBy.UUID != uuid.Nil {
+		key, _ := APIKey(t, db, database.APIKey{UserID: seed.CreatedBy.UUID})
+		apiKeyID = key.ID
+	}
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
-		APIKeyID:            []string{seed.APIKeyID.String},
+		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
-		Role:                []database.ChatMessageRole{takeFirst(seed.Role, database.ChatMessageRoleUser)},
+		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
 		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
 		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
