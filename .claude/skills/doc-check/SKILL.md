@@ -34,9 +34,9 @@ documentation is needed.
    - Even for "internal" or "chore" changes, always verify the actual
      diff.
 
-4. **Search the docs** for related content in `docs/`.
+4. **Search the docs.** Find related content in `docs/`.
 
-5. **Decide what's needed**:
+5. **Decide what's needed.** Consider:
    - Do existing docs need updates to match the code?
    - Is new documentation needed for undocumented features?
    - Or is everything already covered?
