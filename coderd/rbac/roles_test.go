@@ -1320,7 +1320,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AISeat",
+			Name:     "AiSeat",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
 			Resource: rbac.ResourceAiSeat,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
@@ -1328,7 +1328,7 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "AIModelPrice",
+			Name:     "AiModelPrice",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceAiModelPrice,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
