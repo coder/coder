@@ -118,10 +118,11 @@ jobs:
             # everything for this (corpus, ref)".
             echo "paths_json=[]" >> "$GITHUB_OUTPUT"
           }
-          # workflow_dispatch never has a diff range; treat as
-          # "manifest unchanged" so the manual reindex/delete path
-          # doesn't trigger a Vercel rebuild it didn't ask for, and as
-          # whole-branch so a manual reindex is exhaustive.
+          # Non-push events (workflow_dispatch, release.published)
+          # have no diff range; treat as "manifest unchanged" so the
+          # manual or release-triggered reindex doesn't fire a Vercel
+          # rebuild it didn't ask for, and as whole-branch so the
+          # resulting reindex is exhaustive.
           if [ "$EVENT_NAME" != "push" ]; then
             echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
             emit_whole_branch_fallback
@@ -280,6 +281,9 @@ jobs:
           # reindexing. See DOCS-327. The handler's allowlist gates the
           # downstream POST, so an unsupported minor still no-ops
           # rather than reindexing something we did not intend.
+          #
+          # Tested in test-deploy-docs-release.sh. Keep that script in
+          # sync with any changes to this block.
           if [ "${EVENT_NAME:-}" = "release" ]; then
             if [ "${RELEASE_PRERELEASE:-false}" = "true" ]; then
               echo "::notice::Skipping prerelease ${RELEASE_TAG:-<unknown>}; no docs reindex."
