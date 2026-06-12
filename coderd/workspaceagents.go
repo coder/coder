@@ -1134,6 +1134,12 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspaceAgent := httpmw.WorkspaceAgentParam(r)
+	workspace := httpmw.WorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
