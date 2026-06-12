@@ -2261,11 +2261,11 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 func (s *MethodTestSuite) TestAISeat() {
 	s.Run("GetActiveAISeatCount", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetActiveAISeatCount(gomock.Any()).Return(int64(100), nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceAISeat, policy.ActionRead).Returns(int64(100))
+		check.Args().Asserts(rbac.ResourceAiSeat, policy.ActionRead).Returns(int64(100))
 	}))
 	s.Run("UpsertAISeatState", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().UpsertAISeatState(gomock.Any(), gomock.Any()).Return(true, nil).AnyTimes()
-		check.Args(database.UpsertAISeatStateParams{}).Asserts(rbac.ResourceAISeat, policy.ActionCreate)
+		check.Args(database.UpsertAISeatStateParams{}).Asserts(rbac.ResourceAiSeat, policy.ActionCreate)
 	}))
 }
 
@@ -2964,7 +2964,7 @@ func (s *MethodTestSuite) TestUser() {
 		ids := []uuid.UUID{a.ID, b.ID}
 		seatStates := []uuid.UUID{a.ID}
 		dbm.EXPECT().GetUserAISeatStates(gomock.Any(), ids).Return(seatStates, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceAISeat, policy.ActionRead).Returns(seatStates)
+		check.Args(ids).Asserts(rbac.ResourceAiSeat, policy.ActionRead).Returns(seatStates)
 	}))
 	s.Run("GetUserByEmailOrUsername", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		u := testutil.Fake(s.T(), faker, database.User{})
@@ -6613,12 +6613,12 @@ func (s *MethodTestSuite) TestAIBridge() {
 
 	s.Run("UpsertAIModelPrices", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().UpsertAIModelPrices(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
-		check.Args(json.RawMessage(`[]`)).Asserts(rbac.ResourceAIModelPrice, policy.ActionUpdate)
+		check.Args(json.RawMessage(`[]`)).Asserts(rbac.ResourceAiModelPrice, policy.ActionUpdate)
 	}))
 
 	s.Run("GetAIModelPriceByProviderModel", s.Mocked(func(db *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).Return(database.AIModelPrice{}, nil).AnyTimes()
-		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAIModelPrice, policy.ActionRead)
+		check.Args(database.GetAIModelPriceByProviderModelParams{}).Asserts(rbac.ResourceAiModelPrice, policy.ActionRead)
 	}))
 
 	s.Run("GetGroupAIBudget", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

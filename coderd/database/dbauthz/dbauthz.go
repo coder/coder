@@ -226,7 +226,7 @@ var (
 					rbac.ResourceProvisionerJobs.Type: {policy.ActionRead, policy.ActionUpdate, policy.ActionCreate},
 					rbac.ResourceFile.Type:            {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceSystem.Type:          {policy.WildcardSymbol},
-					rbac.ResourceAISeat.Type:          {policy.ActionCreate}, // Required for UpsertAISeatState via SeatTracker.
+					rbac.ResourceAiSeat.Type:          {policy.ActionCreate}, // Required for UpsertAISeatState via SeatTracker.
 					rbac.ResourceTemplate.Type:        {policy.ActionRead, policy.ActionUpdate},
 					// Unsure why provisionerd needs update and read personal
 					rbac.ResourceUser.Type:             {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
@@ -597,7 +597,7 @@ var (
 				DisplayName: "Usage Publisher",
 				Site: rbac.Permissions(map[string][]policy.Action{
 					rbac.ResourceLicense.Type: {policy.ActionRead},
-					rbac.ResourceAISeat.Type:  {policy.ActionRead}, // Required for GetActiveAISeatCount.
+					rbac.ResourceAiSeat.Type:  {policy.ActionRead}, // Required for GetActiveAISeatCount.
 					// The usage publisher doesn't create events, just
 					// reads/processes them.
 					rbac.ResourceUsageEvent.Type: {policy.ActionRead, policy.ActionUpdate},
@@ -625,8 +625,8 @@ var (
 					},
 					rbac.ResourceApiKey.Type:               {policy.ActionRead}, // Validate API keys.
 					rbac.ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
-					rbac.ResourceAIModelPrice.Type:         {policy.ActionUpdate}, // Required for the startup price seeder.
-					rbac.ResourceAISeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
+					rbac.ResourceAiModelPrice.Type:         {policy.ActionUpdate}, // Required for the startup price seeder.
+					rbac.ResourceAiSeat.Type:               {policy.ActionCreate}, // Required for UpsertAISeatState.
 					rbac.ResourceAIProvider.Type:           {policy.ActionRead},   // Required to load the provider snapshot (and per-provider keys) at startup.
 				}),
 				User:    []rbac.Permission{},
@@ -2693,7 +2693,7 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 }
 
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIModelPrice); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AIModelPrice{}, err
 	}
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
@@ -2787,7 +2787,7 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 }
 
 func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAISeat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiSeat); err != nil {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
@@ -4789,7 +4789,7 @@ func (q *querier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid
 }
 
 func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) ([]uuid.UUID, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAISeat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiSeat); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserAISeatStates(ctx, userIDs)
@@ -8360,14 +8360,14 @@ func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg datab
 }
 
 func (q *querier) UpsertAIModelPrices(ctx context.Context, seed json.RawMessage) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIModelPrice); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAiModelPrice); err != nil {
 		return err
 	}
 	return q.db.UpsertAIModelPrices(ctx, seed)
 }
 
 func (q *querier) UpsertAISeatState(ctx context.Context, arg database.UpsertAISeatStateParams) (bool, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAISeat); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceAiSeat); err != nil {
 		return false, err
 	}
 	return q.db.UpsertAISeatState(ctx, arg)

@@ -1322,7 +1322,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "AISeat",
 			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
-			Resource: rbac.ResourceAISeat,
+			Resource: rbac.ResourceAiSeat,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				false: {owner, setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgWorkspaceAccessUser},
 			},
@@ -1330,7 +1330,7 @@ func TestRolePermissions(t *testing.T) {
 		{
 			Name:     "AIModelPrice",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
-			Resource: rbac.ResourceAIModelPrice,
+			Resource: rbac.ResourceAiModelPrice,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner},
 				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, templateAdmin, userAdmin, orgWorkspaceAccessUser},

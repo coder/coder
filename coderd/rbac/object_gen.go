@@ -24,11 +24,11 @@ var (
 		Type: "ai_gateway_key",
 	}
 
-	// ResourceAIModelPrice
+	// ResourceAiModelPrice
 	// Valid Actions
 	//  - "ActionRead" :: read AI model prices
 	//  - "ActionUpdate" :: update AI model prices
-	ResourceAIModelPrice = Object{
+	ResourceAiModelPrice = Object{
 		Type: "ai_model_price",
 	}
 
@@ -42,11 +42,11 @@ var (
 		Type: "ai_provider",
 	}
 
-	// ResourceAISeat
+	// ResourceAiSeat
 	// Valid Actions
 	//  - "ActionCreate" :: record AI seat usage
 	//  - "ActionRead" :: read AI seat state
-	ResourceAISeat = Object{
+	ResourceAiSeat = Object{
 		Type: "ai_seat",
 	}
 
@@ -489,9 +489,9 @@ func AllResources() []Objecter {
 	return []Objecter{
 		ResourceWildcard,
 		ResourceAIGatewayKey,
-		ResourceAIModelPrice,
+		ResourceAiModelPrice,
 		ResourceAIProvider,
-		ResourceAISeat,
+		ResourceAiSeat,
 		ResourceAibridgeInterception,
 		ResourceApiKey,
 		ResourceAssignOrgRole,

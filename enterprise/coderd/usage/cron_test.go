@@ -83,7 +83,7 @@ func TestCron(t *testing.T) {
 // TestAISeatsHeartbeat checks that AISeatsHeartbeat returns the
 // correct event type and count. It wraps a mock database with dbauthz
 // to verify that the AsUsagePublisher subject has the required
-// ResourceAISeat.ActionRead permission.
+// ResourceAiSeat.ActionRead permission.
 func TestAISeatsHeartbeat(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +97,7 @@ func TestAISeatsHeartbeat(t *testing.T) {
 	authzDB := dbauthz.New(db, authz, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
 
 	// AISeatsHeartbeat internally uses AsUsagePublisher, which must
-	// have ResourceAISeat.ActionRead to pass the dbauthz check.
+	// have ResourceAiSeat.ActionRead to pass the dbauthz check.
 	fn := usage.AISeatsHeartbeat(authzDB)
 	event, err := fn(testutil.Context(t, testutil.WaitLong))
 	require.NoError(t, err)

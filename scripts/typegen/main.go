@@ -132,24 +132,6 @@ func generateCountries() ([]byte, error) {
 func pascalCaseName[T ~string](name T) string {
 	names := strings.Split(string(name), "_")
 	for i := range names {
-		switch names[i] {
-		case "ai":
-			names[i] = "AI"
-		default:
-			names[i] = utilstrings.Capitalize(names[i])
-		}
-	}
-	return strings.Join(names, "")
-}
-
-// pascalCaseNameLegacy is the pre-initialism PascalCase routine. It is wired
-// to the `codersdk` template only, so renames driven by initialism support in
-// `pascalCaseName` do not leak into the `codersdk` Go SDK and break source
-// compatibility for external consumers. The internal `rbac` package keeps the
-// `AI` casing produced by `pascalCaseName`.
-func pascalCaseNameLegacy[T ~string](name T) string {
-	names := strings.Split(string(name), "_")
-	for i := range names {
 		names[i] = utilstrings.Capitalize(names[i])
 	}
 	return strings.Join(names, "")
@@ -241,9 +223,8 @@ func generateRbacObjects(templateSource string) ([]byte, error) {
 	var errorList []error
 	var x int
 	tpl, err := template.New("object.gotmpl").Funcs(template.FuncMap{
-		"capitalize":           utilstrings.Capitalize,
-		"pascalCaseName":       pascalCaseName[string],
-		"pascalCaseNameLegacy": pascalCaseNameLegacy[string],
+		"capitalize":     utilstrings.Capitalize,
+		"pascalCaseName": pascalCaseName[string],
 		"actionsList": func() []ActionDetails {
 			return actionList
 		},
