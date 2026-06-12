@@ -1,12 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { MockUserOwner } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
-import type { TaskApps } from "./TaskApps";
-import { TaskWildcardWarning } from "./TaskWildcardWarning";
+import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";
 
-const meta: Meta<typeof TaskWildcardWarning> = {
-	title: "pages/TaskPage/TaskWildcardWarning",
-	component: TaskWildcardWarning,
+const meta: Meta<typeof WorkspaceWildcardWarning> = {
+	title: "modules/apps/WorkspaceWildcardWarning",
+	component: WorkspaceWildcardWarning,
 	decorators: [withAuthProvider],
 	parameters: {
 		layout: "fullscreen",
@@ -15,7 +14,7 @@ const meta: Meta<typeof TaskWildcardWarning> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof TaskApps>;
+type Story = StoryObj<typeof meta>;
 
 export const WithoutEditPermission: Story = {};
 

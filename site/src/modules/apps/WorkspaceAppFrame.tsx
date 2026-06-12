@@ -3,7 +3,7 @@ import {
 	ExternalLinkIcon,
 	HouseIcon,
 } from "lucide-react";
-import { type FC, type HTMLProps, useRef } from "react";
+import { type ComponentProps, type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
 import type { Workspace } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -15,18 +15,20 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useProxy } from "#/contexts/ProxyContext";
-import { useAppLink } from "#/modules/apps/useAppLink";
-import type { WorkspaceAppWithAgent } from "#/modules/tasks/apps";
 import { cn } from "#/utils/cn";
-import { TaskWildcardWarning } from "./TaskWildcardWarning";
+import { isAppBlockedByMissingWildcard } from "./apps";
+import { useAppLink } from "./useAppLink";
+import { WorkspaceWildcardWarning } from "./WorkspaceWildcardWarning";
+import type { WorkspaceAppWithAgent } from "./workspaceApps";
 
-type TaskAppIFrameProps = {
+type WorkspaceAppFrameProps = {
 	workspace: Workspace;
 	app: WorkspaceAppWithAgent;
+	// Keep the iframe mounted while hidden so callers can preserve app state.
 	active: boolean;
 };
 
-export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
+export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 	workspace,
 	app,
 	active,
@@ -37,20 +39,24 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 	});
 	const proxy = useProxy();
 	const frameRef = useRef<HTMLIFrameElement>(null);
-	const shouldDisplayWildcardWarning =
-		app.subdomain && !proxy.proxy?.preferredWildcardHostname;
+	const shouldDisplayWildcardWarning = isAppBlockedByMissingWildcard(
+		app,
+		proxy.proxy?.preferredWildcardHostname,
+	);
+	// The "preview" app renders a navigation toolbar above its iframe.
+	const showToolbar = app.slug === "preview";
 
 	if (shouldDisplayWildcardWarning) {
 		return (
 			<div className="h-full flex items-center justify-center pb-4">
-				<TaskWildcardWarning />
+				<WorkspaceWildcardWarning />
 			</div>
 		);
 	}
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
-			{app.slug === "preview" && (
+			{showToolbar && (
 				<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
 					<Button
 						size="icon"
@@ -66,9 +72,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						<span className="sr-only">Home</span>
 					</Button>
 
-					{/* Possibly we will put a URL bar here, but for now we cannot due to
-					 * cross-origin restrictions in iframes. */}
-					<div className="w-full"></div>
+					<div className="w-full" />
 
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
@@ -79,7 +83,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem asChild>
-								<RouterLink to={link.href} target="_blank">
+								<RouterLink to={link.href} target="_blank" rel="noreferrer">
 									<ExternalLinkIcon />
 									Open app in new tab
 								</RouterLink>
@@ -90,7 +94,7 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 			)}
 
 			{app.health === "healthy" || app.health === "disabled" ? (
-				<TaskIframe ref={frameRef} src={link.href} title={link.label} />
+				<WorkspaceIframe ref={frameRef} src={link.href} title={link.label} />
 			) : app.health === "unhealthy" ? (
 				<div className="w-full h-full flex flex-col items-center justify-center p-4">
 					<h3 className="m-0 font-medium text-content-primary text-base text-center">
@@ -143,11 +147,16 @@ export const TaskAppIFrame: FC<TaskAppIFrameProps> = ({
 	);
 };
 
-type TaskIframeProps = HTMLProps<HTMLIFrameElement>;
+type WorkspaceIframeProps = ComponentProps<"iframe">;
 
-export const TaskIframe: FC<TaskIframeProps> = ({ className, ...props }) => {
+export const WorkspaceIframe: FC<WorkspaceIframeProps> = ({
+	className,
+	ref,
+	...props
+}) => {
 	return (
 		<iframe
+			ref={ref}
 			loading="eager"
 			className={cn("w-full h-full border-0", className)}
 			allow="clipboard-read; clipboard-write"
