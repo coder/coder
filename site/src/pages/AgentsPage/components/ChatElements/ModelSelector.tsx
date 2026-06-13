@@ -113,6 +113,33 @@ const normalizeEffort = (raw: string | undefined): EffortLevel | null => {
 		: null;
 };
 
+/**
+ * Builds the searchable string that we hand to cmdk as a row's
+ * `value`. cmdk filters and highlights items by matching the search
+ * query against this string, and looks up the currently active item
+ * by exact-match against it, so the same helper is used both when
+ * rendering rows and when telling cmdk which row to land on when
+ * the dropdown opens.
+ */
+const getCmdkValue = (
+	option: ModelSelectorOption,
+	providerLabel: string,
+): string => {
+	const contextShort =
+		option.contextLimit != null && option.contextLimit > 0
+			? formatContextLimitShort(option.contextLimit)
+			: "";
+	return [
+		option.displayName,
+		option.provider,
+		option.model,
+		providerLabel,
+		contextShort,
+	]
+		.join(" ")
+		.toLowerCase();
+};
+
 export const ModelSelector: FC<ModelSelectorProps> = ({
 	options,
 	value,
@@ -248,10 +275,19 @@ const ModelPickerPanel: FC<ModelPickerPanelProps> = ({
 	onSelect,
 }) => {
 	const effort = normalizeEffort(selectedModel?.effort);
+	// When the dropdown opens, land cmdk's active row on the
+	// currently-selected model. cmdk scrolls the active row into view
+	// on mount, so this guarantees the user sees their choice without
+	// having to scroll. Recomputed each render so it stays in sync if
+	// the selection changes while the popover is open.
+	const selectedCmdkValue = selectedModel
+		? getCmdkValue(selectedModel, formatProviderLabel(selectedModel.provider))
+		: undefined;
 
 	return (
 		<TooltipProvider delayDuration={300}>
 			<Command
+				defaultValue={selectedCmdkValue}
 				// The default cmdk filter scores fuzzy character overlaps and
 				// keeps loosely matching rows visible. The model picker needs
 				// a strict, substring-based filter so typing a model name
@@ -359,15 +395,7 @@ const ModelRow: FC<ModelRowProps> = ({
 			: null;
 	// Pack searchable text into cmdk's `value` so the search input
 	// matches name, provider, and the short context label.
-	const cmdkValue = [
-		option.displayName,
-		option.provider,
-		option.model,
-		providerLabel,
-		contextShort ?? "",
-	]
-		.join(" ")
-		.toLowerCase();
+	const cmdkValue = getCmdkValue(option, providerLabel);
 
 	const row = (
 		<CommandItem
