@@ -550,6 +550,12 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 				}}
 				className={cn(
 					"grow",
+					// Thin the track from the Slider primitive's default 8px
+					// down to 6px. The Track is the slider's only descendant
+					// with `bg-surface-secondary`, so the class selector is
+					// stable; the override beats the primitive's own `h-2`
+					// thanks to higher specificity.
+					"[&_.bg-surface-secondary]:h-1.5",
 					// Smooth value changes so dragging and arrow keys glide
 					// between effort levels instead of snapping abruptly. The
 					// duration is short enough that pointer drags still feel
