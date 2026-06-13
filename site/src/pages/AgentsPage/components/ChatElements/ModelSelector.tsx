@@ -514,20 +514,30 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 				}}
 				className={cn(
 					"grow",
-					// Hide the round thumb so the visual indicator is purely
-					// the end of the filled track. The thumb element stays in
-					// the DOM at full size so pointer + keyboard interaction
-					// still work; only its paint is suppressed.
-					"[&_[role=slider]]:border-transparent",
-					"[&_[role=slider]]:bg-transparent",
+					// Smooth value changes so dragging and arrow keys glide
+					// between effort levels instead of snapping abruptly. The
+					// duration is short enough that pointer drags still feel
+					// responsive at each step boundary.
+					"[&_[data-orientation=horizontal]]:transition-[transform,left,width] [&_[data-orientation=horizontal]]:duration-150 [&_[data-orientation=horizontal]]:ease-out",
+					// Small solid-white thumb. The default Radix thumb is
+					// 16px with a border; override to a 10px solid-white
+					// circle with a grab/grabbing cursor so it reads as
+					// draggable without dominating the row.
+					"[&_[role=slider]]:h-2.5 [&_[role=slider]]:w-2.5",
+					"[&_[role=slider]]:border-0 [&_[role=slider]]:bg-content-primary",
 					"[&_[role=slider]]:shadow-none",
-					"[&_[role=slider]]:hover:border-transparent",
+					"[&_[role=slider]]:cursor-grab",
+					"[&_[role=slider]:active]:cursor-grabbing",
+					"[&_[role=slider]]:hover:border-0",
 					"[&_[role=slider]]:focus-visible:ring-0",
 				)}
 			/>
 			<span
 				className={cn(
-					"inline-flex h-6 shrink-0 items-center rounded-md px-2",
+					// Fixed width plus `justify-start` keeps the badge's
+					// right edge anchored as the label text grows or shrinks,
+					// so the slider track length stays constant.
+					"inline-flex h-6 w-[4.5rem] shrink-0 items-center justify-start rounded-md px-2",
 					"border border-solid border-border-default bg-surface-secondary",
 					"text-xs font-medium text-content-primary tabular-nums",
 				)}
