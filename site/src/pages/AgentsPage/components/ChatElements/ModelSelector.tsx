@@ -562,11 +562,11 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 			/>
 			<span
 				className={cn(
-					// Fixed width plus `justify-start` keeps the badge's
-					// right edge anchored as the label text grows or shrinks,
-					// so the slider track length stays constant.
-					"inline-flex h-6 w-[4.5rem] shrink-0 items-center justify-start rounded-md px-2",
-					"border border-solid border-border-default bg-surface-secondary",
+					// Plain-text effort value. Fixed width plus `justify-start`
+					// still keeps the slider track length constant as the
+					// label flips between `Low`, `Medium`, `Xhigh`, etc.
+					"inline-flex shrink-0 items-center justify-start",
+					"w-[4.5rem] pl-2",
 					"text-xs font-medium text-content-primary tabular-nums",
 				)}
 			>
