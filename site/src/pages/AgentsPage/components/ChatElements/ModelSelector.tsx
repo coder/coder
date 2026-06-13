@@ -318,14 +318,17 @@ const ModelPickerPanel: FC<ModelPickerPanelProps> = ({
 						);
 					})}
 				</CommandList>
-				{effort && (
+				{selectedModel && (
 					<EffortRow
-						effort={effort}
-						providerLabel={
-							selectedModel
-								? formatProviderLabel(selectedModel.provider)
-								: undefined
-						}
+						// DEMO: while the backend does not yet plumb a per-chat
+						// `reasoning_effort`, every model gets an Effort row. If
+						// the admin configured an effort, we use it as the cap;
+						// otherwise we fall back to `xhigh` so the slider has
+						// the full range to show. Drop the fallback once the
+						// backend lands and the row should hide for models that
+						// do not support reasoning.
+						effort={effort ?? "xhigh"}
+						providerLabel={formatProviderLabel(selectedModel.provider)}
 					/>
 				)}
 			</Command>
@@ -509,7 +512,18 @@ const EffortRow: FC<EffortRowProps> = ({ effort, providerLabel }) => {
 						setSelectedIndex(next);
 					}
 				}}
-				className="grow"
+				className={cn(
+					"grow",
+					// Hide the round thumb so the visual indicator is purely
+					// the end of the filled track. The thumb element stays in
+					// the DOM at full size so pointer + keyboard interaction
+					// still work; only its paint is suppressed.
+					"[&_[role=slider]]:border-transparent",
+					"[&_[role=slider]]:bg-transparent",
+					"[&_[role=slider]]:shadow-none",
+					"[&_[role=slider]]:hover:border-transparent",
+					"[&_[role=slider]]:focus-visible:ring-0",
+				)}
 			/>
 			<span
 				className={cn(
