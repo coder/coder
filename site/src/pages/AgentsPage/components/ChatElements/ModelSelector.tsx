@@ -413,7 +413,15 @@ const ModelRow: FC<ModelRowProps> = ({
 				// keyboard focus does not visually collide with the chosen row.
 				"group flex h-10 cursor-pointer items-center gap-2 rounded-md px-2.5 py-0",
 				"text-sm font-normal text-content-primary",
-				"data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary",
+				// cmdk applies `data-selected=true` to its active row, which
+				// is whatever the user is hovering, has the keyboard cursor
+				// on, or what cmdk auto-advanced to after a search. Using
+				// the full `bg-surface-secondary` here would make the active
+				// row look identical to the persistent-selected row and read
+				// as two simultaneous selections. A faint white overlay keeps
+				// the cursor visible without competing with the real
+				// selection below.
+				"data-[selected=true]:bg-content-primary/[0.08]",
 				// The persistent "this is the chosen value" treatment.
 				isSelected && "bg-surface-secondary text-content-primary",
 			)}
