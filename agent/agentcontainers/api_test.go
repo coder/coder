@@ -4592,6 +4592,85 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			},
 		},
 		{
+			name:     "SubfolderConfig/SingleConfig",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                              "",
+				"/home/coder/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/python/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/PrefersDevcontainerDirConfig",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                              "",
+				"/home/coder/coder/.devcontainer/devcontainer.json":        "",
+				"/home/coder/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/PrefersRootConfig",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                              "",
+				"/home/coder/coder/.devcontainer.json":                     "",
+				"/home/coder/coder/.devcontainer/python/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/MultipleSubfolders",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                          "",
+				"/home/coder/coder/.devcontainer/go/devcontainer.json": "",
+				"/home/coder/coder/.devcontainer/py/devcontainer.json": "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/go/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
+			name:     "SubfolderConfig/IgnoresNestedSubfolders",
+			agentDir: "/home/coder",
+			fs: map[string]string{
+				"/home/coder/coder/.git/HEAD":                                "",
+				"/home/coder/coder/.devcontainer/go/extra/devcontainer.json": "",
+				"/home/coder/coder/.devcontainer/python/devcontainer.json":   "",
+			},
+			expected: []codersdk.WorkspaceAgentDevcontainer{
+				{
+					WorkspaceFolder: "/home/coder/coder",
+					ConfigPath:      "/home/coder/coder/.devcontainer/python/devcontainer.json",
+					Status:          codersdk.WorkspaceAgentDevcontainerStatusStopped,
+				},
+			},
+		},
+		{
 			name:     "IgnoreNonsenseDevcontainerNames",
 			agentDir: "/home/coder",
 			fs: map[string]string{
