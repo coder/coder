@@ -21,7 +21,7 @@ import (
 const (
 	listTemplatesPageSize = 10
 	// ListTemplatesReadmeExcerptMaxRunes bounds the README excerpt surfaced
-	// per template by list_templates. Exported so tests can assert against it.
+	// per template by list_templates.
 	ListTemplatesReadmeExcerptMaxRunes = 1000
 )
 
@@ -135,11 +135,10 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
 				}
-				// Fetch the active version README for routing context. This is
-				// template-scoped (the same RBAC path as read_template) and
-				// best-effort. A batched GetTemplateVersionsByIDs is avoided
-				// because it requires ResourceSystem and would drop the excerpt
-				// for non-owners; the N+1 is bounded by the page size.
+				// Fetch the active version README for routing context, best-effort
+				// and template-scoped like read_template. The batched query needs
+				// ResourceSystem and would drop excerpts for non-owners, so accept
+				// an N+1 bounded by the page size.
 				if version, vErr := db.GetTemplateVersionByID(ctx, t.ActiveVersionID); vErr == nil {
 					if excerpt := readmeExcerpt(version.Readme); excerpt != "" {
 						item["readme_excerpt"] = excerpt

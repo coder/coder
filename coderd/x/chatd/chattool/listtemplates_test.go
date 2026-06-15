@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -350,7 +351,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		CreatedBy:      user.ID,
 		Readme:         " \n\t\n",
 	})
-	tEmpty := dbgen.Template(t, db, database.Template{
+	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
 		Name:            "empty-readme",
@@ -363,14 +364,14 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		CreatedBy:      user.ID,
 		Readme:         "---\ndisplay_name: Only Frontmatter\n---\n",
 	})
-	tFrontmatterOnly := dbgen.Template(t, db, database.Template{
+	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
 		Name:            "frontmatter-only",
 		ActiveVersionID: frontmatterOnlyReadme.ID,
 	})
 
-	tMissing := dbgen.Template(t, db, database.Template{
+	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
 		Name:            "missing-version",
@@ -388,41 +389,40 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 	items := result["templates"].([]any)
 
 	byID := make(map[string]map[string]any, len(items))
+	gotHasExcerpt := make(map[string]bool, len(items))
 	for _, it := range items {
 		m := it.(map[string]any)
 		byID[m["id"].(string)] = m
+		_, ok := m["readme_excerpt"]
+		gotHasExcerpt[m["name"].(string)] = ok
 	}
 
-	with := byID[tWith.ID.String()]
-	require.NotNil(t, with)
-	excerpt, ok := with["readme_excerpt"].(string)
+	// Assert which templates surface a readme_excerpt in a single structural
+	// diff: present for real prose (with or without frontmatter), omitted when
+	// the body is blank, frontmatter-only, or the active version is missing.
+	wantHasExcerpt := map[string]bool{
+		"with-readme":        true,
+		"frontmatter-readme": true,
+		"empty-readme":       false,
+		"frontmatter-only":   false,
+		"missing-version":    false,
+	}
+	if diff := cmp.Diff(wantHasExcerpt, gotHasExcerpt); diff != "" {
+		t.Fatalf("readme_excerpt presence mismatch (-want +got):\n%s", diff)
+	}
+
+	// The long README is truncated to the cap and ends with an ellipsis so the
+	// agent can tell a clipped excerpt from a complete one.
+	excerpt, ok := byID[tWith.ID.String()]["readme_excerpt"].(string)
 	require.True(t, ok)
 	excerptRunes := []rune(excerpt)
 	require.Len(t, excerptRunes, chattool.ListTemplatesReadmeExcerptMaxRunes)
-	// Truncated excerpts end with an ellipsis so the agent can tell a clipped
-	// excerpt from a complete one.
 	require.Equal(t, '…', excerptRunes[len(excerptRunes)-1])
 	require.Equal(t, string([]rune(longReadme)[:chattool.ListTemplatesReadmeExcerptMaxRunes-1]), string(excerptRunes[:len(excerptRunes)-1]))
 
-	frontmatter := byID[tFrontmatter.ID.String()]
-	require.NotNil(t, frontmatter)
-	require.Equal(t, "Routing prose for the agent.", frontmatter["readme_excerpt"],
+	// Frontmatter is skipped so the body prose fills the excerpt.
+	require.Equal(t, "Routing prose for the agent.", byID[tFrontmatter.ID.String()]["readme_excerpt"],
 		"readme_excerpt should skip frontmatter and surface the body")
-
-	empty := byID[tEmpty.ID.String()]
-	require.NotNil(t, empty)
-	_, ok = empty["readme_excerpt"]
-	require.False(t, ok, "readme_excerpt should be omitted when the README is blank")
-
-	frontmatterOnly := byID[tFrontmatterOnly.ID.String()]
-	require.NotNil(t, frontmatterOnly)
-	_, ok = frontmatterOnly["readme_excerpt"]
-	require.False(t, ok, "readme_excerpt should be omitted when only frontmatter is present")
-
-	missing := byID[tMissing.ID.String()]
-	require.NotNil(t, missing)
-	_, ok = missing["readme_excerpt"]
-	require.False(t, ok, "readme_excerpt should be omitted when the active version is missing")
 }
 
 // TestListTemplates_ReadmeExcerpt_NonOwnerRBAC runs list_templates under a

@@ -740,7 +740,7 @@ func toPresetView(p codersdk.Preset) presetView {
 var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetTemplate,
-		Description: `Get details about a workspace template, including its configurable parameters, available presets, and the active version README.
+		Description: `Get details about a workspace template, including its configurable parameters, available presets, and README for the active version.
 
 Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
 

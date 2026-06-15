@@ -187,24 +187,22 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 func TestReadTemplate_Readme(t *testing.T) {
 	t.Parallel()
 
-	readTemplateInfo := func(t *testing.T, readme string) map[string]any {
+	// Seed the database, user, and organization once and reuse them across
+	// subtests; each subtest only adds its own template (and version).
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	readTemplateInfo := func(t *testing.T, activeVersionID uuid.UUID) map[string]any {
 		t.Helper()
-		db, _ := dbtestutil.NewDB(t)
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-			Readme:         readme,
-		})
 		tmpl := dbgen.Template(t, db, database.Template{
 			OrganizationID:  org.ID,
 			CreatedBy:       user.ID,
-			ActiveVersionID: tv.ID,
+			ActiveVersionID: activeVersionID,
 		})
 
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -226,16 +224,26 @@ func TestReadTemplate_Readme(t *testing.T) {
 		return tmplInfo
 	}
 
+	readTemplateInfoForReadme := func(t *testing.T, readme string) map[string]any {
+		t.Helper()
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Readme:         readme,
+		})
+		return readTemplateInfo(t, tv.ID)
+	}
+
 	t.Run("Surfaced", func(t *testing.T) {
 		t.Parallel()
 		readme := "---\ndescription: Go template.\n---\n# Title\n\nUse Docker.\n"
-		tmplInfo := readTemplateInfo(t, readme)
+		tmplInfo := readTemplateInfoForReadme(t, readme)
 		require.Equal(t, readme, tmplInfo["readme"])
 	})
 
 	t.Run("EmptyOmitsField", func(t *testing.T) {
 		t.Parallel()
-		tmplInfo := readTemplateInfo(t, " \n\t\n")
+		tmplInfo := readTemplateInfoForReadme(t, " \n\t\n")
 		_, ok := tmplInfo["readme"]
 		require.False(t, ok, "readme should be omitted when blank")
 	})
@@ -243,7 +251,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 	t.Run("NotTruncatedUnderCap", func(t *testing.T) {
 		t.Parallel()
 		readme := "# Title\n\n" + strings.Repeat("x", 3000)
-		tmplInfo := readTemplateInfo(t, readme)
+		tmplInfo := readTemplateInfoForReadme(t, readme)
 		require.Equal(t, readme, tmplInfo["readme"])
 	})
 
@@ -252,7 +260,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 	t.Run("TruncatedOverCap", func(t *testing.T) {
 		t.Parallel()
 		readme := strings.Repeat("x", 9000)
-		tmplInfo := readTemplateInfo(t, readme)
+		tmplInfo := readTemplateInfoForReadme(t, readme)
 		got, ok := tmplInfo["readme"].(string)
 		require.True(t, ok)
 		gotRunes := []rune(got)
@@ -265,36 +273,8 @@ func TestReadTemplate_Readme(t *testing.T) {
 	// omitted.
 	t.Run("MissingVersionOmitsField", func(t *testing.T) {
 		t.Parallel()
-		db, _ := dbtestutil.NewDB(t)
-		user := dbgen.User(t, db, database.User{})
-		org := dbgen.Organization(t, db, database.Organization{})
-		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-			UserID:         user.ID,
-			OrganizationID: org.ID,
-		})
-		tmpl := dbgen.Template(t, db, database.Template{
-			OrganizationID:  org.ID,
-			CreatedBy:       user.ID,
-			ActiveVersionID: uuid.New(),
-		})
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
-			OwnerID: user.ID,
-		})
-		resp, err := tool.Run(ctx, fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "read_template",
-			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
-		})
-		require.NoError(t, err)
-		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
-
-		var result map[string]any
-		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-		tmplInfo, ok := result["template"].(map[string]any)
-		require.True(t, ok)
-		_, ok = tmplInfo["readme"]
+		tmplInfo := readTemplateInfo(t, uuid.New())
+		_, ok := tmplInfo["readme"]
 		require.False(t, ok, "readme should be omitted when the version is missing")
 	})
 }
