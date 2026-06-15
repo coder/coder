@@ -142,8 +142,7 @@ curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | ba
 ```
 
 When running the binary directly, Agent Firewall reads `config.yaml` from
-`~/.config/coder_boundary/` automatically, so the same configuration is used
-whether the agent starts it or a user runs it manually.
+`~/.config/coder_boundary/` automatically.
 
 ## Jail Types
 
