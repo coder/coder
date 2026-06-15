@@ -92,25 +92,19 @@ func unwrapTransportErrorMessage(msg string) string {
 // envelope and the top-level `{"message":...}` shape used by many
 // providers, preferring the nested form when present.
 func jsonErrorMessage(body []byte) string {
-	var nested struct {
-		Error struct {
+	var env struct {
+		Message string `json:"message"`
+		Error   struct {
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := json.Unmarshal(body, &nested); err == nil {
-		if m := strings.TrimSpace(nested.Error.Message); m != "" {
-			return m
-		}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return ""
 	}
-	var top struct {
-		Message string `json:"message"`
+	if m := strings.TrimSpace(env.Error.Message); m != "" {
+		return m
 	}
-	if err := json.Unmarshal(body, &top); err == nil {
-		if m := strings.TrimSpace(top.Message); m != "" {
-			return m
-		}
-	}
-	return ""
+	return strings.TrimSpace(env.Message)
 }
 
 func providerErrorResponseBody(responseDump []byte) []byte {
