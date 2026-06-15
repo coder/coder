@@ -78,7 +78,7 @@ module "agent-firewall" {
 
 For examples of wrapping an agent or process such as Claude Code with Agent
 Firewall, see the
-[agent-firewall module README](https://registry.coder.com/modules/coder/agent-firewall#examples).
+[agent-firewall module README](https://registry.coder.com/modules/coder/agent-firewall#with-claude-code).
 
 For a basic recommendation of what to allow for agents, see the
 [Anthropic documentation on default allowed domains](https://code.claude.com/docs/en/claude-code-on-the-web#default-allowed-domains).
