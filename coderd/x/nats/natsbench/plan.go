@@ -2,29 +2,45 @@ package natsbench
 
 import "fmt"
 
-// plan deterministically maps publishers and subscribers onto subjects
-// and replica nodes, and precomputes each subscriber's expected
-// delivery count so the workload can do exact accounting.
+// plan deterministically assigns publishers and subscribers to subjects
+// and replica nodes by round-robin on their index, and precomputes each
+// subscriber's expected delivery count so the workload can do exact
+// accounting.
+//
+// Worked example with Subjects=2, Replicas=2, Publishers=3,
+// Subscribers=4, Messages=100. Publisher i and subscriber j wrap around
+// the subjects and nodes by index (i%2, j%2), and the 100 messages
+// split 34/33/33 (the remainder lands on publisher 0):
+//
+//	publisher 0 -> subject 0, node 0, sends 34
+//	publisher 1 -> subject 1, node 1, sends 33
+//	publisher 2 -> subject 0, node 0, sends 33
+//
+//	subject 0 receives 34+33 = 67 (publishers 0 and 2)
+//	subject 1 receives 33      (publisher 1)
+//
+//	subscriber 0 -> subject 0, node 0, expects 67
+//	subscriber 1 -> subject 1, node 1, expects 33
+//	subscriber 2 -> subject 0, node 0, expects 67
+//	subscriber 3 -> subject 1, node 1, expects 33
+//
+// totalExpected = 67+33+67+33 = 200. It exceeds the 100 published
+// messages because each subject has two subscribers, so every message
+// is delivered twice. That fan-out is the logical delivery count the
+// benchmark measures.
 type plan struct {
-	// perPubMsgs[i] is the number of messages publisher i sends. The
-	// configured total is split evenly across publishers with the
-	// remainder assigned to publisher 0.
+	// perPubMsgs[i] is the number of messages publisher i sends.
 	perPubMsgs []int
-	// pubSubject[i] and pubNode[i] are publisher i's subject and node
-	// indexes: subject i % Subjects on node i % Replicas.
+	// pubSubject[i] / pubNode[i] are publisher i's subject and node.
 	pubSubject []int
 	pubNode    []int
-	// subSubject[j] and subNode[j] are subscriber j's subject and node
-	// indexes: subject j % Subjects on node j % Replicas.
+	// subSubject[j] / subNode[j] are subscriber j's subject and node.
 	subSubject []int
 	subNode    []int
-	// expectPerSub[j] is the number of benchmark messages subscriber j
-	// must observe: the sum of perPubMsgs over publishers sharing its
-	// subject.
+	// expectPerSub[j] is how many benchmark messages subscriber j must
+	// observe: the total sent to its subject.
 	expectPerSub []int
-	// totalExpected is the sum of expectPerSub, the logical delivery
-	// count. Fan-out makes it exceed the publish total whenever a
-	// subject has more than one subscriber.
+	// totalExpected is the sum of expectPerSub.
 	totalExpected int
 }
 

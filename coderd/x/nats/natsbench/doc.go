@@ -27,8 +27,9 @@
 //     with diagnostics (per-subscriber shortfalls, per-node server
 //     stats, goroutine dump) instead of hanging.
 //
-// The package is an importable library; cmd/natsbench is a small CLI
-// that runs the default scenario matrix, one named scenario, or a
-// custom shape, and renders the grouped markdown report. The heavy
-// benchmarks only run through that command, never in CI.
+// The package is an importable library. Main implements a command-line
+// interface that runs the default scenario matrix, one named scenario,
+// or a custom shape, and renders the grouped markdown report;
+// cmd/natsbench is a thin entrypoint around it. The heavy benchmarks
+// only run through that command, never in CI.
 package natsbench

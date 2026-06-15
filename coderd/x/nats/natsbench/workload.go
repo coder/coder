@@ -91,7 +91,7 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 	}
 
 	start := make(chan struct{})
-	pubDone, pubErrs := w.startPublishers(start)
+	pubDone, pubErrCh := w.startPublishers(start)
 
 	// The hot phase starts when the barrier opens. Both durations are
 	// measured from this instant.
@@ -101,7 +101,13 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 	if err := w.awaitPhase(ctx, "publish", pubDone); err != nil {
 		return w.buildResult(time.Since(hot), time.Since(hot)), err
 	}
-	if err := errors.Join(pubErrs()...); err != nil {
+	// pubDone closing implies pubErrCh is already closed (both happen
+	// after the publishers' WaitGroup), so this drain terminates.
+	var pubErrs []error
+	for err := range pubErrCh {
+		pubErrs = append(pubErrs, err)
+	}
+	if err := errors.Join(pubErrs...); err != nil {
 		return w.buildResult(time.Since(hot), time.Since(hot)), xerrors.Errorf("publish: %w", err)
 	}
 	for _, idx := range uniqueInts(pl.pubNode) {
@@ -188,11 +194,13 @@ func (w *workload) cancelAll() {
 // startPublishers launches one goroutine per publisher, all parked on
 // the start barrier so spawn overhead happens before the clock starts
 // and every publisher begins publishing at the same instant. It returns
-// a channel closed when every publisher finished and an accessor for
-// their errors (valid only after done).
-func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, func() []error) {
+// a channel closed when every publisher finished and a channel of
+// publish errors that is closed at the same time. The error channel is
+// buffered to the publisher count so a failing publisher never blocks,
+// and each publisher sends at most one error.
+func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, <-chan error) {
 	payload := make([]byte, w.cfg.PayloadSize)
-	errs := make([]error, len(w.pl.perPubMsgs))
+	errCh := make(chan error, len(w.pl.perPubMsgs))
 	var wg sync.WaitGroup
 	for i := range w.pl.perPubMsgs {
 		wg.Add(1)
@@ -203,7 +211,7 @@ func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, func
 			subject := subjectName(w.pl.pubSubject[i])
 			for range w.pl.perPubMsgs[i] {
 				if err := node.Publish(subject, payload); err != nil {
-					errs[i] = xerrors.Errorf("publisher %d on %s: %w", i, subject, err)
+					errCh <- xerrors.Errorf("publisher %d on %s: %w", i, subject, err)
 					return
 				}
 				w.published.Add(1)
@@ -213,9 +221,10 @@ func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, func
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
+		close(errCh)
 		close(done)
 	}()
-	return done, func() []error { return errs }
+	return done, errCh
 }
 
 // awaitPhase blocks until the phase signal fires, failing fast on the

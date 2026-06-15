@@ -2,10 +2,9 @@ package natsbench
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
-	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,36 +17,28 @@ const (
 	// payloads. Benchmark payloads are all zeros, so a payload whose
 	// first byte is the sentinel can only be a probe.
 	probeSentinel byte = 0x5b
-	// probeLen is the probe payload size: one sentinel byte plus a
-	// BigEndian uint64 publisher-node index.
-	probeLen = 9
 	// probeInterval is how often probes are re-published while waiting
 	// for cross-route subscription interest to propagate.
 	probeInterval = 25 * time.Millisecond
 )
 
 // probePayload encodes a readiness probe identifying the publishing
-// node.
+// node: the sentinel byte followed by the node index in decimal ASCII.
 func probePayload(node int) []byte {
-	payload := make([]byte, probeLen)
-	payload[0] = probeSentinel
-	// #nosec G115 - node is a replica index, always small and non-negative.
-	binary.BigEndian.PutUint64(payload[1:], uint64(node))
-	return payload
+	return append([]byte{probeSentinel}, strconv.Itoa(node)...)
 }
 
 // probeNode decodes a readiness probe. It reports false for benchmark
-// payloads.
+// payloads (all zeros, so the sentinel never matches).
 func probeNode(payload []byte) (int, bool) {
-	if len(payload) != probeLen || payload[0] != probeSentinel {
+	if len(payload) < 2 || payload[0] != probeSentinel {
 		return 0, false
 	}
-	raw := binary.BigEndian.Uint64(payload[1:])
-	// Replica indexes are tiny; anything larger is not a probe.
-	if raw > math.MaxInt32 {
+	node, err := strconv.Atoi(string(payload[1:]))
+	if err != nil {
 		return 0, false
 	}
-	return int(raw), true
+	return node, true
 }
 
 // probeTracker records which publisher nodes a subscriber has observed

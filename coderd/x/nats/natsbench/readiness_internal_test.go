@@ -10,9 +10,7 @@ func TestProbeRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	for _, node := range []int{0, 1, 7, 1 << 30} {
-		payload := probePayload(node)
-		require.Len(t, payload, probeLen)
-		got, ok := probeNode(payload)
+		got, ok := probeNode(probePayload(node))
 		require.True(t, ok)
 		require.Equal(t, node, got)
 	}
@@ -21,15 +19,15 @@ func TestProbeRoundTrip(t *testing.T) {
 func TestProbeNodeRejectsBenchmarkPayloads(t *testing.T) {
 	t.Parallel()
 
-	// Benchmark payloads are all zeros, in any size including the
-	// probe length.
-	for _, size := range []int{1, probeLen, Payload8KB} {
+	// Benchmark payloads are all zeros, at any size.
+	for _, size := range []int{1, 2, 9, Payload8KB} {
 		_, ok := probeNode(make([]byte, size))
 		require.False(t, ok)
 	}
-	// Truncated or extended probes are not probes.
-	_, ok := probeNode(probePayload(3)[:probeLen-1])
+	// A lone sentinel byte has no node index.
+	_, ok := probeNode([]byte{probeSentinel})
 	require.False(t, ok)
+	// A trailing non-digit byte fails decoding.
 	_, ok = probeNode(append(probePayload(3), 0))
 	require.False(t, ok)
 }
