@@ -1312,6 +1312,20 @@ func TestClassify_UnwrapsTransportWrapperWithBraceInURL(t *testing.T) {
 	require.Equal(t, "real error", classified.Detail)
 }
 
+func TestClassify_KeepsTransportWrapperWhenNoBody(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but has no JSON body at
+	// all after it, the wrapper is surfaced unchanged.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://example.com/api": 500 Internal Server Error`,
+		500,
+		nil,
+	))
+
+	require.Equal(t, `POST "https://example.com/api": 500 Internal Server Error`, classified.Detail)
+}
+
 func TestClassify_KeepsTransportWrapperWhenInnerBodyNotJSON(t *testing.T) {
 	t.Parallel()
 
