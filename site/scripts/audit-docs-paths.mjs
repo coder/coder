@@ -1,4 +1,4 @@
-// Audit script for DOCS-253 (parent: DOCS-209).
+// Audit script for docs-URL drift.
 //
 // Cross-references docs(...) and string-literal docs-URL references in TS/TSX
 // files against the source side of every /docs/* rule in
@@ -16,8 +16,7 @@
 // report. The output file defaults to today's date so each run produces a
 // dated snapshot.
 //
-// docs/.audit/ is gitignored. Findings live in Linear (DOCS-253 and the
-// broader DOCS-209 backlog); the report file is a local working artifact.
+// docs/.audit/ is gitignored; the report file is a local working artifact.
 
 import fs from "node:fs";
 import path from "node:path";
