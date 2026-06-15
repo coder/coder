@@ -2916,22 +2916,10 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 	// startup.
 	server.Start()
 
-	var recovered database.Chat
-	require.Eventually(t, func() bool {
-		recovered, err = db.GetChatByID(ctx, created.Chat.ID)
-		if err != nil {
-			return false
-		}
-		return recovered.Status == database.ChatStatusRunning &&
-			recovered.WorkerID.Valid && recovered.WorkerID.UUID == newWorkerID &&
-			recovered.RunnerID.Valid && recovered.RunnerID.UUID != deadRunnerID
-	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	_, err = db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
-		ChatID:   created.Chat.ID,
-		RunnerID: recovered.RunnerID.UUID,
-	})
-	require.NoError(t, err)
+	recovered := waitForTerminalChat(ctx, t, db, created.Chat.ID)
+	require.Equal(t, database.ChatStatusWaiting, recovered.Status)
+	require.False(t, recovered.WorkerID.Valid)
+	require.False(t, recovered.RunnerID.Valid)
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
