@@ -32,7 +32,11 @@ export const getProviderDisplayName = (provider: string) => {
 			return "OpenRouter";
 		case "vercel":
 			return "Vercel";
-		default:
-			return provider || "Unknown";
+		default: {
+			if (!provider) {
+				return "Unknown";
+			}
+			return provider.charAt(0).toUpperCase() + provider.slice(1);
+		}
 	}
 };
