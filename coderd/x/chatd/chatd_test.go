@@ -8221,6 +8221,80 @@ func newActiveTestServer(
 	return server
 }
 
+// sinkFieldValue returns the value of the named field from a captured log
+// entry.
+func sinkFieldValue(fields slog.Map, name string) (any, bool) {
+	for _, f := range fields {
+		if f.Name == name {
+			return f.Value, true
+		}
+	}
+	return nil, false
+}
+
+// TestActiveServer_GenerationErrorLogged drives a full chat worker against a
+// provider that returns a terminal error and asserts that chatd logs the
+// unsanitized failure so an administrator can later diagnose the underlying
+// reason, even though the user-facing message is sanitized.
+func TestActiveServer_GenerationErrorLogged(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	sink := testutil.NewFakeSink(t)
+
+	const providerErrMessage = "synthetic provider failure for logging test"
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		// A 400 is non-retryable, so the worker fails the turn immediately
+		// instead of entering retry backoff.
+		return chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error", providerErrMessage)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Logger = sink.Logger()
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.True(t, failed.LastError.Valid)
+
+	isGenerationFailure := func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "chat generation failed"
+	}
+	var entry slog.SinkEntry
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		entries := sink.Entries(isGenerationFailure)
+		if len(entries) == 0 {
+			return false
+		}
+		entry = entries[0]
+		return true
+	}, testutil.IntervalFast)
+
+	chatID, ok := sinkFieldValue(entry.Fields, "chat_id")
+	require.True(t, ok, "chat_id field present")
+	require.Equal(t, chat.ID, chatID)
+
+	provider, ok := sinkFieldValue(entry.Fields, "provider")
+	require.True(t, ok, "provider field present")
+	require.Equal(t, "openai", provider)
+
+	statusCode, ok := sinkFieldValue(entry.Fields, "status_code")
+	require.True(t, ok, "status_code field present")
+	require.Equal(t, http.StatusBadRequest, statusCode)
+
+	// The unsanitized cause must be logged so administrators can see the
+	// underlying provider reason, even though the persisted user-facing
+	// message omits it.
+	errValue, ok := sinkFieldValue(entry.Fields, "error")
+	require.True(t, ok, "error field present")
+	require.Contains(t, fmt.Sprintf("%v", errValue), providerErrMessage)
+	require.NotContains(t, chatLastErrorMessage(failed.LastError), providerErrMessage)
+}
+
 func TestProposeChatTitle_DebugRun(t *testing.T) {
 	t.Parallel()
 
