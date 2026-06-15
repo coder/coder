@@ -48,8 +48,8 @@ func TestBoundarySessionByID(t *testing.T) {
 
 		//nolint:gocritic // Seeding data requires system context.
 		session := dbgen.BoundarySession(t, db, database.BoundarySession{
-			WorkspaceAgentID: agent.ID,
-			ConfinedProcess:  "claude-code",
+			WorkspaceAgentID:    agent.ID,
+			ConfinedProcessName: "claude-code",
 		})
 		return session
 	}
@@ -75,7 +75,7 @@ func TestBoundarySessionByID(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, session.ID, got.ID)
 		require.Equal(t, owner.UserID, got.OwnerID)
-		require.Equal(t, session.ConfinedProcess, got.ConfinedProcess)
+		require.Equal(t, session.ConfinedProcessName, got.ConfinedProcess)
 		require.NotEqual(t, uuid.Nil, got.WorkspaceID)
 	})
 
@@ -182,8 +182,8 @@ func TestBoundarySessionByID_DBAuth(t *testing.T) {
 
 	//nolint:gocritic // Seeding data requires system context.
 	session := dbgen.BoundarySession(t, db, database.BoundarySession{
-		WorkspaceAgentID: agent.ID,
-		ConfinedProcess:  "codex",
+		WorkspaceAgentID:    agent.ID,
+		ConfinedProcessName: "codex",
 	})
 
 	// AsSystemRestricted should succeed.

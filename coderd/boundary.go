@@ -2,8 +2,6 @@ package coderd
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -43,14 +41,8 @@ func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// GetBoundarySessionByID enforces ActionRead on
-	// ResourceBoundaryLog via dbauthz.
 	session, err := api.Database.GetBoundarySessionByID(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	if dbauthz.IsNotAuthorizedError(err) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -82,7 +74,7 @@ func boundarySessionToSDK(ctx context.Context, db database.Store, session databa
 		ID:              session.ID,
 		WorkspaceID:     ws.ID,
 		OwnerID:         ws.OwnerID,
-		ConfinedProcess: session.ConfinedProcess,
+		ConfinedProcess: session.ConfinedProcessName,
 		StartedAt:       session.StartedAt,
 	}, nil
 }
