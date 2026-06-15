@@ -19,20 +19,15 @@ import (
 var readmeParser = goldmark.New(goldmark.WithExtensions(extension.Table)).Parser()
 
 // readmeExcerpt produces the bounded routing context for list_templates.
-// The README is reduced to plain-text prose (see readmeProse) and truncated; the
-// ellipsis lets the agent distinguish a clipped excerpt from a complete one.
+// The README is reduced to plain-text prose (see extractReadmeProse) and
+// truncated; the ellipsis lets the agent distinguish a clipped excerpt from a
+// complete one.
 func readmeExcerpt(readme string) string {
-	prose := readmeProse(readme)
+	prose := extractReadmeProse(stripReadmeFrontmatter(readme))
 	if prose == "" {
 		return ""
 	}
 	return coderstrings.Truncate(prose, ListTemplatesReadmeExcerptMaxRunes, coderstrings.TruncateWithEllipsis)
-}
-
-// readmeProse strips frontmatter and reduces README markdown to a single
-// space-joined plain-text string. See extractReadmeProse for what is dropped.
-func readmeProse(readme string) string {
-	return extractReadmeProse(stripReadmeFrontmatter(readme))
 }
 
 // extractReadmeProse parses README markdown and returns its prose as a single

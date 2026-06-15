@@ -99,7 +99,7 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			// images, HTML, code blocks and tables dropped) and bounded so a large
 			// document cannot dominate the response.
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
-				if prose := readmeProse(version.Readme); prose != "" {
+				if prose := extractReadmeProse(stripReadmeFrontmatter(version.Readme)); prose != "" {
 					templateInfo["readme"] = coderstrings.Truncate(
 						prose, ReadTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
 					)
