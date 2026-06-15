@@ -14,10 +14,7 @@ const meta: Meta<typeof CreateGatewayKeyDialog> = {
 	args: {
 		open: true,
 		onClose: fn(),
-		onCreate: fn(
-			(_name: string): Promise<CreateAIGatewayKeyResponse> =>
-				Promise.resolve(MockCreateAIGatewayKeyResponse),
-		),
+		onCreate: fn(),
 	},
 };
 
@@ -27,6 +24,21 @@ type Story = StoryObj<typeof CreateGatewayKeyDialog>;
 export const Form: Story = {};
 
 export const CreateAndReveal: Story = {
+	render: (args) => {
+		const [createdKey, setCreatedKey] = useState<
+			CreateAIGatewayKeyResponse | undefined
+		>(undefined);
+		return (
+			<CreateGatewayKeyDialog
+				{...args}
+				createdKey={createdKey}
+				onCreate={(name) => {
+					args.onCreate(name);
+					setCreatedKey(MockCreateAIGatewayKeyResponse);
+				}}
+			/>
+		);
+	},
 	play: async ({ args, canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const nameField = await body.findByLabelText("Name");
@@ -58,20 +70,27 @@ export const InvalidName: Story = {
 };
 
 export const CreateError: Story = {
-	args: {
-		onCreate: fn(() =>
-			Promise.reject(
-				mockApiError({
-					message: "Key name must be unique.",
-					validations: [
-						{
-							field: "name",
-							detail: "A key with this name already exists.",
-						},
-					],
-				}),
-			),
-		),
+	render: (args) => {
+		const [submitError, setSubmitError] = useState<unknown>(undefined);
+		const error = mockApiError({
+			message: "Key name must be unique.",
+			validations: [
+				{
+					field: "name",
+					detail: "A key with this name already exists.",
+				},
+			],
+		});
+		return (
+			<CreateGatewayKeyDialog
+				{...args}
+				submitError={submitError}
+				onCreate={(name) => {
+					args.onCreate(name);
+					setSubmitError(error);
+				}}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -88,10 +107,19 @@ export const CreateError: Story = {
 };
 
 export const GeneralCreateError: Story = {
-	args: {
-		onCreate: fn(() =>
-			Promise.reject(mockApiError({ message: "Failed to create key." })),
-		),
+	render: (args) => {
+		const [submitError, setSubmitError] = useState<unknown>(undefined);
+		const error = mockApiError({ message: "Failed to create key." });
+		return (
+			<CreateGatewayKeyDialog
+				{...args}
+				submitError={submitError}
+				onCreate={(name) => {
+					args.onCreate(name);
+					setSubmitError(error);
+				}}
+			/>
+		);
 	},
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
@@ -108,6 +136,21 @@ export const GeneralCreateError: Story = {
 };
 
 export const EscapeDoesNotDismissCreatedKey: Story = {
+	render: (args) => {
+		const [createdKey, setCreatedKey] = useState<
+			CreateAIGatewayKeyResponse | undefined
+		>(undefined);
+		return (
+			<CreateGatewayKeyDialog
+				{...args}
+				createdKey={createdKey}
+				onCreate={(name) => {
+					args.onCreate(name);
+					setCreatedKey(MockCreateAIGatewayKeyResponse);
+				}}
+			/>
+		);
+	},
 	play: async ({ args, canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		const nameField = await body.findByLabelText("Name");
@@ -130,6 +173,9 @@ export const EscapeDoesNotDismissCreatedKey: Story = {
 export const ReopenAfterCreate: Story = {
 	render: (args) => {
 		const [open, setOpen] = useState(args.open);
+		const [createdKey, setCreatedKey] = useState<
+			CreateAIGatewayKeyResponse | undefined
+		>(undefined);
 		return (
 			<div>
 				<button type="button" onClick={() => setOpen(true)}>
@@ -138,8 +184,14 @@ export const ReopenAfterCreate: Story = {
 				<CreateGatewayKeyDialog
 					{...args}
 					open={open}
+					createdKey={createdKey}
+					onCreate={(name) => {
+						args.onCreate(name);
+						setCreatedKey(MockCreateAIGatewayKeyResponse);
+					}}
 					onClose={() => {
 						args.onClose();
+						setCreatedKey(undefined);
 						setOpen(false);
 					}}
 				/>
