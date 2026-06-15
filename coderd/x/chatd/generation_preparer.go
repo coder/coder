@@ -674,9 +674,7 @@ func (server *Server) afterGenerationOutcome(
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
-		statusLabel := server.generateFinalTurnStatusLabel(finalizeCtx, chat, chat.Status, runResult, logger)
-		server.updateLastTurnSummary(finalizeCtx, chat, chat.HistoryVersion, statusLabel, logger)
-		server.dispatchSuccessfulTurnPush(finalizeCtx, chat, statusLabel, logger)
+		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:
