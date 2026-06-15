@@ -459,7 +459,7 @@ func (server *Server) prepareGeneration(
 		}
 		modelRoute = computerUseRoute
 		providerKeys = computerUseRoute.directProviderKeys()
-		cuModel, cuDebugEnabled, cuResolvedProvider, resolvedModel, cuErr := server.resolveComputerUseModel(
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
 			ctx,
 			chat,
 			computerUseRoute,
@@ -475,7 +475,7 @@ func (server *Server) prepareGeneration(
 		model = cuModel
 		debugEnabled = cuDebugEnabled
 		resolvedProvider = cuResolvedProvider
-		debugModel = resolvedModel
+		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
