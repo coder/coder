@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,13 +30,16 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridgedserver"
 	agplaiseats "github.com/coder/coder/v2/coderd/aiseats"
 	"github.com/coder/coder/v2/coderd/apikey"
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1345,6 +1349,80 @@ func TestRecordTokenUsage(t *testing.T) {
 			},
 		},
 	)
+}
+
+// TestRecordTokenUsageAuthorized exercises RecordTokenUsage end-to-end against a
+// real database through the dbauthz layer as subjectAibridged. This catches missing
+// RBAC grants on the aibridged subject and verifies the cost columns round-trip to storage.
+func TestRecordTokenUsageAuthorized(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+
+	rawDB, _ := dbtestutil.NewDB(t)
+	authzDB := dbauthz.New(rawDB, rbac.NewStrictAuthorizer(prometheus.NewRegistry()), logger, coderdtest.AccessControlStorePointer())
+
+	// Seed prerequisites via the raw (unauthorized) store. The user belongs to a
+	// group with a budget, so the effective group resolves to that group.
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	user := dbgen.User(t, rawDB, database.User{})
+	dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{OrganizationID: org.ID, UserID: user.ID})
+	group := dbgen.Group(t, rawDB, database.Group{OrganizationID: org.ID})
+	dbgen.GroupMember(t, rawDB, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
+
+	_, err := rawDB.UpsertGroupAIBudget(ctx, database.UpsertGroupAIBudgetParams{
+		GroupID:          group.ID,
+		SpendLimitMicros: 1_000_000_000,
+	})
+	require.NoError(t, err, "upsert group AI budget")
+
+	const provider, model = "anthropic", "claude-sonnet-4-6"
+	priceSeed, err := json.Marshal([]map[string]any{{
+		"provider":          provider,
+		"model":             model,
+		"input_price":       3_000_000,
+		"output_price":      6_000_000,
+		"cache_read_price":  300_000,
+		"cache_write_price": 4_000_000,
+	}})
+	require.NoError(t, err)
+	require.NoError(t, rawDB.UpsertAIModelPrices(ctx, priceSeed), "seed model prices")
+
+	intc := dbgen.AIBridgeInterception(t, rawDB, database.InsertAIBridgeInterceptionParams{
+		InitiatorID: user.ID,
+		Provider:    provider,
+		Model:       model,
+	}, nil)
+
+	// The server runs every store call as subjectAibridged via the authzDB.
+	srv, err := aibridgedserver.NewServer(ctx, authzDB, logger, "/", codersdk.AIBridgeConfig{}, nil, requiredExperiments, agplaiseats.Noop{})
+	require.NoError(t, err)
+
+	_, err = srv.RecordTokenUsage(ctx, &proto.RecordTokenUsageRequest{
+		InterceptionId:        intc.ID.String(),
+		MsgId:                 "msg_e2e",
+		InputTokens:           100,
+		OutputTokens:          200,
+		CacheReadInputTokens:  50,
+		CacheWriteInputTokens: 10,
+		CreatedAt:             timestamppb.Now(),
+	})
+	require.NoError(t, err, "record token usage")
+
+	// Read the persisted row back via the raw store and verify the snapshot.
+	usages, err := rawDB.GetAIBridgeTokenUsagesByInterceptionID(ctx, intc.ID)
+	require.NoError(t, err)
+	require.Len(t, usages, 1)
+	got := usages[0]
+
+	require.Equal(t, uuid.NullUUID{UUID: group.ID, Valid: true}, got.EffectiveGroupID, "effective group")
+	require.Equal(t, sql.NullInt64{Int64: 3_000_000, Valid: true}, got.InputPriceMicros, "input price")
+	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, got.OutputPriceMicros, "output price")
+	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, got.CacheReadPriceMicros, "cache read price")
+	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, got.CacheWritePriceMicros, "cache write price")
+	// 300 + 1200 + 15 + 40.
+	require.Equal(t, sql.NullInt64{Int64: 1555, Valid: true}, got.CostMicros, "cost")
 }
 
 // newTestInterception returns an interception with a fixed initiator, provider,
