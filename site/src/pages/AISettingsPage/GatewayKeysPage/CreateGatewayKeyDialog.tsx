@@ -33,21 +33,23 @@ const validationSchema = Yup.object({
 		.max(64, "Name cannot be longer than 64 characters."),
 });
 
-interface CreateGatewayKeyDialogProps {
+export interface CreateGatewayKeyDialogProps {
 	open: boolean;
 	onClose: () => void;
-	onCreate: (name: string) => Promise<CreateAIGatewayKeyResponse>;
+	onCreate: (name: string) => void;
+	createdKey?: CreateAIGatewayKeyResponse;
+	submitError?: unknown;
+	isSubmitting?: boolean;
 }
 
 export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 	open,
 	onClose,
 	onCreate,
+	createdKey,
+	submitError,
+	isSubmitting = false,
 }) => {
-	const [createdKey, setCreatedKey] = useState<
-		CreateAIGatewayKeyResponse | undefined
-	>(undefined);
-	const [submitError, setSubmitError] = useState<unknown>(undefined);
 
 	const form = useFormik<CreateGatewayKeyFormValues>({
 		initialValues: { name: "" },
