@@ -1,27 +1,27 @@
 {
-  "id": "code-server",
-  "display_name": "code-server",
-  "description": "VS Code in the browser",
+  "id": "vscode-web",
+  "display_name": "VS Code Web",
+  "description": "VS Code Web - Visual Studio Code in the browser",
   "icon": "/icon/code.svg",
   "category": "IDE",
   "tags": [
     "ide",
-    "web",
-    "code-server"
+    "vscode",
+    "web"
   ],
   "compatible_os": [
     "linux"
   ],
   "conflicts_with": [
-    "vscode-web"
+    "code-server"
   ],
   "pinned_version": "1.5.0",
   "variables": [
     {
-      "name": "additional_args",
-      "type": "string",
-      "description": "Additional command-line arguments to pass to code-server (e.g., '--disable-workspace-trust').",
-      "default": "",
+      "name": "accept_license",
+      "type": "bool",
+      "description": "Accept the VS Code Server license. https://code.visualstudio.com/license/server",
+      "default": false,
       "required": false,
       "sensitive": false,
       "computed": false
@@ -37,7 +37,25 @@
     {
       "name": "auto_install_extensions",
       "type": "bool",
-      "description": "Automatically install recommended extensions when code-server starts.",
+      "description": "Automatically install recommended extensions when VS Code Web starts.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "commit_id",
+      "type": "string",
+      "description": "Specify the commit ID of the VS Code Web binary to pin to a specific version. If left empty, the latest stable version is used.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "disable_trust",
+      "type": "bool",
+      "description": "Disables workspace trust protection for VS Code Web.",
       "default": false,
       "required": false,
       "sensitive": false,
@@ -55,16 +73,7 @@
     {
       "name": "folder",
       "type": "string",
-      "description": "The folder to open in code-server.",
-      "default": "",
-      "required": false,
-      "sensitive": false,
-      "computed": false
-    },
-    {
-      "name": "install_version",
-      "type": "string",
-      "description": "The version of code-server to install.",
+      "description": "The folder to open in vscode-web.",
       "default": "",
       "required": false,
       "sensitive": false,
@@ -73,17 +82,17 @@
     {
       "name": "offline",
       "type": "bool",
-      "description": "Just run code-server in the background, don't fetch it from GitHub",
+      "description": "Just run VS Code Web in the background, don't fetch it from the internet.",
       "default": false,
       "required": false,
       "sensitive": false,
       "computed": false
     },
     {
-      "name": "open_in",
+      "name": "platform",
       "type": "string",
-      "description": "Determines where the app will be opened. Valid values are `\"tab\"` and `\"slim-window\" (default)`.\n`\"tab\"` opens in a new tab in the same browser window.\n`\"slim-window\"` opens a new browser window without navigation controls.\n",
-      "default": "slim-window",
+      "description": "The platform to use for the VS Code Web.",
+      "default": "",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -91,8 +100,17 @@
     {
       "name": "port",
       "type": "number",
-      "description": "The port to run code-server on.",
-      "default": 13337,
+      "description": "The port to run VS Code Web on.",
+      "default": 13338,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "telemetry_level",
+      "type": "string",
+      "description": "Set the telemetry level for VS Code Web.",
+      "default": "error",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -100,16 +118,7 @@
     {
       "name": "use_cached",
       "type": "bool",
-      "description": "Uses cached copy code-server in the background, otherwise fetched it from GitHub",
-      "default": false,
-      "required": false,
-      "sensitive": false,
-      "computed": false
-    },
-    {
-      "name": "use_cached_extensions",
-      "type": "bool",
-      "description": "Uses cached copy of extensions, otherwise do a forced upgrade",
+      "description": "Uses cached copy of VS Code Web in the background, otherwise fetches it from internet.",
       "default": false,
       "required": false,
       "sensitive": false,
@@ -118,7 +127,7 @@
     {
       "name": "workspace",
       "type": "string",
-      "description": "The path to a `.code-workspace` file to open in code-server. Mutually exclusive with `folder`.",
+      "description": "Path to a .code-workspace file to open in vscode-web.",
       "default": "",
       "required": false,
       "sensitive": false,
