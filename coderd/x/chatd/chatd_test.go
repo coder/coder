@@ -5738,11 +5738,12 @@ func TestActiveServer_Compaction(t *testing.T) {
 		requireTextPart(t, messages[len(messages)-1], "done without compaction")
 	})
 
-	t.Run("fails when compaction leaves chat over limit", func(t *testing.T) {
+	t.Run("next message fails when compaction continuation stayed over limit", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
+		logSink := testutil.NewFakeSink(t)
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
@@ -5771,7 +5772,10 @@ func TestActiveServer_Compaction(t *testing.T) {
 			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1	package main"}, nil).
 			Times(1)
 
+		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Logger = logSink.Logger()
+			cfg.PrometheusRegistry = reg
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -5783,15 +5787,52 @@ func TestActiveServer_Compaction(t *testing.T) {
 			APIKeyID:       testAPIKeyID(t, db, user.ID),
 			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-			Title:          "compaction-still-over-limit",
+			Title:          "compaction-next-message-over-limit",
 			ModelConfigID:  model.ID,
 			InitialUserContent: []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("read the file and stay too large"),
 			},
 		})
 		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.Equal(t, int32(2), streamCount.Load())
+		messages := chatMessages(ctx, t, db, chat.ID)
+		requireTextPart(t, messages[len(messages)-1], "still too large")
+
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			APIKeyID:      testAPIKeyID(t, db, user.ID),
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after the large compacted turn"),
+			},
+		})
+		require.NoError(t, err)
+
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
-		require.Contains(t, chatLastErrorMessage(chat.LastError), "The chat request failed unexpectedly.")
+		require.Equal(t,
+			"Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
+			chatLastErrorMessage(chat.LastError),
+		)
+		require.Equal(t, int32(2), streamCount.Load(), "over-limit history should fail before another model stream")
+		requireChatdMetricCounter(t, reg, "coderd_chatd_compaction_total", 1, map[string]string{
+			"provider": "anthropic",
+			"model":    "claude-sonnet-4-20250514",
+			"result":   "error",
+		})
+
+		isCompactionFailureLog := func(e slog.SinkEntry) bool {
+			if e.Level != slog.LevelWarn || e.Message != "chat generation failed" {
+				return false
+			}
+			errValue, ok := sinkFieldValue(e.Fields, "error")
+			return ok && strings.Contains(fmt.Sprintf("%v", errValue), "compaction left the chat above the compaction limit")
+		}
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(logSink.Entries(isCompactionFailureLog)) > 0
+		}, testutil.IntervalFast)
 	})
 }
 
