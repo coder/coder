@@ -209,7 +209,7 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 const templateBuilderCreateTemplateTimeout = 2 * time.Minute
 
 // @Summary Compose and create a template
-// @ID compose-and-create-template-builder
+// @ID compose-and-create-a-template
 // @Security CoderSessionToken
 // @Accept json
 // @Produce json

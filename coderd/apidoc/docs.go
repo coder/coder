@@ -7406,7 +7406,7 @@ const docTemplate = `{
                     "TemplateBuilder"
                 ],
                 "summary": "Compose and create a template",
-                "operationId": "compose-and-create-template-builder",
+                "operationId": "compose-and-create-a-template",
                 "parameters": [
                     {
                         "description": "Create template request",
