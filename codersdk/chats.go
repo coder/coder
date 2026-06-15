@@ -142,14 +142,32 @@ type Chat struct {
 	// is updated only when context changes, on first workspace
 	// attach or agent change.
 	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
-	Warnings            []string          `json:"warnings,omitempty"`
-	ClientType          ChatClientType    `json:"client_type"`
+	// Context reports the chat's pinned workspace-context state and
+	// whether it has drifted from the agent's latest pushed snapshot.
+	// Nil when the chat has no pinned context yet.
+	Context    *ChatContext   `json:"context,omitempty"`
+	Warnings   []string       `json:"warnings,omitempty"`
+	ClientType ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+}
+
+// ChatContext reports a chat's pinned workspace context and whether it has
+// drifted from the agent's latest pushed snapshot. The chat stays usable
+// when dirty; refreshing re-pins it to the latest snapshot.
+type ChatContext struct {
+	// Dirty is true when the agent's latest snapshot hash differs from the
+	// chat's pinned hash.
+	Dirty bool `json:"dirty"`
+	// DirtySince is when drift was first detected; nil when not dirty.
+	DirtySince *time.Time `json:"dirty_since,omitempty" format:"date-time"`
+	// Error is the snapshot-level error copied from the pinned snapshot
+	// (empty when healthy).
+	Error string `json:"error,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -1692,6 +1710,10 @@ const (
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindContextDirty signals that the chat's pinned
+	// workspace context drifted from the agent's latest pushed snapshot.
+	// The chat stays usable; a refresh re-pins it to the latest snapshot.
+	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
@@ -3075,6 +3097,21 @@ func (c *ExperimentalClient) GetChatDebugRun(ctx context.Context, chatID uuid.UU
 // GetChat returns a chat by ID.
 func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// RefreshChatContext re-pins the chat to its agent's latest context snapshot
+// and clears the dirty marker. The request takes no body.
+func (c *ExperimentalClient) RefreshChatContext(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/%s/context", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}

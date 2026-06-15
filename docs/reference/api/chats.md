@@ -36,6 +36,11 @@ Experimental: this endpoint is subject to change.
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -189,6 +194,10 @@ Status Code **200**
 | `» build_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» children`                      | [codersdk.Chat](schemas.md#codersdkchat)                               | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats.                                                                                                                                 |
 | `» client_type`                   | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» context`                       | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                 | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                                                                                                                                                 |
+| `»» dirty`                        | boolean                                                                | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                                                                                                                                                   |
+| `»» dirty_since`                  | string(date-time)                                                      | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                                                                                                                                                          |
+| `»» error`                        | string                                                                 | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                                                                                                                                                    |
 | `» created_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» additions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -382,6 +391,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -516,6 +530,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -801,6 +820,11 @@ Experimental: this endpoint is subject to change.
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -989,6 +1013,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -1123,6 +1152,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -1311,6 +1345,39 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Refresh chat context
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/{chat}/context \
+  -H 'Accept: */*' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/{chat}/context`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get chat diff contents
 
 ### Code samples
@@ -1392,6 +1459,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -1526,6 +1598,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2316,6 +2393,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -2450,6 +2532,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2998,6 +3085,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -3132,6 +3224,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,

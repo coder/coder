@@ -2618,6 +2618,38 @@ func (api *API) applyChatTitleUpdate(
 	return updatedChat, false
 }
 
+// refreshChatContext re-pins a chat to its agent's latest context snapshot
+// and clears the dirty marker.
+//
+// @Summary Refresh chat context
+// @ID refresh-chat-context
+// @Security CoderSessionToken
+// @Tags Chats
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.Chat
+// @Router /api/experimental/chats/{chat}/context [put]
+// @Description Experimental: this endpoint is subject to change.
+func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, chat.RBACObject()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	updated, err := api.chatDaemon.RefreshChatContext(ctx, chat)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error refreshing chat context.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+}
+
 // patchChat updates a chat resource. Supports updating labels,
 // workspace binding, archiving, pinning, and pinned-chat ordering.
 //
