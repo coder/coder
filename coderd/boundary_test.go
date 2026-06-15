@@ -10,7 +10,9 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -20,35 +22,28 @@ func TestBoundarySessionByID(t *testing.T) {
 	t.Parallel()
 
 	// seedBoundarySession creates the workspace -> build -> resource ->
-	// agent chain, then inserts a boundary session linked to that agent.
-	// It returns the session and the workspace owner ID.
-	seedBoundarySession := func(t *testing.T, db database.Store, ownerID, orgID, templateID uuid.UUID) database.BoundarySession {
+	// agent chain via dbfake, then inserts a boundary session linked to
+	// that agent. It returns the session.
+	//
+	// The raw (unwrapped) database store is used for seeding because:
+	//  1. dbgen.ProvisionerJob reads the job back through dbauthz, which
+	//     calls authorizeProvisionerJob and looks up the workspace build
+	//     before it exists.
+	//  2. The owner role only has read permission on boundary_log, so
+	//     InsertBoundarySession fails through dbauthz.
+	seedBoundarySession := func(t *testing.T, rawDB database.Store, ownerID, orgID uuid.UUID) database.BoundarySession {
 		t.Helper()
 
-		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+		resp := dbfake.WorkspaceBuild(t, rawDB, database.WorkspaceTable{
 			OwnerID:        ownerID,
 			OrganizationID: orgID,
-			TemplateID:     templateID,
-		})
-		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			OrganizationID: orgID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       ws.ID,
-			JobID:             job.ID,
-			TemplateVersionID: templateID,
-		})
-		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			JobID: job.ID,
-		})
-		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-			ResourceID: resource.ID,
-		})
+		}).WithAgent().Do()
 
-		//nolint:gocritic // Seeding data requires system context.
-		session := dbgen.BoundarySession(t, db, database.BoundarySession{
-			WorkspaceAgentID:    agent.ID,
+		require.NotEmpty(t, resp.Agents, "expected at least one agent")
+
+		session := dbgen.BoundarySession(t, rawDB, database.BoundarySession{
+			WorkspaceAgentID:    resp.Agents[0].ID,
+			OwnerID:             uuid.NullUUID{UUID: ownerID, Valid: true},
 			ConfinedProcessName: "claude-code",
 		})
 		return session
@@ -57,17 +52,15 @@ func TestBoundarySessionByID(t *testing.T) {
 	t.Run("Owner", func(t *testing.T) {
 		t.Parallel()
 
-		ownerClient, _, api := coderdtest.NewWithAPI(t, nil)
+		db, pubsub := dbtestutil.NewDB(t)
+		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		db := api.Database
 
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      owner.UserID,
-		})
-
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID, tpl.ID)
+		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		// Owner should be able to read the session.
 		//nolint:gocritic // Testing owner role.
@@ -82,17 +75,15 @@ func TestBoundarySessionByID(t *testing.T) {
 	t.Run("Auditor", func(t *testing.T) {
 		t.Parallel()
 
-		ownerClient, _, api := coderdtest.NewWithAPI(t, nil)
+		db, pubsub := dbtestutil.NewDB(t)
+		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		db := api.Database
 
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      owner.UserID,
-		})
-
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID, tpl.ID)
+		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		// Create an auditor user; auditors have read access to
 		// boundary_log resources.
@@ -107,17 +98,15 @@ func TestBoundarySessionByID(t *testing.T) {
 	t.Run("MemberDenied", func(t *testing.T) {
 		t.Parallel()
 
-		ownerClient, _, api := coderdtest.NewWithAPI(t, nil)
+		db, pubsub := dbtestutil.NewDB(t)
+		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		db := api.Database
 
-		tpl := dbgen.Template(t, db, database.Template{
-			OrganizationID: owner.OrganizationID,
-			CreatedBy:      owner.UserID,
-		})
-
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID, tpl.ID)
+		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		// Create a plain member; members have no read access to
 		// boundary_log resources.
@@ -150,44 +139,31 @@ func TestBoundarySessionByID(t *testing.T) {
 func TestBoundarySessionByID_DBAuth(t *testing.T) {
 	t.Parallel()
 
-	ownerClient, _, api := coderdtest.NewWithAPI(t, nil)
+	db, pubsub := dbtestutil.NewDB(t)
+	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database: db,
+		Pubsub:   pubsub,
+	})
 	owner := coderdtest.CreateFirstUser(t, ownerClient)
-	db := api.Database
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	tpl := dbgen.Template(t, db, database.Template{
-		OrganizationID: owner.OrganizationID,
-		CreatedBy:      owner.UserID,
-	})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+	// Seed data through the raw database to avoid dbauthz ordering and
+	// permission issues during setup.
+	resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        owner.UserID,
 		OrganizationID: owner.OrganizationID,
-		TemplateID:     tpl.ID,
-	})
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		OrganizationID: owner.OrganizationID,
-		Type:           database.ProvisionerJobTypeWorkspaceBuild,
-	})
-	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       ws.ID,
-		JobID:             job.ID,
-		TemplateVersionID: tpl.ID,
-	})
-	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		JobID: job.ID,
-	})
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID: resource.ID,
-	})
+	}).WithAgent().Do()
 
-	//nolint:gocritic // Seeding data requires system context.
+	require.NotEmpty(t, resp.Agents, "expected at least one agent")
+
 	session := dbgen.BoundarySession(t, db, database.BoundarySession{
-		WorkspaceAgentID:    agent.ID,
+		WorkspaceAgentID:    resp.Agents[0].ID,
+		OwnerID:             uuid.NullUUID{UUID: owner.UserID, Valid: true},
 		ConfinedProcessName: "codex",
 	})
 
-	// AsSystemRestricted should succeed.
-	got, err := db.GetBoundarySessionByID(dbauthz.AsSystemRestricted(ctx), session.ID)
+	// AsSystemRestricted should succeed (read permission).
+	got, err := api.Database.GetBoundarySessionByID(dbauthz.AsSystemRestricted(ctx), session.ID)
 	require.NoError(t, err)
 	require.Equal(t, session.ID, got.ID)
 }
