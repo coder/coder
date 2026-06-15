@@ -120,7 +120,7 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 }
 
 // @Summary Compose template from base and modules
-// @ID compose-template-builder
+// @ID compose-template-from-base-and-modules
 // @Security CoderSessionToken
 // @Accept json
 // @Produce application/x-tar

@@ -7370,7 +7370,7 @@ const docTemplate = `{
                     "TemplateBuilder"
                 ],
                 "summary": "Compose template from base and modules",
-                "operationId": "compose-template-builder",
+                "operationId": "compose-template-from-base-and-modules",
                 "parameters": [
                     {
                         "description": "Compose request",
