@@ -1969,6 +1969,10 @@ CREATE TABLE chats (
     retry_state_version bigint DEFAULT 0 NOT NULL,
     runner_id uuid,
     requires_action_deadline_at timestamp with time zone,
+    context_aggregate_hash bytea,
+    context_dirty_since timestamp with time zone,
+    context_dirty_resources jsonb,
+    context_error text DEFAULT ''::text NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -1981,6 +1985,14 @@ COMMENT ON COLUMN chats.snapshot_version IS 'Monotonic version for the full chat
 COMMENT ON COLUMN chats.history_version IS 'Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.';
 
 COMMENT ON COLUMN chats.queue_version IS 'Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.';
+
+COMMENT ON COLUMN chats.context_aggregate_hash IS 'Aggregate hash of the agent context snapshot this chat is pinned to. NULL until first hydrated; compared against the agent''s latest snapshot hash to detect drift.';
+
+COMMENT ON COLUMN chats.context_dirty_since IS 'Set when an agent push changes the pinned hash; cleared on refresh. NULL means clean.';
+
+COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.';
+
+COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -2073,7 +2085,11 @@ CREATE VIEW chats_expanded AS
     COALESCE(root.user_acl, c.user_acl) AS user_acl,
     COALESCE(root.group_acl, c.group_acl) AS group_acl,
     owner.username AS owner_username,
-    owner.name AS owner_name
+    owner.name AS owner_name,
+    c.context_aggregate_hash,
+    c.context_dirty_since,
+    c.context_dirty_resources,
+    c.context_error
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));

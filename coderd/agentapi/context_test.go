@@ -88,6 +88,70 @@ func TestPushContextState(t *testing.T) {
 		require.True(t, resp.GetAccepted())
 	})
 
+	t.Run("DirtyMarkerInvokedAfterCommit", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		marker := &fakeDirtyMarker{}
+		api.DirtyMarker = marker
+		expectInTx(dbm)
+
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextSnapshot{}, nil)
+		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), gomock.Any()).
+			Return(database.WorkspaceAgentContextResource{}, nil).Times(1)
+		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), gomock.Any()).
+			Return(nil)
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version:       1,
+			AggregateHash: []byte{0xaa, 0xbb},
+			SnapshotError: "watcher degraded",
+			Initial:       true,
+			Resources: []*agentproto.ContextResource{
+				instructionResource("/home/coder/AGENTS.md", "hello"),
+			},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+		// The marker runs inside the push transaction and its returned
+		// callback publishes only after the transaction commits.
+		require.Equal(t, 1, marker.called)
+		require.Equal(t, 1, marker.published)
+		require.Equal(t, agentID, marker.gotAgent)
+		require.Equal(t, []byte{0xaa, 0xbb}, marker.gotHash)
+		require.Equal(t, "watcher degraded", marker.gotErr)
+	})
+
+	t.Run("DirtyMarkerSkippedOnDrop", func(t *testing.T) {
+		t.Parallel()
+
+		api, dbm := makeAPI(t)
+		marker := &fakeDirtyMarker{}
+		api.DirtyMarker = marker
+		expectInTx(dbm)
+
+		// A non-initial push at a version not strictly greater than the
+		// stored one is dropped before any write; hydration and the
+		// dirty fan-out must not run.
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(database.WorkspaceAgentContextSnapshot{Version: 5}, nil)
+
+		resp, err := api.PushContextState(context.Background(), &agentproto.PushContextStateRequest{
+			Version:       2,
+			AggregateHash: []byte{0x01},
+			Resources: []*agentproto.ContextResource{
+				instructionResource("/home/coder/AGENTS.md", "hello"),
+			},
+		})
+		require.NoError(t, err)
+		require.False(t, resp.GetAccepted())
+		require.Equal(t, 0, marker.called)
+		require.Equal(t, 0, marker.published)
+	})
+
 	t.Run("RejectsEmptyAndDuplicateSources", func(t *testing.T) {
 		t.Parallel()
 
@@ -597,4 +661,23 @@ func mcpServerResource(source, serverName, description string) *agentproto.Conte
 			},
 		},
 	}
+}
+
+// fakeDirtyMarker is a test double for agentapi.ContextDirtyMarker. It records
+// the in-transaction call and counts callback invocations so tests can assert
+// the marker runs inside the push transaction and publishes only after commit.
+type fakeDirtyMarker struct {
+	called    int
+	published int
+	gotAgent  uuid.UUID
+	gotHash   []byte
+	gotErr    string
+}
+
+func (f *fakeDirtyMarker) HydrateAndMarkChatsDirty(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ time.Time) (func(), error) {
+	f.called++
+	f.gotAgent = agentID
+	f.gotHash = aggregateHash
+	f.gotErr = snapshotError
+	return func() { f.published++ }, nil
 }

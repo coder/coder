@@ -994,6 +994,11 @@ type sqlcQuerier interface {
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
 	GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]GetWorkspacesForWorkspaceMetricsRow, error)
+	// Stamps the pinned hash and error on every not-yet-hydrated chat for
+	// an agent (context_aggregate_hash IS NULL). Runs as a side effect of
+	// an agent push so chats created before the agent was ready pick up the
+	// snapshot without a dirty event. Does not bump updated_at.
+	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error
 	// Increments generation_attempt and returns the resulting value.
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
@@ -1175,6 +1180,12 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
+	// Flips active, already-hydrated chats for an agent to dirty when the
+	// agent's latest snapshot hash differs from the chat's pinned hash. The
+	// pinned hash is intentionally left untouched; the refresh endpoint
+	// re-pins it. Returns the chats that transitioned so the caller can
+	// emit watch events after the transaction commits.
+	MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error)
 	OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error)
 	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
@@ -1219,6 +1230,11 @@ type sqlcQuerier interface {
 	// for the table.
 	// The CTE and the reorder is required because UPDATE doesn't guarantee order.
 	SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]UsageEvent, error)
+	// Pins a single chat to the supplied context snapshot hash and error
+	// and clears any dirty marker. Used by chat-create hydration and the
+	// refresh endpoint. Does not bump updated_at: context pinning is
+	// background state and must not reorder chat lists.
+	SetChatContextSnapshot(ctx context.Context, arg SetChatContextSnapshotParams) error
 	SoftDeleteChatMessageByID(ctx context.Context, id int64) error
 	SoftDeleteChatMessagesAfterID(ctx context.Context, arg SoftDeleteChatMessagesAfterIDParams) error
 	SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error
