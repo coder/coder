@@ -93,16 +93,24 @@ func unwrapTransportErrorMessage(msg string) string {
 // providers, preferring the nested form when present.
 func jsonErrorMessage(body []byte) string {
 	var env struct {
-		Message string `json:"message"`
-		Error   struct {
-			Message string `json:"message"`
-		} `json:"error"`
+		Message string          `json:"message"`
+		Error   json.RawMessage `json:"error"`
 	}
 	if err := json.Unmarshal(body, &env); err != nil {
 		return ""
 	}
-	if m := strings.TrimSpace(env.Error.Message); m != "" {
-		return m
+	// Prefer the nested error.message when error is an object carrying one.
+	// error may also be a non-object (string, array, number); tolerate that
+	// and fall back to the top-level message instead of dropping it.
+	if len(env.Error) > 0 {
+		var inner struct {
+			Message string `json:"message"`
+		}
+		if err := json.Unmarshal(env.Error, &inner); err == nil {
+			if m := strings.TrimSpace(inner.Message); m != "" {
+				return m
+			}
+		}
 	}
 	return strings.TrimSpace(env.Message)
 }

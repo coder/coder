@@ -1359,6 +1359,23 @@ func TestClassify_PrefersNestedMessageOverTopLevel(t *testing.T) {
 	require.Equal(t, "nested wins", classified.Detail)
 }
 
+// TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject guards against a
+// regression where a single decode into a combined struct would fail (and
+// silently drop a usable top-level message) whenever "error" is present as a
+// non-object value such as a string code.
+func TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		429,
+		nil,
+		testProviderResponseDump(`{"message":"rate limited","error":"rate_limit"}`),
+	))
+
+	require.Equal(t, "rate limited", classified.Detail)
+}
+
 func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	t.Parallel()
 
