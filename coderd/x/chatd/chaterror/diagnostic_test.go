@@ -1,10 +1,10 @@
 package chaterror_test
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 )
@@ -23,7 +23,7 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 		},
 		{
 			name: "CollapsesWhitespace",
-			err:  errors.New("stream response:\n\tconnection reset by peer"),
+			err:  xerrors.New("stream response:\n\tconnection reset by peer"),
 			want: "stream response: connection reset by peer",
 		},
 	}
@@ -36,4 +36,3 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 		})
 	}
 }
-

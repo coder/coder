@@ -173,6 +173,7 @@ func TestRetry_ContextCanceledFromAttemptWithHealthyParentRetries(t *testing.T) 
 	require.ErrorIs(t, retryErr, context.Canceled)
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "The AI provider is temporarily unavailable.",
+		Detail:     "provider transport reset context canceled",
 		Kind:       codersdk.ChatErrorKindTimeout,
 		Retryable:  true,
 		StatusCode: 0,
