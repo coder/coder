@@ -6465,21 +6465,6 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildMetricsByResourceID(ctx, id an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildMetricsByResourceID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildMetricsByResourceID), ctx, id)
 }
 
-// GetWorkspaceBuildOrchestrationByParentBuildID mocks base method.
-func (m *MockStore) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (database.WorkspaceBuildOrchestration, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceBuildOrchestrationByParentBuildID", ctx, parentBuildID)
-	ret0, _ := ret[0].(database.WorkspaceBuildOrchestration)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspaceBuildOrchestrationByParentBuildID indicates an expected call of GetWorkspaceBuildOrchestrationByParentBuildID.
-func (mr *MockStoreMockRecorder) GetWorkspaceBuildOrchestrationByParentBuildID(ctx, parentBuildID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceBuildOrchestrationByParentBuildID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceBuildOrchestrationByParentBuildID), ctx, parentBuildID)
-}
-
 // GetWorkspaceBuildParameters mocks base method.
 func (m *MockStore) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	m.ctrl.T.Helper()

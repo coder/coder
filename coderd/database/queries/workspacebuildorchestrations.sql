@@ -29,14 +29,6 @@ VALUES (
 )
 RETURNING *;
 
--- name: GetWorkspaceBuildOrchestrationByParentBuildID :one
-SELECT
-    *
-FROM
-    workspace_build_orchestrations
-WHERE
-    parent_build_id = @parent_build_id;
-
 -- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one
 -- Must be called from within a transaction. The row lock is released
 -- when the transaction ends.

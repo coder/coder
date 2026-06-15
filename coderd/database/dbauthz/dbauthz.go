@@ -5144,13 +5144,6 @@ func (q *querier) GetWorkspaceBuildMetricsByResourceID(ctx context.Context, id u
 	return q.db.GetWorkspaceBuildMetricsByResourceID(ctx, id)
 }
 
-func (q *querier) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (database.WorkspaceBuildOrchestration, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceBuildOrchestration{}, err
-	}
-	return q.db.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, parentBuildID)
-}
-
 func (q *querier) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	// Authorized call to get the workspace build. If we can read the build,
 	// we can read the params.

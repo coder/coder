@@ -33006,38 +33006,6 @@ func (q *sqlQuerier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx cont
 	return i, err
 }
 
-const getWorkspaceBuildOrchestrationByParentBuildID = `-- name: GetWorkspaceBuildOrchestrationByParentBuildID :one
-SELECT
-    id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
-FROM
-    workspace_build_orchestrations
-WHERE
-    parent_build_id = $1
-`
-
-func (q *sqlQuerier) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (WorkspaceBuildOrchestration, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceBuildOrchestrationByParentBuildID, parentBuildID)
-	var i WorkspaceBuildOrchestration
-	err := row.Scan(
-		&i.ID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ParentBuildID,
-		&i.ChildBuildID,
-		&i.ChildTransition,
-		&i.ChildTemplateVersionID,
-		&i.ChildTemplateVersionPresetID,
-		&i.ChildRichParameterValues,
-		&i.ChildLogLevel,
-		&i.ChildReason,
-		&i.AttemptCount,
-		&i.NextRetryAfter,
-		&i.Status,
-		&i.Error,
-	)
-	return i, err
-}
-
 const insertWorkspaceBuildOrchestration = `-- name: InsertWorkspaceBuildOrchestration :one
 INSERT INTO workspace_build_orchestrations (
     id,

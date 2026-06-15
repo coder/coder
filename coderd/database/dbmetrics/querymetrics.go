@@ -3449,14 +3449,6 @@ func (m queryMetricsStore) GetWorkspaceBuildMetricsByResourceID(ctx context.Cont
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspaceBuildOrchestrationByParentBuildID(ctx context.Context, parentBuildID uuid.UUID) (database.WorkspaceBuildOrchestration, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, parentBuildID)
-	m.queryLatencies.WithLabelValues("GetWorkspaceBuildOrchestrationByParentBuildID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceBuildOrchestrationByParentBuildID").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetWorkspaceBuildParameters(ctx context.Context, workspaceBuildID uuid.UUID) ([]database.WorkspaceBuildParameter, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceBuildParameters(ctx, workspaceBuildID)

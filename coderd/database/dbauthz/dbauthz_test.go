@@ -3874,13 +3874,6 @@ func (s *MethodTestSuite) TestWorkspace() {
 			Asserts(rbac.ResourceSystem, policy.ActionRead).
 			Returns(orchestration)
 	}))
-	s.Run("GetWorkspaceBuildOrchestrationByParentBuildID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		orchestration := testutil.Fake(s.T(), faker, database.WorkspaceBuildOrchestration{})
-		dbm.EXPECT().GetWorkspaceBuildOrchestrationByParentBuildID(gomock.Any(), orchestration.ParentBuildID).Return(orchestration, nil).AnyTimes()
-		check.Args(orchestration.ParentBuildID).
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
-			Returns(orchestration)
-	}))
 	s.Run("UpdateWorkspaceBuildOrchestrationCanceledByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		orchestration := testutil.Fake(s.T(), faker, database.WorkspaceBuildOrchestration{})
 		arg := database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams{
