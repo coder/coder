@@ -54,14 +54,8 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 	const form = useFormik<CreateGatewayKeyFormValues>({
 		initialValues: { name: "" },
 		validationSchema,
-		onSubmit: async (values) => {
-			setSubmitError(undefined);
-			try {
-				const key = await onCreate(values.name);
-				setCreatedKey(key);
-			} catch (error) {
-				setSubmitError(error);
-			}
+		onSubmit: (values) => {
+			onCreate(values.name);
 		},
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
