@@ -39,6 +39,50 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Compose template from base and modules
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
+  -H 'Content-Type: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/templatebuilder/compose`
+
+> Body parameter
+
+```json
+{
+  "base_template_id": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description     |
+|--------|------|--------------------------------------------------------------------------------------------|----------|-----------------|
+| `body` | body | [codersdk.TemplateBuilderComposeRequest](schemas.md#codersdktemplatebuildercomposerequest) | true     | Compose request |
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema |
+|--------|---------------------------------------------------------|-------------|--------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## List template builder modules
 
 ### Code samples

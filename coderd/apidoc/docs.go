@@ -7358,6 +7358,42 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templatebuilder/compose": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-tar"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose template from base and modules",
+                "operationId": "compose-template-from-base-and-modules",
+                "parameters": [
+                    {
+                        "description": "Compose request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderComposeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/templatebuilder/modules": {
             "get": {
                 "produces": [
@@ -23682,6 +23718,34 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.TemplateBuilderBase"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderComposeModule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderComposeRequest": {
+            "type": "object",
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
                     }
                 }
             }

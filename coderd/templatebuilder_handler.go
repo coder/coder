@@ -118,3 +118,66 @@ func (api *API) templateBuilderModules(rw http.ResponseWriter, r *http.Request) 
 		Modules: modules,
 	})
 }
+
+// @Summary Compose template from base and modules
+// @ID compose-template-from-base-and-modules
+// @Security CoderSessionToken
+// @Accept json
+// @Produce application/x-tar
+// @Tags TemplateBuilder
+// @Param request body codersdk.TemplateBuilderComposeRequest true "Compose request"
+// @Success 200
+// @Router /api/v2/templatebuilder/compose [post]
+func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	if !api.Authorize(r, policy.ActionCreate, rbac.ResourceTemplate.AnyOrganization()) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	var req codersdk.TemplateBuilderComposeRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	if req.BaseTemplateID == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing base_template_id.",
+		})
+		return
+	}
+
+	composeReq := templatebuilder.ComposeRequest{
+		BaseTemplateID: req.BaseTemplateID,
+		RegistryURL:    api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
+	}
+	for _, m := range req.Modules {
+		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
+			ID:        m.ID,
+			Variables: m.Variables,
+		})
+	}
+
+	result, err := templatebuilder.Compose(composeReq)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to compose template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	tarData, err := templatebuilder.BundleTar(result)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error bundling template.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	rw.Header().Set("Content-Type", "application/x-tar")
+	rw.WriteHeader(http.StatusOK)
+	_, _ = rw.Write(tarData)
+}
