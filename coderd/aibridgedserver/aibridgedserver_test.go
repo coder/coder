@@ -1188,6 +1188,87 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 			{
+				name: "valid token usage with budget but no price",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					groupID := uuid.New()
+					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
+					// Budget resolves to a group, but the model has no price row.
+					// The resolved group must survive the price lookup's early
+					// return on sql.ErrNoRows, while prices and cost stay NULL.
+					expectTokenUsageCostLookups(db, intc, nil, group, nil)
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.Equal(t, uuid.NullUUID{UUID: groupID, Valid: true}, p.EffectiveGroupID, "effective group ID") ||
+							!assert.False(t, p.InputPriceMicros.Valid, "input price null") ||
+							!assert.False(t, p.OutputPriceMicros.Valid, "output price null") ||
+							!assert.False(t, p.CacheReadPriceMicros.Valid, "cache read price null") ||
+							!assert.False(t, p.CacheWritePriceMicros.Valid, "cache write price null") ||
+							!assert.False(t, p.CostMicros.Valid, "cost null") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
+				name: "valid token usage with price but no budget",
+				request: &proto.RecordTokenUsageRequest{
+					InterceptionId:        uuid.NewString(),
+					MsgId:                 "msg_123",
+					InputTokens:           100,
+					OutputTokens:          200,
+					CacheReadInputTokens:  50,
+					CacheWriteInputTokens: 10,
+					CreatedAt:             timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordTokenUsageRequest) {
+					interceptionID, err := uuid.Parse(req.GetInterceptionId())
+					assert.NoError(t, err, "parse interception UUID")
+
+					intc := newTestInterception(interceptionID)
+					price := &database.AiModelPrice{
+						Provider:        intc.Provider,
+						Model:           intc.Model,
+						InputPrice:      sql.NullInt64{Int64: 3_000_000, Valid: true},
+						OutputPrice:     sql.NullInt64{Int64: 6_000_000, Valid: true},
+						CacheReadPrice:  sql.NullInt64{Int64: 300_000, Valid: true},
+						CacheWritePrice: sql.NullInt64{Int64: 4_000_000, Valid: true},
+					}
+					// No budget configured, but the model is priced: cost is
+					// computed independently of budget resolution, and the group
+					// attribution stays NULL.
+					expectTokenUsageCostLookups(db, intc, nil, nil, price)
+
+					// 300 + 1200 + 15 + 40.
+					const wantCost int64 = 1555
+
+					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
+						if !assert.False(t, p.EffectiveGroupID.Valid, "effective group ID null") ||
+							!assert.Equal(t, price.InputPrice, p.InputPriceMicros, "input price") ||
+							!assert.Equal(t, price.OutputPrice, p.OutputPriceMicros, "output price") ||
+							!assert.Equal(t, price.CacheReadPrice, p.CacheReadPriceMicros, "cache read price") ||
+							!assert.Equal(t, price.CacheWritePrice, p.CacheWritePriceMicros, "cache write price") ||
+							!assert.Equal(t, sql.NullInt64{Int64: wantCost, Valid: true}, p.CostMicros, "cost") {
+							return false
+						}
+						return true
+					})).Return(database.AIBridgeTokenUsage{ID: uuid.New(), InterceptionID: interceptionID}, nil)
+				},
+			},
+			{
 				name: "invalid interception ID",
 				request: &proto.RecordTokenUsageRequest{
 					InterceptionId: "not-a-uuid",
