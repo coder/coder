@@ -31,7 +31,7 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 			name: "RedactsURLUserinfoQueryAndFragment",
 			err: &url.Error{
 				Op:  "Post",
-				URL: "https://user:password@gateway.internal/v1/chat?api_key=secret&x=ok#fragment",
+				URL: "https://test-user:test-password@gateway.internal/v1/chat?test_token=test-value#fragment",
 				Err: xerrors.New("unexpected EOF"),
 			},
 			want: `Post "https://gateway.internal/v1/chat": unexpected EOF`,
@@ -40,7 +40,7 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 			name: "RedactsWrappedURLError",
 			err: xerrors.Errorf("stream failed: %w", &url.Error{
 				Op:  "Get",
-				URL: "https://secret-key@gateway.internal/v1/chat?token=secret",
+				URL: "https://test-key@gateway.internal/v1/chat?test_token=test-value",
 				Err: xerrors.New("connection refused"),
 			}),
 			want: `stream failed: Get "https://gateway.internal/v1/chat": connection refused`,

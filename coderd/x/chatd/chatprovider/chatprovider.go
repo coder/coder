@@ -157,26 +157,13 @@ func (k ProviderAPIKeys) HasProvider(provider string) bool {
 	return ok
 }
 
-// BaseURL returns the configured base URL for a provider without userinfo,
-// query parameters, or fragments.
+// BaseURL returns the configured base URL for a provider.
 func (k ProviderAPIKeys) BaseURL(provider string) string {
 	normalized := NormalizeProvider(provider)
 	if normalized == "" || k.BaseURLByProvider == nil {
 		return ""
 	}
-	return stripProviderBaseURLCredentials(strings.TrimSpace(k.BaseURLByProvider[normalized]))
-}
-
-func stripProviderBaseURLCredentials(baseURL string) string {
-	parsed, err := neturl.Parse(baseURL)
-	if err != nil {
-		return baseURL
-	}
-	parsed.User = nil
-	parsed.RawQuery = ""
-	parsed.ForceQuery = false
-	parsed.Fragment = ""
-	return parsed.String()
+	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
 // ProviderBaseURLHostname returns the normalized hostname from a provider base URL.

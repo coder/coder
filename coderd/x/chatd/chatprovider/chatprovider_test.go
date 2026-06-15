@@ -51,7 +51,7 @@ func TestProviderBaseURLHostname(t *testing.T) {
 	}
 }
 
-func TestProviderAPIKeysBaseURLStripsCredentials(t *testing.T) {
+func TestProviderAPIKeysBaseURLPreservesConfiguredEndpoint(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -60,24 +60,24 @@ func TestProviderAPIKeysBaseURLStripsCredentials(t *testing.T) {
 		want    string
 	}{
 		{
-			name:    "Password",
-			baseURL: " https://user:password@openrouter.ai/api/v1 ",
-			want:    "https://openrouter.ai/api/v1",
+			name:    "PreservesUserinfo",
+			baseURL: " https://test-user:test-password@gateway.example/v1 ",
+			want:    "https://test-user:test-password@gateway.example/v1",
 		},
 		{
-			name:    "UsernameOnly",
-			baseURL: "https://secret-key@openrouter.ai/api/v1",
-			want:    "https://openrouter.ai/api/v1",
+			name:    "PreservesUsernameOnlyUserinfo",
+			baseURL: "https://test-key@gateway.example/v1",
+			want:    "https://test-key@gateway.example/v1",
 		},
 		{
-			name:    "QueryAndFragment",
-			baseURL: "https://openrouter.ai/api/v1?api_key=secret&x=ok#fragment",
-			want:    "https://openrouter.ai/api/v1",
+			name:    "PreservesQueryAndFragment",
+			baseURL: "https://gateway.example/v1?test_token=test-value#fragment",
+			want:    "https://gateway.example/v1?test_token=test-value#fragment",
 		},
 		{
-			name:    "NoCredentials",
-			baseURL: " https://openrouter.ai/api/v1 ",
-			want:    "https://openrouter.ai/api/v1",
+			name:    "TrimsWhitespace",
+			baseURL: " https://gateway.example/v1 ",
+			want:    "https://gateway.example/v1",
 		},
 		{
 			name:    "InvalidURL",
