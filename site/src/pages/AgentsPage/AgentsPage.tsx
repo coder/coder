@@ -19,6 +19,7 @@ import {
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
+	chatSummaryToChat,
 	chatKey,
 	chatModelConfigs,
 	chatModels,
@@ -79,7 +80,7 @@ const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
 ]);
 
 export const shouldInvalidateFilteredChatList = (
-	chat: TypesGen.Chat,
+	chat: TypesGen.ChatSummary,
 	eventKind: TypesGen.ChatWatchEventKind,
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
@@ -630,11 +631,14 @@ const AgentsPage: FC = () => {
 							// page, the child is silently dropped.
 							addChildToParentInCache(
 								queryClient,
-								updatedChat,
+								chatSummaryToChat(updatedChat),
 								updatedChat.parent_chat_id,
 							);
 						} else {
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							prependToInfiniteChatsCache(
+								queryClient,
+								chatSummaryToChat(updatedChat),
+							);
 							void invalidateChatListQueries(queryClient);
 						}
 					} else {

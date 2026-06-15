@@ -1657,6 +1657,49 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 	return &payload
 }
 
+// ChatSummary converts a database.Chat to the bounded shape used by
+// chat watch events. Detail-only fields stay on Chat.
+func ChatSummary(c database.Chat, diffStatus *database.ChatDiffStatus) codersdk.ChatSummary {
+	chat := codersdk.ChatSummary{
+		ID:                c.ID,
+		OrganizationID:    c.OrganizationID,
+		OwnerID:           c.OwnerID,
+		WorkspaceID:       nullUUIDPtr(c.WorkspaceID),
+		BuildID:           nullUUIDPtr(c.BuildID),
+		AgentID:           nullUUIDPtr(c.AgentID),
+		ParentChatID:      nullUUIDPtr(c.ParentChatID),
+		LastModelConfigID: c.LastModelConfigID,
+		Title:             c.Title,
+		Status:            codersdk.ChatStatus(c.Status),
+		Archived:          c.Archived,
+		Shared:            len(c.UserACL) > 0 || len(c.GroupACL) > 0,
+		PinOrder:          c.PinOrder,
+		CreatedAt:         c.CreatedAt,
+		UpdatedAt:         c.UpdatedAt,
+		ClientType:        codersdk.ChatClientType(c.ClientType),
+	}
+	if c.LastTurnSummary.Valid {
+		chat.LastTurnSummary = &c.LastTurnSummary.String
+	}
+	if c.PlanMode.Valid {
+		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
+	}
+	switch {
+	case c.RootChatID.Valid:
+		chat.RootChatID = nullUUIDPtr(c.RootChatID)
+	case c.ParentChatID.Valid:
+		chat.RootChatID = nullUUIDPtr(c.ParentChatID)
+	default:
+		rootChatID := c.ID
+		chat.RootChatID = &rootChatID
+	}
+	if diffStatus != nil {
+		convertedDiffStatus := ChatDiffStatus(c.ID, diffStatus)
+		chat.DiffStatus = &convertedDiffStatus
+	}
+	return chat
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.
@@ -1749,7 +1792,7 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		// Internal fields are stripped at write time in
 		// chatd.updateLastInjectedContext, so no
 		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
+		// errors are suppressed. The column is written by
 		// us with a known schema.
 		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
 			chat.LastInjectedContext = parts

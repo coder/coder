@@ -3495,31 +3495,15 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
-func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
+func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *database.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
-	// diffStatus is applied below. File metadata is intentionally
-	// omitted from pubsub events to avoid an extra DB query per
-	// publish. Clients must merge pubsub updates, not replace
-	// cached file metadata.
-	sdkChat := db2sdk.Chat(chat, nil, nil)
-	if diffStatus != nil {
-		sdkChat.DiffStatus = diffStatus
-	}
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: sdkChat,
+		Chat: db2sdk.ChatSummary(chat, diffStatus),
 	}
-	payload, err := json.Marshal(event)
-	if err != nil {
-		p.logger.Error(context.Background(), "failed to marshal chat pubsub event",
-			slog.F("chat_id", chat.ID),
-			slog.Error(err),
-		)
-		return
-	}
-	if err := p.pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
+	if err := coderdpubsub.PublishChatWatchEvent(p.pubsub, chat.OwnerID, event); err != nil {
 		p.logger.Error(context.Background(), "failed to publish chat pubsub event",
 			slog.F("chat_id", chat.ID),
 			slog.F("kind", kind),
@@ -3543,8 +3527,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID) 
 		return xerrors.Errorf("get chat diff status: %w", err)
 	}
 
-	sdkStatus := db2sdk.ChatDiffStatus(chatID, &dbStatus)
-	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &sdkStatus)
+	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindDiffStatusChange, &dbStatus)
 	return nil
 }
 

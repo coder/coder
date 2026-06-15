@@ -514,16 +514,9 @@ func (s *taskStarter) publishWatchWithRetry(
 func publishChatWatchEvent(pubsub chatWorkerPubsub, chat database.Chat, kind codersdk.ChatWatchEventKind) error {
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: db2sdk.Chat(chat, nil, nil),
+		Chat: db2sdk.ChatSummary(chat, nil),
 	}
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return xerrors.Errorf("marshal chat watch event: %w", err)
-	}
-	if err := pubsub.Publish(coderdpubsub.ChatWatchEventChannel(chat.OwnerID), payload); err != nil {
-		return xerrors.Errorf("publish chat watch event: %w", err)
-	}
-	return nil
+	return coderdpubsub.PublishChatWatchEvent(pubsub, chat.OwnerID, event)
 }
 
 type taskFenceOptions struct {

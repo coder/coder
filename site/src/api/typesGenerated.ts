@@ -2836,6 +2836,40 @@ export interface ChatStreamToolCall {
 
 // From codersdk/chats.go
 /**
+ * ChatSummary contains the bounded fields used by watch streams and
+ * chat list cache updates. Detail-only and unbounded fields such as
+ * last injected context stay on Chat. Watch consumers that need full
+ * detail should refetch the chat instead of expanding this shape.
+ */
+export interface ChatSummary {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly workspace_id?: string;
+	readonly build_id?: string;
+	readonly agent_id?: string;
+	readonly parent_chat_id?: string;
+	readonly root_chat_id?: string;
+	readonly last_model_config_id: string;
+	readonly title: string;
+	readonly status: ChatStatus;
+	readonly plan_mode?: ChatPlanMode;
+	readonly last_turn_summary: string | null;
+	readonly diff_status?: ChatDiffStatus;
+	readonly created_at: string;
+	readonly updated_at: string;
+	readonly archived: boolean;
+	/**
+	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
+	 */
+	readonly shared: boolean;
+	readonly pin_order: number;
+	readonly has_unread: boolean;
+	readonly client_type: ChatClientType;
+}
+
+// From codersdk/chats.go
+/**
  * ChatSystemPromptResponse is the response body for the chat system prompt
  * configuration endpoint.
  */
@@ -3024,13 +3058,14 @@ export interface ChatUser extends MinimalUser {
 /**
  * ChatWatchEvent represents an event from the global chat watch stream.
  * It delivers lifecycle events (created, status change, summary change,
- * title change) for all of the authenticated user's chats. When Kind is
+ * title change) for all of the authenticated user's chats. Chat is a
+ * bounded summary, not the full REST detail shape. When Kind is
  * ActionRequired, ToolCalls contains the pending dynamic tool
  * invocations the client must execute and submit back.
  */
 export interface ChatWatchEvent {
 	readonly kind: ChatWatchEventKind;
-	readonly chat: Chat;
+	readonly chat: ChatSummary;
 	readonly tool_calls?: readonly ChatStreamToolCall[];
 }
 
@@ -3062,7 +3097,7 @@ export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 export interface ChatWorkspaceTTLResponse {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero disables this. The template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }
@@ -4007,7 +4042,7 @@ export const DefaultChatDebugRetentionDays = 30;
 // From codersdk/chats.go
 /**
  * DefaultChatWorkspaceTTL is the default TTL for chat workspaces.
- * Zero means disabled — the template's own autostop setting applies.
+ * Zero disables this. The template's own autostop setting applies.
  */
 export const DefaultChatWorkspaceTTL = 0;
 
@@ -8801,7 +8836,7 @@ export interface UpdateChatUsageLimitOverrideRequest {
 export interface UpdateChatWorkspaceTTLRequest {
 	/**
 	 * WorkspaceTTLMillis is the workspace TTL in milliseconds.
-	 * Zero means disabled — the template's own autostop setting applies.
+	 * Zero disables this. The template's own autostop setting applies.
 	 */
 	readonly workspace_ttl_ms: number;
 }

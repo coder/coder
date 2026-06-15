@@ -1943,7 +1943,7 @@ func TestWatchChats(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		var got codersdk.Chat
+		var got codersdk.ChatSummary
 		testutil.Eventually(ctx, t, func(_ context.Context) bool {
 			var payload codersdk.ChatWatchEvent
 			if readErr := wsjson.Read(ctx, conn, &payload); readErr != nil {
@@ -2030,7 +2030,7 @@ func TestWatchChats(t *testing.T) {
 		sdkDiffStatus := db2sdk.ChatDiffStatus(chat.ID, &dbStatus)
 		event := codersdk.ChatWatchEvent{
 			Kind: codersdk.ChatWatchEventKindDiffStatusChange,
-			Chat: codersdk.Chat{
+			Chat: codersdk.ChatSummary{
 				ID:         chat.ID,
 				OwnerID:    chat.OwnerID,
 				Title:      chat.Title,

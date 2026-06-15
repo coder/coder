@@ -151,6 +151,15 @@ export const readInfiniteChatsCache = (
 	return undefined;
 };
 
+export const chatSummaryToChat = (
+	chat: TypesGen.ChatSummary,
+): TypesGen.Chat => ({
+	...chat,
+	mcp_server_ids: [],
+	labels: {},
+	children: [],
+});
+
 /**
  * Adds a child chat to its parent's `children` array across all
  * infinite chat query caches. If the parent is not in any loaded page,
@@ -303,7 +312,7 @@ const diffStatusEqual = (
  */
 export const mergeWatchedChatSummary = (
 	cachedChat: TypesGen.Chat,
-	watchedChat: TypesGen.Chat,
+	watchedChat: TypesGen.ChatSummary,
 	{ eventKind, activeChatId }: MergeWatchedChatOptions,
 ): TypesGen.Chat => {
 	const isTitleEvent = eventKind === "title_change";
@@ -383,7 +392,7 @@ export const mergeWatchedChatSummary = (
  */
 export const mergeWatchedChatIntoCaches = (
 	queryClient: QueryClient,
-	watchedChat: TypesGen.Chat,
+	watchedChat: TypesGen.ChatSummary,
 	options: MergeWatchedChatOptions,
 ) => {
 	const mergeCachedChat = (cachedChat: TypesGen.Chat) =>
