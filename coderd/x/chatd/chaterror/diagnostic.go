@@ -8,10 +8,13 @@ func FormatDiagnosticDetail(err error) string {
 	if err == nil {
 		return ""
 	}
-	return fallbackDiagnosticDetail("", err.Error())
+	return resolveDiagnosticDetail("", err.Error())
 }
 
-func fallbackDiagnosticDetail(structured, message string) string {
+// resolveDiagnosticDetail picks the detail string to surface: structured
+// provider detail always wins, otherwise the raw message is used as a fallback
+// after dropping any URL-bearing text and bounding its length.
+func resolveDiagnosticDetail(structured, message string) string {
 	if strings.TrimSpace(structured) != "" {
 		return structured
 	}

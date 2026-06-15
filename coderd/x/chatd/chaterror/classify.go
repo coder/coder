@@ -294,7 +294,7 @@ func Classify(err error) ClassifiedError {
 		}
 		detail := structured.detail
 		if rule.kind != codersdk.ChatErrorKindAuth {
-			detail = fallbackDiagnosticDetail(structured.detail, message)
+			detail = resolveDiagnosticDetail(structured.detail, message)
 		}
 		return normalizeClassification(ClassifiedError{
 			Detail:     detail,
@@ -318,7 +318,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	return normalizeClassification(ClassifiedError{
-		Detail:     fallbackDiagnosticDetail(structured.detail, message),
+		Detail:     resolveDiagnosticDetail(structured.detail, message),
 		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,
