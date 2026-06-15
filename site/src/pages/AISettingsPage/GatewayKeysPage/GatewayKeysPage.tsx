@@ -49,8 +49,14 @@ const GatewayKeysPage: FC = () => {
 
 			<CreateGatewayKeyDialog
 				open={isCreateOpen}
-				onClose={() => setIsCreateOpen(false)}
-				onCreate={(name) => createMutation.mutateAsync({ name })}
+				onClose={() => {
+					createMutation.reset();
+					setIsCreateOpen(false);
+				}}
+				onCreate={(name) => createMutation.mutate({ name })}
+				createdKey={createMutation.data}
+				submitError={createMutation.error}
+				isSubmitting={createMutation.isPending}
 			/>
 
 			<ConfirmDialog
