@@ -11656,7 +11656,7 @@ func TestChatSideQuestionRejectsArchivedChat(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	client, _ := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
+	client, db := newChatClientWithDatabase(t, func(opts *coderdtest.Options) {
 		opts.DeploymentValues = chatSideQuestionsDeploymentValues(t)
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
@@ -11670,7 +11670,7 @@ func TestChatSideQuestionRejectsArchivedChat(t *testing.T) {
 		}},
 	})
 	require.NoError(t, err)
-	err = client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)})
+	_, err = db.ArchiveChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
 	require.NoError(t, err)
 
 	_, err = client.CreateChatSideQuestion(ctx, chat.ID, codersdk.CreateChatSideQuestionRequest{
