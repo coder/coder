@@ -89,15 +89,15 @@ func withInternalTestServerLogger(logger slog.Logger) internalTestServerOpt {
 	}
 }
 
-func withoutInternalTestServerWorker() internalTestServerOpt {
+func withInternalTestServerWorker() internalTestServerOpt {
 	return func(cfg *internalTestServerConfig) {
-		cfg.startWorker = false
+		cfg.startWorker = true
 	}
 }
 
-// newInternalTestServer creates a started Server for internal tests with
-// custom provider API keys. The server is automatically closed when the
-// test finishes.
+// newInternalTestServer creates a passive Server for internal tests with
+// custom provider API keys. Pass withInternalTestServerWorker to start the
+// background chat worker for tests that need real execution.
 func newInternalTestServer(
 	t *testing.T,
 	db database.Store,
@@ -108,8 +108,7 @@ func newInternalTestServer(
 	t.Helper()
 
 	cfg := internalTestServerConfig{
-		logger:      slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		startWorker: true,
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -3365,7 +3364,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	// so they don't collide. Mock-clock subtests need their own
 	// DB and server so the wait loop's timers stay isolated.
 	db, ps := dbtestutil.NewDB(t)
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withoutInternalTestServerWorker())
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	user, org, model := seedInternalChatDeps(t, db)
 
 	t.Run("NotDescendant", func(t *testing.T) {
@@ -3447,7 +3446,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
 		ps := subscribeFailingPubsub{Pubsub: pubsub.NewInMemory()}
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock), withoutInternalTestServerWorker())
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3496,7 +3495,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock), withoutInternalTestServerWorker())
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3595,7 +3594,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock), withoutInternalTestServerWorker())
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3651,7 +3650,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		})
 
 		db, ps := dbtestutil.NewDB(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerWorker())
 		ctx := chatdTestContext(t)
 		user, org, _ := seedInternalChatDeps(t, db)
 		provider := dbgen.ChatProvider(t, db, database.ChatProvider{
