@@ -14,6 +14,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
+import { getPathBasename } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 export interface AgentContextUsage {
@@ -62,12 +63,6 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 		return "text-content-warning";
 	}
 	return "text-content-secondary/60";
-};
-
-/** Extract the trailing filename from an absolute path. */
-const basename = (path: string): string => {
-	const slash = path.lastIndexOf("/");
-	return slash >= 0 ? path.substring(slash + 1) : path;
 };
 
 const RING_SIZE = 18;
@@ -166,7 +161,7 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 									>
 										<FileIcon className="size-3 shrink-0" />
 										<span className="truncate" title={part.context_file_path}>
-											{basename(part.context_file_path)}
+											{getPathBasename(part.context_file_path)}
 										</span>
 										{part.context_file_truncated && (
 											<span className="shrink-0 text-content-warning">

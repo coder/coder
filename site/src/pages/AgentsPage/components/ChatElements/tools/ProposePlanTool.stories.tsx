@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
+import { getPathBasename } from "../../../utils/path";
 import { Tool } from "./Tool";
 
 const samplePlan = [
@@ -37,7 +38,7 @@ const samplePlan = [
 
 const defaultPlanPath =
 	"/home/coder/.coder/plans/PLAN-a1b2c3d4-e5f6-7890-abcd-ef1234567890.md";
-const defaultPlanFilename = defaultPlanPath.split("/").pop() ?? "PLAN.md";
+const defaultPlanFilename = getPathBasename(defaultPlanPath) || "PLAN.md";
 
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/ProposePlan",

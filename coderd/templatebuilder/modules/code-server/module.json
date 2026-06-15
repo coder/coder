@@ -1,0 +1,30 @@
+{
+  "id": "code-server",
+  "display_name": "code-server",
+  "description": "VS Code in the browser",
+  "icon": "/icon/code.svg",
+  "category": "IDE",
+  "tags": ["ide", "web"],
+  "compatible_os": ["linux"],
+  "conflicts_with": [],
+  "pinned_version": "1.2.3",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of the Coder agent. Injected automatically by the builder.",
+      "required": true,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "Port to run code-server on",
+      "default": 13337,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

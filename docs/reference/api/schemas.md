@@ -12046,6 +12046,50 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------|------------------------------------------------------|----------|--------------|-------------|
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateBuilderBase
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "os": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `description` | string | false    |              |             |
+| `icon`        | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `os`          | string | false    |              |             |
+
+## codersdk.TemplateBuilderBasesResponse
+
+```json
+{
+  "bases": [
+    {
+      "description": "string",
+      "icon": "string",
+      "id": "string",
+      "name": "string",
+      "os": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                  | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
+
 ## codersdk.TemplateBuilderConfig
 
 ```json
@@ -12061,6 +12105,132 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------|---------|----------|--------------|-------------|
 | `disabled`     | boolean | false    |              |             |
 | `registry_url` | string  | false    |              |             |
+
+## codersdk.TemplateBuilderModule
+
+```json
+{
+  "category": "string",
+  "compatible_os": [
+    "string"
+  ],
+  "conflicts_with": [
+    "string"
+  ],
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ],
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                                      | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `category`       | string                                                                                    | false    |              |             |
+| `compatible_os`  | array of string                                                                           | false    |              |             |
+| `conflicts_with` | array of string                                                                           | false    |              |             |
+| `description`    | string                                                                                    | false    |              |             |
+| `display_name`   | string                                                                                    | false    |              |             |
+| `icon`           | string                                                                                    | false    |              |             |
+| `id`             | string                                                                                    | false    |              |             |
+| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| `version`        | string                                                                                    | false    |              |             |
+
+## codersdk.TemplateBuilderModuleVariable
+
+```json
+{
+  "default": [
+    0
+  ],
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                         | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `default`     | array of integer                                                             | false    |              |             |
+| `description` | string                                                                       | false    |              |             |
+| `name`        | string                                                                       | false    |              |             |
+| `required`    | boolean                                                                      | false    |              |             |
+| `sensitive`   | boolean                                                                      | false    |              |             |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+
+## codersdk.TemplateBuilderModulesResponse
+
+```json
+{
+  "modules": [
+    {
+      "category": "string",
+      "compatible_os": [
+        "string"
+      ],
+      "conflicts_with": [
+        "string"
+      ],
+      "description": "string",
+      "display_name": "string",
+      "icon": "string",
+      "id": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ],
+      "version": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                      | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderVariableType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `bool`, `number`, `string` |
 
 ## codersdk.TemplateExample
 

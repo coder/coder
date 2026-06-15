@@ -1620,8 +1620,8 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 				)
-				// Endpoints added by DEVEX-275 (bases), DEVEX-276
-				// (modules), DEVEX-277/279 (compose).
+				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
 			})
 		}
 
