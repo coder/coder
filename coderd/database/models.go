@@ -6125,6 +6125,8 @@ type WorkspaceBuildOrchestration struct {
 	ID        uuid.UUID `db:"id" json:"id"`
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+	// Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	// Unique because we only support sequences with one child build per parent build.
 	ParentBuildID uuid.UUID `db:"parent_build_id" json:"parent_build_id"`
 	// Nullable because the child build is created only after the parent build completes successfully.

@@ -8473,6 +8473,7 @@ func TestUpdateWorkspaceBuildOrchestrationRetryByIDMaxAttempts(t *testing.T) {
 		ChildRichParameterValues: json.RawMessage("[]"),
 	})
 	require.NoError(t, err)
+	require.Equal(t, workspace.ID, orchestration.WorkspaceID)
 
 	const maxAttemptCount = 3
 	const retryError = "some retryable child build failure"
@@ -8580,6 +8581,7 @@ func TestGetNextPendingWorkspaceBuildOrchestrationForUpdateRetryDelay(t *testing
 			ChildRichParameterValues: json.RawMessage("[]"),
 		})
 		require.NoError(t, err)
+		require.Equal(t, workspace.ID, orchestration.WorkspaceID)
 		return orchestration
 	}
 
@@ -8643,6 +8645,90 @@ func TestGetNextPendingWorkspaceBuildOrchestrationForUpdateRetryDelay(t *testing
 	got, err = claimNext(t)
 	require.NoError(t, err)
 	require.Equal(t, delayed.ID, got.ID)
+}
+
+func TestUpdateWorkspaceBuildOrchestrationCompletedByIDWorkspaceMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+
+	parentWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       parentWorkspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                dbtime.Now(),
+		UpdatedAt:                dbtime.Now(),
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+	require.Equal(t, parentWorkspace.ID, orchestration.WorkspaceID)
+
+	// Given: a child build whose workspace does not match the parent
+	// build's workspace.
+	childJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	childBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       otherWorkspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             childJob.ID,
+		Transition:        database.WorkspaceTransitionStart,
+	})
+
+	// When: the orchestration is completed with the child build.
+	_, err = db.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams{
+		ID:           orchestration.ID,
+		ChildBuildID: uuid.NullUUID{UUID: childBuild.ID, Valid: true},
+		UpdatedAt:    dbtime.Now(),
+	})
+
+	// Then: the composite foreign key rejects the mismatched child build.
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
 }
 
 func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {

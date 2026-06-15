@@ -32960,7 +32960,7 @@ func (q *sqlQuerier) InsertWorkspaceAppStats(ctx context.Context, arg InsertWork
 
 const getNextPendingWorkspaceBuildOrchestrationForUpdate = `-- name: GetNextPendingWorkspaceBuildOrchestrationForUpdate :one
 SELECT
-    wbo.id, wbo.created_at, wbo.updated_at, wbo.parent_build_id, wbo.child_build_id, wbo.child_transition, wbo.child_template_version_id, wbo.child_template_version_preset_id, wbo.child_rich_parameter_values, wbo.child_log_level, wbo.child_reason, wbo.attempt_count, wbo.next_retry_after, wbo.status, wbo.error
+    wbo.id, wbo.created_at, wbo.updated_at, wbo.workspace_id, wbo.parent_build_id, wbo.child_build_id, wbo.child_transition, wbo.child_template_version_id, wbo.child_template_version_preset_id, wbo.child_rich_parameter_values, wbo.child_log_level, wbo.child_reason, wbo.attempt_count, wbo.next_retry_after, wbo.status, wbo.error
 FROM
     workspace_build_orchestrations wbo
     JOIN workspace_builds wb ON wbo.parent_build_id = wb.id
@@ -32990,6 +32990,7 @@ func (q *sqlQuerier) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx cont
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,
@@ -33012,6 +33013,7 @@ INSERT INTO workspace_build_orchestrations (
     created_at,
     updated_at,
     parent_build_id,
+    workspace_id,
     child_transition,
     child_template_version_id,
     child_template_version_preset_id,
@@ -33026,6 +33028,7 @@ VALUES (
     $2,
     $3,
     $4,
+    (SELECT workspace_id FROM workspace_builds WHERE id = $4),
     $5,
     $6,
     $7,
@@ -33035,7 +33038,7 @@ VALUES (
     'pending',
     NULL
 )
-RETURNING id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
 `
 
 type InsertWorkspaceBuildOrchestrationParams struct {
@@ -33069,6 +33072,7 @@ func (q *sqlQuerier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg 
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,
@@ -33096,7 +33100,7 @@ SET
 WHERE
     id = $2
     AND status = 'pending'
-RETURNING id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
 `
 
 type UpdateWorkspaceBuildOrchestrationCanceledByIDParams struct {
@@ -33111,6 +33115,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.C
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,
@@ -33139,7 +33144,7 @@ SET
 WHERE
     id = $3
     AND status = 'pending'
-RETURNING id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
 `
 
 type UpdateWorkspaceBuildOrchestrationCompletedByIDParams struct {
@@ -33155,6 +33160,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,
@@ -33182,7 +33188,7 @@ SET
 WHERE
     id = $3
     AND status = 'pending'
-RETURNING id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
 `
 
 type UpdateWorkspaceBuildOrchestrationFailedByIDParams struct {
@@ -33198,6 +33204,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Con
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,
@@ -33232,7 +33239,7 @@ SET
 WHERE
     id = $5
     AND status = 'pending'
-RETURNING id, created_at, updated_at, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
+RETURNING id, created_at, updated_at, workspace_id, parent_build_id, child_build_id, child_transition, child_template_version_id, child_template_version_preset_id, child_rich_parameter_values, child_log_level, child_reason, attempt_count, next_retry_after, status, error
 `
 
 type UpdateWorkspaceBuildOrchestrationRetryByIDParams struct {
@@ -33256,6 +33263,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Cont
 		&i.ID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.WorkspaceID,
 		&i.ParentBuildID,
 		&i.ChildBuildID,
 		&i.ChildTransition,

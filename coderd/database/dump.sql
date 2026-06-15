@@ -3444,6 +3444,7 @@ CREATE TABLE workspace_build_orchestrations (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
+    workspace_id uuid NOT NULL,
     parent_build_id uuid NOT NULL,
     child_build_id uuid,
     child_transition workspace_transition NOT NULL,
@@ -3465,6 +3466,8 @@ CREATE TABLE workspace_build_orchestrations (
 );
 
 COMMENT ON TABLE workspace_build_orchestrations IS 'Tracks durable follow-up workspace build operations, such as server-side restart, where one child build is created after a parent build completes successfully.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.workspace_id IS 'Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.';
 
 COMMENT ON COLUMN workspace_build_orchestrations.parent_build_id IS 'Unique because we only support sequences with one child build per parent build.';
 
@@ -4094,6 +4097,9 @@ ALTER TABLE ONLY workspace_build_orchestrations
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_name_key UNIQUE (workspace_build_id, name);
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_id_workspace_id_key UNIQUE (id, workspace_id);
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_job_id_key UNIQUE (job_id);
@@ -4915,13 +4921,13 @@ ALTER TABLE ONLY workspace_build_orchestrations
     ADD CONSTRAINT workspace_build_orchestration_child_template_version_prese_fkey FOREIGN KEY (child_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_build_orchestrations
-    ADD CONSTRAINT workspace_build_orchestrations_child_build_id_fkey FOREIGN KEY (child_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_build_orchestrations_child_build_workspace_id_fkey FOREIGN KEY (child_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_orchestrations
     ADD CONSTRAINT workspace_build_orchestrations_child_template_version_id_fkey FOREIGN KEY (child_template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_orchestrations
-    ADD CONSTRAINT workspace_build_orchestrations_parent_build_id_fkey FOREIGN KEY (parent_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_build_orchestrations_parent_build_workspace_id_fkey FOREIGN KEY (parent_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_parameters
     ADD CONSTRAINT workspace_build_parameters_workspace_build_id_fkey FOREIGN KEY (workspace_build_id) REFERENCES workspace_builds(id) ON DELETE CASCADE;

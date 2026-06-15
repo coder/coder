@@ -1,9 +1,17 @@
+-- Postgres requires the referenced column set of a composite foreign
+-- key to have its own unique constraint, even though id is already
+-- unique.
+ALTER TABLE workspace_builds
+    ADD CONSTRAINT workspace_builds_id_workspace_id_key
+        UNIQUE (id, workspace_id);
+
 CREATE TABLE workspace_build_orchestrations (
     id UUID PRIMARY KEY NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
-    parent_build_id UUID UNIQUE NOT NULL REFERENCES workspace_builds(id) ON DELETE CASCADE,
-    child_build_id UUID UNIQUE REFERENCES workspace_builds(id) ON DELETE CASCADE,
+    workspace_id UUID NOT NULL,
+    parent_build_id UUID UNIQUE NOT NULL,
+    child_build_id UUID UNIQUE,
     child_transition workspace_transition NOT NULL,
     child_template_version_id UUID REFERENCES template_versions(id) ON DELETE CASCADE,
     child_template_version_preset_id UUID REFERENCES template_version_presets(id) ON DELETE SET NULL,
@@ -33,7 +41,17 @@ CREATE TABLE workspace_build_orchestrations (
     -- log level is either unset or debug.
     CONSTRAINT workspace_build_orchestrations_child_log_level_check CHECK (
         child_log_level IN ('', 'debug')
-    )
+    ),
+    -- Composite foreign keys enforce that the parent and child builds
+    -- belong to the same workspace.
+    CONSTRAINT workspace_build_orchestrations_parent_build_workspace_id_fkey
+        FOREIGN KEY (parent_build_id, workspace_id)
+        REFERENCES workspace_builds(id, workspace_id)
+        ON DELETE CASCADE,
+    CONSTRAINT workspace_build_orchestrations_child_build_workspace_id_fkey
+        FOREIGN KEY (child_build_id, workspace_id)
+        REFERENCES workspace_builds(id, workspace_id)
+        ON DELETE CASCADE
 );
 
 -- The orchestrator scans eligible pending rows oldest first and skips
@@ -47,6 +65,9 @@ COMMENT ON TABLE workspace_build_orchestrations IS
 
 COMMENT ON COLUMN workspace_build_orchestrations.parent_build_id IS
     'Unique because we only support sequences with one child build per parent build.';
+
+COMMENT ON COLUMN workspace_build_orchestrations.workspace_id IS
+    'Copied from the parent build so the database can enforce that parent and child builds belong to the same workspace.';
 
 COMMENT ON COLUMN workspace_build_orchestrations.child_build_id IS
     'Nullable because the child build is created only after the parent build completes successfully.';
