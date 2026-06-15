@@ -1358,6 +1358,21 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
 }
 
+func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
+	t.Parallel()
+
+	// When the response dump is unavailable, the detail falls back to
+	// providerErr.Message, which for Bedrock via aibridge is itself the SDK
+	// transport wrapper. It must be unwrapped to the clean inner message.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"message":"The provided request is not valid"}`,
+		400,
+		nil,
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
+}
+
 func TestClassify_TruncatesProviderDetail(t *testing.T) {
 	t.Parallel()
 

@@ -43,7 +43,9 @@ func providerErrorDetail(providerErr *fantasy.ProviderError) string {
 	if detail := providerErrorResponseMessage(providerErr.ResponseBody); detail != "" {
 		return detail
 	}
-	return strings.TrimSpace(providerErr.Message)
+	// The Message fallback can also be the SDK transport wrapper (e.g. for
+	// Bedrock via aibridge), so unwrap it for the same clean detail.
+	return unwrapTransportErrorMessage(strings.TrimSpace(providerErr.Message))
 }
 
 // providerErrorResponseMessage extracts the human-readable message from a

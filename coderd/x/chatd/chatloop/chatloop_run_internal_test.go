@@ -171,12 +171,12 @@ func TestGenerateAssistant_ProviderContextSurvivesStreamError(t *testing.T) {
 	require.Equal(t, "OpenAI returned an unexpected error.", classified.Message)
 }
 
-func TestGenerateAssistant_ModelProviderOverridesTransportLabel(t *testing.T) {
+func TestGenerateAssistant_ErrorProviderOverridesTransportLabel(t *testing.T) {
 	t.Parallel()
 
 	// Bedrock routed through aibridge uses the Anthropic transport, so
 	// Model.Provider() reports "anthropic". The user-facing error must use
-	// the configured provider from ModelProvider instead.
+	// the configured provider from ErrorProvider instead.
 	model := &chattest.FakeModel{
 		ProviderName: "anthropic",
 		ModelName:    "qwen3-coder-next",
