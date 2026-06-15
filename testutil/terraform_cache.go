@@ -126,6 +126,11 @@ func runCmd(t *testing.T, dir string, args ...string) {
 		t.Logf("attempt %d/%d to run %s failed: %s\nstdout: %s\nstderr: %s",
 			attempt+1, runCmdMaxAttempts, strings.Join(args, " "), err, lastStdout, lastStderr)
 	}
+	if lastErr == nil {
+		// The loop exited without running a command, which means r.Wait saw the
+		// context canceled before the first attempt. Report that, not a nil error.
+		t.Fatalf("failed to run %s: %v", strings.Join(args, " "), ctx.Err())
+	}
 	t.Fatalf("failed to run %s after %d attempts: %s\nstdout: %s\nstderr: %s",
 		strings.Join(args, " "), attempt, lastErr, lastStdout, lastStderr)
 }
