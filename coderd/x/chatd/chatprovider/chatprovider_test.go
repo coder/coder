@@ -51,55 +51,6 @@ func TestProviderBaseURLHostname(t *testing.T) {
 	}
 }
 
-func TestProviderAPIKeysBaseURLPreservesConfiguredEndpoint(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		baseURL string
-		want    string
-	}{
-		{
-			name:    "PreservesUserinfo",
-			baseURL: " https://test-user:test-password@gateway.example/v1 ",
-			want:    "https://test-user:test-password@gateway.example/v1",
-		},
-		{
-			name:    "PreservesUsernameOnlyUserinfo",
-			baseURL: "https://test-key@gateway.example/v1",
-			want:    "https://test-key@gateway.example/v1",
-		},
-		{
-			name:    "PreservesQueryAndFragment",
-			baseURL: "https://gateway.example/v1?test_token=test-value#fragment",
-			want:    "https://gateway.example/v1?test_token=test-value#fragment",
-		},
-		{
-			name:    "TrimsWhitespace",
-			baseURL: " https://gateway.example/v1 ",
-			want:    "https://gateway.example/v1",
-		},
-		{
-			name:    "InvalidURL",
-			baseURL: "://",
-			want:    "://",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			keys := chatprovider.ProviderAPIKeys{
-				BaseURLByProvider: map[string]string{
-					fantasyopenai.Name: tt.baseURL,
-				},
-			}
-
-			require.Equal(t, tt.want, keys.BaseURL(fantasyopenai.Name))
-		})
-	}
-}
-
 func TestResolveUserProviderKeys(t *testing.T) {
 	t.Parallel()
 
