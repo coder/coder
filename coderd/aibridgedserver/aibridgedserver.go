@@ -180,6 +180,12 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		providerName = in.Provider
 	}
 
+	agentFirewallSessionID, err := parseOptionalUUID(in.AgentFirewallSessionId)
+	if err != nil {
+		s.logger.Warn(ctx, "invalid agent firewall session ID in interception request",
+			slog.F("agent_firewall_session_id", in.GetAgentFirewallSessionId()), slog.Error(err))
+	}
+
 	_, err = s.store.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
 		ID:                          intcID,
 		APIKeyID:                    sql.NullString{String: in.ApiKeyId, Valid: true},
@@ -195,7 +201,7 @@ func (s *Server) RecordInterception(ctx context.Context, in *proto.RecordInterce
 		ThreadRootInterceptionID:    uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		CredentialKind:              credentialKindOrDefault(in.CredentialKind),
 		CredentialHint:              in.CredentialHint,
-		AgentFirewallSessionID:      parseOptionalUUID(in.AgentFirewallSessionId),
+		AgentFirewallSessionID:      agentFirewallSessionID,
 		AgentFirewallSequenceNumber: parseOptionalInt32(in.AgentFirewallSequenceNumber),
 	})
 	if err != nil {
@@ -692,16 +698,18 @@ func metadataToMap(in map[string]*anypb.Any) map[string]any {
 }
 
 // parseOptionalUUID converts an optional proto string to uuid.NullUUID.
-// Returns a zero NullUUID if s is nil or not a valid UUID.
-func parseOptionalUUID(s *string) uuid.NullUUID {
+// Returns a zero NullUUID if s is nil. If s is non-nil but not a valid UUID, it
+// returns a zero NullUUID along with the parse error so the caller can decide
+// how to surface it.
+func parseOptionalUUID(s *string) (uuid.NullUUID, error) {
 	if s == nil {
-		return uuid.NullUUID{}
+		return uuid.NullUUID{}, nil
 	}
 	id, err := uuid.Parse(*s)
 	if err != nil {
-		return uuid.NullUUID{}
+		return uuid.NullUUID{}, err
 	}
-	return uuid.NullUUID{UUID: id, Valid: true}
+	return uuid.NullUUID{UUID: id, Valid: true}, nil
 }
 
 // parseOptionalInt32 converts an optional proto int32 to sql.NullInt32.
