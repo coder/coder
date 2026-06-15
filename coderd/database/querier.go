@@ -216,6 +216,10 @@ type sqlcQuerier interface {
 	DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt time.Time) error
 	DeleteRuntimeConfig(ctx context.Context, key string) error
 	DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds int32) (int64, error)
+	// Deletes any resources for the agent whose source is not in the
+	// supplied active set. Atomic alongside the snapshot upsert so the
+	// stored snapshot and resource rows always agree.
+	DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg DeleteStaleWorkspaceAgentContextResourcesParams) error
 	DeleteTailnetPeer(ctx context.Context, arg DeleteTailnetPeerParams) (DeleteTailnetPeerRow, error)
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteTask(ctx context.Context, arg DeleteTaskParams) (uuid.UUID, error)
@@ -231,6 +235,15 @@ type sqlcQuerier interface {
 	DeleteWorkspaceACLsByOrganization(ctx context.Context, arg DeleteWorkspaceACLsByOrganizationParams) error
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
+	// Soft-deletes a single sub-agent (a child agent such as a devcontainer
+	// agent). Called from the DeleteSubAgent RPC when a sub-agent is torn
+	// down, which can happen mid-build without a full workspace rebuild.
+	//
+	// Agent context rows are hard-deleted for the same reason as in
+	// SoftDeletePriorWorkspaceAgents: they only describe live agents, the
+	// rebuild-time soft-delete queries skip already-deleted agents, and
+	// agents are never hard-deleted, so the rows would otherwise orphan
+	// forever.
 	DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID) error
 	// Disable foreign keys and triggers for all tables.
 	// Deprecated: disable foreign keys was created to aid in migrating off
@@ -574,6 +587,7 @@ type sqlcQuerier interface {
 	GetLastChatMessageByRole(ctx context.Context, arg GetLastChatMessageByRoleParams) (ChatMessage, error)
 	GetLastUpdateCheck(ctx context.Context) (string, error)
 	GetLatestCryptoKeyByFeature(ctx context.Context, feature CryptoKeyFeature) (CryptoKey, error)
+	GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (WorkspaceAgentContextSnapshot, error)
 	GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (WorkspaceAppStatus, error)
 	GetLatestWorkspaceAppStatusesByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]WorkspaceAppStatus, error)
 	GetLatestWorkspaceBuildByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) (WorkspaceBuild, error)
@@ -1153,6 +1167,7 @@ type sqlcQuerier interface {
 	// (runtime injection).
 	ListUserSecretsWithValues(ctx context.Context, userID uuid.UUID) ([]UserSecret, error)
 	ListUserSkillMetadataByUserID(ctx context.Context, userID uuid.UUID) ([]ListUserSkillMetadataByUserIDRow, error)
+	ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]WorkspaceAgentContextResource, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
 	// Locks the chat row with FOR UPDATE and atomically increments its
 	// snapshot_version, returning the post-bump chat. This is the single
@@ -1212,12 +1227,20 @@ type sqlcQuerier interface {
 	// provisionerdserver when a workspace build completes, after the new
 	// build's agents have been inserted, so running agents are not
 	// deleted while a build is still queued or provisioning.
+	//
+	// Agent context rows (workspace_agent_context_snapshots and
+	// workspace_agent_context_resources) only describe live agents, and
+	// agents are never un-deleted, so they are hard-deleted here instead
+	// of accumulating alongside the soft-deleted agent rows.
 	SoftDeletePriorWorkspaceAgents(ctx context.Context, arg SoftDeletePriorWorkspaceAgentsParams) error
 	// Marks every non-deleted agent belonging to the given workspace as
 	// deleted. Called alongside UpdateWorkspaceDeletedByID when a workspace
 	// itself is soft-deleted, so the agent instance-identity auth path
 	// (which filters on workspace_agents.deleted) doesn't keep seeing
 	// orphaned rows.
+	//
+	// Agent context rows are hard-deleted for the same reason as in
+	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	// Overrides updated_at on the parent run without touching any
 	// other column. Used by tests that need to stamp a run with a
@@ -1524,6 +1547,8 @@ type sqlcQuerier interface {
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
+	UpsertWorkspaceAgentContextResource(ctx context.Context, arg UpsertWorkspaceAgentContextResourceParams) (WorkspaceAgentContextResource, error)
+	UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg UpsertWorkspaceAgentContextSnapshotParams) (WorkspaceAgentContextSnapshot, error)
 	UpsertWorkspaceAgentPortShare(ctx context.Context, arg UpsertWorkspaceAgentPortShareParams) (WorkspaceAgentPortShare, error)
 	UpsertWorkspaceApp(ctx context.Context, arg UpsertWorkspaceAppParams) (WorkspaceApp, error)
 	//

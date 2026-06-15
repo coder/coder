@@ -148,6 +148,31 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
+// authorizeWorkspaceByAgentID authorizes an action against the workspace
+// that owns the given agent.
+//
+// Fast path: a workspace RBAC object cached in the context by the agent
+// API connection avoids the GetWorkspaceByAgentID query. The cached
+// object is refreshed every 5 minutes in agentapi/api.go; authorization
+// failures fall back to the slow path in case it is stale.
+//
+// Slow path: fetch the workspace by agent ID and authorize against it.
+func (q *querier) authorizeWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID, action policy.Action) error {
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		if err := q.authorizeContext(ctx, action, rbacObj); err == nil {
+			return nil
+		}
+		q.log.Debug(ctx, "fast path authorization failed for workspace by agent ID, using slow path",
+			slog.F("agent_id", agentID))
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, workspace)
+}
+
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
 // supporting delete operations. This function first attempts normal workspace
@@ -2377,6 +2402,16 @@ func (q *querier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds in
 	return q.db.DeleteStaleChatHeartbeats(ctx, staleSeconds)
 }
 
+func (q *querier) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
+	// Deleting stale context resources is part of updating the agent's
+	// pushed context state, so it authorizes as an update on the
+	// workspace rather than a delete of the workspace itself.
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return err
+	}
+	return q.db.DeleteStaleWorkspaceAgentContextResources(ctx, arg)
+}
+
 func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetPeerRow{}, err
@@ -3810,6 +3845,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
+}
+
+func (q *querier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, workspaceAgentID, policy.ActionRead); err != nil {
+		return database.WorkspaceAgentContextSnapshot{}, err
+	}
+	return q.db.GetLatestWorkspaceAgentContextSnapshot(ctx, workspaceAgentID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
@@ -6557,6 +6599,13 @@ func (q *querier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid
 	return q.db.ListUserSkillMetadataByUserID(ctx, userID)
 }
 
+func (q *querier) ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentContextResource, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, workspaceAgentID, policy.ActionRead); err != nil {
+		return nil, err
+	}
+	return q.db.ListWorkspaceAgentContextResources(ctx, workspaceAgentID)
+}
+
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
@@ -8771,6 +8820,20 @@ func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.Upser
 		return err
 	}
 	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentContextResource(ctx context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return database.WorkspaceAgentContextResource{}, err
+	}
+	return q.db.UpsertWorkspaceAgentContextResource(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return database.WorkspaceAgentContextSnapshot{}, err
+	}
+	return q.db.UpsertWorkspaceAgentContextSnapshot(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {
