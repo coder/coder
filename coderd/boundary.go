@@ -1,14 +1,11 @@
 package coderd
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -51,30 +48,11 @@ func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := boundarySessionToSDK(ctx, api.Database, session)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, resp)
-}
-
-// boundarySessionToSDK converts a database BoundarySession to
-// the SDK representation. It resolves the workspace and owner
-// from the workspace agent relationship.
-func boundarySessionToSDK(ctx context.Context, db database.Store, session database.BoundarySession) (codersdk.BoundarySession, error) {
-	//nolint:gocritic // System query to resolve workspace from agent ID.
-	ws, err := db.GetWorkspaceByAgentID(dbauthz.AsSystemRestricted(ctx), session.WorkspaceAgentID)
-	if err != nil {
-		return codersdk.BoundarySession{}, err
-	}
-
-	return codersdk.BoundarySession{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundarySession{
 		ID:              session.ID,
-		WorkspaceID:     ws.ID,
-		OwnerID:         ws.OwnerID,
+		WorkspaceID:     session.WorkspaceID,
+		OwnerID:         session.WorkspaceOwnerID,
 		ConfinedProcess: session.ConfinedProcessName,
 		StartedAt:       session.StartedAt,
-	}, nil
+	})
 }
