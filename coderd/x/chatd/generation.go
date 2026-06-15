@@ -13,6 +13,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
@@ -1017,6 +1018,20 @@ func (s *taskStarter) finishGenerationError(
 	cause error,
 	attemptFence generationAttemptFence,
 ) error {
+	classified := chaterror.Classify(cause)
+	// Log the unsanitized cause before persisting so administrators can
+	// diagnose the failure even when the classified user-facing message
+	// omits the underlying reason, and even if the persist below fails.
+	s.opts.Logger.Warn(ctx, "chat generation failed",
+		slog.F("chat_id", input.ChatID),
+		slog.F("worker_id", input.WorkerID),
+		slog.F("generation_attempt", input.GenerationAttempt),
+		slog.F("error_kind", classified.Kind),
+		slog.F("provider", classified.Provider),
+		slog.F("status_code", classified.StatusCode),
+		slog.F("retryable", classified.Retryable),
+		slog.Error(cause),
+	)
 	lastError, message := generationLastError(cause)
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
