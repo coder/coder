@@ -218,12 +218,13 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		displayName = sql.NullString{String: name, Valid: true}
 	}
 	params := database.InsertAIProviderParams{
-		ID:            id,
-		Type:          provType,
-		Name:          name,
-		DisplayName:   displayName,
-		Enabled:       takeFirst(seed.Enabled, true),
-		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
+		ID:          id,
+		Type:        provType,
+		Name:        name,
+		DisplayName: displayName,
+		Enabled:     takeFirst(seed.Enabled, true),
+		// Use an unsupported scheme so leaked test provider calls fail immediately without retries.
+		BaseUrl:       takeFirst(seed.BaseUrl, "invalid://test.invalid/"),
 		Settings:      seed.Settings,
 		SettingsKeyID: seed.SettingsKeyID,
 	}

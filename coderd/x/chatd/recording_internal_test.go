@@ -520,7 +520,7 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	// Use the mock clock server; don't set agentConnFn yet.
-	server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 
 	user, org, model := seedInternalChatDeps(t, db)
 	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
