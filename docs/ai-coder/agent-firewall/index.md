@@ -135,7 +135,7 @@ rules, see the [rules engine documentation](./rules-engine.md).
 You can also run Agent Firewall directly in your workspace and configure it
 per template. You can do so by installing the
 [binary](https://github.com/coder/boundary) into the workspace image or at
-start-up:
+start-up. You can do so with the following command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
