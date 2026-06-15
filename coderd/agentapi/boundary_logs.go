@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,9 +17,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
-// maxBoundaryLogsPerBatch limits the number of log entries a single
-// ReportBoundaryLogs request may contain.
 const maxBoundaryLogsPerBatch = 1000
+
+type BatchSizeExceededError struct {
+	BatchSize int
+	MaxSize   int
+}
+
+func (e BatchSizeExceededError) Error() string {
+	return fmt.Sprintf("batch size %d exceeds maximum of %d", e.BatchSize, e.MaxSize)
+}
 
 type BoundaryLogsAPI struct {
 	Log                  slog.Logger
@@ -40,7 +48,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	}
 
 	if len(req.Logs) > maxBoundaryLogsPerBatch {
-		return nil, xerrors.Errorf("batch size %d exceeds maximum of %d", len(req.Logs), maxBoundaryLogsPerBatch)
+		return nil, BatchSizeExceededError{BatchSize: len(req.Logs), MaxSize: maxBoundaryLogsPerBatch}
 	}
 
 	now := dbtime.Now()
