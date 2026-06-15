@@ -1359,7 +1359,7 @@ func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
 }
 
 // expectTokenUsageCostLookups mocks the store lookups made by resolveTokenUsageCost
-// (budget resolution and the price lookup), A nil override, group, or price makes that
+// (budget resolution and the price lookup). A nil override, group, or price makes that
 // lookup return sql.ErrNoRows. Budget resolution mirrors production code: a non-nil override
 // wins and skips the group lookup, so group is consulted only when override is nil.
 func expectTokenUsageCostLookups(
