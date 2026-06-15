@@ -10297,6 +10297,87 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	afwSessionID := uuid.New()
+
+	t.Run("InsertAndReadWithFirewallFieldsSet", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                          uuid.New(),
+			InitiatorID:                 user.ID,
+			Metadata:                    json.RawMessage("{}"),
+			CredentialKind:              database.CredentialKindCentralized,
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: afwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, inserted.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, inserted.AgentFirewallSequenceNumber)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, got.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, got.AgentFirewallSequenceNumber)
+	})
+
+	t.Run("InsertAndReadWithFirewallFieldsNull", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+			// AgentFirewallSessionID and AgentFirewallSequenceNumber omitted (zero → NULL).
+		})
+		require.NoError(t, err)
+		require.False(t, inserted.AgentFirewallSessionID.Valid)
+		require.False(t, inserted.AgentFirewallSequenceNumber.Valid)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		require.False(t, got.AgentFirewallSessionID.Valid)
+		require.False(t, got.AgentFirewallSequenceNumber.Valid)
+	})
+
+	t.Run("UpdatePreservesFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                          uuid.New(),
+			InitiatorID:                 user.ID,
+			Metadata:                    json.RawMessage("{}"),
+			CredentialKind:              database.CredentialKindCentralized,
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: afwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      inserted.ID,
+			EndedAt: time.Now(),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.EndedAt.Valid)
+		// UpdateAIBridgeInterceptionEnded must not clobber the agent firewall fields.
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, updated.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, updated.AgentFirewallSequenceNumber)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)

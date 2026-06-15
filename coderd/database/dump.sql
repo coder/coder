@@ -1512,7 +1512,9 @@ CREATE TABLE aibridge_interceptions (
     session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL,
     provider_name text DEFAULT ''::text NOT NULL,
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
-    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL
+    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
+    agent_firewall_session_id uuid,
+    agent_firewall_sequence_number integer
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1532,6 +1534,10 @@ COMMENT ON COLUMN aibridge_interceptions.provider_name IS 'The provider instance
 COMMENT ON COLUMN aibridge_interceptions.credential_kind IS 'How the request was authenticated: centralized or byok.';
 
 COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential identifier for audit (e.g. sk-a***efgh).';
+
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
+
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -4363,6 +4369,8 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
+
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
