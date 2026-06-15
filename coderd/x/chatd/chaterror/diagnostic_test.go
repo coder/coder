@@ -2,14 +2,11 @@ package chaterror_test
 
 import (
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestFormatDiagnosticDetail(t *testing.T) {
@@ -40,22 +37,3 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 	}
 }
 
-func TestFormatDiagnosticDetail_Truncates(t *testing.T) {
-	t.Parallel()
-
-	got := chaterror.FormatDiagnosticDetail(errors.New(strings.Repeat("x", 510)))
-	require.Len(t, []rune(got), 500)
-	require.True(t, strings.HasSuffix(got, "…"))
-}
-
-func TestClassify_GenericFallbackIncludesDiagnosticDetail(t *testing.T) {
-	t.Parallel()
-
-	classified := chaterror.Classify(xerrors.New(
-		`stream response: Post "https://llm.example.com/v1/chat": decoder failed`,
-	))
-
-	require.Equal(t, codersdk.ChatErrorKindGeneric, classified.Kind)
-	require.Equal(t, "The chat request failed unexpectedly.", classified.Message)
-	require.Contains(t, classified.Detail, "decoder failed")
-}

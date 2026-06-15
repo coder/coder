@@ -3,22 +3,18 @@ package chaterror
 import "strings"
 
 // FormatDiagnosticDetail returns a bounded, single-line diagnostic string from
-// err.
+// err, suitable for surfacing to a user.
 func FormatDiagnosticDetail(err error) string {
 	if err == nil {
 		return ""
 	}
-	return formatDiagnosticDetailString(err.Error())
+	return fallbackDiagnosticDetail("", err.Error())
 }
 
-func fallbackDiagnosticDetail(structuredDetail string, message string) string {
-	if strings.TrimSpace(structuredDetail) != "" {
-		return structuredDetail
+func fallbackDiagnosticDetail(structured, message string) string {
+	if strings.TrimSpace(structured) != "" {
+		return structured
 	}
-	return formatDiagnosticDetailString(message)
-}
-
-func formatDiagnosticDetailString(message string) string {
 	detail := strings.TrimSpace(message)
 	if detail == "" {
 		return ""

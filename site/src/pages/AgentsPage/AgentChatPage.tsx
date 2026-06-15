@@ -14,7 +14,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 	watchWorkspace,
 } from "#/api/api";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiError } from "#/api/errors";
 import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
@@ -63,10 +63,7 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import {
-	normalizeChatErrorPayload,
-	normalizeChatSendError,
-} from "./components/ChatConversation/chatError";
+import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
 	getWorkspaceAgent,
@@ -98,7 +95,11 @@ import {
 	resolveModelOptionId,
 } from "./utils/modelOptions";
 import { parsePullRequestUrl } from "./utils/pullRequest";
-import type { ChatDetailError } from "./utils/usageLimitMessage";
+import {
+	type ChatDetailError,
+	formatUsageLimitMessage,
+	isChatUsageLimitExceededResponse,
+} from "./utils/usageLimitMessage";
 
 /** localStorage key controlling whether the right panel is visible. */
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
@@ -1156,12 +1157,27 @@ const AgentChatPage: FC = () => {
 		if (!agentId) {
 			return;
 		}
-		const reason = normalizeChatSendError(error);
-		if (!reason) {
-			return;
+		if (
+			isApiError(error) &&
+			error.response?.status === 409 &&
+			isChatUsageLimitExceededResponse(error.response.data)
+		) {
+			const reason: ChatDetailError = {
+				kind: "usage_limit",
+				message: formatUsageLimitMessage(error.response.data),
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
+		} else if (isApiError(error)) {
+			const detail = error.response?.data?.detail?.trim() || undefined;
+			const reason: ChatDetailError = {
+				kind: "generic",
+				message: getErrorMessage(error, "An unexpected error occurred."),
+				...(detail ? { detail } : {}),
+			};
+			store.setStreamError(reason);
+			setChatErrorReason(agentId, reason);
 		}
-		store.setStreamError(reason);
-		setChatErrorReason(agentId, reason);
 	};
 
 	const handleInterrupt = () => {
