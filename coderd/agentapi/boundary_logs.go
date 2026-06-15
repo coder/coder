@@ -110,6 +110,8 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 
 			fields := []slog.Field{
 				slog.F("decision", allowBoolToString(l.Allowed)),
+				slog.F("session_id", req.SessionId),
+				slog.F("sequence_number", l.SequenceNumber),
 				slog.F("workspace_id", a.WorkspaceID.String()),
 				slog.F("template_id", a.TemplateID.String()),
 				slog.F("template_version_id", a.TemplateVersionID.String()),

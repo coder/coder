@@ -42,10 +42,6 @@ func sendBoundaryLogsRequest(t *testing.T, conn net.Conn, req *agentproto.Report
 	require.NoError(t, err)
 }
 
-// TestBoundaryLogs_EndToEnd sends protobuf messages over the agent's unix
-// socket (as boundary would) and verifies structured logging works for all
-// client variants: old clients without session correlation, new clients
-// with correlation disabled, and new clients with a valid session ID.
 func TestBoundaryLogs_EndToEnd(t *testing.T) {
 	t.Parallel()
 
@@ -54,23 +50,16 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 		sessionID string
 	}{
 		{
-			// Given: an old boundary client that does not send session_id.
-			//        New clients with correlation disabled are indistinguishable
-			//        on the wire (both send empty session_id).
-			// Then:  logs are still forwarded and structured fields are correct.
 			name:      "NoSessionID",
 			sessionID: "",
 		},
 		{
-			// Given: a new boundary client that sends a valid session_id.
-			// Then:  logs are still forwarded and structured fields are correct.
 			name:      "WithSessionID",
 			sessionID: uuid.New().String(),
 		},
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -104,7 +93,6 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 			require.NoError(t, err)
 			defer conn.Close()
 
-			// When: an allowed HTTP request is sent.
 			req := &agentproto.ReportBoundaryLogsRequest{
 				SessionId: tc.sessionID,
 				Logs: []*agentproto.BoundaryLog{
@@ -118,6 +106,7 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 								MatchedRule: "*.example.com",
 							},
 						},
+						SequenceNumber: 0,
 					},
 				},
 			}
@@ -139,8 +128,9 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 			require.Equal(t, "GET", getField(entry.Fields, "http_method"))
 			require.Equal(t, "https://example.com/allowed", getField(entry.Fields, "http_url"))
 			require.Equal(t, "*.example.com", getField(entry.Fields, "matched_rule"))
+			require.Equal(t, tc.sessionID, getField(entry.Fields, "session_id"))
+			require.Equal(t, int32(0), getField(entry.Fields, "sequence_number"))
 
-			// When: a denied HTTP request is sent.
 			req2 := &agentproto.ReportBoundaryLogsRequest{
 				SessionId: tc.sessionID,
 				Logs: []*agentproto.BoundaryLog{
@@ -153,6 +143,7 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 								Url:    "https://blocked.com/denied",
 							},
 						},
+						SequenceNumber: 1,
 					},
 				},
 			}
@@ -174,6 +165,8 @@ func TestBoundaryLogs_EndToEnd(t *testing.T) {
 			require.Equal(t, "POST", getField(entry.Fields, "http_method"))
 			require.Equal(t, "https://blocked.com/denied", getField(entry.Fields, "http_url"))
 			require.Equal(t, nil, getField(entry.Fields, "matched_rule"))
+			require.Equal(t, tc.sessionID, getField(entry.Fields, "session_id"))
+			require.Equal(t, int32(1), getField(entry.Fields, "sequence_number"))
 
 			cancel()
 			<-forwarderDone
