@@ -7,6 +7,7 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/extension"
 	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/text"
 
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
@@ -23,22 +24,30 @@ var readmeParser = goldmark.New(goldmark.WithExtensions(extension.Table)).Parser
 // truncated; the ellipsis lets the agent distinguish a clipped excerpt from a
 // complete one.
 func readmeExcerpt(readme string) string {
-	prose := extractReadmeProse(stripReadmeFrontmatter(readme))
+	prose := extractReadmeProse(readmeParser, stripReadmeFrontmatter(readme))
 	if prose == "" {
 		return ""
 	}
 	return coderstrings.Truncate(prose, ListTemplatesReadmeExcerptMaxRunes, coderstrings.TruncateWithEllipsis)
 }
 
-// extractReadmeProse parses README markdown and returns its prose as a single
-// space-joined plain-text string. Blocks that waste the budget without aiding
-// template selection are dropped entirely: images, HTML blocks and inline HTML,
-// code blocks, tables, and thematic breaks. Inline links keep their visible text
-// but drop the URL (URLs live on the link node, not in its text). Returns "" if
-// no prose remains.
-func extractReadmeProse(body string) string {
+// extractReadmeProse parses README markdown with p and returns its prose as a
+// single space-joined plain-text string. Blocks that waste the budget without
+// aiding template selection are dropped entirely: images, HTML blocks and inline
+// HTML, code blocks, tables, and thematic breaks. Inline links keep their
+// visible text but drop the URL (URLs live on the link node, not in its text).
+// Returns "" if no prose remains.
+func extractReadmeProse(p parser.Parser, body string) (out string) {
+	// README content is author-controlled; never let a parser edge case panic
+	// the caller. Best-effort: on panic, fall back to no prose.
+	defer func() {
+		if r := recover(); r != nil {
+			out = ""
+		}
+	}()
+
 	src := []byte(body)
-	doc := readmeParser.Parse(text.NewReader(src))
+	doc := p.Parse(text.NewReader(src))
 
 	var b strings.Builder
 	// Walk errors only ever originate from the walker; ours never returns one.

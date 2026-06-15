@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 )
 
 func TestStripReadmeFrontmatter(t *testing.T) {
@@ -162,9 +165,21 @@ func TestExtractReadmeProse(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, extractReadmeProse(tc.input))
+			require.Equal(t, tc.want, extractReadmeProse(readmeParser, tc.input))
 		})
 	}
+}
+
+// panickingParser implements parser.Parser and always panics, to exercise the
+// recover guard in extractReadmeProse.
+type panickingParser struct{}
+
+func (panickingParser) Parse(text.Reader, ...parser.ParseOption) ast.Node { panic("boom") }
+func (panickingParser) AddOptions(...parser.Option)                       {}
+
+func TestExtractReadmeProse_RecoversFromPanic(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "", extractReadmeProse(panickingParser{}, "# Title\n\nBody."))
 }
 
 func TestReadmeExcerpt(t *testing.T) {
