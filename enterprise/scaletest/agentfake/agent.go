@@ -365,6 +365,8 @@ func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentCli
 		now := a.clock.Now()
 		switch {
 		case openID != uuid.Nil && !now.Before(closeAt):
+			// A failed DISCONNECT send is non-fatal for scaletesting, so we
+			// ignore the result and always reset the session.
 			a.sendConnection(ctx, rpc, openID, proto.Connection_DISCONNECT, now)
 			openID = uuid.Nil
 			nextOpen = now.Add(a.connReportInterval)
@@ -390,6 +392,7 @@ func (a *Agent) sendConnection(ctx context.Context, rpc proto.DRPCAgentClient29,
 			Action:    action,
 			Type:      proto.Connection_SSH,
 			Timestamp: timestamppb.New(now),
+			Ip:        "127.0.0.1",
 		},
 	})
 	if err != nil && ctx.Err() == nil {
