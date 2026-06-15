@@ -293,7 +293,7 @@ func Classify(err error) ClassifiedError {
 			continue
 		}
 		return normalizeClassification(ClassifiedError{
-			Detail:     fallbackDiagnosticDetail(structured.detail, message),
+			Detail:     fallbackDiagnosticDetail(structured.detail, message, err),
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
@@ -314,7 +314,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	return normalizeClassification(ClassifiedError{
-		Detail:     fallbackDiagnosticDetail(structured.detail, message),
+		Detail:     fallbackDiagnosticDetail(structured.detail, message, err),
 		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,

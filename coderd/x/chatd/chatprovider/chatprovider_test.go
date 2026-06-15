@@ -51,7 +51,7 @@ func TestProviderBaseURLHostname(t *testing.T) {
 	}
 }
 
-func TestProviderAPIKeysBaseURLStripsUserinfo(t *testing.T) {
+func TestProviderAPIKeysBaseURLStripsCredentials(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -70,7 +70,12 @@ func TestProviderAPIKeysBaseURLStripsUserinfo(t *testing.T) {
 			want:    "https://openrouter.ai/api/v1",
 		},
 		{
-			name:    "NoUserinfo",
+			name:    "QueryAndFragment",
+			baseURL: "https://openrouter.ai/api/v1?api_key=secret&x=ok#fragment",
+			want:    "https://openrouter.ai/api/v1",
+		},
+		{
+			name:    "NoCredentials",
 			baseURL: " https://openrouter.ai/api/v1 ",
 			want:    "https://openrouter.ai/api/v1",
 		},
