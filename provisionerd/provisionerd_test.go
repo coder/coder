@@ -110,7 +110,14 @@ func TestProvisionerd(t *testing.T) {
 							},
 						},
 					})
-					assert.NoError(t, err)
+					// The daemon is closed immediately after acquisition, which
+					// cancels the acquire RPC. dRPC can report context.Canceled
+					// from Send even after the job was successfully delivered, so
+					// tolerate it. If the job was never delivered, the test fails
+					// waiting on completeChan instead.
+					if !xerrors.Is(err, context.Canceled) {
+						assert.NoError(t, err)
+					}
 					return nil
 				},
 				updateJob: noopUpdateJob,
