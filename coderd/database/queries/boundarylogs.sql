@@ -39,7 +39,7 @@ SELECT
     unnest(@proto :: text[]),
     unnest(@method :: text[]),
     unnest(@detail :: text[]),
-    unnest(@matched_rule :: text[])
+    NULLIF(unnest(@matched_rule :: text[]), '')
 RETURNING *;
 
 -- name: GetBoundaryLogByID :one

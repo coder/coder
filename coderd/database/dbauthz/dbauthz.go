@@ -5710,12 +5710,7 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
-	session, err := q.db.GetBoundarySessionByID(ctx, arg.SessionID)
-	if err != nil {
-		return nil, xerrors.Errorf("get boundary session for owner: %w", err)
-	}
-	if err := q.authorizeContext(ctx, policy.ActionCreate,
-		rbac.ResourceBoundaryLog.WithOwner(session.OwnerID.UUID.String())); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceBoundaryLog); err != nil {
 		return nil, err
 	}
 	return q.db.InsertBoundaryLogs(ctx, arg)

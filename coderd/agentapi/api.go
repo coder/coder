@@ -237,6 +237,8 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
 		Log:                  opts.Log,
+		Database:             opts.Database,
+		AgentID:              opts.AgentID,
 		WorkspaceID:          opts.WorkspaceID,
 		OwnerID:              opts.OwnerID,
 		TemplateID:           workspace.TemplateID,

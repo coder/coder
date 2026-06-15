@@ -3682,7 +3682,7 @@ SELECT
     unnest($6 :: text[]),
     unnest($7 :: text[]),
     unnest($8 :: text[]),
-    unnest($9 :: text[])
+    NULLIF(unnest($9 :: text[]), '')
 RETURNING id, session_id, sequence_number, captured_at, created_at, proto, method, detail, matched_rule
 `
 
