@@ -61,8 +61,6 @@ export const CreateGatewayKeyDialog: FC<CreateGatewayKeyDialogProps> = ({
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
 	const closeDialog = () => {
-		setCreatedKey(undefined);
-		setSubmitError(undefined);
 		form.resetForm();
 		onClose();
 	};
