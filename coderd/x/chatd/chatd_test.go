@@ -10938,12 +10938,11 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		"create_workspace for blocked template should be rejected")
 }
 
-// TestSignalWakeImmediateAcquisition verifies that CreateChat triggers
-// immediate processing via signalWake without waiting for the polling
-// ticker to fire. The ticker interval is set to an hour so it never
-// fires during the test. Any processing must come from the wake
-// channel.
-func TestSignalWakeImmediateAcquisition(t *testing.T) {
+// TestCreateChatImmediatelyProcessesNewChat verifies that CreateChat
+// starts processing a new chat without waiting for the acquire ticker
+// to fire. The ticker interval is set to an hour so it never fires
+// during the test.
+func TestCreateChatImmediatelyProcessesNewChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -10975,7 +10974,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat sets status=pending and calls signalWake().
+	// CreateChat should start the first turn without waiting for the
+	// acquire ticker.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -10988,8 +10988,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 
 	// The chat should be processed immediately. The LLM handler
 	// closes the `processed` channel when it receives a streaming
-	// request. Without signalWake this would hang forever because
-	// the 1-hour ticker never fires.
+	// request. If CreateChat only relied on the 1-hour ticker,
+	// this receive would time out.
 	testutil.TryReceive(ctx, t, processed)
 
 	chatd.WaitUntilIdleForTest(server)
@@ -11001,9 +11001,10 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 		"chat should be in waiting status after processing completes")
 }
 
-// TestSignalWakeSendMessage verifies that SendMessage on an idle chat
-// triggers immediate processing via signalWake.
-func TestSignalWakeSendMessage(t *testing.T) {
+// TestSendMessageImmediatelyProcessesWaitingChat verifies that sending
+// a follow-up message to a waiting chat starts the next turn without
+// waiting for the acquire ticker.
+func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -11039,7 +11040,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat triggers wake -> processes first turn.
+	// CreateChat processes the first turn immediately.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -11057,7 +11058,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	chatd.WaitUntilIdleForTest(server)
 
 	// Now send a follow-up message, which should also be
-	// processed immediately via signalWake.
+	// processed immediately without waiting for the acquire ticker.
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:   chat.ID,
 		APIKeyID: testAPIKeyID(t, db, user.ID),
