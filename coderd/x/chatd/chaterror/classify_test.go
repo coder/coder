@@ -84,7 +84,6 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("authentication failed: invalid model"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
-				Detail:     "authentication failed: invalid model",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -108,7 +107,6 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("forbidden"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
-				Detail:     "forbidden",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -120,7 +118,6 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 401 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
-				Detail:     "status 401 from upstream",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -132,7 +129,6 @@ func TestClassify(t *testing.T) {
 			err:  xerrors.New("status 403 from upstream"),
 			want: chaterror.ClassifiedError{
 				Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
-				Detail:     "status 403 from upstream",
 				Kind:       codersdk.ChatErrorKindAuth,
 				Provider:   "",
 				Retryable:  false,
@@ -892,7 +888,6 @@ func TestClassify_StatusCodeBeatsTypedHTTP2StreamError(t *testing.T) {
 
 	require.Equal(t, chaterror.ClassifiedError{
 		Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
-		Detail:     "provider returned status 401: stream error: stream ID 455; INTERNAL_ERROR; received from peer",
 		Kind:       codersdk.ChatErrorKindAuth,
 		Retryable:  false,
 		StatusCode: 401,
@@ -1269,6 +1264,25 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 		Provider:   "",
 		Retryable:  false,
 		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"invalid api key test-key",
+		401,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Incorrect API key provided."}}`),
+	))
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "Authentication with the AI provider failed. Check the API key and permissions.",
+		Detail:     "Incorrect API key provided.",
+		Kind:       codersdk.ChatErrorKindAuth,
+		Retryable:  false,
+		StatusCode: 401,
 	}, classified)
 }
 
