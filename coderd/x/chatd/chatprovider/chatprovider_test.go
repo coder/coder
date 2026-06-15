@@ -290,6 +290,83 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 }
 
+func TestResolveUserProviderKeys_Copilot(t *testing.T) {
+	t.Parallel()
+
+	copilotProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000010")
+	copilotName := string(codersdk.AIProviderTypeCopilot)
+
+	// Copilot authenticates via request-time GitHub OAuth tokens that
+	// aibridge injects, so it never carries a stored or user API key.
+	// It must still resolve as available when configured.
+	copilotProvider := chatprovider.ConfiguredProvider{
+		ProviderID:                 copilotProviderID,
+		Provider:                   copilotName,
+		CentralAPIKeyEnabled:       true,
+		AllowUserAPIKey:            false,
+		AllowCentralAPIKeyFallback: true,
+	}
+
+	keys, availability := chatprovider.ResolveUserProviderKeys(
+		chatprovider.ProviderAPIKeys{},
+		[]chatprovider.ConfiguredProvider{copilotProvider},
+		nil,
+	)
+
+	got, ok := availability[copilotName]
+	require.True(t, ok, "expected availability entry for copilot")
+	require.Equal(t, chatprovider.ProviderAvailability{Available: true}, got,
+		"copilot must be available without an API key")
+	// Copilot uses ambient (delegated) credentials, so the key entry is
+	// present but empty, mirroring Bedrock.
+	gotKey, present := keys.ByProvider[copilotName]
+	require.True(t, present, "expected ambient key presence for copilot")
+	require.Equal(t, "", gotKey)
+}
+
+func TestListConfiguredModels_Copilot(t *testing.T) {
+	t.Parallel()
+
+	copilotName := string(codersdk.AIProviderTypeCopilot)
+	copilotProviderID := uuid.MustParse("00000000-0000-0000-0000-000000000011")
+
+	catalog := chatprovider.NewModelCatalog()
+	configuredProviders := []chatprovider.ConfiguredProvider{{
+		ProviderID:           copilotProviderID,
+		Provider:             copilotName,
+		CentralAPIKeyEnabled: true,
+	}}
+	configuredModels := []chatprovider.ConfiguredModel{{
+		Provider:    copilotName,
+		Model:       "gpt-4o",
+		DisplayName: "GPT-4o (Copilot)",
+	}}
+	availability := map[string]chatprovider.ProviderAvailability{
+		copilotName: {Available: true},
+	}
+	enabledProviders := map[string]struct{}{copilotName: {}}
+
+	response, ok := catalog.ListConfiguredModels(
+		configuredProviders,
+		configuredModels,
+		availability,
+		enabledProviders,
+	)
+	require.True(t, ok, "expected DB-backed models to be used")
+
+	var copilot *codersdk.ChatModelProvider
+	for i := range response.Providers {
+		if response.Providers[i].Provider == copilotName {
+			copilot = &response.Providers[i]
+			break
+		}
+	}
+	require.NotNil(t, copilot, "copilot provider must appear in the catalog")
+	require.True(t, copilot.Available, "copilot provider must be available")
+	require.Len(t, copilot.Models, 1)
+	require.Equal(t, "gpt-4o", copilot.Models[0].Model)
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {

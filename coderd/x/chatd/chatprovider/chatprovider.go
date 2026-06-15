@@ -25,10 +25,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// copilotProviderName is the canonical chat provider name for GitHub
+// Copilot. Fantasy has no Copilot provider; Copilot requests route
+// through aibridge's OpenAI-compatible Copilot client, which supplies
+// request-time GitHub OAuth credentials.
+const copilotProviderName = string(codersdk.AIProviderTypeCopilot)
+
 var supportedProviderNames = []string{
 	fantasyanthropic.Name,
 	fantasyazure.Name,
 	fantasybedrock.Name,
+	copilotProviderName,
 	fantasygoogle.Name,
 	fantasyopenai.Name,
 	fantasyopenaicompat.Name,
@@ -40,6 +47,7 @@ var providerDisplayNameByName = map[string]string{
 	fantasyanthropic.Name:    "Anthropic",
 	fantasyazure.Name:        "Azure OpenAI",
 	fantasybedrock.Name:      "AWS Bedrock",
+	copilotProviderName:      "GitHub Copilot",
 	fantasygoogle.Name:       "Google",
 	fantasyopenai.Name:       "OpenAI",
 	fantasyopenaicompat.Name: "OpenAI Compatible",
@@ -57,10 +65,16 @@ func ProviderDisplayName(provider string) string {
 }
 
 // ProviderAllowsAmbientCredentials reports whether provider can use
-// ambient credentials from the Coder server instead of an explicit
-// API key.
+// ambient credentials instead of an explicit API key. Bedrock uses the
+// Coder server's AWS credentials; Copilot uses request-time GitHub
+// OAuth tokens injected by aibridge.
 func ProviderAllowsAmbientCredentials(provider string) bool {
-	return NormalizeProvider(provider) == fantasybedrock.Name
+	switch NormalizeProvider(provider) {
+	case fantasybedrock.Name, copilotProviderName:
+		return true
+	default:
+		return false
+	}
 }
 
 // InlineImageCapBytes returns the per-image byte cap for inline
@@ -340,6 +354,12 @@ func ResolveUserProviderKeys(
 			} else {
 				resolved.UnavailableReason = codersdk.ChatModelProviderUnavailableReasonUserAPIKeyRequired
 			}
+		case normalizedProvider == copilotProviderName:
+			// Copilot never carries a stored or user API key; aibridge
+			// supplies request-time GitHub OAuth credentials. A configured
+			// Copilot provider is therefore always available here, and any
+			// missing GitHub link surfaces as a runtime error instead.
+			resolved.Available = true
 		case normalizedProvider == fantasybedrock.Name && provider.CentralAPIKeyEnabled:
 			// Bedrock can use ambient AWS credentials from the Coder server
 			// without an explicit key, but only when the credential policy
@@ -601,6 +621,8 @@ func NormalizeProvider(provider string) string {
 		return fantasyazure.Name
 	case fantasybedrock.Name:
 		return fantasybedrock.Name
+	case copilotProviderName:
+		return copilotProviderName
 	case fantasygoogle.Name:
 		return fantasygoogle.Name
 	case fantasyopenai.Name:
