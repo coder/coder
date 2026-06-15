@@ -678,6 +678,7 @@ func TestClassify_HTTP2TransportErrors(t *testing.T) {
 			require.Equal(t, codersdk.ChatErrorKindTimeout, classified.Kind, "Kind")
 			require.True(t, classified.Retryable, "Retryable")
 			require.Equal(t, tt.provider, classified.Provider, "Provider")
+			require.Empty(t, classified.Detail, "Detail")
 			require.Equal(t, tt.wantMessage, classified.Message, "Message")
 		})
 	}

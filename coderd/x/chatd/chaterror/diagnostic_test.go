@@ -28,22 +28,24 @@ func TestFormatDiagnosticDetail(t *testing.T) {
 			want: "stream response: connection reset by peer",
 		},
 		{
-			name: "RedactsURLUserinfoQueryAndFragment",
+			name: "DropsURLUserinfoQueryAndFragment",
 			err: &url.Error{
 				Op:  "Post",
 				URL: "https://test-user:test-password@gateway.internal/v1/chat?test_token=test-value#fragment",
 				Err: xerrors.New("unexpected EOF"),
 			},
-			want: `Post "https://gateway.internal/v1/chat": unexpected EOF`,
 		},
 		{
-			name: "RedactsWrappedURLError",
+			name: "DropsWrappedURLError",
 			err: xerrors.Errorf("stream failed: %w", &url.Error{
 				Op:  "Get",
 				URL: "https://test-key@gateway.internal/v1/chat?test_token=test-value",
 				Err: xerrors.New("connection refused"),
 			}),
-			want: `stream failed: Get "https://gateway.internal/v1/chat": connection refused`,
+		},
+		{
+			name: "DropsFlattenedURL",
+			err:  xerrors.New(`Post "https://test-user:test-password@gateway.internal/v1/chat?test_token=test-value#fragment": unexpected EOF`),
 		},
 	}
 
