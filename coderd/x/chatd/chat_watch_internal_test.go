@@ -102,6 +102,6 @@ func (p *chatWatchCapturePubsub) Publish(channel string, payload []byte) error {
 	return nil
 }
 
-func (p *chatWatchCapturePubsub) SubscribeWithErr(string, dbpubsub.ListenerWithErr) (func(), error) {
+func (*chatWatchCapturePubsub) SubscribeWithErr(string, dbpubsub.ListenerWithErr) (func(), error) {
 	return func() {}, nil
 }
