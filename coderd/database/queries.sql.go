@@ -3644,12 +3644,38 @@ func (q *sqlQuerier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (Boun
 }
 
 const getBoundarySessionByID = `-- name: GetBoundarySessionByID :one
-SELECT id, workspace_agent_id, confined_process_name, started_at, updated_at, owner_id FROM boundary_sessions WHERE id = $1
+SELECT
+    bs.id, bs.workspace_agent_id, bs.confined_process_name, bs.started_at, bs.updated_at, bs.owner_id,
+    w.id AS workspace_id,
+    w.owner_id AS workspace_owner_id
+FROM
+    boundary_sessions bs
+JOIN
+    workspace_agents wa ON wa.id = bs.workspace_agent_id
+JOIN
+    workspace_resources wr ON wr.id = wa.resource_id
+JOIN
+    workspace_builds wb ON wb.job_id = wr.job_id
+JOIN
+    workspaces w ON w.id = wb.workspace_id
+WHERE
+    bs.id = $1
 `
 
-func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
+type GetBoundarySessionByIDRow struct {
+	ID                  uuid.UUID     `db:"id" json:"id"`
+	WorkspaceAgentID    uuid.UUID     `db:"workspace_agent_id" json:"workspace_agent_id"`
+	ConfinedProcessName string        `db:"confined_process_name" json:"confined_process_name"`
+	StartedAt           time.Time     `db:"started_at" json:"started_at"`
+	UpdatedAt           time.Time     `db:"updated_at" json:"updated_at"`
+	OwnerID             uuid.NullUUID `db:"owner_id" json:"owner_id"`
+	WorkspaceID         uuid.UUID     `db:"workspace_id" json:"workspace_id"`
+	WorkspaceOwnerID    uuid.UUID     `db:"workspace_owner_id" json:"workspace_owner_id"`
+}
+
+func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getBoundarySessionByID, id)
-	var i BoundarySession
+	var i GetBoundarySessionByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.WorkspaceAgentID,
@@ -3657,6 +3683,8 @@ func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (
 		&i.StartedAt,
 		&i.UpdatedAt,
 		&i.OwnerID,
+		&i.WorkspaceID,
+		&i.WorkspaceOwnerID,
 	)
 	return i, err
 }

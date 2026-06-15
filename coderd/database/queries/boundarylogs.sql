@@ -16,7 +16,22 @@ INSERT INTO boundary_sessions (
 ) RETURNING *;
 
 -- name: GetBoundarySessionByID :one
-SELECT * FROM boundary_sessions WHERE id = @id;
+SELECT
+    bs.*,
+    w.id AS workspace_id,
+    w.owner_id AS workspace_owner_id
+FROM
+    boundary_sessions bs
+JOIN
+    workspace_agents wa ON wa.id = bs.workspace_agent_id
+JOIN
+    workspace_resources wr ON wr.id = wa.resource_id
+JOIN
+    workspace_builds wb ON wb.job_id = wr.job_id
+JOIN
+    workspaces w ON w.id = wb.workspace_id
+WHERE
+    bs.id = @id;
 
 -- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (

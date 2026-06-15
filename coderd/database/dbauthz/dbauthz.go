@@ -2902,9 +2902,9 @@ func (q *querier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (databas
 	return q.db.GetBoundaryLogByID(ctx, id)
 }
 
-func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.GetBoundarySessionByIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
-		return database.BoundarySession{}, err
+		return database.GetBoundarySessionByIDRow{}, err
 	}
 	return q.db.GetBoundarySessionByID(ctx, id)
 }

@@ -2475,10 +2475,10 @@ func (mr *MockStoreMockRecorder) GetBoundaryLogByID(ctx, id any) *gomock.Call {
 }
 
 // GetBoundarySessionByID mocks base method.
-func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.GetBoundarySessionByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBoundarySessionByID", ctx, id)
-	ret0, _ := ret[0].(database.BoundarySession)
+	ret0, _ := ret[0].(database.GetBoundarySessionByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
