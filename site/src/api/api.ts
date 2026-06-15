@@ -3121,6 +3121,27 @@ class ApiMethods {
 			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
 		);
 	};
+
+	getAIGatewayKeys = async (): Promise<TypesGen.AIGatewayKey[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayKey[]>(
+			"/api/v2/aibridge/keys",
+		);
+		return response.data;
+	};
+
+	createAIGatewayKey = async (
+		req: TypesGen.CreateAIGatewayKeyRequest,
+	): Promise<TypesGen.CreateAIGatewayKeyResponse> => {
+		const response = await this.axios.post<TypesGen.CreateAIGatewayKeyResponse>(
+			"/api/v2/aibridge/keys",
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIGatewayKey = async (id: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/aibridge/keys/${encodeURIComponent(id)}`);
+	};
 }
 
 export type TaskFeedbackRating = "good" | "okay" | "bad";
