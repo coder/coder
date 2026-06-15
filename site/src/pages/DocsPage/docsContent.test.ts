@@ -6,6 +6,7 @@ import {
 	githubDocsAssetUrl,
 	manifestPathToRoute,
 	resolveRelativeDocLink,
+	stripHtmlComments,
 } from "./docsContent";
 
 describe("manifestPathToRoute", () => {
@@ -156,5 +157,42 @@ describe("docsPageQuery", () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
+	});
+
+	it("strips HTML comments from successful responses", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = vi.fn().mockResolvedValue(
+			new Response("<!-- generated -->\n# Title\n", {
+				status: 200,
+				headers: { "Content-Type": "text/markdown; charset=utf-8" },
+			}),
+		);
+		try {
+			await expect(docsPageQuery("page.md").queryFn()).resolves.toBe(
+				"\n# Title\n",
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+});
+
+describe("stripHtmlComments", () => {
+	it("removes single-line comments", () => {
+		expect(stripHtmlComments("# Title\n<!-- hidden -->\nbody")).toBe(
+			"# Title\n\nbody",
+		);
+	});
+
+	it("removes multi-line comments", () => {
+		expect(stripHtmlComments("a\n<!-- line 1\nline 2 -->\nb")).toBe("a\n\nb");
+	});
+
+	it("removes multiple comments in the same input", () => {
+		expect(stripHtmlComments("<!-- one -->x<!-- two -->y")).toBe("xy");
+	});
+
+	it("leaves non-comment content untouched", () => {
+		expect(stripHtmlComments("plain text")).toBe("plain text");
 	});
 });

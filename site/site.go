@@ -12,6 +12,7 @@ import (
 	htmltemplate "html/template"
 	"io"
 	"io/fs"
+	"mime"
 	"net/http"
 	"os"
 	"path"
@@ -68,6 +69,12 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	// Register markdown explicitly so http.ServeContent does not fall back
+	// to content sniffing. The sniffer treats files whose first bytes are
+	// an HTML comment as text/html, which breaks the docs viewer's SPA
+	// fallback guard for legitimate markdown files that open with one.
+	_ = mime.AddExtensionType(".md", "text/markdown; charset=utf-8")
 }
 
 type Options struct {

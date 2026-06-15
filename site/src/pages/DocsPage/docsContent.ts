@@ -69,6 +69,13 @@ interface ResolvedDocLink {
 	hash: string;
 }
 
+// Strips HTML comments from markdown. react-markdown without rehype-raw
+// renders raw HTML comments as literal text in the output, so they would
+// otherwise show up in the rendered page.
+export function stripHtmlComments(markdown: string): string {
+	return markdown.replace(/<!--[\s\S]*?-->/g, "");
+}
+
 // Resolves a relative href found in currentFile against the docs tree.
 // Returns null for absolute URLs, protocol links, root-relative paths,
 // and same-page anchors, which should be left unchanged.
@@ -147,7 +154,7 @@ export const docsPageQuery = (filePath: string) => ({
 			// does not exist.
 			throw new Error(`Docs page not found: ${filePath}`);
 		}
-		return res.text();
+		return stripHtmlComments(await res.text());
 	},
 	staleTime: Number.POSITIVE_INFINITY,
 	retry: false,
