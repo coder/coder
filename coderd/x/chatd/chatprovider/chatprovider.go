@@ -655,6 +655,9 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 	if isChatModelForProvider(fantasyopenai.Name, normalized) {
 		return fantasyopenai.Name, modelName, nil
 	}
+	if isChatModelForProvider(fantasygoogle.Name, normalized) {
+		return fantasygoogle.Name, modelName, nil
+	}
 
 	return "", "", xerrors.Errorf("unknown model %q", modelName)
 }

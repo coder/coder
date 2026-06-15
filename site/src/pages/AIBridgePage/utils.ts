@@ -18,9 +18,21 @@ export const getProviderDisplayName = (provider: string) => {
 			return "Anthropic";
 		case "openai":
 			return "OpenAI";
+		case "google":
+			return "Google";
+		case "azure":
+			return "Azure OpenAI";
+		case "bedrock":
+			return "AWS Bedrock";
 		case "copilot":
-			return "Github";
+			return "GitHub Copilot";
+		case "openai-compat":
+			return "OpenAI-compatible";
+		case "openrouter":
+			return "OpenRouter";
+		case "vercel":
+			return "Vercel";
 		default:
-			return "Unknown";
+			return provider || "Unknown";
 	}
 };
