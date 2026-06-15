@@ -3,6 +3,7 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -94,4 +95,32 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 	}
 	var resp TemplateBuilderModulesResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// TemplateBuilderComposeRequest is the request body for
+// POST /api/v2/templatebuilder/compose.
+type TemplateBuilderComposeRequest struct {
+	BaseTemplateID string                         `json:"base_template_id"`
+	Modules        []TemplateBuilderComposeModule `json:"modules"`
+}
+
+// TemplateBuilderComposeModule identifies a module and its variable
+// values for the compose request.
+type TemplateBuilderComposeModule struct {
+	ID        string            `json:"id"`
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
+// TemplateBuilderCompose renders a base template with the selected
+// modules and returns the resulting tar archive bytes.
+func (c *Client) TemplateBuilderCompose(ctx context.Context, req TemplateBuilderComposeRequest) ([]byte, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/templatebuilder/compose", req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	return io.ReadAll(res.Body)
 }
