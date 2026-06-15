@@ -56,6 +56,16 @@ func TestStripReadmeFrontmatter(t *testing.T) {
 			want:  "---\nkey: val\nno closing fence\n",
 		},
 		{
+			name:  "BOMWithoutFenceStripsBOM",
+			input: "\ufeff# Title\n\nNo frontmatter here.\n",
+			want:  "# Title\n\nNo frontmatter here.\n",
+		},
+		{
+			name:  "BOMWithUnterminatedFenceStripsBOM",
+			input: "\ufeff---\nkey: val\nno closing fence\n",
+			want:  "---\nkey: val\nno closing fence\n",
+		},
+		{
 			name:  "HorizontalRuleNotFence",
 			input: "# Title\n\n---\n\nMore.\n",
 			want:  "# Title\n\n---\n\nMore.\n",

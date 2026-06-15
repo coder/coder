@@ -20,10 +20,12 @@ func readmeExcerpt(readme string) string {
 // stripReadmeFrontmatter removes a single leading "---" fenced YAML
 // frontmatter block so README routing prose, not metadata, fills the excerpt
 // budget. READMEs without a leading fence, or with an unterminated fence, are
-// returned unchanged. A column-0 "---" inside a quoted multiline scalar can be
-// mistaken for the closing fence; this is accepted to avoid a full YAML parser.
+// returned with only a leading BOM stripped. A column-0 "---" inside a quoted
+// multiline scalar can be mistaken for the closing fence; this is accepted to
+// avoid a full YAML parser.
 func stripReadmeFrontmatter(readme string) string {
-	// Strip a leading UTF-8 BOM so a fence on the first line still matches.
+	// Strip a leading UTF-8 BOM so a fence on the first line still matches, and
+	// so the BOM never leaks into the excerpt on the unchanged paths below.
 	s := strings.TrimPrefix(readme, "\ufeff")
 	lines := strings.Split(s, "\n")
 
@@ -33,7 +35,7 @@ func stripReadmeFrontmatter(readme string) string {
 		i++
 	}
 	if i >= len(lines) || !isFenceLine(lines[i]) {
-		return readme
+		return s
 	}
 
 	// Find the closing fence. Without one, there is no frontmatter to strip.
@@ -42,7 +44,7 @@ func stripReadmeFrontmatter(readme string) string {
 			return strings.Join(lines[j+1:], "\n")
 		}
 	}
-	return readme
+	return s
 }
 
 // isFenceLine reports whether a line is a "---" frontmatter fence, tolerating
