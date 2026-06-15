@@ -243,26 +243,50 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	// Bound to connCtx so the goroutine exits on reconnect, like runMetadata.
 	go a.runConnectionReports(connCtx, rpc)
 
-	go a.runDERPMapSubscriber(connCtx, tailnetClient)
+	// The DERP map subscriber is the one routine whose failure is fatal to the
+	// connection. The point of subscribing is to keep coderd's per-agent
+	// StreamDERPMaps send goroutine alive; if our subscription silently died we
+	// would stop stimulating the control-plane DERP-push path. So a non-shutdown
+	// error tears the connection down and the outer loop reconnects, re-opening
+	// the stream and re-creating the server-side goroutine, matching the real
+	// agent (which reconnects when any managed subroutine errors).
+	derpErr := make(chan error, 1)
+	go func() {
+		derpErr <- a.runDERPMapSubscriber(connCtx, tailnetClient)
+	}()
 
 	select {
 	case <-ctx.Done():
 		return nil
 	case <-conn.Closed():
 		return xerrors.New("dRPC connection closed by remote")
+	case err := <-derpErr:
+		// nil means clean shutdown/cancel; a non-nil error reconnects. Either
+		// way the deferred cancelConn stops runMetadata and runConnectionReports.
+		if err != nil {
+			return xerrors.Errorf("derp map subscriber: %w", err)
+		}
+		return nil
 	}
 }
 
 // runDERPMapSubscriber drains the DERP map stream so coderd and the agent
 // exercise the cost of generating, sending, and receiving updates. The decoded
 // map is discarded because fake agents have no tailnet.Conn to apply it to.
-func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetproto.DRPCTailnetClient28) {
+//
+// It returns the error that ended the stream so connectAndServe can tear down
+// and re-establish the dRPC connection, mirroring the real agent: any
+// non-shutdown subroutine error reconnects the whole connection, which re-opens
+// the stream and re-creates the server-side send goroutine. A subscription that
+// silently died would stop stimulating the control-plane DERP-push path. A
+// shutdown/reconnect cancellation (ctx canceled) returns nil so we don't churn.
+func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetproto.DRPCTailnetClient28) error {
 	stream, err := tailnetClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
-		if ctx.Err() == nil {
-			a.logger.Warn(ctx, "open derp map stream", slog.Error(err))
+		if ctx.Err() != nil {
+			return nil
 		}
-		return
+		return xerrors.Errorf("open derp map stream: %w", err)
 	}
 	defer func() {
 		_ = stream.Close()
@@ -270,10 +294,10 @@ func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetp
 	for {
 		dmp, err := stream.Recv()
 		if err != nil {
-			if ctx.Err() == nil {
-				a.logger.Debug(ctx, "derp map stream ended", slog.Error(err))
+			if ctx.Err() != nil {
+				return nil
 			}
-			return
+			return xerrors.Errorf("recv derp map: %w", err)
 		}
 		_ = tailnet.DERPMapFromProto(dmp)
 		a.metrics.incDERPMapsReceived()
