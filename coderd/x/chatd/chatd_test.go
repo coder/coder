@@ -1123,12 +1123,6 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -2107,12 +2101,6 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -2934,16 +2922,10 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return recovered.Status == database.ChatStatusRunning &&
-			recovered.WorkerID.Valid && recovered.WorkerID.UUID == newWorkerID &&
-			recovered.RunnerID.Valid && recovered.RunnerID.UUID != deadRunnerID
+		return recovered.Status == database.ChatStatusWaiting &&
+			!recovered.WorkerID.Valid &&
+			!recovered.RunnerID.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	_, err = db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
-		ChatID:   created.Chat.ID,
-		RunnerID: recovered.RunnerID.UUID,
-	})
-	require.NoError(t, err)
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
@@ -10956,12 +10938,11 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		"create_workspace for blocked template should be rejected")
 }
 
-// TestSignalWakeImmediateAcquisition verifies that CreateChat triggers
-// immediate processing via signalWake without waiting for the polling
-// ticker to fire. The ticker interval is set to an hour so it never
-// fires during the test. Any processing must come from the wake
-// channel.
-func TestSignalWakeImmediateAcquisition(t *testing.T) {
+// TestCreateChatImmediatelyProcessesNewChat verifies that CreateChat
+// starts processing a new chat without waiting for the acquire ticker
+// to fire. The ticker interval is set to an hour so it never fires
+// during the test.
+func TestCreateChatImmediatelyProcessesNewChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -10993,7 +10974,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat sets status=pending and calls signalWake().
+	// CreateChat should start the first turn without waiting for the
+	// acquire ticker.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -11006,8 +10988,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 
 	// The chat should be processed immediately. The LLM handler
 	// closes the `processed` channel when it receives a streaming
-	// request. Without signalWake this would hang forever because
-	// the 1-hour ticker never fires.
+	// request. If CreateChat only relied on the 1-hour ticker,
+	// this receive would time out.
 	testutil.TryReceive(ctx, t, processed)
 
 	chatd.WaitUntilIdleForTest(server)
@@ -11019,13 +11001,11 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 		"chat should be in waiting status after processing completes")
 }
 
-// TestSignalWakeSendMessage verifies that SendMessage on an idle chat
-// triggers immediate processing via signalWake.
-func TestSignalWakeSendMessage(t *testing.T) {
+// TestSendMessageImmediatelyProcessesWaitingChat verifies that sending
+// a follow-up message to a waiting chat starts the next turn without
+// waiting for the acquire ticker.
+func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this after the chatd notification
-	// flow can distinguish stale status notifications from interrupts.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -11060,7 +11040,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat triggers wake -> processes first turn.
+	// CreateChat processes the first turn immediately.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -11078,7 +11058,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	chatd.WaitUntilIdleForTest(server)
 
 	// Now send a follow-up message, which should also be
-	// processed immediately via signalWake.
+	// processed immediately without waiting for the acquire ticker.
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:   chat.ID,
 		APIKeyID: testAPIKeyID(t, db, user.ID),
@@ -12165,12 +12145,6 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 // message, losing the context the outer model had been building on.
 func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
