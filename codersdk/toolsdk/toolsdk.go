@@ -792,7 +792,9 @@ When selecting a preset: if a preset is marked default and the user has not spec
 		}
 		// Best-effort: a missing or unreadable version must not fail
 		// coder_get_template, which still returns the template, parameters, and
-		// presets.
+		// presets. Unlike the list_templates excerpt, frontmatter is
+		// intentionally retained: this is the detail view, so fidelity beats
+		// brevity.
 		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
 			if strings.TrimSpace(version.Readme) != "" {
 				detail.Readme = coderstrings.Truncate(

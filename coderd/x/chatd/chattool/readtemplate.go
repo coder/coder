@@ -96,7 +96,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			}
 			// Best-effort: a missing or unreadable version must not fail
 			// read_template. The full README is bounded so a large document
-			// cannot dominate the response.
+			// cannot dominate the response. Unlike the list_templates excerpt,
+			// frontmatter is intentionally retained: this is the detail view, so
+			// fidelity beats brevity.
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
 				if strings.TrimSpace(version.Readme) != "" {
 					templateInfo["readme"] = coderstrings.Truncate(
