@@ -10297,6 +10297,87 @@ func TestUpdateAIBridgeInterceptionEnded(t *testing.T) {
 	})
 }
 
+func TestAIBridgeInterceptionAgentFirewallColumns(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+
+	afwSessionID := uuid.New()
+
+	t.Run("InsertAndReadWithFirewallFieldsSet", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                          uuid.New(),
+			InitiatorID:                 user.ID,
+			Metadata:                    json.RawMessage("{}"),
+			CredentialKind:              database.CredentialKindCentralized,
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: afwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		})
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, inserted.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, inserted.AgentFirewallSequenceNumber)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, got.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, got.AgentFirewallSequenceNumber)
+	})
+
+	t.Run("InsertAndReadWithFirewallFieldsNull", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:             uuid.New(),
+			InitiatorID:    user.ID,
+			Metadata:       json.RawMessage("{}"),
+			CredentialKind: database.CredentialKindCentralized,
+			// AgentFirewallSessionID and AgentFirewallSequenceNumber omitted (zero → NULL).
+		})
+		require.NoError(t, err)
+		require.False(t, inserted.AgentFirewallSessionID.Valid)
+		require.False(t, inserted.AgentFirewallSequenceNumber.Valid)
+
+		got, err := db.GetAIBridgeInterceptionByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		require.False(t, got.AgentFirewallSessionID.Valid)
+		require.False(t, got.AgentFirewallSequenceNumber.Valid)
+	})
+
+	t.Run("UpdatePreservesFields", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+
+		inserted, err := db.InsertAIBridgeInterception(ctx, database.InsertAIBridgeInterceptionParams{
+			ID:                          uuid.New(),
+			InitiatorID:                 user.ID,
+			Metadata:                    json.RawMessage("{}"),
+			CredentialKind:              database.CredentialKindCentralized,
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: afwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		})
+		require.NoError(t, err)
+
+		updated, err := db.UpdateAIBridgeInterceptionEnded(ctx, database.UpdateAIBridgeInterceptionEndedParams{
+			ID:      inserted.ID,
+			EndedAt: time.Now(),
+		})
+		require.NoError(t, err)
+		require.True(t, updated.EndedAt.Valid)
+		// UpdateAIBridgeInterceptionEnded must not clobber the agent firewall fields.
+		require.Equal(t, uuid.NullUUID{UUID: afwSessionID, Valid: true}, updated.AgentFirewallSessionID)
+		require.Equal(t, sql.NullInt32{Int32: 5, Valid: true}, updated.AgentFirewallSequenceNumber)
+	})
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
@@ -15039,6 +15120,139 @@ func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 	}).ID
 	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsEmpty)
 	require.NoError(t, err)
+}
+
+// TestSoftDeleteWorkspaceAgentsPurgesContext verifies that both agent
+// soft-delete queries hard-delete the agents' pushed context rows
+// (workspace_agent_context_snapshots and
+// workspace_agent_context_resources). Agents are only ever
+// soft-deleted, so without this the context rows would accumulate
+// forever.
+func TestSoftDeleteWorkspaceAgentsPurgesContext(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	type buildBundle struct {
+		buildID uuid.UUID
+		agentID uuid.UUID
+		agent   database.WorkspaceAgent
+	}
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+		return buildBundle{buildID: build.ID, agentID: agent.ID, agent: agent}
+	}
+
+	pushContext := func(t *testing.T, agentID uuid.UUID) {
+		t.Helper()
+		_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+			WorkspaceAgentID: agentID,
+			Version:          1,
+			AggregateHash:    []byte{0x01},
+			ReceivedAt:       dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agentID,
+			Source:           "/workspace/AGENTS.md",
+			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:             []byte(`{}`),
+			ContentHash:      []byte{0x02},
+			SizeBytes:        2,
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			Now:              dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+
+	hasContext := func(t *testing.T, agentID uuid.UUID) bool {
+		t.Helper()
+		_, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+		if errors.Is(err, sql.ErrNoRows) {
+			resources, err := db.ListWorkspaceAgentContextResources(ctx, agentID)
+			require.NoError(t, err)
+			require.Empty(t, resources, "snapshot and resource rows must be deleted together")
+			return false
+		}
+		require.NoError(t, err)
+		return true
+	}
+
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+
+	a1 := newBuild(t, wsA, 1)
+	a2 := newBuild(t, wsA, 2)
+	b1 := newBuild(t, wsB, 1)
+
+	pushContext(t, a1.agentID)
+	pushContext(t, a2.agentID)
+	pushContext(t, b1.agentID)
+
+	// Soft-deleting wsA's prior agents purges a1's context but leaves
+	// the current build's agent and other workspaces untouched.
+	err := db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a2.buildID,
+	})
+	require.NoError(t, err)
+	assert.False(t, hasContext(t, a1.agentID), "prior build agent context must be purged")
+	assert.True(t, hasContext(t, a2.agentID), "current build agent context must remain")
+	assert.True(t, hasContext(t, b1.agentID), "other workspace agent context must remain")
+
+	// Soft-deleting all of wsB's agents purges b1's context.
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsB)
+	require.NoError(t, err)
+	assert.True(t, hasContext(t, a2.agentID), "other workspace agent context must remain")
+	assert.False(t, hasContext(t, b1.agentID), "deleted workspace agent context must be purged")
+
+	// Removing a sub-agent mid-build via DeleteWorkspaceSubAgentByID purges
+	// only that sub-agent's context. The rebuild-time queries skip
+	// already-deleted agents, so this is the sole cleanup opportunity.
+	c1 := newBuild(t, wsA, 3)
+	subAgent := dbgen.WorkspaceSubAgent(t, db, c1.agent, database.WorkspaceAgent{})
+	pushContext(t, c1.agentID)
+	pushContext(t, subAgent.ID)
+
+	err = db.DeleteWorkspaceSubAgentByID(ctx, subAgent.ID)
+	require.NoError(t, err)
+	assert.True(t, hasContext(t, c1.agentID), "parent agent context must remain")
+	assert.False(t, hasContext(t, subAgent.ID), "deleted sub-agent context must be purged")
 }
 
 func TestAIGatewayKeysTableConstraints(t *testing.T) {

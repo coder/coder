@@ -1023,10 +1023,3 @@ type UpsertConnectionLogParams struct {
 func (r GetLatestWorkspaceBuildWithStatusByWorkspaceIDRow) RBACObject() rbac.Object {
 	return r.WorkspaceTable.RBACObject()
 }
-
-func (s BoundarySession) RBACObject() rbac.Object {
-	if s.OwnerID.Valid {
-		return rbac.ResourceBoundaryLog.WithOwner(s.OwnerID.UUID.String())
-	}
-	return rbac.ResourceBoundaryLog
-}

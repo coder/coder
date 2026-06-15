@@ -611,6 +611,25 @@ CREATE TYPE user_status AS ENUM (
 
 COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
 
+CREATE TYPE workspace_agent_context_body_kind AS ENUM (
+    'instruction_file',
+    'skill',
+    'mcp_config',
+    'mcp_server',
+    'plugin',
+    'hook',
+    'subagent',
+    'command'
+);
+
+CREATE TYPE workspace_agent_context_resource_status AS ENUM (
+    'ok',
+    'oversize',
+    'unreadable',
+    'invalid',
+    'excluded'
+);
+
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
     'starting',
@@ -1512,7 +1531,9 @@ CREATE TABLE aibridge_interceptions (
     session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL,
     provider_name text DEFAULT ''::text NOT NULL,
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
-    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL
+    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
+    agent_firewall_session_id uuid,
+    agent_firewall_sequence_number integer
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1532,6 +1553,10 @@ COMMENT ON COLUMN aibridge_interceptions.provider_name IS 'The provider instance
 COMMENT ON COLUMN aibridge_interceptions.credential_kind IS 'How the request was authenticated: centralized or byok.';
 
 COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential identifier for audit (e.g. sk-a***efgh).';
+
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
+
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
 
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
@@ -3478,6 +3503,56 @@ CREATE TABLE webpush_subscriptions (
     endpoint_auth_key text NOT NULL
 );
 
+CREATE TABLE workspace_agent_context_resources (
+    workspace_agent_id uuid NOT NULL,
+    source text NOT NULL,
+    body_kind workspace_agent_context_body_kind NOT NULL,
+    body jsonb NOT NULL,
+    content_hash bytea NOT NULL,
+    size_bytes bigint NOT NULL,
+    status workspace_agent_context_resource_status NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    source_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.source IS 'Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.body_kind IS 'Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.body IS 'protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.content_hash IS 'sha256 over the resource''s original bytes (or transport-encoded server tool list).';
+
+COMMENT ON COLUMN workspace_agent_context_resources.size_bytes IS 'Original payload size in bytes; populated regardless of status.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+CREATE TABLE workspace_agent_context_snapshots (
+    workspace_agent_id uuid NOT NULL,
+    version bigint NOT NULL,
+    aggregate_hash bytea NOT NULL,
+    snapshot_error text DEFAULT ''::text NOT NULL,
+    received_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_context_snapshots IS 'Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.version IS 'Monotonic per-agent-process push counter. Resets to one when the agent process restarts; combined with the initial flag on the wire to detect agent reboots.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.aggregate_hash IS 'sha256 over a canonical encoding of every resource in the snapshot. Identical inputs always produce identical hashes; chat hydration uses this to detect drift.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.snapshot_error IS 'Singular snapshot-level error string (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.received_at IS 'Time at which coderd received the push.';
+
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
     workspace_agent_id uuid NOT NULL,
@@ -4272,6 +4347,12 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_context_resources
+    ADD CONSTRAINT workspace_agent_context_resources_pkey PRIMARY KEY (workspace_agent_id, source);
+
+ALTER TABLE ONLY workspace_agent_context_snapshots
+    ADD CONSTRAINT workspace_agent_context_snapshots_pkey PRIMARY KEY (workspace_agent_id);
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
 
@@ -4374,6 +4455,8 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
+
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -4801,9 +4884,6 @@ ALTER TABLE ONLY aibridge_interceptions
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
-ALTER TABLE ONLY boundary_logs
-    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
-
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
@@ -5130,6 +5210,12 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_context_resources
+    ADD CONSTRAINT workspace_agent_context_resources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_context_snapshots
+    ADD CONSTRAINT workspace_agent_context_snapshots_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_subagent_id_fkey FOREIGN KEY (subagent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

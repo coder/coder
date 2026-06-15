@@ -8151,6 +8151,47 @@ export type TemplateBuildTimeStats = Record<
 	TransitionStats
 >;
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBase is the API response type for a base template
+ * returned by GET /api/v2/templatebuilder/bases.
+ */
+export interface TemplateBuilderBase {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly icon: string;
+	readonly os: string;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBasesResponse is the response body for listing template builder bases.
+ */
+export interface TemplateBuilderBasesResponse {
+	readonly bases: readonly TemplateBuilderBase[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeModule identifies a module and its variable
+ * values for the compose request.
+ */
+export interface TemplateBuilderComposeModule {
+	readonly id: string;
+	readonly variables?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeRequest is the request body for
+ * POST /api/v2/templatebuilder/compose.
+ */
+export interface TemplateBuilderComposeRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+}
+
 // From codersdk/deployment.go
 export interface TemplateBuilderConfig {
 	readonly disabled?: boolean;
@@ -8183,10 +8224,12 @@ export interface TemplateBuilderModuleVariable {
 	readonly default?: Record<string, string>;
 	readonly required: boolean;
 	readonly sensitive: boolean;
-	readonly computed: boolean;
 }
 
 // From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModulesResponse is the response body for listing template builder modules.
+ */
 export interface TemplateBuilderModulesResponse {
 	readonly modules: readonly TemplateBuilderModule[];
 }

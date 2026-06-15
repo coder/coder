@@ -460,22 +460,13 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), uuid.Nil).Return(database.BoundarySession{}, nil).AnyTimes()
 		check.Args(uuid.Nil).Asserts(rbac.ResourceBoundaryLog, policy.ActionRead)
 	}))
-	s.Run("InsertBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ownerID := uuid.New()
-		sessionID := uuid.New()
-		session := database.BoundarySession{
-			ID:      sessionID,
-			OwnerID: uuid.NullUUID{UUID: ownerID, Valid: true},
-		}
+	s.Run("InsertBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertBoundaryLogsParams{
-			SessionID: sessionID,
+			SessionID: uuid.New(),
 			ID:        []uuid.UUID{uuid.New(), uuid.New()},
 		}
-		dbm.EXPECT().GetBoundarySessionByID(gomock.Any(), sessionID).Return(session, nil).AnyTimes()
 		dbm.EXPECT().InsertBoundaryLogs(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
-		check.Args(arg).Asserts(
-			rbac.ResourceBoundaryLog.WithOwner(ownerID.String()), policy.ActionCreate,
-		)
+		check.Args(arg).Asserts(rbac.ResourceBoundaryLog, policy.ActionCreate)
 	}))
 	s.Run("GetBoundaryLogByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetBoundaryLogByID(gomock.Any(), uuid.Nil).Return(database.BoundaryLog{}, nil).AnyTimes()
@@ -486,6 +477,7 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 		dbm.EXPECT().ListBoundaryLogsBySessionID(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceBoundaryLog, policy.ActionRead)
 	}))
+
 	s.Run("DeleteOldBoundaryLogs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().DeleteOldBoundaryLogs(gomock.Any(), database.DeleteOldBoundaryLogsParams{}).Return(int64(0), nil).AnyTimes()
 		check.Args(database.DeleteOldBoundaryLogsParams{}).Asserts(rbac.ResourceBoundaryLog, policy.ActionDelete)
@@ -6078,6 +6070,60 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().FetchVolumesResourceMonitorsByAgentID(gomock.Any(), agt.ID).Return(monitors, nil).AnyTimes()
 		check.Args(agt.ID).Asserts(w, policy.ActionRead).Returns(monitors)
+	}))
+}
+
+func (s *MethodTestSuite) TestWorkspaceAgentContext() {
+	s.Run("UpsertWorkspaceAgentContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpsertWorkspaceAgentContextSnapshotParams{
+			WorkspaceAgentID: agt.ID,
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceAgentContextSnapshot(gomock.Any(), arg).Return(database.WorkspaceAgentContextSnapshot{}, nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
+	}))
+	s.Run("UpsertWorkspaceAgentContextResource", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agt.ID,
+			Source:           "/workspace/AGENTS.md",
+			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:             []byte(`{}`),
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), arg).Return(database.WorkspaceAgentContextResource{}, nil).AnyTimes()
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
+	}))
+	s.Run("DeleteStaleWorkspaceAgentContextResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		arg := database.DeleteStaleWorkspaceAgentContextResourcesParams{
+			WorkspaceAgentID: agt.ID,
+			ActiveSources:    []string{"/workspace/AGENTS.md"},
+		}
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().DeleteStaleWorkspaceAgentContextResources(gomock.Any(), arg).Return(nil).AnyTimes()
+		// Stale-resource deletion is part of updating the agent's
+		// context state, so it asserts ActionUpdate on the workspace.
+		check.Args(arg).Asserts(w, policy.ActionUpdate)
+	}))
+	s.Run("GetLatestWorkspaceAgentContextSnapshot", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agt.ID).Return(database.WorkspaceAgentContextSnapshot{}, nil).AnyTimes()
+		check.Args(agt.ID).Asserts(w, policy.ActionRead)
+	}))
+	s.Run("ListWorkspaceAgentContextResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		w := testutil.Fake(s.T(), faker, database.Workspace{})
+		agt := testutil.Fake(s.T(), faker, database.WorkspaceAgent{})
+		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
+		dbm.EXPECT().ListWorkspaceAgentContextResources(gomock.Any(), agt.ID).Return(nil, nil).AnyTimes()
+		check.Args(agt.ID).Asserts(w, policy.ActionRead)
 	}))
 }
 

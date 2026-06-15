@@ -3302,6 +3302,7 @@ export const MockPermissions: Permissions = {
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
+	viewAIGatewayKeys: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3337,6 +3338,7 @@ export const MockNoPermissions: Permissions = {
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: false,
+	viewAIGatewayKeys: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -5521,3 +5523,28 @@ export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderBedrock,
 	MockAIProviderCopilot,
 ];
+
+export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
+	{
+		id: "1c2e6f4a-8b3d-4f1a-9c7e-2a5b8d6f0e11",
+		name: "primary-gateway",
+		key_prefix: "a1B2c3D4e5F",
+		created_at: "2024-05-01T14:00:00Z",
+		last_used_at: "2024-05-20T09:30:00Z",
+	},
+	{
+		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",
+		name: "backup-gateway",
+		key_prefix: "z9Y8x7W6v5U",
+		created_at: "2024-05-10T08:15:00Z",
+	},
+];
+
+export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse =
+	{
+		id: "3e4a8b6c-0d5f-4b3c-9e7a-4c7d0f8a2b33",
+		name: "new-gateway",
+		key: "K3mNp7qRs2TvW9xY4zA6bC1dE8fG5hJ0kL3nM7pQ2rS",
+		key_prefix: "K3mNp7qRs2T",
+		created_at: "2024-05-28T12:00:00Z",
+	};

@@ -93,18 +93,10 @@ func TestToSDK(t *testing.T) {
 	t.Run("AllVariableFields", func(t *testing.T) {
 		t.Parallel()
 
-		require.Len(t, sdk.Variables, 3)
+		// Computed variables (agent_id) are excluded from SDK output.
+		require.Len(t, sdk.Variables, 2)
 
-		agent := sdk.Variables[0]
-		require.Equal(t, "agent_id", agent.Name)
-		require.Equal(t, codersdk.TemplateBuilderVariableTypeString, agent.Type)
-		require.Equal(t, "The Coder agent ID.", agent.Description)
-		require.Nil(t, agent.Default)
-		require.True(t, agent.Required)
-		require.False(t, agent.Sensitive)
-		require.True(t, agent.Computed)
-
-		port := sdk.Variables[1]
+		port := sdk.Variables[0]
 		require.Equal(t, "port", port.Name)
 		require.Equal(t, codersdk.TemplateBuilderVariableTypeNumber, port.Type)
 		require.Equal(t, "Port to listen on.", port.Description)
@@ -112,16 +104,14 @@ func TestToSDK(t *testing.T) {
 		require.JSONEq(t, "8080", string(port.Default))
 		require.False(t, port.Required)
 		require.False(t, port.Sensitive)
-		require.False(t, port.Computed)
 
-		secret := sdk.Variables[2]
+		secret := sdk.Variables[1]
 		require.Equal(t, "secret_key", secret.Name)
 		require.Equal(t, codersdk.TemplateBuilderVariableTypeString, secret.Type)
 		require.Equal(t, "A sensitive value.", secret.Description)
 		require.Nil(t, secret.Default)
 		require.True(t, secret.Required)
 		require.True(t, secret.Sensitive)
-		require.False(t, secret.Computed)
 	})
 
 	t.Run("NilSlicesNormalizedToEmpty", func(t *testing.T) {
@@ -140,4 +130,33 @@ func TestToSDK(t *testing.T) {
 		require.Empty(t, s.ConflictsWith)
 		require.Empty(t, s.Variables)
 	})
+}
+
+func TestCompatibleWithOS(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		compatibleOS []string
+		os           string
+		want         bool
+	}{
+		{"EmptyListMatchesAll", nil, "linux", true},
+		{"ExactMatch", []string{"linux"}, "linux", true},
+		{"MultipleMatch", []string{"linux", "windows"}, "windows", true},
+		{"NoMatch", []string{"linux"}, "windows", false},
+		{"CaseSensitive", []string{"linux"}, "Linux", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := templatebuilder.ModuleManifest{
+				ID:            "test",
+				PinnedVersion: "1.0.0",
+				CompatibleOS:  tc.compatibleOS,
+			}
+			require.Equal(t, tc.want, m.CompatibleWithOS(tc.os))
+		})
+	}
 }

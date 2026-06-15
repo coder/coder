@@ -107,6 +107,10 @@
 		"object": { "resource_type": "ai_provider" },
 		"action": "read"
 	},
+	"viewAIGatewayKeys": {
+		"object": { "resource_type": "ai_gateway_key" },
+		"action": "read"
+	},
 	"createOAuth2App": {
 		"object": { "resource_type": "oauth2_app" },
 		"action": "create"

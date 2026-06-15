@@ -693,6 +693,128 @@ func TestRecordInterception(t *testing.T) {
 				},
 			},
 			{
+				name: "valid interception with agent firewall correlation",
+				request: &proto.RecordInterceptionRequest{
+					Id:                          uuid.NewString(),
+					ApiKeyId:                    uuid.NewString(),
+					InitiatorId:                 uuid.NewString(),
+					Provider:                    "anthropic",
+					Model:                       "claude-4-opus",
+					Metadata:                    metadataProto,
+					StartedAt:                   timestamppb.Now(),
+					AgentFirewallSessionId:      ptr.Ref(uuid.NewString()),
+					AgentFirewallSequenceNumber: ptr.Ref(int32(42)),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+					agentFirewallSessionID, err := uuid.Parse(req.GetAgentFirewallSessionId())
+					assert.NoError(t, err, "parse agent firewall session UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:                          interceptionID,
+						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:                 initiatorID,
+						Provider:                    req.GetProvider(),
+						ProviderName:                req.GetProvider(),
+						Model:                       req.GetModel(),
+						Metadata:                    json.RawMessage(metadataJSON),
+						StartedAt:                   req.StartedAt.AsTime().UTC(),
+						CredentialKind:              database.CredentialKindCentralized,
+						AgentFirewallSessionID:      uuid.NullUUID{UUID: agentFirewallSessionID, Valid: true},
+						AgentFirewallSequenceNumber: sql.NullInt32{Int32: 42, Valid: true},
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "absent agent firewall fields treated as null",
+				request: &proto.RecordInterceptionRequest{
+					Id:          uuid.NewString(),
+					ApiKeyId:    uuid.NewString(),
+					InitiatorId: uuid.NewString(),
+					Provider:    "anthropic",
+					Model:       "claude-4-opus",
+					Metadata:    metadataProto,
+					StartedAt:   timestamppb.Now(),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:                          interceptionID,
+						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:                 initiatorID,
+						Provider:                    req.GetProvider(),
+						ProviderName:                req.GetProvider(),
+						Model:                       req.GetModel(),
+						Metadata:                    json.RawMessage(metadataJSON),
+						StartedAt:                   req.StartedAt.AsTime().UTC(),
+						CredentialKind:              database.CredentialKindCentralized,
+						AgentFirewallSessionID:      uuid.NullUUID{},
+						AgentFirewallSequenceNumber: sql.NullInt32{},
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
+				name: "invalid agent firewall session ID treated as null",
+				request: &proto.RecordInterceptionRequest{
+					Id:                          uuid.NewString(),
+					ApiKeyId:                    uuid.NewString(),
+					InitiatorId:                 uuid.NewString(),
+					Provider:                    "anthropic",
+					Model:                       "claude-4-opus",
+					Metadata:                    metadataProto,
+					StartedAt:                   timestamppb.Now(),
+					AgentFirewallSessionId:      ptr.Ref("not-a-uuid"),
+					AgentFirewallSequenceNumber: ptr.Ref(int32(7)),
+				},
+				setupMocks: func(t *testing.T, db *dbmock.MockStore, req *proto.RecordInterceptionRequest) {
+					interceptionID, err := uuid.Parse(req.GetId())
+					assert.NoError(t, err, "parse interception UUID")
+					initiatorID, err := uuid.Parse(req.GetInitiatorId())
+					assert.NoError(t, err, "parse interception initiator UUID")
+
+					// Malformed agent firewall session ID is stored as null
+					// (and logged) rather than failing the interception.
+					db.EXPECT().InsertAIBridgeInterception(gomock.Any(), database.InsertAIBridgeInterceptionParams{
+						ID:                          interceptionID,
+						APIKeyID:                    sql.NullString{String: req.ApiKeyId, Valid: true},
+						InitiatorID:                 initiatorID,
+						Provider:                    req.GetProvider(),
+						ProviderName:                req.GetProvider(),
+						Model:                       req.GetModel(),
+						Metadata:                    json.RawMessage(metadataJSON),
+						StartedAt:                   req.StartedAt.AsTime().UTC(),
+						CredentialKind:              database.CredentialKindCentralized,
+						AgentFirewallSessionID:      uuid.NullUUID{},
+						AgentFirewallSequenceNumber: sql.NullInt32{Int32: 7, Valid: true},
+					}).Return(database.AIBridgeInterception{
+						ID:          interceptionID,
+						InitiatorID: initiatorID,
+						Provider:    req.GetProvider(),
+						Model:       req.GetModel(),
+						StartedAt:   req.StartedAt.AsTime().UTC(),
+					}, nil)
+				},
+			},
+			{
 				name: "invalid interception ID",
 				request: &proto.RecordInterceptionRequest{
 					Id:          "not-a-uuid",

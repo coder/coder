@@ -834,6 +834,14 @@ func (m queryMetricsStore) DeleteStaleChatHeartbeats(ctx context.Context, staleS
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
+	start := time.Now()
+	r0 := m.s.DeleteStaleWorkspaceAgentContextResources(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteStaleWorkspaceAgentContextResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteStaleWorkspaceAgentContextResources").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteTailnetPeer(ctx, arg)
@@ -2199,6 +2207,14 @@ func (m queryMetricsStore) GetLatestCryptoKeyByFeature(ctx context.Context, feat
 	r0, r1 := m.s.GetLatestCryptoKeyByFeature(ctx, feature)
 	m.queryLatencies.WithLabelValues("GetLatestCryptoKeyByFeature").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestCryptoKeyByFeature").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetLatestWorkspaceAgentContextSnapshot(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("GetLatestWorkspaceAgentContextSnapshot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetLatestWorkspaceAgentContextSnapshot").Inc()
 	return r0, r1
 }
 
@@ -4714,6 +4730,14 @@ func (m queryMetricsStore) ListUserSkillMetadataByUserID(ctx context.Context, us
 	return r0, r1
 }
 
+func (m queryMetricsStore) ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentContextResource, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListWorkspaceAgentContextResources(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("ListWorkspaceAgentContextResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListWorkspaceAgentContextResources").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	start := time.Now()
 	r0, r1 := m.s.ListWorkspaceAgentPortShares(ctx, workspaceID)
@@ -6360,6 +6384,22 @@ func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg datab
 	m.queryLatencies.WithLabelValues("UpsertWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWebpushVAPIDKeys").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpsertWorkspaceAgentContextResource(ctx context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAgentContextResource(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentContextResource").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWorkspaceAgentContextResource").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertWorkspaceAgentContextSnapshot(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertWorkspaceAgentContextSnapshot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertWorkspaceAgentContextSnapshot").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

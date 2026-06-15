@@ -1997,20 +1997,22 @@ func ClaimPrebuild(
 
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
-		ID:                         takeFirst(seed.ID, uuid.New()),
-		APIKeyID:                   seed.APIKeyID,
-		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
-		Provider:                   takeFirst(seed.Provider, "provider"),
-		ProviderName:               takeFirst(seed.ProviderName, "provider-name"),
-		Model:                      takeFirst(seed.Model, "model"),
-		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
-		Client:                     seed.Client,
-		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
-		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
-		ClientSessionID:            seed.ClientSessionID,
-		CredentialKind:             takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
-		CredentialHint:             takeFirst(seed.CredentialHint, ""),
+		ID:                          takeFirst(seed.ID, uuid.New()),
+		APIKeyID:                    seed.APIKeyID,
+		InitiatorID:                 takeFirst(seed.InitiatorID, uuid.New()),
+		Provider:                    takeFirst(seed.Provider, "provider"),
+		ProviderName:                takeFirst(seed.ProviderName, "provider-name"),
+		Model:                       takeFirst(seed.Model, "model"),
+		Metadata:                    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		StartedAt:                   takeFirst(seed.StartedAt, dbtime.Now()),
+		Client:                      seed.Client,
+		ThreadParentInterceptionID:  seed.ThreadParentInterceptionID,
+		ThreadRootInterceptionID:    seed.ThreadRootInterceptionID,
+		ClientSessionID:             seed.ClientSessionID,
+		CredentialKind:              takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
+		CredentialHint:              takeFirst(seed.CredentialHint, ""),
+		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{

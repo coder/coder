@@ -137,11 +137,31 @@ func parseModulesFromFS(fsys fs.FS) ([]ModuleManifest, error) {
 	return modules, nil
 }
 
+// CompatibleWithOS reports whether the module is compatible with the given OS.
+// Modules with an empty CompatibleOS list are compatible with all platforms.
+func (m ModuleManifest) CompatibleWithOS(os string) bool {
+	if len(m.CompatibleOS) == 0 {
+		return true
+	}
+	for _, supported := range m.CompatibleOS {
+		if supported == os {
+			return true
+		}
+	}
+	return false
+}
+
 // ToSDK converts a ModuleManifest to the API response type.
 // PinnedVersion is mapped to Version; tags are not part of the API surface.
+// Computed variables are excluded from the output.
 func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 	variables := make([]codersdk.TemplateBuilderModuleVariable, 0, len(m.Variables))
 	for _, v := range m.Variables {
+		// Computed variables (e.g. agent_id) are wired by the builder
+		// automatically and must not be surfaced to the user.
+		if v.Computed {
+			continue
+		}
 		variables = append(variables, codersdk.TemplateBuilderModuleVariable{
 			Name:        v.Name,
 			Type:        validVariableTypes[v.Type],
@@ -149,7 +169,6 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 			Default:     v.Default,
 			Required:    v.Required,
 			Sensitive:   v.Sensitive,
-			Computed:    v.Computed,
 		})
 	}
 
@@ -174,4 +193,21 @@ func (m ModuleManifest) ToSDK() codersdk.TemplateBuilderModule {
 		ConflictsWith: conflictsWith,
 		Variables:     variables,
 	}
+}
+
+// ModuleTemplateFS returns an fs.FS rooted at the embedded directory for
+// the given module ID, providing access to its .tf.tmpl file.
+func ModuleTemplateFS(moduleID string) (fs.FS, error) {
+	modPath := modulesDir + "/" + moduleID
+	// Verify the directory exists. fs.Sub on embed.FS silently succeeds
+	// for nonexistent paths, so we check for the expected .tf.tmpl file.
+	tmplName := moduleID + ".tf.tmpl"
+	if _, err := fs.Stat(modulesFS, modPath+"/"+tmplName); err != nil {
+		return nil, xerrors.Errorf("module %q not found in embedded catalog: %w", moduleID, err)
+	}
+	sub, err := fs.Sub(modulesFS, modPath)
+	if err != nil {
+		return nil, xerrors.Errorf("module %q sub-filesystem: %w", moduleID, err)
+	}
+	return sub, nil
 }

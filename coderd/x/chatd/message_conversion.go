@@ -363,18 +363,32 @@ const (
 	compactionRequirementNeeded
 )
 
-func compactionStatusFromHistory(messages []database.ChatMessage, requirement compactionRequirement) compactionStatus {
+func compactionStatusFromHistory(
+	messages []database.ChatMessage,
+	requirement compactionRequirement,
+	thresholdPercent int32,
+	contextLimit int64,
+) compactionStatus {
 	boundaryIndex := latestCompactionBoundaryIndex(messages)
 	if requirement == compactionRequirementNeeded {
 		if boundaryIndex == -1 {
 			return compactionStatusNeeded
 		}
-		if hasUncompressedAssistantAfter(messages, boundaryIndex) {
+		// The first assistant response after the previously compacted summary.
+		// Messages with role ChatMessageRoleAssistant carry context usage.
+		// Looking at ChatMessageRoleAssistant is enough - ChatMessageRoleTool
+		// does not carry context usage, and is always preceded by an assistant
+		// message.
+		if assistant, ok := firstUncompressedAssistantAfter(messages, boundaryIndex); ok &&
+			postCompactionAssistantOverLimit(assistant, thresholdPercent, contextLimit) {
 			return compactionStatusStillOverLimit
+		}
+		if hasUncompressedMessageAfter(messages, boundaryIndex) {
+			return compactionStatusNeeded
 		}
 		return compactionStatusAfterCompaction
 	}
-	if boundaryIndex != -1 && !hasUncompressedAssistantAfter(messages, boundaryIndex) {
+	if boundaryIndex != -1 && !hasUncompressedMessageAfter(messages, boundaryIndex) {
 		return compactionStatusAfterCompaction
 	}
 	return compactionStatusNotNeeded
@@ -406,17 +420,54 @@ func isCompactionBoundaryMessage(msg database.ChatMessage) bool {
 	return false
 }
 
-func hasUncompressedAssistantAfter(messages []database.ChatMessage, index int) bool {
+func firstUncompressedAssistantAfter(messages []database.ChatMessage, index int) (database.ChatMessage, bool) {
 	for i := index + 1; i < len(messages); i++ {
 		msg := messages[i]
 		if msg.Deleted || msg.Compressed {
 			continue
 		}
 		if msg.Role == database.ChatMessageRoleAssistant {
+			return msg, true
+		}
+	}
+	return database.ChatMessage{}, false
+}
+
+func hasUncompressedMessageAfter(messages []database.ChatMessage, index int) bool {
+	for i := index + 1; i < len(messages); i++ {
+		msg := messages[i]
+		if !msg.Deleted && !msg.Compressed {
 			return true
 		}
 	}
 	return false
+}
+
+func postCompactionAssistantOverLimit(msg database.ChatMessage, thresholdPercent int32, contextLimit int64) bool {
+	return shouldCompactPromptUsage(usageFromMessage(msg), contextLimit, thresholdPercent)
+}
+
+func usageFromMessage(msg database.ChatMessage) fantasy.Usage {
+	var usage fantasy.Usage
+	if msg.InputTokens.Valid {
+		usage.InputTokens = msg.InputTokens.Int64
+	}
+	if msg.OutputTokens.Valid {
+		usage.OutputTokens = msg.OutputTokens.Int64
+	}
+	if msg.TotalTokens.Valid {
+		usage.TotalTokens = msg.TotalTokens.Int64
+	}
+	if msg.ReasoningTokens.Valid {
+		usage.ReasoningTokens = msg.ReasoningTokens.Int64
+	}
+	if msg.CacheCreationTokens.Valid {
+		usage.CacheCreationTokens = msg.CacheCreationTokens.Int64
+	}
+	if msg.CacheReadTokens.Valid {
+		usage.CacheReadTokens = msg.CacheReadTokens.Int64
+	}
+	return usage
 }
 
 func historyHasStopAfterToolResult(messages []database.ChatMessage, stopAfterTools map[string]struct{}) (bool, error) {
