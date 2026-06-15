@@ -1678,8 +1678,8 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 
 	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
 	retentionPeriod := 90 * 24 * time.Hour
-	afterThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 91 days ago (older than threshold)
-	beforeThreshold := now.Add(-15 * 24 * time.Hour)                 // 15 days ago (newer than threshold)
+	beforeThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 91 days ago (older than threshold, before the cutoff)
+	afterThreshold := now.Add(-15 * 24 * time.Hour)                   // 15 days ago (newer than threshold, after the cutoff)
 
 	testCases := []struct {
 		name                  string
@@ -1694,8 +1694,8 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			retentionConfig: codersdk.RetentionConfig{
 				BoundaryLogs: serpent.Duration(retentionPeriod),
 			},
-			oldLogTime:            afterThreshold,
-			recentLogTime:         &beforeThreshold,
+			oldLogTime:            beforeThreshold,
+			recentLogTime:         &afterThreshold,
 			expectOldDeleted:      true,
 			expectedLogsRemaining: 1, // only recent log remains
 		},
@@ -1703,6 +1703,16 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			name: "RetentionDisabled",
 			retentionConfig: codersdk.RetentionConfig{
 				BoundaryLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+		{
+			name: "RetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
 			},
 			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
 			recentLogTime:         nil,
