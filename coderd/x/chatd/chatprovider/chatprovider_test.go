@@ -11,6 +11,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasybedrock "charm.land/fantasy/providers/bedrock"
+	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
@@ -1621,6 +1622,34 @@ func TestResolveModelWithProviderHint(t *testing.T) {
 			providerHint: fantasyvercel.Name,
 			wantProvider: fantasyvercel.Name,
 			wantModel:    "claude-4-5-sonnet",
+		},
+		{
+			name:         "BareGeminiModelResolvesToGoogle",
+			modelName:    "gemini-3.5-flash",
+			providerHint: "",
+			wantProvider: fantasygoogle.Name,
+			wantModel:    "gemini-3.5-flash",
+		},
+		{
+			name:         "BareGemmaModelResolvesToGoogle",
+			modelName:    "gemma-3-27b",
+			providerHint: "",
+			wantProvider: fantasygoogle.Name,
+			wantModel:    "gemma-3-27b",
+		},
+		{
+			name:         "GoogleHintWithGeminiModel",
+			modelName:    "gemini-2.5-pro",
+			providerHint: fantasygoogle.Name,
+			wantProvider: fantasygoogle.Name,
+			wantModel:    "gemini-2.5-pro",
+		},
+		{
+			name:         "CanonicalGoogleRefResolvesToGoogle",
+			modelName:    "google/gemini-3.5-flash",
+			providerHint: "",
+			wantProvider: fantasygoogle.Name,
+			wantModel:    "gemini-3.5-flash",
 		},
 	}
 
