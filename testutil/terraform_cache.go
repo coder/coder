@@ -111,7 +111,9 @@ func runCmd(t *testing.T, dir string, args ...string) {
 	)
 	for r := retry.New(runCmdRetryFloor, runCmdRetryCeil); attempt < runCmdMaxAttempts && r.Wait(ctx); attempt++ {
 		stdout, stderr := bytes.NewBuffer(nil), bytes.NewBuffer(nil)
-		cmd := exec.CommandContext(ctx, args[0], args[1:]...) //#nosec
+		// #nosec G204 - args are test-controlled (the terraform binary plus fixed
+		// subcommands and a cache dir path), never external input.
+		cmd := exec.CommandContext(ctx, args[0], args[1:]...)
 		cmd.Dir = dir
 		cmd.Stdout = stdout
 		cmd.Stderr = stderr
