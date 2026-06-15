@@ -34,6 +34,11 @@ export function loadRedirects(p) {
 // Filter all entries to the /docs/* subset. Order matters because Next.js
 // picks the first matching rule.
 export function docsRedirects(all) {
+	if (!Array.isArray(all)) {
+		throw new TypeError(
+			`docsRedirects: expected an array of redirect rules, got ${typeof all}`,
+		);
+	}
 	return all.filter(
 		(r) => typeof r.source === "string" && r.source.startsWith("/docs/"),
 	);
@@ -100,8 +105,10 @@ export const DOCS_LITERAL_RE = /\bdocs\(\s*(['"`])([^'"`)$]+)\1/g;
 export const DOCS_TEMPLATE_RE = /\bdocs\(\s*`([^`]*\$\{[^`]*\}[^`]*)`/g;
 
 // "https://coder.com/docs/..." wrapped in any string-literal delimiter.
+// The backreference (\1) requires the closing delimiter to match the opening
+// one, mirroring DOCS_LITERAL_RE.
 export const HARDCODED_URL_RE =
-	/['"`]https?:\/\/(?:[a-z0-9-]+\.)?coder\.com(\/docs\/[^'"`)\s]+)['"`]/g;
+	/(['"`])https?:\/\/(?:[a-z0-9-]+\.)?coder\.com(\/docs\/[^'"`)\s]+)\1/g;
 
 // Markdown-link form: [text](https://coder.com/docs/...) or [text](/docs/...).
 // Used inside notification bodies, doc strings, and other prose. The URL is
@@ -178,7 +185,7 @@ export function extractReferences(filePath, content) {
 	}
 
 	for (const m of content.matchAll(HARDCODED_URL_RE)) {
-		push(m, "hardcoded-url", m[1], stripQueryAndFragment(m[1]), false);
+		push(m, "hardcoded-url", m[2], stripQueryAndFragment(m[2]), false);
 	}
 
 	for (const m of content.matchAll(MARKDOWN_LINK_RE)) {
@@ -290,8 +297,6 @@ export function buildReport({ findings, redirectsPath, roots, startedAt }) {
 		"# Redirects audit: TS/TSX docs-URL references",
 		"",
 		`Generated: ${startedAt.toISOString()}`,
-		"",
-		"Tracks: [DOCS-253](https://linear.app/codercom/issue/DOCS-253) (parent: [DOCS-209](https://linear.app/codercom/issue/DOCS-209)).",
 		"",
 		"## Method",
 		"",

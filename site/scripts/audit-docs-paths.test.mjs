@@ -37,6 +37,20 @@ describe("docsRedirects", () => {
 			rule("/docs/c/:path*", "/docs/d/:path*"),
 		]);
 	});
+
+	it("throws a TypeError when given a non-array (e.g. object)", () => {
+		expect(() => docsRedirects({})).toThrowError(TypeError);
+		expect(() => docsRedirects({})).toThrowError(/got object/);
+	});
+
+	it("throws a TypeError when given a non-array (e.g. string)", () => {
+		expect(() => docsRedirects("hello")).toThrowError(TypeError);
+		expect(() => docsRedirects("hello")).toThrowError(/got string/);
+	});
+
+	it("throws a TypeError when given null", () => {
+		expect(() => docsRedirects(null)).toThrowError(TypeError);
+	});
 });
 
 describe("matchRedirect", () => {
@@ -180,20 +194,26 @@ describe("regex patterns", () => {
 	it("HARDCODED_URL_RE matches https://coder.com URLs in any quote", () => {
 		const src = `a = "https://coder.com/docs/foo"; b = 'https://coder.com/docs/bar';`;
 		const m = exec(HARDCODED_URL_RE, src);
-		expect(m.map((row) => row[1])).toEqual(["/docs/foo", "/docs/bar"]);
+		expect(m.map((row) => row[2])).toEqual(["/docs/foo", "/docs/bar"]);
 	});
 
 	it("HARDCODED_URL_RE matches *.coder.com subdomains", () => {
 		const src = `"https://dev.coder.com/docs/foo"`;
 		const m = exec(HARDCODED_URL_RE, src);
 		expect(m).toHaveLength(1);
-		expect(m[0][1]).toBe("/docs/foo");
+		expect(m[0][2]).toBe("/docs/foo");
 	});
 
 	it("HARDCODED_URL_RE does NOT match markdown-link form", () => {
 		// The URL is bounded by ( and ), not by quotes. This pattern misses
 		// the URL; MARKDOWN_LINK_RE catches it.
 		const src = `[label](https://coder.com/docs/foo)`;
+		expect(exec(HARDCODED_URL_RE, src)).toHaveLength(0);
+	});
+
+	it("HARDCODED_URL_RE rejects mismatched opening and closing delimiters", () => {
+		// Backreference ensures "...' or '...\" cannot match.
+		const src = `a = "https://coder.com/docs/foo'; b = 'https://coder.com/docs/bar";`;
 		expect(exec(HARDCODED_URL_RE, src)).toHaveLength(0);
 	});
 
@@ -638,6 +658,56 @@ describe("runCli", () => {
 			expect(fs.existsSync(outPath)).toBe(true);
 			const report = fs.readFileSync(outPath, "utf-8");
 			expect(report).toContain("| 0 | 0 | 0 |");
+		} finally {
+			fs.rmSync(tmpDir, { recursive: true, force: true });
+		}
+	});
+
+	it("wires the full pipeline end-to-end and reports a real finding", () => {
+		// Exercises walk -> readFile -> extractReferences ->
+		// findMatchingRedirect -> buildReport -> writeFile against a seeded
+		// .ts file. The path layout mimics coder/coder/site so repoForFile
+		// classifies the finding into the expected report section.
+		const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "audit-docs-cli-"));
+		try {
+			const redirectsPath = writeTmpRedirects(tmpDir);
+			const siteRoot = path.join(tmpDir, "coder", "site", "src");
+			const nested = path.join(siteRoot, "pages");
+			fs.mkdirSync(nested, { recursive: true });
+			const sourceFile = path.join(nested, "Example.tsx");
+			fs.writeFileSync(
+				sourceFile,
+				'import { docs } from "./docs";\nconst href = docs("/admin/rbac");\n',
+			);
+			const outPath = path.join(tmpDir, "out.md");
+
+			const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+			try {
+				runCli([
+					`--redirects=${redirectsPath}`,
+					`--roots=${siteRoot}`,
+					`--out=${outPath}`,
+				]);
+			} finally {
+				errSpy.mockRestore();
+			}
+
+			expect(fs.existsSync(outPath)).toBe(true);
+			const report = fs.readFileSync(outPath, "utf-8");
+
+			// Summary row reflects exactly one auto-fixable finding.
+			expect(report).toContain("| 1 | 1 | 0 |");
+			// Repo section header for coder/coder/site.
+			expect(report).toContain("## coder/coder/site");
+			expect(report).toContain("1 finding.");
+			// Table row includes the relative file path, the raw arg, the
+			// matched redirect, and the suggested fix.
+			expect(report).toContain("site/src/pages/Example.tsx:2");
+			expect(report).toContain("`/admin/rbac`");
+			expect(report).toContain(
+				"`/docs/admin/rbac` -> `/docs/admin/templates/template-permissions`",
+			);
+			expect(report).toContain("`/admin/templates/template-permissions`");
 		} finally {
 			fs.rmSync(tmpDir, { recursive: true, force: true });
 		}
