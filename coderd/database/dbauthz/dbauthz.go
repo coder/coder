@@ -6085,7 +6085,7 @@ func (q *querier) InsertWorkspaceBuildOrchestration(ctx context.Context, arg dat
 		err = q.authorizeContext(ctx, policy.ActionUpdate, template)
 		var notAuthorized NotAuthorizedError
 		if xerrors.As(err, &notAuthorized) {
-			arg.ChildTemplateVersionID = uuid.NullUUID{}
+			return database.WorkspaceBuildOrchestration{}, err
 		} else if err != nil {
 			return database.WorkspaceBuildOrchestration{}, xerrors.Errorf("cannot pin template version for child build: %w", err)
 		}

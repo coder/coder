@@ -3825,22 +3825,18 @@ func (s *MethodTestSuite) TestWorkspace() {
 				Valid: true,
 			},
 		}
-		insertArg := arg
-		insertArg.ChildTemplateVersionID = uuid.NullUUID{}
-		orchestration := testutil.Fake(s.T(), faker, database.WorkspaceBuildOrchestration{})
 		dbm.EXPECT().GetWorkspaceBuildByID(gomock.Any(), parentBuild.ID).Return(parentBuild, nil).AnyTimes()
 		dbm.EXPECT().GetWorkspaceByID(gomock.Any(), w.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().GetTemplateByID(gomock.Any(), t.ID).Return(t, nil).AnyTimes()
-		// Ensure non-template admins have the requested durable
-		// template version pin stripped before insert.
-		dbm.EXPECT().InsertWorkspaceBuildOrchestration(gomock.Any(), insertArg).Return(orchestration, nil).AnyTimes()
+		// Ensure non-template admins cannot queue a durable template
+		// version pin for the child build.
 		check.Args(arg).
 			Asserts(
 				w, policy.ActionWorkspaceStop,
 				w, policy.ActionWorkspaceStart,
 				t, policy.ActionUpdate,
 			).
-			Returns(orchestration).
+			Errors(errMatchAny).
 			WithSuccessAuthorizer(func(_ context.Context, _ rbac.Subject, action policy.Action, obj rbac.Object) error {
 				if action == policy.ActionUpdate && obj.Type == rbac.ResourceTemplate.Type {
 					return xerrors.New("not authorized to update template")
