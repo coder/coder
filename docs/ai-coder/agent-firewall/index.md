@@ -30,9 +30,8 @@ monitoring of HTTP requests.
 
 ## Getting Started with Agent Firewall
 
-The easiest way to use Agent Firewall is through existing Coder modules, such
-as the
-[Claude Code module](https://registry.coder.com/modules/coder/claude-code). It
+The easiest way to use Agent Firewall is through the
+[agent-firewall module](https://registry.coder.com/modules/coder/agent-firewall). It
 can also be ran directly in the terminal by installing the
 [CLI](https://github.com/coder/boundary).
 
@@ -44,30 +43,37 @@ can also be ran directly in the terminal by installing the
 Agent Firewall is configured using a `config.yaml` file. This allows you to
 maintain allow lists and share detailed policies with teammates.
 
-In your Terraform module, enable Agent Firewall with minimal configuration:
+In your Terraform module, install Agent Firewall with minimal configuration:
 
 ```tf
-module "claude-code" {
-  source              = "registry.coder.com/coder/claude-code/coder"
-  version             = "5.2.0"
-  enable_boundary     = true
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
 }
 ```
 
-Create a `config.yaml` file in your template directory with your policy. For the
-Claude Code module, use the following minimal configuration:
+To use a custom policy, pass it inline via `agent_firewall_config`, below is an example of minimal configuration for Claude Code module:
 
-```yaml
-allowlist:
-  - "domain=coder.example.com" # Required - use your Coder deployment domain
-  - "domain=api.anthropic.com" # Required - API endpoint for Claude
-  - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
-  - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
-  - "domain=*.sentry.io" # Recommended - Error tracking (helps Anthropic fix bugs)
-jail_type: nsjail
-log_dir: /tmp/boundary_logs
-proxy_port: 8087
-log_level: warn
+```tf
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
+
+  agent_firewall_config = <<-YAML
+    allowlist:
+      - "domain=coder.example.com" # Required - use your Coder deployment domain
+      - "domain=api.anthropic.com" # Required - API endpoint for Claude
+      - "domain=statsig.anthropic.com" # Required - Feature flags and analytics
+      - "domain=claude.ai" # Recommended - WebFetch/WebSearch features
+      - "domain=*.sentry.io" # Recommended - Error tracking (helps Anthropic fix bugs)
+    jail_type: nsjail
+    log_dir: /tmp/boundary_logs
+    proxy_port: 8087
+    log_level: warn
+  YAML
+}
 ```
 
 For a basic recommendation of what to allow for agents, see the
@@ -76,29 +82,22 @@ For a comprehensive example of a production Agent Firewall configuration, see
 the
 [Coder dogfood policy example](https://github.com/coder/coder/blob/main/dogfood/coder/boundary-config.yaml).
 
-Add a `coder_script` resource to mount the configuration file into the workspace
-filesystem:
+To load the policy from a `config.yaml` file in your template directory instead,
+pass it via `agent_firewall_config`. The module writes the config to the workspace
+and exposes the resolved path via `agent_firewall_config_path`, so everyone who
+launches Agent Firewall manually inside the workspace picks up the same
+configuration without extra flags. This is especially convenient for managing
+extensive allow lists in version control.
 
 ```tf
-resource "coder_script" "boundary_config_setup" {
-  agent_id     = coder_agent.dev.id
-  display_name = "Boundary Setup Configuration"
-  run_on_start = true
+module "agent-firewall" {
+  source   = "registry.coder.com/coder/agent-firewall/coder"
+  version  = "0.0.1"
+  agent_id = coder_agent.main.id
 
-  script = <<-EOF
-    #!/bin/sh
-    mkdir -p ~/.config/coder_boundary
-    echo '${base64encode(file("${path.module}/config.yaml"))}' | base64 -d > ~/.config/coder_boundary/config.yaml
-    chmod 600 ~/.config/coder_boundary/config.yaml
-  EOF
+  agent_firewall_config = file("${path.module}/config.yaml")
 }
 ```
-
-Agent Firewall automatically reads `config.yaml` from
-`~/.config/coder_boundary/` when it starts, so everyone who launches Agent
-Firewall manually inside the workspace picks up the same configuration without
-extra flags. This is especially convenient for managing extensive allow lists in
-version control.
 
 ### Configuration Parameters
 
@@ -133,14 +132,17 @@ version control.
 For detailed information about the rules engine and how to construct allowlist
 rules, see the [rules engine documentation](./rules-engine.md).
 
-You can also run Agent Firewall directly in your workspace and configure it
-per template. You can do so by installing the
+You can also run Agent Firewall directly in your workspace by installing the
 [binary](https://github.com/coder/boundary) into the workspace image or at
-start-up. You can do so with the following command:
+start-up:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/coder/boundary/main/install.sh | bash
 ```
+
+When running the binary directly, Agent Firewall reads `config.yaml` from
+`~/.config/coder_boundary/` automatically, so the same configuration is used
+whether the agent starts it or a user runs it manually.
 
 ## Jail Types
 
