@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -17,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/enterprise/aibridgeproxyd"
 	"github.com/coder/coder/v2/enterprise/coderd"
 )
@@ -45,7 +45,7 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	logger := coderAPI.Logger.Named("aibridgeproxyd")
 
-	reg := prometheus.WrapRegistererWithPrefix("coder_aibridgeproxyd_", coderAPI.PrometheusRegistry)
+	reg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_proxy_", "coder_aibridgeproxyd_")
 	metrics := aibridgeproxyd.NewMetrics(reg)
 
 	var newDumper func(provider, requestID string) aibridgeproxyd.RoundTripDumper

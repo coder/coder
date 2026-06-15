@@ -175,11 +175,11 @@ Provider configuration changes take effect automatically, without
 restarting `coderd`. AI Gateway records the timestamp of each reload
 attempt and each successful reload, exposed as Prometheus metrics:
 
-- `coder_aibridged_providers_last_reload_timestamp_seconds`
-- `coder_aibridged_providers_last_reload_success_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_success_timestamp_seconds`
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
-the same pair under the `coder_aibridgeproxyd_` prefix.
+the same pair under the `coder_ai_gateway_proxy_` prefix.
 
 A growing gap between the attempt and success timestamps means reloads
 are firing but failing to apply. Alert on that gap rather than on a

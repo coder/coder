@@ -23,36 +23,62 @@ provider pool and its reload loop. See
 [Provider Configuration](./providers.md) for the lifecycle these
 metrics describe.
 
-| Metric                                                                 | Type    | Labels                                     | Purpose                                                                                                                                    |
-|------------------------------------------------------------------------|---------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
-| `coder_aibridged_provider_info`                                        | gauge   | `provider_name`, `provider_type`, `status` | One series per configured provider. Value is always `1`; the `status` label (`enabled`, `disabled`, `error`) carries the alertable signal. |
-| `coder_aibridged_providers_last_reload_timestamp_seconds`              | gauge   |                                            | Unix timestamp of the last reload attempt, success or failure.                                                                             |
-| `coder_aibridged_providers_last_reload_success_timestamp_seconds`      | gauge   |                                            | Unix timestamp of the last reload that successfully refreshed the pool.                                                                    |
-| `coder_aibridgeproxyd_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Same shape as `aibridged_provider_info` but reported by the external proxy.                                                                |
-| `coder_aibridgeproxyd_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Last reload attempt timestamp in `aibridgeproxyd`.                                                                                         |
-| `coder_aibridgeproxyd_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Last successful reload timestamp in `aibridgeproxyd`.                                                                                      |
-| `coder_aibridgeproxyd_connect_sessions_total`                          | counter | `type` (`mitm`, `tunneled`)                | CONNECT sessions established by the proxy.                                                                                                 |
-| `coder_aibridgeproxyd_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled.                                                                                                                     |
-| `coder_aibridgeproxyd_inflight_mitm_requests`                          | gauge   | `provider`                                 | In-flight MITM requests.                                                                                                                   |
-| `coder_aibridgeproxyd_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                                        |
+| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                                    |
+|--------------------------------------------------------------------------|---------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_provider_info`                                         | gauge   | `provider_name`, `provider_type`, `status` | One series per configured provider. Value is always `1`; the `status` label (`enabled`, `disabled`, `error`) carries the alertable signal. |
+| `coder_ai_gateway_providers_last_reload_timestamp_seconds`               | gauge   |                                            | Unix timestamp of the last reload attempt, success or failure.                                                                             |
+| `coder_ai_gateway_providers_last_reload_success_timestamp_seconds`       | gauge   |                                            | Unix timestamp of the last reload that successfully refreshed the pool.                                                                    |
+| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Same shape as `coder_ai_gateway_provider_info` but reported by the external proxy.                                                         |
+| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Last reload attempt timestamp in the external proxy.                                                                                       |
+| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Last successful reload timestamp in the external proxy.                                                                                    |
+| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type` (`mitm`, `tunneled`)                | CONNECT sessions established by the proxy.                                                                                                 |
+| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled.                                                                                                                     |
+| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | In-flight MITM requests.                                                                                                                   |
+| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                                        |
+
+> [!IMPORTANT]
+> The AI Gateway metric prefixes were renamed: `coder_aibridged_*` became
+> `coder_ai_gateway_*` and `coder_aibridgeproxyd_*` became
+> `coder_ai_gateway_proxy_*`. This rename covers every AI Gateway metric,
+> including the interception, token, prompt, tool, and circuit-breaker counters
+> listed in the [Prometheus reference](../../admin/integrations/prometheus.md).
+> The legacy `coder_aibridged_*` and `coder_aibridgeproxyd_*` names are still
+> emitted with identical values during a deprecation window and will be removed
+> in a future release. Migrate dashboards and alerts to the new names now. Do
+> not relabel new names back to old names while legacy names are still emitted,
+> because that creates duplicate legacy series in the same scrape. After legacy
+> names are removed, use `metric_relabel_configs` only if you need a temporary
+> compatibility bridge for dashboards that still use the old names:
+>
+> ```yaml
+> metric_relabel_configs:
+>   - source_labels: [__name__]
+>     regex: 'coder_ai_gateway_proxy_(.*)'
+>     target_label: __name__
+>     replacement: 'coder_aibridgeproxyd_${1}'
+>   - source_labels: [__name__]
+>     regex: 'coder_ai_gateway_(.*)'
+>     target_label: __name__
+>     replacement: 'coder_aibridged_${1}'
+> ```
 
 ### Suggested alerts
 
 Alert on any provider entering a non-`enabled` status:
 
 ```promql
-sum by (provider_name, status) (coder_aibridged_provider_info{status!="enabled"}) > 0
+sum by (provider_name, status) (coder_ai_gateway_provider_info{status!="enabled"}) > 0
 ```
 
 Alert when the reload loop is firing but failing to refresh the pool
 for longer than a few minutes:
 
 ```promql
-(coder_aibridged_providers_last_reload_timestamp_seconds
-  - coder_aibridged_providers_last_reload_success_timestamp_seconds) > 300
+(coder_ai_gateway_providers_last_reload_timestamp_seconds
+  - coder_ai_gateway_providers_last_reload_success_timestamp_seconds) > 300
 ```
 
-Repeat the same query against `coder_aibridgeproxyd_*` if you run the
+Repeat the same query against `coder_ai_gateway_proxy_*` if you run the
 external proxy.
 
 ## Structured Logging
