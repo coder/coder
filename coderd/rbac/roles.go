@@ -332,7 +332,8 @@ func loadBuiltinRoles() builtInRoleMap {
 	if m := builtInRoles.Load(); m != nil {
 		return *m
 	}
-	return nil
+	// Return an empty map to prevent nil pointer dereference
+	return map[string]func(orgID uuid.UUID) Role{}
 }
 
 type RoleOptions struct {
