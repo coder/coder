@@ -1797,6 +1797,131 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 	}
 }
 
+func TestDeleteOldBoundarySessions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	// oldTime is 91 days ago (past threshold).
+	oldTime := now.Add(-retentionPeriod).Add(-24 * time.Hour)
+	// recentTime is 15 days ago (within threshold).
+	recentTime := now.Add(-15 * 24 * time.Hour)
+
+	testCases := []struct {
+		name             string
+		retentionConfig  codersdk.RetentionConfig
+		sessionUpdatedAt time.Time
+		// logTime is the captured_at for the single log inserted with the session.
+		// Set to nil to create a session with no logs.
+		logTime              *time.Time
+		expectSessionDeleted bool
+	}{
+		{
+			name: "SessionDeletedWhenAllLogsExpired",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime, // log is old; will be purged first, leaving session empty
+			expectSessionDeleted: true,
+		},
+		{
+			name: "SessionKeptWhenRecentLogExists",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &recentTime, // recent log survives log purge, so session kept
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenUpdatedAtRecent",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     recentTime, // session itself is recent. NOT eligible for session purge
+			logTime:              nil,        // no logs; but updated_at guard keeps it
+			expectSessionDeleted: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Create the prerequisite rows needed to satisfy boundary_sessions FKs.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedAt:        tc.sessionUpdatedAt,
+			})
+
+			if tc.logTime != nil {
+				dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+					SessionID:      session.ID,
+					SequenceNumber: 0,
+					CapturedAt:     *tc.logTime,
+					CreatedAt:      *tc.logTime,
+				}})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify session presence/absence.
+			_, err := db.GetBoundarySessionByID(ctx, session.ID)
+			if tc.expectSessionDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, "session should have been deleted")
+			} else {
+				require.NoError(t, err, "session should still exist")
+			}
+		})
+	}
+}
+
 func TestDeleteExpiredAPIKeys(t *testing.T) {
 	t.Parallel()
 

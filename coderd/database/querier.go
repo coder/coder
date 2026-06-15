@@ -175,6 +175,9 @@ type sqlcQuerier interface {
 	// Deletes boundary logs older than the given time, bounded by a row limit
 	// to avoid long-running transactions.
 	DeleteOldBoundaryLogs(ctx context.Context, arg DeleteOldBoundaryLogsParams) (int64, error)
+	// Deletes boundary sessions that have aged past retention and no longer
+	// have any associated logs.
+	DeleteOldBoundarySessions(ctx context.Context, arg DeleteOldBoundarySessionsParams) (int64, error)
 	// updated_at is the retention clock, so the window starts after the run
 	// stops being written to.
 	// Intentionally no finished_at IS NOT NULL guard: abandoned in-flight rows
