@@ -1612,6 +1612,10 @@
 							"path": "./reference/api/tasks.md"
 						},
 						{
+							"title": "TemplateBuilder",
+							"path": "./reference/api/templatebuilder.md"
+						},
+						{
 							"title": "Templates",
 							"path": "./reference/api/templates.md"
 						},

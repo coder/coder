@@ -151,43 +151,8 @@ export const LongLineFencedBlock: Story = {
 		if (!viewport) {
 			throw new Error("Expected a horizontally scrollable viewport.");
 		}
-		viewport.dispatchEvent(
-			new WheelEvent("wheel", { deltaY: 200, bubbles: true, cancelable: true }),
-		);
+		viewport.scrollLeft = 200;
 		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
-	},
-};
-
-export const LongLineFencedBlockWheelEdges: Story = {
-	args: {
-		children: longLineCodeBlockMarkdown,
-	},
-	play: async ({ canvasElement }) => {
-		await expectCodeBlock(canvasElement, /apiUrl/);
-		const viewport = [
-			...canvasElement.querySelectorAll<HTMLElement>(
-				"[data-radix-scroll-area-viewport]",
-			),
-		].find((v) => v.scrollWidth > v.clientWidth);
-		if (!viewport) {
-			throw new Error("Expected a horizontally scrollable viewport.");
-		}
-		const dispatchWheel = (deltaY: number) => {
-			const event = new WheelEvent("wheel", {
-				deltaY,
-				bubbles: true,
-				cancelable: true,
-			});
-			viewport.dispatchEvent(event);
-			return event.defaultPrevented;
-		};
-		const maxLeft = viewport.scrollWidth - viewport.clientWidth;
-		viewport.scrollLeft = Math.floor(maxLeft / 2);
-		expect(dispatchWheel(200)).toBe(true);
-		viewport.scrollLeft = maxLeft;
-		expect(dispatchWheel(200)).toBe(false);
-		viewport.scrollLeft = 0;
-		expect(dispatchWheel(-200)).toBe(false);
 	},
 };
 

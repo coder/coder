@@ -62,12 +62,23 @@ describe("WorkspaceParametersPageExperimental", () => {
 	});
 
 	it("does not clobber touched parameters", async () => {
-		const [, mockPublisher] = mockDynamicParameterWebSocket([
-			{
-				...MockPreviewParameter,
-				name: MockWorkspaceBuildParameter1.name,
-			},
-		]);
+		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: -1,
+						parameters: [
+							{
+								...MockPreviewParameter,
+								name: MockWorkspaceBuildParameter1.name,
+							},
+						],
+						diagnostics: [],
+					}),
+				}),
+			);
+		});
 
 		renderWorkspaceParametersPageExperimental();
 		await waitForLoaderToBeRemoved();
@@ -85,6 +96,7 @@ describe("WorkspaceParametersPageExperimental", () => {
 							},
 							MockValidationParameter,
 						],
+						diagnostics: [],
 					}),
 				}),
 			);
