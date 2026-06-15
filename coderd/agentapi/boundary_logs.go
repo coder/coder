@@ -19,6 +19,12 @@ import (
 
 const maxBoundaryLogsPerBatch = 1000
 
+// ErrBatchSizeExceeded matches any BatchSizeExceededError via errors.Is.
+var ErrBatchSizeExceeded = xerrors.New("boundary logs batch size exceeded")
+
+// BatchSizeExceededError is returned when a ReportBoundaryLogs request
+// exceeds maxBoundaryLogsPerBatch. Match it with errors.As for the sizes,
+// or errors.Is(err, ErrBatchSizeExceeded) for the category.
 type BatchSizeExceededError struct {
 	BatchSize int
 	MaxSize   int
@@ -26,6 +32,10 @@ type BatchSizeExceededError struct {
 
 func (e BatchSizeExceededError) Error() string {
 	return fmt.Sprintf("batch size %d exceeds maximum of %d", e.BatchSize, e.MaxSize)
+}
+
+func (BatchSizeExceededError) Is(target error) bool {
+	return target == ErrBatchSizeExceeded
 }
 
 type BoundaryLogsAPI struct {
