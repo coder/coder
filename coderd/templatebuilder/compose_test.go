@@ -49,7 +49,7 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, modules, `module "code-server"`)
 		require.Contains(t, modules, `coder_agent.main.id`)
 		require.Contains(t, modules, `registry.coder.com`)
-		require.Contains(t, modules, `port = 9999`)
+		require.Regexp(t, `port\s+=\s+9999`, modules)
 	})
 
 	t.Run("AWSLinuxAgentName", func(t *testing.T) {

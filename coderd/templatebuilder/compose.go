@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/hcl/v2/hclwrite"
 	"golang.org/x/xerrors"
 )
 
@@ -54,7 +55,7 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	if len(req.Modules) == 0 {
-		return &ComposeResult{MainTF: mainTF}, nil
+		return &ComposeResult{MainTF: formatHCL(mainTF)}, nil
 	}
 
 	agentName, err := ExtractAgentResourceName(mainTF)
@@ -78,9 +79,18 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	return &ComposeResult{
-		MainTF:    mainTF,
-		ModulesTF: modulesTF,
+		MainTF:    formatHCL(mainTF),
+		ModulesTF: formatHCL(modulesTF),
 	}, nil
+}
+
+// formatHCL applies canonical HCL formatting to src. If src is not valid
+// HCL the input is returned unchanged.
+func formatHCL(src []byte) []byte {
+	if len(src) == 0 {
+		return src
+	}
+	return hclwrite.Format(src)
 }
 
 // renderBase renders the base template for the given example ID.
