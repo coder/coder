@@ -3874,6 +3874,14 @@ func (m queryMetricsStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context)
 	return r0, r1
 }
 
+func (m queryMetricsStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+	start := time.Now()
+	r0 := m.s.HydrateAgentChatsContext(ctx, arg)
+	m.queryLatencies.WithLabelValues("HydrateAgentChatsContext").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "HydrateAgentChatsContext").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.IncrementChatGenerationAttempt(ctx, id)
@@ -4762,6 +4770,14 @@ func (m queryMetricsStore) MarkAllInboxNotificationsAsRead(ctx context.Context, 
 	return r0
 }
 
+func (m queryMetricsStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.MarkChatsContextDirtyByAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("MarkChatsContextDirtyByAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "MarkChatsContextDirtyByAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, arg)
@@ -4872,6 +4888,14 @@ func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, n
 	m.queryLatencies.WithLabelValues("SelectUsageEventsForPublishing").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SelectUsageEventsForPublishing").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
+	start := time.Now()
+	r0 := m.s.SetChatContextSnapshot(ctx, arg)
+	m.queryLatencies.WithLabelValues("SetChatContextSnapshot").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SetChatContextSnapshot").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {

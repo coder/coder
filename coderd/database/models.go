@@ -4797,6 +4797,10 @@ type Chat struct {
 	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
 	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
 	OwnerName                string                `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash     []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince        sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources    pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError             string                `db:"context_error" json:"context_error"`
 }
 
 type ChatDebugRun struct {
@@ -4983,6 +4987,14 @@ type ChatTable struct {
 	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
 	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
 	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	// Aggregate hash of the agent context snapshot this chat is pinned to. NULL until first hydrated; compared against the agent's latest snapshot hash to detect drift.
+	ContextAggregateHash []byte `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	// Set when an agent push changes the pinned hash; cleared on refresh. NULL means clean.
+	ContextDirtySince sql.NullTime `db:"context_dirty_since" json:"context_dirty_since"`
+	// Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.
+	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
+	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
+	ContextError string `db:"context_error" json:"context_error"`
 }
 
 type ChatUsageLimitConfig struct {

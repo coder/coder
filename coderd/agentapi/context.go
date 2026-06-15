@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -62,6 +63,25 @@ type ContextAPI struct {
 	Log       slog.Logger
 	Clock     quartz.Clock
 	Database  database.Store
+	// DirtyMarker hydrates chats from, and marks chats dirty against, the
+	// snapshot persisted by a push. It is nil when chatd is not running,
+	// in which case PushContextState stays a pure write path.
+	DirtyMarker ContextDirtyMarker
+}
+
+// ContextDirtyMarker hydrates chats from, and marks chats dirty against, a
+// freshly persisted agent context snapshot. It is implemented by chatd and
+// injected at coderd construction so this package neither imports the chat
+// domain nor performs chat-authorized writes directly.
+type ContextDirtyMarker interface {
+	// HydrateAndMarkChatsDirty runs inside the PushContextState
+	// transaction using the supplied store. It hydrates chats for the
+	// agent that have no pinned hash yet (no dirty event) and flips
+	// already-pinned chats whose hash differs from aggregateHash. It
+	// returns a callback that publishes the resulting dirty watch events;
+	// the caller invokes it only after the transaction commits. The
+	// callback is nil when nothing transitioned to dirty.
+	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -120,10 +140,15 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	sort.Strings(activeSources)
 
 	var accepted bool
+	// publishDirty is captured from the final (committed) attempt and
+	// invoked after the transaction commits; ReadModifyUpdate may re-run
+	// the closure on serialization conflicts.
+	var publishDirty func()
 	err = database.ReadModifyUpdate(a.Database, func(tx database.Store) error {
 		// The closure re-runs on serialization conflicts; reset any
 		// state carried over from a rolled-back attempt.
 		accepted = false
+		publishDirty = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
 		switch {
@@ -171,6 +196,16 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			return xerrors.Errorf("delete stale resources: %w", err)
 		}
 
+		// Hydrate and dirty chats against the snapshot just written, in the
+		// same transaction so a concurrent refresh cannot interleave with
+		// the version gate. Events are published only after commit.
+		if a.DirtyMarker != nil {
+			publishDirty, err = a.DirtyMarker.HydrateAndMarkChatsDirty(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
+			if err != nil {
+				return xerrors.Errorf("hydrate and mark chats dirty: %w", err)
+			}
+		}
+
 		accepted = true
 		return nil
 	})
@@ -185,6 +220,12 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			slog.F("initial", req.Initial),
 		)
 		return &agentproto.PushContextStateResponse{Accepted: false}, nil
+	}
+
+	// The snapshot committed; fan out dirty watch events to chats whose
+	// pinned context drifted from this push.
+	if publishDirty != nil {
+		publishDirty()
 	}
 
 	a.Log.Debug(ctx, "PushContextState accepted",
