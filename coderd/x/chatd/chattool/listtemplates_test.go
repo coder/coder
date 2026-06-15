@@ -323,7 +323,7 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 	withReadme := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
-		Readme:         "\n\t" + longReadme + "\n",
+		Readme:         longReadme + "\n",
 	})
 	tWith := dbgen.Template(t, db, database.Template{
 		OrganizationID:  org.ID,
@@ -483,6 +483,6 @@ func TestListTemplates_ReadmeExcerpt_NonOwnerRBAC(t *testing.T) {
 	require.Len(t, items, 1)
 	m := items[0].(map[string]any)
 	require.Equal(t, tmpl.ID.String(), m["id"])
-	require.Equal(t, strings.TrimSpace(readme), m["readme_excerpt"],
+	require.Equal(t, "Title Member-visible routing context.", m["readme_excerpt"],
 		"a non-owner member must still receive readme_excerpt")
 }

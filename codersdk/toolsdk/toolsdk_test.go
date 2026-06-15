@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -718,75 +717,6 @@ func TestTools(t *testing.T) {
 			b, err := json.Marshal(result)
 			require.NoError(t, err)
 			require.NotContains(t, string(b), `"presets"`)
-		})
-
-		t.Run("Readme", func(t *testing.T) {
-			buildWithReadme := func(t *testing.T, readme string) dbfake.TemplateVersionResponse {
-				t.Helper()
-				return dbfake.TemplateVersion(t, store).Seed(database.TemplateVersion{
-					OrganizationID: owner.OrganizationID,
-					CreatedBy:      member.ID,
-					Readme:         readme,
-				}).Do()
-			}
-
-			t.Run("Surfaced", func(t *testing.T) {
-				readme := "---\ndescription: Go template.\n---\n# Title\n\nUse Docker.\n"
-				resp := buildWithReadme(t, readme)
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
-					TemplateID: resp.Template.ID.String(),
-				})
-				require.NoError(t, err)
-				require.Equal(t, readme, result.Readme)
-			})
-
-			t.Run("EmptyOmitsField", func(t *testing.T) {
-				resp := buildWithReadme(t, " \n\t\n")
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
-					TemplateID: resp.Template.ID.String(),
-				})
-				require.NoError(t, err)
-				require.Empty(t, result.Readme)
-				require.Equal(t, resp.Template.Description, result.Description)
-
-				b, err := json.Marshal(result)
-				require.NoError(t, err)
-				require.NotContains(t, string(b), `"readme"`)
-			})
-
-			t.Run("NotTruncatedUnderCap", func(t *testing.T) {
-				readme := "# Title\n\n" + strings.Repeat("x", 3000)
-				resp := buildWithReadme(t, readme)
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
-					TemplateID: resp.Template.ID.String(),
-				})
-				require.NoError(t, err)
-				require.Equal(t, readme, result.Readme)
-			})
-
-			t.Run("TruncatedOverCap", func(t *testing.T) {
-				readme := strings.Repeat("x", 9000)
-				resp := buildWithReadme(t, readme)
-
-				tb, err := toolsdk.NewDeps(memberClient)
-				require.NoError(t, err)
-				result, err := testTool(t, toolsdk.GetTemplate, tb, toolsdk.GetTemplateArgs{
-					TemplateID: resp.Template.ID.String(),
-				})
-				require.NoError(t, err)
-				gotRunes := []rune(result.Readme)
-				require.Len(t, gotRunes, toolsdk.GetTemplateReadmeMaxRunes)
-				require.Equal(t, '…', gotRunes[len(gotRunes)-1])
-			})
 		})
 
 		t.Run("InvalidID", func(t *testing.T) {

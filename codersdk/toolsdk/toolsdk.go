@@ -18,7 +18,6 @@ import (
 	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliui"
-	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -684,11 +683,6 @@ type GetTemplateArgs struct {
 	TemplateID string `json:"template_id"`
 }
 
-// GetTemplateReadmeMaxRunes bounds the full README returned by
-// coder_get_template so one large README cannot dominate a single tool
-// response.
-const GetTemplateReadmeMaxRunes = 8192
-
 // TemplateDetail extends MinimalTemplate with the active version's
 // rich parameters and presets. Presets are omitted when the template
 // has none, to mirror the chattool read_template response shape.
@@ -696,8 +690,6 @@ type TemplateDetail struct {
 	MinimalTemplate
 	Parameters []codersdk.TemplateVersionParameter `json:"parameters"`
 	Presets    []presetView                        `json:"presets,omitempty"`
-	// Readme is the active version README.
-	Readme string `json:"readme,omitempty"`
 }
 
 // presetView is a tool-local projection of codersdk.Preset with
@@ -740,7 +732,7 @@ func toPresetView(p codersdk.Preset) presetView {
 var GetTemplate = Tool[GetTemplateArgs, TemplateDetail]{
 	Tool: aisdk.Tool{
 		Name: ToolNameGetTemplate,
-		Description: `Get details about a workspace template, including its configurable parameters, available presets, and README for the active version.
+		Description: `Get details about a workspace template, including its configurable parameters and available presets for the active version.
 
 Use this after finding a template with coder_list_templates and before creating a workspace with coder_create_workspace. Presets, when present, can be passed to coder_create_workspace as template_version_preset_id.
 
@@ -789,18 +781,6 @@ When selecting a preset: if a preset is marked default and the user has not spec
 				ActiveUserCount: template.ActiveUserCount,
 			},
 			Parameters: parameters,
-		}
-		// Best-effort: a missing or unreadable version must not fail
-		// coder_get_template, which still returns the template, parameters, and
-		// presets. Unlike the list_templates excerpt, frontmatter is
-		// intentionally retained: this is the detail view, so fidelity beats
-		// brevity.
-		if version, err := deps.coderClient.TemplateVersion(ctx, template.ActiveVersionID); err == nil {
-			if strings.TrimSpace(version.Readme) != "" {
-				detail.Readme = coderstrings.Truncate(
-					version.Readme, GetTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
-				)
-			}
 		}
 		for _, p := range presets {
 			detail.Presets = append(detail.Presets, toPresetView(p))

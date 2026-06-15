@@ -95,14 +95,13 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				templateInfo["description"] = desc
 			}
 			// Best-effort: a missing or unreadable version must not fail
-			// read_template. The full README is bounded so a large document
-			// cannot dominate the response. Unlike the list_templates excerpt,
-			// frontmatter is intentionally retained: this is the detail view, so
-			// fidelity beats brevity.
+			// read_template. The README is reduced to plain-text prose (frontmatter,
+			// images, HTML, code blocks and tables dropped) and bounded so a large
+			// document cannot dominate the response.
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
-				if strings.TrimSpace(version.Readme) != "" {
+				if prose := readmeProse(version.Readme); prose != "" {
 					templateInfo["readme"] = coderstrings.Truncate(
-						version.Readme, ReadTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
+						prose, ReadTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
 					)
 				}
 			}

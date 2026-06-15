@@ -3,18 +3,81 @@ package chattool
 import (
 	"strings"
 
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/ast"
+	"github.com/yuin/goldmark/extension"
+	extast "github.com/yuin/goldmark/extension/ast"
+	"github.com/yuin/goldmark/text"
+
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
+// readmeParser parses README markdown for prose extraction. The Table extension
+// is enabled so tables parse as table nodes we can drop, rather than as
+// paragraphs of pipe-delimited text. It is read-only after construction and
+// safe for concurrent use.
+var readmeParser = goldmark.New(goldmark.WithExtensions(extension.Table)).Parser()
+
 // readmeExcerpt produces the bounded routing context for list_templates.
-// Frontmatter is stripped so prose, not metadata, fills the budget, and the
+// The README is reduced to plain-text prose (see readmeProse) and truncated; the
 // ellipsis lets the agent distinguish a clipped excerpt from a complete one.
 func readmeExcerpt(readme string) string {
-	body := strings.TrimSpace(stripReadmeFrontmatter(readme))
-	if body == "" {
+	prose := readmeProse(readme)
+	if prose == "" {
 		return ""
 	}
-	return coderstrings.Truncate(body, ListTemplatesReadmeExcerptMaxRunes, coderstrings.TruncateWithEllipsis)
+	return coderstrings.Truncate(prose, ListTemplatesReadmeExcerptMaxRunes, coderstrings.TruncateWithEllipsis)
+}
+
+// readmeProse strips frontmatter and reduces README markdown to a single
+// space-joined plain-text string. See extractReadmeProse for what is dropped.
+func readmeProse(readme string) string {
+	return extractReadmeProse(stripReadmeFrontmatter(readme))
+}
+
+// extractReadmeProse parses README markdown and returns its prose as a single
+// space-joined plain-text string. Blocks that waste the budget without aiding
+// template selection are dropped entirely: images, HTML blocks and inline HTML,
+// code blocks, tables, and thematic breaks. Inline links keep their visible text
+// but drop the URL (URLs live on the link node, not in its text). Returns "" if
+// no prose remains.
+func extractReadmeProse(body string) string {
+	src := []byte(body)
+	doc := readmeParser.Parse(text.NewReader(src))
+
+	var b strings.Builder
+	// Walk errors only ever originate from the walker; ours never returns one.
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch n.Kind() {
+		case ast.KindImage, ast.KindRawHTML, ast.KindHTMLBlock,
+			ast.KindCodeBlock, ast.KindFencedCodeBlock, ast.KindThematicBreak,
+			extast.KindTable:
+			// Drop the node and its subtree (e.g. image alt text, table cells).
+			return ast.WalkSkipChildren, nil
+		case ast.KindHeading, ast.KindParagraph, ast.KindTextBlock:
+			// Separate consecutive text blocks (heading/paragraph/list item) with
+			// a space. Spacing *within* a block comes from the source segments.
+			if b.Len() > 0 {
+				_ = b.WriteByte(' ')
+			}
+		case ast.KindText:
+			if t, ok := n.(*ast.Text); ok {
+				_, _ = b.Write(t.Segment.Value(src))
+				// A soft/hard line break inside a block is whitespace in the
+				// source that the segment does not include; re-add it.
+				if t.SoftLineBreak() || t.HardLineBreak() {
+					_ = b.WriteByte(' ')
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+
+	// Collapse all whitespace (including block boundaries) to single spaces.
+	return strings.Join(strings.Fields(b.String()), " ")
 }
 
 // stripReadmeFrontmatter removes a single leading "---" fenced YAML

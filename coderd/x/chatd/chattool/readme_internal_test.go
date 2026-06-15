@@ -80,6 +80,93 @@ func TestStripReadmeFrontmatter(t *testing.T) {
 	}
 }
 
+func TestExtractReadmeProse(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "LinkTextKeptUrlDropped",
+			input: "Use [Coder workspaces](https://coder.com/docs) now.",
+			want:  "Use Coder workspaces now.",
+		},
+		{
+			name:  "ImageDropped",
+			input: "# T\n\n![Architecture](./a.svg)\n\nBody.",
+			want:  "T Body.",
+		},
+		{
+			name:  "HtmlCommentDropped",
+			input: "Body.\n\n<!-- TODO: screenshot -->\n\nMore.",
+			want:  "Body. More.",
+		},
+		{
+			name:  "RawHtmlBlockDropped",
+			input: "<div align=\"center\">\n<img src=\"x.png\">\n</div>\n\nReal prose.",
+			want:  "Real prose.",
+		},
+		{
+			name:  "CodeBlockDropped",
+			input: "Intro.\n\n```sh\nrm -rf /\n```\n\nOutro.",
+			want:  "Intro. Outro.",
+		},
+		{
+			name:  "TableDropped",
+			input: "Before.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nAfter.",
+			want:  "Before. After.",
+		},
+		{
+			name:  "HeadingAndParagraphOrder",
+			input: "# Title\n\nLead.\n\n## Prereq\n\nDetail.",
+			want:  "Title Lead. Prereq Detail.",
+		},
+		{
+			name:  "EmphasisAndCodeSpanFlattened",
+			input: "Run `make` for **speed**.",
+			want:  "Run make for speed.",
+		},
+		{
+			name:  "ListItemsJoined",
+			input: "- one\n- two\n- three\n",
+			want:  "one two three",
+		},
+		{
+			name:  "EmptyReturnsEmpty",
+			input: "",
+			want:  "",
+		},
+		{
+			name:  "ImageOnlyReturnsEmpty",
+			input: "![x](y.png)\n",
+			want:  "",
+		},
+		{
+			name:  "HtmlOnlyReturnsEmpty",
+			input: "<!-- just a comment -->\n",
+			want:  "",
+		},
+		{
+			// Mirrors a real template README opening (docker): H1 + lead prose with
+			// an inline doc link, a TODO comment, and a section heading.
+			name: "RealDockerOpening",
+			input: "# Remote Development on Docker Containers\n\n" +
+				"Provision Docker containers as [Coder workspaces](https://coder.com/docs/user-guides/workspace-management) with this example template.\n\n" +
+				"<!-- TODO: Add screenshot -->\n\n## Prerequisites\n",
+			want: "Remote Development on Docker Containers Provision Docker containers as Coder workspaces with this example template. Prerequisites",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, extractReadmeProse(tc.input))
+		})
+	}
+}
+
 func TestReadmeExcerpt(t *testing.T) {
 	t.Parallel()
 
