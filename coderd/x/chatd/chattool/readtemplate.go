@@ -10,7 +10,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
 // ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
@@ -95,14 +94,10 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 				templateInfo["description"] = desc
 			}
 			// Best-effort: a missing or unreadable version must not fail
-			// read_template. The README is reduced to plain-text prose (frontmatter,
-			// images, HTML, code blocks and tables dropped) and bounded so a large
-			// document cannot dominate the response.
+			// read_template.
 			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
-				if prose := extractReadmeProse(readmeParser, stripReadmeFrontmatter(version.Readme)); prose != "" {
-					templateInfo["readme"] = coderstrings.Truncate(
-						prose, ReadTemplateReadmeMaxRunes, coderstrings.TruncateWithEllipsis,
-					)
+				if r := readmeText(version.Readme, ReadTemplateReadmeMaxRunes); r != "" {
+					templateInfo["readme"] = r
 				}
 			}
 

@@ -255,12 +255,12 @@ func TestReadTemplate_Readme(t *testing.T) {
 		require.Equal(t, "Title "+strings.Repeat("x", 3000), tmplInfo["readme"])
 	})
 
-	// Non-prose blocks (code, images) are dropped from the returned readme.
-	t.Run("DropsNonProse", func(t *testing.T) {
+	// Images are dropped but code blocks are preserved as text (detail view).
+	t.Run("DropsImagesKeepsCode", func(t *testing.T) {
 		t.Parallel()
-		readme := "# Setup\n\n![diagram](./a.svg)\n\nRun the installer.\n\n```sh\nrm -rf /\n```\n\nDone.\n"
+		readme := "# Setup\n\n![diagram](./a.svg)\n\nRun the installer.\n\n```sh\nmake build\n```\n\nDone.\n"
 		tmplInfo := readTemplateInfoForReadme(t, readme)
-		require.Equal(t, "Setup Run the installer. Done.", tmplInfo["readme"])
+		require.Equal(t, "Setup Run the installer. make build Done.", tmplInfo["readme"])
 	})
 
 	// READMEs larger than the cap are truncated with a trailing ellipsis so a

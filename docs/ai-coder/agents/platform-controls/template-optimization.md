@@ -93,12 +93,13 @@ room to fully describe a template for the agent, put the most important routing
 context at the top of the template's `README.md` body, immediately after any
 frontmatter block.
 
-The chat agent's template listing includes a bounded README excerpt, roughly the
-first 1,000 characters, and template detail includes the README (up to roughly
-8,000 characters). Frontmatter is stripped from the listing excerpt, so the
-opening prose is what reaches the agent. Use the opening section to explain when
-to choose this template, what it is *not* for, and the specific stack or services
-it provides.
+The chat agent's template listing includes a bounded README excerpt (roughly the
+first 1,000 characters), and template detail includes the README (up to roughly
+8,000 characters). Both are reduced to plain text: frontmatter is stripped, and
+markdown formatting, images, and link URLs are collapsed to their visible text,
+while code blocks and tables are preserved as text. Use the opening section to
+explain when to choose this template, what it is *not* for, and the specific
+stack or services it provides.
 
 ```md
 ---

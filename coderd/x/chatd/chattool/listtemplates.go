@@ -140,7 +140,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				// ResourceSystem and would drop excerpts for non-owners, so accept
 				// an N+1 bounded by the page size.
 				if version, vErr := db.GetTemplateVersionByID(ctx, t.ActiveVersionID); vErr == nil {
-					if excerpt := readmeExcerpt(version.Readme); excerpt != "" {
+					if excerpt := readmeText(version.Readme, ListTemplatesReadmeExcerptMaxRunes); excerpt != "" {
 						item["readme_excerpt"] = excerpt
 					}
 				}

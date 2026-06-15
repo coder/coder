@@ -87,3 +87,46 @@ func TestHTML(t *testing.T) {
 		})
 	}
 }
+
+func TestInnerTextFromMarkdown(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"LinkTextKeptUrlDropped", "Use [Coder](https://coder.com/docs) now.", "Use Coder now."},
+		{"ImageDropped", "# T\n\n![alt](a.svg)\n\nBody.", "T Body."},
+		{"BadgeDropped", "[![discord](shield.png)](https://discord.gg/x)\n\nReal.", "Real."},
+		{"CodeBlockKept", "Intro.\n\n```sh\nsudo usermod -aG docker coder\n```\n\nOutro.", "Intro. sudo usermod -aG docker coder Outro."},
+		{"TableCellsKept", "Before.\n\n| env | required |\n|---|---|\n| FOO | yes |\n\nAfter.", "Before. env required FOO yes After."},
+		{"HtmlInnerTextKept", "<p>Important: needs GPU.</p>", "Important: needs GPU."},
+		{
+			// Markdown nested inside a block-level HTML wrapper must still be
+			// parsed (CommonMark terminates the HTML block at the blank line):
+			// nav links collapse to text, badges drop. Regresses the gomarkdown
+			// behavior that leaked raw badge markdown with URLs.
+			"MarkdownInsideHtmlBlock",
+			"<div align=\"center\">\n  <img src=\"logo.png\" alt=\"Logo\">\n</div>\n\n" +
+				"[Docs](https://x.com/docs) | [Why](https://x.com/why)\n\n" +
+				"[![badge](https://img.shields.io/x.svg)](https://x.com)\n\nReal prose.",
+			"Docs | Why Real prose.",
+		},
+		{"ScriptDropped", "Before.\n\n<script>alert('x')</script>\n\nAfter.", "Before. After."},
+		{"StyleDropped", "Before.\n\n<style>.x{color:red}</style>\n\nAfter.", "Before. After."},
+		{"EmphasisAndCodeSpanFlattened", "Run `make` for **speed**.", "Run make for speed."},
+		{"HeadingParagraphOrder", "# Title\n\nLead.\n\n## Prereq\n\nDetail.", "Title Lead. Prereq Detail."},
+		{"SmartPunctuationPreserved", `Use "quotes" and dashes -- like this.`, `Use "quotes" and dashes -- like this.`},
+		{"EmptyReturnsEmpty", "", ""},
+		{"WhitespaceReturnsEmpty", "   \n\t\n", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got, err := render.InnerTextFromMarkdown(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
+		})
+	}
+}

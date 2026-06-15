@@ -138,9 +138,11 @@ Update your template descriptions to include:
 When 128 characters is not enough, put the most important routing context near
 the top of the template's
 [`README.md`](./platform-controls/template-optimization.md#put-routing-context-near-the-top-of-the-readme).
-The chat agent's template listing includes a bounded README excerpt, roughly the
-first 1,000 characters with frontmatter stripped, and template detail includes
-the README (up to roughly 8,000 characters).
+The chat agent's template listing includes a bounded README excerpt (roughly the
+first 1,000 characters), and template detail includes the README (up to roughly
+8,000 characters). Both are reduced to plain text: frontmatter is stripped, and
+markdown, images, and link URLs become their visible text, while code blocks and
+tables are preserved.
 
 **Good examples:**
 
