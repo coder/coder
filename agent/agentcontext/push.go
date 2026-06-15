@@ -24,7 +24,6 @@ type PushRequest struct {
 	AggregateHash [32]byte
 	Resources     []Resource
 	Initial       bool
-	SchemaVersion uint64
 	SnapshotError string
 }
 
@@ -196,7 +195,6 @@ func snapshotToPushRequest(s Snapshot, initial bool) *PushRequest {
 		AggregateHash: s.AggregateHash,
 		Resources:     s.Resources,
 		Initial:       initial,
-		SchemaVersion: s.SchemaVersion,
 		SnapshotError: s.SnapshotError,
 	}
 }

@@ -159,7 +159,6 @@ func TestAPI_Resync(t *testing.T) {
 
 	var snap agentcontext.SnapshotResponse
 	require.NoError(t, json.Unmarshal(body, &snap))
-	require.Equal(t, uint64(1), snap.SchemaVersion)
 	require.NotEmpty(t, snap.AggregateHash)
 	require.Len(t, snap.Resources, 1)
 	require.Equal(t, "instruction_file", snap.Resources[0].Kind)
