@@ -797,9 +797,6 @@ Experimental: this endpoint is subject to change.
     "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
     "archived": true,
     "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
-    "children": [
-      {}
-    ],
     "client_type": "ui",
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
@@ -823,103 +820,12 @@ Experimental: this endpoint is subject to change.
       "stale_at": "2019-08-24T14:15:22Z",
       "url": "string"
     },
-    "files": [
-      {
-        "created_at": "2019-08-24T14:15:22Z",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "mime_type": "string",
-        "name": "string",
-        "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-        "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
-      }
-    ],
     "has_unread": true,
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "labels": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "last_error": {
-      "detail": "string",
-      "kind": "generic",
-      "message": "string",
-      "provider": "string",
-      "retryable": true,
-      "status_code": 0
-    },
-    "last_injected_context": [
-      {
-        "args": [
-          0
-        ],
-        "args_delta": "string",
-        "completed_at": "2019-08-24T14:15:22Z",
-        "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "context_file_content": "string",
-        "context_file_directory": "string",
-        "context_file_os": "string",
-        "context_file_path": "string",
-        "context_file_skill_meta_file": "string",
-        "context_file_truncated": true,
-        "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
-        "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "file_name": "string",
-        "is_error": true,
-        "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "media_type": "string",
-        "name": "string",
-        "parsed_commands": [
-          [
-            "string"
-          ]
-        ],
-        "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
-        "result_delta": "string",
-        "result_reset": true,
-        "signature": "string",
-        "skill_description": "string",
-        "skill_dir": "string",
-        "skill_name": "string",
-        "source_id": "string",
-        "start_line": 0,
-        "text": "string",
-        "title": "string",
-        "tool_call_id": "string",
-        "tool_name": "string",
-        "type": "text",
-        "url": "string"
-      }
-    ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
     "last_turn_summary": "string",
-    "mcp_server_ids": [
-      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
-    ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
-    "owner_name": "string",
-    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
@@ -928,9 +834,6 @@ Experimental: this endpoint is subject to change.
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
-    "warnings": [
-      "string"
-    ],
     "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
   },
   "kind": "status_change",

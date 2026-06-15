@@ -15675,6 +15675,86 @@
 				}
 			}
 		},
+		"codersdk.ChatSummary": {
+			"type": "object",
+			"properties": {
+				"agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"archived": {
+					"type": "boolean"
+				},
+				"build_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"client_type": {
+					"$ref": "#/definitions/codersdk.ChatClientType"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"diff_status": {
+					"$ref": "#/definitions/codersdk.ChatDiffStatus"
+				},
+				"has_unread": {
+					"type": "boolean"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"last_model_config_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"last_turn_summary": {
+					"type": "string"
+				},
+				"organization_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"parent_chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"pin_order": {
+					"type": "integer"
+				},
+				"plan_mode": {
+					"$ref": "#/definitions/codersdk.ChatPlanMode"
+				},
+				"root_chat_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"shared": {
+					"description": "Shared is true when this chat's root chat has explicit user or group ACL entries.",
+					"type": "boolean"
+				},
+				"status": {
+					"$ref": "#/definitions/codersdk.ChatStatus"
+				},
+				"title": {
+					"type": "string"
+				},
+				"updated_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
 		"codersdk.ChatUser": {
 			"type": "object",
 			"required": ["id", "username"],
@@ -15707,7 +15787,7 @@
 			"type": "object",
 			"properties": {
 				"chat": {
-					"$ref": "#/definitions/codersdk.Chat"
+					"$ref": "#/definitions/codersdk.ChatSummary"
 				},
 				"kind": {
 					"$ref": "#/definitions/codersdk.ChatWatchEventKind"
