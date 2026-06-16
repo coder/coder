@@ -169,6 +169,9 @@ export function mockDynamicParameterWebSocket(
 	const [mockWebSocket, mockPublisher] = createMockWebSocket("ws://test");
 	vi.spyOn(API, "templateVersionDynamicParameters").mockImplementation(
 		(_versionId, _ownerId, callbacks) => {
+			mockWebSocket.addEventListener("open", () => {
+				callbacks.onOpen?.();
+			});
 			mockWebSocket.addEventListener("message", (event) => {
 				callbacks.onMessage(JSON.parse(event.data));
 			});
