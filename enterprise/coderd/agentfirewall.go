@@ -8,15 +8,15 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// @Summary Get boundary session by ID
-// @ID get-boundary-session-by-id
+// @Summary Get agent firewall session by ID
+// @ID get-agent-firewall-session-by-id
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Boundary
-// @Param id path string true "Boundary session ID" format(uuid)
-// @Success 200 {object} codersdk.BoundarySession
-// @Router /api/v2/boundary/sessions/{id} [get]
-func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
+// @Tags Enterprise
+// @Param id path string true "Agent firewall session ID" format(uuid)
+// @Success 200 {object} codersdk.AgentFirewallSession
+// @Router /api/v2/agent-firewall/sessions/{id} [get]
+func (api *API) agentFirewallSessionByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id, ok := httpmw.ParseUUIDParam(rw, r, "id")
@@ -34,7 +34,7 @@ func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.BoundarySession{
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AgentFirewallSession{
 		ID:              session.ID,
 		WorkspaceID:     session.WorkspaceID,
 		OwnerID:         session.WorkspaceOwnerID,

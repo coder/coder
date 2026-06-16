@@ -15,22 +15,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestBoundarySessionByID(t *testing.T) {
+func TestAgentFirewallSessionByID(t *testing.T) {
 	t.Parallel()
 
-	// seedBoundarySession creates the workspace -> build -> resource ->
-	// agent chain via dbfake, then inserts a boundary session linked to
-	// that agent. It returns the session.
-	//
-	// The raw (unwrapped) database store is used for seeding because:
-	//  1. dbgen.ProvisionerJob reads the job back through dbauthz, which
-	//     calls authorizeProvisionerJob and looks up the workspace build
-	//     before it exists.
-	//  2. The owner role only has read permission on boundary_log, so
-	//     InsertBoundarySession fails through dbauthz.
+	// seedBoundarySession inserts a boundary session linked to a workspace agent.
+	// Uses the raw DB store to avoid dbauthz permission and ordering constraints during setup.
 	seedBoundarySession := func(t *testing.T, rawDB database.Store, ownerID, orgID uuid.UUID) database.BoundarySession {
 		t.Helper()
 
@@ -53,18 +47,23 @@ func TestBoundarySessionByID(t *testing.T) {
 		t.Parallel()
 
 		db, pubsub := dbtestutil.NewDB(t)
-		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
+		ownerClient, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBoundary: 1,
+				},
+			},
 		})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
-		// Owner should be able to read the session.
 		//nolint:gocritic // Testing owner role.
-		got, err := ownerClient.BoundarySessionByID(ctx, session.ID)
+		got, err := ownerClient.AgentFirewallSessionByID(ctx, session.ID)
 		require.NoError(t, err)
 		require.Equal(t, session.ID, got.ID)
 		require.Equal(t, owner.UserID, got.OwnerID)
@@ -76,20 +75,24 @@ func TestBoundarySessionByID(t *testing.T) {
 		t.Parallel()
 
 		db, pubsub := dbtestutil.NewDB(t)
-		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
+		ownerClient, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBoundary: 1,
+				},
+			},
 		})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
-		// Create an auditor user; auditors have read access to
-		// boundary_log resources.
 		auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleAuditor())
 
-		got, err := auditorClient.BoundarySessionByID(ctx, session.ID)
+		got, err := auditorClient.AgentFirewallSessionByID(ctx, session.ID)
 		require.NoError(t, err)
 		require.Equal(t, session.ID, got.ID)
 		require.Equal(t, "claude-code", got.ConfinedProcess)
@@ -99,20 +102,24 @@ func TestBoundarySessionByID(t *testing.T) {
 		t.Parallel()
 
 		db, pubsub := dbtestutil.NewDB(t)
-		ownerClient, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
+		ownerClient, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: db,
+				Pubsub:   pubsub,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBoundary: 1,
+				},
+			},
 		})
-		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
-		// Create a plain member; members have no read access to
-		// boundary_log resources.
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
-		_, err := memberClient.BoundarySessionByID(ctx, session.ID)
+		_, err := memberClient.AgentFirewallSessionByID(ctx, session.ID)
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
@@ -121,34 +128,43 @@ func TestBoundarySessionByID(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 
-		ownerClient := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, ownerClient)
+		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureBoundary: 1,
+				},
+			},
+		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		//nolint:gocritic // Testing owner role.
-		_, err := ownerClient.BoundarySessionByID(ctx, uuid.New())
+		_, err := ownerClient.AgentFirewallSessionByID(ctx, uuid.New())
 		var sdkErr *codersdk.Error
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 }
 
-// TestBoundarySessionByID_DBAuth verifies that the dbauthz layer
+// TestAgentFirewallSessionByID_DBAuth verifies that the dbauthz layer
 // correctly gates access to GetBoundarySessionByID using
 // ResourceBoundaryLog with ActionRead.
-func TestBoundarySessionByID_DBAuth(t *testing.T) {
+func TestAgentFirewallSessionByID_DBAuth(t *testing.T) {
 	t.Parallel()
 
 	db, pubsub := dbtestutil.NewDB(t)
-	ownerClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Database: db,
-		Pubsub:   pubsub,
+	_, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureBoundary: 1,
+			},
+		},
 	})
-	owner := coderdtest.CreateFirstUser(t, ownerClient)
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// Seed data through the raw database to avoid dbauthz ordering and
-	// permission issues during setup.
 	resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        owner.UserID,
 		OrganizationID: owner.OrganizationID,
@@ -163,7 +179,7 @@ func TestBoundarySessionByID_DBAuth(t *testing.T) {
 	})
 
 	// AsSystemRestricted should succeed (read permission).
-	got, err := api.Database.GetBoundarySessionByID(dbauthz.AsSystemRestricted(ctx), session.ID)
+	got, err := db.GetBoundarySessionByID(dbauthz.AsSystemRestricted(ctx), session.ID)
 	require.NoError(t, err)
 	require.Equal(t, session.ID, got.ID)
 }

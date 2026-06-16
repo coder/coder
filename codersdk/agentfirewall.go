@@ -10,7 +10,8 @@ import (
 	"github.com/google/uuid"
 )
 
-type BoundarySession struct {
+// AgentFirewallSession represents a firewall session for a workspace agent.
+type AgentFirewallSession struct {
 	ID              uuid.UUID `json:"id" format:"uuid"`
 	WorkspaceID     uuid.UUID `json:"workspace_id" format:"uuid"`
 	OwnerID         uuid.UUID `json:"owner_id" format:"uuid"`
@@ -18,16 +19,16 @@ type BoundarySession struct {
 	StartedAt       time.Time `json:"started_at" format:"date-time"`
 }
 
-// BoundarySessionByID returns a boundary session by its ID.
-func (c *Client) BoundarySessionByID(ctx context.Context, id uuid.UUID) (BoundarySession, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/boundary/sessions/%s", id), nil)
+// AgentFirewallSessionByID returns an agent firewall session by its ID.
+func (c *Client) AgentFirewallSessionByID(ctx context.Context, id uuid.UUID) (AgentFirewallSession, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/agent-firewall/sessions/%s", id), nil)
 	if err != nil {
-		return BoundarySession{}, err
+		return AgentFirewallSession{}, err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return BoundarySession{}, ReadBodyAsError(res)
+		return AgentFirewallSession{}, ReadBodyAsError(res)
 	}
-	var session BoundarySession
+	var session AgentFirewallSession
 	return session, json.NewDecoder(res.Body).Decode(&session)
 }
