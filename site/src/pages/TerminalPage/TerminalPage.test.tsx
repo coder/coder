@@ -249,6 +249,29 @@ describe("TerminalPage", () => {
 		expect(closeSpy).toHaveBeenCalled();
 	});
 
+	it("copies to clipboard via OSC 52", async () => {
+		const writeTextMock = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			value: { writeText: writeTextMock, readText: vi.fn() },
+			writable: true,
+			configurable: true,
+		});
+
+		const ws = createWorkspaceTerminalWebSocket();
+		await renderTerminal();
+		// Wait for initial resize so the connection is fully established.
+		await ws.nextMessage;
+
+		// Send the OSC 52 sequence from the issue:
+		// printf "\033]52;c;$(echo -n 'Coder is Cool' | base64)\a"
+		const base64 = btoa("Coder is Cool");
+		ws.send(`\x1b]52;c;${base64}\x07`);
+
+		await waitFor(() => {
+			expect(writeTextMock).toHaveBeenCalledWith("Coder is Cool");
+		});
+	});
+
 	it("skips confirmation dialog for trusted app commands", async () => {
 		// Override the workspace response so the agent has an app with
 		// a command that matches the ?app= slug.
