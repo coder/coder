@@ -23,7 +23,6 @@ import { isWorkspaceAppEmbeddable } from "#/modules/apps/apps";
 import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
 import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { getPrereleaseFlag } from "#/utils/buildInfo";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { findWorkspaceAgent } from "#/utils/workspace";
@@ -378,10 +377,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
 	const wildcardHostname = proxy.preferredWildcardHostname;
-	const { buildInfo } = useDashboard();
-	// Workspace app and port preview tabs are experimental and limited to
-	// devel builds for now. Terminal tabs are generally available.
-	const userAppTabsEnabled = getPrereleaseFlag(buildInfo) === "devel";
+	const { experiments } = useDashboard();
 
 	const canOpenChatSharing = canShareChat && organizationId !== undefined;
 
@@ -487,6 +483,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	// "desktop" when no desktop panel is rendered.
 	const availableDesktopChatId =
 		workspace && workspaceAgent ? desktopChatId : undefined;
+
+	// Workspace app and port preview tabs are gated behind the agent-app-tabs
+	// experiment. Terminal tabs are generally available. Derived after all hook
+	// calls so the React Compiler keeps the tab list and the tab-open handlers
+	// below in a single memoization scope.
+	const userAppTabsEnabled = experiments.includes("agent-app-tabs");
 
 	// When app and port tabs are gated off, persisted tabs of those kinds
 	// are hidden rather than deleted; the save effect persists the raw tab
