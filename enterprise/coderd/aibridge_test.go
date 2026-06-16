@@ -2208,7 +2208,7 @@ func TestGroupAIBudget(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeGroupAiBudget),
+				ResourceType: string(database.ResourceTypeGroupAIBudget),
 				LimitOpt:     10,
 			},
 		)
@@ -2220,7 +2220,7 @@ func TestGroupAIBudget(t *testing.T) {
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, group.ID, upsertLog.ResourceID)
-		require.Equal(t, database.ResourceTypeGroupAiBudget, upsertLog.ResourceType)
+		require.Equal(t, database.ResourceTypeGroupAIBudget, upsertLog.ResourceType)
 		require.Equal(t, group.Name, upsertLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
 
@@ -2238,7 +2238,7 @@ func TestGroupAIBudget(t *testing.T) {
 
 		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
 		require.Equal(t, group.ID, deleteLog.ResourceID)
-		require.Equal(t, database.ResourceTypeGroupAiBudget, deleteLog.ResourceType)
+		require.Equal(t, database.ResourceTypeGroupAIBudget, deleteLog.ResourceType)
 		require.Equal(t, group.Name, deleteLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
 
@@ -2495,7 +2495,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
 				LimitOpt:     10,
 			},
 		)
@@ -2507,7 +2507,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, targetUser.ID, upsertLog.ResourceID)
-		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, upsertLog.ResourceType)
+		require.Equal(t, database.ResourceTypeUserAIBudgetOverride, upsertLog.ResourceType)
 		require.Equal(t, targetUser.Username, upsertLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
 
@@ -2531,7 +2531,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 
 		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
 		require.Equal(t, targetUser.ID, deleteLog.ResourceID)
-		require.Equal(t, database.ResourceTypeUserAiBudgetOverride, deleteLog.ResourceType)
+		require.Equal(t, database.ResourceTypeUserAIBudgetOverride, deleteLog.ResourceType)
 		require.Equal(t, targetUser.Username, deleteLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
 
@@ -2564,7 +2564,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
 				LimitOpt:     10,
 			},
 		)
@@ -2616,7 +2616,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
 				LimitOpt:     10,
 			},
 		)
@@ -2673,7 +2673,7 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeUserAiBudgetOverride),
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
 				LimitOpt:     10,
 			},
 		)
@@ -2706,6 +2706,7 @@ func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -2803,6 +2804,7 @@ func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -2892,6 +2894,7 @@ func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, 
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{DeploymentValues: dv},
 		LicenseOptions: &coderdenttest.LicenseOptions{
@@ -2930,6 +2933,7 @@ func setupUserAIBudgetOverrideAuditTest(t *testing.T) (database.Store, *codersdk
 	)
 	dv := coderdtest.DeploymentValues(t)
 	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		AuditLogging: true,
 		Options: &coderdtest.Options{

@@ -37,7 +37,7 @@ func TestBackfillBedrockProviderTypeEncryptedSettings(t *testing.T) {
 	})
 	require.NoError(t, err)
 	provider := dbgen.AIProvider(t, cryptDB, database.AIProvider{
-		Type:     database.AiProviderTypeAnthropic,
+		Type:     database.AIProviderTypeAnthropic,
 		Settings: sql.NullString{String: string(rawSettings), Valid: true},
 	})
 
@@ -46,6 +46,6 @@ func TestBackfillBedrockProviderTypeEncryptedSettings(t *testing.T) {
 	// Verify via raw DB: type is not encrypted so it is directly readable.
 	row, err := rawDB.GetAIProviderByName(ctx, provider.Name)
 	require.NoError(t, err)
-	require.Equal(t, database.AiProviderTypeBedrock, row.Type, "encrypted legacy row must be promoted")
+	require.Equal(t, database.AIProviderTypeBedrock, row.Type, "encrypted legacy row must be promoted")
 	require.True(t, row.SettingsKeyID.Valid, "settings must remain encrypted after backfill")
 }

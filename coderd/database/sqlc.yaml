@@ -27,6 +27,11 @@ sql:
         emit_db_tags: true
         emit_enum_valid_method: true
         emit_all_enum_values: true
+        initialisms:
+          # Keep the sqlc default initialism and add AI so generated
+          # identifiers follow Go naming conventions.
+          - id
+          - ai
         overrides:
           - column: "api_keys.scopes"
             go_type:

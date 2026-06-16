@@ -463,7 +463,7 @@ func Test_diff(t *testing.T) {
 			name: "PropertyChange",
 			left: database.AIProvider{
 				ID:          uuid.UUID{1},
-				Type:        database.AiProviderTypeOpenai,
+				Type:        database.AIProviderTypeOpenai,
 				Name:        "primary-openai",
 				DisplayName: sql.NullString{String: "Primary", Valid: true},
 				Enabled:     true,
@@ -471,7 +471,7 @@ func Test_diff(t *testing.T) {
 			},
 			right: database.AIProvider{
 				ID:          uuid.UUID{1},
-				Type:        database.AiProviderTypeOpenai,
+				Type:        database.AIProviderTypeOpenai,
 				Name:        "primary-openai",
 				DisplayName: sql.NullString{String: "Renamed", Valid: true},
 				Enabled:     false,

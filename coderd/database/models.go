@@ -19,15 +19,15 @@ import (
 type AIProviderType string
 
 const (
-	AiProviderTypeOpenai       AIProviderType = "openai"
-	AiProviderTypeAnthropic    AIProviderType = "anthropic"
-	AiProviderTypeAzure        AIProviderType = "azure"
-	AiProviderTypeBedrock      AIProviderType = "bedrock"
-	AiProviderTypeGoogle       AIProviderType = "google"
-	AiProviderTypeOpenaiCompat AIProviderType = "openai-compat"
-	AiProviderTypeOpenrouter   AIProviderType = "openrouter"
-	AiProviderTypeVercel       AIProviderType = "vercel"
-	AiProviderTypeCopilot      AIProviderType = "copilot"
+	AIProviderTypeOpenai       AIProviderType = "openai"
+	AIProviderTypeAnthropic    AIProviderType = "anthropic"
+	AIProviderTypeAzure        AIProviderType = "azure"
+	AIProviderTypeBedrock      AIProviderType = "bedrock"
+	AIProviderTypeGoogle       AIProviderType = "google"
+	AIProviderTypeOpenaiCompat AIProviderType = "openai-compat"
+	AIProviderTypeOpenrouter   AIProviderType = "openrouter"
+	AIProviderTypeVercel       AIProviderType = "vercel"
+	AIProviderTypeCopilot      AIProviderType = "copilot"
 )
 
 func (e *AIProviderType) Scan(src interface{}) error {
@@ -67,15 +67,15 @@ func (ns NullAIProviderType) Value() (driver.Value, error) {
 
 func (e AIProviderType) Valid() bool {
 	switch e {
-	case AiProviderTypeOpenai,
-		AiProviderTypeAnthropic,
-		AiProviderTypeAzure,
-		AiProviderTypeBedrock,
-		AiProviderTypeGoogle,
-		AiProviderTypeOpenaiCompat,
-		AiProviderTypeOpenrouter,
-		AiProviderTypeVercel,
-		AiProviderTypeCopilot:
+	case AIProviderTypeOpenai,
+		AIProviderTypeAnthropic,
+		AIProviderTypeAzure,
+		AIProviderTypeBedrock,
+		AIProviderTypeGoogle,
+		AIProviderTypeOpenaiCompat,
+		AIProviderTypeOpenrouter,
+		AIProviderTypeVercel,
+		AIProviderTypeCopilot:
 		return true
 	}
 	return false
@@ -83,15 +83,73 @@ func (e AIProviderType) Valid() bool {
 
 func AllAIProviderTypeValues() []AIProviderType {
 	return []AIProviderType{
-		AiProviderTypeOpenai,
-		AiProviderTypeAnthropic,
-		AiProviderTypeAzure,
-		AiProviderTypeBedrock,
-		AiProviderTypeGoogle,
-		AiProviderTypeOpenaiCompat,
-		AiProviderTypeOpenrouter,
-		AiProviderTypeVercel,
-		AiProviderTypeCopilot,
+		AIProviderTypeOpenai,
+		AIProviderTypeAnthropic,
+		AIProviderTypeAzure,
+		AIProviderTypeBedrock,
+		AIProviderTypeGoogle,
+		AIProviderTypeOpenaiCompat,
+		AIProviderTypeOpenrouter,
+		AIProviderTypeVercel,
+		AIProviderTypeCopilot,
+	}
+}
+
+type AISeatUsageReason string
+
+const (
+	AISeatUsageReasonAibridge AISeatUsageReason = "aibridge"
+	AISeatUsageReasonTask     AISeatUsageReason = "task"
+)
+
+func (e *AISeatUsageReason) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AISeatUsageReason(s)
+	case string:
+		*e = AISeatUsageReason(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AISeatUsageReason: %T", src)
+	}
+	return nil
+}
+
+type NullAISeatUsageReason struct {
+	AISeatUsageReason AISeatUsageReason `json:"ai_seat_usage_reason"`
+	Valid             bool              `json:"valid"` // Valid is true if AISeatUsageReason is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAISeatUsageReason) Scan(value interface{}) error {
+	if value == nil {
+		ns.AISeatUsageReason, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AISeatUsageReason.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAISeatUsageReason) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AISeatUsageReason), nil
+}
+
+func (e AISeatUsageReason) Valid() bool {
+	switch e {
+	case AISeatUsageReasonAibridge,
+		AISeatUsageReasonTask:
+		return true
+	}
+	return false
+}
+
+func AllAISeatUsageReasonValues() []AISeatUsageReason {
+	return []AISeatUsageReason{
+		AISeatUsageReasonAibridge,
+		AISeatUsageReasonTask,
 	}
 }
 
@@ -303,17 +361,17 @@ const (
 	ApiKeyScopeChatUpdate                          APIKeyScope = "chat:update"
 	ApiKeyScopeChatDelete                          APIKeyScope = "chat:delete"
 	ApiKeyScopeChat                                APIKeyScope = "chat:*"
-	ApiKeyScopeAiSeat                              APIKeyScope = "ai_seat:*"
-	ApiKeyScopeAiSeatCreate                        APIKeyScope = "ai_seat:create"
-	ApiKeyScopeAiSeatRead                          APIKeyScope = "ai_seat:read"
-	ApiKeyScopeAiModelPrice                        APIKeyScope = "ai_model_price:*"
-	ApiKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
-	ApiKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
-	ApiKeyScopeAiProvider                          APIKeyScope = "ai_provider:*"
-	ApiKeyScopeAiProviderCreate                    APIKeyScope = "ai_provider:create"
-	ApiKeyScopeAiProviderDelete                    APIKeyScope = "ai_provider:delete"
-	ApiKeyScopeAiProviderRead                      APIKeyScope = "ai_provider:read"
-	ApiKeyScopeAiProviderUpdate                    APIKeyScope = "ai_provider:update"
+	ApiKeyScopeAISeat                              APIKeyScope = "ai_seat:*"
+	ApiKeyScopeAISeatCreate                        APIKeyScope = "ai_seat:create"
+	ApiKeyScopeAISeatRead                          APIKeyScope = "ai_seat:read"
+	ApiKeyScopeAIModelPrice                        APIKeyScope = "ai_model_price:*"
+	ApiKeyScopeAIModelPriceRead                    APIKeyScope = "ai_model_price:read"
+	ApiKeyScopeAIModelPriceUpdate                  APIKeyScope = "ai_model_price:update"
+	ApiKeyScopeAIProvider                          APIKeyScope = "ai_provider:*"
+	ApiKeyScopeAIProviderCreate                    APIKeyScope = "ai_provider:create"
+	ApiKeyScopeAIProviderDelete                    APIKeyScope = "ai_provider:delete"
+	ApiKeyScopeAIProviderRead                      APIKeyScope = "ai_provider:read"
+	ApiKeyScopeAIProviderUpdate                    APIKeyScope = "ai_provider:update"
 	ApiKeyScopeChatShare                           APIKeyScope = "chat:share"
 	ApiKeyScopeUserSkillCreate                     APIKeyScope = "user_skill:create"
 	ApiKeyScopeUserSkillRead                       APIKeyScope = "user_skill:read"
@@ -324,10 +382,10 @@ const (
 	ApiKeyScopeBoundaryLogCreate                   APIKeyScope = "boundary_log:create"
 	ApiKeyScopeBoundaryLogDelete                   APIKeyScope = "boundary_log:delete"
 	ApiKeyScopeBoundaryLogRead                     APIKeyScope = "boundary_log:read"
-	ApiKeyScopeAiGatewayKey                        APIKeyScope = "ai_gateway_key:*"
-	ApiKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
-	ApiKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
-	ApiKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
+	ApiKeyScopeAIGatewayKey                        APIKeyScope = "ai_gateway_key:*"
+	ApiKeyScopeAIGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
+	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
+	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -572,17 +630,17 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
-		ApiKeyScopeAiSeat,
-		ApiKeyScopeAiSeatCreate,
-		ApiKeyScopeAiSeatRead,
-		ApiKeyScopeAiModelPrice,
-		ApiKeyScopeAiModelPriceRead,
-		ApiKeyScopeAiModelPriceUpdate,
-		ApiKeyScopeAiProvider,
-		ApiKeyScopeAiProviderCreate,
-		ApiKeyScopeAiProviderDelete,
-		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeAISeat,
+		ApiKeyScopeAISeatCreate,
+		ApiKeyScopeAISeatRead,
+		ApiKeyScopeAIModelPrice,
+		ApiKeyScopeAIModelPriceRead,
+		ApiKeyScopeAIModelPriceUpdate,
+		ApiKeyScopeAIProvider,
+		ApiKeyScopeAIProviderCreate,
+		ApiKeyScopeAIProviderDelete,
+		ApiKeyScopeAIProviderRead,
+		ApiKeyScopeAIProviderUpdate,
 		ApiKeyScopeChatShare,
 		ApiKeyScopeUserSkillCreate,
 		ApiKeyScopeUserSkillRead,
@@ -593,10 +651,10 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
-		ApiKeyScopeAiGatewayKey,
-		ApiKeyScopeAiGatewayKeyCreate,
-		ApiKeyScopeAiGatewayKeyDelete,
-		ApiKeyScopeAiGatewayKeyRead:
+		ApiKeyScopeAIGatewayKey,
+		ApiKeyScopeAIGatewayKeyCreate,
+		ApiKeyScopeAIGatewayKeyDelete,
+		ApiKeyScopeAIGatewayKeyRead:
 		return true
 	}
 	return false
@@ -809,17 +867,17 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeChatUpdate,
 		ApiKeyScopeChatDelete,
 		ApiKeyScopeChat,
-		ApiKeyScopeAiSeat,
-		ApiKeyScopeAiSeatCreate,
-		ApiKeyScopeAiSeatRead,
-		ApiKeyScopeAiModelPrice,
-		ApiKeyScopeAiModelPriceRead,
-		ApiKeyScopeAiModelPriceUpdate,
-		ApiKeyScopeAiProvider,
-		ApiKeyScopeAiProviderCreate,
-		ApiKeyScopeAiProviderDelete,
-		ApiKeyScopeAiProviderRead,
-		ApiKeyScopeAiProviderUpdate,
+		ApiKeyScopeAISeat,
+		ApiKeyScopeAISeatCreate,
+		ApiKeyScopeAISeatRead,
+		ApiKeyScopeAIModelPrice,
+		ApiKeyScopeAIModelPriceRead,
+		ApiKeyScopeAIModelPriceUpdate,
+		ApiKeyScopeAIProvider,
+		ApiKeyScopeAIProviderCreate,
+		ApiKeyScopeAIProviderDelete,
+		ApiKeyScopeAIProviderRead,
+		ApiKeyScopeAIProviderUpdate,
 		ApiKeyScopeChatShare,
 		ApiKeyScopeUserSkillCreate,
 		ApiKeyScopeUserSkillRead,
@@ -830,10 +888,10 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeBoundaryLogCreate,
 		ApiKeyScopeBoundaryLogDelete,
 		ApiKeyScopeBoundaryLogRead,
-		ApiKeyScopeAiGatewayKey,
-		ApiKeyScopeAiGatewayKeyCreate,
-		ApiKeyScopeAiGatewayKeyDelete,
-		ApiKeyScopeAiGatewayKeyRead,
+		ApiKeyScopeAIGatewayKey,
+		ApiKeyScopeAIGatewayKeyCreate,
+		ApiKeyScopeAIGatewayKeyDelete,
+		ApiKeyScopeAIGatewayKeyRead,
 	}
 }
 
@@ -892,64 +950,6 @@ func AllAgentKeyScopeEnumValues() []AgentKeyScopeEnum {
 	return []AgentKeyScopeEnum{
 		AgentKeyScopeEnumAll,
 		AgentKeyScopeEnumNoUserData,
-	}
-}
-
-type AiSeatUsageReason string
-
-const (
-	AiSeatUsageReasonAibridge AiSeatUsageReason = "aibridge"
-	AiSeatUsageReasonTask     AiSeatUsageReason = "task"
-)
-
-func (e *AiSeatUsageReason) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AiSeatUsageReason(s)
-	case string:
-		*e = AiSeatUsageReason(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AiSeatUsageReason: %T", src)
-	}
-	return nil
-}
-
-type NullAiSeatUsageReason struct {
-	AiSeatUsageReason AiSeatUsageReason `json:"ai_seat_usage_reason"`
-	Valid             bool              `json:"valid"` // Valid is true if AiSeatUsageReason is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAiSeatUsageReason) Scan(value interface{}) error {
-	if value == nil {
-		ns.AiSeatUsageReason, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AiSeatUsageReason.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAiSeatUsageReason) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AiSeatUsageReason), nil
-}
-
-func (e AiSeatUsageReason) Valid() bool {
-	switch e {
-	case AiSeatUsageReasonAibridge,
-		AiSeatUsageReasonTask:
-		return true
-	}
-	return false
-}
-
-func AllAiSeatUsageReasonValues() []AiSeatUsageReason {
-	return []AiSeatUsageReason{
-		AiSeatUsageReasonAibridge,
-		AiSeatUsageReasonTask,
 	}
 }
 
@@ -3361,15 +3361,15 @@ const (
 	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 	ResourceTypePrebuildsSettings           ResourceType = "prebuilds_settings"
 	ResourceTypeTask                        ResourceType = "task"
-	ResourceTypeAiSeat                      ResourceType = "ai_seat"
+	ResourceTypeAISeat                      ResourceType = "ai_seat"
 	ResourceTypeChat                        ResourceType = "chat"
 	ResourceTypeUserSecret                  ResourceType = "user_secret"
 	ResourceTypeAIProvider                  ResourceType = "ai_provider"
 	ResourceTypeAIProviderKey               ResourceType = "ai_provider_key"
-	ResourceTypeGroupAiBudget               ResourceType = "group_ai_budget"
+	ResourceTypeGroupAIBudget               ResourceType = "group_ai_budget"
 	ResourceTypeUserSkill                   ResourceType = "user_skill"
 	ResourceTypeAIGatewayKey                ResourceType = "ai_gateway_key"
-	ResourceTypeUserAiBudgetOverride        ResourceType = "user_ai_budget_override"
+	ResourceTypeUserAIBudgetOverride        ResourceType = "user_ai_budget_override"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -3435,15 +3435,15 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat,
+		ResourceTypeAISeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
-		ResourceTypeGroupAiBudget,
+		ResourceTypeGroupAIBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
-		ResourceTypeUserAiBudgetOverride:
+		ResourceTypeUserAIBudgetOverride:
 		return true
 	}
 	return false
@@ -3477,15 +3477,15 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeWorkspaceApp,
 		ResourceTypePrebuildsSettings,
 		ResourceTypeTask,
-		ResourceTypeAiSeat,
+		ResourceTypeAISeat,
 		ResourceTypeChat,
 		ResourceTypeUserSecret,
 		ResourceTypeAIProvider,
 		ResourceTypeAIProviderKey,
-		ResourceTypeGroupAiBudget,
+		ResourceTypeGroupAIBudget,
 		ResourceTypeUserSkill,
 		ResourceTypeAIGatewayKey,
-		ResourceTypeUserAiBudgetOverride,
+		ResourceTypeUserAIBudgetOverride,
 	}
 }
 
@@ -4614,6 +4614,18 @@ type AIGatewayKey struct {
 	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
 }
 
+// Per-model token prices used by AI Bridge to compute interception cost.
+type AIModelPrice struct {
+	Provider        string        `db:"provider" json:"provider"`
+	Model           string        `db:"model" json:"model"`
+	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
+	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
+	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
+	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
+	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
+}
+
 // Runtime configuration for AI providers. Authoritative source for the provider set served by aibridged. Replaces deployment-time CODER_AIBRIDGE_* environment variables.
 type AIProvider struct {
 	ID   uuid.UUID      `db:"id" json:"id"`
@@ -4645,6 +4657,15 @@ type AIProviderKey struct {
 	UpdatedAt   time.Time      `db:"updated_at" json:"updated_at"`
 }
 
+type AISeatState struct {
+	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
+	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
+	LastUsedAt           time.Time         `db:"last_used_at" json:"last_used_at"`
+	LastEventType        AISeatUsageReason `db:"last_event_type" json:"last_event_type"`
+	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
+	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
+}
+
 type APIKey struct {
 	ID string `db:"id" json:"id"`
 	// hashed_secret contains a SHA256 hash of the key secret. This is considered a secret and MUST NOT be returned from the API as it is used for API key encryption in app proxying code.
@@ -4660,27 +4681,6 @@ type APIKey struct {
 	TokenName       string       `db:"token_name" json:"token_name"`
 	Scopes          APIKeyScopes `db:"scopes" json:"scopes"`
 	AllowList       AllowList    `db:"allow_list" json:"allow_list"`
-}
-
-// Per-model token prices used by AI Bridge to compute interception cost.
-type AiModelPrice struct {
-	Provider        string        `db:"provider" json:"provider"`
-	Model           string        `db:"model" json:"model"`
-	InputPrice      sql.NullInt64 `db:"input_price" json:"input_price"`
-	OutputPrice     sql.NullInt64 `db:"output_price" json:"output_price"`
-	CacheReadPrice  sql.NullInt64 `db:"cache_read_price" json:"cache_read_price"`
-	CacheWritePrice sql.NullInt64 `db:"cache_write_price" json:"cache_write_price"`
-	CreatedAt       time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt       time.Time     `db:"updated_at" json:"updated_at"`
-}
-
-type AiSeatState struct {
-	UserID               uuid.UUID         `db:"user_id" json:"user_id"`
-	FirstUsedAt          time.Time         `db:"first_used_at" json:"first_used_at"`
-	LastUsedAt           time.Time         `db:"last_used_at" json:"last_used_at"`
-	LastEventType        AiSeatUsageReason `db:"last_event_type" json:"last_event_type"`
-	LastEventDescription string            `db:"last_event_description" json:"last_event_description"`
-	UpdatedAt            time.Time         `db:"updated_at" json:"updated_at"`
 }
 
 type AuditLog struct {
@@ -5126,7 +5126,7 @@ type Group struct {
 }
 
 // Per-group AI spend limit applied to each member of the group. No row means no budget is enforced.
-type GroupAiBudget struct {
+type GroupAIBudget struct {
 	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
 	CreatedAt        time.Time `db:"created_at" json:"created_at"`
@@ -5955,7 +5955,7 @@ type User struct {
 }
 
 // Per-user AI spend override that supersedes group budget resolution.
-type UserAiBudgetOverride struct {
+type UserAIBudgetOverride struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	GroupID          uuid.UUID `db:"group_id" json:"group_id"`
 	SpendLimitMicros int64     `db:"spend_limit_micros" json:"spend_limit_micros"`
@@ -5964,7 +5964,7 @@ type UserAiBudgetOverride struct {
 }
 
 // User-owned API keys associated with AI providers. These keys are used only when BYOK is enabled.
-type UserAiProviderKey struct {
+type UserAIProviderKey struct {
 	ID           uuid.UUID `db:"id" json:"id"`
 	UserID       uuid.UUID `db:"user_id" json:"user_id"`
 	AIProviderID uuid.UUID `db:"ai_provider_id" json:"ai_provider_id"`
