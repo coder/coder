@@ -6024,6 +6024,7 @@ export interface OIDCConfig {
 	 * domain.
 	 */
 	readonly redirect_url: string;
+	readonly auto_repair_links: boolean;
 }
 
 // From codersdk/parameters.go
