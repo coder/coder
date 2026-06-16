@@ -5108,6 +5108,7 @@ const (
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5130,6 +5131,8 @@ func (e Experiment) DisplayName() string {
 		return "NATS Pubsub"
 	case ExperimentMinimumImplicitMember:
 		return "Gateway Accounts (minimum implicit member)"
+	case ExperimentAIGatewayCostControl:
+		return "AI Gateway Cost Control"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5149,6 +5152,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
+	ExperimentAIGatewayCostControl,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

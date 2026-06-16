@@ -19279,9 +19279,11 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member"
+                "minimum-implicit-member",
+                "ai-gateway-cost-control"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -19301,7 +19303,8 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "Enables AI Gateway cost control functionality."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19312,7 +19315,8 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember"
+                "ExperimentMinimumImplicitMember",
+                "ExperimentAIGatewayCostControl"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
