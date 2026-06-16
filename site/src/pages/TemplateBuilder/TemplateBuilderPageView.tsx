@@ -9,6 +9,7 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 import { docs } from "#/utils/docs";
+import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import { SelectionSummary } from "./SelectionSummary";
 import {
 	findNextVisibleIndex,
@@ -56,7 +57,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
 				<PageHeaderSubtitle>
@@ -72,11 +73,18 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
-						<p className="text-sm text-content-secondary">
-							Step: {currentStep.id}
-						</p>
-					</div>
+					{currentStep.id === "base-infra" ? (
+						<BaseInfraSelectStep
+							selectedBaseId={state.selectedBase?.id ?? null}
+							onSelectBase={(base) => dispatch({ type: "SET_BASE", base })}
+						/>
+					) : (
+						<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
+							<p className="text-sm text-content-secondary">
+								Step: {currentStep.id}
+							</p>
+						</div>
+					)}
 
 					{/* Navigation controls */}
 					<div className="flex justify-end mt-6 gap-2">

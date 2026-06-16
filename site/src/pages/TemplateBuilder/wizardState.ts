@@ -8,7 +8,7 @@ import type {
  * UI-only metadata for the selected base template.
  * Kept separate from the API request payload.
  */
-type SelectedBaseMeta = {
+export type SelectedBaseMeta = {
 	id: string;
 	name: string;
 	iconUrl?: string;
