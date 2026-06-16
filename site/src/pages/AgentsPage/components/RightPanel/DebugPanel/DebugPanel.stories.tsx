@@ -5,7 +5,7 @@ import type { Mock } from "vitest";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DebugPanel } from "./DebugPanel";
-import { CHAT_ID, makeRun, makeStep } from "./debugFixtures";
+import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
 const FIXTURE_NOW = Date.parse("2026-03-05T12:00:10.000Z");
 
@@ -169,13 +169,15 @@ const toolCallResponse: Record<string, string> = {
 // Pre-built run details.
 // ---------------------------------------------------------------------------
 
-const successfulRunDetail = makeRun({
+const successfulRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	summary: {
 		result: "Generated response successfully",
 		latency: "5s",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			attempts: makeAttempts([
 				{
 					attempt_number: 1,
@@ -197,11 +199,12 @@ const successfulRunDetail = makeRun({
 				provider: "openai",
 				region: "us-east-1",
 			},
-		}),
+		},
 	],
-});
+};
 
-const richRunDetail = makeRun({
+const richRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-rich",
 	summary: {
 		first_message: "Write me a hello world function in Python",
@@ -209,7 +212,8 @@ const richRunDetail = makeRun({
 		completion_tokens: "42",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-rich-1",
 			run_id: "run-rich",
 			normalized_request: richRequest,
@@ -232,17 +236,19 @@ const richRunDetail = makeRun({
 					finished_at: "2026-03-05T12:00:08Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const toolCallRunDetail = makeRun({
+const toolCallRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-tool",
 	summary: {
 		first_message: "Run some code for me",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-tool-1",
 			run_id: "run-tool",
 			normalized_request: richRequest,
@@ -253,11 +259,12 @@ const toolCallRunDetail = makeRun({
 				total_tokens: "230",
 			},
 			attempts: makeAttempts([]),
-		}),
+		},
 	],
-});
+};
 
-const multiStepRunDetail = makeRun({
+const multiStepRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-2",
 	status: "completed",
 	started_at: "2026-03-02T09:00:00Z",
@@ -268,7 +275,8 @@ const multiStepRunDetail = makeRun({
 		retries: "2",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-2-1",
 			run_id: "run-2",
 			step_number: 1,
@@ -312,8 +320,9 @@ const multiStepRunDetail = makeRun({
 					finished_at: "2026-03-02T09:00:05.400Z",
 				},
 			]),
-		}),
-		makeStep({
+		},
+		{
+			...MockStep,
 			id: "step-2-2",
 			run_id: "run-2",
 			step_number: 2,
@@ -332,11 +341,12 @@ const multiStepRunDetail = makeRun({
 					finished_at: "2026-03-02T09:00:06.500Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const errorRunDetail = makeRun({
+const errorRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-3",
 	status: "error",
 	started_at: "2026-03-03T14:00:00Z",
@@ -347,7 +357,8 @@ const errorRunDetail = makeRun({
 		authorization: "[REDACTED]",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-3-1",
 			run_id: "run-3",
 			status: "error",
@@ -376,11 +387,12 @@ const errorRunDetail = makeRun({
 					finished_at: "2026-03-03T14:00:01.800Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
-const longPayloadRunDetail = makeRun({
+const longPayloadRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-4",
 	status: "completed",
 	started_at: "2026-03-04T08:30:00Z",
@@ -391,7 +403,8 @@ const longPayloadRunDetail = makeRun({
 		size: "large",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-4-1",
 			run_id: "run-4",
 			normalized_request: makeLargeRecord("request", 24),
@@ -413,9 +426,9 @@ const longPayloadRunDetail = makeRun({
 					finished_at: "2026-03-04T08:30:05.200Z",
 				},
 			]),
-		}),
+		},
 	],
-});
+};
 
 const getAllRunDetails = () => [
 	successfulRunDetail,
@@ -479,12 +492,12 @@ const meta: Meta<typeof DebugPanel> = {
 			"getChatDebugRun",
 		).mockImplementation(async (_chatID, runID) => {
 			return (
-				getDebugRunDetailById().get(runID) ??
-				makeRun({
+				getDebugRunDetailById().get(runID) ?? {
+					...MockRun,
 					id: runID,
 					summary: { result: `Unknown debug run fixture: ${runID}` },
 					steps: [],
-				})
+				}
 			);
 		});
 		return () => {
@@ -676,11 +689,12 @@ export const RunWithNoSteps: Story = {
 			},
 			{
 				key: ["chats", CHAT_ID, "debug-runs", detailProbeRunId],
-				data: makeRun({
+				data: {
+					...MockRun,
 					id: detailProbeRunId,
 					summary: { first_message: "Detail state probe" },
 					steps: [],
-				}),
+				},
 			},
 		],
 	},
@@ -1540,7 +1554,8 @@ const backendNormalizedAttempts = [
 	},
 ];
 
-const backendShapeRunDetail = makeRun({
+const backendShapeRunDetail: TypesGen.ChatDebugRun = {
+	...MockRun,
 	id: "run-backend",
 	provider: "anthropic",
 	model: "claude-sonnet-4",
@@ -1552,7 +1567,8 @@ const backendShapeRunDetail = makeRun({
 		total_output_tokens: "1",
 	},
 	steps: [
-		makeStep({
+		{
+			...MockStep,
 			id: "step-backend-1",
 			run_id: "run-backend",
 			operation: "stream",
@@ -1564,9 +1580,9 @@ const backendShapeRunDetail = makeRun({
 				total_tokens: "43",
 			},
 			attempts: makeAttempts(backendNormalizedAttempts),
-		}),
+		},
 	],
-});
+};
 
 export const BackendNormalizedShape: Story = {
 	parameters: {

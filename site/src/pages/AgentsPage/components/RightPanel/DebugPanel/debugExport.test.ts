@@ -6,13 +6,13 @@ import {
 	DEBUG_RUN_LIST_LIMIT,
 	debugExportFilename,
 } from "./debugExport";
-import { makeRun } from "./debugFixtures";
+import { MockRun } from "./debugFixtures";
 
 const exportedAt = new Date("2026-05-07T10:45:00.000Z");
 
 describe("buildRunDebugExport", () => {
 	it("wraps a full debug run in a run-level export envelope", () => {
-		const run = makeRun();
+		const run = MockRun;
 		const payload = buildRunDebugExport(run.chat_id, run, exportedAt);
 
 		expect(payload).toEqual({
@@ -28,7 +28,7 @@ describe("buildRunDebugExport", () => {
 
 describe("buildChatDebugExport", () => {
 	it("wraps full debug runs in a chat-level export envelope", () => {
-		const runs = [makeRun(), makeRun({ id: "run-2" })];
+		const runs = [MockRun, { ...MockRun, id: "run-2" }];
 		const payload = buildChatDebugExport(runs[0].chat_id, runs, exportedAt);
 
 		expect(payload.version).toBe(1);
@@ -44,7 +44,7 @@ describe("buildChatDebugExport", () => {
 	});
 
 	it("includes failed run metadata when some detail fetches fail", () => {
-		const runs = [makeRun()];
+		const runs = [MockRun];
 		const failedRuns = [{ run_id: "run-2", message: "not found" }];
 		const payload = buildChatDebugExport(runs[0].chat_id, runs, exportedAt, {
 			failedRuns,
@@ -59,7 +59,7 @@ describe("buildChatDebugExport", () => {
 
 describe("buildDebugExportBlob", () => {
 	it("serializes export payloads as formatted JSON blobs", async () => {
-		const run = makeRun();
+		const run = MockRun;
 		const payload = buildRunDebugExport(run.chat_id, run, exportedAt);
 		const blob = buildDebugExportBlob(payload);
 

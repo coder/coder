@@ -2,13 +2,7 @@ import type { ChatDebugRun, ChatDebugStep } from "#/api/typesGenerated";
 
 export const CHAT_ID = "debug-chat-1";
 
-/**
- * Builds a ChatDebugStep for tests and stories. Defaults to a completed stream
- * step; pass overrides for the fields a case cares about.
- */
-export const makeStep = (
-	overrides: Partial<ChatDebugStep> = {},
-): ChatDebugStep => ({
+export const MockStep: ChatDebugStep = {
 	id: "step-1",
 	run_id: "run-1",
 	chat_id: CHAT_ID,
@@ -23,17 +17,9 @@ export const makeStep = (
 	started_at: "2026-03-05T12:00:06Z",
 	updated_at: "2026-03-05T12:00:08Z",
 	finished_at: "2026-03-05T12:00:08Z",
-	...overrides,
-});
+};
 
-/**
- * Builds a ChatDebugRun for tests and stories. Defaults to a completed chat
- * turn with a single stream step; pass overrides for the fields a case cares
- * about.
- */
-export const makeRun = (
-	overrides: Partial<ChatDebugRun> = {},
-): ChatDebugRun => ({
+export const MockRun: ChatDebugRun = {
 	id: "run-1",
 	chat_id: CHAT_ID,
 	kind: "chat_turn",
@@ -44,6 +30,5 @@ export const makeRun = (
 	started_at: "2026-03-05T12:00:05Z",
 	updated_at: "2026-03-05T12:00:08Z",
 	finished_at: "2026-03-05T12:00:08Z",
-	steps: [makeStep({})],
-	...overrides,
-});
+	steps: [MockStep],
+};
