@@ -1165,10 +1165,12 @@ class ApiMethods {
 		versionId: string,
 		userId: string,
 		{
+			onOpen,
 			onMessage,
 			onError,
 			onClose,
 		}: {
+			onOpen?: () => void;
 			onMessage: (response: TypesGen.DynamicParametersResponse) => void;
 			onError: (error: Error) => void;
 			onClose: () => void;
@@ -1178,6 +1180,10 @@ class ApiMethods {
 			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
 			new URLSearchParams({ user_id: userId }),
 		);
+
+		socket.addEventListener("open", () => {
+			onOpen?.();
+		});
 
 		socket.addEventListener("message", (event) =>
 			onMessage(JSON.parse(event.data) as TypesGen.DynamicParametersResponse),
