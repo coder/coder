@@ -343,6 +343,35 @@ describe("providerFormValuesToCreate", () => {
 			expect(s.access_key_secret).toBeUndefined();
 		});
 
+		it("keeps the region so the backend recognises the Bedrock provider when access keys are omitted", () => {
+			// The backend treats Region as a configuration signal
+			// (codersdk.AIProviderBedrockSettings.IsConfigured), so omitting
+			// the keys must not also strip the region; otherwise the request
+			// would fail with "type=bedrock requires bedrock settings".
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				accessKey: "",
+				accessKeySecret: "",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.region).toBe("us-east-1");
+			expect(s._type).toBe("bedrock");
+		});
+
+		it("omits the access fields when only whitespace is supplied", () => {
+			// Mirrors the OpenAI/Anthropic whitespace handling: callers must
+			// not accidentally persist a credential whose plaintext is just
+			// blanks.
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				accessKey: "   ",
+				accessKeySecret: "\t",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.access_key).toBeUndefined();
+			expect(s.access_key_secret).toBeUndefined();
+		});
+
 		it("ignores the OpenAI/Anthropic api key field", () => {
 			const req = providerFormValuesToCreate({
 				...baseBedrockFormValues,
