@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { makeChatModelConfig } from "#/testHelpers/chatModels";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -9,42 +10,34 @@ import {
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
-	{
+	makeChatModelConfig({
 		id: "model-1",
-		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
-		enabled: true,
 		is_default: true,
 		context_limit: 128000,
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	},
-	{
+	}),
+	makeChatModelConfig({
 		id: "model-2",
 		provider: "anthropic",
 		model: "claude-sonnet",
 		display_name: "Claude Sonnet",
-		enabled: true,
-		is_default: false,
-		context_limit: 200000,
-		compression_threshold: 70,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	},
-	{
+	}),
+	makeChatModelConfig({
 		id: "model-3",
-		provider: "openai",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
 		enabled: false,
-		is_default: false,
 		context_limit: 16000,
 		compression_threshold: 60,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	},
+	}),
 ];
 
 const meta = {

@@ -2,6 +2,10 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
+import {
+	makeChatModelConfig,
+	makeChatProviderConfig,
+} from "#/testHelpers/chatModels";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
 
@@ -9,20 +13,13 @@ const providerState: ProviderState = {
 	key: "provider-config-id",
 	provider: "openai",
 	label: "OpenAI",
-	providerConfig: {
+	providerConfig: makeChatProviderConfig({
 		id: "provider-config-id",
-		provider: "openai",
-		display_name: "OpenAI",
-		enabled: true,
-		has_api_key: true,
-		central_api_key_enabled: true,
-		allow_user_api_key: false,
 		allow_central_api_key_fallback: false,
 		base_url: undefined,
-		source: "database",
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	},
+	}),
 	modelConfigs: [],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,
@@ -47,18 +44,15 @@ const providerStateWithoutAPIKey: ProviderState = {
 	allowUserAPIKey: false,
 };
 
-const baseModelConfig: TypesGen.ChatModelConfig = {
+const baseModelConfig: TypesGen.ChatModelConfig = makeChatModelConfig({
 	id: "model-config-id",
-	provider: "openai",
 	model: "gpt-4.1",
 	display_name: "GPT-4.1",
-	enabled: true,
-	is_default: false,
 	context_limit: 128000,
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
-};
+});
 
 const disabledModelConfig: TypesGen.ChatModelConfig = {
 	...baseModelConfig,

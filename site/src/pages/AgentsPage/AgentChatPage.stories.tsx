@@ -21,6 +21,7 @@ import {
 } from "#/api/queries/chats";
 import { workspaceByIdKey } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { makeChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockGroup,
 	MockOrganizationMember,
@@ -114,18 +115,14 @@ const mockModelCatalog: TypesGen.ChatModelsResponse = {
 };
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
-	{
+	makeChatModelConfig({
 		id: MODEL_CONFIG_ID,
-		provider: "openai",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
-		enabled: true,
 		is_default: true,
-		context_limit: 200000,
-		compression_threshold: 70,
 		created_at: "2026-02-18T00:00:00.000Z",
 		updated_at: "2026-02-18T00:00:00.000Z",
-	},
+	}),
 ];
 
 const baseChatFields = {

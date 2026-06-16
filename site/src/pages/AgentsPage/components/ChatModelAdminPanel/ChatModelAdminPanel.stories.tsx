@@ -12,6 +12,10 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	makeChatModelConfig,
+	makeChatProviderConfig,
+} from "#/testHelpers/chatModels";
+import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
 } from "./ChatModelAdminPanel";
@@ -23,21 +27,15 @@ const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 const createProviderConfig = (
 	overrides: Partial<TypesGen.ChatProviderConfig> &
 		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
-): TypesGen.ChatProviderConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	display_name: overrides.display_name ?? "",
-	enabled: overrides.enabled ?? true,
-	has_api_key: overrides.has_api_key ?? false,
-	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
-	allow_user_api_key: overrides.allow_user_api_key ?? false,
-	allow_central_api_key_fallback:
-		overrides.allow_central_api_key_fallback ?? false,
-	base_url: overrides.base_url ?? "",
-	source: overrides.source ?? "database",
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-});
+): TypesGen.ChatProviderConfig =>
+	makeChatProviderConfig({
+		display_name: "",
+		has_api_key: false,
+		allow_central_api_key_fallback: false,
+		created_at: now,
+		updated_at: now,
+		...overrides,
+	});
 
 const createProviderKey = (providerId: string): TypesGen.AIProviderKey => ({
 	id: `key-${providerId}`,
@@ -65,20 +63,12 @@ const toAIProvider = (
 const createModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> &
 		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
-): TypesGen.ChatModelConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	ai_provider_id: overrides.ai_provider_id,
-	model: overrides.model,
-	display_name: overrides.display_name ?? overrides.model,
-	enabled: overrides.enabled ?? true,
-	is_default: overrides.is_default ?? false,
-	context_limit: overrides.context_limit ?? 200000,
-	compression_threshold: overrides.compression_threshold ?? 70,
-	model_config: overrides.model_config,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-});
+): TypesGen.ChatModelConfig =>
+	makeChatModelConfig({
+		created_at: now,
+		updated_at: now,
+		...overrides,
+	});
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
 
