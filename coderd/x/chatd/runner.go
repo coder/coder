@@ -232,11 +232,11 @@ func (r *runner) runTask(
 	err := runTaskWithRetry(ctx, r.opts.retryOptions(), kind, func(ctx context.Context) error {
 		unlock, ok := r.localLocks.acquire(ctx, key)
 		if !ok {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask acquire local lock: %w", ctx.Err()))
 		}
 		defer unlock()
 		if ctx.Err() != nil {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask context canceled: %w", ctx.Err()))
 		}
 
 		switch kind {

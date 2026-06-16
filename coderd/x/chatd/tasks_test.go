@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +35,11 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	err := runTaskWithRetry(ctx, retryWrapperOptions{
 		clock:        quartz.NewMock(t),
+		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
 	}, taskKindInterrupt, func(context.Context) error {
@@ -45,6 +48,7 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
+	require.Empty(t, entriesWithMessage(sink, "chatworker task retrying"))
 }
 
 func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
@@ -54,11 +58,13 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 	trap := clock.Trap().NewTimer("chatworker", "task-retry-requires_action_timeout")
 	defer trap.Close()
 	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	done := make(chan error, 1)
 	go func() {
 		done <- runTaskWithRetry(ctx, retryWrapperOptions{
 			clock:        clock,
+			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
 		}, taskKindRequiresActionTimeout, func(context.Context) error {
@@ -74,6 +80,11 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 	clock.Advance(time.Minute).MustWait(ctx)
 	require.NoError(t, <-done)
 	require.Equal(t, 2, calls)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Equal(t, string(taskKindRequiresActionTimeout), sinkFieldValue(t, entries[0].Fields, "task_kind"))
+	require.Equal(t, time.Minute.String(), sinkFieldValue(t, entries[0].Fields, "delay"))
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), "database unavailable")
 }
 
 func TestRetryWrapper_PanicsRetry(t *testing.T) {
@@ -83,11 +94,13 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 	trap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
 	defer trap.Close()
 	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	done := make(chan error, 1)
 	go func() {
 		done <- runTaskWithRetry(ctx, retryWrapperOptions{
 			clock:        clock,
+			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
 		}, taskKindGeneration, func(context.Context) error {
@@ -103,6 +116,118 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 	clock.Advance(time.Minute).MustWait(ctx)
 	require.NoError(t, <-done)
 	require.Equal(t, 2, calls)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), "chatworker task panic: database unavailable")
+}
+
+// database/sql returns ctx.Err() from ctxDriverQuery, not
+// context.Cause(ctx). This test checks that the retry logic
+// doesn't classify such an error as an expected exit when
+// task timeout is the cause of the cancellation.
+func TestRetryWrapper_TaskTimeoutDBQueryCancellationRetries(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	clock := quartz.NewMock(t)
+	timeoutTrap := clock.Trap().AfterFunc("chatworker", "task-timeout-generation")
+	retryTrap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
+	defer retryTrap.Close()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	calls := 0
+	firstCallStarted := make(chan struct{})
+	var firstQueryErr error
+	var firstQueryCause error
+	done := make(chan error, 1)
+	go func() {
+		done <- runTaskWithRetry(ctx, retryWrapperOptions{
+			clock:        clock,
+			logger:       sink.Logger(),
+			initialDelay: time.Minute,
+			maxDelay:     time.Minute,
+		}, taskKindGeneration, func(ctx context.Context) error {
+			calls++
+			if calls == 1 {
+				close(firstCallStarted)
+				<-ctx.Done()
+				_, err := f.db.GetDatabaseNow(ctx)
+				firstQueryErr = err
+				firstQueryCause = context.Cause(ctx)
+				return normalizeTaskTransitionError(err, "db query")
+			}
+			return nil
+		})
+	}()
+
+	timeoutTrap.MustWait(ctx).MustRelease(ctx)
+	timeoutTrap.Close()
+	<-firstCallStarted
+	clock.Advance(defaultTaskTimeout).MustWait(ctx)
+	retryTrap.MustWait(ctx).MustRelease(ctx)
+	clock.Advance(time.Minute).MustWait(ctx)
+	require.NoError(t, <-done)
+	require.Equal(t, 2, calls)
+	require.ErrorIs(t, firstQueryErr, context.Canceled)
+	require.NotErrorIs(t, firstQueryErr, errTaskTimeout)
+	require.ErrorIs(t, firstQueryCause, errTaskTimeout)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), errTaskTimeout.Error())
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), context.Canceled.Error())
+}
+
+func TestRetryWrapper_ContextCancellationDoesNotRetryOrLog(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	cancel()
+	sink := testutil.NewFakeSink(t)
+	calls := 0
+	original := xerrors.New("database unavailable")
+	err := runTaskWithRetry(ctx, retryWrapperOptions{
+		clock:        quartz.NewMock(t),
+		logger:       sink.Logger(),
+		initialDelay: time.Second,
+		maxDelay:     time.Second,
+	}, taskKindGeneration, func(context.Context) error {
+		calls++
+		return original
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+	require.Empty(t, entriesWithMessage(sink, "chatworker task retrying"))
+}
+
+func TestNormalizeTaskErrors_ContextCancellationIsExpectedExit(t *testing.T) {
+	t.Parallel()
+
+	err := normalizeTaskInfrastructureError(context.Canceled, "lock chat")
+	require.ErrorIs(t, err, errTaskExpectedExit)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, errTaskRetryable)
+	require.NotErrorIs(t, err, errTaskTimeout)
+
+	err = normalizeTaskTransitionError(context.Canceled, "commit chat")
+	require.ErrorIs(t, err, errTaskExpectedExit)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, errTaskRetryable)
+	require.NotErrorIs(t, err, errTaskTimeout)
+}
+
+func entriesWithMessage(sink *testutil.FakeSink, message string) []slog.SinkEntry {
+	return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == message })
+}
+
+func sinkFieldValue(t *testing.T, fields slog.Map, name string) string {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			return fmt.Sprint(f.Value)
+		}
+	}
+	t.Fatalf("missing log field %q", name)
+	return ""
 }
 
 func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
