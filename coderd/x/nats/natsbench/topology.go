@@ -58,13 +58,15 @@ func buildTopology(ctx context.Context, logger slog.Logger, cfg Config) (*topolo
 	// processes on one host can never mesh with each other.
 	token := fmt.Sprintf("natsbench-%d", time.Now().UnixNano())
 
+	// One fetcher shared by every node: each node filters its own
+	// address out of the route list, so they can all be handed the
+	// full set of addresses.
+	fetcher := &staticPeerFetcher{}
 	top := &topology{nodes: make([]*nats.Pubsub, 0, cfg.Replicas)}
-	fetchers := make([]*staticPeerFetcher, cfg.Replicas)
 	for i := range cfg.Replicas {
-		fetchers[i] = &staticPeerFetcher{}
 		opts := pubsubOptions(cfg)
 		opts.ClusterAuthToken = token
-		opts.PeerFetcher = fetchers[i]
+		opts.PeerFetcher = fetcher
 		node, err := nats.New(ctx, logger.Named(fmt.Sprintf("node%d", i)), opts)
 		if err != nil {
 			top.closeAll()
@@ -83,14 +85,8 @@ func buildTopology(ctx context.Context, logger slog.Logger, cfg Config) (*topolo
 			}
 			addrs[i] = addr
 		}
-		for i, node := range top.nodes {
-			peers := make([]string, 0, len(addrs)-1)
-			for k, addr := range addrs {
-				if k != i {
-					peers = append(peers, addr)
-				}
-			}
-			fetchers[i].set(peers)
+		fetcher.set(addrs)
+		for _, node := range top.nodes {
 			node.RefreshPeers()
 		}
 	}

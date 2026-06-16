@@ -59,7 +59,6 @@ type workload struct {
 	// expected delivery count; allDone closes when it hits zero.
 	outstanding atomic.Int64
 	allDone     chan struct{}
-	doneOnce    sync.Once
 }
 
 // runWorkload executes one benchmark run on an already-built topology:
@@ -151,11 +150,13 @@ func (w *workload) subscribe() error {
 		w.cancels = append(w.cancels, cancel)
 	}
 	// Listeners close allDone when the last subscriber reaches its
-	// expected count; this pre-close only handles the degenerate plan
-	// where every subscriber expects zero messages, since no listener
-	// would ever fire.
+	// expected count. This pre-close handles the degenerate plan where
+	// every subscriber expects zero messages, since no listener would
+	// ever fire. It is mutually exclusive with the listener close: a
+	// listener only decrements outstanding for a subscriber with a
+	// positive expectation, so if outstanding is zero here, none will.
 	if w.outstanding.Load() == 0 {
-		w.doneOnce.Do(func() { close(w.allDone) })
+		close(w.allDone)
 	}
 	return nil
 }
@@ -176,9 +177,12 @@ func (w *workload) listener(st *subscriberState) pubsub.ListenerWithErr {
 			st.tracker.observe(node)
 			return
 		}
+		// Each subscriber decrements outstanding exactly once, when its
+		// delivered count first equals its expectation, so the atomic
+		// reaches zero exactly once and closes allDone exactly once.
 		if st.delivered.Add(1) == int64(st.expect) {
 			if w.outstanding.Add(-1) == 0 {
-				w.doneOnce.Do(func() { close(w.allDone) })
+				close(w.allDone)
 			}
 		}
 	}
