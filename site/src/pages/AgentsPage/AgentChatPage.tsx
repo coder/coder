@@ -569,12 +569,9 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
-	// The loaded editor seeds from editorInitialValue/initialEditorState
-	// the first time it mounts. While the chat is still loading the editor
-	// receiving keystrokes is a different, soon-to-unmount instance, so the
-	// seed state is updated here (not in handleContentChange, which runs per
-	// keystroke in the loaded editor and must avoid re-renders) to carry the
-	// draft across the swap.
+	// Separate from handleContentChange, which avoids setState to prevent
+	// per-keystroke re-renders. The loading editor is a different instance
+	// that unmounts on load, so the seed must advance here.
 	const handleLoadingDraftChange = (
 		content: string,
 		serializedEditorState: string,

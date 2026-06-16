@@ -324,6 +324,9 @@ describe("useConversationEditingState", () => {
 			);
 		});
 		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		// handleContentChange persists only; it must not advance the seed.
+		expect(result.current.editorInitialValue).toBe("");
+		expect(result.current.initialEditorState).toBeUndefined();
 
 		act(() => {
 			// Even though the serialized state is non-empty (Lexical always
@@ -339,10 +342,7 @@ describe("useConversationEditingState", () => {
 	it("carries a draft typed during loading into the seed for the loaded editor", () => {
 		const { result, unmount } = renderEditing();
 
-		// The loaded editor seeds from editorInitialValue/initialEditorState
-		// on its first mount. handleContentChange alone only persists and
-		// does not move the seed, so text typed before the loaded editor
-		// mounts would be lost without handleLoadingDraftChange.
+		// handleContentChange persists but does not advance the seed.
 		const editorState =
 			'{"root":{"children":[{"text":"typed while loading"}]}}';
 		act(() => {
