@@ -1,7 +1,12 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { XIcon } from "lucide-react";
+import { createContext, useContext } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
+
+type Variant = VariantProps<typeof stepDividerVariants>["variant"];
+
+const VariantContext = createContext<Variant>(null);
 
 type SelectedTemplate = {
 	name: string;
@@ -36,32 +41,28 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 		<div>
 			<h2 className="font-semibold">Selection</h2>
 			<div>
-				<StepIndicator step={1} variant={variant(1)}>
-					Base Template
-				</StepIndicator>
-				{selectedTemplate ? (
-					<BaseTemplateSelection
-						template={selectedTemplate}
-						variant={variant(1)}
-					/>
-				) : (
-					<StepDivider variant={variant(1)} />
-				)}
-				<StepIndicator step={2} variant={variant(2)}>
-					Modules
-				</StepIndicator>
-				{selectedModules ? (
-					<ModuleSelection
-						modules={selectedModules}
-						onDeselectModule={onDeselectModule}
-						variant={variant(2)}
-					/>
-				) : (
-					<StepDivider variant={variant(2)} />
-				)}
-				<StepIndicator step={3} variant={variant(3)}>
-					Customizations
-				</StepIndicator>
+				<VariantContext.Provider value={variant(1)}>
+					<StepIndicator step={1}>Base Template</StepIndicator>
+					{selectedTemplate ? (
+						<BaseTemplateSelection template={selectedTemplate} />
+					) : (
+						<StepDivider />
+					)}
+				</VariantContext.Provider>
+				<VariantContext.Provider value={variant(2)}>
+					<StepIndicator step={2}>Modules</StepIndicator>
+					{selectedModules ? (
+						<ModuleSelection
+							modules={selectedModules}
+							onDeselectModule={onDeselectModule}
+						/>
+					) : (
+						<StepDivider />
+					)}
+				</VariantContext.Provider>
+				<VariantContext.Provider value={variant(3)}>
+					<StepIndicator step={3}>Customizations</StepIndicator>
+				</VariantContext.Provider>
 			</div>
 		</div>
 	);
@@ -90,16 +91,14 @@ const stepLabelVariants = cva("font-normal mr-2", {
 	},
 });
 
-type StepIndicatorProps = VariantProps<typeof stepCircleVariants> & {
+type StepIndicatorProps = {
 	step: number;
 	children: React.ReactNode;
 };
 
-const StepIndicator: React.FC<StepIndicatorProps> = ({
-	step,
-	variant,
-	children,
-}) => {
+const StepIndicator: React.FC<StepIndicatorProps> = ({ step, children }) => {
+	const variant = useContext(VariantContext);
+
 	return (
 		<div className="flex items-center gap-2">
 			<div className={stepCircleVariants({ variant })}>{step}</div>
@@ -121,16 +120,14 @@ const stepDividerVariants = cva(
 	},
 );
 
-type StepDividerProps = VariantProps<typeof stepDividerVariants> & {
+type StepDividerProps = {
 	className?: string;
 	children?: React.ReactNode;
 };
 
-const StepDivider: React.FC<StepDividerProps> = ({
-	className,
-	variant,
-	children,
-}) => {
+const StepDivider: React.FC<StepDividerProps> = ({ className, children }) => {
+	const variant = useContext(VariantContext);
+
 	return (
 		<div
 			className={cn(
@@ -144,16 +141,15 @@ const StepDivider: React.FC<StepDividerProps> = ({
 	);
 };
 
-type BaseTemplateSelectionProps = VariantProps<typeof stepDividerVariants> & {
+type BaseTemplateSelectionProps = {
 	template: SelectedTemplate;
 };
 
 const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	template,
-	variant,
 }) => {
 	return (
-		<StepDivider variant={variant}>
+		<StepDivider>
 			<div className="flex items-center p-1">
 				<img
 					src={template.iconUrl}
@@ -166,7 +162,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	);
 };
 
-type ModuleSelectionProps = VariantProps<typeof stepDividerVariants> & {
+type ModuleSelectionProps = {
 	modules: SelectedModule[];
 	onDeselectModule: (moduleId: string) => void;
 };
@@ -174,10 +170,9 @@ type ModuleSelectionProps = VariantProps<typeof stepDividerVariants> & {
 const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 	modules,
 	onDeselectModule,
-	variant,
 }) => {
 	return (
-		<StepDivider variant={variant} className="max-h-72 overflow-y-auto">
+		<StepDivider className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (
 				<div
 					key={module.id}
