@@ -72,12 +72,39 @@ func TestRenderMarkdown(t *testing.T) {
 
 	require.Contains(t, out, "### Payload 8 KiB")
 	require.Contains(t, out, "### Payload 64 KiB")
-	require.Contains(t, out, "| Scenario | Replicas | Messages | Pubs/sec | Deliveries/sec | Drops | Notes |")
-	require.Contains(t, out, "| 8KiB-1r | 1 | 100,000 | 100,000 | 250,000 | 0 |  |")
+	// The 8 KiB group has an invalid run, so it carries a Status column.
+	require.Contains(t, out, "| Replicas | Messages | Pubs/sec | Deliveries/sec | Status |")
+	require.Contains(t, out, "| 1 | 100,000 | 100,000 | 250,000 | ok |")
 	// Invalid runs never render a throughput number.
-	require.Contains(t, out, "| 8KiB-5r | 5 | 100,000 | INVALID | INVALID | 3 | invalid run: 3 dropped-message signals observed |")
-	require.Contains(t, out, "| 64KiB-10r | 10 | 20,000 | INVALID | INVALID | ? | readiness gate: timed out |")
+	require.Contains(t, out, "| 5 | 100,000 | INVALID | INVALID | invalid run: 3 dropped-message signals observed |")
+	require.Contains(t, out, "| 10 | 20,000 | INVALID | INVALID | readiness gate: timed out |")
 	require.NotContains(t, out, "second line is omitted")
+}
+
+func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
+	t.Parallel()
+
+	result := func(replicas int, pubs, dels float64) ScenarioResult {
+		cfg := Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: replicas}
+		return ScenarioResult{
+			Scenario: Scenario{Config: cfg},
+			Result:   &Result{Config: cfg, PubsPerSec: pubs, DeliveriesPerSec: dels},
+		}
+	}
+
+	var b strings.Builder
+	require.NoError(t, RenderMarkdown(&b, []ScenarioResult{
+		result(1, 100000, 250000),
+		result(5, 90000, 220000),
+	}))
+	out := b.String()
+
+	require.Contains(t, out, "| Replicas | Messages | Pubs/sec | Deliveries/sec |")
+	require.NotContains(t, out, "Status")
+	require.NotContains(t, out, "Scenario")
+	require.NotContains(t, out, "Drops")
+	require.Contains(t, out, "| 1 | 100,000 | 100,000 | 250,000 |")
+	require.Contains(t, out, "| 5 | 100,000 | 90,000 | 220,000 |")
 }
 
 func TestDefaultScenarios(t *testing.T) {

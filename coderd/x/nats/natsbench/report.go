@@ -24,7 +24,8 @@ func (r ScenarioResult) valid() bool {
 // RenderMarkdown writes grouped markdown tables, one per payload size
 // in first-seen order. Invalid runs (errors or any drops) render
 // INVALID instead of throughput numbers; a run with drops is never a
-// measurement.
+// measurement. A Status column appears only for groups that contain an
+// invalid run, so clean matrices stay compact.
 func RenderMarkdown(w io.Writer, results []ScenarioResult) error {
 	var b strings.Builder
 	for gi, group := range groupByPayload(results) {
@@ -32,14 +33,36 @@ func RenderMarkdown(w io.Writer, results []ScenarioResult) error {
 			_, _ = b.WriteString("\n")
 		}
 		_, _ = fmt.Fprintf(&b, "### Payload %s\n\n", formatPayload(group.payload))
-		_, _ = b.WriteString("| Scenario | Replicas | Messages | Pubs/sec | Deliveries/sec | Drops | Notes |\n")
-		_, _ = b.WriteString("|---|---:|---:|---:|---:|---:|---|\n")
-		for _, row := range group.rows {
-			renderRow(&b, row)
-		}
+		renderGroup(&b, group.rows)
 	}
 	_, err := io.WriteString(w, b.String())
 	return err
+}
+
+func renderGroup(b *strings.Builder, rows []ScenarioResult) {
+	withStatus := false
+	for _, row := range rows {
+		if !row.valid() {
+			withStatus = true
+			break
+		}
+	}
+
+	if withStatus {
+		_, _ = b.WriteString("| Replicas | Messages | Pubs/sec | Deliveries/sec | Status |\n")
+		_, _ = b.WriteString("|---:|---:|---:|---:|---|\n")
+	} else {
+		_, _ = b.WriteString("| Replicas | Messages | Pubs/sec | Deliveries/sec |\n")
+		_, _ = b.WriteString("|---:|---:|---:|---:|\n")
+	}
+	for _, row := range rows {
+		replicas, messages, pubs, dels, status := rowCells(row)
+		_, _ = fmt.Fprintf(b, "| %s | %s | %s | %s |", replicas, messages, pubs, dels)
+		if withStatus {
+			_, _ = fmt.Fprintf(b, " %s |", status)
+		}
+		_, _ = b.WriteString("\n")
+	}
 }
 
 type payloadGroup struct {
@@ -63,25 +86,22 @@ func groupByPayload(results []ScenarioResult) []payloadGroup {
 	return groups
 }
 
-func renderRow(b *strings.Builder, row ScenarioResult) {
+// rowCells returns the replicas, messages, pubs/sec, deliveries/sec,
+// and status cells for one result. Invalid runs render INVALID rates
+// and a status describing why; valid runs render rates and an "ok"
+// status that callers may drop for all-clean groups.
+func rowCells(row ScenarioResult) (replicas, messages, pubs, dels, status string) {
 	cfg := row.Scenario.Config
 	if row.Result != nil {
 		cfg = row.Result.Config
 	}
+	replicas = strconv.Itoa(cfg.Replicas)
+	messages = formatInt(int64(cfg.Messages))
 
-	pubs, dels, drops, notes := "INVALID", "INVALID", "?", ""
 	if row.valid() {
-		pubs = formatRate(row.Result.PubsPerSec)
-		dels = formatRate(row.Result.DeliveriesPerSec)
-		drops = "0"
-	} else {
-		if row.Result != nil {
-			drops = formatInt(row.Result.Drops)
-		}
-		notes = shortReason(row)
+		return replicas, messages, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec), "ok"
 	}
-	_, _ = fmt.Fprintf(b, "| %s | %d | %s | %s | %s | %s | %s |\n",
-		row.Scenario.Name, cfg.Replicas, formatInt(int64(cfg.Messages)), pubs, dels, drops, notes)
+	return replicas, messages, "INVALID", "INVALID", shortReason(row)
 }
 
 // shortReason summarizes why a run is invalid in one table-safe line.
