@@ -18,21 +18,17 @@ import (
 )
 
 func main() {
-	// os.Exit runs last so the deferred signal stop() in run() fires.
-	os.Exit(runMain())
-}
-
-func runMain() int {
 	// Cancel running scenarios on SIGINT/SIGTERM so the per-phase
-	// selects unwind cleanly instead of requiring kill -9.
+	// selects unwind cleanly instead of requiring kill -9. stop() is
+	// called explicitly rather than deferred so os.Exit below does not
+	// skip it.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-
-	if err := runCLI(ctx, os.Args, os.Stdout, os.Stderr); err != nil {
+	err := runCLI(ctx, os.Args, os.Stdout, os.Stderr)
+	stop()
+	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
-		return 1
+		os.Exit(1)
 	}
-	return 0
 }
 
 // runCLI runs the natsbench command-line interface. args is the full
