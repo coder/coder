@@ -194,21 +194,11 @@ func (p *Pubsub) Describe(descs chan<- *prometheus.Desc) {
 	p.metrics.describe(descs)
 }
 
-// Collect implements prometheus.Collector. The current subscriber and
-// event counts are snapshotted here because they are derived from
-// Pubsub state; everything else is delegated to metrics.
+// Collect implements prometheus.Collector. The subscriber and event
+// gauges are maintained as atomic counters by metrics, so Collect does
+// not lock the Pubsub.
 func (p *Pubsub) Collect(ch chan<- prometheus.Metric) {
-	p.mu.Lock()
-	events := len(p.subscriptions)
-	subs := 0
-	for _, g := range p.subscriptions {
-		g.mu.Lock()
-		subs += len(g.localSubs)
-		g.mu.Unlock()
-	}
-	p.mu.Unlock()
-
-	p.metrics.collect(ch, subs, events, p)
+	p.metrics.collect(ch, p)
 }
 
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx.
@@ -442,6 +432,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 			}
 			go p.subscribeGroup(gSub)
 			p.subscriptions[event] = gSub
+			p.metrics.addEvent()
 		}
 		lSub := &localSub{
 			event: event,
@@ -450,11 +441,23 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub.mu.Lock()
 		defer gSub.mu.Unlock()
 		gSub.localSubs[lSub] = struct{}{}
+		p.metrics.addSubscriber()
 		return lSub, gSub
 	}()
 
 	if _, err := g.sub.get(); err != nil {
 		p.metrics.recordSubscribeFailure()
+		// The subscribe failed, so drop the localSub we optimistically
+		// added. The group is abandoned by subscribeGroup, so this just
+		// keeps the subscriber gauge balanced.
+		if l != nil {
+			g.mu.Lock()
+			if _, ok := g.localSubs[l]; ok {
+				delete(g.localSubs, l)
+				p.metrics.removeSubscriber()
+			}
+			g.mu.Unlock()
+		}
 		return nil, err
 	}
 	p.metrics.recordSubscribeSuccess()
@@ -623,6 +626,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		l.queue.Close()
 
 		delete(g.localSubs, l)
+		p.metrics.removeSubscriber()
 		logger.Debug(context.Background(), "removed local sub from group", slog.F("group_size", len(g.localSubs)))
 		if len(g.localSubs) > 0 {
 			return // Not last one out
@@ -636,6 +640,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		}()
 		if pSub, ok := p.subscriptions[l.event]; ok && g == pSub {
 			delete(p.subscriptions, l.event)
+			p.metrics.removeEvent()
 		}
 	}
 }
@@ -650,6 +655,7 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 			defer p.mu.Unlock()
 			if psub := p.subscriptions[g.event]; psub == g {
 				delete(p.subscriptions, g.event)
+				p.metrics.removeEvent()
 			}
 		}
 		close(g.sub.subscribeDone)

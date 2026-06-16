@@ -82,9 +82,12 @@ type metrics struct {
 	latencyMeasureCounter atomic.Int64
 	latencyErrCounter     atomic.Int64
 
-	// disconnectedConns tracks how many owned connections are currently
-	// disconnected. The connected gauge is 1 only when this is 0.
-	disconnectedConns atomic.Int64
+	// currentEvents and currentSubscribers shadow the sizes of the
+	// Pubsub's subscriptions map and per-event localSubs maps. They are
+	// maintained at the subscribe/unsubscribe sites so Collect can read
+	// the gauges without locking the Pubsub.
+	currentEvents      atomic.Int64
+	currentSubscribers atomic.Int64
 }
 
 // newMetrics constructs the explicit Prometheus metrics and latency
@@ -177,31 +180,27 @@ func (m *metrics) markConnected() {
 	m.connected.Set(1)
 }
 
-// onDisconnect records an unexpected disconnect of one owned connection.
+// onDisconnect records an unexpected disconnect and marks us
+// disconnected. Like PGPubsub, connectivity is treated as a binary
+// signal: any disconnect sets the gauge to 0.
 func (m *metrics) onDisconnect() {
 	m.disconnectionsTotal.Inc()
-	m.disconnectedConns.Add(1)
 	m.connected.Set(0)
 }
 
-// onReconnect records that one owned connection reconnected. The
-// connected gauge returns to 1 only once every owned connection is
-// reconnected.
+// onReconnect marks us connected again. Any reconnect sets the gauge
+// back to 1.
 func (m *metrics) onReconnect() {
-	for {
-		cur := m.disconnectedConns.Load()
-		if cur <= 0 {
-			m.connected.Set(1)
-			return
-		}
-		if m.disconnectedConns.CompareAndSwap(cur, cur-1) {
-			if cur-1 <= 0 {
-				m.connected.Set(1)
-			}
-			return
-		}
-	}
+	m.connected.Set(1)
 }
+
+// addEvent and removeEvent track the number of subscribed event
+// channels. addSubscriber and removeSubscriber track the number of
+// local subscribers across all events.
+func (m *metrics) addEvent()         { m.currentEvents.Add(1) }
+func (m *metrics) removeEvent()      { m.currentEvents.Add(-1) }
+func (m *metrics) addSubscriber()    { m.currentSubscribers.Add(1) }
+func (m *metrics) removeSubscriber() { m.currentSubscribers.Add(-1) }
 
 // describe sends every metric descriptor, implementing the descriptor
 // half of prometheus.Collector for the owning Pubsub.
@@ -226,10 +225,11 @@ func (m *metrics) describe(descs chan<- *prometheus.Desc) {
 	descs <- pubsubLatencyMeasureErrDesc
 }
 
-// collect emits all metrics. subscribers and events are the live
-// snapshot taken by the owning Pubsub; p is the pubsub used for the
-// out-of-band latency measurement.
-func (m *metrics) collect(ch chan<- prometheus.Metric, subscribers, events int, p pubsub.Pubsub) {
+// collect emits all metrics. p is the pubsub used for the out-of-band
+// latency measurement. The current subscriber and event gauges are read
+// from atomic counters maintained at the subscribe/unsubscribe sites, so
+// Collect does not lock the Pubsub.
+func (m *metrics) collect(ch chan<- prometheus.Metric, p pubsub.Pubsub) {
 	// explicit metrics
 	m.publishesTotal.Collect(ch)
 	m.subscribesTotal.Collect(ch)
@@ -240,8 +240,8 @@ func (m *metrics) collect(ch chan<- prometheus.Metric, subscribers, events int, 
 	m.connected.Collect(ch)
 
 	// implicit metrics
-	ch <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subscribers))
-	ch <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
+	ch <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(m.currentSubscribers.Load()))
+	ch <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(m.currentEvents.Load()))
 
 	// additional metrics
 	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
