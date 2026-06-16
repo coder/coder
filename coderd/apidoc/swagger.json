@@ -21671,6 +21671,12 @@
 				},
 				"os": {
 					"type": "string"
+				},
+				"variables": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
+					}
 				}
 			}
 		},
@@ -21705,6 +21711,12 @@
 				"base_template_id": {
 					"type": "string"
 				},
+				"base_variable_values": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
 				"modules": {
 					"type": "array",
 					"items": {
@@ -21730,6 +21742,12 @@
 			"properties": {
 				"base_template_id": {
 					"type": "string"
+				},
+				"base_variable_values": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
 				},
 				"description": {
 					"type": "string"

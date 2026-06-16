@@ -72,12 +72,14 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 				slog.F("base_template_id", id))
 			continue
 		}
+		vars := baseVariablesToSDK(templatebuilder.BaseVariables(id))
 		bases = append(bases, codersdk.TemplateBuilderBase{
 			ID:          ex.ID,
 			Name:        ex.Name,
 			Description: ex.Description,
 			Icon:        ex.Icon,
 			OS:          string(templatebuilder.BaseTemplateOS(id)),
+			Variables:   vars,
 		})
 	}
 
@@ -88,6 +90,26 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.TemplateBuilderBasesResponse{
 		Bases: bases,
 	})
+}
+
+// baseVariablesToSDK converts base template variables to the SDK type,
+// filtering out computed variables that the builder wires automatically.
+func baseVariablesToSDK(vars []templatebuilder.ModuleVariable) []codersdk.TemplateBuilderModuleVariable {
+	out := make([]codersdk.TemplateBuilderModuleVariable, 0, len(vars))
+	for _, v := range vars {
+		if v.Computed {
+			continue
+		}
+		out = append(out, codersdk.TemplateBuilderModuleVariable{
+			Name:        v.Name,
+			Type:        codersdk.TemplateBuilderVariableType(v.Type),
+			Description: v.Description,
+			Default:     v.Default,
+			Required:    v.Required,
+			Sensitive:   v.Sensitive,
+		})
+	}
+	return out
 }
 
 // @Summary List template builder modules
@@ -171,8 +193,9 @@ func (api *API) templateBuilderCompose(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	composeReq := templatebuilder.ComposeRequest{
-		BaseTemplateID: req.BaseTemplateID,
-		RegistryURL:    api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
+		BaseTemplateID:     req.BaseTemplateID,
+		BaseVariableValues: req.BaseVariableValues,
+		RegistryURL:        api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
 	}
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
@@ -280,8 +303,9 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 
 	// Compose the template.
 	composeReq := templatebuilder.ComposeRequest{
-		BaseTemplateID: req.BaseTemplateID,
-		RegistryURL:    api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
+		BaseTemplateID:     req.BaseTemplateID,
+		BaseVariableValues: req.BaseVariableValues,
+		RegistryURL:        api.DeploymentValues.TemplateBuilder.RegistryURL.String(),
 	}
 	for _, m := range req.Modules {
 		composeReq.Modules = append(composeReq.Modules, templatebuilder.ComposeModule{
