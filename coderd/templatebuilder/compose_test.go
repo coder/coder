@@ -237,7 +237,8 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "render module")
+		require.Contains(t, err.Error(), `variable "url"`)
+		require.Contains(t, err.Error(), "is required")
 	})
 }
 

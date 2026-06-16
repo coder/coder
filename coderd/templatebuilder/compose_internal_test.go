@@ -55,9 +55,13 @@ func TestMergeModuleVariables(t *testing.T) {
 		},
 	}
 
+	requiredVars := map[string]string{
+		"required_no_default": "value",
+	}
+
 	t.Run("DefaultsApplied", func(t *testing.T) {
 		t.Parallel()
-		merged, err := mergeModuleVariables(manifest, nil)
+		merged, err := mergeModuleVariables(manifest, requiredVars)
 		require.NoError(t, err)
 		require.Equal(t, "13337", merged["port"])
 		require.Equal(t, "false", merged["enabled"])
@@ -65,7 +69,7 @@ func TestMergeModuleVariables(t *testing.T) {
 
 	t.Run("ComputedAndSensitiveSkipped", func(t *testing.T) {
 		t.Parallel()
-		merged, err := mergeModuleVariables(manifest, nil)
+		merged, err := mergeModuleVariables(manifest, requiredVars)
 		require.NoError(t, err)
 		require.NotContains(t, merged, "agent_id")
 		require.NotContains(t, merged, "api_key")
@@ -73,22 +77,24 @@ func TestMergeModuleVariables(t *testing.T) {
 
 	t.Run("NonRequiredWithoutDefaultGetsNull", func(t *testing.T) {
 		t.Parallel()
-		merged, err := mergeModuleVariables(manifest, nil)
+		merged, err := mergeModuleVariables(manifest, requiredVars)
 		require.NoError(t, err)
 		require.Equal(t, "null", merged["optional_no_default"])
 	})
 
-	t.Run("RequiredWithoutDefaultOmitted", func(t *testing.T) {
+	t.Run("RequiredWithoutDefaultIsRequired", func(t *testing.T) {
 		t.Parallel()
-		merged, err := mergeModuleVariables(manifest, nil)
-		require.NoError(t, err)
-		require.NotContains(t, merged, "required_no_default")
+		_, err := mergeModuleVariables(manifest, nil)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), `variable "required_no_default"`)
+		require.Contains(t, err.Error(), "is required")
 	})
 
 	t.Run("CallerOverridesDefault", func(t *testing.T) {
 		t.Parallel()
 		merged, err := mergeModuleVariables(manifest, map[string]string{
-			"port": "9999",
+			"port":                "9999",
+			"required_no_default": "value",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "9999", merged["port"])
@@ -166,6 +172,7 @@ func TestMergeModuleVariables(t *testing.T) {
 			"port":                "null",
 			"enabled":             "null",
 			"optional_no_default": "null",
+			"required_no_default": "null",
 		})
 		require.NoError(t, err)
 		require.Equal(t, "null", merged["port"])
@@ -173,9 +180,11 @@ func TestMergeModuleVariables(t *testing.T) {
 		require.Equal(t, "null", merged["optional_no_default"])
 	})
 
-	t.Run("EmptyCallerVarsNoError", func(t *testing.T) {
+	t.Run("EmptyCallerVarsUsesDefaults", func(t *testing.T) {
 		t.Parallel()
-		merged, err := mergeModuleVariables(manifest, map[string]string{})
+		merged, err := mergeModuleVariables(manifest, map[string]string{
+			"required_no_default": "value",
+		})
 		require.NoError(t, err)
 		require.Equal(t, "13337", merged["port"])
 	})
