@@ -23,8 +23,9 @@ const (
 // before calling Run), so every required field must be set. The
 // optional tuning fields below are passed straight through to
 // nats.Options, where the nats package applies its own zero-value
-// defaults, except LocalQueue*/MaxPending which natsbench derives from
-// the workload when zero.
+// defaults. The benchmark deliberately does NOT autotune these knobs:
+// it measures the pubsub as Coder configures it in production, so any
+// dropped messages are reported as a metric rather than tuned away.
 type Config struct {
 	// Messages is the TOTAL number of messages across all publishers,
 	// split evenly with the remainder assigned to publisher 0. Must be
@@ -57,18 +58,27 @@ type Config struct {
 	// pool to a single connection (the production default).
 	PublishConns   int
 	SubscribeConns int
-	// LocalQueueMsgs sets the per-listener queue capacity. Zero derives
-	// it from the workload so the busiest subscriber cannot overflow.
+	// LocalQueueMsgs overrides the per-subscription NATS pending
+	// message limit. Zero uses the nats package production default;
+	// set it only for sensitivity analysis.
 	LocalQueueMsgs int
-	// LocalQueueBytes sets the per-subscription NATS pending byte
-	// limit. Zero derives it from the busiest subject's full burst.
+	// LocalQueueBytes overrides the per-subscription NATS pending byte
+	// limit. Zero uses the nats package production default.
 	LocalQueueBytes int
-	// MaxPending sets the embedded server's per-client outbound pending
-	// byte budget. Zero derives it from the workload.
+	// MaxPending overrides the embedded server's per-client outbound
+	// pending byte budget. Zero uses the nats package production
+	// default.
 	MaxPending int64
 	// Timeout bounds each phase (readiness, publish, deliver). It must
 	// be positive.
 	Timeout time.Duration
+	// SettleWindow is how long the delivery counter must stay flat
+	// before a run that dropped messages is declared complete. A run
+	// that drops messages can never reach its exact expected count, so
+	// the deliver phase falls back to quiescence detection. Zero-drop
+	// runs finish precisely on the exact count and never wait this long.
+	// It must be positive and less than Timeout.
+	SettleWindow time.Duration
 }
 
 // Result reports one run's exact accounting and throughput.
@@ -84,9 +94,16 @@ type Result struct {
 	// subject has multiple subscribers; it is logical throughput, not
 	// physical bandwidth.
 	Delivered int64
-	// Drops counts dropped-message signals. Any nonzero value
-	// invalidates the run: signals coalesce, so this is a lower bound
-	// on actual loss, never an exact count.
+	// Expected is the total number of benchmark deliveries the plan
+	// requires: the sum of every subscriber's expected count. It is the
+	// exact denominator for the drop rate.
+	Expected int64
+	// Drops is Expected minus Delivered: the number of deliveries that
+	// never arrived. It is the authoritative, complete loss count, since
+	// the ErrDroppedMessages signal coalesces and cross-node routed loss
+	// is silent. Drops are a reported metric, not a failure: a run with
+	// drops still produces trustworthy throughput numbers for what it did
+	// deliver.
 	Drops int64
 
 	// ConvergenceDuration is how long the readiness gate took to
@@ -97,7 +114,10 @@ type Result struct {
 
 	// PublishDuration spans the hot start to the last publisher
 	// finishing, including the final flush. DeliverDuration spans the
-	// hot start to the last subscriber reaching its expected count.
+	// hot start to the last delivery: for a zero-drop run that is the
+	// last subscriber reaching its expected count; for a run that dropped
+	// messages it is the last observed counter progress before the
+	// settle window elapsed, so the settle delay stays out of the rate.
 	PublishDuration time.Duration
 	DeliverDuration time.Duration
 
@@ -133,21 +153,26 @@ func (c Config) validate() error {
 	if c.Timeout <= 0 {
 		return xerrors.Errorf("timeout must be positive, got %s", c.Timeout)
 	}
+	if c.SettleWindow <= 0 {
+		return xerrors.Errorf("settle window must be positive, got %s", c.SettleWindow)
+	}
+	if c.SettleWindow >= c.Timeout {
+		return xerrors.Errorf("settle window %s must be less than timeout %s", c.SettleWindow, c.Timeout)
+	}
 	return nil
 }
 
 // Run executes one benchmark run: build the deterministic plan, start
 // the topology, and drive the workload. The config must be fully
-// populated; Run applies no defaults beyond derived sizing. On failure
-// it returns any partial Result alongside the error for diagnostics;
-// such a result must never be reported as a valid measurement.
+// populated; Run applies no defaults. On failure it returns any partial
+// Result alongside the error for diagnostics. Dropped messages are not
+// a failure: a successful Result may still report a nonzero Drops count.
 func Run(ctx context.Context, logger slog.Logger, cfg Config) (*Result, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, xerrors.Errorf("validate config: %w", err)
 	}
 
 	pl := buildPlan(cfg)
-	cfg = applySizing(ctx, logger, cfg, pl)
 
 	top, err := buildTopology(ctx, logger, cfg)
 	if err != nil {

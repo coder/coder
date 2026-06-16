@@ -37,16 +37,24 @@ func TestRenderMarkdown(t *testing.T) {
 			DeliveriesPerSec: 250000,
 		},
 	}
+	// A run that dropped messages is still valid: it renders real rates
+	// plus the loss in the Drops column.
 	dropped := ScenarioResult{
 		Scenario: Scenario{
 			Name:   "8KiB-5r",
 			Config: Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 5},
 		},
 		Result: &Result{
-			Config: Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 5},
-			Drops:  3,
+			Config:           Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: 5},
+			Expected:         100000,
+			Published:        100000,
+			Delivered:        97500,
+			Drops:            2500,
+			PublishDuration:  time.Second,
+			DeliverDuration:  time.Second,
+			PubsPerSec:       80000,
+			DeliveriesPerSec: 195000,
 		},
-		Err: xerrors.New("invalid run: 3 dropped-message signals observed"),
 	}
 	failed := ScenarioResult{
 		Scenario: Scenario{
@@ -62,14 +70,17 @@ func TestRenderMarkdown(t *testing.T) {
 
 	require.Contains(t, out, "### Payload 8 KiB")
 	require.Contains(t, out, "### Payload 64 KiB")
-	// The 8 KiB group has an invalid run, so it carries a Status column.
-	require.Contains(t, out, "Status")
+	require.Contains(t, out, "Drops")
 	require.Contains(t, out, "100,000")
 	require.Contains(t, out, "250,000")
-	require.Contains(t, out, "ok")
-	// Invalid runs never render a throughput number.
+	// The dropped run renders its throughput and its loss percentage,
+	// not INVALID.
+	require.Contains(t, out, "195,000")
+	require.Contains(t, out, "2,500 (2.50%)")
+	// Only the failed run (a non-nil error) renders INVALID and a Status
+	// column.
+	require.Contains(t, out, "Status")
 	require.Contains(t, out, "INVALID")
-	require.Contains(t, out, "invalid run: 3 dropped-message signals observed")
 	require.Contains(t, out, "readiness gate: timed out")
 	require.NotContains(t, out, "second line is omitted")
 
@@ -145,6 +156,7 @@ func TestDefaultScenarios(t *testing.T) {
 		seen[sc.Name] = struct{}{}
 		cfg := sc.Config
 		cfg.Timeout = testutil.WaitShort
+		cfg.SettleWindow = time.Second
 		require.NoError(t, cfg.validate())
 		if sc.Config.PayloadSize == Payload64KB && sc.Config.Replicas > 1 {
 			require.Less(t, sc.Config.Messages, DefaultMessages,

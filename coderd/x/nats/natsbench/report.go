@@ -19,16 +19,19 @@ type ScenarioResult struct {
 }
 
 // valid reports whether the run produced trustworthy numbers: it
-// completed without error and recorded zero drops.
+// completed without error. Dropped messages do NOT invalidate a run;
+// they are reported in the Drops column alongside the throughput the
+// run did achieve.
 func (r ScenarioResult) valid() bool {
-	return r.Err == nil && r.Result != nil && r.Result.Drops == 0
+	return r.Err == nil && r.Result != nil
 }
 
 // RenderMarkdown writes grouped markdown tables, one per payload size
-// in first-seen order. Invalid runs (errors or any drops) render
-// INVALID instead of throughput numbers; a run with drops is never a
-// measurement. A Status column appears only for groups that contain an
-// invalid run, so clean matrices stay compact.
+// in first-seen order. Failed runs (a non-nil error) render INVALID
+// instead of throughput numbers; a Status column appears only for
+// groups that contain a failed run, so clean matrices stay compact.
+// Dropped messages are a normal metric in the Drops column, not a
+// failure.
 func RenderMarkdown(w io.Writer, results []ScenarioResult) error {
 	var b strings.Builder
 	for gi, group := range groupByPayload(results) {
@@ -53,8 +56,8 @@ func renderGroup(b *strings.Builder, rows []ScenarioResult) {
 
 	// The Status column is left-aligned (free text); the rest are
 	// numeric and right-aligned.
-	headers := []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Converge", "Pubs/sec", "Deliveries/sec"}
-	aligns := []alignment{alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight}
+	headers := []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Converge", "Pubs/sec", "Deliveries/sec", "Drops"}
+	aligns := []alignment{alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight}
 	if withStatus {
 		headers = append(headers, "Status")
 		aligns = append(aligns, alignLeft)
@@ -148,9 +151,10 @@ func groupByPayload(results []ScenarioResult) []payloadGroup {
 // rowCells returns the shape and measured cells for one result, plus a
 // status string. The cells are: replicas, subjects, publishers,
 // subscribers, messages, cluster convergence time, pubs/sec,
-// deliveries/sec. Invalid runs render INVALID rates and a status
+// deliveries/sec, drops. Failed runs render INVALID rates and a status
 // describing why; valid runs render rates and an "ok" status that
-// callers may drop for all-clean groups.
+// callers may drop for all-clean groups. A valid run that dropped
+// messages still renders its rates, with the loss in the Drops column.
 func rowCells(row ScenarioResult) (cells []string, status string) {
 	cfg := row.Scenario.Config
 	if row.Result != nil {
@@ -166,15 +170,35 @@ func rowCells(row ScenarioResult) (cells []string, status string) {
 	}
 
 	if row.valid() {
-		return append(cells, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec)), "ok"
+		return append(cells,
+			formatRate(row.Result.PubsPerSec),
+			formatRate(row.Result.DeliveriesPerSec),
+			formatDrops(row.Result),
+		), "ok"
 	}
-	return append(cells, "INVALID", "INVALID"), shortReason(row)
+	return append(cells, "INVALID", "INVALID", formatDrops(row.Result)), shortReason(row)
 }
 
-// shortReason summarizes why a run is invalid in one table-safe line.
+// formatDrops renders the drop count and its percentage of expected
+// deliveries, or "-" when there is no result to measure.
+func formatDrops(res *Result) string {
+	if res == nil {
+		return "-"
+	}
+	if res.Drops == 0 {
+		return "0"
+	}
+	pct := 0.0
+	if res.Expected > 0 {
+		pct = 100 * float64(res.Drops) / float64(res.Expected)
+	}
+	return fmt.Sprintf("%s (%.2f%%)", humanize.Comma(res.Drops), pct)
+}
+
+// shortReason summarizes why a run failed in one table-safe line.
 func shortReason(row ScenarioResult) string {
 	if row.Err == nil {
-		return "dropped messages"
+		return "no result"
 	}
 	msg := row.Err.Error()
 	if i := strings.IndexByte(msg, '\n'); i >= 0 {

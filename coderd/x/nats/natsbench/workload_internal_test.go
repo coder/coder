@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -10,56 +11,73 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestDropStateRecord(t *testing.T) {
-	t.Parallel()
-
-	d := newDropState()
-	select {
-	case <-d.ch:
-		t.Fatal("drop channel closed before any drop")
-	default:
-	}
-
-	d.record()
-	d.record()
-	require.EqualValues(t, 2, d.count.Load())
-	select {
-	case <-d.ch:
-	default:
-		t.Fatal("drop channel not closed after a drop")
-	}
-}
-
-func TestListenerRecordsDrops(t *testing.T) {
+func TestListenerRecordsDropsAsMetric(t *testing.T) {
 	t.Parallel()
 
 	w := &workload{
 		logger: testutil.Logger(t),
 		cfg:    Config{Timeout: testutil.WaitShort},
-		drops:  newDropState(),
 	}
 	st := &subscriberState{expect: 5, tracker: newProbeTracker()}
 
-	// A dropped-message delivery records a drop and does not count
-	// toward delivery progress.
+	// A dropped-message delivery is counted as a signal but does not
+	// advance delivery progress; drops no longer fail the run.
 	w.listener(st)(context.Background(), nil, pubsub.ErrDroppedMessages)
-	require.EqualValues(t, 1, w.drops.count.Load())
+	require.EqualValues(t, 1, w.dropSignals.Load())
 	require.EqualValues(t, 0, st.delivered.Load())
 }
 
-func TestAwaitPhaseFailsOnDrop(t *testing.T) {
+func TestAwaitDeliveryExactCount(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	w := &workload{
+		logger:  testutil.Logger(t),
+		cfg:     Config{Timeout: testutil.WaitShort, SettleWindow: testutil.WaitShort},
+		allDone: make(chan struct{}),
+	}
+	st := &subscriberState{expect: 3, tracker: newProbeTracker()}
+	w.subs = []*subscriberState{st}
+	w.outstanding.Store(1)
+
+	// Deliver exactly the expected count: allDone fires and the deliver
+	// phase finishes precisely, without waiting out the settle window.
+	listener := w.listener(st)
+	go func() {
+		for range 3 {
+			listener(ctx, []byte("x"), nil)
+		}
+	}()
+
+	dur, err := w.awaitDelivery(ctx, time.Now())
+	require.NoError(t, err)
+	require.Positive(t, dur)
+	require.EqualValues(t, 3, w.totalDelivered())
+}
+
+func TestAwaitDeliveryQuiescence(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	w := &workload{
 		logger: testutil.Logger(t),
-		cfg:    Config{Timeout: testutil.WaitLong},
-		drops:  newDropState(),
+		// A short settle window keeps the test fast; the timeout is far
+		// larger so quiescence, not the hard timeout, ends the phase.
+		cfg:     Config{Timeout: testutil.WaitShort, SettleWindow: deliveryPollInterval / 2},
+		allDone: make(chan struct{}),
 	}
-	w.drops.record()
+	// A subscriber that never reaches its expectation models a dropped
+	// message: allDone can never close, so the phase must complete by
+	// quiescence once the delivery counter stays flat.
+	w.subs = []*subscriberState{{expect: 100}}
 
-	// A never-firing phase signal must lose to the already-closed drop
-	// channel, so the phase fails fast instead of waiting for Timeout.
-	err := w.awaitPhase(ctx, "deliver", make(chan struct{}))
-	require.ErrorContains(t, err, "dropped-message signal")
+	dur, err := w.awaitDelivery(ctx, time.Now())
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, dur, time.Duration(0))
+
+	select {
+	case <-w.allDone:
+		t.Fatal("allDone closed despite a permanent shortfall")
+	default:
+	}
 }

@@ -56,6 +56,7 @@ func runCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error 
 	fs.IntVar(&run.subscribeConns, "subscribe-conns", DefaultConns, "subscriber connection pool size (applies to every run)")
 	fs.Int64Var(&run.seed, "seed", DefaultSeed, "seed for pseudorandom node placement (applies to every run); same seed reproduces the same placement")
 	fs.DurationVar(&run.timeout, "timeout", 2*time.Minute, "per-phase timeout")
+	fs.DurationVar(&run.settle, "settle", 2*time.Second, "delivery quiescence window: how long the delivery counter must stay flat before a run that dropped messages is declared complete (zero-drop runs finish on the exact count and never wait this long)")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -137,6 +138,7 @@ type cliRun struct {
 	subscribeConns int
 	seed           int64
 	timeout        time.Duration
+	settle         time.Duration
 }
 
 // scenarios resolves the parsed flags into the scenarios to run: one
@@ -160,6 +162,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			sc.Config.SubscribeConns = c.subscribeConns
 			sc.Config.Seed = c.seed
 			sc.Config.Timeout = c.timeout
+			sc.Config.SettleWindow = c.settle
 			return []Scenario{sc}, nil
 		}
 		return nil, xerrors.Errorf("unknown scenario %q; use -list to see available scenarios", c.scenarioName)
@@ -181,6 +184,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 				SubscribeConns: c.subscribeConns,
 				Seed:           c.seed,
 				Timeout:        c.timeout,
+				SettleWindow:   c.settle,
 			},
 		}}, nil
 	default:
@@ -193,6 +197,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			scenarios[i].Config.SubscribeConns = c.subscribeConns
 			scenarios[i].Config.Seed = c.seed
 			scenarios[i].Config.Timeout = c.timeout
+			scenarios[i].Config.SettleWindow = c.settle
 		}
 		return scenarios, nil
 	}

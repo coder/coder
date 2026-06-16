@@ -17,24 +17,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// dropState aggregates dropped-message signals across all subscribers.
-// The first signal closes ch so waiting phases can fail fast: any drop
-// invalidates the run.
-type dropState struct {
-	count atomic.Int64
-	once  sync.Once
-	ch    chan struct{}
-}
-
-func newDropState() *dropState {
-	return &dropState{ch: make(chan struct{})}
-}
-
-func (d *dropState) record() {
-	d.count.Add(1)
-	d.once.Do(func() { close(d.ch) })
-}
-
 // subscriberState tracks one subscriber's exact delivery accounting.
 type subscriberState struct {
 	expect    int
@@ -52,7 +34,11 @@ type workload struct {
 
 	subs    []*subscriberState
 	cancels []func()
-	drops   *dropState
+	// dropSignals counts ErrDroppedMessages deliveries. It is a
+	// diagnostic signal only: the authoritative loss count is Expected
+	// minus Delivered, because these signals coalesce and cross-node
+	// routed loss never signals at all.
+	dropSignals atomic.Int64
 
 	published atomic.Int64
 	// outstanding counts subscribers that have not yet reached their
@@ -73,7 +59,6 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		top:     top,
 		pl:      pl,
 		cfg:     cfg,
-		drops:   newDropState(),
 		allDone: make(chan struct{}),
 	}
 	defer w.cancelAll()
@@ -119,14 +104,19 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 	}
 	publishDur := time.Since(hot)
 
-	if err := w.awaitPhase(ctx, "deliver", w.allDone); err != nil {
-		return w.buildResult(publishDur, time.Since(hot)), err
+	deliverDur, err := w.awaitDelivery(ctx, hot)
+	if err != nil {
+		return w.buildResult(publishDur, deliverDur), err
 	}
-	deliverDur := time.Since(hot)
 
 	res := w.buildResult(publishDur, deliverDur)
 	if res.Drops > 0 {
-		return res, xerrors.Errorf("invalid run: %d dropped-message signals observed", res.Drops)
+		logger.Warn(ctx, "run dropped messages",
+			slog.F("expected", res.Expected),
+			slog.F("delivered", res.Delivered),
+			slog.F("drops", res.Drops),
+			slog.F("drop_signals", w.dropSignals.Load()),
+		)
 	}
 	return res, nil
 }
@@ -174,7 +164,7 @@ func (w *workload) listener(st *subscriberState) pubsub.ListenerWithErr {
 			if !xerrors.Is(err, pubsub.ErrDroppedMessages) {
 				w.logger.Error(ctx, "unexpected subscriber error", slog.Error(err))
 			}
-			w.drops.record()
+			w.dropSignals.Add(1)
 			return
 		}
 		if node, ok := probeNode(message); ok {
@@ -229,22 +219,81 @@ func (w *workload) startPublishers() (<-chan struct{}, <-chan error) {
 	return done, errCh
 }
 
-// awaitPhase blocks until the phase signal fires, failing fast on the
-// first drop signal, context cancellation, or the per-phase timeout.
-// Timeouts carry full diagnostics so a stuck run is debuggable.
+// awaitPhase blocks until the phase signal fires, failing on context
+// cancellation or the per-phase timeout. Timeouts carry full
+// diagnostics so a stuck run is debuggable. Dropped messages do not
+// fail a phase: they are accounted as a metric, not a failure.
 func (w *workload) awaitPhase(ctx context.Context, phase string, signal <-chan struct{}) error {
 	timer := time.NewTimer(w.cfg.Timeout)
 	defer timer.Stop()
 	select {
 	case <-signal:
 		return nil
-	case <-w.drops.ch:
-		return xerrors.Errorf("invalid run: dropped-message signal during %s phase", phase)
 	case <-ctx.Done():
 		return xerrors.Errorf("%s phase canceled: %w", phase, ctx.Err())
 	case <-timer.C:
 		return xerrors.Errorf("%s phase timed out after %s:\n%s", phase, w.cfg.Timeout, w.diagnostics())
 	}
+}
+
+// deliveryPollInterval is how often awaitDelivery samples the delivery
+// counter to detect quiescence. It only bounds the precision of the
+// quiescence path; the exact-count fast path fires immediately on
+// allDone regardless of this cadence.
+const deliveryPollInterval = 100 * time.Millisecond
+
+// awaitDelivery waits for the deliver phase to finish and returns its
+// duration measured from hot.
+//
+// A zero-drop run reaches its exact expected count, closing allDone, and
+// finishes precisely with no settle delay. A run that dropped messages
+// can never reach that count, so it instead completes by quiescence: the
+// total delivered counter is polled, and once it has not advanced for
+// SettleWindow the phase is declared complete. The duration is measured
+// to the last observed progress, not to the end of the settle window, so
+// the idle wait never inflates the delivery rate.
+//
+// The counter is read by summing the per-subscriber delivery atomics, so
+// no global counter or per-delivery timestamp is added to the hot
+// delivery path.
+func (w *workload) awaitDelivery(ctx context.Context, hot time.Time) (time.Duration, error) {
+	timer := time.NewTimer(w.cfg.Timeout)
+	defer timer.Stop()
+	poll := time.NewTicker(deliveryPollInterval)
+	defer poll.Stop()
+
+	lastCount := w.totalDelivered()
+	lastProgress := time.Now()
+	for {
+		select {
+		case <-w.allDone:
+			return time.Since(hot), nil
+		case <-ctx.Done():
+			return time.Since(hot), xerrors.Errorf("deliver phase canceled: %w", ctx.Err())
+		case <-timer.C:
+			return time.Since(hot), xerrors.Errorf("deliver phase timed out after %s:\n%s", w.cfg.Timeout, w.diagnostics())
+		case now := <-poll.C:
+			count := w.totalDelivered()
+			if count != lastCount {
+				lastCount = count
+				lastProgress = now
+				continue
+			}
+			if now.Sub(lastProgress) >= w.cfg.SettleWindow {
+				return lastProgress.Sub(hot), nil
+			}
+		}
+	}
+}
+
+// totalDelivered sums every subscriber's delivered count. It is called
+// from the quiescence poller, off the hot delivery path.
+func (w *workload) totalDelivered() int64 {
+	var total int64
+	for _, st := range w.subs {
+		total += st.delivered.Load()
+	}
+	return total
 }
 
 // diagnostics renders subscriber shortfalls, per-node server stats, and
@@ -267,7 +316,7 @@ func (w *workload) diagnostics() string {
 	if short > maxShortfalls {
 		_, _ = fmt.Fprintf(&b, "... and %d more subscribers short\n", short-maxShortfalls)
 	}
-	_, _ = fmt.Fprintf(&b, "published: %d, drop signals: %d\n", w.published.Load(), w.drops.count.Load())
+	_, _ = fmt.Fprintf(&b, "published: %d, drop signals: %d\n", w.published.Load(), w.dropSignals.Load())
 
 	for i, node := range w.top.nodes {
 		varz, err := node.Server.Varz(&natsserver.VarzOptions{})
@@ -284,18 +333,20 @@ func (w *workload) diagnostics() string {
 	return b.String()
 }
 
-// buildResult snapshots counters into a Result. Callers decide whether
-// the run is valid; rates are computed either way for diagnostics.
+// buildResult snapshots counters into a Result. Drops is the exact
+// shortfall between expected and observed deliveries, the authoritative
+// loss count. Rates are computed for valid and dropping runs alike,
+// since a dropping run still has a meaningful throughput for what it
+// delivered.
 func (w *workload) buildResult(publishDur, deliverDur time.Duration) *Result {
-	var delivered int64
-	for _, st := range w.subs {
-		delivered += st.delivered.Load()
-	}
+	delivered := w.totalDelivered()
+	expected := int64(w.pl.totalExpected)
 	res := &Result{
 		Config:              w.cfg,
+		Expected:            expected,
 		Published:           w.published.Load(),
 		Delivered:           delivered,
-		Drops:               w.drops.count.Load(),
+		Drops:               max(0, expected-delivered),
 		ConvergenceDuration: w.convergence,
 		PublishDuration:     publishDur,
 		DeliverDuration:     deliverDur,

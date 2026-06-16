@@ -13,12 +13,21 @@
 //
 // Correctness rules:
 //
-//   - Exact accounting: each subscriber's expected delivery count is
-//     computed up front, and a run only completes when every subscriber
-//     observed exactly that many messages.
-//   - Drop policy: any dropped-message signal invalidates the run. Run
-//     returns an error and the report renders the row as invalid
-//     instead of publishing a throughput number.
+//   - Production defaults: the benchmark measures the pubsub as Coder
+//     configures it. It does not autotune queue or pending limits to
+//     avoid drops; sane defaults are the thing under test.
+//   - Drops as a metric: each subscriber's expected delivery count is
+//     computed up front, so the exact, complete loss is Expected minus
+//     Delivered. Dropped messages are reported in the Drops column, not
+//     treated as a failure; a run that drops still reports the
+//     throughput it achieved. Only a real error (publish failure,
+//     cancellation, hard timeout) invalidates a run.
+//   - Delivery completion: a zero-drop run finishes precisely when every
+//     subscriber reaches its expected count. A run that dropped messages
+//     can never reach that count, so the deliver phase instead completes
+//     by quiescence: once the delivery counter stays flat for
+//     Config.SettleWindow, the phase ends, and the rate is measured to
+//     the last observed delivery so the idle wait stays out of it.
 //   - Readiness gate: in multi-replica runs, cross-route delivery is
 //     silent when subscription interest has not yet propagated. Before
 //     the measured phase, in-band probe messages prove that every
