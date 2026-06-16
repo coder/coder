@@ -5,7 +5,7 @@ import { PersonalSkillsTriggerMenu } from "./PersonalSkillsTriggerMenu";
 import {
 	expectNoVisibleText,
 	findVisibleText,
-	mockSkills,
+	MockSkills,
 } from "./storyHelpers";
 
 const meta: Meta<typeof PersonalSkillsTriggerMenu> = {
@@ -15,7 +15,7 @@ const meta: Meta<typeof PersonalSkillsTriggerMenu> = {
 		open: true,
 		anchorRect: { top: 120, left: 80, height: 20 },
 		query: "",
-		skills: mockSkills,
+		skills: MockSkills,
 		onSelectedIndexChange: fn(),
 		selectedIndex: 0,
 		onSelect: fn(),
@@ -93,7 +93,7 @@ export const FilteredEmpty: Story = {
 export const Filtered: Story = {
 	args: {
 		query: "rev",
-		skills: filterPersonalSkills(mockSkills, "rev"),
+		skills: filterPersonalSkills(MockSkills, "rev"),
 	},
 	play: async () => {
 		expect(await findVisibleText("/reviewer")).toBeDefined();
@@ -108,6 +108,6 @@ export const SelectsByClick: Story = {
 	play: async ({ args }) => {
 		await userEvent.click(await findVisibleText("/reviewer"));
 		expect(args.onSelect).toHaveBeenCalledTimes(1);
-		expect(args.onSelect).toHaveBeenCalledWith(mockSkills[0]);
+		expect(args.onSelect).toHaveBeenCalledWith(MockSkills[0]);
 	},
 };

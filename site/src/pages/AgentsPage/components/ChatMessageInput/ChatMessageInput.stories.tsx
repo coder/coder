@@ -6,8 +6,8 @@ import { ChatMessageInput } from "./ChatMessageInput";
 import {
 	expectNoVisibleText,
 	findVisibleText,
-	makeUserSkill,
-	mockSkills,
+	MockSkill,
+	MockSkills,
 } from "./storyHelpers";
 
 const meta: Meta<typeof ChatMessageInput> = {
@@ -16,7 +16,7 @@ const meta: Meta<typeof ChatMessageInput> = {
 	args: {
 		"aria-label": "Chat message input",
 		placeholder: "Message the agent",
-		personalSkillsOverride: mockSkills,
+		personalSkillsOverride: MockSkills,
 		onChange: fn(),
 		onEnter: fn(),
 	},
@@ -243,12 +243,12 @@ const mockMobileMatchMedia = (): (() => void) => {
 
 const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	{ length: 30 },
-	(_, index) =>
-		makeUserSkill({
-			id: `skill-${index}`,
-			name: `skill-${index}`,
-			description: `Long description for skill ${index} that explains what it does in detail.`,
-		}),
+	(_, index) => ({
+		...MockSkill,
+		id: `skill-${index}`,
+		name: `skill-${index}`,
+		description: `Long description for skill ${index} that explains what it does in detail.`,
+	}),
 );
 
 const mobileDropdownProperties = [

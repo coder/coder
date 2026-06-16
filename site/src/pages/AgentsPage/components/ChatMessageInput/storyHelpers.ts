@@ -3,33 +3,28 @@ import type { UserSkillMetadata } from "#/api/typesGenerated";
 
 const MOCK_TIMESTAMP = "2026-05-08T00:00:00Z";
 
-/**
- * Builds a UserSkillMetadata for stories. Defaults to a named skill with no
- * description; pass overrides for the fields a case cares about.
- */
-export const makeUserSkill = (
-	overrides: Partial<UserSkillMetadata> = {},
-): UserSkillMetadata => ({
+export const MockSkill: UserSkillMetadata = {
 	id: "skill-1",
 	name: "skill",
 	description: "",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
-	...overrides,
-});
+};
 
-export const mockSkills: UserSkillMetadata[] = [
-	makeUserSkill({
+export const MockSkills: UserSkillMetadata[] = [
+	{
+		...MockSkill,
 		id: "skill-reviewer",
 		name: "reviewer",
 		description: "Review changed files and suggest fixes.",
-	}),
-	makeUserSkill({
+	},
+	{
+		...MockSkill,
 		id: "skill-docs",
 		name: "docs",
 		description: "Draft docs for user-facing behavior.",
-	}),
-	makeUserSkill({ id: "skill-plan", name: "plan" }),
+	},
+	{ ...MockSkill, id: "skill-plan", name: "plan" },
 ];
 
 /**
