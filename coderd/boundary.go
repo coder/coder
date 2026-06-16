@@ -17,7 +17,7 @@ import (
 // @Tags Boundary
 // @Param id path string true "Boundary session ID" format(uuid)
 // @Success 200 {object} codersdk.BoundarySession
-// @Router /boundary/sessions/{id} [get]
+// @Router /api/v2/boundary/sessions/{id} [get]
 func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
