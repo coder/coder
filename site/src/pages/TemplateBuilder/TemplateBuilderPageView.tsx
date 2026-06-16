@@ -16,6 +16,7 @@ import {
 	BaseTemplateParametersStep,
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
+import { ModuleSelectStep } from "./ModuleSelectStep";
 import { SelectionSummary } from "./SelectionSummary";
 import {
 	findNextVisibleIndex,
@@ -99,6 +100,14 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							values={state.baseVariableValues}
 							onChangeValues={(values) =>
 								dispatch({ type: "SET_BASE_VARIABLES", values })
+							}
+						/>
+					) : currentStep.id === "module-select" && state.selectedBase ? (
+						<ModuleSelectStep
+							baseId={state.selectedBase.id}
+							selectedModuleIds={state.modules.map((m) => m.id)}
+							onChangeModules={(modules, meta) =>
+								dispatch({ type: "SET_MODULES", modules, meta })
 							}
 						/>
 					) : (
