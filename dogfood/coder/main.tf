@@ -1039,7 +1039,7 @@ resource "coder_app" "claude" {
 
 module "codex" {
   source            = "dev.registry.coder.com/coder-labs/codex/coder"
-  version           = "5.1.0"
+  version           = "5.1.1"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
