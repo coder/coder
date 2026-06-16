@@ -14,13 +14,13 @@ func TestComputeCost(t *testing.T) {
 
 	tests := []struct {
 		name                                                         string
-		price                                                        database.AiModelPrice
+		price                                                        database.AIModelPrice
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
 		want                                                         int64
 	}{
 		{
 			name: "all priced",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice:      nullInt64(3_000_000),
 				OutputPrice:     nullInt64(6_000_000),
 				CacheReadPrice:  nullInt64(300_000),
@@ -35,7 +35,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "null cache write price treated as zero",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice:      nullInt64(3_000_000),
 				OutputPrice:     nullInt64(6_000_000),
 				CacheReadPrice:  nullInt64(300_000),
@@ -50,7 +50,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name:             "all prices null is zero cost",
-			price:            database.AiModelPrice{},
+			price:            database.AIModelPrice{},
 			inputTokens:      100,
 			outputTokens:     200,
 			cacheReadTokens:  50,
@@ -59,7 +59,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "zero tokens is zero cost",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice:  nullInt64(3_000_000),
 				OutputPrice: nullInt64(6_000_000),
 			},
@@ -67,7 +67,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "integer division truncates",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				// 1 token at 1 micro-unit per million tokens rounds down to 0.
 				InputPrice: nullInt64(1),
 			},
@@ -76,7 +76,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "price just below one micro-unit per token floors to zero",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice: nullInt64(999_999),
 			},
 			inputTokens: 1, // 1 * 999_999 = 999_999, below 1_000_000
@@ -84,7 +84,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "sub-unit price summed across tokens still floors to zero",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice: nullInt64(999),
 			},
 			inputTokens: 1000, // 1000 * 999 = 999_000, below 1_000_000
@@ -92,7 +92,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "sub-unit price crosses one micro-unit once the product reaches 1e6",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice: nullInt64(999),
 			},
 			inputTokens: 1002, // 1002 * 999 = 1_000_998
@@ -103,7 +103,7 @@ func TestComputeCost(t *testing.T) {
 			// model the overflow point is ~123e9 tokens (123e9 * 75e6 = 9.225e18,
 			// just over int64 max 9.223e18); 122e9 stays just under.
 			name: "large token count at a high price does not overflow",
-			price: database.AiModelPrice{
+			price: database.AIModelPrice{
 				InputPrice: nullInt64(75_000_000), // $75 per 1M tokens
 			},
 			inputTokens: 122_000_000_000, // 122e9 * 75e6 = 9.15e18 < int64 max

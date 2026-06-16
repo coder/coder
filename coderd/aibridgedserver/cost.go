@@ -81,7 +81,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 // the per-token prices from the price table. Prices are expressed per million
 // tokens; a NULL price column is treated as zero (e.g. providers that do not
 // charge for cache writes).
-func computeCost(price database.AiModelPrice, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) int64 {
+func computeCost(price database.AIModelPrice, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64) int64 {
 	return tokenCost(inputTokens, price.InputPrice) +
 		tokenCost(outputTokens, price.OutputPrice) +
 		tokenCost(cacheReadTokens, price.CacheReadPrice) +

@@ -1249,7 +1249,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc := newTestInterception(interceptionID)
 					groupID := uuid.New()
 					group := &database.GetHighestGroupAIBudgetByUserRow{GroupID: groupID, SpendLimitMicros: 1_000_000_000}
-					price := &database.AiModelPrice{
+					price := &database.AIModelPrice{
 						Provider:        intc.Provider,
 						Model:           intc.Model,
 						InputPrice:      sql.NullInt64{Int64: 3_000_000, Valid: true},
@@ -1290,12 +1290,12 @@ func TestRecordTokenUsage(t *testing.T) {
 
 					intc := newTestInterception(interceptionID)
 					overrideGroupID := uuid.New()
-					override := &database.UserAiBudgetOverride{
+					override := &database.UserAIBudgetOverride{
 						UserID:           intc.InitiatorID,
 						GroupID:          overrideGroupID,
 						SpendLimitMicros: 1_500_000_000,
 					}
-					price := &database.AiModelPrice{
+					price := &database.AIModelPrice{
 						Provider:   intc.Provider,
 						Model:      intc.Model,
 						InputPrice: sql.NullInt64{Int64: 3_000_000, Valid: true},
@@ -1365,7 +1365,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					assert.NoError(t, err, "parse interception UUID")
 
 					intc := newTestInterception(interceptionID)
-					price := &database.AiModelPrice{
+					price := &database.AIModelPrice{
 						Provider:        intc.Provider,
 						Model:           intc.Model,
 						InputPrice:      sql.NullInt64{Int64: 3_000_000, Valid: true},
@@ -1412,7 +1412,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc := newTestInterception(interceptionID)
 					// A model priced at zero is distinct from an unpriced model:
 					// the price columns and cost are recorded as 0, not NULL.
-					price := &database.AiModelPrice{
+					price := &database.AIModelPrice{
 						Provider:        intc.Provider,
 						Model:           intc.Model,
 						InputPrice:      sql.NullInt64{Int64: 0, Valid: true},
@@ -1457,7 +1457,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					// recorded as NULL while cost is recorded as 0 (not NULL):
 					// cost's NULL-ness tracks price row presence, not the price
 					// values.
-					price := &database.AiModelPrice{
+					price := &database.AIModelPrice{
 						Provider:        intc.Provider,
 						Model:           intc.Model,
 						InputPrice:      sql.NullInt64{Valid: false},
@@ -1530,11 +1530,11 @@ func TestRecordTokenUsage(t *testing.T) {
 					intc := newTestInterception(interceptionID)
 					db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), interceptionID).Return(intc, nil)
 					db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
-						Return(database.UserAiBudgetOverride{}, sql.ErrNoRows)
+						Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 					db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).
 						Return(database.GetHighestGroupAIBudgetByUserRow{}, sql.ErrNoRows)
 					db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-						Return(database.AiModelPrice{}, sql.ErrConnDone)
+						Return(database.AIModelPrice{}, sql.ErrConnDone)
 				},
 				expectedErr: "resolve token usage cost",
 			},
@@ -1652,9 +1652,9 @@ func newTestInterception(id uuid.UUID) database.AIBridgeInterception {
 func expectTokenUsageCostLookups(
 	db *dbmock.MockStore,
 	intc database.AIBridgeInterception,
-	override *database.UserAiBudgetOverride,
+	override *database.UserAIBudgetOverride,
 	group *database.GetHighestGroupAIBudgetByUserRow,
-	price *database.AiModelPrice,
+	price *database.AIModelPrice,
 ) {
 	db.EXPECT().GetAIBridgeInterceptionByID(gomock.Any(), intc.ID).Return(intc, nil)
 
@@ -1662,7 +1662,7 @@ func expectTokenUsageCostLookups(
 		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).Return(*override, nil)
 	} else {
 		db.EXPECT().GetUserAIBudgetOverride(gomock.Any(), intc.InitiatorID).
-			Return(database.UserAiBudgetOverride{}, sql.ErrNoRows)
+			Return(database.UserAIBudgetOverride{}, sql.ErrNoRows)
 		if group != nil {
 			db.EXPECT().GetHighestGroupAIBudgetByUser(gomock.Any(), intc.InitiatorID).Return(*group, nil)
 		} else {
@@ -1678,7 +1678,7 @@ func expectTokenUsageCostLookups(
 		}).Return(*price, nil)
 	} else {
 		db.EXPECT().GetAIModelPriceByProviderModel(gomock.Any(), gomock.Any()).
-			Return(database.AiModelPrice{}, sql.ErrNoRows)
+			Return(database.AIModelPrice{}, sql.ErrNoRows)
 	}
 }
 

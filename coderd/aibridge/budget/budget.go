@@ -29,7 +29,7 @@ const (
 // Store is the subset of database.Store needed to resolve a user's effective
 // AI budget.
 type Store interface {
-	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error)
+	GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error)
 	GetHighestGroupAIBudgetByUser(ctx context.Context, userID uuid.UUID) (database.GetHighestGroupAIBudgetByUserRow, error)
 }
 
