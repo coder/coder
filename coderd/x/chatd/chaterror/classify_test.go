@@ -1268,6 +1268,141 @@ func TestClassify_UsesStructuredProviderDetailFromResponseDump(t *testing.T) {
 	}, classified)
 }
 
+func TestClassify_UsesTopLevelProviderMessage(t *testing.T) {
+	t.Parallel()
+
+	// Many providers return a bare top-level message rather than the
+	// nested error envelope. Surface that message directly instead of the
+	// raw provider error string.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"The provided request is not valid"}`),
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
+}
+
+func TestClassify_UnwrapsBedrockTransportWrapper(t *testing.T) {
+	t.Parallel()
+
+	// AWS Bedrock errors reach chatd wrapped twice: aibridge returns the
+	// nested Anthropic envelope, but error.message is itself the Anthropic
+	// SDK transport string that embeds the raw Bedrock body.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"message\":\"The provided request is not valid\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`","type":"api_error"}}`),
+	)).WithProvider("bedrock")
+
+	require.Equal(t, chaterror.ClassifiedError{
+		Message:    "AWS Bedrock returned an unexpected error.",
+		Detail:     "The provided request is not valid",
+		Kind:       codersdk.ChatErrorKindGeneric,
+		Provider:   "bedrock",
+		Retryable:  false,
+		StatusCode: 400,
+	}, classified)
+}
+
+func TestClassify_DoesNotUnwrapNonTransportMessage(t *testing.T) {
+	t.Parallel()
+
+	// A plain nested message that does not match the transport wrapper
+	// prefix must pass through unchanged, braces and all.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"Value {x} is not allowed."}}`),
+	))
+
+	require.Equal(t, "Value {x} is not allowed.", classified.Detail)
+}
+
+func TestClassify_UnwrapsTransportWrapperWithBraceInURL(t *testing.T) {
+	t.Parallel()
+
+	// A templated URL containing a brace must not be mistaken for the JSON
+	// body; the inner message is still extracted.
+	wrapped := `POST \"https://example.com/{resource}/invoke\": 400 Bad Request {\"message\":\"real error\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t, "real error", classified.Detail)
+}
+
+func TestClassify_KeepsTransportWrapperWhenNoBody(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but has no JSON body at
+	// all after it, the wrapper is surfaced unchanged.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://example.com/api": 500 Internal Server Error`,
+		500,
+		nil,
+	))
+
+	require.Equal(t, `POST "https://example.com/api": 500 Internal Server Error`, classified.Detail)
+}
+
+func TestClassify_KeepsTransportWrapperWhenInnerBodyNotJSON(t *testing.T) {
+	t.Parallel()
+
+	// When the message matches the transport prefix but the trailing body
+	// has no extractable message, the wrapper is surfaced unchanged rather
+	// than dropped.
+	wrapped := `POST \"https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages\": 400 Bad Request {\"foo\":\"bar\"}`
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"error":{"message":"`+wrapped+`"}}`),
+	))
+
+	require.Equal(t,
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"foo":"bar"}`,
+		classified.Detail)
+}
+
+func TestClassify_PrefersNestedMessageOverTopLevel(t *testing.T) {
+	t.Parallel()
+
+	// When both shapes are present, the nested error.message wins.
+	classified := chaterror.Classify(testProviderError(
+		"",
+		400,
+		nil,
+		testProviderResponseDump(`{"message":"top level","error":{"message":"nested wins"}}`),
+	))
+
+	require.Equal(t, "nested wins", classified.Detail)
+}
+
+// TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject guards against a
+// regression where a single decode into a combined struct would fail (and
+// silently drop a usable top-level message) whenever "error" is present as a
+// non-object value such as a string code.
+func TestClassify_KeepsTopLevelMessageWhenErrorIsNonObject(t *testing.T) {
+	t.Parallel()
+
+	classified := chaterror.Classify(testProviderError(
+		"",
+		429,
+		nil,
+		testProviderResponseDump(`{"message":"rate limited","error":"rate_limit"}`),
+	))
+
+	require.Equal(t, "rate limited", classified.Detail)
+}
+
 func TestClassify_AuthKeepsStructuredProviderDetail(t *testing.T) {
 	t.Parallel()
 
@@ -1298,6 +1433,21 @@ func TestClassify_FallsBackToProviderMessageForDetail(t *testing.T) {
 	))
 
 	require.Equal(t, "image exceeds 5 MB maximum", classified.Detail)
+}
+
+func TestClassify_UnwrapsTransportWrapperInMessageFallback(t *testing.T) {
+	t.Parallel()
+
+	// When the response dump is unavailable, the detail falls back to
+	// providerErr.Message, which for Bedrock via aibridge is itself the SDK
+	// transport wrapper. It must be unwrapped to the clean inner message.
+	classified := chaterror.Classify(testProviderError(
+		`POST "https://bedrock-runtime.eu-north-1.amazonaws.com/v1/messages": 400 Bad Request {"message":"The provided request is not valid"}`,
+		400,
+		nil,
+	))
+
+	require.Equal(t, "The provided request is not valid", classified.Detail)
 }
 
 func TestClassify_TruncatesProviderDetail(t *testing.T) {
