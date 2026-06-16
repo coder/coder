@@ -1,4 +1,4 @@
-// Package natsbench benchmarks Coder's NATS-backed pubsub
+// Command natsbench benchmarks Coder's NATS-backed pubsub
 // (github.com/coder/coder/v2/coderd/x/nats) under high fan-out load.
 //
 // A run publishes a configurable total number of messages across a set
@@ -27,9 +27,7 @@
 //     with diagnostics (per-subscriber shortfalls, per-node server
 //     stats, goroutine dump) instead of hanging.
 //
-// The package is an importable library. Main implements a command-line
-// interface that runs the default scenario matrix, one named scenario,
-// or a custom shape, and renders the grouped markdown report;
-// cmd/natsbench is a thin entrypoint around it. The heavy benchmarks
-// only run through that command, never in CI.
-package natsbench
+// The command runs the default scenario matrix, one named scenario, or
+// a custom shape, and renders the grouped markdown report to stdout.
+// The heavy benchmarks only run through this command, never in CI.
+package main

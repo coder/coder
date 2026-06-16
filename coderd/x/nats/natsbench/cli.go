@@ -1,4 +1,4 @@
-package natsbench
+package main
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -14,13 +15,20 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 )
 
-// Main runs the natsbench command-line interface. args is the full
+func main() {
+	if err := runCLI(os.Args, os.Stdout, os.Stderr); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+// runCLI runs the natsbench command-line interface. args is the full
 // argument vector (args[0] is the program name). The grouped markdown
 // report is written to stdout and progress and logs to stderr. With no
 // flags it runs the default scenario matrix; -scenario runs one named
 // scenario; any custom shape flag runs a single custom configuration.
 // It returns an error when the flags are invalid or any run fails.
-func Main(args []string, stdout, stderr io.Writer) error {
+func runCLI(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var (

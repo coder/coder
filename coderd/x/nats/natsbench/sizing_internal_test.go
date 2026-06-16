@@ -1,4 +1,4 @@
-package natsbench
+package main
 
 import (
 	"testing"
