@@ -8,9 +8,10 @@ import (
 )
 
 const (
-	// minLocalQueueMsgs matches the nats package's default listener
-	// queue capacity.
-	minLocalQueueMsgs = 1024
+	// minLocalQueueMsgs floors the derived queue at the production
+	// default so the benchmark never sizes below what a real
+	// deployment would use.
+	minLocalQueueMsgs = nats.DefaultListenerQueueSize
 	// maxLocalQueueMsgs caps derived listener queue capacity so a
 	// misconfigured plan cannot request absurd allocations.
 	maxLocalQueueMsgs = 1 << 20

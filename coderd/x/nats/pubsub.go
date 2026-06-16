@@ -20,6 +20,14 @@ import (
 // DefaultMaxPending is the per-client outbound pending byte budget.
 const DefaultMaxPending int64 = 128 << 20
 
+// DefaultListenerQueueSize is the per-listener inbox capacity used when
+// PendingLimits.Msgs is not positive.
+const DefaultListenerQueueSize = 1024
+
+// DefaultPendingBytes is the per-subscription pending byte limit used
+// when PendingLimits.Bytes is zero.
+const DefaultPendingBytes = 512 * 1024 * 1024
+
 const (
 	defaultClusterName   = "coder"
 	defaultClusterPort   = 6222
@@ -207,7 +215,7 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 		out.Msgs = -1
 	}
 	if out.Bytes == 0 {
-		out.Bytes = 512 * 1024 * 1024
+		out.Bytes = DefaultPendingBytes
 	}
 	return out
 }
@@ -397,10 +405,8 @@ func listenerQueueSize(in PendingLimits) int {
 	if in.Msgs > 0 {
 		return in.Msgs
 	}
-	return defaultListenerQueueSize
+	return DefaultListenerQueueSize
 }
-
-const defaultListenerQueueSize = 1024
 
 // addSubscriber creates a local subscriber and attaches it to the natsSub
 // for event. New natsSub entries are published only after NATS setup succeeds.
