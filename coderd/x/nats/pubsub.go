@@ -7,10 +7,12 @@ import (
 	"hash/fnv"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -149,6 +151,22 @@ type Pubsub struct {
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
+
+	publishesTotal      *prometheus.CounterVec
+	subscribesTotal     *prometheus.CounterVec
+	messagesTotal       *prometheus.CounterVec
+	publishedBytesTotal prometheus.Counter
+	receivedBytesTotal  prometheus.Counter
+	disconnectionsTotal prometheus.Counter
+	connected           prometheus.Gauge
+
+	latencyMeasurer       *pubsub.LatencyMeasurer
+	latencyMeasureCounter atomic.Int64
+	latencyErrCounter     atomic.Int64
+
+	// disconnectedConns tracks how many owned connections are currently
+	// disconnected. The connected gauge is 1 only when this is 0.
+	disconnectedConns atomic.Int64
 }
 
 // groupSub maps to one underlying *natsgo.Subscription. The first
@@ -156,6 +174,8 @@ type Pubsub struct {
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
 type groupSub struct {
+	// p is the owning Pubsub, used by handleMessage to record metrics.
+	p     *Pubsub
 	event string
 	// mu guards localSubs.
 	mu sync.Mutex
@@ -180,10 +200,13 @@ type localSub struct {
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
 var _ pubsub.Pubsub = (*Pubsub)(nil)
 
+// Compile-time assertion that *Pubsub is a prometheus.Collector.
+var _ prometheus.Collector = (*Pubsub)(nil)
+
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx.
 func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 	ctx, cancel := context.WithCancel(ctx)
-	return &Pubsub{
+	p := &Pubsub{
 		logger:        logger,
 		opts:          opts,
 		subscriptions: make(map[string]*groupSub),
@@ -192,6 +215,8 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		peerFetcher:   opts.PeerFetcher,
 		peerRefresh:   make(chan struct{}, 1),
 	}
+	p.initMetrics()
+	return p
 }
 
 // defaultPendingLimits returns the effective per-subscription pending
@@ -216,10 +241,12 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 			if err != nil {
 				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
+			p.onDisconnect()
 			p.signalSubscribersDroppedForConn(conn)
 		},
 		reconnect: func(_ *natsgo.Conn) {
 			p.logger.Info(p.ctx, "nats client reconnected")
+			p.onReconnect()
 		},
 		closed: func(_ *natsgo.Conn) {
 			p.logger.Debug(p.ctx, "nats client closed")
@@ -286,6 +313,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
+	// All owned connections dialed successfully above.
+	p.connected.Set(1)
 
 	if p.clustered {
 		go p.runPeerRefresh()
@@ -327,12 +356,16 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
+		p.publishesTotal.WithLabelValues("false").Inc()
 		return errClosed
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
+		p.publishesTotal.WithLabelValues("false").Inc()
 		return xerrors.Errorf("publish: %w", err)
 	}
+	p.publishesTotal.WithLabelValues("true").Inc()
+	p.publishedBytesTotal.Add(float64(len(message)))
 	return nil
 }
 
@@ -394,6 +427,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub, ok = p.subscriptions[event]
 		if !ok {
 			gSub = &groupSub{
+				p:         p,
 				event:     event,
 				localSubs: make(map[*localSub]struct{}),
 				sub: &subGetter{
@@ -414,8 +448,10 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 	}()
 
 	if _, err := g.sub.get(); err != nil {
+		p.subscribesTotal.WithLabelValues("false").Inc()
 		return nil, err
 	}
+	p.subscribesTotal.WithLabelValues("true").Inc()
 	return p.closeLocalSubFunc(l, g), nil
 }
 
@@ -695,6 +731,7 @@ func erroredGroupSub(err error) *groupSub {
 // local listener without cloning. Listeners on a coalesced subject MUST
 // treat the delivered bytes as immutable.
 func (g *groupSub) handleMessage(msg *natsgo.Msg) {
+	g.p.countReceived(msg.Data)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for l := range g.localSubs {
