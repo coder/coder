@@ -80,10 +80,9 @@ func TestRunCluster(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	logger := testutil.Logger(t)
 
-	// Subjects (2) and Replicas (3) are coprime, so the round-robin
-	// placement puts a subject's publishers and subscribers on
-	// different nodes. This exercises cross-node delivery and forces
-	// the readiness gate to prove route propagation.
+	// Random node placement across 3 replicas makes cross-node
+	// delivery the common case, exercising route propagation through
+	// the readiness gate.
 	cfg := Config{
 		Messages:    600,
 		PayloadSize: 512,

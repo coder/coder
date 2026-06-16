@@ -54,6 +54,7 @@ func runCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error 
 	fs.IntVar(&run.replicas, "replicas", 1, "number of embedded pubsub nodes (custom run)")
 	fs.IntVar(&run.publishConns, "publish-conns", DefaultConns, "publisher connection pool size (applies to every run)")
 	fs.IntVar(&run.subscribeConns, "subscribe-conns", DefaultConns, "subscriber connection pool size (applies to every run)")
+	fs.Int64Var(&run.seed, "seed", 0, "seed for pseudorandom node placement (applies to every run); same seed reproduces the same placement")
 	fs.DurationVar(&run.timeout, "timeout", 2*time.Minute, "per-phase timeout")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -134,6 +135,7 @@ type cliRun struct {
 	replicas       int
 	publishConns   int
 	subscribeConns int
+	seed           int64
 	timeout        time.Duration
 }
 
@@ -156,6 +158,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			}
 			sc.Config.PublishConns = c.publishConns
 			sc.Config.SubscribeConns = c.subscribeConns
+			sc.Config.Seed = c.seed
 			sc.Config.Timeout = c.timeout
 			return []Scenario{sc}, nil
 		}
@@ -176,6 +179,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 				Replicas:       c.replicas,
 				PublishConns:   c.publishConns,
 				SubscribeConns: c.subscribeConns,
+				Seed:           c.seed,
 				Timeout:        c.timeout,
 			},
 		}}, nil
@@ -187,6 +191,7 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			}
 			scenarios[i].Config.PublishConns = c.publishConns
 			scenarios[i].Config.SubscribeConns = c.subscribeConns
+			scenarios[i].Config.Seed = c.seed
 			scenarios[i].Config.Timeout = c.timeout
 		}
 		return scenarios, nil

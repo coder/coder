@@ -53,11 +53,17 @@ func TestSubjectNodes(t *testing.T) {
 	pl := buildPlan(Config{
 		Messages: 30, Publishers: 5, Subjects: 2, Subscribers: 3, Replicas: 3,
 	})
-	// Publishers: 0->s0/n0, 1->s1/n1, 2->s0/n2, 3->s1/n0, 4->s0/n1.
-	require.Equal(t, map[int]map[int]struct{}{
-		0: {0: {}, 1: {}, 2: {}},
-		1: {0: {}, 1: {}},
-	}, subjectNodes(pl))
+
+	// subjectNodes must map each subject to exactly the set of nodes
+	// hosting its publishers, derived independently from the plan.
+	want := make(map[int]map[int]struct{})
+	for i, subject := range pl.pubSubject {
+		if want[subject] == nil {
+			want[subject] = make(map[int]struct{})
+		}
+		want[subject][pl.pubNode[i]] = struct{}{}
+	}
+	require.Equal(t, want, subjectNodes(pl))
 }
 
 func TestReadinessConverged(t *testing.T) {

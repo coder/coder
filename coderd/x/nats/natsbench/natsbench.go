@@ -43,6 +43,11 @@ type Config struct {
 	// Replicas is the number of embedded pubsub nodes. 1 runs a single
 	// node; greater values run a fully meshed cluster.
 	Replicas int
+	// Seed selects the pseudorandom node placement. The same seed
+	// reproduces the same placement for a given shape; change it to
+	// sample a different placement. Zero is a valid, deterministic
+	// seed.
+	Seed int64
 
 	// InProcess uses in-process server connections instead of TCP
 	// loopback.

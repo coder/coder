@@ -2,35 +2,43 @@ package main
 
 import (
 	"fmt"
+	"math/rand/v2"
 	"slices"
 )
 
-// plan deterministically assigns publishers and subscribers to subjects
-// and replica nodes by round-robin on their index, and precomputes each
-// subscriber's expected delivery count so the workload can do exact
-// accounting.
+// plan assigns publishers and subscribers to subjects round-robin by
+// index, places each one on a pseudorandom replica node (seeded for
+// reproducibility), and precomputes each subscriber's expected delivery
+// count so the workload can do exact accounting.
 //
-// Worked example with Subjects=2, Replicas=2, Publishers=3,
-// Subscribers=4, Messages=100. Publisher i and subscriber j wrap around
-// the subjects and nodes by index (i%2, j%2), and the 100 messages
-// split 34/33/33 (the remainder lands on publisher 0):
+// Node placement is random to model a real deployment, where each
+// client connects to an arbitrary replica. Round-robin node placement
+// would instead co-locate publisher i and subscriber i on the same
+// node and, whenever Replicas divides Subjects, keep a subject's entire
+// traffic local, which understates cross-node routing cost.
 //
-//	publisher 0 -> subject 0, node 0, sends 34
-//	publisher 1 -> subject 1, node 1, sends 33
-//	publisher 2 -> subject 0, node 0, sends 33
+// Worked example with Subjects=2, Publishers=3, Subscribers=4,
+// Messages=100. Subject assignment is round-robin (index % Subjects)
+// and the 100 messages split 34/33/33 (the remainder lands on publisher
+// 0):
+//
+//	publisher 0 -> subject 0, sends 34
+//	publisher 1 -> subject 1, sends 33
+//	publisher 2 -> subject 0, sends 33
 //
 //	subject 0 receives 34+33 = 67 (publishers 0 and 2)
 //	subject 1 receives 33      (publisher 1)
 //
-//	subscriber 0 -> subject 0, node 0, expects 67
-//	subscriber 1 -> subject 1, node 1, expects 33
-//	subscriber 2 -> subject 0, node 0, expects 67
-//	subscriber 3 -> subject 1, node 1, expects 33
+//	subscriber 0 -> subject 0, expects 67
+//	subscriber 1 -> subject 1, expects 33
+//	subscriber 2 -> subject 0, expects 67
+//	subscriber 3 -> subject 1, expects 33
 //
 // totalExpected = 67+33+67+33 = 200. It exceeds the 100 published
 // messages because each subject has two subscribers, so every message
 // is delivered twice. That fan-out is the logical delivery count the
-// benchmark measures.
+// benchmark measures. Each publisher's and subscriber's node is drawn
+// independently from [0, Replicas).
 type plan struct {
 	// perPubMsgs[i] is the number of messages publisher i sends.
 	perPubMsgs []int
@@ -55,8 +63,10 @@ type plan struct {
 	subNodes []int
 }
 
-// buildPlan computes the deterministic workload assignment for cfg.
-// cfg must already be validated: all counts are at least 1.
+// buildPlan computes the workload assignment for cfg. Subject and
+// message assignment is deterministic; node placement is pseudorandom
+// but fully determined by cfg.Seed, so a given config reproduces the
+// same plan. cfg must already be validated: all counts are at least 1.
 func buildPlan(cfg Config) plan {
 	pl := plan{
 		perPubMsgs:   make([]int, cfg.Publishers),
@@ -66,6 +76,12 @@ func buildPlan(cfg Config) plan {
 		subNode:      make([]int, cfg.Subscribers),
 		expectPerSub: make([]int, cfg.Subscribers),
 	}
+
+	// Seed both PCG streams from cfg.Seed so placement is reproducible
+	// for a given seed. Node placement is benchmark randomness, not
+	// security-sensitive.
+	seed := uint64(cfg.Seed)                 //nolint:gosec // G115: deterministic benchmark seed, sign irrelevant.
+	rng := rand.New(rand.NewPCG(seed, seed)) //nolint:gosec // G404: placement randomness, not security-sensitive.
 
 	base := cfg.Messages / cfg.Publishers
 	remainder := cfg.Messages % cfg.Publishers
@@ -77,13 +93,13 @@ func buildPlan(cfg Config) plan {
 		}
 		pl.perPubMsgs[i] = msgs
 		pl.pubSubject[i] = i % cfg.Subjects
-		pl.pubNode[i] = i % cfg.Replicas
+		pl.pubNode[i] = rng.IntN(cfg.Replicas)
 		perSubjectMsgs[pl.pubSubject[i]] += msgs
 	}
 
 	for j := range cfg.Subscribers {
 		pl.subSubject[j] = j % cfg.Subjects
-		pl.subNode[j] = j % cfg.Replicas
+		pl.subNode[j] = rng.IntN(cfg.Replicas)
 		pl.expectPerSub[j] = perSubjectMsgs[pl.subSubject[j]]
 		pl.totalExpected += pl.expectPerSub[j]
 	}

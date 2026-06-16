@@ -45,11 +45,16 @@ func TestDerivedMaxPending(t *testing.T) {
 
 	t.Run("SumsSubjectsSharingANode", func(t *testing.T) {
 		t.Parallel()
-		// 10 subjects across 5 nodes: each node's lone subscribe conn
-		// carries two coalesced subscriptions of 10k messages each.
-		pl := buildPlan(Config{
-			Messages: 100000, Publishers: 10, Subjects: 10, Subscribers: 50, Replicas: 5,
-		})
+		// A node whose subscribe connection carries two coalesced
+		// subscriptions must budget for both subjects' bursts. Node 0
+		// hosts subjects 0 and 1; node 1 hosts only subject 0.
+		pl := plan{
+			perPubMsgs: []int{10000, 10000},
+			pubSubject: []int{0, 1},
+			subSubject: []int{0, 1, 0},
+			subNode:    []int{0, 0, 1},
+			subNodes:   []int{0, 1},
+		}
 		want := 2 * int64(10000+probeHeadroom) * int64(Payload64KB+perMessageOverhead)
 		require.Equal(t, want, derivedMaxPending(pl, Payload64KB))
 		require.Greater(t, want, nats.DefaultMaxPending)
