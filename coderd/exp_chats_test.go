@@ -1994,11 +1994,18 @@ func TestWatchChats(t *testing.T) {
 			OwnerID:           user.UserID,
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
-			LastInjectedContext: pqtype.NullRawMessage{
-				RawMessage: lastInjectedContext,
-				Valid:      true,
-			},
 		})
+		chat, err = db.UpdateChatLastInjectedContext(
+			dbauthz.AsChatd(ctx),
+			database.UpdateChatLastInjectedContextParams{
+				ID: chat.ID,
+				LastInjectedContext: pqtype.NullRawMessage{
+					RawMessage: lastInjectedContext,
+					Valid:      true,
+				},
+			},
+		)
+		require.NoError(t, err)
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
 		_, err = db.UpsertChatDiffStatusReference(
@@ -2036,7 +2043,7 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		err = api.ChatDaemonForTest().PublishDiffStatusChange(ctx, chat.ID)
+		err = api.ChatDaemonForTest().PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
 		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
