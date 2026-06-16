@@ -50,8 +50,8 @@ func renderGroup(b *strings.Builder, rows []ScenarioResult) {
 
 	// The Status column is left-aligned (free text); the rest are
 	// numeric and right-aligned.
-	headers := []string{"Replicas", "Messages", "Pubs/sec", "Deliveries/sec"}
-	aligns := []alignment{alignRight, alignRight, alignRight, alignRight}
+	headers := []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"}
+	aligns := []alignment{alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight}
 	if withStatus {
 		headers = append(headers, "Status")
 		aligns = append(aligns, alignLeft)
@@ -59,8 +59,7 @@ func renderGroup(b *strings.Builder, rows []ScenarioResult) {
 
 	table := [][]string{headers}
 	for _, row := range rows {
-		replicas, messages, pubs, dels, status := rowCells(row)
-		cells := []string{replicas, messages, pubs, dels}
+		cells, status := rowCells(row)
 		if withStatus {
 			cells = append(cells, status)
 		}
@@ -143,22 +142,28 @@ func groupByPayload(results []ScenarioResult) []payloadGroup {
 	return groups
 }
 
-// rowCells returns the replicas, messages, pubs/sec, deliveries/sec,
-// and status cells for one result. Invalid runs render INVALID rates
-// and a status describing why; valid runs render rates and an "ok"
-// status that callers may drop for all-clean groups.
-func rowCells(row ScenarioResult) (replicas, messages, pubs, dels, status string) {
+// rowCells returns the shape and throughput cells for one result, plus
+// a status string. The cells are: replicas, subjects, publishers,
+// subscribers, messages, pubs/sec, deliveries/sec. Invalid runs render
+// INVALID rates and a status describing why; valid runs render rates
+// and an "ok" status that callers may drop for all-clean groups.
+func rowCells(row ScenarioResult) (cells []string, status string) {
 	cfg := row.Scenario.Config
 	if row.Result != nil {
 		cfg = row.Result.Config
 	}
-	replicas = strconv.Itoa(cfg.Replicas)
-	messages = formatInt(int64(cfg.Messages))
+	shape := []string{
+		strconv.Itoa(cfg.Replicas),
+		strconv.Itoa(cfg.Subjects),
+		strconv.Itoa(cfg.Publishers),
+		strconv.Itoa(cfg.Subscribers),
+		formatInt(int64(cfg.Messages)),
+	}
 
 	if row.valid() {
-		return replicas, messages, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec), "ok"
+		return append(shape, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec)), "ok"
 	}
-	return replicas, messages, "INVALID", "INVALID", shortReason(row)
+	return append(shape, "INVALID", "INVALID"), shortReason(row)
 }
 
 // shortReason summarizes why a run is invalid in one table-safe line.

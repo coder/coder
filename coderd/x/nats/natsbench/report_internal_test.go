@@ -111,7 +111,10 @@ func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	t.Parallel()
 
 	result := func(replicas int, pubs, dels float64) ScenarioResult {
-		cfg := Config{Messages: 100000, PayloadSize: Payload8KB, Replicas: replicas}
+		cfg := Config{
+			Messages: 100000, PayloadSize: Payload8KB, Replicas: replicas,
+			Subjects: 10, Publishers: 10, Subscribers: 50,
+		}
 		return ScenarioResult{
 			Scenario: Scenario{Config: cfg},
 			Result:   &Result{Config: cfg, PubsPerSec: pubs, DeliveriesPerSec: dels},
@@ -125,8 +128,10 @@ func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	}))
 	out := b.String()
 
-	require.Contains(t, out, "Replicas")
-	require.Contains(t, out, "Deliveries/sec")
+	// The shape columns are reported alongside throughput.
+	for _, header := range []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"} {
+		require.Contains(t, out, header)
+	}
 	require.NotContains(t, out, "Status")
 	require.NotContains(t, out, "Scenario")
 	require.NotContains(t, out, "Drops")
