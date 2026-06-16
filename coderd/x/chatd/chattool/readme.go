@@ -13,28 +13,29 @@ import (
 // well above the largest (8192-rune) output cap.
 const readmeInputMaxBytes = 64 * 1024
 
-// readmeText strips frontmatter, bounds the input, renders the README to its
-// plain-text innerText, and truncates to maxRunes with an ellipsis. Returns ""
-// when the README is empty/whitespace-only or conversion fails (best-effort):
-// markdown formatting, images, and link URLs become their visible text while
-// code blocks and table cells are preserved.
+// readmeText returns the README as bounded, frontmatter-stripped plain text
+// truncated to maxRunes, or "" when the README is blank or conversion fails.
 func readmeText(readme string, maxRunes int) string {
-	body := stripReadmeFrontmatter(readme)
-	// Back off to the last newline so the parser is not handed a fragment cut
-	// mid-line (which would leak debris such as a half-written tag).
-	if len(body) > readmeInputMaxBytes {
-		if i := strings.LastIndexByte(body[:readmeInputMaxBytes], '\n'); i >= 0 {
-			body = body[:i]
-		} else {
-			body = body[:readmeInputMaxBytes]
-		}
-	}
-
+	body := stripReadmeFrontmatter(boundInput(readme))
 	text, err := render.InnerTextFromMarkdown(body)
 	if err != nil {
 		return ""
 	}
 	return coderstrings.Truncate(text, maxRunes, coderstrings.TruncateWithEllipsis)
+}
+
+// boundInput caps s at readmeInputMaxBytes before any full-input pass touches the
+// untrusted README, backing off to the last newline within the cap so the parser
+// is not handed a fragment cut mid-line (which would leak debris such as a
+// half-written tag). A run longer than the cap with no newline is hard-cut.
+func boundInput(s string) string {
+	if len(s) <= readmeInputMaxBytes {
+		return s
+	}
+	if i := strings.LastIndexByte(s[:readmeInputMaxBytes], '\n'); i >= 0 {
+		return s[:i]
+	}
+	return s[:readmeInputMaxBytes]
 }
 
 // stripReadmeFrontmatter removes a single leading "---" fenced YAML

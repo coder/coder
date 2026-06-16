@@ -483,6 +483,6 @@ func TestListTemplates_ReadmeExcerpt_NonOwnerRBAC(t *testing.T) {
 	require.Len(t, items, 1)
 	m := items[0].(map[string]any)
 	require.Equal(t, tmpl.ID.String(), m["id"])
-	require.Equal(t, "Title Member-visible routing context.", m["readme_excerpt"],
+	require.Equal(t, "Title\nMember-visible routing context.", m["readme_excerpt"],
 		"a non-owner member must still receive readme_excerpt")
 }

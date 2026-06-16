@@ -15,7 +15,7 @@ func TestReadmeText(t *testing.T) {
 	t.Run("StripsFrontmatterThenRenders", func(t *testing.T) {
 		t.Parallel()
 		got := readmeText("---\nkey: val\n---\n\n# Title\n\nBody prose.\n", maxRunes)
-		require.Equal(t, "Title Body prose.", got)
+		require.Equal(t, "Title\nBody prose.", got)
 	})
 
 	t.Run("BlankReturnsEmpty", func(t *testing.T) {
@@ -34,12 +34,40 @@ func TestReadmeText(t *testing.T) {
 
 	t.Run("BoundsHugeInput", func(t *testing.T) {
 		t.Parallel()
-		// A README far larger than the input bound still returns within the cap
-		// and parses without leaking a mid-line fragment.
+		// Smoke test: a README far larger than the input bound still flows through
+		// the whole pipeline within the cap. boundInput's branches are covered
+		// directly by TestBoundInput.
 		huge := "# Title\n\n" + strings.Repeat("word word word\n", readmeInputMaxBytes/8) // >64KiB, newlines throughout
 		got := readmeText(huge, maxRunes)
 		require.LessOrEqual(t, len([]rune(got)), maxRunes)
 		require.NotContains(t, got, "<")
+	})
+}
+
+func TestBoundInput(t *testing.T) {
+	t.Parallel()
+
+	t.Run("UnderCapUnchanged", func(t *testing.T) {
+		t.Parallel()
+		s := "short\nreadme\n"
+		require.Equal(t, s, boundInput(s))
+	})
+
+	t.Run("NewlineBackoff", func(t *testing.T) {
+		t.Parallel()
+		// A newline within the cap: cut there, dropping the partial final line so
+		// the parser never sees a fragment cut mid-line.
+		head := strings.Repeat("a", readmeInputMaxBytes-3)
+		got := boundInput(head + "\n" + strings.Repeat("b", 100))
+		require.Equal(t, head, got)
+		require.NotContains(t, got, "b")
+	})
+
+	t.Run("NoNewlineHardCut", func(t *testing.T) {
+		t.Parallel()
+		// No newline in the first cap bytes: hard-cut at exactly the cap.
+		got := boundInput(strings.Repeat("a", readmeInputMaxBytes+100))
+		require.Len(t, got, readmeInputMaxBytes)
 	})
 }
 

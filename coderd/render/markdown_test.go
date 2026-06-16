@@ -97,10 +97,10 @@ func TestInnerTextFromMarkdown(t *testing.T) {
 		expected string
 	}{
 		{"LinkTextKeptUrlDropped", "Use [Coder](https://coder.com/docs) now.", "Use Coder now."},
-		{"ImageDropped", "# T\n\n![alt](a.svg)\n\nBody.", "T Body."},
+		{"ImageDropped", "# T\n\n![alt](a.svg)\n\nBody.", "T\nBody."},
 		{"BadgeDropped", "[![discord](shield.png)](https://discord.gg/x)\n\nReal.", "Real."},
-		{"CodeBlockKept", "Intro.\n\n```sh\nsudo usermod -aG docker coder\n```\n\nOutro.", "Intro. sudo usermod -aG docker coder Outro."},
-		{"TableCellsKept", "Before.\n\n| env | required |\n|---|---|\n| FOO | yes |\n\nAfter.", "Before. env required FOO yes After."},
+		{"CodeBlockLinesKept", "Intro.\n\n```sh\nnpm install\nnpm run dev\n```\n\nOutro.", "Intro.\nnpm install\nnpm run dev\nOutro."},
+		{"TableCellsKept", "Before.\n\n| env | required |\n|---|---|\n| FOO | yes |\n\nAfter.", "Before.\nenv\nrequired\nFOO\nyes\nAfter."},
 		{"HtmlInnerTextKept", "<p>Important: needs GPU.</p>", "Important: needs GPU."},
 		{
 			// Markdown nested inside a block-level HTML wrapper must still be
@@ -111,13 +111,22 @@ func TestInnerTextFromMarkdown(t *testing.T) {
 			"<div align=\"center\">\n  <img src=\"logo.png\" alt=\"Logo\">\n</div>\n\n" +
 				"[Docs](https://x.com/docs) | [Why](https://x.com/why)\n\n" +
 				"[![badge](https://img.shields.io/x.svg)](https://x.com)\n\nReal prose.",
-			"Docs | Why Real prose.",
+			"Docs | Why\nReal prose.",
 		},
-		{"ScriptDropped", "Before.\n\n<script>alert('x')</script>\n\nAfter.", "Before. After."},
-		{"StyleDropped", "Before.\n\n<style>.x{color:red}</style>\n\nAfter.", "Before. After."},
+		{"ScriptDropped", "Before.\n\n<script>alert('x')</script>\n\nAfter.", "Before.\nAfter."},
+		// An empty-body <script src=...> must not leave the skip armed and eat the
+		// next text run (guards the skipNextText reset on non-text tokens).
+		{"ScriptSrcEmptyBody", "Before.\n\n<script src=\"x.js\"></script>\n\nAfter.", "Before.\nAfter."},
+		{"StyleDropped", "Before.\n\n<style>.x{color:red}</style>\n\nAfter.", "Before.\nAfter."},
+		// A bare </script> in prose must not underflow the skip and swallow what
+		// follows.
+		{"BareScriptCloseNoUnderflow", "Before.\n\n</script>\n\nAfter.", "Before.\nAfter."},
+		// An unterminated raw-text element is, per the HTML spec, a single run to
+		// EOF, so the remainder is unavoidably consumed; it must not error.
+		{"UnterminatedScriptEatsRest", "Intro.\n\n<script>\nvar x = 1;\n\nMore prose.", "Intro."},
 		{"EmphasisAndCodeSpanFlattened", "Run `make` for **speed**.", "Run make for speed."},
-		{"HeadingParagraphOrder", "# Title\n\nLead.\n\n## Prereq\n\nDetail.", "Title Lead. Prereq Detail."},
-		{"SmartPunctuationPreserved", `Use "quotes" and dashes -- like this.`, `Use "quotes" and dashes -- like this.`},
+		{"HeadingParagraphOrder", "# Title\n\nLead.\n\n## Prereq\n\nDetail.", "Title\nLead.\nPrereq\nDetail."},
+		{"SmartPunctuationNotApplied", `He typed "10--20" verbatim.`, `He typed "10--20" verbatim.`},
 		{"EmptyReturnsEmpty", "", ""},
 		{"WhitespaceReturnsEmpty", "   \n\t\n", ""},
 	}

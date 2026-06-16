@@ -238,7 +238,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 		t.Parallel()
 		readme := "---\ndescription: Go template.\n---\n# Title\n\nUse Docker.\n"
 		tmplInfo := readTemplateInfoForReadme(t, readme)
-		require.Equal(t, "Title Use Docker.", tmplInfo["readme"])
+		require.Equal(t, "Title\nUse Docker.", tmplInfo["readme"])
 	})
 
 	t.Run("EmptyOmitsField", func(t *testing.T) {
@@ -252,7 +252,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 		t.Parallel()
 		readme := "# Title\n\n" + strings.Repeat("x", 3000)
 		tmplInfo := readTemplateInfoForReadme(t, readme)
-		require.Equal(t, "Title "+strings.Repeat("x", 3000), tmplInfo["readme"])
+		require.Equal(t, "Title\n"+strings.Repeat("x", 3000), tmplInfo["readme"])
 	})
 
 	// Images are dropped but code blocks are preserved as text (detail view).
@@ -260,7 +260,7 @@ func TestReadTemplate_Readme(t *testing.T) {
 		t.Parallel()
 		readme := "# Setup\n\n![diagram](./a.svg)\n\nRun the installer.\n\n```sh\nmake build\n```\n\nDone.\n"
 		tmplInfo := readTemplateInfoForReadme(t, readme)
-		require.Equal(t, "Setup Run the installer. make build Done.", tmplInfo["readme"])
+		require.Equal(t, "Setup\nRun the installer.\nmake build\nDone.", tmplInfo["readme"])
 	})
 
 	// READMEs larger than the cap are truncated with a trailing ellipsis so a

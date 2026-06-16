@@ -124,10 +124,11 @@ func HTMLFromMarkdown(markdown string) string {
 }
 
 // InnerTextFromMarkdown renders Markdown (including any embedded raw HTML) to
-// HTML and returns the visible text content (its "innerText"): markdown
-// formatting, images, and link URLs collapse to their visible text, while code
-// blocks and table cells are preserved as text. Whitespace is collapsed to
-// single spaces.
+// HTML and returns its visible text content (its "innerText"), preserving line
+// structure: block boundaries, code-block lines, and table cells stay on
+// separate lines while intra-line whitespace is collapsed. Link text is kept and
+// link URLs dropped; images and badges are dropped whole; code blocks and tables
+// are preserved as text.
 //
 // The input is treated as untrusted: a panic from the markdown or HTML parser is
 // recovered and returned as an error.
@@ -145,28 +146,38 @@ func InnerTextFromMarkdown(markdown string) (out string, err error) {
 
 	z := xhtml.NewTokenizer(&rendered)
 	var b strings.Builder
-	skipDepth := 0
+	// script and style are raw-text elements: their content is the single text
+	// token that follows the start tag. Skip that one run rather than tracking a
+	// depth, so a stray </script> or an unterminated tag cannot latch the skip on
+	// and swallow the rest of the document.
+	skipNextText := false
 	for {
 		if z.Next() == xhtml.ErrorToken {
 			break // includes io.EOF
 		}
 		switch tok := z.Token(); tok.Type {
 		case xhtml.StartTagToken:
-			if tok.Data == "script" || tok.Data == "style" {
-				skipDepth++
-			}
-		case xhtml.EndTagToken:
-			if (tok.Data == "script" || tok.Data == "style") && skipDepth > 0 {
-				skipDepth--
-			}
+			skipNextText = tok.Data == "script" || tok.Data == "style"
 		case xhtml.TextToken:
-			if skipDepth == 0 {
-				// Write text as-is; goldmark's inter-block newlines preserve
-				// block separation without splitting inline punctuation.
-				_, _ = b.WriteString(tok.Data)
+			if skipNextText {
+				skipNextText = false
+				continue
 			}
+			// Write text as-is; goldmark's newlines are normalized below.
+			_, _ = b.WriteString(tok.Data)
+		default:
+			skipNextText = false
 		}
 	}
-	// Collapse all whitespace (newlines, block boundaries) to single spaces.
-	return strings.Join(strings.Fields(b.String()), " "), nil
+
+	// Collapse intra-line whitespace but keep newlines, so code lines, table
+	// cells, and block boundaries stay on separate lines. Blank lines are
+	// dropped, leaving a single newline between content lines.
+	var lines []string
+	for _, line := range strings.Split(b.String(), "\n") {
+		if f := strings.Join(strings.Fields(line), " "); f != "" {
+			lines = append(lines, f)
+		}
+	}
+	return strings.Join(lines, "\n"), nil
 }

@@ -95,9 +95,10 @@ frontmatter block.
 
 The chat agent's template listing includes a bounded README excerpt (roughly the
 first 1,000 characters), and template detail includes the README (up to roughly
-8,000 characters). Both are reduced to plain text: frontmatter is stripped, and
-markdown formatting, images, and link URLs are collapsed to their visible text,
-while code blocks and tables are preserved as text. Use the opening section to
+8,000 characters). Both are reduced to plain text: frontmatter is stripped,
+link text is kept while link URLs are dropped, images and badges are dropped
+entirely, and code blocks and tables are preserved as text. Use the opening
+section to
 explain when to choose this template, what it is *not* for, and the specific
 stack or services it provides.
 
