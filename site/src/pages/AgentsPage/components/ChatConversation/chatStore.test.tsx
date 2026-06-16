@@ -34,6 +34,7 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
@@ -191,17 +192,11 @@ const createMockSocket = (): MockSocket => {
 	};
 };
 
-const createTestQueryClient = (): QueryClient =>
-	new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
-				gcTime: 0,
-				refetchOnWindowFocus: false,
-				networkMode: "offlineFirst",
-			},
-		},
-	});
+const createWrapper =
+	(queryClient: QueryClient): FC<PropsWithChildren> =>
+	({ children }) => (
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
 
 const makeChat = (chatID: string): TypesGen.Chat => ({
 	id: chatID,
@@ -286,9 +281,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -374,9 +367,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -474,9 +465,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -568,9 +557,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -631,9 +618,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -730,9 +715,7 @@ describe("useChatStore", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -831,9 +814,7 @@ describe("useChatStore", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -914,9 +895,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -989,9 +968,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1157,9 +1134,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1232,9 +1207,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1335,9 +1308,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const initialOptions = {
@@ -1409,9 +1380,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1501,9 +1470,7 @@ describe("useChatStore", () => {
 			pageParams: [undefined],
 		});
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1573,9 +1540,7 @@ describe("useChatStore", () => {
 			pageParams: [undefined],
 		});
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1672,9 +1637,7 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1757,9 +1720,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1813,9 +1774,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1915,9 +1874,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2013,9 +1970,7 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2104,9 +2059,7 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2174,9 +2127,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2244,9 +2195,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2323,9 +2272,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2379,9 +2326,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2445,9 +2390,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2528,9 +2471,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2615,9 +2556,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2678,9 +2617,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturnOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2759,9 +2696,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2836,9 +2771,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2915,9 +2848,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
@@ -2964,9 +2895,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		renderHook(
 			() =>
@@ -3017,9 +2946,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		renderHook(
 			() =>
@@ -3080,9 +3007,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3205,9 +3130,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3263,9 +3186,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3334,9 +3255,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3443,9 +3362,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3546,9 +3463,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		// Start with a "running" chatRecord so the WS opens.
 		const { result, rerender } = renderHook(
@@ -3617,9 +3532,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3695,9 +3608,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3795,9 +3706,7 @@ describe("thinking indicator event ordering", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3880,9 +3789,7 @@ describe("thinking indicator event ordering", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3960,9 +3867,7 @@ describe("thinking indicator event ordering", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4049,9 +3954,7 @@ describe("updateSidebarChat via stream events", () => {
 		// Seed the chats list so updateSidebarChat can find it.
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4113,9 +4016,7 @@ describe("updateSidebarChat via stream events", () => {
 		const initialChat = makeChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4186,9 +4087,7 @@ describe("updateSidebarChat via stream events", () => {
 		const initialChat = makeChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4252,9 +4151,7 @@ describe("updateSidebarChat via stream events", () => {
 		const otherChat = makeChat(otherChatID);
 		seedInfiniteChats(queryClient, [activeChat, otherChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4325,9 +4222,7 @@ describe("updateSidebarChat via stream events", () => {
 		const initialChat = { ...makeChat(chatID), updated_at: futureTimestamp };
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4396,9 +4291,7 @@ describe("updateSidebarChat via stream events", () => {
 		const initialChat = makeChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4462,9 +4355,7 @@ describe("updateSidebarChat via stream events", () => {
 		const initialChat = makeChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4518,9 +4409,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
@@ -4599,9 +4488,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		// Track every snapshot emitted to subscribers.
 		const snapshots: Array<{
@@ -4693,9 +4580,7 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 		mockWatchChatReturnOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
@@ -4819,9 +4704,7 @@ describe("store/cache desync protection", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const initialMessages = [msg1, msg2];
 		const initialOptions = {
@@ -4910,9 +4793,7 @@ describe("store/cache desync protection", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const initialOptions = {
 			chatID,
@@ -4983,9 +4864,7 @@ describe("store/cache desync protection", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const initialOptions = {
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
@@ -5066,9 +4945,7 @@ describe("parse errors", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -5121,9 +4998,7 @@ describe("parse errors", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -5197,9 +5072,7 @@ describe("parse errors", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
