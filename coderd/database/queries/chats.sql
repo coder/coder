@@ -2551,8 +2551,7 @@ WHERE id = @id::uuid;
 -- name: DeleteOldChats :execrows
 -- Deletes chats that have been archived for longer than the given
 -- threshold. Active (non-archived) chats are never deleted.
--- Related chat_messages, chat_diff_statuses, and
--- chat_queued_messages are removed via ON DELETE CASCADE.
+-- All chat-scoped child tables are removed via ON DELETE CASCADE.
 -- Parent/root references on child chats are SET NULL.
 WITH deletable AS (
     SELECT id

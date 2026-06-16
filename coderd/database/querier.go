@@ -200,8 +200,7 @@ type sqlcQuerier interface {
 	DeleteOldChatFiles(ctx context.Context, arg DeleteOldChatFilesParams) (int64, error)
 	// Deletes chats that have been archived for longer than the given
 	// threshold. Active (non-archived) chats are never deleted.
-	// Related chat_messages, chat_diff_statuses, and
-	// chat_queued_messages are removed via ON DELETE CASCADE.
+	// All chat-scoped child tables are removed via ON DELETE CASCADE.
 	// Parent/root references on child chats are SET NULL.
 	DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error)
 	DeleteOldConnectionLogs(ctx context.Context, arg DeleteOldConnectionLogsParams) (int64, error)

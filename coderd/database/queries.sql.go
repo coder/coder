@@ -6697,8 +6697,7 @@ type DeleteOldChatsParams struct {
 
 // Deletes chats that have been archived for longer than the given
 // threshold. Active (non-archived) chats are never deleted.
-// Related chat_messages, chat_diff_statuses, and
-// chat_queued_messages are removed via ON DELETE CASCADE.
+// All chat-scoped child tables are removed via ON DELETE CASCADE.
 // Parent/root references on child chats are SET NULL.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)

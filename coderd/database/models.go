@@ -4809,6 +4809,29 @@ type Chat struct {
 	ContextError             string                `db:"context_error" json:"context_error"`
 }
 
+// Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.
+type ChatContextResource struct {
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+	// Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.
+	Source string `db:"source" json:"source"`
+	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
+	BodyKind WorkspaceAgentContextBodyKind `db:"body_kind" json:"body_kind"`
+	// protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.
+	Body json.RawMessage `db:"body" json:"body"`
+	// sha256 over the resource's original bytes (or transport-encoded server tool list).
+	ContentHash []byte `db:"content_hash" json:"content_hash"`
+	// Original payload size in bytes; populated regardless of status.
+	SizeBytes int64 `db:"size_bytes" json:"size_bytes"`
+	// Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.
+	Status WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
+	// Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.
+	Error string `db:"error" json:"error"`
+	// User-declared scan root that produced this resource. Empty for built-in scan roots.
+	SourcePath string    `db:"source_path" json:"source_path"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
 type ChatDebugRun struct {
 	ID                  uuid.UUID       `db:"id" json:"id"`
 	ChatID              uuid.UUID       `db:"chat_id" json:"chat_id"`
