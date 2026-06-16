@@ -1978,6 +1978,7 @@ func TestWatchChats(t *testing.T) {
 		})
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
+		chatDaemon := api.ChatDaemonForTest()
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
@@ -2043,7 +2044,7 @@ func TestWatchChats(t *testing.T) {
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		err = api.ChatDaemonForTest().PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
+		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
 		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
