@@ -94,16 +94,36 @@ func TestAuthorization(t *testing.T) {
 			name:        "deleted user",
 			expectedErr: aibridgedserver.ErrDeletedUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Deleted = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, Deleted: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			name:        "suspended user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusSuspended
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
+			},
+		},
+		{
+			name:        "dormant user",
+			expectedErr: aibridgedserver.ErrInactiveUser,
+			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.Status = database.UserStatusDormant
+				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 		{
 			name:        "system user",
 			expectedErr: aibridgedserver.ErrSystemUser,
 			mocksFn: func(db *dbmock.MockStore, apiKey database.APIKey, user database.User) {
+				user.IsSystem = true
 				db.EXPECT().GetAPIKeyByID(gomock.Any(), apiKey.ID).Times(1).Return(apiKey, nil)
-				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(database.User{ID: user.ID, IsSystem: true}, nil)
+				db.EXPECT().GetUserByID(gomock.Any(), user.ID).Times(1).Return(user, nil)
 			},
 		},
 		{
