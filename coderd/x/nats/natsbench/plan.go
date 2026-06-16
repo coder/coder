@@ -31,12 +31,14 @@ import "fmt"
 type plan struct {
 	// perPubMsgs[i] is the number of messages publisher i sends.
 	perPubMsgs []int
-	// pubSubject[i] / pubNode[i] are publisher i's subject and node.
+	// pubSubject[i] is publisher i's subject index.
 	pubSubject []int
-	pubNode    []int
-	// subSubject[j] / subNode[j] are subscriber j's subject and node.
+	// pubNode[i] is publisher i's node index.
+	pubNode []int
+	// subSubject[j] is subscriber j's subject index.
 	subSubject []int
-	subNode    []int
+	// subNode[j] is subscriber j's node index.
+	subNode []int
 	// expectPerSub[j] is how many benchmark messages subscriber j must
 	// observe: the total sent to its subject.
 	expectPerSub []int

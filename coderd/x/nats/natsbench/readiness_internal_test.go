@@ -66,11 +66,11 @@ func TestReadinessConverged(t *testing.T) {
 	trackers := []*probeTracker{newProbeTracker(), newProbeTracker()}
 	required := []map[int]struct{}{{0: {}}, {0: {}, 1: {}}}
 
-	require.False(t, readinessConverged(trackers, required))
+	require.False(t, isReady(trackers, required))
 	trackers[0].observe(0)
 	trackers[1].observe(0)
-	require.False(t, readinessConverged(trackers, required))
-	require.Contains(t, readinessShortfall(trackers, required), "subscriber 1")
+	require.False(t, isReady(trackers, required))
+	require.Contains(t, unreadySubscribers(trackers, required), "subscriber 1")
 	trackers[1].observe(1)
-	require.True(t, readinessConverged(trackers, required))
+	require.True(t, isReady(trackers, required))
 }

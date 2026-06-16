@@ -91,13 +91,13 @@ func subjectNodes(pl plan) map[int]map[int]struct{} {
 	return out
 }
 
-// awaitReadiness proves that subscription interest has propagated to
+// awaitTopologyReady proves that subscription interest has propagated to
 // every publisher node before the measured phase. Each publisher node
 // repeatedly publishes an in-band probe on every subject it will
 // publish to; the gate converges when every subscriber has observed a
 // probe from every publisher node targeting its subject. Without this,
 // routed deliveries silently undercount on fresh clusters.
-func awaitReadiness(ctx context.Context, top *topology, pl plan, timeout time.Duration, trackers []*probeTracker) error {
+func awaitTopologyReady(ctx context.Context, top *topology, pl plan, timeout time.Duration, trackers []*probeTracker) error {
 	bySubject := subjectNodes(pl)
 	required := make([]map[int]struct{}, len(pl.subSubject))
 	for j, subject := range pl.subSubject {
@@ -117,13 +117,15 @@ func awaitReadiness(ctx context.Context, top *topology, pl plan, timeout time.Du
 				}
 			}
 		}
+		// Multiple publishers can share a node (pubNode is indexed by
+		// publisher, not node), so flush each distinct node once.
 		for _, node := range uniqueInts(pl.pubNode) {
 			if err := top.nodes[node].Flush(); err != nil {
 				return xerrors.Errorf("flush probes from node %d: %w", node, err)
 			}
 		}
 
-		if readinessConverged(trackers, required) {
+		if isReady(trackers, required) {
 			return nil
 		}
 
@@ -131,13 +133,13 @@ func awaitReadiness(ctx context.Context, top *topology, pl plan, timeout time.Du
 		case <-ctx.Done():
 			return xerrors.Errorf("readiness gate canceled: %w", ctx.Err())
 		case <-deadline.C:
-			return xerrors.Errorf("readiness gate timed out after %s: %s", timeout, readinessShortfall(trackers, required))
+			return xerrors.Errorf("readiness gate timed out after %s: %s", timeout, unreadySubscribers(trackers, required))
 		case <-ticker.C:
 		}
 	}
 }
 
-func readinessConverged(trackers []*probeTracker, required []map[int]struct{}) bool {
+func isReady(trackers []*probeTracker, required []map[int]struct{}) bool {
 	for j, tracker := range trackers {
 		if len(tracker.missing(required[j])) > 0 {
 			return false
@@ -146,9 +148,9 @@ func readinessConverged(trackers []*probeTracker, required []map[int]struct{}) b
 	return true
 }
 
-// readinessShortfall describes which subscribers are still missing
+// unreadySubscribers describes which subscribers are still missing
 // probes from which publisher nodes.
-func readinessShortfall(trackers []*probeTracker, required []map[int]struct{}) string {
+func unreadySubscribers(trackers []*probeTracker, required []map[int]struct{}) string {
 	const maxEntries = 20
 	var entries []string
 	for j, tracker := range trackers {

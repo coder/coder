@@ -85,7 +85,7 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		for j, st := range w.subs {
 			trackers[j] = st.tracker
 		}
-		if err := awaitReadiness(ctx, top, pl, cfg.Timeout, trackers); err != nil {
+		if err := awaitTopologyReady(ctx, top, pl, cfg.Timeout, trackers); err != nil {
 			return nil, xerrors.Errorf("readiness gate: %w", err)
 		}
 	}
