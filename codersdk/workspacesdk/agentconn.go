@@ -504,8 +504,11 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
 
+	client := c.apiClient()
+	defer client.CloseIdleConnections()
+
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: c.apiClient(),
+		HTTPClient: client,
 
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
@@ -540,8 +543,11 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
+	client := c.apiClient()
+	defer client.CloseIdleConnections()
+
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(),
+		HTTPClient:      client,
 		CompressionMode: websocket.CompressionNoContextTakeover,
 	}
 	c.headersMu.RLock()
@@ -582,8 +588,11 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
+	client := c.apiClient()
+	defer client.CloseIdleConnections()
+
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(),
+		HTTPClient:      client,
 		CompressionMode: websocket.CompressionDisabled,
 	}
 	c.headersMu.RLock()
@@ -696,7 +705,10 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	}
 	c.headersMu.RUnlock()
 
-	resp, err := c.apiClient().Do(req)
+	client := c.apiClient()
+	defer client.CloseIdleConnections()
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
@@ -1352,11 +1364,14 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		}
 	}
 
-	return c.apiClient().Do(req)
+	client := c.apiClient()
+	defer client.CloseIdleConnections()
+
+	return client.Do(req)
 }
 
-// apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server.
+// apiClient returns a new HTTP client that can be used to make a request to
+// the workspace agent's HTTP API server.
 func (c *agentConn) apiClient() *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
