@@ -1737,6 +1737,38 @@ COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
 
+CREATE TABLE chat_context_resources (
+    chat_id uuid NOT NULL,
+    source text NOT NULL,
+    body_kind workspace_agent_context_body_kind NOT NULL,
+    body jsonb NOT NULL,
+    content_hash bytea NOT NULL,
+    size_bytes bigint NOT NULL,
+    status workspace_agent_context_resource_status NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    source_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
+
+COMMENT ON COLUMN chat_context_resources.source IS 'Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.';
+
+COMMENT ON COLUMN chat_context_resources.body_kind IS 'Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
+
+COMMENT ON COLUMN chat_context_resources.body IS 'protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.';
+
+COMMENT ON COLUMN chat_context_resources.content_hash IS 'sha256 over the resource''s original bytes (or transport-encoded server tool list).';
+
+COMMENT ON COLUMN chat_context_resources.size_bytes IS 'Original payload size in bytes; populated regardless of status.';
+
+COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.';
+
+COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
+
+COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     chat_id uuid NOT NULL,
@@ -4085,6 +4117,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_context_resources
+    ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_pkey PRIMARY KEY (id);
 
@@ -4894,6 +4929,9 @@ ALTER TABLE ONLY boundary_sessions
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_context_resources
+    ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
