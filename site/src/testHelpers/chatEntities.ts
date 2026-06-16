@@ -8,12 +8,6 @@ import { MockUserOwner } from "./entities";
 
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
-/**
- * A Chat for tests and stories: a completed, owned root chat. Spread it and
- * override the fields a case cares about, e.g. `{ ...MockChat, id: "chat-2" }`.
- * Override created_at/updated_at when a case needs relative ordering rather
- * than relying on the shared default timestamp.
- */
 export const MockChat: Chat = {
 	id: "chat-1",
 	organization_id: "test-org-id",
@@ -36,10 +30,6 @@ export const MockChat: Chat = {
 	children: [],
 };
 
-/**
- * An MCPServerConfig for tests and stories: an enabled, streamable-HTTP server
- * with no auth. Spread it and override the fields a case cares about.
- */
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
 	display_name: "MCP Server",
@@ -64,11 +54,6 @@ export const MockMCPServerConfig: MCPServerConfig = {
 	auth_connected: false,
 };
 
-/**
- * A ChatMessage for tests and stories: a user text message with a fixed
- * timestamp. Spread it and override the fields a case cares about. Override
- * created_at when a case needs relative ordering.
- */
 export const MockChatMessage: ChatMessage = {
 	id: 1,
 	chat_id: "chat-1",
@@ -77,10 +62,6 @@ export const MockChatMessage: ChatMessage = {
 	content: [{ type: "text", text: "Hello" }],
 };
 
-/**
- * A ChatQueuedMessage for tests and stories: a single text part with a fixed
- * timestamp. Spread it and override the fields a case cares about.
- */
 export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",

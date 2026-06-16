@@ -2,11 +2,6 @@ import type { ChatModelConfig, ChatProviderConfig } from "#/api/typesGenerated";
 
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
-/**
- * A ChatModelConfig for tests and stories: an enabled, non-default OpenAI
- * model. Spread it and override the fields a case cares about, e.g.
- * `{ ...MockChatModelConfig, model: "gpt-4o", display_name: "GPT-4o" }`.
- */
 export const MockChatModelConfig: ChatModelConfig = {
 	id: "model-1",
 	provider: "openai",
@@ -20,11 +15,6 @@ export const MockChatModelConfig: ChatModelConfig = {
 	updated_at: MOCK_TIMESTAMP,
 };
 
-/**
- * A ChatProviderConfig for tests and stories: an enabled, database-sourced
- * OpenAI provider with a managed API key. Spread it and override the fields a
- * case cares about.
- */
 export const MockChatProviderConfig: ChatProviderConfig = {
 	id: "provider-1",
 	provider: "openai",
