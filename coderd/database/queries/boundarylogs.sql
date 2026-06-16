@@ -77,3 +77,20 @@ WITH old_logs AS (
 DELETE FROM boundary_logs
 USING old_logs
 WHERE boundary_logs.id = old_logs.id;
+
+-- name: DeleteOldBoundarySessions :execrows
+-- Deletes boundary sessions that have aged past retention and no longer
+-- have any associated logs.
+WITH old_sessions AS (
+    SELECT bs.id
+    FROM boundary_sessions bs
+    WHERE bs.updated_at < @before_time::timestamptz
+      AND NOT EXISTS (
+          SELECT 1 FROM boundary_logs bl WHERE bl.session_id = bs.id
+      )
+    ORDER BY bs.updated_at ASC
+    LIMIT @limit_count
+)
+DELETE FROM boundary_sessions
+USING old_sessions
+WHERE boundary_sessions.id = old_sessions.id;

@@ -722,6 +722,14 @@ func (m queryMetricsStore) DeleteOldBoundaryLogs(ctx context.Context, arg databa
 	return r0, r1
 }
 
+func (m queryMetricsStore) DeleteOldBoundarySessions(ctx context.Context, arg database.DeleteOldBoundarySessionsParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.DeleteOldBoundarySessions(ctx, arg)
+	m.queryLatencies.WithLabelValues("DeleteOldBoundarySessions").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteOldBoundarySessions").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteOldChatDebugRuns(ctx, arg)

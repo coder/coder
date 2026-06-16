@@ -879,6 +879,12 @@ that data type.
           indefinitely). We advise keeping audit logs for at least a year, and
           in accordance with your compliance requirements.
 
+      --boundary-log-retention duration, $CODER_BOUNDARY_LOG_RETENTION (default: 0)
+          How long boundary audit log entries are retained. Boundary logs record
+          HTTP requests processed by a Boundary confinement proxy. Set to 0 to
+          disable automatic deletion (keep indefinitely). Adjust to match your
+          organization's regulatory requirements.
+
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).
