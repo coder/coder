@@ -11,22 +11,22 @@ import (
 
 // generateReleaseNotes produces markdown release notes for the given
 // version range by examining the commit log and PR metadata.
-func generateReleaseNotes(newVersion, previousVersion version) (string, error) {
+func generateReleaseNotes(exec CommandExecutor, newVersion, previousVersion version) (string, error) {
 	// Build commit range. If the new tag doesn't exist locally yet,
 	// fall back to ..HEAD.
 	newTag := newVersion.String()
 	commitRange := fmt.Sprintf("%s...%s", previousVersion.String(), newTag)
-	if err := gitRun("rev-parse", "--verify", newTag); err != nil {
+	if err := gitRun(exec, "rev-parse", "--verify", newTag); err != nil {
 		commitRange = fmt.Sprintf("%s..HEAD", previousVersion.String())
 	}
 
-	commits, err := commitLog(commitRange)
+	commits, err := commitLog(exec, commitRange)
 	if err != nil {
 		return "", xerrors.Errorf("commit log: %w", err)
 	}
 
 	// Extract PR numbers from commit titles and fetch metadata.
-	prMeta := ghBuildPullRequestMap(extractPRNumbers(commits))
+	prMeta := ghBuildPullRequestMap(exec, extractPRNumbers(commits))
 
 	// Section definitions in display order.
 	type section struct {
