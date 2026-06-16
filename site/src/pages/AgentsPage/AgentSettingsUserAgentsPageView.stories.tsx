@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { makeChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsUserAgentsPageView,
 	type AgentSettingsUserAgentsPageViewProps,
@@ -15,16 +15,16 @@ const UNAVAILABLE_WARNING =
 
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
-): TypesGen.ChatModelConfig =>
-	makeChatModelConfig({
-		id: "model-default",
-		model: "gpt-4.1-mini",
-		display_name: "GPT 4.1 Mini",
-		context_limit: 1_000_000,
-		created_at: "2026-03-12T12:00:00.000Z",
-		updated_at: "2026-03-12T12:00:00.000Z",
-		...overrides,
-	});
+): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
+	id: "model-default",
+	model: "gpt-4.1-mini",
+	display_name: "GPT 4.1 Mini",
+	context_limit: 1_000_000,
+	created_at: "2026-03-12T12:00:00.000Z",
+	updated_at: "2026-03-12T12:00:00.000Z",
+	...overrides,
+});
 
 const buildOverride = (
 	context: TypesGen.ChatPersonalModelOverrideContext,

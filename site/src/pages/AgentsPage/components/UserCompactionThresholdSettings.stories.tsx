@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { makeChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -10,7 +10,8 @@ import {
 import { UserCompactionThresholdSettings } from "./UserCompactionThresholdSettings";
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
-	makeChatModelConfig({
+	{
+		...MockChatModelConfig,
 		id: "model-1",
 		model: "gpt-4o",
 		display_name: "GPT-4o",
@@ -19,16 +20,18 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	}),
-	makeChatModelConfig({
+	},
+	{
+		...MockChatModelConfig,
 		id: "model-2",
 		provider: "anthropic",
 		model: "claude-sonnet",
 		display_name: "Claude Sonnet",
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	}),
-	makeChatModelConfig({
+	},
+	{
+		...MockChatModelConfig,
 		id: "model-3",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
@@ -37,7 +40,7 @@ const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 		compression_threshold: 60,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	}),
+	},
 ];
 
 const meta = {

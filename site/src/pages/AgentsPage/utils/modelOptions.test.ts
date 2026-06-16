@@ -5,8 +5,8 @@ import type {
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
 import {
-	makeChatModelConfig,
-	makeChatProviderConfig,
+	MockChatModelConfig,
+	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
 	countConfiguredProviderConfigs,
@@ -22,14 +22,14 @@ import {
 const createConfig = (
 	overrides: Partial<ChatModelConfig> &
 		Pick<ChatModelConfig, "id" | "provider" | "model">,
-): ChatModelConfig =>
-	makeChatModelConfig({
-		context_limit: 0,
-		compression_threshold: 0,
-		created_at: "",
-		updated_at: "",
-		...overrides,
-	});
+): ChatModelConfig => ({
+	...MockChatModelConfig,
+	context_limit: 0,
+	compression_threshold: 0,
+	created_at: "",
+	updated_at: "",
+	...overrides,
+});
 
 const createCatalog = (
 	providers: ChatModelsResponse["providers"],
@@ -40,16 +40,16 @@ const createCatalog = (
 const createProviderConfig = (
 	overrides: Pick<ChatProviderConfig, "provider" | "source"> &
 		Partial<ChatProviderConfig>,
-): ChatProviderConfig =>
-	makeChatProviderConfig({
-		id: "provider-config-1",
-		display_name: overrides.provider,
-		has_api_key: false,
-		central_api_key_enabled: true,
-		allow_user_api_key: false,
-		allow_central_api_key_fallback: false,
-		...overrides,
-	});
+): ChatProviderConfig => ({
+	...MockChatProviderConfig,
+	id: "provider-config-1",
+	display_name: overrides.provider,
+	has_api_key: false,
+	central_api_key_enabled: true,
+	allow_user_api_key: false,
+	allow_central_api_key_fallback: false,
+	...overrides,
+});
 
 describe("getNormalizedModelRef", () => {
 	it("returns empty strings for malformed values", () => {

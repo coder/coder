@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { makeChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
@@ -79,7 +79,8 @@ function deepGet(obj: unknown, path: string[]): unknown {
 }
 
 /** Minimal ChatModelConfig with no model_config. */
-const baseChatModelConfig: TypesGen.ChatModelConfig = makeChatModelConfig({
+const baseChatModelConfig: TypesGen.ChatModelConfig = {
+	...MockChatModelConfig,
 	id: "test-id",
 	model: "gpt-4",
 	display_name: "GPT-4",
@@ -87,7 +88,7 @@ const baseChatModelConfig: TypesGen.ChatModelConfig = makeChatModelConfig({
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
-});
+};
 
 // ── buildInitialModelFormValues ────────────────────────────────
 

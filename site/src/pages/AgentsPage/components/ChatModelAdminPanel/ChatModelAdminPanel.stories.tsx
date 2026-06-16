@@ -12,8 +12,8 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
-	makeChatModelConfig,
-	makeChatProviderConfig,
+	MockChatModelConfig,
+	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
 	ChatModelAdminPanel,
@@ -27,15 +27,15 @@ const nilProviderConfigID = "00000000-0000-0000-0000-000000000000";
 const createProviderConfig = (
 	overrides: Partial<TypesGen.ChatProviderConfig> &
 		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
-): TypesGen.ChatProviderConfig =>
-	makeChatProviderConfig({
-		display_name: "",
-		has_api_key: false,
-		allow_central_api_key_fallback: false,
-		created_at: now,
-		updated_at: now,
-		...overrides,
-	});
+): TypesGen.ChatProviderConfig => ({
+	...MockChatProviderConfig,
+	display_name: "",
+	has_api_key: false,
+	allow_central_api_key_fallback: false,
+	created_at: now,
+	updated_at: now,
+	...overrides,
+});
 
 const createProviderKey = (providerId: string): TypesGen.AIProviderKey => ({
 	id: `key-${providerId}`,
@@ -63,12 +63,12 @@ const toAIProvider = (
 const createModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> &
 		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
-): TypesGen.ChatModelConfig =>
-	makeChatModelConfig({
-		created_at: now,
-		updated_at: now,
-		...overrides,
-	});
+): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
+});
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
 

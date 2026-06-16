@@ -3,8 +3,8 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
-	makeChatModelConfig,
-	makeChatProviderConfig,
+	MockChatModelConfig,
+	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import type { ProviderState } from "./ChatModelAdminPanel";
 import { ModelsSection } from "./ModelsSection";
@@ -13,13 +13,14 @@ const providerState: ProviderState = {
 	key: "provider-config-id",
 	provider: "openai",
 	label: "OpenAI",
-	providerConfig: makeChatProviderConfig({
+	providerConfig: {
+		...MockChatProviderConfig,
 		id: "provider-config-id",
 		allow_central_api_key_fallback: false,
 		base_url: undefined,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
-	}),
+	},
 	modelConfigs: [],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,
@@ -44,7 +45,8 @@ const providerStateWithoutAPIKey: ProviderState = {
 	allowUserAPIKey: false,
 };
 
-const baseModelConfig: TypesGen.ChatModelConfig = makeChatModelConfig({
+const baseModelConfig: TypesGen.ChatModelConfig = {
+	...MockChatModelConfig,
 	id: "model-config-id",
 	model: "gpt-4.1",
 	display_name: "GPT-4.1",
@@ -52,7 +54,7 @@ const baseModelConfig: TypesGen.ChatModelConfig = makeChatModelConfig({
 	compression_threshold: 80,
 	created_at: "2025-01-01T00:00:00Z",
 	updated_at: "2025-01-01T00:00:00Z",
-});
+};
 
 const disabledModelConfig: TypesGen.ChatModelConfig = {
 	...baseModelConfig,

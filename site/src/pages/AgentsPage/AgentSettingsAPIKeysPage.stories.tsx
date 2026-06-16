@@ -4,7 +4,7 @@ import type {
 	ChatModelConfig,
 	UserChatProviderConfig,
 } from "#/api/typesGenerated";
-import { makeChatModelConfig } from "#/testHelpers/chatModels";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	AgentSettingsAPIKeysPageView,
 	type AgentSettingsAPIKeysPageViewProps,
@@ -25,12 +25,12 @@ const createProvider = (
 const createModel = (
 	overrides: Partial<ChatModelConfig> &
 		Pick<ChatModelConfig, "id" | "provider" | "model">,
-): ChatModelConfig =>
-	makeChatModelConfig({
-		created_at: "2026-03-01T00:00:00.000Z",
-		updated_at: "2026-03-01T00:00:00.000Z",
-		...overrides,
-	});
+): ChatModelConfig => ({
+	...MockChatModelConfig,
+	created_at: "2026-03-01T00:00:00.000Z",
+	updated_at: "2026-03-01T00:00:00.000Z",
+	...overrides,
+});
 
 const baseProvider = createProvider({
 	provider_id: "prov-1",

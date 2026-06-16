@@ -3,37 +3,29 @@ import type { ChatModelConfig, ChatProviderConfig } from "#/api/typesGenerated";
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
 /**
- * Builds a ChatModelConfig for tests and stories. Defaults model an enabled,
- * non-default OpenAI model; pass overrides for the fields a case cares about.
- * display_name defaults to the (possibly overridden) model identifier.
+ * A ChatModelConfig for tests and stories: an enabled, non-default OpenAI
+ * model. Spread it and override the fields a case cares about, e.g.
+ * `{ ...MockChatModelConfig, model: "gpt-4o", display_name: "GPT-4o" }`.
  */
-export const makeChatModelConfig = (
-	overrides: Partial<ChatModelConfig> = {},
-): ChatModelConfig => {
-	const model = overrides.model ?? "gpt-5";
-	return {
-		id: "model-1",
-		provider: "openai",
-		model,
-		display_name: model,
-		enabled: true,
-		is_default: false,
-		context_limit: 200000,
-		compression_threshold: 70,
-		created_at: MOCK_TIMESTAMP,
-		updated_at: MOCK_TIMESTAMP,
-		...overrides,
-	};
+export const MockChatModelConfig: ChatModelConfig = {
+	id: "model-1",
+	provider: "openai",
+	model: "gpt-5",
+	display_name: "gpt-5",
+	enabled: true,
+	is_default: false,
+	context_limit: 200000,
+	compression_threshold: 70,
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
 };
 
 /**
- * Builds a ChatProviderConfig for tests and stories. Defaults to an enabled
- * database-sourced OpenAI provider with a managed API key; pass overrides for
- * the fields a case cares about.
+ * A ChatProviderConfig for tests and stories: an enabled, database-sourced
+ * OpenAI provider with a managed API key. Spread it and override the fields a
+ * case cares about.
  */
-export const makeChatProviderConfig = (
-	overrides: Partial<ChatProviderConfig> = {},
-): ChatProviderConfig => ({
+export const MockChatProviderConfig: ChatProviderConfig = {
 	id: "provider-1",
 	provider: "openai",
 	display_name: "OpenAI",
@@ -46,5 +38,4 @@ export const makeChatProviderConfig = (
 	source: "database",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
-	...overrides,
-});
+};
