@@ -558,17 +558,17 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().InsertAgentContextResourcesIntoChat(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate)
 	}))
-	s.Run("DeleteChatContextResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("DeleteChatContextResourcesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatContextResources(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		dbm.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), chat.ID).Return(nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
-	s.Run("ListChatContextResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("ListChatContextResourcesByChatID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		rows := []database.ChatContextResource{testutil.Fake(s.T(), faker, database.ChatContextResource{ChatID: chat.ID})}
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
-		dbm.EXPECT().ListChatContextResources(gomock.Any(), chat.ID).Return(rows, nil).AnyTimes()
+		dbm.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chat.ID).Return(rows, nil).AnyTimes()
 		check.Args(chat.ID).Asserts(chat, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatWorkerAcquisitionCandidates", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

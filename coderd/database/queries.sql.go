@@ -6622,7 +6622,7 @@ func (q *sqlQuerier) DeleteAllChatQueuedMessagesReturningCount(ctx context.Conte
 	return result.RowsAffected()
 }
 
-const deleteChatContextResources = `-- name: DeleteChatContextResources :exec
+const deleteChatContextResourcesByChatID = `-- name: DeleteChatContextResourcesByChatID :exec
 DELETE FROM chat_context_resources
 WHERE chat_id = $1::uuid
 `
@@ -6630,8 +6630,8 @@ WHERE chat_id = $1::uuid
 // Clears a chat's pinned context resources. Used as the first half of a
 // clear-then-copy re-pin, and on its own when the chat's current agent
 // has no snapshot.
-func (q *sqlQuerier) DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatContextResources, chatID)
+func (q *sqlQuerier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatContextResourcesByChatID, chatID)
 	return err
 }
 
@@ -9839,7 +9839,8 @@ type HydrateAgentChatsContextParams struct {
 // so chats created before the agent was ready pick up the snapshot
 // without a dirty event. The ON CONFLICT upsert is defensive: a
 // not-yet-hydrated chat has no pinned rows, so it normally inserts.
-// Does not bump updated_at.
+// Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+// sets chat_context_resources.updated_at on the rows it rewrites.
 func (q *sqlQuerier) HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error {
 	_, err := q.db.ExecContext(ctx, hydrateAgentChatsContext, arg.AgentID, arg.AggregateHash, arg.ContextError)
 	return err
@@ -9877,9 +9878,9 @@ type InsertAgentContextResourcesIntoChatParams struct {
 }
 
 // Copies an agent's current context resources onto a single chat. Pair
-// with DeleteChatContextResources (clear-then-copy, in a transaction) to
-// re-pin a chat to its agent's latest snapshot from the refresh endpoint
-// and on agent rebinding.
+// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+// transaction) to re-pin a chat to its agent's latest snapshot from the
+// refresh endpoint and on agent rebinding.
 func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error {
 	_, err := q.db.ExecContext(ctx, insertAgentContextResourcesIntoChat, arg.ChatID, arg.AgentID)
 	return err
@@ -10396,7 +10397,7 @@ func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams)
 	return rejected_new_files, err
 }
 
-const listChatContextResources = `-- name: ListChatContextResources :many
+const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
 SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM chat_context_resources
 WHERE chat_id = $1::uuid
 ORDER BY source ASC
@@ -10404,8 +10405,8 @@ ORDER BY source ASC
 
 // Lists a chat's pinned context resources, ordered deterministically by
 // source.
-func (q *sqlQuerier) ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error) {
-	rows, err := q.db.QueryContext(ctx, listChatContextResources, chatID)
+func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error) {
+	rows, err := q.db.QueryContext(ctx, listChatContextResourcesByChatID, chatID)
 	if err != nil {
 		return nil, err
 	}

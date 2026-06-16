@@ -137,7 +137,7 @@ type sqlcQuerier interface {
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.
-	DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error
+	DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error
 	// Deletes debug runs (and their cascaded steps) whose message IDs
 	// exceed the cutoff. The started_before bound prevents retried
 	// cleanup from deleting runs created by a replacement turn that
@@ -1013,7 +1013,8 @@ type sqlcQuerier interface {
 	// so chats created before the agent was ready pick up the snapshot
 	// without a dirty event. The ON CONFLICT upsert is defensive: a
 	// not-yet-hydrated chat has no pinned rows, so it normally inserts.
-	// Does not bump updated_at.
+	// Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+	// sets chat_context_resources.updated_at on the rows it rewrites.
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error
 	// Increments generation_attempt and returns the resulting value.
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
@@ -1027,9 +1028,9 @@ type sqlcQuerier interface {
 	InsertAIProviderKey(ctx context.Context, arg InsertAIProviderKeyParams) (AIProviderKey, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
 	// Copies an agent's current context resources onto a single chat. Pair
-	// with DeleteChatContextResources (clear-then-copy, in a transaction) to
-	// re-pin a chat to its agent's latest snapshot from the refresh endpoint
-	// and on agent rebinding.
+	// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+	// transaction) to re-pin a chat to its agent's latest snapshot from the
+	// refresh endpoint and on agent rebinding.
 	InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error
 	// We use the organization_id as the id
 	// for simplicity since all users is
@@ -1180,7 +1181,7 @@ type sqlcQuerier interface {
 	ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error)
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
-	ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
+	ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error)
 	ListChatUsageLimitGroupOverrides(ctx context.Context) ([]ListChatUsageLimitGroupOverridesRow, error)
 	ListChatUsageLimitOverrides(ctx context.Context) ([]ListChatUsageLimitOverridesRow, error)
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)

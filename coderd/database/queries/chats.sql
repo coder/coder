@@ -1500,7 +1500,8 @@ WHERE id = @id::uuid;
 -- so chats created before the agent was ready pick up the snapshot
 -- without a dirty event. The ON CONFLICT upsert is defensive: a
 -- not-yet-hydrated chat has no pinned rows, so it normally inserts.
--- Does not bump updated_at.
+-- Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+-- sets chat_context_resources.updated_at on the rows it rewrites.
 WITH hydrated AS (
     UPDATE chats
     SET
@@ -1548,9 +1549,9 @@ RETURNING id, owner_id;
 
 -- name: InsertAgentContextResourcesIntoChat :exec
 -- Copies an agent's current context resources onto a single chat. Pair
--- with DeleteChatContextResources (clear-then-copy, in a transaction) to
--- re-pin a chat to its agent's latest snapshot from the refresh endpoint
--- and on agent rebinding.
+-- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+-- transaction) to re-pin a chat to its agent's latest snapshot from the
+-- refresh endpoint and on agent rebinding.
 INSERT INTO chat_context_resources (
     chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
 )
@@ -1560,14 +1561,14 @@ SELECT
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = @agent_id::uuid;
 
--- name: DeleteChatContextResources :exec
+-- name: DeleteChatContextResourcesByChatID :exec
 -- Clears a chat's pinned context resources. Used as the first half of a
 -- clear-then-copy re-pin, and on its own when the chat's current agent
 -- has no snapshot.
 DELETE FROM chat_context_resources
 WHERE chat_id = @chat_id::uuid;
 
--- name: ListChatContextResources :many
+-- name: ListChatContextResourcesByChatID :many
 -- Lists a chat's pinned context resources, ordered deterministically by
 -- source.
 SELECT * FROM chat_context_resources

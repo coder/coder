@@ -152,7 +152,7 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	// Clear-then-copy so the pinned resources always match the pinned hash.
 	// A single delete+insert statement cannot see its own delete under
 	// snapshot isolation, so overlapping sources would collide.
-	if err := db.DeleteChatContextResources(ctx, chatID); err != nil {
+	if err := db.DeleteChatContextResourcesByChatID(ctx, chatID); err != nil {
 		return xerrors.Errorf("clear chat context resources: %w", err)
 	}
 	if hasSnapshot {
@@ -181,7 +181,15 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 
 	var updated database.Chat
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
-		if err := repinChatContext(ctx, tx, chat.ID, chat.AgentID); err != nil {
+		// Re-read the chat inside the transaction so a serialization-conflict
+		// retry re-pins against the chat's current agent. Using the AgentID
+		// captured before the transaction would re-pin to a stale agent if a
+		// concurrent rebind landed between that read and the retry.
+		current, err := tx.GetChatByID(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("get chat for refresh: %w", err)
+		}
+		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
 			return err
 		}
 		got, err := tx.GetChatByID(ctx, chat.ID)

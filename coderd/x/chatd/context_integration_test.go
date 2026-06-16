@@ -123,8 +123,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	}
 	pinnedResources := func(id uuid.UUID) map[string]database.ChatContextResource {
 		t.Helper()
-		//nolint:gocritic // Reads chatd-owned rows as the chatd subject.
-		rows, lerr := db.ListChatContextResources(dbauthz.AsChatd(ctx), id)
+		//nolint:gocritic // Test reads the chat-owned rows as the chatd subject; ctx carries no per-user actor.
+		rows, lerr := db.ListChatContextResourcesByChatID(dbauthz.AsChatd(ctx), id)
 		require.NoError(t, lerr)
 		out := make(map[string]database.ChatContextResource, len(rows))
 		for _, r := range rows {

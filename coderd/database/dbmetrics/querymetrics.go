@@ -498,11 +498,11 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
-func (m queryMetricsStore) DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error {
+func (m queryMetricsStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	start := time.Now()
-	r0 := m.s.DeleteChatContextResources(ctx, chatID)
-	m.queryLatencies.WithLabelValues("DeleteChatContextResources").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatContextResources").Inc()
+	r0 := m.s.DeleteChatContextResourcesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("DeleteChatContextResourcesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatContextResourcesByChatID").Inc()
 	return r0
 }
 
@@ -4690,11 +4690,11 @@ func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg 
 	return r0, r1
 }
 
-func (m queryMetricsStore) ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
+func (m queryMetricsStore) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
 	start := time.Now()
-	r0, r1 := m.s.ListChatContextResources(ctx, chatID)
-	m.queryLatencies.WithLabelValues("ListChatContextResources").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatContextResources").Inc()
+	r0, r1 := m.s.ListChatContextResourcesByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("ListChatContextResourcesByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatContextResourcesByChatID").Inc()
 	return r0, r1
 }
 

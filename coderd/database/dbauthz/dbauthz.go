@@ -2065,7 +2065,7 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error {
+func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return err
@@ -2073,7 +2073,7 @@ func (q *querier) DeleteChatContextResources(ctx context.Context, chatID uuid.UU
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
 		return err
 	}
-	return q.db.DeleteChatContextResources(ctx, chatID)
+	return q.db.DeleteChatContextResourcesByChatID(ctx, chatID)
 }
 
 func (q *querier) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
@@ -6571,7 +6571,7 @@ func (q *querier) ListBoundaryLogsBySessionID(ctx context.Context, arg database.
 	return q.db.ListBoundaryLogsBySessionID(ctx, arg)
 }
 
-func (q *querier) ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
+func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
 	chat, err := q.db.GetChatByID(ctx, chatID)
 	if err != nil {
 		return nil, err
@@ -6579,7 +6579,7 @@ func (q *querier) ListChatContextResources(ctx context.Context, chatID uuid.UUID
 	if err := q.authorizeContext(ctx, policy.ActionRead, chat); err != nil {
 		return nil, err
 	}
-	return q.db.ListChatContextResources(ctx, chatID)
+	return q.db.ListChatContextResourcesByChatID(ctx, chatID)
 }
 
 func (q *querier) ListChatUsageLimitGroupOverrides(ctx context.Context) ([]database.ListChatUsageLimitGroupOverridesRow, error) {

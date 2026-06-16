@@ -805,18 +805,18 @@ func (mr *MockStoreMockRecorder) DeleteApplicationConnectAPIKeysByUserID(ctx, us
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteApplicationConnectAPIKeysByUserID", reflect.TypeOf((*MockStore)(nil).DeleteApplicationConnectAPIKeysByUserID), ctx, userID)
 }
 
-// DeleteChatContextResources mocks base method.
-func (m *MockStore) DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error {
+// DeleteChatContextResourcesByChatID mocks base method.
+func (m *MockStore) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatContextResources", ctx, chatID)
+	ret := m.ctrl.Call(m, "DeleteChatContextResourcesByChatID", ctx, chatID)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DeleteChatContextResources indicates an expected call of DeleteChatContextResources.
-func (mr *MockStoreMockRecorder) DeleteChatContextResources(ctx, chatID any) *gomock.Call {
+// DeleteChatContextResourcesByChatID indicates an expected call of DeleteChatContextResourcesByChatID.
+func (mr *MockStoreMockRecorder) DeleteChatContextResourcesByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextResources", reflect.TypeOf((*MockStore)(nil).DeleteChatContextResources), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).DeleteChatContextResourcesByChatID), ctx, chatID)
 }
 
 // DeleteChatDebugDataAfterMessageID mocks base method.
@@ -8829,19 +8829,19 @@ func (mr *MockStoreMockRecorder) ListBoundaryLogsBySessionID(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListBoundaryLogsBySessionID", reflect.TypeOf((*MockStore)(nil).ListBoundaryLogsBySessionID), ctx, arg)
 }
 
-// ListChatContextResources mocks base method.
-func (m *MockStore) ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
+// ListChatContextResourcesByChatID mocks base method.
+func (m *MockStore) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListChatContextResources", ctx, chatID)
+	ret := m.ctrl.Call(m, "ListChatContextResourcesByChatID", ctx, chatID)
 	ret0, _ := ret[0].([]database.ChatContextResource)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListChatContextResources indicates an expected call of ListChatContextResources.
-func (mr *MockStoreMockRecorder) ListChatContextResources(ctx, chatID any) *gomock.Call {
+// ListChatContextResourcesByChatID indicates an expected call of ListChatContextResourcesByChatID.
+func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResources", reflect.TypeOf((*MockStore)(nil).ListChatContextResources), ctx, chatID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
 }
 
 // ListChatUsageLimitGroupOverrides mocks base method.
