@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
+import { withCardSurface } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -41,11 +42,10 @@ const meta: Meta<typeof WorkspaceBuildLogSection> = {
 	decorators: [
 		(Story) => (
 			<ChatWorkspaceContext value={{ workspaceId: TEST_WORKSPACE_ID }}>
-				<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-					<Story />
-				</div>
+				<Story />
 			</ChatWorkspaceContext>
 		),
+		withCardSurface(),
 	],
 };
 

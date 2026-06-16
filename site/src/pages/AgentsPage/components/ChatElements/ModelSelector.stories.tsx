@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { withCardSurface } from "#/testHelpers/storybook";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
 import { makeModelSelectorOption } from "./modelSelectorFixtures";
 
@@ -46,13 +47,7 @@ const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
-	decorators: [
-		(Story) => (
-			<div className="w-72 rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
+	decorators: [withCardSurface("w-72")],
 	args: {
 		options: openAIModels,
 		value: "",

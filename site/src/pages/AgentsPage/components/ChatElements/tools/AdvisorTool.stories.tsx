@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import { withCardSurface } from "#/testHelpers/storybook";
 import { Tool } from "./Tool";
 
 const sampleQuestion =
@@ -65,13 +66,7 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
+	decorators: [withCardSurface()],
 	args: { name: "advisor" },
 };
 export default meta;

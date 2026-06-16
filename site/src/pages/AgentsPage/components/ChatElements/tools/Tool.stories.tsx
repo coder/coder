@@ -9,6 +9,7 @@ import {
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
+import { withCardSurface } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { BlockList } from "../../ChatConversation/ConversationTimeline";
 import { DesktopPanelContext } from "./DesktopPanelContext";
@@ -36,13 +37,7 @@ const expectDiffText = async (element: HTMLElement, text: string) => {
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
+	decorators: [withCardSurface()],
 	args: {
 		name: "execute",
 		args: { command: executeCommand },

@@ -1,17 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, within } from "storybook/test";
+import { withCardSurface } from "#/testHelpers/storybook";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 
 const meta: Meta<typeof InlineDesktopPreview> = {
 	title: "components/ai-elements/InlineDesktopPreview",
 	component: InlineDesktopPreview,
-	decorators: [
-		(Story) => (
-			<div className="max-w-md rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
+	decorators: [withCardSurface("max-w-md")],
 	args: {
 		chatId: "desktop-chat-1",
 		onClick: fn(),
