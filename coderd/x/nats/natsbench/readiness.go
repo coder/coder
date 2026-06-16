@@ -13,28 +13,30 @@ import (
 )
 
 const (
-	// probeSentinel distinguishes readiness probes from benchmark
-	// payloads. Benchmark payloads are all zeros, so a payload whose
-	// first byte is the sentinel can only be a probe.
-	probeSentinel byte = 0x5b
+	// probePrefix tags readiness probes so they are distinguishable
+	// from benchmark payloads. Benchmark payloads are all zeros, so any
+	// payload starting with this non-zero ASCII prefix can only be a
+	// probe.
+	probePrefix = "natsbench-probe:"
 	// probeInterval is how often probes are re-published while waiting
 	// for cross-route subscription interest to propagate.
 	probeInterval = 25 * time.Millisecond
 )
 
 // probePayload encodes a readiness probe identifying the publishing
-// node: the sentinel byte followed by the node index in decimal ASCII.
+// node: the probe prefix followed by the node index in decimal ASCII.
 func probePayload(node int) []byte {
-	return append([]byte{probeSentinel}, strconv.Itoa(node)...)
+	return []byte(probePrefix + strconv.Itoa(node))
 }
 
 // probeNode decodes a readiness probe. It reports false for benchmark
-// payloads (all zeros, so the sentinel never matches).
+// payloads (all zeros, so the prefix never matches).
 func probeNode(payload []byte) (int, bool) {
-	if len(payload) < 2 || payload[0] != probeSentinel {
+	rest, ok := strings.CutPrefix(string(payload), probePrefix)
+	if !ok {
 		return 0, false
 	}
-	node, err := strconv.Atoi(string(payload[1:]))
+	node, err := strconv.Atoi(rest)
 	if err != nil {
 		return 0, false
 	}

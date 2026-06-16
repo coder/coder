@@ -24,8 +24,8 @@ func TestProbeNodeRejectsBenchmarkPayloads(t *testing.T) {
 		_, ok := probeNode(make([]byte, size))
 		require.False(t, ok)
 	}
-	// A lone sentinel byte has no node index.
-	_, ok := probeNode([]byte{probeSentinel})
+	// The bare prefix has no node index.
+	_, ok := probeNode([]byte(probePrefix))
 	require.False(t, ok)
 	// A trailing non-digit byte fails decoding.
 	_, ok = probeNode(append(probePayload(3), 0))
