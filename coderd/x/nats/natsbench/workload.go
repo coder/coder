@@ -88,13 +88,11 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		}
 	}
 
-	start := make(chan struct{})
-	pubDone, pubErrCh := w.startPublishers(start)
-
-	// The hot phase starts when the barrier opens. Both durations are
-	// measured from this instant.
+	// Both durations are measured from this instant. Goroutine spawn
+	// cost is negligible against the publish phase, so the publishers
+	// start as they are launched rather than behind a barrier.
 	hot := time.Now()
-	close(start)
+	pubDone, pubErrCh := w.startPublishers()
 
 	if err := w.awaitPhase(ctx, "publish", pubDone); err != nil {
 		return w.buildResult(time.Since(hot), time.Since(hot)), err
@@ -194,20 +192,17 @@ func (w *workload) cancelAll() {
 	}
 }
 
-// startPublishers launches one goroutine per publisher, all parked on
-// the start barrier so spawn overhead happens before the clock starts
-// and every publisher begins publishing at the same instant. It returns
-// a channel closed when every publisher finished and a channel of
-// publish errors that is closed at the same time. The error channel is
-// buffered to the publisher count so a failing publisher never blocks,
-// and each publisher sends at most one error.
-func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, <-chan error) {
+// startPublishers launches one goroutine per publisher and returns a
+// channel closed when every publisher finished and a channel of publish
+// errors that is closed at the same time. The error channel is buffered
+// to the publisher count so a failing publisher never blocks, and each
+// publisher sends at most one error.
+func (w *workload) startPublishers() (<-chan struct{}, <-chan error) {
 	payload := make([]byte, w.cfg.PayloadSize)
 	errCh := make(chan error, len(w.pl.perPubMsgs))
 	var wg sync.WaitGroup
 	for i := range w.pl.perPubMsgs {
 		wg.Go(func() {
-			<-start
 			node := w.top.nodes[w.pl.pubNode[i]]
 			subject := subjectName(w.pl.pubSubject[i])
 			for range w.pl.perPubMsgs[i] {
