@@ -1,5 +1,5 @@
--- Pinned context resources covering each v1 body kind plus a non-OK
--- status. The earlier chat fixtures already insert at least one row
+-- Pinned context resources covering each non-reserved body kind plus a
+-- non-OK status. The earlier chat fixtures already insert at least one row
 -- into chats; we attach the resources to the first such chat (ordered
 -- deterministically) so migration tests see a non-empty
 -- chat_context_resources table without hard-coding a specific chat ID.

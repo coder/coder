@@ -1,15 +1,9 @@
--- Per-chat pinned copy of the agent context resources a chat is
--- hydrated against. The agent-side table
--- (workspace_agent_context_resources) is last-writer-wins: it is
--- overwritten on every PushContextState and keeps no history. A chat
--- therefore takes its own copy at hydration and at context refresh so
--- it keeps a stable view of the resources it was pinned to while the
--- agent drifts.
---
--- Keyed by (chat_id, source). There is intentionally NO foreign key to
--- workspace_agents: the pin must survive agent replacement and
--- workspace rebuilds. Reuses the workspace_agent_context_* enum types
--- introduced in 000522; do not recreate them here.
+-- Creates chat_context_resources: a per-chat pinned copy of
+-- workspace_agent_context_resources (semantics in COMMENT ON TABLE
+-- below). Migration-specific notes: there is deliberately no FK to
+-- workspace_agents so the pin survives agent replacement and workspace
+-- rebuilds, and the body_kind/status enum types are reused from 000522
+-- and must not be recreated here.
 CREATE TABLE chat_context_resources (
     chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
     source TEXT NOT NULL,
