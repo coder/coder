@@ -654,6 +654,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": [
     {
+      "agent_firewall_sequence_number": 0,
+      "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
           "model": "string",
@@ -791,6 +793,8 @@
 
 ```json
 {
+  "agent_firewall_sequence_number": 0,
+  "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
       "model": "string",
@@ -850,18 +854,20 @@
 
 ### Properties
 
-| Name              | Type                                                                                   | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
-| `credential_hint` | string                                                                                 | false    |              |             |
-| `credential_kind` | string                                                                                 | false    |              |             |
-| `ended_at`        | string                                                                                 | false    |              |             |
-| `id`              | string                                                                                 | false    |              |             |
-| `model`           | string                                                                                 | false    |              |             |
-| `prompt`          | string                                                                                 | false    |              |             |
-| `provider`        | string                                                                                 | false    |              |             |
-| `started_at`      | string                                                                                 | false    |              |             |
-| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| Name                             | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|----------------------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
+| `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
+| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                                                                                                                                           |
 
 ## codersdk.AIBridgeToolCall
 
