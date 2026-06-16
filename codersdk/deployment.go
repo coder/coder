@@ -1194,6 +1194,12 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// BoundaryLogs controls how long boundary audit log entries are
+	// retained. Boundary logs record every HTTP request processed by
+	// a Boundary confinement proxy. Set to 0 to disable automatic
+	// deletion (keep indefinitely). Adjust to match your
+	// organization's regulatory requirements.
+	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -4704,6 +4710,17 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Boundary Log Retention",
+			Description: "How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.",
+			Flag:        "boundary-log-retention",
+			Env:         "CODER_BOUNDARY_LOG_RETENTION",
+			Value:       &c.Retention.BoundaryLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "boundary_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -5108,6 +5125,7 @@ const (
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5130,6 +5148,8 @@ func (e Experiment) DisplayName() string {
 		return "NATS Pubsub"
 	case ExperimentMinimumImplicitMember:
 		return "Gateway Accounts (minimum implicit member)"
+	case ExperimentAIGatewayCostControl:
+		return "AI Gateway Cost Control"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5149,6 +5169,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
+	ExperimentAIGatewayCostControl,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

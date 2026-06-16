@@ -24,6 +24,7 @@ func TestStreamPartsEndpointReplayLiveAndReselect(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -80,6 +81,7 @@ func TestStreamPartsEndpointWaitsForMissingEpisode(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -110,6 +112,7 @@ func TestStreamPartsEndpointReselectsWhileEpisodeMissing(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -141,6 +144,7 @@ func TestStreamPartsEndpointClientDisconnectCancels(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -163,6 +167,7 @@ func TestStreamPartsEndpointWebSocket(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -171,7 +176,7 @@ func TestStreamPartsEndpointWebSocket(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		_ = endpoint.serveWebSocket(rw, r)
 	}))
-	t.Cleanup(server.Close)
+	defer server.Close()
 
 	key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 1, GenerationAttempt: 1}
 	require.NoError(t, buffer.CreateEpisode(key))
@@ -196,6 +201,7 @@ func TestStreamPartsWebSocketSession(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	endpoint := streamPartsEndpoint{
 		chatID: chatID,
 		buffer: buffer,
@@ -204,7 +210,7 @@ func TestStreamPartsWebSocketSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		_ = endpoint.serveWebSocket(rw, r)
 	}))
-	t.Cleanup(server.Close)
+	defer server.Close()
 
 	key := messagepartbuffer.Key{ChatID: chatID, HistoryVersion: 4, GenerationAttempt: 2}
 	require.NoError(t, buffer.CreateEpisode(key))
@@ -232,6 +238,7 @@ func TestLocalStreamPartsDialerReplayLiveAndClose(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	chatID := uuid.New()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	defer buffer.Close()
 	dialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
 		Buffer: buffer,
 		Logger: slogtest.Make(t, nil),

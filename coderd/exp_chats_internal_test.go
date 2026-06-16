@@ -60,7 +60,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 			wantErr:    true,
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
@@ -70,7 +70,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: " OpenRouter ",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 			wantErr:    true,
 			wantDetail: "Change the AI provider type to openrouter or openai-compat.",
@@ -80,7 +80,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://openrouter.ai/api/v1",
 			},
 			wantErr:    true,
@@ -91,7 +91,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://openrouter.ai:443/api/v1",
 			},
 			wantErr:    true,
@@ -102,7 +102,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://api.openrouter.ai/v1",
 			},
 			wantErr:    true,
@@ -113,7 +113,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenrouter,
+				Type: database.AIProviderTypeOpenrouter,
 			},
 		},
 		{
@@ -121,7 +121,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenaiCompat,
+				Type: database.AIProviderTypeOpenaiCompat,
 			},
 		},
 		{
@@ -129,7 +129,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "anthropic/claude-opus-4.6",
 			provider: database.AIProvider{
 				Name:    "private-relay",
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				BaseUrl: "https://llm-relay.internal/v1",
 			},
 		},
@@ -138,7 +138,7 @@ func TestValidateChatModelConfigProviderModel(t *testing.T) {
 			model: "gpt-4.1",
 			provider: database.AIProvider{
 				Name: "openrouter",
-				Type: database.AiProviderTypeOpenai,
+				Type: database.AIProviderTypeOpenai,
 			},
 		},
 	}

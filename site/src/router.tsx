@@ -11,6 +11,7 @@ import {
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
+import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
@@ -446,6 +447,23 @@ const AISettingsAddProviderPage = lazy(
 			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
 		),
 );
+const AISettingsGatewayKeysPage = lazy(
+	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
+);
+
+const AISettingsIndexPage = () => {
+	const { permissions } = useAuthenticated();
+
+	if (permissions.viewAnyAIProvider) {
+		return <AISettingsProvidersPage />;
+	}
+
+	if (permissions.viewAIGatewayKeys) {
+		return <Navigate to="/ai/settings/gateway-keys" replace />;
+	}
+
+	return <AISettingsProvidersPage />;
+};
 
 const GlobalLayout = () => {
 	return (
@@ -697,7 +715,11 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
-						<Route index element={<AISettingsProvidersPage />} />
+						<Route
+							path="gateway-keys"
+							element={<AISettingsGatewayKeysPage />}
+						/>
+						<Route index element={<AISettingsIndexPage />} />
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
 							path=":providerId"

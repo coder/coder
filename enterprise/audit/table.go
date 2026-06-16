@@ -28,12 +28,12 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"APIKey":                        {codersdk.AuditActionLogin, codersdk.AuditActionLogout, codersdk.AuditActionRegister, codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"License":                       {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"Task":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AiSeatState":                   {codersdk.AuditActionCreate},
+	"AISeatState":                   {codersdk.AuditActionCreate},
 	"AIProvider":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AIProviderKey":                 {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AIGatewayKey":                  {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
-	"AuditableGroupAiBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"AuditableUserAiBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableGroupAIBudget":        {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"AuditableUserAIBudgetOverride": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"Chat":                          {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
 	"UserSecret":                    {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSkill":                     {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -225,7 +225,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"source":                  ActionIgnore,
 		"chat_spend_limit_micros": ActionTrack,
 	},
-	&database.AuditableGroupAiBudget{}: {
+	&database.AuditableGroupAIBudget{}: {
 		"group_id":           ActionIgnore, // Group name is already included in the title.
 		"spend_limit_micros": ActionIgnore,
 		"spend_limit":        ActionTrack,  // Track spend_limit, which is the human-readable version.
@@ -233,7 +233,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 		"updated_at":         ActionIgnore, // Redundant with the audit log's own timestamp.
 	},
-	&database.AuditableUserAiBudgetOverride{}: {
+	&database.AuditableUserAIBudgetOverride{}: {
 		"user_id":            ActionIgnore, // Username is already included in the title.
 		"username":           ActionIgnore, // Username is already included in the title.
 		"group_id":           ActionTrack,
@@ -382,7 +382,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"field":   ActionTrack,
 		"mapping": ActionTrack,
 	},
-	&database.AiSeatState{}: {
+	&database.AISeatState{}: {
 		"user_id":                ActionTrack,
 		"first_used_at":          ActionTrack,
 		"last_event_type":        ActionTrack,
@@ -465,6 +465,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"pin_order":                   ActionTrack,
 		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
 		"last_injected_context":       ActionIgnore, // Internal lifecycle.
+		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
+		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
 		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
 		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
 		"client_type":                 ActionIgnore, // Set at creation.

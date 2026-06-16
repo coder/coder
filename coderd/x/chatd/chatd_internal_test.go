@@ -182,8 +182,8 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	providerID := uuid.New()
 
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
-		{ID: uuid.New(), Type: database.AiProviderTypeAnthropic, Enabled: true},
-		{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true},
+		{ID: uuid.New(), Type: database.AIProviderTypeAnthropic, Enabled: true},
+		{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true},
 	}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
@@ -200,7 +200,7 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
 	require.NotNil(t, aiProvider)
 	require.Equal(t, providerID, aiProvider.ID)
-	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
+	require.Equal(t, database.AIProviderTypeOpenai, aiProvider.Type)
 }
 
 func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
@@ -864,7 +864,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 		BaseUrl: serverURL,
 	}}, nil)
@@ -1030,7 +1030,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 		BaseUrl: serverURL,
 	}}, nil)
@@ -1181,7 +1181,7 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeAnthropic,
+		Type:    database.AIProviderTypeAnthropic,
 		Enabled: true,
 	}}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return(nil, nil)
@@ -1219,7 +1219,7 @@ func TestResolveUserProviderAPIKeys_SelectedAIProviderDoesNotUseDeploymentFallba
 
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "agents-openai",
 		Enabled: true,
 	}, nil)
@@ -1258,7 +1258,7 @@ func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKe
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 	}}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return(nil, nil)

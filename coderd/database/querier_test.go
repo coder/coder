@@ -1235,6 +1235,122 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestChatContextHydration(t *testing.T) {
+	t.Parallel()
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:             "openai",
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	// Chats are scoped per agent, so build two independent agents.
+	newAgent := func() database.WorkspaceAgent {
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+	}
+	agent := newAgent()
+	otherAgent := newAgent()
+
+	newChat := func(status database.ChatStatus, agentID uuid.UUID) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			AgentID:           uuid.NullUUID{UUID: agentID, Valid: true},
+			Status:            status,
+		})
+	}
+
+	hashH := []byte{0x01, 0x02, 0x03}
+	hashOther := []byte{0xff, 0xee}
+
+	chatNull := newChat(database.ChatStatusWaiting, agent.ID)       // never hydrated
+	chatMatch := newChat(database.ChatStatusRunning, agent.ID)      // already at hashH
+	chatDrift := newChat(database.ChatStatusRunning, agent.ID)      // drifted, active
+	chatTerminal := newChat(database.ChatStatusCompleted, agent.ID) // drifted, terminal
+	chatArchived := newChat(database.ChatStatusRunning, agent.ID)   // drifted, archived
+	chatOtherAgent := newChat(database.ChatStatusRunning, otherAgent.ID)
+
+	// Pin starting hashes; chatNull is intentionally left NULL.
+	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatMatch.ID, AggregateHash: hashH}))
+	for _, id := range []uuid.UUID{chatDrift.ID, chatTerminal.ID, chatArchived.ID, chatOtherAgent.ID} {
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hashOther}))
+	}
+	_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
+	require.NoError(t, err)
+
+	// Hydrate stamps only the NULL-hash chat for this agent.
+	require.NoError(t, db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+	}))
+	gotNull, err := db.GetChatByID(ctx, chatNull.ID)
+	require.NoError(t, err)
+	require.Equal(t, hashH, gotNull.ContextAggregateHash, "NULL-hash chat is hydrated")
+	gotDrift, err := db.GetChatByID(ctx, chatDrift.ID)
+	require.NoError(t, err)
+	require.Equal(t, hashOther, gotDrift.ContextAggregateHash, "hydrate must not overwrite an already-pinned hash")
+
+	// Mark dirty: only the active, pinned, drifted chat for THIS agent flips.
+	// chatNull (now matches), chatMatch (matches), chatTerminal (status
+	// excluded), chatArchived (archived), and chatOtherAgent (other agent)
+	// are all left clean.
+	now := dbtime.Now()
+	flipped, err := db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+		DirtySince:    sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	flippedIDs := make([]uuid.UUID, 0, len(flipped))
+	for _, f := range flipped {
+		flippedIDs = append(flippedIDs, f.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{chatDrift.ID}, flippedIDs)
+
+	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+	require.NoError(t, err)
+	require.True(t, gotDrift.ContextDirtySince.Valid, "drifted chat is marked dirty")
+
+	// Refresh re-pins to the latest hash and clears the dirty marker.
+	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDrift.ID, AggregateHash: hashH}))
+	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+	require.NoError(t, err)
+	require.Equal(t, hashH, gotDrift.ContextAggregateHash)
+	require.False(t, gotDrift.ContextDirtySince.Valid, "refresh clears the dirty marker")
+
+	// With every chat now matching, a second mark is a no-op.
+	flipped, err = db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+		DirtySince:    sql.NullTime{Time: now, Valid: true},
+	})
+	require.NoError(t, err)
+	require.Empty(t, flipped)
+
+	// The other agent's chat is never touched by this agent's push.
+	gotOther, err := db.GetChatByID(ctx, chatOtherAgent.ID)
+	require.NoError(t, err)
+	require.Equal(t, hashOther, gotOther.ContextAggregateHash)
+	require.False(t, gotOther.ContextDirtySince.Valid)
+}
+
 func TestGetAuthorizedChats(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -10971,11 +11087,11 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	enabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
-		Type: database.AiProviderTypeOpenrouter,
+		Type: database.AIProviderTypeOpenrouter,
 		Name: "openrouter-" + uuid.NewString(),
 	})
 	disabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
-		Type: database.AiProviderTypeVercel,
+		Type: database.AIProviderTypeVercel,
 		Name: "vercel-" + uuid.NewString(),
 	}, func(params *database.InsertAIProviderParams) {
 		params.Enabled = false
@@ -11284,7 +11400,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// An AI provider row is required as a FK for model configs.
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
-		Type:        database.AiProviderTypeOpenai,
+		Type:        database.AIProviderTypeOpenai,
 		Name:        "test-" + uuid.NewString(),
 		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
 		Enabled:     true,
@@ -11623,7 +11739,7 @@ func TestUpsertAISeats(t *testing.T) {
 	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now.Add(time.Hour * -24),
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.True(t, newRow)
@@ -11631,7 +11747,7 @@ func TestUpsertAISeats(t *testing.T) {
 	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now.Add(time.Hour * -23),
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.False(t, alreadyExists)
@@ -11639,7 +11755,7 @@ func TestUpsertAISeats(t *testing.T) {
 	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now,
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.False(t, alreadyExists)
@@ -14488,7 +14604,7 @@ func TestGetChatsFilter(t *testing.T) {
 	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	provider := dbgen.AIProviderWithOptionalKey(t, store, database.AIProvider{
-		Type: database.AiProviderTypeOpenai,
+		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -15122,6 +15238,139 @@ func TestSoftDeleteWorkspaceAgentsByWorkspaceID(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestSoftDeleteWorkspaceAgentsPurgesContext verifies that both agent
+// soft-delete queries hard-delete the agents' pushed context rows
+// (workspace_agent_context_snapshots and
+// workspace_agent_context_resources). Agents are only ever
+// soft-deleted, so without this the context rows would accumulate
+// forever.
+func TestSoftDeleteWorkspaceAgentsPurgesContext(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	tpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+
+	type buildBundle struct {
+		buildID uuid.UUID
+		agentID uuid.UUID
+		agent   database.WorkspaceAgent
+	}
+
+	newBuild := func(t *testing.T, wsID uuid.UUID, buildNumber int32) buildBundle {
+		t.Helper()
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       wsID,
+			JobID:             job.ID,
+			TemplateVersionID: tplVersion.ID,
+			BuildNumber:       buildNumber,
+			Transition:        database.WorkspaceTransitionStart,
+		})
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
+		return buildBundle{buildID: build.ID, agentID: agent.ID, agent: agent}
+	}
+
+	pushContext := func(t *testing.T, agentID uuid.UUID) {
+		t.Helper()
+		_, err := db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
+			WorkspaceAgentID: agentID,
+			Version:          1,
+			AggregateHash:    []byte{0x01},
+			ReceivedAt:       dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
+			WorkspaceAgentID: agentID,
+			Source:           "/workspace/AGENTS.md",
+			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
+			Body:             []byte(`{}`),
+			ContentHash:      []byte{0x02},
+			SizeBytes:        2,
+			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			Now:              dbtime.Now(),
+		})
+		require.NoError(t, err)
+	}
+
+	hasContext := func(t *testing.T, agentID uuid.UUID) bool {
+		t.Helper()
+		_, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+		if errors.Is(err, sql.ErrNoRows) {
+			resources, err := db.ListWorkspaceAgentContextResources(ctx, agentID)
+			require.NoError(t, err)
+			require.Empty(t, resources, "snapshot and resource rows must be deleted together")
+			return false
+		}
+		require.NoError(t, err)
+		return true
+	}
+
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tpl.ID,
+		OwnerID:        user.ID,
+	}).ID
+
+	a1 := newBuild(t, wsA, 1)
+	a2 := newBuild(t, wsA, 2)
+	b1 := newBuild(t, wsB, 1)
+
+	pushContext(t, a1.agentID)
+	pushContext(t, a2.agentID)
+	pushContext(t, b1.agentID)
+
+	// Soft-deleting wsA's prior agents purges a1's context but leaves
+	// the current build's agent and other workspaces untouched.
+	err := db.SoftDeletePriorWorkspaceAgents(ctx, database.SoftDeletePriorWorkspaceAgentsParams{
+		WorkspaceID:    wsA,
+		CurrentBuildID: a2.buildID,
+	})
+	require.NoError(t, err)
+	assert.False(t, hasContext(t, a1.agentID), "prior build agent context must be purged")
+	assert.True(t, hasContext(t, a2.agentID), "current build agent context must remain")
+	assert.True(t, hasContext(t, b1.agentID), "other workspace agent context must remain")
+
+	// Soft-deleting all of wsB's agents purges b1's context.
+	err = db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, wsB)
+	require.NoError(t, err)
+	assert.True(t, hasContext(t, a2.agentID), "other workspace agent context must remain")
+	assert.False(t, hasContext(t, b1.agentID), "deleted workspace agent context must be purged")
+
+	// Removing a sub-agent mid-build via DeleteWorkspaceSubAgentByID purges
+	// only that sub-agent's context. The rebuild-time queries skip
+	// already-deleted agents, so this is the sole cleanup opportunity.
+	c1 := newBuild(t, wsA, 3)
+	subAgent := dbgen.WorkspaceSubAgent(t, db, c1.agent, database.WorkspaceAgent{})
+	pushContext(t, c1.agentID)
+	pushContext(t, subAgent.ID)
+
+	err = db.DeleteWorkspaceSubAgentByID(ctx, subAgent.ID)
+	require.NoError(t, err)
+	assert.True(t, hasContext(t, c1.agentID), "parent agent context must remain")
+	assert.False(t, hasContext(t, subAgent.ID), "deleted sub-agent context must be purged")
+}
+
 func TestAIGatewayKeysTableConstraints(t *testing.T) {
 	t.Parallel()
 
@@ -15146,67 +15395,67 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 		{
 			name:            "duplicate name",
 			params:          aiGatewayKeyParams(preExisting.Name, "key_test002"),
-			expectUniqueErr: database.UniqueAiGatewayKeysNameIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysNameIndex,
 		},
 		{
 			name:            "duplicate secret prefix",
 			params:          aiGatewayKeyParams("different-key", preExisting.SecretPrefix),
-			expectUniqueErr: database.UniqueAiGatewayKeysSecretPrefixIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysSecretPrefixIndex,
 		},
 		{
 			name:            "duplicate hashed secret",
 			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExisting.HashedSecret},
-			expectUniqueErr: database.UniqueAiGatewayKeysHashedSecretIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysHashedSecretIndex,
 		},
 		{
 			name:           "empty name",
 			params:         aiGatewayKeyParams("", "key_empty__"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with trailing dash",
 			params:         aiGatewayKeyParams("other-name-", "key_trail__"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with consecutive dashes",
 			params:         aiGatewayKeyParams("other--name", "key_consec_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with underscore",
 			params:         aiGatewayKeyParams("other_name", "key_undersc"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with space",
 			params:         aiGatewayKeyParams("other name", "key_spacen_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with leading dash",
 			params:         aiGatewayKeyParams("-other-name", "key_leadng_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name longer than 64 characters",
 			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "key_longna_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "empty secret prefix",
 			params:         aiGatewayKeyParams("check-empty-pfx", ""),
-			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+			expectCheckErr: database.CheckAIGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "invalid secret prefix length",
 			params:         aiGatewayKeyParams("check-short-pfx", "key_short"),
-			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+			expectCheckErr: database.CheckAIGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "empty hashed secret",
 			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "check-empty-hash", SecretPrefix: "key_ehash__", HashedSecret: []byte{}},
-			expectCheckErr: database.CheckAiGatewayKeysHashedSecretCheck,
+			expectCheckErr: database.CheckAIGatewayKeysHashedSecretCheck,
 		},
 	}
 

@@ -37,18 +37,18 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model         fantasy.LanguageModel
-		modelConfig   database.ChatModelConfig
-		providerKeys  chatprovider.ProviderAPIKeys
-		modelRoute    resolvedModelRoute
-		modelOpts     modelBuildOptions
-		callConfig    codersdk.ChatModelCallConfig
-		promptRows    []database.ChatMessage
-		mcpConfigs    []database.MCPServerConfig
-		mcpTokens     []database.MCPServerUserToken
-		debugEnabled  bool
-		debugProvider string
-		debugModel    string
+		model            fantasy.LanguageModel
+		modelConfig      database.ChatModelConfig
+		providerKeys     chatprovider.ProviderAPIKeys
+		modelRoute       resolvedModelRoute
+		modelOpts        modelBuildOptions
+		callConfig       codersdk.ChatModelCallConfig
+		promptRows       []database.ChatMessage
+		mcpConfigs       []database.MCPServerConfig
+		mcpTokens        []database.MCPServerUserToken
+		debugEnabled     bool
+		resolvedProvider string
+		debugModel       string
 	)
 
 	var g errgroup.Group
@@ -86,7 +86,7 @@ func (server *Server) prepareGeneration(
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
 	var err error
-	model, modelConfig, providerKeys, modelRoute, debugEnabled, debugProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
+	model, modelConfig, providerKeys, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -459,7 +459,7 @@ func (server *Server) prepareGeneration(
 		}
 		modelRoute = computerUseRoute
 		providerKeys = computerUseRoute.directProviderKeys()
-		cuModel, cuDebugEnabled, resolvedProvider, resolvedModel, cuErr := server.resolveComputerUseModel(
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
 			ctx,
 			chat,
 			computerUseRoute,
@@ -474,8 +474,8 @@ func (server *Server) prepareGeneration(
 		}
 		model = cuModel
 		debugEnabled = cuDebugEnabled
-		debugProvider = resolvedProvider
-		debugModel = resolvedModel
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -535,7 +535,7 @@ func (server *Server) prepareGeneration(
 		debug = &generationDebug{
 			Enabled:             true,
 			Service:             debugSvc,
-			Provider:            debugProvider,
+			Provider:            resolvedProvider,
 			Model:               debugModel,
 			TriggerMessageID:    triggerMessageID,
 			HistoryTipMessageID: historyTipMessageID,
@@ -587,6 +587,7 @@ func (server *Server) prepareGeneration(
 		ProviderKeys:         providerKeys,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
+		ResolvedProvider:     resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
 		ModelConfig:          callConfig,
 		ProviderOptions:      providerOptions,
@@ -609,14 +610,7 @@ func (server *Server) prepareGeneration(
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	for i := len(messages) - 1; i >= 0; i-- {
-		usage := fantasy.Usage{
-			InputTokens:         messages[i].InputTokens.Int64,
-			OutputTokens:        messages[i].OutputTokens.Int64,
-			TotalTokens:         messages[i].TotalTokens.Int64,
-			ReasoningTokens:     messages[i].ReasoningTokens.Int64,
-			CacheCreationTokens: messages[i].CacheCreationTokens.Int64,
-			CacheReadTokens:     messages[i].CacheReadTokens.Int64,
-		}
+		usage := usageFromMessage(messages[i])
 		if usage != (fantasy.Usage{}) {
 			return usage
 		}
@@ -681,9 +675,7 @@ func (server *Server) afterGenerationOutcome(
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
-		statusLabel := server.generateFinalTurnStatusLabel(finalizeCtx, chat, chat.Status, runResult, logger)
-		server.updateLastTurnSummary(finalizeCtx, chat, chat.HistoryVersion, statusLabel, logger)
-		server.dispatchSuccessfulTurnPush(finalizeCtx, chat, statusLabel, logger)
+		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:

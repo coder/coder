@@ -148,6 +148,31 @@ func (q *querier) authorizeContext(ctx context.Context, action policy.Action, ob
 	return nil
 }
 
+// authorizeWorkspaceByAgentID authorizes an action against the workspace
+// that owns the given agent.
+//
+// Fast path: a workspace RBAC object cached in the context by the agent
+// API connection avoids the GetWorkspaceByAgentID query. The cached
+// object is refreshed every 5 minutes in agentapi/api.go; authorization
+// failures fall back to the slow path in case it is stale.
+//
+// Slow path: fetch the workspace by agent ID and authorize against it.
+func (q *querier) authorizeWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID, action policy.Action) error {
+	if rbacObj, ok := WorkspaceRBACFromContext(ctx); ok {
+		if err := q.authorizeContext(ctx, action, rbacObj); err == nil {
+			return nil
+		}
+		q.log.Debug(ctx, "fast path authorization failed for workspace by agent ID, using slow path",
+			slog.F("agent_id", agentID))
+	}
+
+	workspace, err := q.db.GetWorkspaceByAgentID(ctx, agentID)
+	if err != nil {
+		return err
+	}
+	return q.authorizeContext(ctx, action, workspace)
+}
+
 // authorizePrebuiltWorkspace handles authorization for workspace resource types.
 // prebuilt_workspaces are a subset of workspaces, currently limited to
 // supporting delete operations. This function first attempts normal workspace
@@ -2146,14 +2171,14 @@ func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.Delet
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
-func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	// Removing a group's AI budget counts as updating the group.
 	group, err := q.db.GetGroupByID(ctx, groupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.DeleteGroupAIBudget(ctx, groupID)
 }
@@ -2274,6 +2299,13 @@ func (q *querier) DeleteOldBoundaryLogs(ctx context.Context, arg database.Delete
 	return q.db.DeleteOldBoundaryLogs(ctx, arg)
 }
 
+func (q *querier) DeleteOldBoundarySessions(ctx context.Context, arg database.DeleteOldBoundarySessionsParams) (int64, error) {
+	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceBoundaryLog); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteOldBoundarySessions(ctx, arg)
+}
+
 func (q *querier) DeleteOldChatDebugRuns(ctx context.Context, arg database.DeleteOldChatDebugRunsParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceSystem); err != nil {
 		return 0, err
@@ -2377,6 +2409,16 @@ func (q *querier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds in
 	return q.db.DeleteStaleChatHeartbeats(ctx, staleSeconds)
 }
 
+func (q *querier) DeleteStaleWorkspaceAgentContextResources(ctx context.Context, arg database.DeleteStaleWorkspaceAgentContextResourcesParams) error {
+	// Deleting stale context resources is part of updating the agent's
+	// pushed context state, so it authorizes as an update on the
+	// workspace rather than a delete of the workspace itself.
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return err
+	}
+	return q.db.DeleteStaleWorkspaceAgentContextResources(ctx, arg)
+}
+
 func (q *querier) DeleteTailnetPeer(ctx context.Context, arg database.DeleteTailnetPeerParams) (database.DeleteTailnetPeerRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceTailnetCoordinator); err != nil {
 		return database.DeleteTailnetPeerRow{}, err
@@ -2404,28 +2446,28 @@ func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams)
 	return q.db.DeleteTask(ctx, arg)
 }
 
-func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	// Removing a user's AI budget override affects both the user (clearing
 	// their per-user spend cap) and the group it was attributed to.
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, u); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	// Fetch the existing override to learn which group it attributes spend to,
 	// so we can authorize the caller against that group as well.
 	userOverride, err := q.db.GetUserAIBudgetOverride(ctx, userID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	g, err := q.db.GetGroupByID(ctx, userOverride.GroupID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, g); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.DeleteUserAIBudgetOverride(ctx, userID)
 }
@@ -2692,9 +2734,9 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
-func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
-		return database.AiModelPrice{}, err
+		return database.AIModelPrice{}, err
 	}
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
 }
@@ -3702,14 +3744,14 @@ func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
 
-func (q *querier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (q *querier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	// Reading a group's AI budget requires read on the parent group.
 	group, err := q.db.GetGroupByID(ctx, groupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionRead, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.GetGroupAIBudget(ctx, groupID)
 }
@@ -3810,6 +3852,13 @@ func (q *querier) GetLatestCryptoKeyByFeature(ctx context.Context, feature datab
 		return database.CryptoKey{}, err
 	}
 	return q.db.GetLatestCryptoKeyByFeature(ctx, feature)
+}
+
+func (q *querier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context, workspaceAgentID uuid.UUID) (database.WorkspaceAgentContextSnapshot, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, workspaceAgentID, policy.ActionRead); err != nil {
+		return database.WorkspaceAgentContextSnapshot{}, err
+	}
+	return q.db.GetLatestWorkspaceAgentContextSnapshot(ctx, workspaceAgentID)
 }
 
 func (q *querier) GetLatestWorkspaceAppStatusByAppID(ctx context.Context, appID uuid.UUID) (database.WorkspaceAppStatus, error) {
@@ -4752,32 +4801,32 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
-func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	if _, err := q.GetUserByID(ctx, userID); err != nil { // AuthZ check
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.GetUserAIBudgetOverride(ctx, userID)
 }
 
-func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.GetUserAIProviderKeyByProviderID(ctx, arg)
 }
 
-func (q *querier) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserAIProviderKeys(ctx)
 }
 
-func (q *querier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -5616,6 +5665,16 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 		return nil, err
 	}
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
+}
+
+func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+	// System-level operation: an agent context push fans hydration out
+	// across every not-yet-pinned chat for the agent, so it authorizes at
+	// the resource level rather than per-chat.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.HydrateAgentChatsContext(ctx, arg)
 }
 
 func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error) {
@@ -6557,6 +6616,13 @@ func (q *querier) ListUserSkillMetadataByUserID(ctx context.Context, userID uuid
 	return q.db.ListUserSkillMetadataByUserID(ctx, userID)
 }
 
+func (q *querier) ListWorkspaceAgentContextResources(ctx context.Context, workspaceAgentID uuid.UUID) ([]database.WorkspaceAgentContextResource, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, workspaceAgentID, policy.ActionRead); err != nil {
+		return nil, err
+	}
+	return q.db.ListWorkspaceAgentContextResources(ctx, workspaceAgentID)
+}
+
 func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkspaceAgentPortShare, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, workspaceID)
 	if err != nil {
@@ -6591,6 +6657,15 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 	}
 
 	return q.db.MarkAllInboxNotificationsAsRead(ctx, arg)
+}
+
+func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
+	// System-level operation: the dirty fan-out runs across every active
+	// chat for the agent in response to a context push.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.MarkChatsContextDirtyByAgent(ctx, arg)
 }
 
 func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
@@ -6721,6 +6796,17 @@ func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.T
 		return nil, err
 	}
 	return q.db.SelectUsageEventsForPublishing(ctx, arg)
+}
+
+func (q *querier) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return err
+	}
+	return q.db.SetChatContextSnapshot(ctx, arg)
 }
 
 func (q *querier) SoftDeleteChatMessageByID(ctx context.Context, id int64) error {
@@ -7216,12 +7302,12 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
 }
 
-func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	// Encrypted user-owned provider keys can be rewritten on any row so
 	// dbcrypt rotation can move every key to a new digest. This is a
 	// maintenance path, not the self-service user key API.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
 }
@@ -7752,13 +7838,13 @@ func (q *querier) UpdateUsageEventsPostPublish(ctx context.Context, arg database
 	return q.db.UpdateUsageEventsPostPublish(ctx, arg)
 }
 
-func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateUserAIProviderKey(ctx, arg)
 }
@@ -8566,14 +8652,14 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 	return q.db.UpsertDefaultProxy(ctx, arg)
 }
 
-func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAiBudget, error) {
+func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {
 	// Setting a group's AI budget counts as updating the group.
 	group, err := q.db.GetGroupByID(ctx, arg.GroupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.UpsertGroupAIBudget(ctx, arg)
 }
@@ -8713,33 +8799,33 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 	return q.db.UpsertTemplateUsageStats(ctx)
 }
 
-func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {
 	// Setting a user's AI budget override affects both the user (their
 	// per-user spend cap) and the group (spend attribution).
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, u); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	g, err := q.db.GetGroupByID(ctx, arg.GroupID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, g); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.UpsertUserAIBudgetOverride(ctx, arg)
 }
 
-func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpsertUserAIProviderKey(ctx, arg)
 }
@@ -8771,6 +8857,20 @@ func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.Upser
 		return err
 	}
 	return q.db.UpsertWebpushVAPIDKeys(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentContextResource(ctx context.Context, arg database.UpsertWorkspaceAgentContextResourceParams) (database.WorkspaceAgentContextResource, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return database.WorkspaceAgentContextResource{}, err
+	}
+	return q.db.UpsertWorkspaceAgentContextResource(ctx, arg)
+}
+
+func (q *querier) UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg database.UpsertWorkspaceAgentContextSnapshotParams) (database.WorkspaceAgentContextSnapshot, error) {
+	if err := q.authorizeWorkspaceByAgentID(ctx, arg.WorkspaceAgentID, policy.ActionUpdate); err != nil {
+		return database.WorkspaceAgentContextSnapshot{}, err
+	}
+	return q.db.UpsertWorkspaceAgentContextSnapshot(ctx, arg)
 }
 
 func (q *querier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg database.UpsertWorkspaceAgentPortShareParams) (database.WorkspaceAgentPortShare, error) {

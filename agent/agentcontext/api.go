@@ -45,7 +45,6 @@ type SnapshotResource struct {
 // returned by the resync endpoint.
 type SnapshotResponse struct {
 	Version       uint64             `json:"version"`
-	SchemaVersion uint64             `json:"schema_version"`
 	AggregateHash string             `json:"aggregate_hash"`
 	Resources     []SnapshotResource `json:"resources"`
 	PayloadBytes  uint64             `json:"payload_bytes"`
@@ -181,7 +180,6 @@ func (a *API) handleResync(rw http.ResponseWriter, r *http.Request) {
 func snapshotResponse(s Snapshot) SnapshotResponse {
 	out := SnapshotResponse{
 		Version:       s.Version,
-		SchemaVersion: s.SchemaVersion,
 		AggregateHash: hex.EncodeToString(s.AggregateHash[:]),
 		Resources:     make([]SnapshotResource, 0, len(s.Resources)),
 		PayloadBytes:  s.PayloadBytes,

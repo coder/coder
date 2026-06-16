@@ -61,7 +61,6 @@ func TestManager_InitialSnapshotIsPopulated(t *testing.T) {
 
 	snap := m.Snapshot()
 	require.Equal(t, uint64(1), snap.Version)
-	require.Equal(t, agentcontext.CurrentSchemaVersion, snap.SchemaVersion)
 	require.Len(t, snap.Resources, 1)
 }
 

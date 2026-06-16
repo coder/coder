@@ -4359,6 +4359,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-gateway-cost-control"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -4370,6 +4371,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-gateway-cost-control",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -7254,6 +7256,14 @@ export interface RetentionConfig {
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly workspace_agent_logs: number;
+	/**
+	 * BoundaryLogs controls how long boundary audit log entries are
+	 * retained. Boundary logs record every HTTP request processed by
+	 * a Boundary confinement proxy. Set to 0 to disable automatic
+	 * deletion (keep indefinitely). Adjust to match your
+	 * organization's regulatory requirements.
+	 */
+	readonly boundary_logs: number;
 }
 
 // From codersdk/roles.go
@@ -8184,10 +8194,55 @@ export interface TemplateBuilderBasesResponse {
 	readonly bases: readonly TemplateBuilderBase[];
 }
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeModule identifies a module and its variable
+ * values for the compose request.
+ */
+export interface TemplateBuilderComposeModule {
+	readonly id: string;
+	readonly variables?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeRequest is the request body for
+ * POST /api/v2/templatebuilder/compose.
+ */
+export interface TemplateBuilderComposeRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+}
+
 // From codersdk/deployment.go
 export interface TemplateBuilderConfig {
 	readonly disabled?: boolean;
 	readonly registry_url?: string;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateRequest is the request body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+	readonly organization_id: string;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly description?: string;
+	readonly icon?: string;
+	readonly provisioner_tags?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateResponse is the response body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateResponse {
+	readonly template: Template;
 }
 
 // From codersdk/templatebuilder.go

@@ -48,6 +48,10 @@ type generationPrepared struct {
 	ModelRoute        resolvedModelRoute
 	ModelBuildOptions modelBuildOptions
 
+	// ResolvedProvider is the configured provider identity used to label
+	// user-facing errors. See chatloop.GenerateAssistantOptions.ErrorProvider.
+	ResolvedProvider string
+
 	ModelConfigID        uuid.UUID
 	ModelConfig          codersdk.ChatModelCallConfig
 	ProviderOptions      fantasy.ProviderOptions
@@ -129,21 +133,19 @@ const (
 	generationFinishReasonMaxSteps      generationFinishReason = "max_steps"
 )
 
-type compactionTrigger string
-
-const (
-	compactionTriggerRequired         compactionTrigger = "required"
-	compactionTriggerAlreadyCompacted compactionTrigger = "already_compacted"
+var errCompactionStillOverLimit = chaterror.WithClassification(
+	xerrors.New("compaction left the chat above the compaction limit"),
+	chaterror.ClassifiedError{
+		Message: "Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
+		Kind:    codersdk.ChatErrorKindConfig,
+	},
 )
-
-var errCompactionStillOverLimit = xerrors.New("compaction left the chat above the compaction limit")
 
 type generationDecision struct {
 	kind                    generationActionKind
 	localToolCalls          []fantasy.ToolCallContent
 	pendingDynamicToolCalls []pendingDynamicToolCall
 	finishReason            generationFinishReason
-	compactionTrigger       compactionTrigger
 	promotedMessageID       int64
 }
 
@@ -181,15 +183,17 @@ func isTerminalGeneration(err error) bool {
 }
 
 type generationDecisionInput struct {
-	chat                     database.Chat
-	messages                 []database.ChatMessage
-	dynamicToolNames         map[string]bool
-	exclusiveToolNames       map[string]bool
-	stopAfterTools           map[string]struct{}
-	maxSteps                 int
-	compactionEnabled        bool
-	compactionNeeded         bool
-	workspaceContextEligible bool
+	chat                       database.Chat
+	messages                   []database.ChatMessage
+	dynamicToolNames           map[string]bool
+	exclusiveToolNames         map[string]bool
+	stopAfterTools             map[string]struct{}
+	maxSteps                   int
+	compactionEnabled          bool
+	compactionNeeded           bool
+	compactionThresholdPercent int32
+	compactionContextLimit     int64
+	workspaceContextEligible   bool
 }
 
 // shouldPersistWorkspaceContext reports whether the committed chat
@@ -265,11 +269,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if input.compactionEnabled && input.compactionNeeded {
 		compactionRequirement = compactionRequirementNeeded
 	}
-	switch compactionStatusFromHistory(input.messages, compactionRequirement) {
+	switch compactionStatusFromHistory(input.messages, compactionRequirement, input.compactionThresholdPercent, input.compactionContextLimit) {
 	case compactionStatusNeeded:
-		return generationDecision{kind: generationActionCompact, compactionTrigger: compactionTriggerRequired}, nil
+		return generationDecision{kind: generationActionCompact}, nil
 	case compactionStatusAfterCompaction:
-		return generationDecision{kind: generationActionGenerateAssistant, compactionTrigger: compactionTriggerAlreadyCompacted}, nil
+		return generationDecision{kind: generationActionGenerateAssistant}, nil
 	case compactionStatusStillOverLimit:
 		return generationDecision{}, terminalGeneration(errCompactionStillOverLimit)
 	case compactionStatusNotNeeded:
@@ -277,6 +281,13 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	default:
 		return generationDecision{}, terminalGeneration(xerrors.New("unknown compaction status"))
 	}
+}
+
+func generationCompactionThreshold(compaction *generationCompaction) int32 {
+	if compaction == nil {
+		return 0
+	}
+	return compaction.Options.ThresholdPercent
 }
 
 func unresolvedToolCallsFromHistory(
@@ -361,21 +372,31 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		cleanup := prepared.Cleanup
 		decision, err := retryGenerationPhase(ctx, s.waitGenerationPhaseBackoff, func() (generationDecision, error) {
 			return decideGenerationAction(generationDecisionInput{
-				chat:                     prepared.Chat,
-				messages:                 prepared.Messages,
-				dynamicToolNames:         prepared.DynamicToolNames,
-				exclusiveToolNames:       prepared.ExclusiveToolNames,
-				stopAfterTools:           prepared.StopAfterTools,
-				maxSteps:                 prepared.MaxSteps,
-				compactionEnabled:        prepared.Compaction != nil,
-				compactionNeeded:         prepared.Compaction != nil && prepared.Compaction.Required,
-				workspaceContextEligible: prepared.WorkspaceContextEligible,
+				chat:                       prepared.Chat,
+				messages:                   prepared.Messages,
+				dynamicToolNames:           prepared.DynamicToolNames,
+				exclusiveToolNames:         prepared.ExclusiveToolNames,
+				stopAfterTools:             prepared.StopAfterTools,
+				maxSteps:                   prepared.MaxSteps,
+				compactionEnabled:          prepared.Compaction != nil,
+				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
+				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
+				compactionContextLimit:     prepared.ContextLimitFallback,
+				workspaceContextEligible:   prepared.WorkspaceContextEligible,
 			})
 		})
 		if err != nil {
 			cleanup()
 			if errors.Is(err, errTaskExpectedExit) {
 				return errTaskExpectedExit
+			}
+			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
+				s.server.metrics.RecordCompaction(
+					compactionProvider(prepared.Compaction.Options),
+					compactionModel(prepared.Compaction.Options),
+					false,
+					errCompactionStillOverLimit,
+				)
 			}
 			return s.finishGenerationError(ctx, machine, input, 0, err, generationAttemptNotRequired)
 		}
@@ -389,7 +410,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			cleanup()
 			return s.finishGenerationTurn(ctx, machine, input, 0, decision, generationAttemptNotRequired)
 		case generationActionGenerateAssistant:
-			actionErr = s.generateAssistant(ctx, machine, input, prepared, decision)
+			actionErr = s.generateAssistant(ctx, machine, input, prepared)
 		case generationActionExecuteLocalTools:
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
@@ -600,7 +621,6 @@ func (s *taskStarter) generateAssistant(
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
-	decision generationDecision,
 ) error {
 	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
@@ -610,6 +630,7 @@ func (s *taskStarter) generateAssistant(
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model,
+		ErrorProvider:        prepared.ResolvedProvider,
 		Messages:             prepared.Prompt,
 		Tools:                prepared.Tools,
 		ActiveTools:          prepared.ActiveTools,
@@ -624,12 +645,6 @@ func (s *taskStarter) generateAssistant(
 	})
 	if err != nil {
 		return err
-	}
-	if decision.compactionTrigger == compactionTriggerAlreadyCompacted &&
-		shouldCompactPromptUsage(outcome.Step.Usage, prepared.ContextLimitFallback, prepared.Compaction.Options.ThresholdPercent) {
-		err := errCompactionStillOverLimit
-		s.server.metrics.RecordCompaction(compactionProvider(prepared.Compaction.Options), compactionModel(prepared.Compaction.Options), false, err)
-		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
 	}
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
