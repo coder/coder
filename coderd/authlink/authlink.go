@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"sort"
 
 	"golang.org/x/xerrors"
@@ -77,7 +78,11 @@ func ResetMismatchedOIDCLinks(ctx context.Context, db database.Store, expectedIs
 // expose a method to extract the Issuer. So we have to manually make the
 // http request.
 func ResolveIssuer(ctx context.Context, cli *http.Client, issuerURL string) (string, error) {
-	wellKnownURL := issuerURL + "/.well-known/openid-configuration"
+	wellKnownURL, err := url.JoinPath(issuerURL, "/.well-known/openid-configuration")
+	if err != nil {
+		return "", xerrors.Errorf("resolve issuer URL: %w", err)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnownURL, nil)
 	if err != nil {
 		return "", xerrors.Errorf("create discovery request: %w", err)

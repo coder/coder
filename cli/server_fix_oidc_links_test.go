@@ -80,12 +80,13 @@ func TestFixOIDCLinks(t *testing.T) {
 		)
 
 		stdout := expecter.NewAttachedToInvocation(t, inv)
-		clitest.Start(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
 
-		stdout.ExpectMatch(ctx, "Resolved OIDC issuer: "+expectedIssuer)
+		stdout.ExpectMatch(ctx, "Resolved OIDC issuer: \""+expectedIssuer+"\"")
 		stdout.ExpectMatch(ctx, "Total OIDC users:")
 		stdout.ExpectMatch(ctx, "Correctly linked:")
 		stdout.ExpectMatch(ctx, "Linked to other issuers:")
+		w.RequireSuccess()
 
 		// Verify no changes were made.
 		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
@@ -138,9 +139,10 @@ func TestFixOIDCLinks(t *testing.T) {
 		)
 
 		stdout := expecter.NewAttachedToInvocation(t, inv)
-		clitest.Start(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
 
 		stdout.ExpectMatch(ctx, "Reset 1 linked IDs.")
+		w.RequireSuccess()
 
 		// Verify the mismatched link was reset.
 		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
@@ -193,8 +195,9 @@ func TestFixOIDCLinks(t *testing.T) {
 		)
 
 		stdout := expecter.NewAttachedToInvocation(t, inv)
-		clitest.Start(t, inv)
+		w := clitest.StartWithWaiter(t, inv)
 
 		stdout.ExpectMatch(ctx, "Nothing to do")
+		w.RequireSuccess()
 	})
 }
