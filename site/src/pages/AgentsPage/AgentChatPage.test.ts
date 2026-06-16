@@ -336,6 +336,30 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	it("carries a draft typed during loading into the seed for the loaded editor", () => {
+		const { result, unmount } = renderEditing();
+
+		// The loaded editor seeds from editorInitialValue/initialEditorState
+		// on its first mount. handleContentChange alone only persists and
+		// does not move the seed, so text typed before the loaded editor
+		// mounts would be lost without handleLoadingDraftChange.
+		const editorState =
+			'{"root":{"children":[{"text":"typed while loading"}]}}';
+		act(() => {
+			result.current.handleLoadingDraftChange(
+				"typed while loading",
+				editorState,
+				false,
+			);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("typed while loading");
+		expect(result.current.initialEditorState).toBe(editorState);
+
+		unmount();
+	});
+
 	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
 		const { result, unmount } = renderEditing();
 

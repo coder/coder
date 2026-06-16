@@ -837,6 +837,15 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 interface AgentChatPageLoadingViewProps {
 	sendShortcut: AgentChatSendShortcut;
 	titleElement: React.ReactNode;
+	inputRef: RefObject<ChatMessageInputRef | null>;
+	initialValue: string;
+	initialEditorState: string | undefined;
+	remountKey: number;
+	onContentChange: (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => void;
 	isInputDisabled: boolean;
 	effectiveSelectedModel: string;
 	setSelectedModel: (model: string) => void;
@@ -854,6 +863,11 @@ interface AgentChatPageLoadingViewProps {
 export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 	sendShortcut,
 	titleElement,
+	inputRef,
+	initialValue,
+	initialEditorState,
+	remountKey,
+	onContentChange,
 	isInputDisabled,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -906,7 +920,11 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					<AgentChatInput
 						onSend={() => {}}
 						sendShortcut={sendShortcut}
-						initialValue=""
+						inputRef={inputRef}
+						initialValue={initialValue}
+						initialEditorState={initialEditorState}
+						remountKey={remountKey}
+						onContentChange={onContentChange}
 						isDisabled={isInputDisabled}
 						isLoading={false}
 						selectedModel={effectiveSelectedModel}

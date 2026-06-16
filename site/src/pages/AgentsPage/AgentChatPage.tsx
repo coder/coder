@@ -569,6 +569,24 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
+	// The loaded editor seeds from editorInitialValue/initialEditorState
+	// the first time it mounts. While the chat is still loading the editor
+	// receiving keystrokes is a different, soon-to-unmount instance, so the
+	// seed state is updated here (not in handleContentChange, which runs per
+	// keystroke in the loaded editor and must avoid re-renders) to carry the
+	// draft across the swap.
+	const handleLoadingDraftChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
+		handleContentChange(content, serializedEditorState, hasFileReferences);
+		setDraftState({
+			editorInitialValue: content,
+			initialEditorState: serializedEditorState,
+		});
+	};
+
 	return {
 		inputValueRef,
 		chatInputRef,
@@ -584,6 +602,7 @@ export function useConversationEditingState(deps: {
 		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
+		handleLoadingDraftChange,
 	};
 }
 
@@ -1548,6 +1567,11 @@ const AgentChatPage: FC = () => {
 					preferencesQuery.isLoading,
 				)}
 				titleElement={titleElement}
+				inputRef={editing.chatInputRef}
+				initialValue={editing.editorInitialValue}
+				initialEditorState={editing.initialEditorState}
+				remountKey={editing.remountKey}
+				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
 				setSelectedModel={setSelectedModel}
