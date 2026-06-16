@@ -40,9 +40,12 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 					Base Template
 				</StepIndicator>
 				{selectedTemplate ? (
-					<BaseTemplateSelection template={selectedTemplate} />
+					<BaseTemplateSelection
+						template={selectedTemplate}
+						variant={variant(1)}
+					/>
 				) : (
-					<StepDivider />
+					<StepDivider variant={variant(1)} />
 				)}
 				<StepIndicator step={2} variant={variant(2)}>
 					Modules
@@ -51,9 +54,10 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 					<ModuleSelection
 						modules={selectedModules}
 						onDeselectModule={onDeselectModule}
+						variant={variant(2)}
 					/>
 				) : (
-					<StepDivider />
+					<StepDivider variant={variant(2)} />
 				)}
 				<StepIndicator step={3} variant={variant(3)}>
 					Customizations
@@ -104,14 +108,33 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	);
 };
 
-const StepDivider: React.FC<{
-	children?: React.ReactNode;
+const stepDividerVariants = cva(
+	"border-0 border-l border-solid mx-4 -translate-x-px",
+	{
+		variants: {
+			variant: {
+				complete: "border-border-success",
+				current: "border-border",
+				upcoming: "border-border",
+			},
+		},
+	},
+);
+
+type StepDividerProps = VariantProps<typeof stepDividerVariants> & {
 	className?: string;
-}> = ({ children, className }) => {
+	children?: React.ReactNode;
+};
+
+const StepDivider: React.FC<StepDividerProps> = ({
+	className,
+	variant,
+	children,
+}) => {
 	return (
 		<div
 			className={cn(
-				"border-0 border-l border-border border-solid mx-4 -translate-x-px",
+				stepDividerVariants({ variant }),
 				children ? "px-3 py-2" : "h-4",
 				className,
 			)}
@@ -121,15 +144,16 @@ const StepDivider: React.FC<{
 	);
 };
 
-type BaseTemplateSelectionProps = {
+type BaseTemplateSelectionProps = VariantProps<typeof stepDividerVariants> & {
 	template: SelectedTemplate;
 };
 
 const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	template,
+	variant,
 }) => {
 	return (
-		<StepDivider>
+		<StepDivider variant={variant}>
 			<div className="flex items-center p-1">
 				<img
 					src={template.iconUrl}
@@ -142,7 +166,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 	);
 };
 
-type ModuleSelectionProps = {
+type ModuleSelectionProps = VariantProps<typeof stepDividerVariants> & {
 	modules: SelectedModule[];
 	onDeselectModule: (moduleId: string) => void;
 };
@@ -150,9 +174,10 @@ type ModuleSelectionProps = {
 const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 	modules,
 	onDeselectModule,
+	variant,
 }) => {
 	return (
-		<StepDivider className="max-h-72 overflow-y-auto">
+		<StepDivider variant={variant} className="max-h-72 overflow-y-auto">
 			{modules.map((module) => (
 				<div
 					key={module.id}
