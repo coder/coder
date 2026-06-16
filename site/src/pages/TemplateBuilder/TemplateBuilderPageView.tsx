@@ -1,0 +1,119 @@
+import { type FC, useReducer, useState } from "react";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
+import { Margins } from "#/components/Margins/Margins";
+import {
+	PageHeader,
+	PageHeaderSubtitle,
+	PageHeaderTitle,
+} from "#/components/PageHeader/PageHeader";
+import { docs } from "#/utils/docs";
+import { SelectionSummary } from "./SelectionSummary";
+import {
+	findNextVisibleIndex,
+	findPrevVisibleIndex,
+	nearestVisible,
+	WIZARD_STEPS,
+} from "./steps";
+import { initialWizardState, wizardReducer } from "./wizardState";
+
+interface TemplateBuilderPageViewProps {
+	error: unknown;
+}
+
+export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
+	error,
+}) => {
+	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
+	const [stepIndex, setStepIndex] = useState(0);
+
+	const currentIndex = nearestVisible(stepIndex, state);
+	const currentStep = WIZARD_STEPS[currentIndex];
+	const nextIndex = findNextVisibleIndex(currentIndex, state);
+	const prevIndex = findPrevVisibleIndex(currentIndex, state);
+	const isFirstStep = prevIndex === -1;
+	const isLastStep = nextIndex === -1;
+
+	const handleBack = () => {
+		setStepIndex(prevIndex);
+	};
+
+	const handleNext = () => {
+		if (isLastStep) {
+			// Compose will be wired in a follow-up issue.
+			return;
+		}
+		setStepIndex(nextIndex);
+	};
+
+	const handleDeselectModule = (moduleId: string) => {
+		dispatch({
+			type: "SET_MODULES",
+			modules: state.modules.filter((m) => m.id !== moduleId),
+			meta: state.selectedModules.filter((m) => m.id !== moduleId),
+		});
+	};
+
+	return (
+		<Margins>
+			<PageHeader>
+				<PageHeaderTitle>Create new template</PageHeaderTitle>
+				<PageHeaderSubtitle>
+					A Terraform blueprint for reproducible workspaces
+					<Link href={docs("/admin/templates")} className="ml-1">
+						View docs
+					</Link>
+				</PageHeaderSubtitle>
+			</PageHeader>
+
+			{error != null && <ErrorAlert error={error} />}
+
+			<div className="flex gap-8">
+				{/* Main content area */}
+				<div className="flex-1 min-w-0">
+					<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
+						<p className="text-sm text-content-secondary">
+							Step: {currentStep.id}
+						</p>
+					</div>
+
+					{/* Navigation controls */}
+					<div className="flex justify-end mt-6 gap-2">
+						{isFirstStep ? (
+							<div />
+						) : (
+							<Button variant="outline" onClick={handleBack}>
+								Back
+							</Button>
+						)}
+						<Button onClick={handleNext}>
+							{isLastStep ? "Create Template" : "Continue"}
+						</Button>
+					</div>
+				</div>
+
+				{/* Sidebar */}
+				<div className="w-64 shrink-0 hidden md:block">
+					<SelectionSummary
+						currentStep={currentStep.group}
+						selectedTemplate={
+							state.selectedBase
+								? {
+										name: state.selectedBase.name,
+										iconUrl: state.selectedBase.iconUrl,
+									}
+								: undefined
+						}
+						selectedModules={
+							state.selectedModules.length > 0
+								? state.selectedModules
+								: undefined
+						}
+						onDeselectModule={handleDeselectModule}
+					/>
+				</div>
+			</div>
+		</Margins>
+	);
+};

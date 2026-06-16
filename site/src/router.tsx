@@ -201,6 +201,9 @@ const StarterTemplatePage = lazy(
 const CreateTemplatePage = lazy(
 	() => import("./pages/CreateTemplatePage/CreateTemplatePage"),
 );
+const TemplateBuilderPage = lazy(
+	() => import("./pages/TemplateBuilder/TemplateBuilderPage"),
+);
 const TemplateVariablesPage = lazy(
 	() =>
 		import(
@@ -560,7 +563,10 @@ export const router = createBrowserRouter(
 
 					<Route path="/templates">
 						<Route index element={<TemplatesPage />} />
-						<Route path="new" element={<CreateTemplatePage />} />
+						<Route path="new">
+							<Route index element={<CreateTemplatePage />} />
+							<Route path="builder" element={<TemplateBuilderPage />} />
+						</Route>
 						<Route path=":organization">{templateRouter()}</Route>
 						{templateRouter()}
 					</Route>

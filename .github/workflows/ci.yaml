@@ -951,6 +951,37 @@ jobs:
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
 
+  storybook:
+    name: Storybook
+
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        name: Checkout
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        name: Install dependencies
+        with:
+          run_install: true
+          cache: true
+
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build Storybook
+
+      - run: pnpm playwright:install
+        working-directory: site/
+        name: Install Chromium
+
+      - run: pnpm pixel-storybook
+        working-directory: site/
+        name: Snapshot
+        env:
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
+
   # Reference guide:
   # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event
   chromatic:
