@@ -210,7 +210,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 	}
 	provType := seed.Type
 	if provType == "" {
-		provType = database.AiProviderTypeOpenai
+		provType = database.AIProviderTypeOpenai
 	}
 	name := takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t))
 	displayName := seed.DisplayName
@@ -468,7 +468,7 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
 		ID:                  takeFirst(seed.ID, uuid.New()),
 		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
-		OwnerID:             takeFirst(seed.OwnerID, uuid.NullUUID{UUID: uuid.New(), Valid: true}),
+		OwnerID:             seed.OwnerID,
 		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
 		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
 		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),

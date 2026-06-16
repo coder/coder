@@ -321,7 +321,7 @@ func seedAnthropicChatDependencies(t *testing.T, db database.Store, baseURL stri
 	_ = testAPIKeyID(t, db, user.ID)
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
-	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AiProviderTypeAnthropic}, func(params *database.InsertAIProviderParams) {
+	provider := dbgen.AIProvider(t, db, database.AIProvider{Type: database.AIProviderTypeAnthropic}, func(params *database.InsertAIProviderParams) {
 		params.BaseUrl = baseURL
 	})
 	dbgen.AIProviderKey(t, db, database.AIProviderKey{ProviderID: provider.ID})

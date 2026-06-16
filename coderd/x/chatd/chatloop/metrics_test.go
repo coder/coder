@@ -441,11 +441,17 @@ func TestGenerateAssistant_StreamRetryRecordsMetric(t *testing.T) {
 	}
 
 	_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
-		Model:   model,
-		Metrics: metrics,
+		Model: model,
+		// ErrorProvider diverges from the transport provider. Error copy must
+		// use it while the retry metric stays on the transport provider.
+		ErrorProvider: "bedrock",
+		Metrics:       metrics,
 	})
 	require.Error(t, err)
 	require.Equal(t, 1, calls)
+	// Error classification uses the configured provider.
+	require.Equal(t, "bedrock", chaterror.Classify(err).Provider)
+	// Retry metric keeps the transport provider label, not "bedrock".
 	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
 		"provider":     "test-provider",
 		"model":        "test-model",

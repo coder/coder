@@ -1421,7 +1421,7 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
-func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+func GroupAIBudget(b database.GroupAIBudget) codersdk.GroupAIBudget {
 	return codersdk.GroupAIBudget{
 		GroupID:          b.GroupID,
 		SpendLimitMicros: b.SpendLimitMicros,
@@ -1430,7 +1430,7 @@ func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	}
 }
 
-func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudgetOverride {
 	return codersdk.UserAIBudgetOverride{
 		UserID:           o.UserID,
 		GroupID:          o.GroupID,
@@ -1754,6 +1754,19 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
 			chat.LastInjectedContext = parts
 		}
+	}
+	// Report pinned-context state when the chat is context-tracked
+	// (has a pinned hash), dirty, or carries a snapshot error.
+	if len(c.ContextAggregateHash) > 0 || c.ContextDirtySince.Valid || c.ContextError != "" {
+		chatContext := &codersdk.ChatContext{
+			Dirty: c.ContextDirtySince.Valid,
+			Error: c.ContextError,
+		}
+		if c.ContextDirtySince.Valid {
+			dirtySince := c.ContextDirtySince.Time
+			chatContext.DirtySince = &dirtySince
+		}
+		chat.Context = chatContext
 	}
 	return chat
 }

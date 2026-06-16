@@ -98,7 +98,7 @@ func insertAgentChatTestModelConfig(
 	createdBy := uuid.NullUUID{UUID: userID, Valid: true}
 
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
-		Type:        database.AiProviderTypeOpenai,
+		Type:        database.AIProviderTypeOpenai,
 		Name:        "test-openai",
 		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
 	})

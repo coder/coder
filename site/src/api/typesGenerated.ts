@@ -1503,6 +1503,12 @@ export interface Chat {
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
+	/**
+	 * Context reports the chat's pinned workspace-context state and
+	 * whether it has drifted from the agent's latest pushed snapshot.
+	 * Nil when the chat has no pinned context yet.
+	 */
+	readonly context?: ChatContext;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -1585,6 +1591,29 @@ export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
 	readonly ai_gateway_routing_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatContext reports a chat's pinned workspace context and whether it has
+ * drifted from the agent's latest pushed snapshot. The chat stays usable
+ * when dirty; refreshing re-pins it to the latest snapshot.
+ */
+export interface ChatContext {
+	/**
+	 * Dirty is true when the agent's latest snapshot hash differs from the
+	 * chat's pinned hash.
+	 */
+	readonly dirty: boolean;
+	/**
+	 * DirtySince is when drift was first detected; nil when not dirty.
+	 */
+	readonly dirty_since?: string;
+	/**
+	 * Error is the snapshot-level error copied from the pinned snapshot
+	 * (empty when healthy).
+	 */
+	readonly error?: string;
 }
 
 // From codersdk/chats.go
@@ -3037,6 +3066,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "context_dirty"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3046,6 +3076,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"context_dirty",
 	"created",
 	"deleted",
 	"diff_status_change",
@@ -4347,6 +4378,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-gateway-cost-control"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -4358,6 +4390,7 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-gateway-cost-control",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -7242,6 +7275,14 @@ export interface RetentionConfig {
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly workspace_agent_logs: number;
+	/**
+	 * BoundaryLogs controls how long boundary audit log entries are
+	 * retained. Boundary logs record every HTTP request processed by
+	 * a Boundary confinement proxy. Set to 0 to disable automatic
+	 * deletion (keep indefinitely). Adjust to match your
+	 * organization's regulatory requirements.
+	 */
+	readonly boundary_logs: number;
 }
 
 // From codersdk/roles.go
@@ -8196,6 +8237,31 @@ export interface TemplateBuilderComposeRequest {
 export interface TemplateBuilderConfig {
 	readonly disabled?: boolean;
 	readonly registry_url?: string;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateRequest is the request body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+	readonly organization_id: string;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly description?: string;
+	readonly icon?: string;
+	readonly provisioner_tags?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateResponse is the response body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateResponse {
+	readonly template: Template;
 }
 
 // From codersdk/templatebuilder.go

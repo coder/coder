@@ -978,10 +978,10 @@ func (mr *MockStoreMockRecorder) DeleteExternalAuthLink(ctx, arg any) *gomock.Ca
 }
 
 // DeleteGroupAIBudget mocks base method.
-func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteGroupAIBudget", ctx, groupID)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1204,6 +1204,21 @@ func (m *MockStore) DeleteOldBoundaryLogs(ctx context.Context, arg database.Dele
 func (mr *MockStoreMockRecorder) DeleteOldBoundaryLogs(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundaryLogs", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundaryLogs), ctx, arg)
+}
+
+// DeleteOldBoundarySessions mocks base method.
+func (m *MockStore) DeleteOldBoundarySessions(ctx context.Context, arg database.DeleteOldBoundarySessionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteOldBoundarySessions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteOldBoundarySessions indicates an expected call of DeleteOldBoundarySessions.
+func (mr *MockStoreMockRecorder) DeleteOldBoundarySessions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteOldBoundarySessions", reflect.TypeOf((*MockStore)(nil).DeleteOldBoundarySessions), ctx, arg)
 }
 
 // DeleteOldChatDebugRuns mocks base method.
@@ -1468,10 +1483,10 @@ func (mr *MockStoreMockRecorder) DeleteTask(ctx, arg any) *gomock.Call {
 }
 
 // DeleteUserAIBudgetOverride mocks base method.
-func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteUserAIBudgetOverride", ctx, userID)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1904,10 +1919,10 @@ func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, int
 }
 
 // GetAIModelPriceByProviderModel mocks base method.
-func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAIModelPriceByProviderModel", ctx, arg)
-	ret0, _ := ret[0].(database.AiModelPrice)
+	ret0, _ := ret[0].(database.AIModelPrice)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3854,10 +3869,10 @@ func (mr *MockStoreMockRecorder) GetGitSSHKey(ctx, userID any) *gomock.Call {
 }
 
 // GetGroupAIBudget mocks base method.
-func (m *MockStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m *MockStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroupAIBudget", ctx, groupID)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5804,10 +5819,10 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 }
 
 // GetUserAIBudgetOverride mocks base method.
-func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIBudgetOverride", ctx, userID)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5819,10 +5834,10 @@ func (mr *MockStoreMockRecorder) GetUserAIBudgetOverride(ctx, userID any) *gomoc
 }
 
 // GetUserAIProviderKeyByProviderID mocks base method.
-func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeyByProviderID", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5834,10 +5849,10 @@ func (mr *MockStoreMockRecorder) GetUserAIProviderKeyByProviderID(ctx, arg any) 
 }
 
 // GetUserAIProviderKeys mocks base method.
-func (m *MockStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeys", ctx)
-	ret0, _ := ret[0].([]database.UserAiProviderKey)
+	ret0, _ := ret[0].([]database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5849,10 +5864,10 @@ func (mr *MockStoreMockRecorder) GetUserAIProviderKeys(ctx any) *gomock.Call {
 }
 
 // GetUserAIProviderKeysByUserID mocks base method.
-func (m *MockStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeysByUserID", ctx, userID)
-	ret0, _ := ret[0].([]database.UserAiProviderKey)
+	ret0, _ := ret[0].([]database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -7241,6 +7256,20 @@ func (m *MockStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]dat
 func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
+}
+
+// HydrateAgentChatsContext mocks base method.
+func (m *MockStore) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HydrateAgentChatsContext", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// HydrateAgentChatsContext indicates an expected call of HydrateAgentChatsContext.
+func (mr *MockStoreMockRecorder) HydrateAgentChatsContext(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HydrateAgentChatsContext", reflect.TypeOf((*MockStore)(nil).HydrateAgentChatsContext), ctx, arg)
 }
 
 // InTx mocks base method.
@@ -8966,6 +8995,21 @@ func (mr *MockStoreMockRecorder) MarkAllInboxNotificationsAsRead(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkAllInboxNotificationsAsRead", reflect.TypeOf((*MockStore)(nil).MarkAllInboxNotificationsAsRead), ctx, arg)
 }
 
+// MarkChatsContextDirtyByAgent mocks base method.
+func (m *MockStore) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkChatsContextDirtyByAgent", ctx, arg)
+	ret0, _ := ret[0].([]database.MarkChatsContextDirtyByAgentRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkChatsContextDirtyByAgent indicates an expected call of MarkChatsContextDirtyByAgent.
+func (mr *MockStoreMockRecorder) MarkChatsContextDirtyByAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkChatsContextDirtyByAgent", reflect.TypeOf((*MockStore)(nil).MarkChatsContextDirtyByAgent), ctx, arg)
+}
+
 // OIDCClaimFieldValues mocks base method.
 func (m *MockStore) OIDCClaimFieldValues(ctx context.Context, arg database.OIDCClaimFieldValuesParams) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -9201,6 +9245,20 @@ func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time
 func (mr *MockStoreMockRecorder) SelectUsageEventsForPublishing(ctx, now any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SelectUsageEventsForPublishing", reflect.TypeOf((*MockStore)(nil).SelectUsageEventsForPublishing), ctx, now)
+}
+
+// SetChatContextSnapshot mocks base method.
+func (m *MockStore) SetChatContextSnapshot(ctx context.Context, arg database.SetChatContextSnapshotParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetChatContextSnapshot", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetChatContextSnapshot indicates an expected call of SetChatContextSnapshot.
+func (mr *MockStoreMockRecorder) SetChatContextSnapshot(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetChatContextSnapshot", reflect.TypeOf((*MockStore)(nil).SetChatContextSnapshot), ctx, arg)
 }
 
 // SoftDeleteChatMessageByID mocks base method.
@@ -9819,10 +9877,10 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any)
 }
 
 // UpdateEncryptedUserAIProviderKey mocks base method.
-func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateEncryptedUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10425,10 +10483,10 @@ func (mr *MockStoreMockRecorder) UpdateUsageEventsPostPublish(ctx, arg any) *gom
 }
 
 // UpdateUserAIProviderKey mocks base method.
-func (m *MockStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11608,10 +11666,10 @@ func (mr *MockStoreMockRecorder) UpsertDefaultProxy(ctx, arg any) *gomock.Call {
 }
 
 // UpsertGroupAIBudget mocks base method.
-func (m *MockStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAiBudget, error) {
+func (m *MockStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertGroupAIBudget", ctx, arg)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11867,10 +11925,10 @@ func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call 
 }
 
 // UpsertUserAIBudgetOverride mocks base method.
-func (m *MockStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertUserAIBudgetOverride", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11882,10 +11940,10 @@ func (mr *MockStoreMockRecorder) UpsertUserAIBudgetOverride(ctx, arg any) *gomoc
 }
 
 // UpsertUserAIProviderKey mocks base method.
-func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

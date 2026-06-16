@@ -37,18 +37,18 @@ func (server *Server) prepareGeneration(
 	)
 
 	var (
-		model         fantasy.LanguageModel
-		modelConfig   database.ChatModelConfig
-		providerKeys  chatprovider.ProviderAPIKeys
-		modelRoute    resolvedModelRoute
-		modelOpts     modelBuildOptions
-		callConfig    codersdk.ChatModelCallConfig
-		promptRows    []database.ChatMessage
-		mcpConfigs    []database.MCPServerConfig
-		mcpTokens     []database.MCPServerUserToken
-		debugEnabled  bool
-		debugProvider string
-		debugModel    string
+		model            fantasy.LanguageModel
+		modelConfig      database.ChatModelConfig
+		providerKeys     chatprovider.ProviderAPIKeys
+		modelRoute       resolvedModelRoute
+		modelOpts        modelBuildOptions
+		callConfig       codersdk.ChatModelCallConfig
+		promptRows       []database.ChatMessage
+		mcpConfigs       []database.MCPServerConfig
+		mcpTokens        []database.MCPServerUserToken
+		debugEnabled     bool
+		resolvedProvider string
+		debugModel       string
 	)
 
 	var g errgroup.Group
@@ -86,7 +86,7 @@ func (server *Server) prepareGeneration(
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
 	var err error
-	model, modelConfig, providerKeys, modelRoute, debugEnabled, debugProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
+	model, modelConfig, providerKeys, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
 	}
@@ -459,7 +459,7 @@ func (server *Server) prepareGeneration(
 		}
 		modelRoute = computerUseRoute
 		providerKeys = computerUseRoute.directProviderKeys()
-		cuModel, cuDebugEnabled, resolvedProvider, resolvedModel, cuErr := server.resolveComputerUseModel(
+		cuModel, cuDebugEnabled, cuResolvedProvider, cuResolvedModel, cuErr := server.resolveComputerUseModel(
 			ctx,
 			chat,
 			computerUseRoute,
@@ -474,8 +474,8 @@ func (server *Server) prepareGeneration(
 		}
 		model = cuModel
 		debugEnabled = cuDebugEnabled
-		debugProvider = resolvedProvider
-		debugModel = resolvedModel
+		resolvedProvider = cuResolvedProvider
+		debugModel = cuResolvedModel
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
 			isPlanModeTurn:   isPlanModeTurn,
@@ -535,7 +535,7 @@ func (server *Server) prepareGeneration(
 		debug = &generationDebug{
 			Enabled:             true,
 			Service:             debugSvc,
-			Provider:            debugProvider,
+			Provider:            resolvedProvider,
 			Model:               debugModel,
 			TriggerMessageID:    triggerMessageID,
 			HistoryTipMessageID: historyTipMessageID,
@@ -587,6 +587,7 @@ func (server *Server) prepareGeneration(
 		ProviderKeys:         providerKeys,
 		ModelRoute:           modelRoute,
 		ModelBuildOptions:    modelOpts,
+		ResolvedProvider:     resolvedProvider,
 		ModelConfigID:        modelConfig.ID,
 		ModelConfig:          callConfig,
 		ProviderOptions:      providerOptions,

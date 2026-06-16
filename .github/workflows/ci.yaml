@@ -342,6 +342,9 @@ jobs:
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
+      - name: Start PostgreSQL container
+        run: make test-postgres-docker
+
       - name: make gen
         timeout-minutes: 8
         run: |
@@ -354,6 +357,17 @@ jobs:
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
+
+      - name: Collect PostgreSQL logs
+        if: always()
+        run: make test-postgres-docker-logs > postgres.log 2>&1
+
+      - name: Upload PostgreSQL logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gen-postgres-logs
+          path: postgres.log
 
   fmt:
     needs: changes

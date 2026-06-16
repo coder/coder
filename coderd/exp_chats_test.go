@@ -37,7 +37,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
-	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1749,7 +1748,7 @@ func TestListChatModels(t *testing.T) {
 		client := newChatClient(t)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
-		providerType := database.AiProviderTypeAnthropic
+		providerType := database.AIProviderTypeAnthropic
 		provider := createAIProviderForTest(t, client, string(providerType), "")
 
 		contextLimit := int64(4096)
@@ -1970,7 +1969,7 @@ func TestWatchChats(t *testing.T) {
 		require.NotZero(t, got.UpdatedAt)
 	})
 
-	t.Run("DiffStatusChangeIncludesDiffStatus", func(t *testing.T) {
+	t.Run("DiffStatusChangeIncludesDiffStatusAndOmitsInjectedContext", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1979,8 +1978,16 @@ func TestWatchChats(t *testing.T) {
 		})
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
+		chatDaemon := api.ChatDaemonForTest()
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
+
+		lastInjectedContext, err := json.Marshal([]codersdk.ChatMessagePart{{
+			Type:             codersdk.ChatMessagePartTypeSkill,
+			SkillName:        "large-skill",
+			SkillDescription: strings.Repeat("x", 9000),
+		}})
+		require.NoError(t, err)
 
 		// Insert a chat and a diff status row.
 		chat := dbgen.Chat(t, db, database.Chat{
@@ -1989,9 +1996,20 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
 		})
+		chat, err = db.UpdateChatLastInjectedContext(
+			dbauthz.AsChatd(ctx),
+			database.UpdateChatLastInjectedContextParams{
+				ID: chat.ID,
+				LastInjectedContext: pqtype.NullRawMessage{
+					RawMessage: lastInjectedContext,
+					Valid:      true,
+				},
+			},
+		)
+		require.NoError(t, err)
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
-		_, err := db.UpsertChatDiffStatusReference(
+		_, err = db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:          chat.ID,
@@ -2017,36 +2035,16 @@ func TestWatchChats(t *testing.T) {
 		)
 		require.NoError(t, err)
 
+		storedChat, err := client.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, storedChat.LastInjectedContext)
+
 		// Open the watch WebSocket.
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
 		require.NoError(t, err)
 		defer conn.Close(websocket.StatusNormalClosure, "done")
 
-		// Publish a diff_status_change event via pubsub,
-		// mimicking what PublishDiffStatusChange does after
-		// it reads the diff status from the DB.
-		dbStatus, err := db.GetChatDiffStatusByChatID(dbauthz.AsSystemRestricted(ctx), chat.ID)
-		require.NoError(t, err)
-		sdkDiffStatus := db2sdk.ChatDiffStatus(chat.ID, &dbStatus)
-		event := codersdk.ChatWatchEvent{
-			Kind: codersdk.ChatWatchEventKindDiffStatusChange,
-			Chat: codersdk.Chat{
-				ID:         chat.ID,
-				OwnerID:    chat.OwnerID,
-				Title:      chat.Title,
-				Status:     codersdk.ChatStatus(chat.Status),
-				CreatedAt:  chat.CreatedAt,
-				UpdatedAt:  chat.UpdatedAt,
-				DiffStatus: &sdkDiffStatus,
-			},
-		}
-		payload, err := json.Marshal(event)
-		require.NoError(t, err)
-
-		// A single publish is sufficient because the subscription
-		// is active before websocket.Accept (and thus before Dial
-		// returns). This serves as a regression test for the fix.
-		err = api.Pubsub.Publish(coderdpubsub.ChatWatchEventChannel(user.UserID), payload)
+		err = chatDaemon.PublishDiffStatusChange(dbauthz.AsChatd(ctx), chat.ID)
 		require.NoError(t, err)
 
 		var received codersdk.ChatWatchEvent
@@ -2071,6 +2069,7 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
+		require.Empty(t, received.Chat.LastInjectedContext)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
@@ -3997,7 +3996,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-			Provider:     string(database.AiProviderTypeOpenai),
+			Provider:     string(database.AIProviderTypeOpenai),
 			Model:        "anthropic/claude-opus-4.6",
 			AIProviderID: uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
 		})

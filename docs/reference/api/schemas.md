@@ -1925,6 +1925,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -2059,6 +2064,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2202,6 +2212,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2326,6 +2337,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatContext
+
+```json
+{
+  "dirty": true,
+  "dirty_since": "2019-08-24T14:15:22Z",
+  "error": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                                              |
+|---------------|---------|----------|--------------|------------------------------------------------------------------------------------------|
+| `dirty`       | boolean | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash. |
+| `dirty_since` | string  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                        |
+| `error`       | string  | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).  |
 
 ## codersdk.ChatDiffContents
 
@@ -3748,6 +3777,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -3909,9 +3943,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
@@ -5803,6 +5837,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
@@ -6403,6 +6438,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
+    "boundary_logs": 0,
     "connection_logs": 0,
     "workspace_agent_logs": 0
   },
@@ -6961,9 +6997,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai-gateway-cost-control`, `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -11095,6 +11131,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
+  "boundary_logs": 0,
   "connection_logs": 0,
   "workspace_agent_logs": 0
 }
@@ -11102,12 +11139,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
-| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
-| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
-| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                          |
+|------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                                         |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                                |
+| `boundary_logs`        | integer | false    |              | Boundary logs controls how long boundary audit log entries are retained. Boundary logs record every HTTP request processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements. |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                      |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior.                     |
 
 ## codersdk.Role
 
@@ -12149,6 +12187,114 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------|---------|----------|--------------|-------------|
 | `disabled`     | boolean | false    |              |             |
 | `registry_url` | string  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateRequest
+
+```json
+{
+  "base_template_id": "string",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                    | Required | Restrictions | Description |
+|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id` | string                                                                                  | false    |              |             |
+| `description`      | string                                                                                  | false    |              |             |
+| `display_name`     | string                                                                                  | false    |              |             |
+| `icon`             | string                                                                                  | false    |              |             |
+| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`             | string                                                                                  | true     |              |             |
+| `organization_id`  | string                                                                                  | true     |              |             |
+| `provisioner_tags` | object                                                                                  | false    |              |             |
+| » `[any property]` | string                                                                                  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateResponse
+
+```json
+{
+  "template": {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": [
+        "monday"
+      ]
+    },
+    "autostop_requirement": {
+      "days_of_week": [
+        "monday"
+      ],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "cors_behavior": "simple",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deleted": true,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "disable_module_cache": true,
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                   | Required | Restrictions | Description |
+|------------|----------------------------------------|----------|--------------|-------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
 
 ## codersdk.TemplateBuilderModule
 

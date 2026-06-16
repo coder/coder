@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -23,7 +22,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -59,7 +57,7 @@ func TestPurge(t *testing.T) {
 	mDB.EXPECT().GetChatRetentionDays(gomock.Any()).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().GetChatDebugRetentionDays(gomock.Any(), codersdk.DefaultChatDebugRetentionDays).Return(int32(0), nil).AnyTimes()
 	mDB.EXPECT().InTx(gomock.Any(), database.DefaultTXOptions().WithID("db_purge")).Return(nil).Times(2)
-	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), mDB, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
@@ -93,7 +91,7 @@ func TestMetrics(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				APIKeys: serpent.Duration(7 * 24 * time.Hour), // 7 days retention
 			},
-		}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -170,7 +168,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -206,7 +204,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -259,7 +257,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -310,7 +308,7 @@ func TestMetrics(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		done := awaitDoTick(ctx, t, clk)
-		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+		closer := dbpurge.New(ctx, logger, mDB, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -401,7 +399,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 	})
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -426,7 +424,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	// Start a new purger to immediately trigger delete after rollup.
 	_ = closer.Close()
-	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	closer = dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -521,7 +519,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 		Retention: codersdk.RetentionConfig{
 			WorkspaceAgentLogs: serpent.Duration(7 * 24 * time.Hour),
 		},
-	}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 
 	defer closer.Close()
 	<-done // doTick() has now run.
@@ -736,7 +734,7 @@ func TestDeleteOldWorkspaceAgentLogsRetention(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -827,7 +825,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 	require.NoError(t, err)
 
 	// when
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 
 	// then
@@ -931,7 +929,7 @@ func TestDeleteOldAuditLogConnectionEvents(t *testing.T) {
 
 	// Run the purge
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 	// Wait for tick
 	testutil.TryReceive(ctx, t, done)
@@ -1094,7 +1092,7 @@ func TestDeleteOldTelemetryHeartbeats(t *testing.T) {
 	require.NoError(t, err)
 
 	done := awaitDoTick(ctx, t, clk)
-	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+	closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 	defer closer.Close()
 	<-done // doTick() has now run.
 
@@ -1213,7 +1211,7 @@ func TestDeleteOldConnectionLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1469,7 +1467,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 						Retention: serpent.Duration(tc.retention),
 					},
 				},
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1556,7 +1554,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1646,7 +1644,7 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 			Retention: codersdk.RetentionConfig{
 				AuditLogs: serpent.Duration(retentionPeriod),
 			},
-		}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+		}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 		defer closer.Close()
 		testutil.TryReceive(ctx, t, done)
 
@@ -1671,6 +1669,265 @@ func TestDeleteOldAuditLogs(t *testing.T) {
 		// Non-connection event should be deleted.
 		require.NotContains(t, logIDs, oldCreateLog.ID, "old create log should be deleted by audit logs retention")
 	})
+}
+
+func TestDeleteOldBoundaryLogs(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	beforeThreshold := now.Add(-retentionPeriod).Add(-24 * time.Hour) // 91 days ago (older than threshold, before the cutoff)
+	afterThreshold := now.Add(-15 * 24 * time.Hour)                   // 15 days ago (newer than threshold, after the cutoff)
+
+	testCases := []struct {
+		name                  string
+		retentionConfig       codersdk.RetentionConfig
+		oldLogTime            time.Time
+		recentLogTime         *time.Time // nil means no recent log created
+		expectOldDeleted      bool
+		expectedLogsRemaining int
+	}{
+		{
+			name: "RetentionEnabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			oldLogTime:            beforeThreshold,
+			recentLogTime:         &afterThreshold,
+			expectOldDeleted:      true,
+			expectedLogsRemaining: 1, // only recent log remains
+		},
+		{
+			name: "RetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+		{
+			name: "RetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
+			},
+			oldLogTime:            now.Add(-365 * 24 * time.Hour), // 1 year ago
+			recentLogTime:         nil,
+			expectOldDeleted:      false,
+			expectedLogsRemaining: 1, // old log is kept
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Create the prerequisite rows (user, org, template, workspace,
+			// build, agent) needed to satisfy boundary_sessions foreign keys.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
+			})
+
+			// Create old boundary log.
+			oldLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+				SessionID:      session.ID,
+				SequenceNumber: 0,
+				CapturedAt:     tc.oldLogTime,
+				CreatedAt:      tc.oldLogTime,
+			}})
+			oldLog := oldLogs[0]
+
+			// Create recent boundary log if specified.
+			var recentLog database.BoundaryLog
+			if tc.recentLogTime != nil {
+				recentLogs := dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+					SessionID:      session.ID,
+					SequenceNumber: 1,
+					CapturedAt:     *tc.recentLogTime,
+					CreatedAt:      *tc.recentLogTime,
+				}})
+				recentLog = recentLogs[0]
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify results.
+			logs, err := db.ListBoundaryLogsBySessionID(ctx, database.ListBoundaryLogsBySessionIDParams{
+				SessionID: session.ID,
+				LimitOpt:  100,
+			})
+			require.NoError(t, err)
+			require.Len(t, logs, tc.expectedLogsRemaining, "unexpected number of boundary logs remaining")
+
+			logIDs := make([]uuid.UUID, len(logs))
+			for i, l := range logs {
+				logIDs[i] = l.ID
+			}
+
+			if tc.expectOldDeleted {
+				require.NotContains(t, logIDs, oldLog.ID, "old boundary log should be deleted")
+			} else {
+				require.Contains(t, logIDs, oldLog.ID, "old boundary log should NOT be deleted")
+			}
+
+			if tc.recentLogTime != nil {
+				require.Contains(t, logIDs, recentLog.ID, "recent boundary log should be kept")
+			}
+		})
+	}
+}
+
+func TestDeleteOldBoundarySessions(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2025, 1, 15, 7, 30, 0, 0, time.UTC)
+	retentionPeriod := 90 * 24 * time.Hour
+	// oldTime is 91 days ago (past threshold).
+	oldTime := now.Add(-retentionPeriod).Add(-24 * time.Hour)
+	// recentTime is 15 days ago (within threshold).
+	recentTime := now.Add(-15 * 24 * time.Hour)
+
+	testCases := []struct {
+		name             string
+		retentionConfig  codersdk.RetentionConfig
+		sessionUpdatedAt time.Time
+		// logTime is the captured_at for the single log inserted with the session.
+		// Set to nil to create a session with no logs.
+		logTime              *time.Time
+		expectSessionDeleted bool
+	}{
+		{
+			name: "SessionDeletedWhenAllLogsExpired",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime, // log is old; will be purged first, leaving session empty
+			expectSessionDeleted: true,
+		},
+		{
+			name: "SessionKeptWhenRecentLogExists",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &recentTime, // recent log survives log purge, so session kept
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionDisabled",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(0),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenRetentionNegative",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(-retentionPeriod),
+			},
+			sessionUpdatedAt:     oldTime,
+			logTime:              &oldTime,
+			expectSessionDeleted: false,
+		},
+		{
+			name: "SessionKeptWhenUpdatedAtRecent",
+			retentionConfig: codersdk.RetentionConfig{
+				BoundaryLogs: serpent.Duration(retentionPeriod),
+			},
+			sessionUpdatedAt:     recentTime, // session itself is recent. NOT eligible for session purge
+			logTime:              nil,        // no logs; but updated_at guard keeps it
+			expectSessionDeleted: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clk := quartz.NewMock(t)
+			clk.Set(now).MustWait(ctx)
+
+			db, _ := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+			// Create the prerequisite rows needed to satisfy boundary_sessions FKs.
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+			tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID})
+			tmpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, ActiveVersionID: tv.ID, CreatedBy: user.ID})
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				TemplateID:     tmpl.ID,
+			})
+			wb := mustCreateWorkspaceBuild(t, db, org, tv, ws.ID, now, 1)
+			agent := mustCreateAgent(t, db, wb)
+
+			session := dbgen.BoundarySession(t, db, database.BoundarySession{
+				WorkspaceAgentID: agent.ID,
+				OwnerID:          uuid.NullUUID{UUID: user.ID, Valid: true},
+				UpdatedAt:        tc.sessionUpdatedAt,
+			})
+
+			if tc.logTime != nil {
+				dbgen.BoundaryLogs(t, db, []database.BoundaryLog{{
+					SessionID:      session.ID,
+					SequenceNumber: 0,
+					CapturedAt:     *tc.logTime,
+					CreatedAt:      *tc.logTime,
+				}})
+			}
+
+			// Run the purge.
+			done := awaitDoTick(ctx, t, clk)
+			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
+				Retention: tc.retentionConfig,
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
+			defer closer.Close()
+			testutil.TryReceive(ctx, t, done)
+
+			// Verify session presence/absence.
+			_, err := db.GetBoundarySessionByID(ctx, session.ID)
+			if tc.expectSessionDeleted {
+				require.ErrorIs(t, err, sql.ErrNoRows, "session should have been deleted")
+			} else {
+				require.NoError(t, err, "session should still exist")
+			}
+		})
+	}
 }
 
 func TestDeleteExpiredAPIKeys(t *testing.T) {
@@ -1766,7 +2023,7 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1799,15 +2056,6 @@ func TestDeleteExpiredAPIKeys(t *testing.T) {
 // ptr is a helper to create a pointer to a value.
 func ptr[T any](v T) *T {
 	return &v
-}
-
-// nopAuditorPtr returns an atomic pointer to a nop auditor for tests.
-func nopAuditorPtr(t *testing.T) *atomic.Pointer[audit.Auditor] {
-	t.Helper()
-	nop := audit.NewNop()
-	var p atomic.Pointer[audit.Auditor]
-	p.Store(&nop)
-	return &p
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
@@ -1921,7 +2169,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				unfinishedOldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-9*24*time.Hour), false)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, reg, dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1959,7 +2207,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				oldRun := createDebugRunWithStep(ctx, t, db, chat.ID, now.Add(-90*24*time.Hour), true)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -1985,7 +2233,7 @@ func TestPurgeChatDebugRuns(t *testing.T) {
 				run := createDebugRunWithStep(ctx, t, db, oldArchivedChat.ID, now, true)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2091,7 +2339,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				oldFileID := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-31*24*time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2133,7 +2381,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				activeChat := createChat(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, deps.modelConfig.ID, false, now)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2190,7 +2438,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				fileBoundary := createChatFile(ctx, t, db, rawDB, deps.user.ID, deps.org.ID, now.Add(-30*24*time.Hour).Add(time.Hour))
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 
@@ -2270,7 +2518,7 @@ func TestDeleteOldChatFiles(t *testing.T) {
 				require.NoError(t, err)
 
 				done := awaitDoTick(ctx, t, clk)
-				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+				closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 				defer closer.Close()
 				testutil.TryReceive(ctx, t, done)
 

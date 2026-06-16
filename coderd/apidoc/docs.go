@@ -549,6 +549,42 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/{chat}/context": {
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Refresh chat context",
+                "operationId": "refresh-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/experimental/chats/{chat}/diff": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -7385,6 +7421,69 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/compose/template": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose and create a template",
+                "operationId": "compose-and-create-a-template",
+                "parameters": [
+                    {
+                        "description": "Create template request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "504": {
+                        "description": "Gateway Timeout",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
                     }
                 },
                 "security": [
@@ -16387,6 +16486,14 @@ const docTemplate = `{
                 "client_type": {
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
+                "context": {
+                    "description": "Context reports the chat's pinned workspace-context state and\nwhether it has drifted from the agent's latest pushed snapshot.\nNil when the chat has no pinned context yet.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContext"
+                        }
+                    ]
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -16539,6 +16646,24 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatContext": {
+            "type": "object",
+            "properties": {
+                "dirty": {
+                    "description": "Dirty is true when the agent's latest snapshot hash differs from the\nchat's pinned hash.",
+                    "type": "boolean"
+                },
+                "dirty_since": {
+                    "description": "DirtySince is when drift was first detected; nil when not dirty.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
+                    "type": "string"
                 }
             }
         },
@@ -17481,7 +17606,8 @@ const docTemplate = `{
                 "created",
                 "deleted",
                 "diff_status_change",
-                "action_required"
+                "action_required",
+                "context_dirty"
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
@@ -17490,7 +17616,8 @@ const docTemplate = `{
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired"
+                "ChatWatchEventKindActionRequired",
+                "ChatWatchEventKindContextDirty"
             ]
         },
         "codersdk.ConnectionLatency": {
@@ -19216,9 +19343,11 @@ const docTemplate = `{
                 "mcp-server-http",
                 "workspace-build-updates",
                 "nats_pubsub",
-                "minimum-implicit-member"
+                "minimum-implicit-member",
+                "ai-gateway-cost-control"
             ],
             "x-enum-comments": {
+                "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -19238,7 +19367,8 @@ const docTemplate = `{
                 "Enables the MCP HTTP server functionality.",
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
-                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts."
+                "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
+                "Enables AI Gateway cost control functionality."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19249,7 +19379,8 @@ const docTemplate = `{
                 "ExperimentMCPServerHTTP",
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
-                "ExperimentMinimumImplicitMember"
+                "ExperimentMinimumImplicitMember",
+                "ExperimentAIGatewayCostControl"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -22863,6 +22994,10 @@ const docTemplate = `{
                     "description": "AuditLogs controls how long audit log entries are retained.\nSet to 0 to disable (keep indefinitely).",
                     "type": "integer"
                 },
+                "boundary_logs": {
+                    "description": "BoundaryLogs controls how long boundary audit log entries are\nretained. Boundary logs record every HTTP request processed by\na Boundary confinement proxy. Set to 0 to disable automatic\ndeletion (keep indefinitely). Adjust to match your\norganization's regulatory requirements.",
+                    "type": "integer"
+                },
                 "connection_logs": {
                     "description": "ConnectionLogs controls how long connection log entries are retained.\nSet to 0 to disable (keep indefinitely).",
                     "type": "integer"
@@ -23758,6 +23893,54 @@ const docTemplate = `{
                 },
                 "registry_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderCreateTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "organization_id"
+            ],
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderCreateTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "template": {
+                    "$ref": "#/definitions/codersdk.Template"
                 }
             }
         },

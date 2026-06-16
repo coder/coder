@@ -1457,6 +1457,11 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// committed and emitted its own state-machine notifications. The
 	// watch endpoint is maintained separately from chatstate notifications.
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCreated, nil)
+
+	// Pin the chat to the agent's latest context snapshot if one exists.
+	// Best-effort: a chat created before its agent has pushed is hydrated
+	// by that agent's next push.
+	p.hydrateChatContextOnCreate(ctx, chat)
 	return chat, nil
 }
 
@@ -3493,23 +3498,29 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 	}
 }
 
+// chatWatchEventSDKChat builds the chat embedded in ChatWatchEvent
+// notifications. These payloads travel through PostgreSQL NOTIFY, so
+// omit fields that can grow large and that watch consumers already read
+// from the REST chat endpoint.
+func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStatus) codersdk.Chat {
+	sdkChat := db2sdk.Chat(chat, nil, nil)
+	sdkChat.Files = nil
+	sdkChat.LastInjectedContext = nil
+	if diffStatus != nil {
+		sdkChat.DiffStatus = diffStatus
+	}
+	return sdkChat
+}
+
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	if p.pubsub == nil {
 		return
 	}
-	// diffStatus is applied below. File metadata is intentionally
-	// omitted from pubsub events to avoid an extra DB query per
-	// publish. Clients must merge pubsub updates, not replace
-	// cached file metadata.
-	sdkChat := db2sdk.Chat(chat, nil, nil)
-	if diffStatus != nil {
-		sdkChat.DiffStatus = diffStatus
-	}
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: sdkChat,
+		Chat: chatWatchEventSDKChat(chat, diffStatus),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
