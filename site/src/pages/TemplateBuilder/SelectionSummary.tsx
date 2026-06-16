@@ -1,6 +1,6 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import { XIcon } from "lucide-react";
-import { createContext, useContext } from "react";
+import { createContext, type PropsWithChildren, useContext } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
@@ -91,10 +91,9 @@ const stepLabelVariants = cva("font-normal mr-2", {
 	},
 });
 
-type StepIndicatorProps = {
+type StepIndicatorProps = PropsWithChildren<{
 	step: number;
-	children: React.ReactNode;
-};
+}>;
 
 const StepIndicator: React.FC<StepIndicatorProps> = ({ step, children }) => {
 	const variant = useContext(VariantContext);
@@ -120,10 +119,9 @@ const stepDividerVariants = cva(
 	},
 );
 
-type StepDividerProps = {
+type StepDividerProps = PropsWithChildren<{
 	className?: string;
-	children?: React.ReactNode;
-};
+}>;
 
 const StepDivider: React.FC<StepDividerProps> = ({ className, children }) => {
 	const variant = useContext(VariantContext);
