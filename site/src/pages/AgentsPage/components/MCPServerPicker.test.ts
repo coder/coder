@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "#/api/typesGenerated";
-import { makeMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -10,13 +10,13 @@ import {
 
 const makeServer = (
 	overrides: Partial<MCPServerConfig> & { id: string },
-): MCPServerConfig =>
-	makeMCPServerConfig({
-		display_name: overrides.id,
-		transport: "sse",
-		url: "",
-		...overrides,
-	});
+): MCPServerConfig => ({
+	...MockMCPServerConfig,
+	display_name: overrides.id,
+	transport: "sse",
+	url: "",
+	...overrides,
+});
 
 describe("MCP selection persistence", () => {
 	beforeEach(() => {

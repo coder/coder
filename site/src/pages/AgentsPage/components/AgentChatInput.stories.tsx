@@ -3,7 +3,7 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { makeMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider } from "#/testHelpers/storybook";
@@ -683,8 +683,12 @@ const now = "2026-03-19T12:00:00.000Z";
 const makeMCPServer = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
-): TypesGen.MCPServerConfig =>
-	makeMCPServerConfig({ created_at: now, updated_at: now, ...overrides });
+): TypesGen.MCPServerConfig => ({
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
+});
 
 const sentryMCP = makeMCPServer({
 	id: "mcp-sentry",

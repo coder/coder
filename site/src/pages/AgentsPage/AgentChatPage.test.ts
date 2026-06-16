@@ -1,7 +1,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { makeQueuedMessage as makeSharedQueuedMessage } from "#/testHelpers/chatEntities";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
@@ -209,12 +210,16 @@ describe("restoreOptimisticRequestSnapshot", () => {
 });
 
 describe("runPromoteQueuedMessage", () => {
-	const makeQueuedMessage = (id: number, text: string, chatID = "chat-1") =>
-		makeSharedQueuedMessage({
-			id,
-			chat_id: chatID,
-			content: [{ type: "text", text }],
-		});
+	const makeQueuedMessage = (
+		id: number,
+		text: string,
+		chatID = "chat-1",
+	): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		chat_id: chatID,
+		content: [{ type: "text", text }],
+	});
 
 	it("suppresses the promoted ID and removes it optimistically", async () => {
 		const store = createChatStore();

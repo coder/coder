@@ -7,7 +7,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
-import { makeChat } from "#/testHelpers/chatEntities";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -59,14 +59,14 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-const buildChat = (overrides: Partial<Chat> = {}): Chat =>
-	makeChat({
-		id: "chat-default",
-		last_model_config_id: defaultModelConfigs[0].id,
-		created_at: oneWeekAgo,
-		updated_at: oneWeekAgo,
-		...overrides,
-	});
+const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
+	id: "chat-default",
+	last_model_config_id: defaultModelConfigs[0].id,
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
 
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },

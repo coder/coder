@@ -9,12 +9,12 @@ import { MockUserOwner } from "./entities";
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
 /**
- * Builds a Chat for tests and stories. Defaults to a completed, owned root
- * chat; pass overrides for the fields a case cares about. Timestamps default
- * to a fixed value — pass created_at/updated_at when a case needs relative
- * ordering rather than relying on a shared default.
+ * A Chat for tests and stories: a completed, owned root chat. Spread it and
+ * override the fields a case cares about, e.g. `{ ...MockChat, id: "chat-2" }`.
+ * Override created_at/updated_at when a case needs relative ordering rather
+ * than relying on the shared default timestamp.
  */
-export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
+export const MockChat: Chat = {
 	id: "chat-1",
 	organization_id: "test-org-id",
 	owner_id: MockUserOwner.id,
@@ -34,17 +34,13 @@ export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	children: [],
-	...overrides,
-});
+};
 
 /**
- * Builds an MCPServerConfig for tests and stories. Defaults to an enabled,
- * streamable-HTTP server with no auth; pass overrides for the fields a case
- * cares about.
+ * An MCPServerConfig for tests and stories: an enabled, streamable-HTTP server
+ * with no auth. Spread it and override the fields a case cares about.
  */
-export const makeMCPServerConfig = (
-	overrides: Partial<MCPServerConfig> = {},
-): MCPServerConfig => ({
+export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
 	display_name: "MCP Server",
 	slug: "mcp-server",
@@ -66,37 +62,28 @@ export const makeMCPServerConfig = (
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	auth_connected: false,
-	...overrides,
-});
+};
 
 /**
- * Builds a ChatMessage for tests and stories. Defaults to a user text message
- * with a fixed timestamp; pass overrides for the fields a case cares about.
- * Pass created_at when a case needs relative ordering rather than relying on
- * the shared default.
+ * A ChatMessage for tests and stories: a user text message with a fixed
+ * timestamp. Spread it and override the fields a case cares about. Override
+ * created_at when a case needs relative ordering.
  */
-export const makeChatMessage = (
-	overrides: Partial<ChatMessage> = {},
-): ChatMessage => ({
+export const MockChatMessage: ChatMessage = {
 	id: 1,
 	chat_id: "chat-1",
 	created_at: MOCK_TIMESTAMP,
 	role: "user",
 	content: [{ type: "text", text: "Hello" }],
-	...overrides,
-});
+};
 
 /**
- * Builds a ChatQueuedMessage for tests and stories. Defaults to a single text
- * part with a fixed timestamp; pass overrides for the fields a case cares
- * about.
+ * A ChatQueuedMessage for tests and stories: a single text part with a fixed
+ * timestamp. Spread it and override the fields a case cares about.
  */
-export const makeQueuedMessage = (
-	overrides: Partial<ChatQueuedMessage> = {},
-): ChatQueuedMessage => ({
+export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
 	created_at: MOCK_TIMESTAMP,
-	...overrides,
-});
+};

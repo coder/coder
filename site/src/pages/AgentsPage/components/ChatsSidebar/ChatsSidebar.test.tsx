@@ -9,7 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
-import { makeChat } from "#/testHelpers/chatEntities";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -56,14 +56,14 @@ vi.mock("#/hooks/useAuthenticated", async () => {
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-const buildChat = (overrides: Partial<Chat> = {}): Chat =>
-	makeChat({
-		id: "chat-default",
-		last_model_config_id: "model-1",
-		created_at: oneWeekAgo,
-		updated_at: oneWeekAgo,
-		...overrides,
-	});
+const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
+	id: "chat-default",
+	last_model_config_id: "model-1",
+	created_at: oneWeekAgo,
+	updated_at: oneWeekAgo,
+	...overrides,
+});
 
 const dashboardValue = {
 	entitlements: MockEntitlements,

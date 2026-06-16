@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
-import { makeMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -12,8 +12,12 @@ const now = "2026-03-19T12:00:00.000Z";
 const createServerConfig = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
-): TypesGen.MCPServerConfig =>
-	makeMCPServerConfig({ created_at: now, updated_at: now, ...overrides });
+): TypesGen.MCPServerConfig => ({
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
+});
 
 // ── Meta ───────────────────────────────────────────────────────
 
