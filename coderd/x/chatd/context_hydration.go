@@ -99,21 +99,27 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
 
-	aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, p.db, chat.AgentID.UUID)
-	if err != nil {
-		p.logger.Warn(ctx, "hydrate chat context on create: get latest snapshot",
-			slog.F("chat_id", chat.ID), slog.Error(err))
-		return
-	}
-	if !ok {
-		return
-	}
-	if err := p.db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
-		AgentID:       chat.AgentID.UUID,
-		AggregateHash: aggregateHash,
-		ContextError:  snapshotError,
+	// Read the snapshot hash and copy the agent's resources in one
+	// repeatable-read transaction so a concurrent push cannot commit between
+	// the two and leave the chat stamped with one snapshot's hash but another
+	// snapshot's resources. The NULL-hash guard inside the statement still
+	// keeps a concurrent push that already hydrated the chat from being
+	// clobbered.
+	if err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+		aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, tx, chat.AgentID.UUID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		return tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+			AgentID:       chat.AgentID.UUID,
+			AggregateHash: aggregateHash,
+			ContextError:  snapshotError,
+		})
 	}); err != nil {
-		p.logger.Warn(ctx, "hydrate chat context on create: stamp chats",
+		p.logger.Warn(ctx, "hydrate chat context on create",
 			slog.F("chat_id", chat.ID), slog.Error(err))
 	}
 }

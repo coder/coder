@@ -106,6 +106,42 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.Empty(t, postRes, "first-time binding copies no resources via the rebind path")
 	})
 
+	// ClearsContextWhenNewAgentHasNoSnapshot: rebinding to an agent that has
+	// not pushed a snapshot yet clears the chat's pinned hash and resources
+	// (repinChatContext's no-snapshot branch).
+	t.Run("ClearsContextWhenNewAgentHasNoSnapshot", func(t *testing.T) {
+		t.Parallel()
+		fix := newRebindFixture(t)
+
+		chat := dbgen.Chat(t, fix.db, database.Chat{
+			OwnerID:           fix.user.ID,
+			OrganizationID:    fix.org.ID,
+			LastModelConfigID: fix.model.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: fix.ws.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: fix.agentA, Valid: true},
+			Status:            database.ChatStatusWaiting,
+		})
+		require.NoError(t, fix.db.HydrateAgentChatsContext(fix.ctx, database.HydrateAgentChatsContextParams{
+			AgentID:       fix.agentA,
+			AggregateHash: fix.hashA,
+		}))
+		preRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Len(t, preRes, 1, "chat starts pinned to agent A")
+
+		wc := newRebindTurnContext(t, fix.db, chat)
+		updated, err := wc.persistBuildAgentBinding(fix.ctx, chat, fix.buildID, fix.agentNoSnap)
+		require.NoError(t, err)
+		require.Equal(t, fix.agentNoSnap, updated.AgentID.UUID)
+
+		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, post.ContextAggregateHash, "rebinding to an agent with no snapshot clears the pinned hash")
+		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
+		require.NoError(t, err)
+		require.Empty(t, postRes, "rebinding to an agent with no snapshot clears the pinned resources")
+	})
+
 	// SwallowsRepinError: a re-pin failure is logged and swallowed so it never
 	// fails the agent binding itself.
 	t.Run("SwallowsRepinError", func(t *testing.T) {
@@ -157,26 +193,28 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 }
 
 type rebindFixture struct {
-	db      database.Store
-	ctx     context.Context
-	org     database.Organization
-	user    database.User
-	model   database.ChatModelConfig
-	ws      database.WorkspaceTable
-	buildID uuid.UUID
-	agentA  uuid.UUID
-	agentB  uuid.UUID
-	hashA   []byte
-	hashB   []byte
-	srcA    string
-	srcB    string
-	bodyB   json.RawMessage
+	db          database.Store
+	ctx         context.Context
+	org         database.Organization
+	user        database.User
+	model       database.ChatModelConfig
+	ws          database.WorkspaceTable
+	buildID     uuid.UUID
+	agentA      uuid.UUID
+	agentB      uuid.UUID
+	agentNoSnap uuid.UUID
+	hashA       []byte
+	hashB       []byte
+	srcA        string
+	srcB        string
+	bodyB       json.RawMessage
 }
 
-// newRebindFixture seeds a workspace with two agents (A and B) that each have a
-// pushed context snapshot and one resource, so a chat can be pinned to A and
-// then rebound to B. Both agents share one build/resource because the rebind
-// guard keys on the agent, not the build.
+// newRebindFixture seeds a workspace with agents A and B that each have a
+// pushed context snapshot and one resource (so a chat can be pinned to A and
+// rebound to B), plus a third agent that never pushes a snapshot (for the
+// clear-only re-pin path). The agents share one build/resource because the
+// rebind guard keys on the agent, not the build.
 func newRebindFixture(t *testing.T) rebindFixture {
 	t.Helper()
 	db, _ := dbtestutil.NewDB(t)
@@ -214,23 +252,26 @@ func newRebindFixture(t *testing.T) rebindFixture {
 	})
 	agentA := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 	agentB := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
+	// A third agent that never pushes a snapshot, for the clear-only re-pin path.
+	agentNoSnap := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 
 	fix := rebindFixture{
-		db:      db,
-		ctx:     ctx,
-		org:     org,
-		user:    user,
-		model:   model,
-		ws:      ws,
-		buildID: build.ID,
-		agentA:  agentA.ID,
-		agentB:  agentB.ID,
-		hashA:   []byte{0xa1, 0xa2},
-		hashB:   []byte{0xb1, 0xb2},
-		srcA:    "/home/coder/workspace/AGENTS.md",
-		srcB:    "/home/coder/workspace/.agents/skills/example/SKILL.md",
-		bodyB:   json.RawMessage(`{"skill":{"name":"example"}}`),
+		db:          db,
+		ctx:         ctx,
+		org:         org,
+		user:        user,
+		model:       model,
+		ws:          ws,
+		buildID:     build.ID,
+		agentA:      agentA.ID,
+		agentB:      agentB.ID,
+		agentNoSnap: agentNoSnap.ID,
+		hashA:       []byte{0xa1, 0xa2},
+		hashB:       []byte{0xb1, 0xb2},
+		srcA:        "/home/coder/workspace/AGENTS.md",
+		srcB:        "/home/coder/workspace/.agents/skills/example/SKILL.md",
+		bodyB:       json.RawMessage(`{"skill":{"name":"example"}}`),
 	}
 
 	seedAgentContext(ctx, t, db, fix.agentA, fix.srcA, fix.hashA,
