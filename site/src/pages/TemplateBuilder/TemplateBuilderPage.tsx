@@ -17,6 +17,8 @@ const TemplateBuilderPage: FC = () => {
 	const navigate = useNavigate();
 	const getLink = useLinks();
 	const { data, error, isLoading } = useQuery(deploymentConfig());
+	const basesQuery = useQuery(templateBuilderBases());
+	const createMutation = useMutation(createTemplateFromBuilder());
 
 	if (isLoading) {
 		return <Loader />;
@@ -28,30 +30,6 @@ const TemplateBuilderPage: FC = () => {
 	if (builderDisabled) {
 		return <Navigate to="/templates/new" replace />;
 	}
-
-	return (
-		<>
-			<title>{pageTitle("Create Template")}</title>
-			<TemplateBuilderPageViewContainer
-				error={error}
-				navigate={navigate}
-				getLink={getLink}
-			/>
-		</>
-	);
-};
-
-/**
- * Container component that owns query/mutation state and passes
- * resolved data to the pure view.
- */
-const TemplateBuilderPageViewContainer: FC<{
-	error: unknown;
-	navigate: ReturnType<typeof useNavigate>;
-	getLink: ReturnType<typeof useLinks>;
-}> = ({ error, navigate, getLink }) => {
-	const basesQuery = useQuery(templateBuilderBases());
-	const createMutation = useMutation(createTemplateFromBuilder());
 
 	const handleCreate = (state: TemplateBuilderWizardState) => {
 		const req = toCreateTemplateRequest(state);
@@ -67,13 +45,16 @@ const TemplateBuilderPageViewContainer: FC<{
 	};
 
 	return (
-		<TemplateBuilderPageView
-			error={error}
-			basesData={basesQuery.data}
-			onCreateTemplate={handleCreate}
-			createError={createMutation.error}
-			isCreating={createMutation.isPending}
-		/>
+		<>
+			<title>{pageTitle("Create Template")}</title>
+			<TemplateBuilderPageView
+				error={error}
+				basesData={basesQuery.data}
+				onCreateTemplate={handleCreate}
+				createError={createMutation.error}
+				isCreating={createMutation.isPending}
+			/>
+		</>
 	);
 };
 
