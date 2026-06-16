@@ -1549,10 +1549,6 @@
 							"path": "./reference/api/authorization.md"
 						},
 						{
-							"title": "Boundary",
-							"path": "./reference/api/boundary.md"
-						},
-						{
 							"title": "Builds",
 							"path": "./reference/api/builds.md"
 						},

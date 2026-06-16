@@ -1337,15 +1337,6 @@ export interface BaseReport {
 	readonly dismissed: boolean;
 }
 
-// From codersdk/boundary.go
-export interface BoundarySession {
-	readonly id: string;
-	readonly workspace_id: string;
-	readonly owner_id: string;
-	readonly confined_process: string;
-	readonly started_at: string;
-}
-
 // From codersdk/deployment.go
 /**
  * BuildInfoResponse contains build information for this instance of Coder.

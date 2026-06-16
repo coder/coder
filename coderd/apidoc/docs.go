@@ -2047,41 +2047,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/boundary/sessions/{id}": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Boundary"
-                ],
-                "summary": "Get boundary session by ID",
-                "operationId": "get-boundary-session-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Boundary session ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.BoundarySession"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ]
-            }
-        },
         "/api/v2/buildinfo": {
             "get": {
                 "produces": [
@@ -16403,30 +16368,6 @@ const docTemplate = `{
                 },
                 "message": {
                     "type": "string"
-                }
-            }
-        },
-        "codersdk.BoundarySession": {
-            "type": "object",
-            "properties": {
-                "confined_process": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "owner_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "started_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
                 }
             }
         },
