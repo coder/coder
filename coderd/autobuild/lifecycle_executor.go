@@ -484,16 +484,21 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+					labels := map[string]string{
+						"name":   ws.Name,
+						"reason": "inactivity exceeded the dormancy threshold",
+					}
+					// Auto-delete must be configured for the body to render a
+					// deletion timeline.
+					if tmpl.TimeTilDormantAutoDelete > 0 {
+						deleteTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormantAutoDelete))
+						labels["timeTilDelete"] = humanize.Time(deleteTime)
+					}
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
 						notifications.TemplateWorkspaceDormant,
-						map[string]string{
-							"name":           ws.Name,
-							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": humanize.Time(dormantTime),
-						},
+						labels,
 						"lifecycle_executor",
 						ws.ID,
 						ws.OwnerID,

@@ -1460,17 +1460,22 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+			labels := map[string]string{
+				"name":   newWorkspace.Name,
+				"reason": "a " + initiator.Username + " request",
+			}
+			// Auto-delete must be configured for the body to render a
+			// deletion timeline.
+			if tmpl.TimeTilDormantAutoDelete > 0 {
+				deleteTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormantAutoDelete))
+				labels["timeTilDelete"] = humanize.Time(deleteTime)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           newWorkspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
+				labels,
 				"api",
 				newWorkspace.ID,
 				newWorkspace.OwnerID,
