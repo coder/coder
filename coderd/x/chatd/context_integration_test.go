@@ -133,6 +133,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.True(t, got.Context.Dirty, "drift should mark the chat dirty")
 	require.NotNil(t, got.Context.DirtySince)
+	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
 	// Refreshing re-pins the latest snapshot (hash and error) and clears the

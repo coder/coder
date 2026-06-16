@@ -15,10 +15,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// latestAgentSnapshot returns the agent's most recent pinned context snapshot.
-// ok is false (with a nil error) when the agent has not pushed a snapshot yet.
-// It takes a Store so callers can run it against either the daemon database or
-// an open transaction.
+// latestAgentSnapshot looks up an agent's pinned context snapshot; ok is false
+// (with a nil error) when the agent has not pushed one yet.
 func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UUID) (aggregateHash []byte, snapshotError string, ok bool, err error) {
 	snapshot, err := db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
 	switch {
@@ -68,25 +66,21 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		return func() {}, nil
 	}
 
-	dirtiedIDs := make([]uuid.UUID, len(dirtied))
-	for i, d := range dirtied {
-		dirtiedIDs[i] = d.ID
+	// Read the dirtied chats inside the transaction and capture their rows so
+	// the post-commit callback needs no database access: the published payload
+	// reflects the just-committed dirty state (no re-read a concurrent refresh
+	// could race), and the callback does not depend on the request-scoped
+	// context surviving past commit. Only the transitioned chats are read.
+	dirtyChats := make([]database.Chat, 0, len(dirtied))
+	for _, d := range dirtied {
+		chat, err := tx.GetChatByID(ctx, d.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get dirtied chat %s: %w", d.ID, err)
+		}
+		dirtyChats = append(dirtyChats, chat)
 	}
 
-	// The publish runs after commit, so resolve the dirtied chats then,
-	// reading only the transitioned IDs rather than scanning every active
-	// chat for the agent.
 	return func() {
-		dirtyChats := make([]database.Chat, 0, len(dirtiedIDs))
-		for _, id := range dirtiedIDs {
-			chat, err := p.db.GetChatByID(ctx, id)
-			if err != nil {
-				p.logger.Warn(ctx, "publish context dirty: get chat",
-					slog.F("chat_id", id), slog.Error(err))
-				continue
-			}
-			dirtyChats = append(dirtyChats, chat)
-		}
 		p.publishChatPubsubEvents(dirtyChats, codersdk.ChatWatchEventKindContextDirty)
 	}, nil
 }
@@ -96,8 +90,8 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 // has not pushed yet is hydrated later by that agent's next push. Failures
 // are logged and swallowed so they never block chat creation.
 //
-// It stamps via the NULL-guarded HydrateAgentChatsContext so a concurrent
-// push that already hydrated the chat is not clobbered with a stale hash.
+// A concurrent push that already hydrated the chat is not clobbered with a
+// stale hash.
 func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.Chat) {
 	if !chat.AgentID.Valid {
 		return
