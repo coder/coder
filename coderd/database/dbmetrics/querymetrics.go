@@ -498,6 +498,14 @@ func (m queryMetricsStore) DeleteApplicationConnectAPIKeysByUserID(ctx context.C
 	return r0
 }
 
+func (m queryMetricsStore) DeleteChatContextResources(ctx context.Context, chatID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.DeleteChatContextResources(ctx, chatID)
+	m.queryLatencies.WithLabelValues("DeleteChatContextResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatContextResources").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) DeleteChatDebugDataAfterMessageID(ctx context.Context, arg database.DeleteChatDebugDataAfterMessageIDParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.DeleteChatDebugDataAfterMessageID(ctx, arg)
@@ -3978,6 +3986,14 @@ func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.Insert
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertAgentContextResourcesIntoChat(ctx context.Context, arg database.InsertAgentContextResourcesIntoChatParams) error {
+	start := time.Now()
+	r0 := m.s.InsertAgentContextResourcesIntoChat(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertAgentContextResourcesIntoChat").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertAgentContextResourcesIntoChat").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAllUsersGroup(ctx, organizationID)
@@ -4671,6 +4687,14 @@ func (m queryMetricsStore) ListBoundaryLogsBySessionID(ctx context.Context, arg 
 	r0, r1 := m.s.ListBoundaryLogsBySessionID(ctx, arg)
 	m.queryLatencies.WithLabelValues("ListBoundaryLogsBySessionID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListBoundaryLogsBySessionID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) ListChatContextResources(ctx context.Context, chatID uuid.UUID) ([]database.ChatContextResource, error) {
+	start := time.Now()
+	r0, r1 := m.s.ListChatContextResources(ctx, chatID)
+	m.queryLatencies.WithLabelValues("ListChatContextResources").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ListChatContextResources").Inc()
 	return r0, r1
 }
 

@@ -9,6 +9,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -91,6 +92,47 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	}
 	requireChatContextNil(otherChat.ID, "agent-less chat has no pinned context")
 
+	// Resource builders and a reader for the per-chat pinned copy. The agent
+	// pushes these; hydration and refresh copy them onto the bound chat.
+	agentsSource := "/home/coder/workspace/AGENTS.md"
+	skillSource := "/home/coder/workspace/.agents/skills/example/SKILL.md"
+	agentsV1Hash := []byte{0x11}
+	agentsV2Hash := []byte{0x22}
+	skillHash := []byte{0x33}
+	instructionResource := func(source, content string, hash []byte) *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      source,
+			ContentHash: hash,
+			SizeBytes:   uint64(len(content)),
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_InstructionFile{
+				InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
+			},
+		}
+	}
+	skillResource := func(source string, hash []byte) *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      source,
+			ContentHash: hash,
+			SizeBytes:   16,
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_Skill{
+				Skill: &agentproto.SkillMetaBody{Meta: []byte("---\nname: example\n---"), Name: "example", Description: "demo skill"},
+			},
+		}
+	}
+	pinnedResources := func(id uuid.UUID) map[string]database.ChatContextResource {
+		t.Helper()
+		//nolint:gocritic // Reads chatd-owned rows as the chatd subject.
+		rows, lerr := db.ListChatContextResources(dbauthz.AsChatd(ctx), id)
+		require.NoError(t, lerr)
+		out := make(map[string]database.ChatContextResource, len(rows))
+		for _, r := range rows {
+			out[r.Source] = r
+		}
+		return out
+	}
+
 	// Connect as the agent and push the initial snapshot. The push runs the
 	// hydrate/dirty fan-out synchronously inside its transaction, so the chat
 	// reflects the change by the time the RPC returns.
@@ -104,6 +146,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Version:       1,
 		Initial:       true,
 		AggregateHash: hashA,
+		Resources: []*agentproto.ContextResource{
+			instructionResource(agentsSource, "hello-v1", agentsV1Hash),
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
@@ -115,6 +160,14 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "initial hydration is clean")
 	require.Nil(t, got.Context.DirtySince)
 
+	// The initial push also copied the agent's resources onto the chat.
+	pinned := pinnedResources(chat.ID)
+	require.Len(t, pinned, 1, "initial hydration copies the agent's resources")
+	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, pinned[agentsSource].BodyKind)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, pinned[agentsSource].Status)
+	require.Empty(t, pinnedResources(otherChat.ID), "agent-less chat has no pinned resources")
+
 	// The agent refreshes its context and pushes a different hash carrying a
 	// snapshot-level error, which drifts from the pinned hash and marks the
 	// chat dirty.
@@ -124,6 +177,10 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Version:       2,
 		AggregateHash: hashB,
 		SnapshotError: snapshotError,
+		Resources: []*agentproto.ContextResource{
+			instructionResource(agentsSource, "hello-v2", agentsV2Hash),
+			skillResource(skillSource, skillHash),
+		},
 	})
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
@@ -136,6 +193,12 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
+	// The dirty fan-out must NOT re-copy resources: the chat keeps the bodies
+	// from its pinned (hashA) snapshot until it is refreshed.
+	pinned = pinnedResources(chat.ID)
+	require.Len(t, pinned, 1, "dirty marking does not re-copy resources")
+	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's resources while dirty")
+
 	// Refreshing re-pins the latest snapshot (hash and error) and clears the
 	// dirty marker.
 	refreshed, err := expClient.RefreshChatContext(ctx, chat.ID)
@@ -143,6 +206,13 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, refreshed.Context)
 	require.False(t, refreshed.Context.Dirty, "refresh clears the dirty marker")
 	require.Equal(t, snapshotError, refreshed.Context.Error, "refresh re-pins the snapshot error")
+
+	// Refresh re-pinned the agent's current resources (the hashB set).
+	pinned = pinnedResources(chat.ID)
+	require.Len(t, pinned, 2, "refresh re-pins the agent's current resources")
+	require.Equal(t, agentsV2Hash, pinned[agentsSource].ContentHash)
+	require.Equal(t, skillHash, pinned[skillSource].ContentHash)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindSkill, pinned[skillSource].BodyKind)
 
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)

@@ -118,10 +118,59 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 	}
 }
 
-// RefreshChatContext re-pins a chat to its agent's latest context snapshot and
-// clears the dirty marker. It backs PUT /chats/{chat}/context (no body). A
-// chat with no bound agent, or whose agent has no snapshot, simply has its
-// pinned hash and dirty marker cleared.
+// repinChatContext re-pins a single chat to its agent's latest context
+// snapshot: it sets the pinned hash and error and rewrites the chat's pinned
+// resources (clear-then-copy) so the two always agree. A chat with no bound
+// agent, or whose agent has no snapshot, has its pinned hash, dirty marker,
+// and resources cleared. Callers run this inside a transaction.
+func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, agentID uuid.NullUUID) error {
+	var (
+		aggregateHash []byte
+		snapshotError string
+		hasSnapshot   bool
+	)
+	if agentID.Valid {
+		hash, snapErr, ok, err := latestAgentSnapshot(ctx, db, agentID.UUID)
+		if err != nil {
+			return err
+		}
+		if ok {
+			aggregateHash = hash
+			snapshotError = snapErr
+			hasSnapshot = true
+		}
+	}
+
+	if err := db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{
+		ID:            chatID,
+		AggregateHash: aggregateHash,
+		ContextError:  snapshotError,
+	}); err != nil {
+		return xerrors.Errorf("set chat context snapshot: %w", err)
+	}
+
+	// Clear-then-copy so the pinned resources always match the pinned hash.
+	// A single delete+insert statement cannot see its own delete under
+	// snapshot isolation, so overlapping sources would collide.
+	if err := db.DeleteChatContextResources(ctx, chatID); err != nil {
+		return xerrors.Errorf("clear chat context resources: %w", err)
+	}
+	if hasSnapshot {
+		if err := db.InsertAgentContextResourcesIntoChat(ctx, database.InsertAgentContextResourcesIntoChatParams{
+			ChatID:  chatID,
+			AgentID: agentID.UUID,
+		}); err != nil {
+			return xerrors.Errorf("copy agent context resources: %w", err)
+		}
+	}
+	return nil
+}
+
+// RefreshChatContext re-pins a chat to its agent's latest context snapshot
+// (hash, error, and resource bodies) and clears the dirty marker. It backs
+// PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose
+// agent has no snapshot, simply has its pinned hash, dirty marker, and
+// resources cleared.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a
@@ -132,29 +181,9 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 
 	var updated database.Chat
 	err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
-		var (
-			aggregateHash []byte
-			snapshotError string
-		)
-		if chat.AgentID.Valid {
-			hash, snapErr, ok, err := latestAgentSnapshot(ctx, tx, chat.AgentID.UUID)
-			if err != nil {
-				return err
-			}
-			if ok {
-				aggregateHash = hash
-				snapshotError = snapErr
-			}
+		if err := repinChatContext(ctx, tx, chat.ID, chat.AgentID); err != nil {
+			return err
 		}
-
-		if err := tx.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{
-			ID:            chat.ID,
-			AggregateHash: aggregateHash,
-			ContextError:  snapshotError,
-		}); err != nil {
-			return xerrors.Errorf("set chat context snapshot: %w", err)
-		}
-
 		got, err := tx.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat after refresh: %w", err)
