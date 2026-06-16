@@ -8731,6 +8731,149 @@ func TestUpdateWorkspaceBuildOrchestrationCompletedByIDWorkspaceMismatch(t *test
 	require.True(t, database.IsForeignKeyViolation(err))
 }
 
+func TestInsertWorkspaceBuildOrchestrationPresetRequiresVersion(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+
+	// Given: a parent build, a child preset, no child template
+	// version.
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: version.ID,
+	})
+
+	// When: the orchestration row is inserted.
+	_, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:              uuid.New(),
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+		ParentBuildID:   parentBuild.ID,
+		ChildTransition: database.WorkspaceTransitionStart,
+		ChildTemplateVersionPresetID: uuid.NullUUID{
+			UUID:  preset.ID,
+			Valid: true,
+		},
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+
+	// Then: the check constraint rejects the missing child template
+	// version.
+	require.Error(t, err)
+	require.True(t, database.IsCheckViolation(err))
+}
+
+func TestInsertWorkspaceBuildOrchestrationPresetVersionMismatch(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionOneJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionOne := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionOneJob.ID,
+	})
+	versionTwoJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	versionTwo := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionTwoJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: versionOne.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	parentJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+
+	// Given: a parent build and a child preset.
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: versionOne.ID,
+		InitiatorID:       user.ID,
+		JobID:             parentJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+	preset := dbgen.Preset(t, db, database.InsertPresetParams{
+		TemplateVersionID: versionOne.ID,
+	})
+
+	// When: the orchestration row is inserted with a different child
+	// template version.
+	_, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:              uuid.New(),
+		CreatedAt:       dbtime.Now(),
+		UpdatedAt:       dbtime.Now(),
+		ParentBuildID:   parentBuild.ID,
+		ChildTransition: database.WorkspaceTransitionStart,
+		ChildTemplateVersionID: uuid.NullUUID{
+			UUID:  versionTwo.ID,
+			Valid: true,
+		},
+		ChildTemplateVersionPresetID: uuid.NullUUID{
+			UUID:  preset.ID,
+			Valid: true,
+		},
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+
+	// Then: the composite foreign key rejects the preset/version
+	// mismatch.
+	require.Error(t, err)
+	require.True(t, database.IsForeignKeyViolation(err))
+}
+
 func TestWorkspaceBuildDeadlineConstraint(t *testing.T) {
 	t.Parallel()
 

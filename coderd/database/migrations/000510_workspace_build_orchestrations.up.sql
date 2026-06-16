@@ -5,6 +5,10 @@ ALTER TABLE workspace_builds
     ADD CONSTRAINT workspace_builds_id_workspace_id_key
         UNIQUE (id, workspace_id);
 
+ALTER TABLE template_version_presets
+    ADD CONSTRAINT template_version_presets_id_template_version_id_key
+        UNIQUE (id, template_version_id);
+
 CREATE TABLE workspace_build_orchestrations (
     id UUID PRIMARY KEY NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
@@ -14,7 +18,7 @@ CREATE TABLE workspace_build_orchestrations (
     child_build_id UUID UNIQUE,
     child_transition workspace_transition NOT NULL,
     child_template_version_id UUID REFERENCES template_versions(id) ON DELETE CASCADE,
-    child_template_version_preset_id UUID REFERENCES template_version_presets(id) ON DELETE SET NULL,
+    child_template_version_preset_id UUID, -- a constraint is added below
     child_rich_parameter_values JSONB DEFAULT '[]'::JSONB NOT NULL,
     child_log_level TEXT DEFAULT '' NOT NULL,
     child_reason build_reason,
@@ -37,11 +41,24 @@ CREATE TABLE workspace_build_orchestrations (
     CONSTRAINT workspace_build_orchestrations_next_retry_after_check CHECK (
         status = 'pending' OR next_retry_after IS NULL
     ),
+    CONSTRAINT workspace_build_orchestrations_child_preset_version_check CHECK (
+        child_template_version_preset_id IS NULL OR child_template_version_id IS NOT NULL
+    ),
     -- Mirrors CreateWorkspaceBuildRequest validation, where the optional
     -- log level is either unset or debug.
     CONSTRAINT workspace_build_orchestrations_child_log_level_check CHECK (
         child_log_level IN ('', 'debug')
     ),
+    -- These constraints enforce that any stored child preset belongs to
+    -- the requested child template version, while preset deletion still
+    -- clears only the preset column.
+    CONSTRAINT workspace_build_orchestrations_child_preset_id_fkey
+        FOREIGN KEY (child_template_version_preset_id)
+        REFERENCES template_version_presets(id)
+        ON DELETE SET NULL,
+    CONSTRAINT workspace_build_orchestrations_child_preset_version_fkey
+        FOREIGN KEY (child_template_version_preset_id, child_template_version_id)
+        REFERENCES template_version_presets(id, template_version_id),
     -- Composite foreign keys enforce that the parent and child builds
     -- belong to the same workspace.
     CONSTRAINT workspace_build_orchestrations_parent_build_workspace_id_fkey

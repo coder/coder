@@ -3459,6 +3459,7 @@ CREATE TABLE workspace_build_orchestrations (
     error text,
     CONSTRAINT workspace_build_orchestrations_attempt_count_check CHECK ((attempt_count >= 0)),
     CONSTRAINT workspace_build_orchestrations_child_log_level_check CHECK ((child_log_level = ANY (ARRAY[''::text, 'debug'::text]))),
+    CONSTRAINT workspace_build_orchestrations_child_preset_version_check CHECK (((child_template_version_preset_id IS NULL) OR (child_template_version_id IS NOT NULL))),
     CONSTRAINT workspace_build_orchestrations_child_rich_parameter_values_chec CHECK ((jsonb_typeof(child_rich_parameter_values) = 'array'::text)),
     CONSTRAINT workspace_build_orchestrations_completed_child_check CHECK (((status <> 'completed'::text) OR (child_build_id IS NOT NULL))),
     CONSTRAINT workspace_build_orchestrations_next_retry_after_check CHECK (((status = 'pending'::text) OR (next_retry_after IS NULL))),
@@ -3977,6 +3978,9 @@ ALTER TABLE ONLY template_version_preset_parameters
 
 ALTER TABLE ONLY template_version_preset_prebuild_schedules
     ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_id_template_version_id_key UNIQUE (id, template_version_id);
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
@@ -4918,10 +4922,13 @@ ALTER TABLE ONLY workspace_apps
     ADD CONSTRAINT workspace_apps_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_orchestrations
-    ADD CONSTRAINT workspace_build_orchestration_child_template_version_prese_fkey FOREIGN KEY (child_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
+    ADD CONSTRAINT workspace_build_orchestrations_child_build_workspace_id_fkey FOREIGN KEY (child_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_build_orchestrations
-    ADD CONSTRAINT workspace_build_orchestrations_child_build_workspace_id_fkey FOREIGN KEY (child_build_id, workspace_id) REFERENCES workspace_builds(id, workspace_id) ON DELETE CASCADE;
+    ADD CONSTRAINT workspace_build_orchestrations_child_preset_id_fkey FOREIGN KEY (child_template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
+
+ALTER TABLE ONLY workspace_build_orchestrations
+    ADD CONSTRAINT workspace_build_orchestrations_child_preset_version_fkey FOREIGN KEY (child_template_version_preset_id, child_template_version_id) REFERENCES template_version_presets(id, template_version_id);
 
 ALTER TABLE ONLY workspace_build_orchestrations
     ADD CONSTRAINT workspace_build_orchestrations_child_template_version_id_fkey FOREIGN KEY (child_template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
