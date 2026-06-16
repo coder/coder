@@ -12,7 +12,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -514,7 +513,7 @@ func (s *taskStarter) publishWatchWithRetry(
 func publishChatWatchEvent(pubsub chatWorkerPubsub, chat database.Chat, kind codersdk.ChatWatchEventKind) error {
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: db2sdk.Chat(chat, nil, nil),
+		Chat: chatWatchEventSDKChat(chat, nil),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
