@@ -612,6 +612,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
