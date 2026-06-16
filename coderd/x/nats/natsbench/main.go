@@ -54,7 +54,7 @@ func runCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error 
 	fs.IntVar(&run.replicas, "replicas", 1, "number of embedded pubsub nodes (custom run)")
 	fs.IntVar(&run.publishConns, "publish-conns", DefaultConns, "publisher connection pool size (applies to every run)")
 	fs.IntVar(&run.subscribeConns, "subscribe-conns", DefaultConns, "subscriber connection pool size (applies to every run)")
-	fs.Int64Var(&run.seed, "seed", 0, "seed for pseudorandom node placement (applies to every run); same seed reproduces the same placement")
+	fs.Int64Var(&run.seed, "seed", DefaultSeed, "seed for pseudorandom node placement (applies to every run); same seed reproduces the same placement")
 	fs.DurationVar(&run.timeout, "timeout", 2*time.Minute, "per-phase timeout")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {

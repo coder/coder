@@ -14,6 +14,16 @@ type Scenario struct {
 // natsbench harness and to exercise cross-subject parallelism.
 const DefaultConns = 3
 
+// DefaultSeed seeds the pseudorandom node placement. With the matrix
+// shape (10 publishers) and 10 replicas, most seeds leave several nodes
+// publisher-less by the birthday problem (only ~1 in 5000 seeds covers
+// every node), which would skew cross-node routing measurements. 2068
+// was selected because it spreads publishers perfectly evenly across
+// nodes at every matrix replica count (1, 5, and 10): one publisher per
+// node at 10 replicas, two per node at 5. Override with -seed to sample
+// a different, more uneven (and arguably more realistic) placement.
+const DefaultSeed int64 = 2068
+
 // DefaultScenarios returns the standard matrix: payloads of 8 KiB and
 // 64 KiB at 1, 5, and 10 replicas. The 64 KiB cluster runs use a
 // reduced total message count because the fan-out byte volume is
