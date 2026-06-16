@@ -19,8 +19,8 @@ type topology struct {
 	nodes []*nats.Pubsub
 }
 
-// closeAll shuts down every node. Close is idempotent and always
-// returns nil.
+// closeAll shuts down every node. Pubsub.Close is idempotent and
+// always returns nil.
 func (t *topology) closeAll() {
 	for _, node := range t.nodes {
 		_ = node.Close()

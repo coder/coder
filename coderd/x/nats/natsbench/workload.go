@@ -146,7 +146,7 @@ func (w *workload) subscribe() error {
 		node := w.top.nodes[w.pl.subNode[j]]
 		cancel, err := node.SubscribeWithErr(subjectName(w.pl.subSubject[j]), w.listener(st))
 		if err != nil {
-			return xerrors.Errorf("subscribe subscriber %d: %w", j, err)
+			return xerrors.Errorf("register subscriber %d: %w", j, err)
 		}
 		w.cancels = append(w.cancels, cancel)
 	}

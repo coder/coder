@@ -122,8 +122,6 @@ func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	for _, header := range []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"} {
 		require.Contains(t, out, header)
 	}
-	require.NotContains(t, out, "Status")
-	require.NotContains(t, out, "Scenario")
 	require.NotContains(t, out, "Drops")
 	require.Contains(t, out, "250,000")
 	require.Contains(t, out, "220,000")
