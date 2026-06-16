@@ -6,8 +6,9 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 	textResponseStreamParts,
+	withConversationFrame,
 } from "./storyFixtures";
 
 const retryThenResumedStream = buildStreamRenderState(textResponseStreamParts);
@@ -24,20 +25,8 @@ const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 const meta: Meta<typeof LiveStreamTailContent> = {
 	title: "pages/AgentsPage/ChatConversation/LiveStreamTail",
 	component: LiveStreamTailContent,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	decorators: [withConversationFrame],
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof LiveStreamTailContent>;

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { ChatDetailError } from "../../utils/usageLimitMessage";
 import { deriveLiveStatus } from "./liveStatusModel";
-import type { ReconnectState, RetryState, StreamState } from "./types";
+import { buildReconnectState, buildRetryState } from "./storyFixtures";
+import type { RetryState, StreamState } from "./types";
 
 const makeStreamState = (
 	overrides: Partial<StreamState> = {},
@@ -13,24 +14,10 @@ const makeStreamState = (
 	...overrides,
 });
 
-const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState => ({
-	attempt: 2,
-	error: "Anthropic returned an unexpected error.",
-	kind: "generic",
-	provider: "anthropic",
-	delayMs: 2000,
-	retryingAt: "2026-03-10T00:00:02.000Z",
-	...overrides,
-});
+const makeRetryState = (overrides: Partial<RetryState> = {}): RetryState =>
+	buildRetryState({ attempt: 2, ...overrides });
 
-const makeReconnectState = (
-	overrides: Partial<ReconnectState> = {},
-): ReconnectState => ({
-	attempt: 1,
-	delayMs: 1000,
-	retryingAt: "2026-03-10T00:00:01.000Z",
-	...overrides,
-});
+const makeReconnectState = buildReconnectState;
 
 const makeStreamError = (
 	overrides: Partial<ChatDetailError> = {},

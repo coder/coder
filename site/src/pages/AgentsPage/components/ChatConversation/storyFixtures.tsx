@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type DeriveLiveStatusParams,
@@ -90,3 +91,26 @@ export const textResponseStreamParts = [
 		text: "Storybook streamed answer.",
 	},
 ] satisfies readonly TypesGen.ChatMessagePart[];
+
+/**
+ * Centers a conversation story in the same width-constrained frame the chat
+ * view uses, so streamed output wraps the way it does in the app.
+ */
+export const withConversationFrame = (Story: FC) => (
+	<div className="mx-auto w-full max-w-3xl py-6">
+		<Story />
+	</div>
+);
+
+/**
+ * Pins Date.now to FIXTURE_NOW for the duration of a story, returning the
+ * cleanup that restores the real clock. Use as a story `beforeEach` so
+ * countdown timers render deterministically.
+ */
+export const pinFixtureClock = () => {
+	const real = Date.now;
+	Date.now = () => FIXTURE_NOW;
+	return () => {
+		Date.now = real;
+	};
+};
