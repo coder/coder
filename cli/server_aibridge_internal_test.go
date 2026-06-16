@@ -377,7 +377,7 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 			expected: []codersdk.AIProviderConfig{
 				{
-					Type:                    string(database.AiProviderTypeBedrock),
+					Type:                    string(database.AIProviderTypeBedrock),
 					Name:                    "bedrock-prod",
 					BedrockRegion:           "us-east-1",
 					BedrockAccessKeys:       []string{"AKID"},
@@ -642,7 +642,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "OpenAI",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeOpenai,
+				Type:    database.AIProviderTypeOpenai,
 				Name:    "openai",
 				BaseUrl: "https://api.openai.com/",
 			},
@@ -652,7 +652,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Anthropic",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeAnthropic,
+				Type:    database.AIProviderTypeAnthropic,
 				Name:    "anthropic",
 				BaseUrl: "https://api.anthropic.com/",
 			},
@@ -662,7 +662,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Copilot",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeCopilot,
+				Type:    database.AIProviderTypeCopilot,
 				Name:    "copilot",
 				BaseUrl: "https://api.githubcopilot.com/",
 			},
@@ -672,7 +672,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Azure",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeAzure,
+				Type:    database.AIProviderTypeAzure,
 				Name:    "azure",
 				BaseUrl: "https://example.openai.azure.com/",
 			},
@@ -682,7 +682,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Google",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeGoogle,
+				Type:    database.AIProviderTypeGoogle,
 				Name:    "google",
 				BaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
 			},
@@ -692,7 +692,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "OpenAICompat",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeOpenaiCompat,
+				Type:    database.AIProviderTypeOpenaiCompat,
 				Name:    "openai-compat",
 				BaseUrl: "https://compat.example.com/v1/",
 			},
@@ -702,7 +702,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "OpenRouter",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeOpenrouter,
+				Type:    database.AIProviderTypeOpenrouter,
 				Name:    "openrouter",
 				BaseUrl: "https://openrouter.ai/api/v1/",
 			},
@@ -712,7 +712,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Vercel",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeVercel,
+				Type:    database.AIProviderTypeVercel,
 				Name:    "vercel",
 				BaseUrl: "https://api.v0.dev/v1/",
 			},
@@ -722,7 +722,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 			name: "Bedrock",
 			row: database.AIProvider{
 				Enabled: true,
-				Type:    database.AiProviderTypeBedrock,
+				Type:    database.AIProviderTypeBedrock,
 				Name:    "bedrock",
 				BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 				Settings: mustMarshalSettings(codersdk.AIProviderSettings{
@@ -757,7 +757,7 @@ func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 
 	_, err := buildAIProviderFromRow(database.AIProvider{
 		Enabled: true,
-		Type:    database.AiProviderTypeBedrock,
+		Type:    database.AIProviderTypeBedrock,
 		Name:    "bedrock-no-settings",
 		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 	}, nil, codersdk.AIBridgeConfig{

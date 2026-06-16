@@ -239,7 +239,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("NativeAnthropicDefaultBaseURL", func(t *testing.T) {
 		t.Parallel()
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    aibridge.ProviderAnthropic,
 			BaseUrl: "https://api.anthropic.com/",
 		}
@@ -249,7 +249,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("NativeAnthropicCustomBaseURL", func(t *testing.T) {
 		t.Parallel()
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-proxy",
 			BaseUrl: "https://internal-proxy.example.com/anthropic/",
 		}
@@ -263,7 +263,7 @@ func TestBuildProviders(t *testing.T) {
 		model := "anthropic.claude-3-5-sonnet-20241022-v2:0"
 		smallModel := "anthropic.claude-3-5-haiku-20241022-v1:0"
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-bedrock",
 			BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
 		}
@@ -292,7 +292,7 @@ func TestBuildProviders(t *testing.T) {
 		// produce a Bedrock config; the provider's generic BaseUrl is
 		// not a Bedrock detection signal.
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-empty-bedrock",
 			BaseUrl: "https://api.anthropic.com/",
 		}
@@ -319,7 +319,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			Name:     "anthropic-broken",
 			BaseUrl:  "https://api.anthropic.com/",
 			Settings: sql.NullString{String: "not-json", Valid: true},
@@ -344,7 +344,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		// rows without keys when BYOK is disabled. The row must be
 		// classified as error and excluded from the snapshot.
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:    database.AiProviderTypeAzure,
+			Type:    database.AIProviderTypeAzure,
 			Name:    "azure-openai",
 			BaseUrl: "https://example.openai.azure.com/",
 		})
@@ -363,13 +363,13 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			Name:     "anthropic-broken",
 			BaseUrl:  "https://api.anthropic.com/",
 			Settings: sql.NullString{String: "{not valid json", Valid: true},
 		})
 		good := dbgen.AIProvider(t, db, database.AIProvider{
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			Name:    "openai-good",
 			BaseUrl: "https://api.openai.com/",
 		})
@@ -401,7 +401,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			{
 				name: "OpenAI",
 				row: database.AIProvider{
-					Type:    database.AiProviderTypeOpenai,
+					Type:    database.AIProviderTypeOpenai,
 					Name:    "openai-off",
 					BaseUrl: "https://api.openai.com/",
 				},
@@ -412,7 +412,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 				// must reach them too. No keys, no bedrock settings.
 				name: "Anthropic",
 				row: database.AIProvider{
-					Type:    database.AiProviderTypeAnthropic,
+					Type:    database.AIProviderTypeAnthropic,
 					Name:    "anthropic-off",
 					BaseUrl: "https://api.anthropic.com/",
 				},
@@ -420,7 +420,7 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			{
 				name: "Bedrock",
 				row: database.AIProvider{
-					Type:    database.AiProviderTypeBedrock,
+					Type:    database.AIProviderTypeBedrock,
 					Name:    "bedrock-off",
 					BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
 				},

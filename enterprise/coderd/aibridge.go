@@ -575,7 +575,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAIBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -630,7 +630,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAIBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -714,7 +714,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	}
 
 	auditor := api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAIBudgetOverride](rw, &audit.RequestParams{
 		Audit:          *auditor,
 		Log:            api.Logger,
 		Request:        r,
@@ -809,7 +809,7 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	}
 
 	auditor := api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAIBudgetOverride](rw, &audit.RequestParams{
 		Audit:          *auditor,
 		Log:            api.Logger,
 		Request:        r,

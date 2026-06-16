@@ -978,10 +978,10 @@ func (mr *MockStoreMockRecorder) DeleteExternalAuthLink(ctx, arg any) *gomock.Ca
 }
 
 // DeleteGroupAIBudget mocks base method.
-func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m *MockStore) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteGroupAIBudget", ctx, groupID)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1468,10 +1468,10 @@ func (mr *MockStoreMockRecorder) DeleteTask(ctx, arg any) *gomock.Call {
 }
 
 // DeleteUserAIBudgetOverride mocks base method.
-func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteUserAIBudgetOverride", ctx, userID)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -1904,10 +1904,10 @@ func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, int
 }
 
 // GetAIModelPriceByProviderModel mocks base method.
-func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetAIModelPriceByProviderModel", ctx, arg)
-	ret0, _ := ret[0].(database.AiModelPrice)
+	ret0, _ := ret[0].(database.AIModelPrice)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3854,10 +3854,10 @@ func (mr *MockStoreMockRecorder) GetGitSSHKey(ctx, userID any) *gomock.Call {
 }
 
 // GetGroupAIBudget mocks base method.
-func (m *MockStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (m *MockStore) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetGroupAIBudget", ctx, groupID)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5804,10 +5804,10 @@ func (mr *MockStoreMockRecorder) GetUnexpiredLicenses(ctx any) *gomock.Call {
 }
 
 // GetUserAIBudgetOverride mocks base method.
-func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIBudgetOverride", ctx, userID)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5819,10 +5819,10 @@ func (mr *MockStoreMockRecorder) GetUserAIBudgetOverride(ctx, userID any) *gomoc
 }
 
 // GetUserAIProviderKeyByProviderID mocks base method.
-func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeyByProviderID", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5834,10 +5834,10 @@ func (mr *MockStoreMockRecorder) GetUserAIProviderKeyByProviderID(ctx, arg any) 
 }
 
 // GetUserAIProviderKeys mocks base method.
-func (m *MockStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeys", ctx)
-	ret0, _ := ret[0].([]database.UserAiProviderKey)
+	ret0, _ := ret[0].([]database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5849,10 +5849,10 @@ func (mr *MockStoreMockRecorder) GetUserAIProviderKeys(ctx any) *gomock.Call {
 }
 
 // GetUserAIProviderKeysByUserID mocks base method.
-func (m *MockStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAiProviderKey, error) {
+func (m *MockStore) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserAIProviderKeysByUserID", ctx, userID)
-	ret0, _ := ret[0].([]database.UserAiProviderKey)
+	ret0, _ := ret[0].([]database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9862,10 +9862,10 @@ func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any)
 }
 
 // UpdateEncryptedUserAIProviderKey mocks base method.
-func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateEncryptedUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -10468,10 +10468,10 @@ func (mr *MockStoreMockRecorder) UpdateUsageEventsPostPublish(ctx, arg any) *gom
 }
 
 // UpdateUserAIProviderKey mocks base method.
-func (m *MockStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11651,10 +11651,10 @@ func (mr *MockStoreMockRecorder) UpsertDefaultProxy(ctx, arg any) *gomock.Call {
 }
 
 // UpsertGroupAIBudget mocks base method.
-func (m *MockStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAiBudget, error) {
+func (m *MockStore) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertGroupAIBudget", ctx, arg)
-	ret0, _ := ret[0].(database.GroupAiBudget)
+	ret0, _ := ret[0].(database.GroupAIBudget)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11910,10 +11910,10 @@ func (mr *MockStoreMockRecorder) UpsertTemplateUsageStats(ctx any) *gomock.Call 
 }
 
 // UpsertUserAIBudgetOverride mocks base method.
-func (m *MockStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+func (m *MockStore) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertUserAIBudgetOverride", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiBudgetOverride)
+	ret0, _ := ret[0].(database.UserAIBudgetOverride)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -11925,10 +11925,10 @@ func (mr *MockStoreMockRecorder) UpsertUserAIBudgetOverride(ctx, arg any) *gomoc
 }
 
 // UpsertUserAIProviderKey mocks base method.
-func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpsertUserAIProviderKey", ctx, arg)
-	ret0, _ := ret[0].(database.UserAiProviderKey)
+	ret0, _ := ret[0].(database.UserAIProviderKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
