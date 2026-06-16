@@ -89,8 +89,6 @@ const expectVisibleCopyButtonOnHover = async ({
 	return copyButton;
 };
 
-// Story fixtures use structured normalized payloads even though the generated
-// API type still models them as string records.
 const buildNormalizedPayloadFixture = (
 	payload: Record<string, unknown>,
 ): TypesGen.ChatDebugStep["normalized_request"] => {

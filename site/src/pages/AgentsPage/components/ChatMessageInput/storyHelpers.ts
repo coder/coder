@@ -1,7 +1,6 @@
 import { expect, waitFor, within } from "storybook/test";
 import type { UserSkillMetadata } from "#/api/typesGenerated";
-
-const MOCK_TIMESTAMP = "2026-05-08T00:00:00Z";
+import { MOCK_TIMESTAMP } from "#/testHelpers/chatEntities";
 
 export const MockSkill: UserSkillMetadata = {
 	id: "skill-1",
