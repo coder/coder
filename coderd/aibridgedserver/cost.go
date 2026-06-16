@@ -43,7 +43,7 @@ func (s *Server) resolveTokenUsageCost(ctx context.Context, intc database.AIBrid
 	// which leaves the group attribution NULL.
 	effectiveBudget, ok, err := budget.ResolveUserAIBudget(ctx, s.store, intc.InitiatorID, s.budgetPolicy)
 	if err != nil {
-		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI budget for user %q: %w", intc.InitiatorID, err)
+		return tokenUsageCost{}, xerrors.Errorf("resolve effective AI budget for user %q with policy %q: %w", intc.InitiatorID, s.budgetPolicy, err)
 	}
 	if ok {
 		result.effectiveGroupID = uuid.NullUUID{UUID: effectiveBudget.GroupID, Valid: true}
