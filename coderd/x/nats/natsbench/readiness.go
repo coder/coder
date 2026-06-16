@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"slices"
@@ -23,6 +24,11 @@ const (
 	probeInterval = 25 * time.Millisecond
 )
 
+// probePrefixBytes is the byte form of probePrefix, kept as a package
+// value so probeNode can match it without allocating. probeNode runs on
+// every delivered message, so it must not copy the payload.
+var probePrefixBytes = []byte(probePrefix)
+
 // probePayload encodes a readiness probe identifying the publishing
 // node: the probe prefix followed by the node index in decimal ASCII.
 func probePayload(node int) []byte {
@@ -30,13 +36,15 @@ func probePayload(node int) []byte {
 }
 
 // probeNode decodes a readiness probe. It reports false for benchmark
-// payloads (all zeros, so the prefix never matches).
+// payloads (all zeros, so the prefix never matches). It avoids copying
+// the payload: the prefix is compared as bytes, and only the small
+// trailing node index is converted to a string, and only for probes.
 func probeNode(payload []byte) (int, bool) {
-	rest, ok := strings.CutPrefix(string(payload), probePrefix)
+	rest, ok := bytes.CutPrefix(payload, probePrefixBytes)
 	if !ok {
 		return 0, false
 	}
-	node, err := strconv.Atoi(rest)
+	node, err := strconv.Atoi(string(rest))
 	if err != nil {
 		return 0, false
 	}
