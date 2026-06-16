@@ -32,7 +32,7 @@ CREATE TABLE workspace_build_orchestrations (
     CONSTRAINT workspace_build_orchestrations_completed_child_check CHECK (
         status <> 'completed' OR child_build_id IS NOT NULL
     ),
-    CONSTRAINT workspace_build_orchestrations_child_rich_parameter_values_check CHECK (
+    CONSTRAINT workspace_build_orchestrations_child_parameters_check CHECK (
         jsonb_typeof(child_rich_parameter_values) = 'array'
     ),
     CONSTRAINT workspace_build_orchestrations_attempt_count_check CHECK (
