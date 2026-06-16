@@ -25,7 +25,7 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 
 	// seedBoundarySession inserts a boundary session linked to a workspace agent.
 	// Uses the raw DB store to avoid dbauthz permission and ordering constraints during setup.
-	seedBoundarySession := func(t *testing.T, rawDB database.Store, ownerID, orgID uuid.UUID) database.BoundarySession {
+	seedBoundarySession := func(t *testing.T, rawDB database.Store, ownerID, orgID uuid.UUID) (database.BoundarySession, database.WorkspaceTable) {
 		t.Helper()
 
 		resp := dbfake.WorkspaceBuild(t, rawDB, database.WorkspaceTable{
@@ -40,7 +40,7 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 			OwnerID:             uuid.NullUUID{UUID: ownerID, Valid: true},
 			ConfinedProcessName: "claude-code",
 		})
-		return session
+		return session, resp.Workspace
 	}
 
 	t.Run("Owner", func(t *testing.T) {
@@ -60,15 +60,15 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
+		session, ws := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		//nolint:gocritic // Testing owner role.
 		got, err := ownerClient.AgentFirewallSessionByID(ctx, session.ID)
 		require.NoError(t, err)
 		require.Equal(t, session.ID, got.ID)
-		require.Equal(t, owner.UserID, got.OwnerID)
+		require.Equal(t, ws.OwnerID, got.OwnerID)
 		require.Equal(t, session.ConfinedProcessName, got.ConfinedProcess)
-		require.NotEqual(t, uuid.Nil, got.WorkspaceID)
+		require.Equal(t, ws.ID, got.WorkspaceID)
 	})
 
 	t.Run("Auditor", func(t *testing.T) {
@@ -88,7 +88,7 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
+		session, _ := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleAuditor())
 
@@ -115,7 +115,7 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 		})
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		session := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
+		session, _ := seedBoundarySession(t, db, owner.UserID, owner.OrganizationID)
 
 		memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
