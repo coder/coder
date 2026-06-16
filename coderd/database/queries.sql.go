@@ -3737,6 +3737,8 @@ type GetBoundarySessionByIDRow struct {
 	WorkspaceOwnerID    uuid.UUID     `db:"workspace_owner_id" json:"workspace_owner_id"`
 }
 
+// Resolves workspace_id and workspace_owner_id by joining through the
+// workspace agent -> resource -> build -> workspace chain.
 func (q *sqlQuerier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getBoundarySessionByID, id)
 	var i GetBoundarySessionByIDRow

@@ -367,6 +367,8 @@ type sqlcQuerier interface {
 	// limits roots, not total family members.
 	GetAutoArchiveInactiveChatCandidates(ctx context.Context, arg GetAutoArchiveInactiveChatCandidatesParams) ([]GetAutoArchiveInactiveChatCandidatesRow, error)
 	GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (BoundaryLog, error)
+	// Resolves workspace_id and workspace_owner_id by joining through the
+	// workspace agent -> resource -> build -> workspace chain.
 	GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (GetBoundarySessionByIDRow, error)
 	GetChatACLByID(ctx context.Context, id uuid.UUID) (GetChatACLByIDRow, error)
 	// GetChatAdvisorConfig returns the deployment-wide runtime configuration
