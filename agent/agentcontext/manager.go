@@ -12,11 +12,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// CurrentSchemaVersion is the on-wire shape version. Bump
-// whenever the resource format changes in a way that requires
-// coderd-side awareness.
-const CurrentSchemaVersion uint64 = 1
-
 // ManagerOptions configures a Manager. Zero values get sensible
 // defaults.
 type ManagerOptions struct {
@@ -45,10 +40,6 @@ type ManagerOptions struct {
 	Resolver *Resolver
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
-	// SchemaVersion is the version stamped on each Snapshot.
-	// Use CurrentSchemaVersion (the default) unless rolling
-	// out a schema change.
-	SchemaVersion uint64
 }
 
 // Source is a user-declared scan root added to the agent's
@@ -64,13 +55,12 @@ type Source struct {
 // Pusher fan-out. Construct with NewManager; start its lifecycle
 // goroutines with Run; tear down with Close.
 type Manager struct {
-	logger        slog.Logger
-	clock         quartz.Clock
-	workingDir    func() string
-	allowedRoots  []string
-	resolver      *Resolver
-	debounce      time.Duration
-	schemaVersion uint64
+	logger       slog.Logger
+	clock        quartz.Clock
+	workingDir   func() string
+	allowedRoots []string
+	resolver     *Resolver
+	debounce     time.Duration
 
 	mu      sync.Mutex
 	sources []Source
@@ -124,30 +114,25 @@ func NewManager(opts ManagerOptions) *Manager {
 	if debounce <= 0 {
 		debounce = DefaultWatchDebounce
 	}
-	schemaVersion := opts.SchemaVersion
-	if schemaVersion == 0 {
-		schemaVersion = CurrentSchemaVersion
-	}
 	resolver := opts.Resolver
 	if resolver == nil {
 		resolver = &Resolver{}
 	}
 
 	m := &Manager{
-		logger:        opts.Logger,
-		clock:         clock,
-		workingDir:    opts.WorkingDir,
-		allowedRoots:  append([]string(nil), opts.AllowedRoots...),
-		resolver:      resolver,
-		debounce:      debounce,
-		schemaVersion: schemaVersion,
-		sources:       make([]Source, 0),
-		sourceIndex:   make(map[string]int),
-		subscribers:   make(map[chan struct{}]struct{}),
-		trigger:       make(chan struct{}, 1),
-		closedCh:      make(chan struct{}),
-		runDoneCh:     make(chan struct{}),
-		runStartedCh:  make(chan struct{}),
+		logger:       opts.Logger,
+		clock:        clock,
+		workingDir:   opts.WorkingDir,
+		allowedRoots: append([]string(nil), opts.AllowedRoots...),
+		resolver:     resolver,
+		debounce:     debounce,
+		sources:      make([]Source, 0),
+		sourceIndex:  make(map[string]int),
+		subscribers:  make(map[chan struct{}]struct{}),
+		trigger:      make(chan struct{}, 1),
+		closedCh:     make(chan struct{}),
+		runDoneCh:    make(chan struct{}),
+		runStartedCh: make(chan struct{}),
 	}
 
 	for _, s := range opts.InitialSources {
@@ -442,7 +427,6 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
-	schemaVersion := m.schemaVersion
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -464,7 +448,6 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 			snap.SnapshotError = d
 		}
 	}
-	snap.SchemaVersion = schemaVersion
 
 	m.mu.Lock()
 	if m.closed {
@@ -592,7 +575,6 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
 	watcher := m.watcher
-	schemaVersion := m.schemaVersion
 	m.resolveEpoch++
 	myEpoch := m.resolveEpoch
 	m.mu.Unlock()
@@ -617,7 +599,6 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 			snap.SnapshotError = d
 		}
 	}
-	snap.SchemaVersion = schemaVersion
 
 	m.mu.Lock()
 	if m.resolveEpoch != myEpoch {
@@ -656,7 +637,6 @@ func (m *Manager) resolveLocked() {
 	snap := m.resolver.Resolve(roots)
 	m.version++
 	snap.Version = m.version
-	snap.SchemaVersion = m.schemaVersion
 	// Surface watcher degradation as a snapshot-level error
 	// when the resolver did not already emit one.
 	if snap.SnapshotError == "" && m.watcher != nil {

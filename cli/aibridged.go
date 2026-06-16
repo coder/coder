@@ -235,12 +235,12 @@ func buildAIProviderFromRow(
 	// OpenAI-compatible endpoints. Bedrock routes through the Anthropic
 	// provider with a Bedrock discriminator in Settings.
 	switch row.Type {
-	case database.AiProviderTypeOpenai,
-		database.AiProviderTypeAzure,
-		database.AiProviderTypeGoogle,
-		database.AiProviderTypeOpenaiCompat,
-		database.AiProviderTypeOpenrouter,
-		database.AiProviderTypeVercel:
+	case database.AIProviderTypeOpenai,
+		database.AIProviderTypeAzure,
+		database.AIProviderTypeGoogle,
+		database.AIProviderTypeOpenaiCompat,
+		database.AIProviderTypeOpenrouter,
+		database.AIProviderTypeVercel:
 		if len(keys) == 0 && !cfg.AllowBYOK.Value() {
 			return nil, xerrors.Errorf("%s provider has no api keys configured and BYOK is not enabled", row.Type)
 		}
@@ -261,13 +261,13 @@ func buildAIProviderFromRow(
 			SendActorHeaders: sendActorHeaders,
 		}), nil
 
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
 		bedrock := bedrockConfigFromRow(row, settings)
 		// A row typed 'bedrock' authenticates exclusively via settings;
 		// without populated Bedrock credentials it cannot make upstream
 		// calls, so refuse rather than falling back to an unsigned
 		// Anthropic client.
-		if row.Type == database.AiProviderTypeBedrock && bedrock == nil {
+		if row.Type == database.AIProviderTypeBedrock && bedrock == nil {
 			return nil, xerrors.New("bedrock provider has no bedrock credentials configured")
 		}
 		// Bedrock-backed Anthropic authenticates via AWS credentials in
@@ -293,7 +293,7 @@ func buildAIProviderFromRow(
 			SendActorHeaders: sendActorHeaders,
 		}, bedrock), nil
 
-	case database.AiProviderTypeCopilot:
+	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each
 		// request via the Authorization header, so no keypool is built.
 		return aibridge.NewCopilotProvider(aibridge.CopilotConfig{
@@ -310,7 +310,7 @@ func buildAIProviderFromRow(
 
 // disabledProviderFromRow builds a Provider stub for a disabled row.
 // Using provider.DisabledStub rather than a concrete provider avoids
-// duplicating the row.Type switch and ensures that a new AiProviderType
+// duplicating the row.Type switch and ensures that a new AIProviderType
 // value is automatically handled without requiring a matching case here.
 func disabledProviderFromRow(row database.AIProvider) (aibridge.Provider, error) {
 	return aibridge.NewDisabledProviderStub(row.Name, string(row.Type)), nil

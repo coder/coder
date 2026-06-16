@@ -159,10 +159,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	var replicaManagerPtr atomic.Pointer[replicasync.Manager]
+	var api *API
 	resolveReplicaAddress := func(
 		_ context.Context,
 		replicaID uuid.UUID,
 	) (string, bool) {
+		if api != nil && api.AGPL != nil && replicaID == api.AGPL.ID && api.AGPL.AccessURL != nil {
+			return api.AGPL.AccessURL.String(), true
+		}
 		manager := replicaManagerPtr.Load()
 		if manager == nil {
 			return "", false
@@ -180,7 +184,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return "", false
 	}
 
-	api := &API{
+	api = &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
 		Options: options,
@@ -207,17 +211,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		replicaHTTPClient = http.DefaultClient
 	}
 	// Use a closure that captures api by reference so it can access
-	// api.AGPL.ID after coderd.New is called. The SubscribeFn is
-	// only invoked from Subscribe, which happens after init.
-	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
+	// api.AGPL.ID after coderd.New is called. The parts dialer is
+	// only invoked from stream subscriptions, which happen after init.
+	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
-			id := api.AGPL.ID
-			if id == uuid.Nil {
-				return uuid.New()
-			}
-			return id
+			return api.AGPL.ID
 		},
 	})
 
@@ -612,6 +612,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),

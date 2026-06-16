@@ -142,7 +142,8 @@ const reconnectStatesEqual = (
 
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "pending";
+): boolean =>
+	status === "running" || status === "pending" || status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;

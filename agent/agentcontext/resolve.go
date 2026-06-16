@@ -936,9 +936,6 @@ type Snapshot struct {
 	// Version is monotonically increasing per Manager
 	// instance; resets when the agent process restarts.
 	Version uint64
-	// SchemaVersion is bumped if the resource shape on the
-	// wire changes.
-	SchemaVersion uint64
 	// AggregateHash is sha256 over a canonical encoding of
 	// (ID, Kind, Source, ContentHash, Status) for every
 	// resource. Identical inputs always produce identical

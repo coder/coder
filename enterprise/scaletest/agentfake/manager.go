@@ -68,6 +68,10 @@ type ManagerOptions struct {
 	// before enumerating.
 	ExpectedAgents          int64
 	ExpectedAgentsTolerance int64
+	// A zero ConnectionReportInterval or ConnectionReportDuration disables
+	// synthetic SSH connection reporting.
+	ConnectionReportInterval time.Duration
+	ConnectionReportDuration time.Duration
 	// Clock is used for the workspace-count polling interval.
 	// Defaults to the real clock; override in tests with quartz.NewMock.
 	Clock quartz.Clock
@@ -149,7 +153,8 @@ func (m *Manager) Run(ctx context.Context) error {
 			m.logger.Named("agent-"+strconv.Itoa(i)),
 			m.coderURL, ti.Token,
 			WithMetrics(m.opts.Metrics),
-			WithFirstConnect(firstConnectCh)))
+			WithFirstConnect(firstConnectCh),
+			WithConnectionReports(m.opts.ConnectionReportInterval, m.opts.ConnectionReportDuration)))
 	}
 	m.mu.Lock()
 	m.agents = agents

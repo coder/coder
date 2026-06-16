@@ -1,0 +1,193 @@
+{
+  "id": "aider",
+  "display_name": "Aider",
+  "description": "Run Aider AI pair programming in your workspace",
+  "icon": "/icon/aider.svg",
+  "category": "AI Agent",
+  "tags": [
+    "agent",
+    "ai",
+    "aider"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "2.0.1",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "agentapi_version",
+      "type": "string",
+      "description": "The version of AgentAPI to install.",
+      "default": "v0.10.0",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "ai_prompt",
+      "type": "string",
+      "description": "Initial task prompt for Aider.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "ai_provider",
+      "type": "string",
+      "description": "AI provider to use with Aider (openai, anthropic, azure, google, etc.)",
+      "default": "google",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "api_key",
+      "type": "string",
+      "description": "API key for the selected AI provider. This will be set as the appropriate environment variable based on the provider.",
+      "default": "",
+      "required": false,
+      "sensitive": true,
+      "computed": false
+    },
+    {
+      "name": "base_aider_config",
+      "type": "string",
+      "description": "Base Aider configuration in yaml format. Will be stored in .aider.conf.yml file.\n    \noptions include:\nread:\n  - CONVENTIONS.md\n  - anotherfile.txt\n  - thirdfile.py\nmodel: xxx\n##Specify the OpenAI API key\nopenai-api-key: xxx\n## (deprecated, use --set-env OPENAI_API_TYPE=\u003cvalue\u003e)\nopenai-api-type: xxx\n## (deprecated, use --set-env OPENAI_API_VERSION=\u003cvalue\u003e)\nopenai-api-version: xxx\n## (deprecated, use --set-env OPENAI_API_DEPLOYMENT_ID=\u003cvalue\u003e)\nopenai-api-deployment-id: xxx\n## Set an environment variable (to control API settings, can be used multiple times)\nset-env: xxx\n## Specify multiple values like this:\nset-env:\n  - xxx\n  - yyy\n  - zzz\n\nReference : https://aider.chat/docs/config/aider_conf.html\n",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "cli_app",
+      "type": "bool",
+      "description": "Whether to create a CLI app for Aider",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "cli_app_display_name",
+      "type": "string",
+      "description": "Display name for the CLI app",
+      "default": "Aider CLI",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "custom_env_var_name",
+      "type": "string",
+      "description": "Custom environment variable name when using custom provider",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "experiment_additional_extensions",
+      "type": "string",
+      "description": "Additional extensions configuration in YAML format to append to the config.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "icon",
+      "type": "string",
+      "description": "The icon to use for the app.",
+      "default": "/icon/aider.svg",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_agentapi",
+      "type": "bool",
+      "description": "Whether to install AgentAPI.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_aider",
+      "type": "bool",
+      "description": "Whether to install Aider.",
+      "default": true,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "description": "AI model to use with Aider. Can use Aider's built-in aliases like '4o' (gpt-4o), 'sonnet' (claude-3-7-sonnet), 'opus' (claude-3-opus), etc.",
+      "required": true,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "post_install_script",
+      "type": "string",
+      "description": "Custom script to run after installing Aider.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "pre_install_script",
+      "type": "string",
+      "description": "Custom script to run before installing Aider.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "report_tasks",
+      "type": "bool",
+      "description": "Whether to enable task reporting to Coder UI via AgentAPI",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "system_prompt",
+      "type": "string",
+      "description": "System prompt for instructing Aider on task reporting and behavior",
+      "default": "You are a helpful coding assistant that helps developers write, debug, and understand code. Provide clear explanations, follow best practices, and help solve coding problems efficiently.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "web_app_display_name",
+      "type": "string",
+      "description": "Display name for the web app",
+      "default": "Aider",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "workdir",
+      "type": "string",
+      "description": "The folder to run Aider in.",
+      "default": "/home/coder",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

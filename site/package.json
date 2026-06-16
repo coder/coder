@@ -127,6 +127,7 @@
 		"@babel/plugin-syntax-typescript": "7.29.7",
 		"@biomejs/biome": "2.4.10",
 		"@chromatic-com/storybook": "5.0.1",
+		"@coder/pixel-storybook": "0.1.3",
 		"@octokit/types": "12.6.0",
 		"@playwright/test": "1.50.1",
 		"@rolldown/plugin-babel": "0.2.3",
@@ -230,6 +231,7 @@
 		],
 		"onlyBuiltDependencies": [
 			"esbuild",
+			"odiff-bin",
 			"ssh2"
 		]
 	}
