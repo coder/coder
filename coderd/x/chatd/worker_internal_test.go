@@ -98,6 +98,35 @@ func TestWorker_SkipsFreshlyOwnedChat(t *testing.T) {
 	require.Equal(t, otherRunner, latest.RunnerID.UUID)
 }
 
+func TestWorker_ReacquiresStaleOwnedChat(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	deadWorker := uuid.New()
+	deadRunner := uuid.New()
+	acquireChat(t, f, chat.ID, deadWorker, deadRunner)
+	makeHeartbeatStale(t, f, chat.ID, deadRunner)
+	starter := newBlockingTaskStarter(false)
+	worker := startWorker(t, testOptions(t, f, starter))
+
+	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
+	require.Equal(t, database.ChatStatusRunning, call.input.Status)
+	require.NotEqual(t, deadRunner, call.input.RunnerID)
+
+	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
+	require.NoError(t, err)
+	require.Equal(t, worker.chatWorkerID(), latest.WorkerID.UUID)
+	require.Equal(t, call.input.RunnerID, latest.RunnerID.UUID)
+	require.NotEqual(t, deadWorker, latest.WorkerID.UUID)
+	require.NotEqual(t, deadRunner, latest.RunnerID.UUID)
+	_, err = f.db.GetChatHeartbeat(testutil.Context(t, testutil.WaitShort), database.GetChatHeartbeatParams{
+		ChatID:   chat.ID,
+		RunnerID: call.input.RunnerID,
+	})
+	require.NoError(t, err)
+}
+
 func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)

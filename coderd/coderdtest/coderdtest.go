@@ -154,11 +154,14 @@ type Options struct {
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
 	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
-	ProvisionerDaemonVersion      string
-	ProvisionerDaemonTags         map[string]string
-	MetricsCacheRefreshInterval   time.Duration
-	AgentStatsRefreshInterval     time.Duration
-	DeploymentValues              *codersdk.DeploymentValues
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker. Used in tests.
+	ChatWorkerDisabled          bool
+	ProvisionerDaemonVersion    string
+	ProvisionerDaemonTags       map[string]string
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -594,6 +597,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,

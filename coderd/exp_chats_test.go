@@ -8087,14 +8087,6 @@ func TestPatchChatMessage(t *testing.T) {
 
 	t.Run("ChangesModel", func(t *testing.T) {
 		t.Parallel()
-		// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-		// refactor gives workers enough causal information to distinguish stale
-		// control NOTIFY messages from real interrupts. The current design reuses
-		// the same status notification shape for wake-only and interrupt intents,
-		// so a stale NOTIFY can cancel a new processChat run. This subtest hits the
-		// same root cause via the persistInterruptedStep ownership gate, where a
-		// late insert from the previous turn regresses chats.last_model_config_id.
-		t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		client := newChatClient(t)

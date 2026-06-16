@@ -201,6 +201,82 @@ func TestPendingChatPersistsSummaryButSkipsWebPush(t *testing.T) {
 	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
 }
 
+func TestSuccessfulChildChatOutcomeSkipsSummaryAndWebPush(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	owner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         owner.ID,
+		OrganizationID: org.ID,
+	})
+
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider:    "openai",
+		DisplayName: "OpenAI",
+		APIKey:      "test-key",
+		Enabled:     true,
+	})
+
+	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
+		AIProviderID:         uuid.NullUUID{UUID: provider.ID, Valid: true},
+		Provider:             "openai",
+		Model:                "test-model",
+		DisplayName:          "Test Model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		Enabled:              true,
+		IsDefault:            true,
+		ContextLimit:         128000,
+		CompressionThreshold: 80,
+		Options:              json.RawMessage(`{}`),
+	})
+	require.NoError(t, err)
+
+	parent, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-parent-chat",
+		MCPServerIDs:      []uuid.UUID{},
+	})
+	require.NoError(t, err)
+	child, err := db.InsertChat(ctx, database.InsertChatParams{
+		OrganizationID:    org.ID,
+		Status:            database.ChatStatusWaiting,
+		ClientType:        database.ChatClientTypeUi,
+		OwnerID:           owner.ID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: parent.ID, Valid: true},
+		LastModelConfigID: modelCfg.ID,
+		Title:             "summary-child-chat",
+		MCPServerIDs:      []uuid.UUID{},
+	})
+	require.NoError(t, err)
+
+	dispatcher := &recordingWebpushDispatcher{}
+	server := &Server{
+		db:                db,
+		pubsub:            ps,
+		logger:            slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		webpushDispatcher: dispatcher,
+	}
+	require.NoError(t, server.afterGenerationOutcome(ctx, generationOutcome{
+		Chat: child,
+		Kind: runnerActionKindFinishTurn,
+	}))
+	server.drainInflight()
+
+	fetched, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.False(t, fetched.LastTurnSummary.Valid)
+	require.Equal(t, int32(0), dispatcher.dispatchCount.Load())
+}
+
 type recordingWebpushDispatcher struct {
 	dispatchCount atomic.Int32
 }

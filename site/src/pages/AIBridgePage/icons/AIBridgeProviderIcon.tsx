@@ -25,10 +25,38 @@ export const AIBridgeProviderIcon = ({
 					className={cn(iconClassName, className)}
 				/>
 			);
+		case "google":
+			return (
+				<ExternalImage
+					src="/icon/google.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "azure":
+			return (
+				<ExternalImage
+					src="/icon/azure.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "bedrock":
+			return (
+				<ExternalImage
+					src="/icon/aws.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
 		case "copilot":
 			return (
 				<ExternalImage
 					src="/icon/github.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "vercel":
+			return (
+				<ExternalImage
+					src="/icon/vercel.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

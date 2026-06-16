@@ -465,6 +465,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"pin_order":                   ActionTrack,
 		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
 		"last_injected_context":       ActionIgnore, // Internal lifecycle.
+		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
+		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
+		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
 		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
 		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
 		"client_type":                 ActionIgnore, // Set at creation.

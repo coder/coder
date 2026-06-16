@@ -22,6 +22,15 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// withChatWorkerDisabled turns off the chat daemon's background worker
+// so every test in this file observes synchronous chatstate endpoint
+// behavior deterministically. Without it the worker races the tests:
+// it can finish a turn (running -> waiting), promote queued messages,
+// or commit steps concurrently with the driveChatTo* fixtures.
+func withChatWorkerDisabled(o *coderdtest.Options) {
+	o.ChatWorkerDisabled = true
+}
+
 // driveChatToWaiting transitions the chat from `running` (its initial
 // state per the RFC) to `waiting` by running chatstate.FinishTurn.
 // Tests use this when they need to exercise endpoint behavior that
@@ -88,7 +97,7 @@ func TestPostChatsStartsRunning(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, api := newChatClientWithAPI(t)
+	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -122,7 +131,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client, api := newChatClientWithAPI(t)
+		client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -146,7 +155,7 @@ func TestArchiveChatStateTransitions(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		client := newChatClient(t)
+		client := newChatClient(t, withChatWorkerDisabled)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
 
@@ -172,7 +181,7 @@ func TestPostChatMessagesBusyInterrupt(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -208,7 +217,7 @@ func TestDeleteChatQueuedMessageMissingReturns404(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -243,7 +252,7 @@ func TestDeleteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -271,7 +280,7 @@ func TestPromoteChatQueuedMessageMissingReturns404(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -305,7 +314,7 @@ func TestPromoteChatQueuedMessageEmptyQueueReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -334,7 +343,7 @@ func TestInterruptChatIdleReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, api := newChatClientWithAPI(t)
+	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -356,7 +365,7 @@ func TestSubmitToolResultsWrongStateReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -384,7 +393,7 @@ func TestSubmitToolResultsRequiresActionSucceeds(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, api := newChatClientWithAPI(t)
+	client, api := newChatClientWithAPI(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -436,7 +445,7 @@ func TestPatchChatArchiveChildRejected(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
@@ -486,7 +495,7 @@ func TestPatchChatUnarchiveChildRejected(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
@@ -545,7 +554,7 @@ func TestPatchChatArchiveRootRollsBackWhenChildCannotArchive(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	modelConfig := createChatModelConfig(t, client)
 
@@ -585,7 +594,7 @@ func TestPostChatMessagesInvalidStateReturnsSharedResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := newChatClientWithAPIAndDatabase(t)
+	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -618,7 +627,7 @@ func TestPostChatToolResultsInvalidStateReturnsSharedResponse(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, _, api := newChatClientWithAPIAndDatabase(t)
+	client, _, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -652,7 +661,7 @@ func TestReconcileInvalidChatStateSucceeds(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, db, api := newChatClientWithAPIAndDatabase(t)
+	client, db, api := newChatClientWithAPIAndDatabase(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -692,7 +701,7 @@ func TestReconcileInvalidChatStateNotInvalidReturnsConflict(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModelConfig(t, client)
 
@@ -715,7 +724,7 @@ func TestReconcileInvalidChatStateNotFound(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client := newChatClient(t)
+	client := newChatClient(t, withChatWorkerDisabled)
 	_ = coderdtest.CreateFirstUser(t, client.Client)
 
 	_, err := client.ReconcileInvalidChatState(ctx, uuid.New())
