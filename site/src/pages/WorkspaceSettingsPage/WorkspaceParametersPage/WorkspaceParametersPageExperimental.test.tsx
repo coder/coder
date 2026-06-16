@@ -7,13 +7,20 @@ import {
 	MockPreviewParameter1,
 	MockPreviewParameter2,
 	MockPreviewParameter4,
+	MockPreviewParameter7,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter4,
+	MockTemplateVersionParameter7,
 	MockWorkspace,
 	MockWorkspaceBuildParameter1,
 	MockWorkspaceBuildParameter4,
+	MockWorkspaceBuildParameter7,
 } from "#/testHelpers/entities";
-import { checkParameters } from "#/testHelpers/parameters";
+import {
+	checkParameters,
+	editParameters,
+	isBuildParameter,
+} from "#/testHelpers/parameters";
 import {
 	renderWithWorkspaceSettingsLayout,
 	waitForLoaderToBeRemoved,
@@ -49,7 +56,11 @@ describe("WorkspaceParametersPageExperimental", () => {
 		vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
 			MockTemplateVersionParameter1, // a mutable string
 			MockTemplateVersionParameter4, // an immutable string
+			MockTemplateVersionParameter7, // optional string
 		]);
+		vi.spyOn(API, "postWorkspaceBuild").mockRejectedValueOnce(
+			new Error("not implemented"),
+		);
 	});
 
 	afterEach(() => {
@@ -69,7 +80,11 @@ describe("WorkspaceParametersPageExperimental", () => {
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: -1,
-						parameters: [MockPreviewParameter1, MockPreviewParameter4],
+						parameters: [
+							MockPreviewParameter1,
+							MockPreviewParameter4,
+							MockPreviewParameter7,
+						],
 						diagnostics: [],
 					}),
 				}),
@@ -90,12 +105,13 @@ describe("WorkspaceParametersPageExperimental", () => {
 		const buildParameters = [
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter4,
+			MockWorkspaceBuildParameter7,
 		];
 		await act(async () => {
 			resolve(buildParameters);
 		});
 
-		// The client's init message should include the build values.
+		// The client's init message should include all the build values.
 		await waitFor(() => {
 			expect(mockPublisher.clientSentData).toHaveLength(1);
 			expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
@@ -125,6 +141,10 @@ describe("WorkspaceParametersPageExperimental", () => {
 							...MockPreviewParameter4,
 							value: { valid: true, value: MockWorkspaceBuildParameter4.value },
 						},
+						{
+							...MockPreviewParameter7,
+							value: { valid: true, value: MockWorkspaceBuildParameter7.value },
+						},
 					],
 					diagnostics: [],
 				}),
@@ -136,6 +156,7 @@ describe("WorkspaceParametersPageExperimental", () => {
 		await checkParameters(
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter4,
+			MockWorkspaceBuildParameter7,
 		);
 
 		// The submit button should be enabled.
@@ -158,7 +179,11 @@ describe("WorkspaceParametersPageExperimental", () => {
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: -1,
-						parameters: [MockPreviewParameter1, MockPreviewParameter4],
+						parameters: [
+							MockPreviewParameter1,
+							MockPreviewParameter4,
+							MockPreviewParameter7,
+						],
 						diagnostics: [],
 					}),
 				}),
@@ -183,7 +208,11 @@ describe("WorkspaceParametersPageExperimental", () => {
 		// Since there are no build values, the page is rendered with defaults and
 		// the client does not need to send anything.
 		await waitForLoaderToBeRemoved();
-		await checkParameters(MockPreviewParameter1, MockPreviewParameter4);
+		await checkParameters(
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		);
 		expect(mockPublisher.clientSentData).toHaveLength(0);
 
 		// The submit button should be enabled.
@@ -194,11 +223,16 @@ describe("WorkspaceParametersPageExperimental", () => {
 		await waitFor(() => expect(submitButton).toBeEnabled());
 	});
 
-	it("does not clobber touched parameters", async () => {
-		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([
+	it("does not clobber build parameters", async () => {
+		const buildParameters = [
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter4,
-		]);
+			MockWorkspaceBuildParameter7,
+		];
+
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce(
+			buildParameters,
+		);
 
 		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
 			publisher.publishOpen(new Event("open"));
@@ -207,7 +241,11 @@ describe("WorkspaceParametersPageExperimental", () => {
 				new MessageEvent("message", {
 					data: JSON.stringify({
 						id: -1,
-						parameters: [MockPreviewParameter1, MockPreviewParameter4],
+						parameters: [
+							MockPreviewParameter1,
+							MockPreviewParameter4,
+							MockPreviewParameter7,
+						],
 						diagnostics: [],
 					}),
 				}),
@@ -219,6 +257,14 @@ describe("WorkspaceParametersPageExperimental", () => {
 		// Wait for the client's init message then respond with different values.
 		await waitFor(() => {
 			expect(mockPublisher.clientSentData).toHaveLength(1);
+			expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
+				expect.objectContaining({
+					id: 0,
+					inputs: Object.fromEntries(
+						buildParameters.map((p) => [p.name, p.value]),
+					),
+				}),
+			);
 		});
 
 		mockPublisher.publishMessage(
@@ -227,8 +273,9 @@ describe("WorkspaceParametersPageExperimental", () => {
 					id: 0,
 					parameters: [
 						MockPreviewParameter1,
-						MockPreviewParameter2,
+						MockPreviewParameter2, // new field
 						MockPreviewParameter4,
+						MockPreviewParameter7,
 					],
 					diagnostics: [],
 				}),
@@ -241,6 +288,101 @@ describe("WorkspaceParametersPageExperimental", () => {
 		await checkParameters(
 			MockWorkspaceBuildParameter1,
 			MockWorkspaceBuildParameter4,
+			MockWorkspaceBuildParameter7,
+			MockPreviewParameter2,
+		);
+
+		// However the submit button should be disabled because the state
+		// mismatches.
+		const form = screen.getByTestId("form");
+		const submitButton = within(form).getByRole("button", {
+			name: /update and restart/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+	});
+
+	it("does not clobber edited parameters", async () => {
+		vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+
+		const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
+			publisher.publishOpen(new Event("open"));
+			// The initial message always has the default values.
+			publisher.publishMessage(
+				new MessageEvent("message", {
+					data: JSON.stringify({
+						id: -1,
+						parameters: [
+							MockPreviewParameter1,
+							MockPreviewParameter4,
+							MockPreviewParameter7,
+						],
+						diagnostics: [],
+					}),
+				}),
+			);
+		});
+
+		renderWorkspaceParametersPageExperimental();
+
+		// Page should render with the default values.
+		await waitForLoaderToBeRemoved();
+		await checkParameters(
+			MockPreviewParameter1,
+			MockPreviewParameter4,
+			MockPreviewParameter7,
+		);
+
+		// Blank out one field and fill out another.
+		const editedParameters = [
+			// Put the blank one first to ensure we are preserving blank values and
+			// not just including it the first time due to the change handler.
+			{
+				name: MockPreviewParameter1.name,
+				value: "",
+			},
+			{
+				name: MockPreviewParameter7.name,
+				value: "not-blank",
+			},
+		];
+		editParameters(...editedParameters);
+
+		// The client should now send all parameters.
+		await waitFor(() => {
+			expect(mockPublisher.clientSentData).toHaveLength(1);
+			expect(JSON.parse(mockPublisher.clientSentData[0] as string)).toEqual(
+				expect.objectContaining({
+					id: 0,
+					inputs: Object.fromEntries(
+						[...editedParameters, MockPreviewParameter4].map((p) => [
+							p.name,
+							isBuildParameter(p) ? p.value : p.value.value,
+						]),
+					),
+				}),
+			);
+		});
+
+		// Respond with different values.
+		mockPublisher.publishMessage(
+			new MessageEvent("message", {
+				data: JSON.stringify({
+					id: 0,
+					parameters: [
+						MockPreviewParameter1,
+						MockPreviewParameter2, // new field
+						MockPreviewParameter4,
+						MockPreviewParameter7,
+					],
+					diagnostics: [],
+				}),
+			}),
+		);
+
+		// The form should keep the user's values but include the new field.
+		await checkParameters(
+			...editedParameters,
+			MockPreviewParameter4,
 			MockPreviewParameter2,
 		);
 
