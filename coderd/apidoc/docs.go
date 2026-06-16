@@ -552,6 +552,9 @@ const docTemplate = `{
         "/api/experimental/chats/{chat}/context": {
             "put": {
                 "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "Chats"
                 ],

@@ -19,8 +19,10 @@ import (
 // TestChatContextDirtyFromAgentPush is an end-to-end check of the chat
 // context integration. An echo-provisioned workspace agent pushes a context
 // snapshot that hydrates a bound chat; a later push with a different hash
-// marks the chat dirty; the experimental API reports the dirty state; and the
-// refresh endpoint re-pins the latest snapshot and clears it.
+// marks the chat dirty; the experimental API reports the dirty state and the
+// snapshot error; the refresh endpoint re-pins the latest snapshot and clears
+// it; and a re-push of the now-pinned hash stays clean. A second chat bound to
+// no agent stays untouched throughout, guarding the agent-scoped queries.
 func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	t.Parallel()
 
@@ -66,10 +68,28 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		Status:            database.ChatStatusWaiting,
 	})
 
+	// An unrelated chat bound to no agent. The hydrate and dirty queries
+	// scope by agent_id, so this chat must stay untouched by every push
+	// below; it guards against the scoping clause silently breaking.
+	otherChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    user.OrganizationID,
+		OwnerID:           user.UserID,
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+
 	// Before any push there is no pinned context.
 	got, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.Nil(t, got.Context, "no pinned context before the first push")
+
+	requireChatContextNil := func(id uuid.UUID, msg string) {
+		t.Helper()
+		unrelated, err := expClient.GetChat(ctx, id)
+		require.NoError(t, err)
+		require.Nil(t, unrelated.Context, msg)
+	}
+	requireChatContextNil(otherChat.ID, "agent-less chat has no pinned context")
 
 	// Connect as the agent and push the initial snapshot. The push runs the
 	// hydrate/dirty fan-out synchronously inside its transaction, so the chat
@@ -95,12 +115,15 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "initial hydration is clean")
 	require.Nil(t, got.Context.DirtySince)
 
-	// The agent refreshes its context and pushes a different hash, which
-	// drifts from the pinned hash and marks the chat dirty.
+	// The agent refreshes its context and pushes a different hash carrying a
+	// snapshot-level error, which drifts from the pinned hash and marks the
+	// chat dirty.
 	hashB := []byte{0x04, 0x05, 0x06}
+	const snapshotError = "two sources failed to resolve"
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       2,
 		AggregateHash: hashB,
+		SnapshotError: snapshotError,
 	})
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
@@ -110,15 +133,32 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.True(t, got.Context.Dirty, "drift should mark the chat dirty")
 	require.NotNil(t, got.Context.DirtySince)
+	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
-	// Refreshing re-pins the latest snapshot and clears the dirty marker.
+	// Refreshing re-pins the latest snapshot (hash and error) and clears the
+	// dirty marker.
 	refreshed, err := expClient.RefreshChatContext(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, refreshed.Context)
 	require.False(t, refreshed.Context.Dirty, "refresh clears the dirty marker")
+	require.Equal(t, snapshotError, refreshed.Context.Error, "refresh re-pins the snapshot error")
 
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
 	require.False(t, got.Context.Dirty)
+
+	// Re-pushing the now-pinned hash proves the refresh advanced the pin to
+	// hashB: a matching hash must not re-dirty the chat.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       3,
+		AggregateHash: hashB,
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	got, err = expClient.GetChat(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.Context)
+	require.False(t, got.Context.Dirty, "re-push of the pinned hash stays clean")
 }

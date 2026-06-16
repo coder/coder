@@ -2625,6 +2625,7 @@ func (api *API) applyChatTitleUpdate(
 // @ID refresh-chat-context
 // @Security CoderSessionToken
 // @Tags Chats
+// @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
 // @Router /api/experimental/chats/{chat}/context [put]
