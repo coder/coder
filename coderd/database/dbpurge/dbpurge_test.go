@@ -1775,7 +1775,7 @@ func TestDeleteOldBoundaryLogs(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
@@ -1915,7 +1915,7 @@ func TestDeleteOldBoundarySessions(t *testing.T) {
 			done := awaitDoTick(ctx, t, clk)
 			closer := dbpurge.New(ctx, logger, db, &codersdk.DeploymentValues{
 				Retention: tc.retentionConfig,
-			}, prometheus.NewRegistry(), nopAuditorPtr(t), dbpurge.WithClock(clk))
+			}, prometheus.NewRegistry(), dbpurge.WithClock(clk))
 			defer closer.Close()
 			testutil.TryReceive(ctx, t, done)
 
