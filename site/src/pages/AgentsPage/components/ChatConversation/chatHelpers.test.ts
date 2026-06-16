@@ -14,15 +14,6 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Minimal ChatMessage factory – only required fields. */
-const makeMessage = (
-	overrides: Partial<TypesGen.ChatMessage> = {},
-): TypesGen.ChatMessage => ({
-	...MockChatMessage,
-	role: "assistant",
-	...overrides,
-});
-
 const makeOption = (
 	id: string,
 	provider: string,
@@ -40,11 +31,11 @@ const makeOption = (
 
 describe("extractContextUsageFromMessage", () => {
 	it("returns null when the message has no usage fields", () => {
-		expect(extractContextUsageFromMessage(makeMessage())).toBeNull();
+		expect(extractContextUsageFromMessage(MockChatMessage)).toBeNull();
 	});
 
 	it("returns usage when input_tokens is present", () => {
-		const msg = makeMessage({ usage: { input_tokens: 100 } });
+		const msg = { ...MockChatMessage, usage: { input_tokens: 100 } };
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.inputTokens).toBe(100);
@@ -52,7 +43,7 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("returns usage when output_tokens is present", () => {
-		const msg = makeMessage({ usage: { output_tokens: 50 } });
+		const msg = { ...MockChatMessage, usage: { output_tokens: 50 } };
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.outputTokens).toBe(50);
@@ -60,7 +51,8 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("sums all token components into usedTokens", () => {
-		const msg = makeMessage({
+		const msg = {
+			...MockChatMessage,
 			usage: {
 				input_tokens: 10,
 				output_tokens: 20,
@@ -68,7 +60,7 @@ describe("extractContextUsageFromMessage", () => {
 				cache_creation_tokens: 3,
 				cache_read_tokens: 2,
 			},
-		});
+		};
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.usedTokens).toBe(10 + 20 + 5 + 3 + 2);
@@ -80,14 +72,14 @@ describe("extractContextUsageFromMessage", () => {
 	});
 
 	it("includes contextLimitTokens when context_limit is set", () => {
-		const msg = makeMessage({ usage: { context_limit: 128000 } });
+		const msg = { ...MockChatMessage, usage: { context_limit: 128000 } };
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.contextLimitTokens).toBe(128000);
 	});
 
 	it("returns usage with only contextLimitTokens and no usedTokens", () => {
-		const msg = makeMessage({ usage: { context_limit: 4096 } });
+		const msg = { ...MockChatMessage, usage: { context_limit: 4096 } };
 		const result = extractContextUsageFromMessage(msg);
 		expect(result).not.toBeNull();
 		expect(result!.usedTokens).toBeUndefined();
@@ -105,15 +97,15 @@ describe("getLatestContextUsage", () => {
 	});
 
 	it("returns null when no messages have usage data", () => {
-		const messages = [makeMessage(), makeMessage({ id: 2 })];
+		const messages = [MockChatMessage, { ...MockChatMessage, id: 2 }];
 		expect(getLatestContextUsage(messages)).toBeNull();
 	});
 
 	it("returns usage from the last message with usage data", () => {
 		const messages = [
-			makeMessage({ id: 1, usage: { input_tokens: 100 } }),
-			makeMessage({ id: 2 }),
-			makeMessage({ id: 3, usage: { input_tokens: 300 } }),
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 100 } },
+			{ ...MockChatMessage, id: 2 },
+			{ ...MockChatMessage, id: 3, usage: { input_tokens: 300 } },
 		];
 		const result = getLatestContextUsage(messages);
 		expect(result).not.toBeNull();
@@ -122,9 +114,9 @@ describe("getLatestContextUsage", () => {
 
 	it("skips trailing messages without usage and finds the latest one", () => {
 		const messages = [
-			makeMessage({ id: 1, usage: { input_tokens: 50 } }),
-			makeMessage({ id: 2, usage: { input_tokens: 200 } }),
-			makeMessage({ id: 3 }),
+			{ ...MockChatMessage, id: 1, usage: { input_tokens: 50 } },
+			{ ...MockChatMessage, id: 2, usage: { input_tokens: 200 } },
+			{ ...MockChatMessage, id: 3 },
 		];
 		const result = getLatestContextUsage(messages);
 		expect(result).not.toBeNull();
