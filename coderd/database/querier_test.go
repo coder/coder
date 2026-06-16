@@ -8524,6 +8524,135 @@ func TestUpdateWorkspaceBuildOrchestrationRetryByIDMaxAttempts(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows)
 }
 
+func TestUpdateWorkspaceBuildOrchestrationRetryByIDPendingGateUnderContention(t *testing.T) {
+	t.Parallel()
+
+	db, _, _ := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	versionJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeTemplateVersionImport,
+	})
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		JobID:          versionJob.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: version.ID,
+		CreatedBy:       user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     template.ID,
+	})
+	buildJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: org.ID,
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	parentBuild := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: version.ID,
+		InitiatorID:       user.ID,
+		JobID:             buildJob.ID,
+		Transition:        database.WorkspaceTransitionStop,
+	})
+
+	// Given: a pending orchestration row.
+	now := dbtime.Now()
+	orchestration, err := db.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
+		ID:                       uuid.New(),
+		CreatedAt:                now,
+		UpdatedAt:                now,
+		ParentBuildID:            parentBuild.ID,
+		ChildTransition:          database.WorkspaceTransitionStart,
+		ChildRichParameterValues: json.RawMessage("[]"),
+	})
+	require.NoError(t, err)
+
+	const retryError = "some retryable child build failure"
+	type retryResult struct {
+		orchestration database.WorkspaceBuildOrchestration
+		err           error
+	}
+	firstUpdated := make(chan retryResult, 1)
+	releaseFirst := make(chan struct{})
+	firstErr := make(chan error, 1)
+	secondStarted := make(chan struct{}, 1)
+	secondErr := make(chan error, 1)
+	secondDone := make(chan struct{})
+
+	// When: one retry update terminalizes the row while another
+	// worker races to retry the same pending row.
+	go func() {
+		err := db.InTx(func(tx database.Store) error {
+			got, err := tx.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+				Error: sql.NullString{
+					String: retryError,
+					Valid:  true,
+				},
+				NextRetryAfter: dbtime.Now().Add(time.Minute),
+				UpdatedAt:      dbtime.Now(),
+				ID:             orchestration.ID,
+				// Use a single allowed retry so the winning update
+				// immediately terminalizes the row.
+				MaxAttemptCount: 1,
+			})
+			if err != nil {
+				firstUpdated <- retryResult{err: err}
+				return err
+			}
+			firstUpdated <- retryResult{orchestration: got}
+			<-releaseFirst
+			return nil
+		}, nil)
+		firstErr <- err
+	}()
+
+	firstResult := <-firstUpdated
+	require.NoError(t, firstResult.err)
+
+	go func() {
+		secondStarted <- struct{}{}
+		_, err := db.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+			Error: sql.NullString{
+				String: retryError,
+				Valid:  true,
+			},
+			NextRetryAfter:  dbtime.Now().Add(time.Minute),
+			UpdatedAt:       dbtime.Now(),
+			ID:              orchestration.ID,
+			MaxAttemptCount: 1,
+		})
+		secondErr <- err
+		close(secondDone)
+	}()
+
+	<-secondStarted
+	// Then: while the first transaction is held open, the second
+	// update does not complete.
+	require.Never(t, func() bool {
+		select {
+		case <-secondDone:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, testutil.IntervalFast)
+
+	close(releaseFirst)
+	require.NoError(t, <-firstErr)
+
+	// Then: after the first transaction commits the failed status, the
+	// second update rechecks the pending gate and affects no rows.
+	require.ErrorIs(t, <-secondErr, sql.ErrNoRows)
+}
+
 func TestGetNextPendingWorkspaceBuildOrchestrationForUpdateRetryDelay(t *testing.T) {
 	t.Parallel()
 
