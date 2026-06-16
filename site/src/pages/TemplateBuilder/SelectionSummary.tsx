@@ -1,10 +1,10 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { XIcon } from "lucide-react";
 import { createContext, type PropsWithChildren, useContext } from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
 
-type Variant = VariantProps<typeof stepDividerVariants>["variant"];
+type Variant = "complete" | "current" | "upcoming" | null | undefined;
 
 const VariantContext = createContext<Variant>(null);
 
