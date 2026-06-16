@@ -2,44 +2,49 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { withCardSurface } from "#/testHelpers/storybook";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
-import { makeModelSelectorOption } from "./modelSelectorFixtures";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const openAIModels: ModelSelectorOption[] = [
-	makeModelSelectorOption({
+	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
 		contextLimit: 128_000,
-	}),
-	makeModelSelectorOption({
+	},
+	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o-mini",
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o Mini",
 		contextLimit: 128_000,
-	}),
-	makeModelSelectorOption({
+	},
+	{
+		...MockModelSelectorOption,
 		id: "openai/o3-mini",
 		model: "o3-mini",
 		displayName: "o3-mini",
 		contextLimit: 200_000,
-	}),
+	},
 ];
 
 const anthropicModels: ModelSelectorOption[] = [
-	makeModelSelectorOption({
+	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-sonnet-4",
 		provider: "anthropic",
 		model: "claude-sonnet-4-20250514",
 		displayName: "Claude Sonnet 4",
 		contextLimit: 200_000,
-	}),
-	makeModelSelectorOption({
+	},
+	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-haiku-3.5",
 		provider: "anthropic",
 		model: "claude-3-5-haiku-20241022",
 		displayName: "Claude 3.5 Haiku",
 		contextLimit: 200_000,
-	}),
+	},
 ];
 
 const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];

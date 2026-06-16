@@ -1,9 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
-import { makeModelSelectorOption } from "./modelSelectorFixtures";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const mockModelOptions: readonly ModelSelectorOption[] = [
-	makeModelSelectorOption({ model: "gpt-4o-mini", displayName: "GPT-4o mini" }),
+	{
+		...MockModelSelectorOption,
+		id: "gpt-4o-mini",
+		model: "gpt-4o-mini",
+		displayName: "GPT-4o mini",
+	},
 ];
 
 test("suppresses mouse-focus ring but keeps keyboard-focus ring on model selector trigger", () => {
