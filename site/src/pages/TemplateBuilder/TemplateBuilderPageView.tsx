@@ -1,6 +1,8 @@
 import { type FC, useReducer, useState } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery } from "react-query";
+import { useNavigate } from "react-router";
 import {
+	createTemplateFromBuilder,
 	templateBuilderBases,
 	templateBuilderModules,
 } from "#/api/queries/templateBuilder";
@@ -13,6 +15,7 @@ import {
 	PageHeaderSubtitle,
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
+import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { docs } from "#/utils/docs";
 import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
 import {
@@ -31,7 +34,12 @@ import {
 	nearestVisible,
 	WIZARD_STEPS,
 } from "./steps";
-import { initialWizardState, wizardReducer } from "./wizardState";
+import { TemplateCustomizationsStep } from "./TemplateCustomizationsStep";
+import {
+	initialWizardState,
+	toCreateTemplateRequest,
+	wizardReducer,
+} from "./wizardState";
 
 interface TemplateBuilderPageViewProps {
 	error: unknown;
@@ -40,6 +48,8 @@ interface TemplateBuilderPageViewProps {
 export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	error,
 }) => {
+	const navigate = useNavigate();
+	const getLink = useLinks();
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
 	const basesQuery = useQuery(templateBuilderBases());
@@ -56,6 +66,8 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const isFirstStep = prevIndex === -1;
 	const isLastStep = nextIndex === -1;
 
+	const createMutation = useMutation(createTemplateFromBuilder());
+
 	const canContinue =
 		currentStep.id === "base-parameters"
 			? baseParametersComplete(
@@ -69,7 +81,9 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 						state.modules.map((m) => m.id),
 						moduleVarMap,
 					)
-				: true;
+				: currentStep.id === "customizations"
+					? state.name.trim() !== ""
+					: true;
 
 	const handleBack = () => {
 		setStepIndex(prevIndex);
@@ -77,7 +91,16 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 
 	const handleNext = () => {
 		if (isLastStep) {
-			// Compose will be wired in a follow-up issue.
+			const req = toCreateTemplateRequest(state);
+			createMutation.mutate(req, {
+				onSuccess: (resp) => {
+					const t = resp.template;
+					navigate(
+						`${getLink(linkToTemplate(t.organization_name, t.name))}/files`,
+						{ state: { justCreated: true } },
+					);
+				},
+			});
 			return;
 		}
 		setStepIndex(nextIndex);
@@ -142,6 +165,18 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								dispatch({ type: "SET_MODULE_VARIABLES", moduleId, variables })
 							}
 						/>
+					) : currentStep.id === "customizations" ? (
+						<>
+							{createMutation.error != null && (
+								<ErrorAlert error={createMutation.error} />
+							)}
+							<TemplateCustomizationsStep
+								state={state}
+								onChangeField={(field, value) =>
+									dispatch({ type: "SET_CUSTOMIZATION", field, value })
+								}
+							/>
+						</>
 					) : (
 						<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
 							<p className="text-sm text-content-secondary">
@@ -159,8 +194,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext} disabled={!canContinue}>
-							{isLastStep ? "Create Template" : "Continue"}
+						<Button
+							onClick={handleNext}
+							disabled={!canContinue || createMutation.isPending}
+						>
+							{createMutation.isPending
+								? "Creating..."
+								: isLastStep
+									? "Create Template"
+									: "Continue"}
 						</Button>
 					</div>
 				</div>

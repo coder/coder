@@ -2495,6 +2495,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	createTemplateFromBuilder = async (
+		req: TypesGen.TemplateBuilderCreateTemplateRequest,
+	): Promise<TypesGen.TemplateBuilderCreateTemplateResponse> => {
+		const response = await this.axios.post(
+			"/api/v2/templatebuilder/compose/template",
+			req,
+		);
+		return response.data;
+	};
+
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
 			headers: { "Content-Type": file.type },
