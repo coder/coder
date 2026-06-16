@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { makeQueuedMessage } from "#/testHelpers/chatEntities";
 import { QueuedMessagesList } from "./QueuedMessagesList";
 
 // Helper to build a ChatQueuedMessage with minimal boilerplate.
@@ -8,12 +9,7 @@ function makeMessage(
 	id: number,
 	content: ChatQueuedMessage["content"],
 ): ChatQueuedMessage {
-	return {
-		id,
-		chat_id: "test-chat-id",
-		content,
-		created_at: new Date().toISOString(),
-	};
+	return makeQueuedMessage({ id, content });
 }
 
 const meta: Meta<typeof QueuedMessagesList> = {

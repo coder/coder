@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { makeChatMessage } from "#/testHelpers/chatEntities";
 import type { ModelSelectorOption } from "../ChatElements";
 import {
 	extractContextUsageFromMessage,
@@ -16,14 +17,7 @@ import {
 /** Minimal ChatMessage factory – only required fields. */
 const makeMessage = (
 	overrides: Partial<TypesGen.ChatMessage> = {},
-): TypesGen.ChatMessage =>
-	({
-		id: 1,
-		chat_id: "chat-1",
-		created_at: "2025-01-01T00:00:00Z",
-		role: "assistant",
-		...overrides,
-	}) as TypesGen.ChatMessage;
+): TypesGen.ChatMessage => makeChatMessage({ role: "assistant", ...overrides });
 
 const makeOption = (
 	id: string,

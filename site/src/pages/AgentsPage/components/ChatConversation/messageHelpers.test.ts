@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { makeChatMessage } from "#/testHelpers/chatEntities";
 import {
 	buildDisplayMessages,
 	deriveMessageDisplayState,
@@ -17,13 +18,7 @@ import type {
 const buildMessage = (
 	content: TypesGen.ChatMessagePart[],
 	role: "user" | "assistant" = "user",
-): TypesGen.ChatMessage => ({
-	id: 1,
-	chat_id: "chat-1",
-	created_at: "2026-05-11T00:00:00.000Z",
-	role,
-	content,
-});
+): TypesGen.ChatMessage => makeChatMessage({ content, role });
 
 const getDisplayState = (
 	message: TypesGen.ChatMessage,

@@ -1,15 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { makeQueuedMessage } from "#/testHelpers/chatEntities";
 import { getQueuedMessageInfo } from "./QueuedMessagesList";
 
 const makeMessage = (
 	content: ChatQueuedMessage["content"],
-): ChatQueuedMessage => ({
-	id: 1,
-	chat_id: "c",
-	content,
-	created_at: "",
-});
+): ChatQueuedMessage => makeQueuedMessage({ content });
 
 describe("getQueuedMessageInfo", () => {
 	it("returns text for a text-only message", () => {

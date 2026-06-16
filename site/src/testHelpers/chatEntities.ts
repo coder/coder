@@ -1,4 +1,9 @@
-import type { Chat, MCPServerConfig } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatMessage,
+	ChatQueuedMessage,
+	MCPServerConfig,
+} from "#/api/typesGenerated";
 import { MockUserOwner } from "./entities";
 
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
@@ -61,5 +66,37 @@ export const makeMCPServerConfig = (
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	auth_connected: false,
+	...overrides,
+});
+
+/**
+ * Builds a ChatMessage for tests and stories. Defaults to a user text message
+ * with a fixed timestamp; pass overrides for the fields a case cares about.
+ * Pass created_at when a case needs relative ordering rather than relying on
+ * the shared default.
+ */
+export const makeChatMessage = (
+	overrides: Partial<ChatMessage> = {},
+): ChatMessage => ({
+	id: 1,
+	chat_id: "chat-1",
+	created_at: MOCK_TIMESTAMP,
+	role: "user",
+	content: [{ type: "text", text: "Hello" }],
+	...overrides,
+});
+
+/**
+ * Builds a ChatQueuedMessage for tests and stories. Defaults to a single text
+ * part with a fixed timestamp; pass overrides for the fields a case cares
+ * about.
+ */
+export const makeQueuedMessage = (
+	overrides: Partial<ChatQueuedMessage> = {},
+): ChatQueuedMessage => ({
+	id: 1,
+	chat_id: "chat-1",
+	content: [{ type: "text", text: "Queued message" }],
+	created_at: MOCK_TIMESTAMP,
 	...overrides,
 });
