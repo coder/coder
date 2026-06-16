@@ -9,8 +9,10 @@ import { Button } from "#/components/Button/Button";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Form, FormFields } from "#/components/Form/Form";
 import { FormField } from "#/components/FormField/FormField";
+import { Link as DocsLink } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
+import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import { CredentialField } from "./CredentialField";
 
@@ -131,9 +133,6 @@ const credentialFilled = (value: string | undefined): boolean => {
 
 const BEDROCK_ACCESS_KEY_PAIRED_MESSAGE =
 	"Enter both access key and secret, or leave both blank to use AWS environment credentials.";
-
-const BEDROCK_ACCESS_KEY_DESCRIPTION =
-	"Optional. Leave both fields blank to authenticate with the AWS environment (IAM role, instance profile, AWS_PROFILE).";
 
 // Bedrock access keys are optional: when both are blank the server
 // falls back to ambient AWS credentials (IAM role, AWS_PROFILE, IRSA,
@@ -491,7 +490,16 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							/>
 						</div>
 						<p className="text-xs text-content-secondary m-0">
-							{BEDROCK_ACCESS_KEY_DESCRIPTION}
+							Optional. Leave both fields blank to authenticate with the AWS
+							environment (IAM role, instance profile, AWS_PROFILE).{" "}
+							<DocsLink
+								size="sm"
+								href={docs("/ai-coder/ai-gateway/providers#amazon-bedrock")}
+								target="_blank"
+								rel="noreferrer"
+							>
+								View docs
+							</DocsLink>
 						</p>
 					</>
 				)}
