@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { Tool } from "./Tool";
 
 const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
@@ -8,7 +7,6 @@ const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
 const meta: Meta<typeof Tool> = {
 	title: "components/ai-elements/tool/ProcessKilledIndicator",
 	component: Tool,
-	decorators: [withCardSurface()],
 };
 export default meta;
 type Story = StoryObj<typeof Tool>;

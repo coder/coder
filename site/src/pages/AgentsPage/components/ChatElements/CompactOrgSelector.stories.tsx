@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import type { Organization } from "#/api/typesGenerated";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { CompactOrgSelector } from "./CompactOrgSelector";
 
 const mockOrgs: Organization[] = [
@@ -43,7 +42,6 @@ const mockOrgs: Organization[] = [
 const meta: Meta<typeof CompactOrgSelector> = {
 	title: "pages/AgentsPage/ChatElements/CompactOrgSelector",
 	component: CompactOrgSelector,
-	decorators: [withCardSurface("w-72")],
 	args: {
 		options: mockOrgs,
 		value: mockOrgs[0],

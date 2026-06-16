@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, spyOn, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type { ProvisionerJobLog } from "#/api/typesGenerated";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -45,7 +44,6 @@ const meta: Meta<typeof WorkspaceBuildLogSection> = {
 				<Story />
 			</ChatWorkspaceContext>
 		),
-		withCardSurface(),
 	],
 };
 

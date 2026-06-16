@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { ExecuteTool } from "./ExecuteTool";
 
 const longCommand =
@@ -12,7 +11,6 @@ const stoppedWorkspaceError =
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
 	component: ExecuteTool,
-	decorators: [withCardSurface()],
 	args: {
 		status: "completed",
 		isError: false,

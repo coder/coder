@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, spyOn, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { getPathBasename } from "../../../utils/path";
 import { Tool } from "./Tool";
 
@@ -44,7 +43,6 @@ const defaultPlanFilename = getPathBasename(defaultPlanPath) || "PLAN.md";
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/ProposePlan",
 	component: Tool,
-	decorators: [withCardSurface()],
 	args: { name: "propose_plan" },
 	parameters: {
 		reactRouter: reactRouterParameters({ routing: { path: "/" } }),

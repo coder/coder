@@ -183,21 +183,6 @@ export const withToaster = (Story: FC) => (
 	</>
 );
 
-/**
- * Wraps a story in the bordered card surface used to preview chat elements in
- * isolation. Pass a Tailwind width class when a story needs a narrower or
- * wider frame than the default.
- */
-export const withCardSurface =
-	(widthClass = "max-w-3xl") =>
-	(Story: FC) => (
-		<div
-			className={`${widthClass} rounded-lg border border-solid border-border-default bg-surface-primary p-4`}
-		>
-			<Story />
-		</div>
-	);
-
 export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
 		<OrganizationSettingsContext.Provider

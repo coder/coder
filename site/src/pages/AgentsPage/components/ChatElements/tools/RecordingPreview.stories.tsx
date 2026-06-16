@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { RecordingPreview } from "./RecordingPreview";
 
 // Static assets stored in site/.storybook/static/.
@@ -10,7 +9,6 @@ const TINY_THUMBNAIL = "/tiny-thumbnail.png";
 const meta: Meta<typeof RecordingPreview> = {
 	title: "pages/AgentsPage/ChatElements/tools/RecordingPreview",
 	component: RecordingPreview,
-	decorators: [withCardSurface()],
 };
 
 export default meta;

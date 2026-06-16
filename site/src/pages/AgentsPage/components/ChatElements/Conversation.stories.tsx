@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { withCardSurface } from "#/testHelpers/storybook";
 import { Conversation, ConversationItem } from "./Conversation";
 import { Message, MessageContent } from "./Message";
 import { Shimmer } from "./Shimmer";
@@ -7,7 +6,6 @@ import { Shimmer } from "./Shimmer";
 const meta: Meta<typeof Conversation> = {
 	title: "pages/AgentsPage/ChatElements/Conversation",
 	component: Conversation,
-	decorators: [withCardSurface()],
 };
 
 export default meta;
