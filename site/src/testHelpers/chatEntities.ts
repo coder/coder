@@ -6,7 +6,7 @@ import type {
 } from "#/api/typesGenerated";
 import { MockUserOwner } from "./entities";
 
-const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
+export const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
 export const MockChat: Chat = {
 	id: "chat-1",

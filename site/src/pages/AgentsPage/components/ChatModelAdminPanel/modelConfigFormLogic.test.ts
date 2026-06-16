@@ -78,7 +78,6 @@ function deepGet(obj: unknown, path: string[]): unknown {
 	return current;
 }
 
-/** Minimal ChatModelConfig with no model_config. */
 const baseChatModelConfig: TypesGen.ChatModelConfig = {
 	...MockChatModelConfig,
 	id: "test-id",

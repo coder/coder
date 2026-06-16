@@ -104,7 +104,7 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 	exploreDisabledModelConfig,
 ];
 
-const makeArgs = (
+const buildArgs = (
 	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
 ): AgentSettingsAgentsPageViewProps => ({
 	adminOverridesData: { allow_users: false },
@@ -164,14 +164,14 @@ const selectModelInSection = async (
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsAgentsPageView",
 	component: AgentSettingsAgentsPageView,
-	args: makeArgs(),
+	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsAgentsPageView>;
 
 export default meta;
 type Story = StoryObj<typeof AgentSettingsAgentsPageView>;
 
 export const AllOverridesUnset: Story = {
-	args: makeArgs(),
+	args: buildArgs(),
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByText("Agents");
@@ -211,7 +211,7 @@ export const AllOverridesUnset: Story = {
 };
 
 export const PersonalOverridesDisabled: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		adminOverridesData: { allow_users: false },
 	}),
 	play: async ({ canvasElement }) => {
@@ -225,7 +225,7 @@ export const PersonalOverridesDisabled: Story = {
 };
 
 export const PersonalOverridesEnabled: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		adminOverridesData: { allow_users: true },
 	}),
 	play: async ({ canvasElement }) => {
@@ -239,7 +239,7 @@ export const PersonalOverridesEnabled: Story = {
 };
 
 export const PersonalOverridesLoadError: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		adminOverridesData: undefined,
 		adminOverridesError: new Error("Failed to load personal model overrides."),
 	}),
@@ -256,7 +256,7 @@ export const PersonalOverridesLoadError: Story = {
 };
 
 export const EachOverrideSetToEnabledModel: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalModelConfig.id,
 		}),
@@ -351,7 +351,7 @@ export const EachOverrideSetToEnabledModel: Story = {
 };
 
 export const MalformedOverridesRemainClearableAndSaveable: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		generalModelOverrideData: buildOverrideData("general", {
 			is_malformed: true,
 		}),
@@ -422,7 +422,7 @@ export const MalformedOverridesRemainClearableAndSaveable: Story = {
 };
 
 export const UnavailableSavedModels: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		generalModelOverrideData: buildOverrideData("general", {
 			model_config_id: generalDisabledModelConfig.id,
 		}),

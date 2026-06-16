@@ -680,7 +680,7 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 
 const now = "2026-03-19T12:00:00.000Z";
 
-const makeMCPServer = (
+const buildMCPServer = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
@@ -690,7 +690,7 @@ const makeMCPServer = (
 	...overrides,
 });
 
-const sentryMCP = makeMCPServer({
+const sentryMCP = buildMCPServer({
 	id: "mcp-sentry",
 	display_name: "Sentry",
 	slug: "sentry",
@@ -701,7 +701,7 @@ const sentryMCP = makeMCPServer({
 	enabled: true,
 });
 
-const linearMCP = makeMCPServer({
+const linearMCP = buildMCPServer({
 	id: "mcp-linear",
 	display_name: "Linear",
 	slug: "linear",
@@ -710,7 +710,7 @@ const linearMCP = makeMCPServer({
 	enabled: true,
 });
 
-const githubMCP = makeMCPServer({
+const githubMCP = buildMCPServer({
 	id: "mcp-github",
 	display_name: "GitHub",
 	slug: "github",
@@ -1088,7 +1088,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 };
 
-const confluenceMCP = makeMCPServer({
+const confluenceMCP = buildMCPServer({
 	id: "mcp-confluence",
 	display_name: "Confluence Cloud",
 	slug: "confluence",
@@ -1097,7 +1097,7 @@ const confluenceMCP = makeMCPServer({
 	enabled: true,
 });
 
-const datadogMCP = makeMCPServer({
+const datadogMCP = buildMCPServer({
 	id: "mcp-datadog",
 	display_name: "Datadog Monitoring",
 	slug: "datadog",
@@ -1106,7 +1106,7 @@ const datadogMCP = makeMCPServer({
 	enabled: true,
 });
 
-const pagerdutyMCP = makeMCPServer({
+const pagerdutyMCP = buildMCPServer({
 	id: "mcp-pagerduty",
 	display_name: "PagerDuty",
 	slug: "pagerduty",

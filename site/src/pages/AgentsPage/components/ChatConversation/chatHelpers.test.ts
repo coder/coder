@@ -14,7 +14,7 @@ import {
 // Helpers
 // ---------------------------------------------------------------------------
 
-const makeOption = (
+const buildOption = (
 	id: string,
 	provider: string,
 	model: string,
@@ -172,8 +172,8 @@ describe("getParentChatID", () => {
 
 describe("resolveModelFromChatConfig", () => {
 	const options: ModelSelectorOption[] = [
-		makeOption("openai:gpt-4", "openai", "gpt-4"),
-		makeOption("anthropic:claude-3", "anthropic", "claude-3"),
+		buildOption("openai:gpt-4", "openai", "gpt-4"),
+		buildOption("anthropic:claude-3", "anthropic", "claude-3"),
 	];
 
 	it("returns empty string when no model options exist", () => {
@@ -202,7 +202,7 @@ describe("resolveModelFromChatConfig", () => {
 		// Neither `model` nor `provider:model` match an option id,
 		// so the function falls through to matching option.model.
 		const altOptions: ModelSelectorOption[] = [
-			makeOption("custom-id-1", "openai", "gpt-4"),
+			buildOption("custom-id-1", "openai", "gpt-4"),
 		];
 		const config = { model: "gpt-4", provider: "openai" };
 		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
@@ -210,7 +210,7 @@ describe("resolveModelFromChatConfig", () => {
 
 	it("falls back to model field match ignoring provider when provider is absent", () => {
 		const altOptions: ModelSelectorOption[] = [
-			makeOption("custom-id-1", "openai", "gpt-4"),
+			buildOption("custom-id-1", "openai", "gpt-4"),
 		];
 		const config = { model: "gpt-4" };
 		expect(resolveModelFromChatConfig(config, altOptions)).toBe("custom-id-1");
@@ -218,8 +218,8 @@ describe("resolveModelFromChatConfig", () => {
 
 	it("respects provider when matching on option.model", () => {
 		const altOptions: ModelSelectorOption[] = [
-			makeOption("id-a", "azure", "gpt-4"),
-			makeOption("id-b", "openai", "gpt-4"),
+			buildOption("id-a", "azure", "gpt-4"),
+			buildOption("id-b", "openai", "gpt-4"),
 		];
 		const config = { model: "gpt-4", provider: "openai" };
 		expect(resolveModelFromChatConfig(config, altOptions)).toBe("id-b");
@@ -240,10 +240,10 @@ describe("resolveModelFromChatConfig", () => {
 // ---------------------------------------------------------------------------
 
 describe("getWorkspaceAgent", () => {
-	const makeAgent = (id: string): TypesGen.WorkspaceAgent =>
+	const buildAgent = (id: string): TypesGen.WorkspaceAgent =>
 		({ id, name: `agent-${id}` }) as TypesGen.WorkspaceAgent;
 
-	const makeWorkspace = (
+	const buildWorkspace = (
 		agents: TypesGen.WorkspaceAgent[],
 	): TypesGen.Workspace =>
 		({
@@ -257,26 +257,26 @@ describe("getWorkspaceAgent", () => {
 	});
 
 	it("returns undefined when there are no agents", () => {
-		const ws = makeWorkspace([]);
+		const ws = buildWorkspace([]);
 		expect(getWorkspaceAgent(ws, "agent-1")).toBeUndefined();
 	});
 
 	it("returns the matching agent by id", () => {
-		const ws = makeWorkspace([makeAgent("a1"), makeAgent("a2")]);
+		const ws = buildWorkspace([buildAgent("a1"), buildAgent("a2")]);
 		expect(getWorkspaceAgent(ws, "a2")).toEqual(
 			expect.objectContaining({ id: "a2" }),
 		);
 	});
 
 	it("returns the first agent when workspaceAgentId does not match", () => {
-		const ws = makeWorkspace([makeAgent("a1"), makeAgent("a2")]);
+		const ws = buildWorkspace([buildAgent("a1"), buildAgent("a2")]);
 		expect(getWorkspaceAgent(ws, "no-match")).toEqual(
 			expect.objectContaining({ id: "a1" }),
 		);
 	});
 
 	it("returns the first agent when workspaceAgentId is undefined", () => {
-		const ws = makeWorkspace([makeAgent("a1")]);
+		const ws = buildWorkspace([buildAgent("a1")]);
 		expect(getWorkspaceAgent(ws, undefined)).toEqual(
 			expect.objectContaining({ id: "a1" }),
 		);
@@ -286,8 +286,8 @@ describe("getWorkspaceAgent", () => {
 		const ws = {
 			latest_build: {
 				resources: [
-					{ agents: [makeAgent("r1-a1")] },
-					{ agents: [makeAgent("r2-a1")] },
+					{ agents: [buildAgent("r1-a1")] },
+					{ agents: [buildAgent("r2-a1")] },
 				],
 			},
 		} as unknown as TypesGen.Workspace;
@@ -299,7 +299,7 @@ describe("getWorkspaceAgent", () => {
 	it("handles resources with no agents array", () => {
 		const ws = {
 			latest_build: {
-				resources: [{ agents: undefined }, { agents: [makeAgent("a1")] }],
+				resources: [{ agents: undefined }, { agents: [buildAgent("a1")] }],
 			},
 		} as unknown as TypesGen.Workspace;
 		expect(getWorkspaceAgent(ws, "a1")).toEqual(

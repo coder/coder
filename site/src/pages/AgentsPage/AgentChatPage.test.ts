@@ -210,7 +210,7 @@ describe("restoreOptimisticRequestSnapshot", () => {
 });
 
 describe("runPromoteQueuedMessage", () => {
-	const makeQueuedMessage = (
+	const buildQueuedMessage = (
 		id: number,
 		text: string,
 		chatID = "chat-1",
@@ -223,9 +223,9 @@ describe("runPromoteQueuedMessage", () => {
 
 	it("suppresses the promoted ID and removes it optimistically", async () => {
 		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
 		store.setQueuedMessages([a, b, c]);
 		store.setChatStatus("running");
 
@@ -252,8 +252,8 @@ describe("runPromoteQueuedMessage", () => {
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
 		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
 		store.setQueuedMessages([a, b]);
 		store.setChatStatus("waiting");
 

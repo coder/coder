@@ -4,7 +4,7 @@ import { deriveLiveStatus } from "./liveStatusModel";
 import { buildReconnectState, buildRetryState } from "./storyFixtures";
 import type { StreamState } from "./types";
 
-const makeStreamState = (
+const buildStreamState = (
 	overrides: Partial<StreamState> = {},
 ): StreamState => ({
 	blocks: [],
@@ -14,7 +14,7 @@ const makeStreamState = (
 	...overrides,
 });
 
-const makeStreamError = (
+const buildStreamError = (
 	overrides: Partial<ChatDetailError> = {},
 ): ChatDetailError => ({
 	kind: "generic",
@@ -86,10 +86,10 @@ describe("deriveLiveStatus", () => {
 			{ reconnectState: buildReconnectState() },
 			reconnectingStatus,
 		],
-		["failed", { streamError: makeStreamError() }, failedStatus],
+		["failed", { streamError: buildStreamError() }, failedStatus],
 		[
 			"streaming",
-			{ streamState: makeStreamState() },
+			{ streamState: buildStreamState() },
 			{ phase: "streaming", hasAccumulatedOutput: false },
 		],
 	])("returns %s", (_phase, overrides, expected) => {
@@ -97,14 +97,16 @@ describe("deriveLiveStatus", () => {
 	});
 
 	it("uses the persisted error as the idle fallback", () => {
-		expect(derive({ persistedError: makeStreamError() })).toEqual(failedStatus);
+		expect(derive({ persistedError: buildStreamError() })).toEqual(
+			failedStatus,
+		);
 	});
 
 	it("keeps live stream state ahead of the persisted error fallback", () => {
 		expect(
 			derive({
-				streamState: makeStreamState(),
-				persistedError: makeStreamError({ kind: "timeout" }),
+				streamState: buildStreamState(),
+				persistedError: buildStreamError({ kind: "timeout" }),
 			}),
 		).toEqual({ phase: "streaming", hasAccumulatedOutput: false });
 	});
@@ -112,10 +114,10 @@ describe("deriveLiveStatus", () => {
 	it("tracks accumulated output on failed streams", () => {
 		expect(
 			derive({
-				streamState: makeStreamState({
+				streamState: buildStreamState({
 					blocks: [{ type: "response", text: "Partial response" }],
 				}),
-				streamError: makeStreamError(),
+				streamError: buildStreamError(),
 			}),
 		).toEqual({
 			...failedStatus,
@@ -126,7 +128,7 @@ describe("deriveLiveStatus", () => {
 	it("passes provider detail through failed status", () => {
 		expect(
 			derive({
-				streamError: makeStreamError({
+				streamError: buildStreamError({
 					detail: "Image exceeds 5 MB maximum.",
 				}),
 			}),
@@ -139,7 +141,7 @@ describe("deriveLiveStatus", () => {
 	it("tracks accumulated output while reconnecting", () => {
 		expect(
 			derive({
-				streamState: makeStreamState({
+				streamState: buildStreamState({
 					blocks: [{ type: "response", text: "Partial response" }],
 				}),
 				reconnectState: buildReconnectState(),
@@ -155,8 +157,8 @@ describe("deriveLiveStatus", () => {
 			derive({
 				retryState: buildRetryState({ attempt: 2, kind: "rate_limit" }),
 				reconnectState: buildReconnectState({ attempt: 3 }),
-				streamError: makeStreamError({ kind: "timeout" }),
-				persistedError: makeStreamError({ kind: "generic" }),
+				streamError: buildStreamError({ kind: "timeout" }),
+				persistedError: buildStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toMatchObject({ phase: "retrying", kind: "rate_limit" });
@@ -166,8 +168,8 @@ describe("deriveLiveStatus", () => {
 		expect(
 			derive({
 				reconnectState: buildReconnectState(),
-				streamError: makeStreamError({ kind: "timeout" }),
-				persistedError: makeStreamError({ kind: "generic" }),
+				streamError: buildStreamError({ kind: "timeout" }),
+				persistedError: buildStreamError({ kind: "generic" }),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toMatchObject({ phase: "failed", kind: "timeout" });
@@ -185,7 +187,7 @@ describe("deriveLiveStatus", () => {
 	it("prioritizes starting over streaming", () => {
 		expect(
 			derive({
-				streamState: makeStreamState(),
+				streamState: buildStreamState(),
 				isAwaitingFirstStreamChunk: true,
 			}),
 		).toEqual({ phase: "starting", hasAccumulatedOutput: false });

@@ -9,7 +9,7 @@ import { CHAT_ID, MockRun, MockStep } from "./debugFixtures";
 
 const FIXTURE_NOW = Date.parse("2026-03-05T12:00:10.000Z");
 
-const makeRunSummary = (
+const buildRunSummary = (
 	overrides: Partial<TypesGen.ChatDebugRunSummary>,
 ): TypesGen.ChatDebugRunSummary => ({
 	id: "run-1",
@@ -27,7 +27,7 @@ const makeRunSummary = (
 
 type StoryAttempt = Record<string, unknown>;
 
-const makeAttempts = (
+const buildAttempts = (
 	attempts: readonly Record<string, unknown>[],
 ): TypesGen.ChatDebugStep["attempts"] => {
 	return attempts.map((attempt, index) => ({
@@ -46,7 +46,7 @@ const makeAttempts = (
 	})) as readonly StoryAttempt[];
 };
 
-const makeLargeRecord = (
+const buildLargeRecord = (
 	prefix: string,
 	count: number,
 ): Record<string, string> => {
@@ -91,7 +91,7 @@ const expectVisibleCopyButtonOnHover = async ({
 
 // Story fixtures use structured normalized payloads even though the generated
 // API type still models them as string records.
-const makeNormalizedPayloadFixture = (
+const buildNormalizedPayloadFixture = (
 	payload: Record<string, unknown>,
 ): TypesGen.ChatDebugStep["normalized_request"] => {
 	return payload as TypesGen.ChatDebugStep["normalized_request"];
@@ -178,7 +178,7 @@ const successfulRunDetail: TypesGen.ChatDebugRun = {
 	steps: [
 		{
 			...MockStep,
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -223,7 +223,7 @@ const richRunDetail: TypesGen.ChatDebugRun = {
 				completion_tokens: "42",
 				total_tokens: "192",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -258,7 +258,7 @@ const toolCallRunDetail: TypesGen.ChatDebugRun = {
 				completion_tokens: "30",
 				total_tokens: "230",
 			},
-			attempts: makeAttempts([]),
+			attempts: buildAttempts([]),
 		},
 	],
 };
@@ -289,7 +289,7 @@ const multiStepRunDetail: TypesGen.ChatDebugRun = {
 				content: "Retry succeeded on attempt 3",
 				finish_reason: "stop",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "failed",
@@ -330,7 +330,7 @@ const multiStepRunDetail: TypesGen.ChatDebugRun = {
 			status: "completed",
 			normalized_request: { action: "annotate", content: "Final answer" },
 			normalized_response: { result: "Annotated response" },
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
@@ -372,7 +372,7 @@ const errorRunDetail: TypesGen.ChatDebugRun = {
 				message: "Provider request failed",
 				code: "upstream_unauthorized",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "failed",
@@ -407,20 +407,20 @@ const longPayloadRunDetail: TypesGen.ChatDebugRun = {
 			...MockStep,
 			id: "step-4-1",
 			run_id: "run-4",
-			normalized_request: makeLargeRecord("request", 24),
-			normalized_response: makeLargeRecord("response", 24),
-			metadata: makeLargeRecord("metadata", 12),
+			normalized_request: buildLargeRecord("request", 24),
+			normalized_response: buildLargeRecord("response", 24),
+			metadata: buildLargeRecord("metadata", 12),
 			usage: {
 				prompt_tokens: "512",
 				completion_tokens: "256",
 				total_tokens: "768",
 			},
-			attempts: makeAttempts([
+			attempts: buildAttempts([
 				{
 					attempt_number: 1,
 					status: "completed",
-					raw_request: makeLargeRecord("raw_request_chunk", 20),
-					raw_response: makeLargeRecord("raw_response_chunk", 20),
+					raw_request: buildLargeRecord("raw_request_chunk", 20),
+					raw_response: buildLargeRecord("raw_response_chunk", 20),
 					duration_ms: 3200,
 					started_at: "2026-03-04T08:30:02Z",
 					finished_at: "2026-03-04T08:30:05.200Z",
@@ -442,7 +442,7 @@ const getAllRunDetails = () => [
 
 const getAllRunSummaries = () =>
 	getAllRunDetails().map((run) =>
-		makeRunSummary({
+		buildRunSummary({
 			id: run.id,
 			kind: run.kind,
 			status: run.status,
@@ -608,7 +608,7 @@ export const Loading: Story = {
 // ---------------------------------------------------------------------------
 
 const detailProbeRunId = "run-detail-probe";
-const detailProbeSummary = makeRunSummary({
+const detailProbeSummary = buildRunSummary({
 	id: detailProbeRunId,
 	summary: { first_message: "Detail state probe" },
 });
@@ -723,7 +723,7 @@ export const SingleStepSuccessfulRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: successfulRunDetail.id,
 						summary: successfulRunDetail.summary,
 					}),
@@ -774,11 +774,11 @@ export const ExportAllRuns: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: successfulRunDetail.id,
 						summary: successfulRunDetail.summary,
 					}),
-					makeRunSummary({
+					buildRunSummary({
 						id: richRunDetail.id,
 						summary: richRunDetail.summary,
 					}),
@@ -823,7 +823,7 @@ export const ExportAllRunsUsesCachedTerminalRunDetails: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: successfulRunDetail.id,
 						summary: successfulRunDetail.summary,
 					}),
@@ -983,7 +983,7 @@ export const ExportSingleRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: successfulRunDetail.id,
 						summary: successfulRunDetail.summary,
 					}),
@@ -1064,7 +1064,7 @@ export const MultiStepRunWithRetries: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: multiStepRunDetail.id,
 						status: multiStepRunDetail.status,
 						summary: multiStepRunDetail.summary,
@@ -1122,7 +1122,7 @@ export const ErrorStateWithRedactedHeaders: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: errorRunDetail.id,
 						status: errorRunDetail.status,
 						summary: errorRunDetail.summary,
@@ -1178,7 +1178,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-compaction",
 						kind: "compaction",
 						status: "in_progress",
@@ -1187,7 +1187,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 						started_at: "2026-03-05T12:00:03Z",
 						updated_at: "2026-03-05T12:00:05Z",
 					}),
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-chat-turn",
 						kind: "chat_turn",
 						status: "completed",
@@ -1197,7 +1197,7 @@ export const CompactionAndTitleGenerationBadges: Story = {
 						updated_at: "2026-03-05T12:00:02Z",
 						finished_at: "2026-03-05T12:00:02Z",
 					}),
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-title",
 						kind: "title_generation",
 						status: "error",
@@ -1226,7 +1226,7 @@ export const LongRawPayloads: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: longPayloadRunDetail.id,
 						summary: longPayloadRunDetail.summary,
 						started_at: longPayloadRunDetail.started_at,
@@ -1270,7 +1270,7 @@ export const RichPayloadWithTranscript: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: richRunDetail.id,
 						summary: richRunDetail.summary,
 					}),
@@ -1347,7 +1347,7 @@ export const ToolCallStep: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: toolCallRunDetail.id,
 						summary: toolCallRunDetail.summary,
 					}),
@@ -1384,7 +1384,7 @@ export const FallbackLabeledRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-fallback",
 						summary: {},
 						provider: "anthropic",
@@ -1413,7 +1413,7 @@ export const InProgressRun: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: "run-progress",
 						status: "in_progress",
 						provider: "openai",
@@ -1450,7 +1450,7 @@ const longToolResultPayload = JSON.stringify({
 	steps: ["parse expression", "compute result", "return integer"],
 });
 
-const backendNormalizedRequest = makeNormalizedPayloadFixture({
+const backendNormalizedRequest = buildNormalizedPayloadFixture({
 	messages: [
 		{
 			role: "system",
@@ -1514,7 +1514,7 @@ const backendNormalizedRequest = makeNormalizedPayloadFixture({
 	provider_option_count: 0,
 });
 
-const backendNormalizedResponse = makeNormalizedPayloadFixture({
+const backendNormalizedResponse = buildNormalizedPayloadFixture({
 	content: [
 		{
 			type: "tool_call",
@@ -1579,7 +1579,7 @@ const backendShapeRunDetail: TypesGen.ChatDebugRun = {
 				output_tokens: "1",
 				total_tokens: "43",
 			},
-			attempts: makeAttempts(backendNormalizedAttempts),
+			attempts: buildAttempts(backendNormalizedAttempts),
 		},
 	],
 };
@@ -1590,7 +1590,7 @@ export const BackendNormalizedShape: Story = {
 			{
 				key: ["chats", CHAT_ID, "debug-runs"],
 				data: [
-					makeRunSummary({
+					buildRunSummary({
 						id: backendShapeRunDetail.id,
 						provider: "anthropic",
 						model: "claude-sonnet-4",

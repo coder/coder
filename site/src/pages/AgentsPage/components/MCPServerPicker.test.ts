@@ -8,7 +8,7 @@ import {
 	saveMCPSelection,
 } from "./MCPServerPicker";
 
-const makeServer = (
+const buildServer = (
 	overrides: Partial<MCPServerConfig> & { id: string },
 ): MCPServerConfig => ({
 	...MockMCPServerConfig,
@@ -39,9 +39,9 @@ describe("MCP selection persistence", () => {
 
 	describe("getSavedMCPSelection", () => {
 		const servers = [
-			makeServer({ id: "s1", availability: "force_on" }),
-			makeServer({ id: "s2", availability: "default_on" }),
-			makeServer({ id: "s3", availability: "default_off" }),
+			buildServer({ id: "s1", availability: "force_on" }),
+			buildServer({ id: "s2", availability: "default_on" }),
+			buildServer({ id: "s3", availability: "default_off" }),
 		];
 
 		it("returns null when nothing is stored", () => {
@@ -80,7 +80,7 @@ describe("MCP selection persistence", () => {
 		it("filters out IDs for disabled servers", () => {
 			const withDisabled = [
 				...servers,
-				makeServer({ id: "s4", enabled: false }),
+				buildServer({ id: "s4", enabled: false }),
 			];
 			saveMCPSelection(["s2", "s4"]);
 			const result = getSavedMCPSelection(withDisabled);
@@ -113,16 +113,16 @@ describe("MCP selection persistence", () => {
 	describe("getDefaultMCPSelection", () => {
 		it("includes force_on and default_on, excludes default_off", () => {
 			const servers = [
-				makeServer({ id: "a", availability: "force_on" }),
-				makeServer({ id: "b", availability: "default_on" }),
-				makeServer({ id: "c", availability: "default_off" }),
+				buildServer({ id: "a", availability: "force_on" }),
+				buildServer({ id: "b", availability: "default_on" }),
+				buildServer({ id: "c", availability: "default_off" }),
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual(["a", "b"]);
 		});
 
 		it("excludes disabled servers", () => {
 			const servers = [
-				makeServer({ id: "a", availability: "default_on", enabled: false }),
+				buildServer({ id: "a", availability: "default_on", enabled: false }),
 			];
 			expect(getDefaultMCPSelection(servers)).toEqual([]);
 		});

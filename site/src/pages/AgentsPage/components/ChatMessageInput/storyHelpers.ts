@@ -27,11 +27,6 @@ export const MockSkills: UserSkillMetadata[] = [
 	{ ...MockSkill, id: "skill-plan", name: "plan" },
 ];
 
-/**
- * Resolves once an element rendering `text` is actually visible. The skills
- * menu renders into a portal, so matches are searched on document.body and
- * filtered to laid-out elements rather than hidden duplicates.
- */
 export const findVisibleText = async (text: string): Promise<HTMLElement> => {
 	let visibleElement: HTMLElement | undefined;
 	await waitFor(() => {

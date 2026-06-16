@@ -126,7 +126,7 @@ const buildOverridesResponse = (
 	...overrides,
 });
 
-const makeArgs = (
+const buildArgs = (
 	overrides: Partial<AgentSettingsUserAgentsPageViewProps> = {},
 ): AgentSettingsUserAgentsPageViewProps => ({
 	overridesData: buildOverridesResponse(),
@@ -181,14 +181,14 @@ const selectOption = async (
 const meta = {
 	title: "pages/AgentsPage/AgentSettingsUserAgentsPageView",
 	component: AgentSettingsUserAgentsPageView,
-	args: makeArgs(),
+	args: buildArgs(),
 } satisfies Meta<typeof AgentSettingsUserAgentsPageView>;
 
 export default meta;
 type Story = StoryObj<typeof AgentSettingsUserAgentsPageView>;
 
 export const EnabledWithNoSavedValues: Story = {
-	args: makeArgs(),
+	args: buildArgs(),
 	play: async ({ canvasElement }) => {
 		const rootSection = await getSection(canvasElement, "Root agent model");
 		const generalSection = await getSection(
@@ -217,7 +217,7 @@ export const EnabledWithNoSavedValues: Story = {
 };
 
 export const EnabledWithSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "chat_default",
@@ -279,7 +279,7 @@ export const EnabledWithSavedValues: Story = {
 };
 
 export const MalformedSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", { is_malformed: true }),
 			general: buildOverride("general", { is_malformed: true }),
@@ -317,7 +317,7 @@ export const MalformedSavedValues: Story = {
 };
 
 export const MalformedEmptyModelSavedValues: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -384,7 +384,7 @@ export const MalformedEmptyModelSavedValues: Story = {
 };
 
 export const UnavailableSavedModels: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "model",
@@ -417,7 +417,7 @@ export const UnavailableSavedModels: Story = {
 };
 
 export const ModelConfigsError: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		modelConfigsError: new Error("Failed to load model configs."),
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
@@ -483,7 +483,7 @@ export const ModelConfigsError: Story = {
 };
 
 export const LoadingState: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: undefined,
 		isLoadingOverrides: true,
 		modelOptions: [],
@@ -503,7 +503,7 @@ export const LoadingState: Story = {
 };
 
 export const OverridesError: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: undefined,
 		overridesError: new Error("Failed to load overrides"),
 	}),
@@ -539,7 +539,7 @@ export const OverridesError: Story = {
 };
 
 export const SaveErrorState: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		isSaveGeneralModelOverrideError: true,
 	}),
 	play: async ({ canvasElement }) => {
@@ -556,7 +556,7 @@ export const SaveErrorState: Story = {
 };
 
 export const AdminDisabledReadOnly: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			enabled: false,
 			root: buildOverride("root", {
@@ -586,7 +586,7 @@ export const AdminDisabledReadOnly: Story = {
 };
 
 export const InvalidRootDeploymentDefault: Story = {
-	args: makeArgs({
+	args: buildArgs({
 		overridesData: buildOverridesResponse({
 			root: buildOverride("root", {
 				mode: "deployment_default",
