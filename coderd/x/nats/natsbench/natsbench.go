@@ -18,11 +18,17 @@ const (
 	Payload64KB = 64 << 10
 )
 
-// Config describes one benchmark run.
+// Config describes one benchmark run. Run validates a fully populated
+// config and applies no defaults of its own (the CLI fills defaults
+// before calling Run), so every required field must be set. The
+// optional tuning fields below are passed straight through to
+// nats.Options, where the nats package applies its own zero-value
+// defaults, except LocalQueue*/MaxPending which natsbench derives from
+// the workload when zero.
 type Config struct {
 	// Messages is the TOTAL number of messages across all publishers,
-	// split evenly with the remainder assigned to publisher 0. Zero
-	// means DefaultMessages.
+	// split evenly with the remainder assigned to publisher 0. Must be
+	// at least 1.
 	Messages int
 	// PayloadSize is the benchmark message size in bytes.
 	PayloadSize int
@@ -42,7 +48,8 @@ type Config struct {
 	// loopback.
 	InProcess bool
 	// PublishConns and SubscribeConns configure the pubsub connection
-	// pools. Zero means the production default of 1 each.
+	// pools. Zero passes through to nats.Options, which defaults each
+	// pool to a single connection (the production default).
 	PublishConns   int
 	SubscribeConns int
 	// LocalQueueMsgs sets the per-listener queue capacity. Zero derives
