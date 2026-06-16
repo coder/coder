@@ -71,6 +71,8 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# Vercel CLI for deploying/previewing projects from dogfood workspaces.
+vercel = "54.14.0"
 # weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
 # action-linkspector without resolving mutable npm metadata at runtime.
 "npm:@puppeteer/browsers" = "2.13.0"
