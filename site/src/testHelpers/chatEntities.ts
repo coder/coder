@@ -1,4 +1,4 @@
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, MCPServerConfig } from "#/api/typesGenerated";
 import { MockUserOwner } from "./entities";
 
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
@@ -29,5 +29,37 @@ export const makeChat = (overrides: Partial<Chat> = {}): Chat => ({
 	has_unread: false,
 	client_type: "ui",
 	children: [],
+	...overrides,
+});
+
+/**
+ * Builds an MCPServerConfig for tests and stories. Defaults to an enabled,
+ * streamable-HTTP server with no auth; pass overrides for the fields a case
+ * cares about.
+ */
+export const makeMCPServerConfig = (
+	overrides: Partial<MCPServerConfig> = {},
+): MCPServerConfig => ({
+	id: "mcp-1",
+	display_name: "MCP Server",
+	slug: "mcp-server",
+	description: "",
+	icon_url: "",
+	transport: "streamable_http",
+	url: "https://mcp.example.com/sse",
+	auth_type: "none",
+	has_oauth2_secret: false,
+	has_api_key: false,
+	has_custom_headers: false,
+	tool_allow_list: [],
+	tool_deny_list: [],
+	availability: "default_on",
+	enabled: true,
+	model_intent: false,
+	allow_in_plan_mode: false,
+	forward_coder_headers: false,
+	created_at: MOCK_TIMESTAMP,
+	updated_at: MOCK_TIMESTAMP,
+	auth_connected: false,
 	...overrides,
 });

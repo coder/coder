@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { MCPServerConfig } from "#/api/typesGenerated";
+import { makeMCPServerConfig } from "#/testHelpers/chatEntities";
 import {
 	getDefaultMCPSelection,
 	getSavedMCPSelection,
@@ -10,18 +11,12 @@ import {
 const makeServer = (
 	overrides: Partial<MCPServerConfig> & { id: string },
 ): MCPServerConfig =>
-	({
-		id: overrides.id,
-		display_name: overrides.display_name ?? overrides.id,
-		enabled: overrides.enabled ?? true,
-		availability: overrides.availability ?? "default_on",
-		auth_type: overrides.auth_type ?? "none",
-		auth_connected: overrides.auth_connected ?? false,
-		icon_url: overrides.icon_url ?? "",
-		description: overrides.description ?? "",
-		url: overrides.url ?? "",
-		transport: overrides.transport ?? "sse",
-	}) as MCPServerConfig;
+	makeMCPServerConfig({
+		display_name: overrides.id,
+		transport: "sse",
+		url: "",
+		...overrides,
+	});
 
 describe("MCP selection persistence", () => {
 	beforeEach(() => {
