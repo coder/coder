@@ -907,6 +907,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "WorkspaceBuildOrchestration",
+			Actions:  crud,
+			Resource: rbac.ResourceWorkspaceBuildOrchestration.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner},
+				false: {setOtherOrg, setOrgNotMe, memberMe, agentsAccessUser, orgAdmin, templateAdmin, orgTemplateAdmin, userAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			// Any owner/admin across may access any users' preferences
 			// Members may not access other members' preferences
 			Name:     "NotificationPreferencesOwn",

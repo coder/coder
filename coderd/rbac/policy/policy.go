@@ -140,6 +140,14 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   "read and use a workspace proxy",
 		},
 	},
+	"workspace_build_orchestration": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: "create a workspace build orchestration",
+			ActionRead:   "read a workspace build orchestration",
+			ActionUpdate: "update a workspace build orchestration",
+			ActionDelete: "delete a workspace build orchestration",
+		},
+	},
 	"license": {
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create a license",

@@ -3871,7 +3871,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		orchestration := testutil.Fake(s.T(), faker, database.WorkspaceBuildOrchestration{})
 		dbm.EXPECT().GetNextPendingWorkspaceBuildOrchestrationForUpdate(gomock.Any()).Return(orchestration, nil).AnyTimes()
 		check.Args().
-			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionRead).
 			Returns(orchestration)
 	}))
 	s.Run("UpdateWorkspaceBuildOrchestrationCanceledByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3882,7 +3882,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}
 		dbm.EXPECT().UpdateWorkspaceBuildOrchestrationCanceledByID(gomock.Any(), arg).Return(orchestration, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
+			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionUpdate).
 			Returns(orchestration)
 	}))
 	s.Run("UpdateWorkspaceBuildOrchestrationCompletedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3894,7 +3894,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}
 		dbm.EXPECT().UpdateWorkspaceBuildOrchestrationCompletedByID(gomock.Any(), arg).Return(orchestration, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
+			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionUpdate).
 			Returns(orchestration)
 	}))
 	s.Run("UpdateWorkspaceBuildOrchestrationFailedByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3906,7 +3906,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}
 		dbm.EXPECT().UpdateWorkspaceBuildOrchestrationFailedByID(gomock.Any(), arg).Return(orchestration, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
+			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionUpdate).
 			Returns(orchestration)
 	}))
 	s.Run("UpdateWorkspaceBuildOrchestrationRetryByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -3920,7 +3920,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}
 		dbm.EXPECT().UpdateWorkspaceBuildOrchestrationRetryByID(gomock.Any(), arg).Return(orchestration, nil).AnyTimes()
 		check.Args(arg).
-			Asserts(rbac.ResourceSystem, policy.ActionUpdate).
+			Asserts(rbac.ResourceWorkspaceBuildOrchestration.AnyOrganization(), policy.ActionUpdate).
 			Returns(orchestration)
 	}))
 	s.Run("Start/InsertWorkspaceBuildParameters", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
