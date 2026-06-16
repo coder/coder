@@ -589,6 +589,15 @@ var AIBudgetPolicies = []string{
 	string(AIBudgetPolicyHighest),
 }
 
+// NewAIBudgetPolicyFromString converts s to an AIBudgetPolicy, falling back to
+// AIBudgetPolicyHighest when s is empty or not a recognized policy.
+func NewAIBudgetPolicyFromString(s string) AIBudgetPolicy {
+	if slices.Contains(AIBudgetPolicies, s) {
+		return AIBudgetPolicy(s)
+	}
+	return AIBudgetPolicyHighest
+}
+
 // AIBudgetPeriod determines when accumulated AI spend resets to zero,
 // aligned to UTC calendar boundaries.
 type AIBudgetPeriod string

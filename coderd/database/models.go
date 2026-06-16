@@ -4571,6 +4571,12 @@ type AIBridgeTokenUsage struct {
 	CreatedAt             time.Time             `db:"created_at" json:"created_at"`
 	CacheReadInputTokens  int64                 `db:"cache_read_input_tokens" json:"cache_read_input_tokens"`
 	CacheWriteInputTokens int64                 `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
+	EffectiveGroupID      uuid.NullUUID         `db:"effective_group_id" json:"effective_group_id"`
+	InputPriceMicros      sql.NullInt64         `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros     sql.NullInt64         `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros  sql.NullInt64         `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros sql.NullInt64         `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+	CostMicros            sql.NullInt64         `db:"cost_micros" json:"cost_micros"`
 }
 
 // Audit log of tool calls in intercepted requests in AI Bridge
