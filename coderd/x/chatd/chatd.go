@@ -1457,6 +1457,11 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 	// committed and emitted its own state-machine notifications. The
 	// watch endpoint is maintained separately from chatstate notifications.
 	p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindCreated, nil)
+
+	// Pin the chat to the agent's latest context snapshot if one exists.
+	// Best-effort: a chat created before its agent has pushed is hydrated
+	// by that agent's next push.
+	p.hydrateChatContextOnCreate(ctx, chat)
 	return chat, nil
 }
 
