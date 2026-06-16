@@ -1,6 +1,9 @@
 import { type FC, useReducer, useState } from "react";
 import { useQuery } from "react-query";
-import { templateBuilderBases } from "#/api/queries/templateBuilder";
+import {
+	templateBuilderBases,
+	templateBuilderModules,
+} from "#/api/queries/templateBuilder";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -17,6 +20,10 @@ import {
 	baseParametersComplete,
 } from "./BaseTemplateParametersStep";
 import { ModuleSelectStep } from "./ModuleSelectStep";
+import {
+	ModuleSettingsStep,
+	moduleSettingsComplete,
+} from "./ModuleSettingsStep";
 import { SelectionSummary } from "./SelectionSummary";
 import {
 	findNextVisibleIndex,
@@ -36,6 +43,11 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
 	const basesQuery = useQuery(templateBuilderBases());
+	const modulesQuery = useQuery(templateBuilderModules(state.selectedBase?.id));
+
+	const moduleVarMap = Object.fromEntries(
+		state.modules.map((m) => [m.id, m.variables ?? {}]),
+	);
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
@@ -45,12 +57,19 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const isLastStep = nextIndex === -1;
 
 	const canContinue =
-		currentStep.id !== "base-parameters" ||
-		baseParametersComplete(
-			basesQuery.data,
-			state.selectedBase?.id ?? null,
-			state.baseVariableValues,
-		);
+		currentStep.id === "base-parameters"
+			? baseParametersComplete(
+					basesQuery.data,
+					state.selectedBase?.id ?? null,
+					state.baseVariableValues,
+				)
+			: currentStep.id === "module-settings"
+				? moduleSettingsComplete(
+						modulesQuery.data,
+						state.modules.map((m) => m.id),
+						moduleVarMap,
+					)
+				: true;
 
 	const handleBack = () => {
 		setStepIndex(prevIndex);
@@ -108,6 +127,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 							selectedModuleIds={state.modules.map((m) => m.id)}
 							onChangeModules={(modules, meta) =>
 								dispatch({ type: "SET_MODULES", modules, meta })
+							}
+						/>
+					) : currentStep.id === "module-settings" && state.selectedBase ? (
+						<ModuleSettingsStep
+							baseId={state.selectedBase.id}
+							selectedModuleIds={state.modules.map((m) => m.id)}
+							moduleVariables={moduleVarMap}
+							onChangeModuleVariables={(moduleId, variables) =>
+								dispatch({ type: "SET_MODULE_VARIABLES", moduleId, variables })
 							}
 						/>
 					) : (
