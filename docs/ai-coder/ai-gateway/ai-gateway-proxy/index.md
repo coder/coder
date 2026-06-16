@@ -16,10 +16,10 @@ For a list of clients supported through AI Gateway Proxy, see [Client Configurat
 
 AI Gateway Proxy operates in two modes depending on the destination:
 
-* MITM (Man-in-the-Middle) mode for allowlisted AI provider domains:
+* MITM (Man-in-the-Middle) mode for the hostnames of enabled AI providers:
   * Intercepts and decrypts HTTPS traffic using a configured CA certificate
   * Forwards requests to AI Gateway for authentication, auditing, and routing
-  * Supports: Anthropic, OpenAI, GitHub Copilot
+  * Covers the hostname from each enabled provider's base URL
 
 * Tunnel mode for all other traffic:
   * Passes requests through without decryption

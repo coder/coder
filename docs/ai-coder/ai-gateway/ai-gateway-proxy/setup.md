@@ -391,7 +391,13 @@ reloads the trust store.
 
 #### AI tool does not trust the proxy CA certificate
 
-If an AI tool fails with `x509: certificate signed by unknown authority`, it has not been configured to trust the proxy's
+If an AI tool fails with:
+
+```shell
+x509: certificate signed by unknown authority
+```
+
+it has not been configured to trust the proxy's
 MITM CA certificate. See [Trusting the CA certificate](#trusting-the-ca-certificate). If
 [TLS is enabled on the listener](#proxy-tls-configuration), the tool must trust that certificate as well.
 
@@ -399,15 +405,35 @@ MITM CA certificate. See [Trusting the CA certificate](#trusting-the-ca-certific
 
 The proxy intercepts HTTPS traffic only for hostnames matching the base URL of an enabled AI [Provider](../providers.md) configured in AI
 Gateway. Check that the provider is enabled and its base URL matches the hostname the tool is connecting to. Verify that
-`HTTPS_PROXY` points at the proxy. When interception is working, coderd logs `routing MITM request to aibridged` for
-each intercepted request.
+`HTTPS_PROXY` points at the proxy. When interception is working, coderd logs:
+
+```shell
+routing MITM request to aibridged
+```
+
+for each intercepted request.
 
 ### Authentication failures
 
 The Coder token must be supplied as the password in the proxy credentials, for example
-`https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888`. A `407 Proxy Authentication Required` from the proxy means no
-token was provided; a `401 Unauthorized` from AI Gateway means the token was rejected as expired or invalid. Confirm the
-token is current and set in the password field.
+`https://coder:${CODER_SESSION_TOKEN}@<proxy-host>:8888`. When a CONNECT request has no usable token, the proxy replies
+with `407 Proxy Authentication Required` and logs:
+
+```shell
+WARN  rejecting CONNECT request  host=... provider=... reason=missing_credentials
+```
+
+`reason=missing_credentials` means no `Proxy-Authorization` header was sent. `reason=invalid_credentials` means a header
+was sent but no token could be read from the password field.
+
+A `401 Unauthorized` from AI Gateway means the token was
+rejected as expired or invalid.
+
+> [!NOTE]
+> Some clients may send the first request without credentials and retry on a `407` response.
+> An initial `missing_credentials` warning can accompany a connection that ultimately succeeds.
+
+Confirm the token is current and set in the password field of the proxy credentials.
 
 ### Connections to internal services are blocked
 
