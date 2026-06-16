@@ -129,6 +129,16 @@ const credentialFilled = (value: string | undefined): boolean => {
 	return trimmed !== "" && trimmed !== SAVED_CREDENTIAL_MASK;
 };
 
+const BEDROCK_ACCESS_KEY_PAIRED_MESSAGE =
+	"Enter both access key and secret, or leave both blank to use AWS environment credentials.";
+
+const BEDROCK_ACCESS_KEY_DESCRIPTION =
+	"Optional. Leave both fields blank to authenticate with the AWS environment (IAM role, instance profile, AWS_PROFILE).";
+
+// Bedrock access keys are optional: when both are blank the server
+// falls back to ambient AWS credentials (IAM role, AWS_PROFILE, IRSA,
+// instance profile). Yup still requires them to be supplied as a pair
+// so a half-typed rotation does not slip through.
 const makeBedrockSchema = (editing: boolean) =>
 	Yup.object({
 		type: Yup.string()
@@ -146,24 +156,18 @@ const makeBedrockSchema = (editing: boolean) =>
 		apiKey: Yup.string(),
 		model: Yup.string().required("Model is required"),
 		smallFastModel: Yup.string().required("Small-fast model is required"),
-		accessKey: (editing
-			? Yup.string()
-			: Yup.string().required("Access key is required")
-		).test(
+		accessKey: Yup.string().test(
 			"access-key-paired",
-			"Enter both access key and secret to rotate credentials.",
+			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const secret = (this.parent as { accessKeySecret?: string })
 					.accessKeySecret;
 				return !(credentialFilled(secret) && !credentialFilled(value));
 			},
 		),
-		accessKeySecret: (editing
-			? Yup.string()
-			: Yup.string().required("Access key secret is required")
-		).test(
+		accessKeySecret: Yup.string().test(
 			"access-key-secret-paired",
-			"Enter both access key and secret to rotate credentials.",
+			BEDROCK_ACCESS_KEY_PAIRED_MESSAGE,
 			function (value) {
 				const accessKey = (this.parent as { accessKey?: string }).accessKey;
 				return !(credentialFilled(accessKey) && !credentialFilled(value));
@@ -472,7 +476,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 						</div>
 						<div className="grid grid-cols-2 items-start gap-4">
 							<CredentialField
-								required
 								label="Access key"
 								helpers={getFieldHelpers("accessKey")}
 								onBlur={() => handleCredentialBlur("accessKey")}
@@ -480,7 +483,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								autoComplete="new-password"
 							/>
 							<CredentialField
-								required
 								label="Access key secret"
 								helpers={getFieldHelpers("accessKeySecret")}
 								onBlur={() => handleCredentialBlur("accessKeySecret")}
@@ -488,6 +490,9 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								autoComplete="new-password"
 							/>
 						</div>
+						<p className="text-xs text-content-secondary m-0">
+							{BEDROCK_ACCESS_KEY_DESCRIPTION}
+						</p>
 					</>
 				)}
 

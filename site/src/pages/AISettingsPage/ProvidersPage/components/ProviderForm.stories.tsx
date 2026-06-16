@@ -130,6 +130,83 @@ export const AddBedrock: Story = {
 	},
 };
 
+// Regression coverage for CODAGT-626. The create form must accept Bedrock
+// configurations whose credentials come from the AWS environment (IAM
+// role, instance profile, AWS_PROFILE) instead of static access keys.
+export const AddBedrockWithoutStaticCredentials: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock-iam",
+			displayName: "Bedrock IAM",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+			smallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
+			accessKey: "",
+			accessKeySecret: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+		const accessKeySecretInput =
+			await canvas.findByLabelText(/access key secret/i);
+
+		// Neither field renders the required asterisk.
+		expect(accessKeyInput).toHaveValue("");
+		expect(accessKeySecretInput).toHaveValue("");
+
+		// The Add provider button is enabled even with both credentials blank.
+		const submitButton = canvas.getByRole("button", {
+			name: /add provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeEnabled());
+		await userEvent.click(submitButton);
+
+		await waitFor(() =>
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					type: "bedrock",
+					accessKey: "",
+					accessKeySecret: "",
+				}),
+			),
+		);
+	},
+};
+
+// A half-typed credential pair is blocked at the form layer because the
+// backend treats access_key and access_key_secret as a pair. This story
+// keeps the cross-validation honest.
+export const AddBedrockHalfCredentialPairBlocked: Story = {
+	args: {
+		initialValues: {
+			type: "bedrock",
+			name: "bedrock-half",
+			displayName: "Bedrock Half",
+			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
+			smallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
+			accessKey: "",
+			accessKeySecret: "",
+			enabled: true,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const accessKeyInput = await canvas.findByLabelText(/^access key\s*$/i);
+
+		await userEvent.type(accessKeyInput, "AKIAIOSFODNN7EXAMPLE");
+
+		const submitButton = canvas.getByRole("button", {
+			name: /add provider/i,
+		});
+		await waitFor(() => expect(submitButton).toBeDisabled());
+		expect(args.onSubmit).not.toHaveBeenCalled();
+	},
+};
+
 export const EditBedrockKeepCredentials: Story = {
 	render: (args) => {
 		bedrockSubmitDeferred = createDeferred<void>();
