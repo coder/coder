@@ -48,21 +48,84 @@ func renderGroup(b *strings.Builder, rows []ScenarioResult) {
 		}
 	}
 
+	// The Status column is left-aligned (free text); the rest are
+	// numeric and right-aligned.
+	headers := []string{"Replicas", "Messages", "Pubs/sec", "Deliveries/sec"}
+	aligns := []alignment{alignRight, alignRight, alignRight, alignRight}
 	if withStatus {
-		_, _ = b.WriteString("| Replicas | Messages | Pubs/sec | Deliveries/sec | Status |\n")
-		_, _ = b.WriteString("|---:|---:|---:|---:|---|\n")
-	} else {
-		_, _ = b.WriteString("| Replicas | Messages | Pubs/sec | Deliveries/sec |\n")
-		_, _ = b.WriteString("|---:|---:|---:|---:|\n")
+		headers = append(headers, "Status")
+		aligns = append(aligns, alignLeft)
 	}
+
+	table := [][]string{headers}
 	for _, row := range rows {
 		replicas, messages, pubs, dels, status := rowCells(row)
-		_, _ = fmt.Fprintf(b, "| %s | %s | %s | %s |", replicas, messages, pubs, dels)
+		cells := []string{replicas, messages, pubs, dels}
 		if withStatus {
-			_, _ = fmt.Fprintf(b, " %s |", status)
+			cells = append(cells, status)
+		}
+		table = append(table, cells)
+	}
+	writeAlignedTable(b, table, aligns)
+}
+
+type alignment int
+
+const (
+	alignLeft alignment = iota
+	alignRight
+)
+
+// writeAlignedTable writes a GitHub-flavored markdown table whose raw
+// text also lines up in a fixed-width terminal: every cell is padded to
+// its column's widest value. table[0] is the header row.
+func writeAlignedTable(b *strings.Builder, table [][]string, aligns []alignment) {
+	widths := make([]int, len(table[0]))
+	for _, rowCells := range table {
+		for col, cell := range rowCells {
+			widths[col] = max(widths[col], len(cell))
+		}
+	}
+
+	writeRow := func(cells []string) {
+		_, _ = b.WriteString("|")
+		for col, cell := range cells {
+			_, _ = fmt.Fprintf(b, " %s |", pad(cell, widths[col], aligns[col]))
 		}
 		_, _ = b.WriteString("\n")
 	}
+
+	writeRow(table[0])
+
+	// Separator row: dashes sized to each column, with a trailing colon
+	// marking right-aligned columns.
+	_, _ = b.WriteString("|")
+	for col, width := range widths {
+		switch aligns[col] {
+		case alignRight:
+			_, _ = fmt.Fprintf(b, " %s: |", strings.Repeat("-", max(width-1, 1)))
+		default:
+			_, _ = fmt.Fprintf(b, " %s |", strings.Repeat("-", width))
+		}
+	}
+	_, _ = b.WriteString("\n")
+
+	for _, cells := range table[1:] {
+		writeRow(cells)
+	}
+}
+
+// pad widens s to width, on the left for right-aligned columns and on
+// the right otherwise.
+func pad(s string, width int, align alignment) string {
+	gap := width - len(s)
+	if gap <= 0 {
+		return s
+	}
+	if align == alignRight {
+		return strings.Repeat(" ", gap) + s
+	}
+	return s + strings.Repeat(" ", gap)
 }
 
 type payloadGroup struct {

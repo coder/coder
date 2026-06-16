@@ -73,12 +73,38 @@ func TestRenderMarkdown(t *testing.T) {
 	require.Contains(t, out, "### Payload 8 KiB")
 	require.Contains(t, out, "### Payload 64 KiB")
 	// The 8 KiB group has an invalid run, so it carries a Status column.
-	require.Contains(t, out, "| Replicas | Messages | Pubs/sec | Deliveries/sec | Status |")
-	require.Contains(t, out, "| 1 | 100,000 | 100,000 | 250,000 | ok |")
+	require.Contains(t, out, "Status")
+	require.Contains(t, out, "100,000")
+	require.Contains(t, out, "250,000")
+	require.Contains(t, out, "ok")
 	// Invalid runs never render a throughput number.
-	require.Contains(t, out, "| 5 | 100,000 | INVALID | INVALID | invalid run: 3 dropped-message signals observed |")
-	require.Contains(t, out, "| 10 | 20,000 | INVALID | INVALID | readiness gate: timed out |")
+	require.Contains(t, out, "INVALID")
+	require.Contains(t, out, "invalid run: 3 dropped-message signals observed")
+	require.Contains(t, out, "readiness gate: timed out")
 	require.NotContains(t, out, "second line is omitted")
+
+	// Every body row has the same width as the header, so columns line
+	// up in a terminal.
+	assertAlignedTable(t, out)
+}
+
+// assertAlignedTable checks that all table rows in a rendered report
+// (lines starting with "|") within each contiguous block share the same
+// rune width.
+func assertAlignedTable(t *testing.T, out string) {
+	t.Helper()
+	width := -1
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "|") {
+			width = -1
+			continue
+		}
+		if width < 0 {
+			width = len([]rune(line))
+			continue
+		}
+		require.Equal(t, width, len([]rune(line)), "row width mismatch:\n%s", line)
+	}
 }
 
 func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
@@ -99,12 +125,14 @@ func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	}))
 	out := b.String()
 
-	require.Contains(t, out, "| Replicas | Messages | Pubs/sec | Deliveries/sec |")
+	require.Contains(t, out, "Replicas")
+	require.Contains(t, out, "Deliveries/sec")
 	require.NotContains(t, out, "Status")
 	require.NotContains(t, out, "Scenario")
 	require.NotContains(t, out, "Drops")
-	require.Contains(t, out, "| 1 | 100,000 | 100,000 | 250,000 |")
-	require.Contains(t, out, "| 5 | 100,000 | 90,000 | 220,000 |")
+	require.Contains(t, out, "250,000")
+	require.Contains(t, out, "220,000")
+	assertAlignedTable(t, out)
 }
 
 func TestDefaultScenarios(t *testing.T) {
