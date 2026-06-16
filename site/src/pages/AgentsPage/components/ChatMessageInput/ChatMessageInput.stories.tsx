@@ -3,32 +3,12 @@ import { type PropsWithChildren, useEffect } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatMessageInput } from "./ChatMessageInput";
-
-const now = "2026-05-08T00:00:00Z";
-
-const mockSkills: TypesGen.UserSkillMetadata[] = [
-	{
-		id: "skill-reviewer",
-		name: "reviewer",
-		description: "Review changed files and suggest fixes.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-docs",
-		name: "docs",
-		description: "Draft docs for user-facing behavior.",
-		created_at: now,
-		updated_at: now,
-	},
-	{
-		id: "skill-plan",
-		name: "plan",
-		description: "",
-		created_at: now,
-		updated_at: now,
-	},
-];
+import {
+	expectNoVisibleText,
+	findVisibleText,
+	makeUserSkill,
+	mockSkills,
+} from "./storyHelpers";
 
 const meta: Meta<typeof ChatMessageInput> = {
 	title: "components/ChatMessageInput/ChatMessageInput",
@@ -54,27 +34,6 @@ const meta: Meta<typeof ChatMessageInput> = {
 
 export default meta;
 type Story = StoryObj<typeof ChatMessageInput>;
-
-const findVisibleText = async (text: string) => {
-	let visibleElement: HTMLElement | undefined;
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		visibleElement = matches.find(
-			(element) => element.getClientRects().length > 0,
-		);
-		expect(visibleElement).toBeDefined();
-	});
-	return visibleElement as HTMLElement;
-};
-
-const expectNoVisibleText = async (text: string) => {
-	await waitFor(() => {
-		const matches = within(document.body).queryAllByText(text);
-		expect(
-			matches.every((element) => element.getClientRects().length === 0),
-		).toBe(true);
-	});
-};
 
 const expectNoVisibleTextImmediately = (text: string) => {
 	const matches = within(document.body).queryAllByText(text);
@@ -284,13 +243,12 @@ const mockMobileMatchMedia = (): (() => void) => {
 
 const longSkillList: TypesGen.UserSkillMetadata[] = Array.from(
 	{ length: 30 },
-	(_, index) => ({
-		id: `skill-${index}`,
-		name: `skill-${index}`,
-		description: `Long description for skill ${index} that explains what it does in detail.`,
-		created_at: now,
-		updated_at: now,
-	}),
+	(_, index) =>
+		makeUserSkill({
+			id: `skill-${index}`,
+			name: `skill-${index}`,
+			description: `Long description for skill ${index} that explains what it does in detail.`,
+		}),
 );
 
 const mobileDropdownProperties = [
