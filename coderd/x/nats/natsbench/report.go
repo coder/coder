@@ -97,16 +97,10 @@ func writeAlignedTable(b *strings.Builder, table [][]string, aligns []alignment)
 
 	writeRow(table[0])
 
-	// Separator row: dashes sized to each column, with a trailing colon
-	// marking right-aligned columns.
+	// Separator row: plain dashes sized to each column.
 	_, _ = b.WriteString("|")
-	for col, width := range widths {
-		switch aligns[col] {
-		case alignRight:
-			_, _ = fmt.Fprintf(b, " %s: |", strings.Repeat("-", max(width-1, 1)))
-		default:
-			_, _ = fmt.Fprintf(b, " %s |", strings.Repeat("-", width))
-		}
+	for _, width := range widths {
+		_, _ = fmt.Fprintf(b, " %s |", strings.Repeat("-", width))
 	}
 	_, _ = b.WriteString("\n")
 
