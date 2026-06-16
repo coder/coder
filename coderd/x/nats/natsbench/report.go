@@ -6,6 +6,8 @@ import (
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/dustin/go-humanize"
 )
 
 // ScenarioResult pairs a scenario with its run outcome.
@@ -157,7 +159,7 @@ func rowCells(row ScenarioResult) (cells []string, status string) {
 		strconv.Itoa(cfg.Subjects),
 		strconv.Itoa(cfg.Publishers),
 		strconv.Itoa(cfg.Subscribers),
-		formatInt(int64(cfg.Messages)),
+		humanize.Comma(int64(cfg.Messages)),
 	}
 
 	if row.valid() {
@@ -184,27 +186,7 @@ func shortReason(row ScenarioResult) string {
 
 // formatRate renders a rate as a comma-separated integer.
 func formatRate(rate float64) string {
-	return formatInt(int64(math.Round(rate)))
-}
-
-// formatInt renders an integer with comma thousands separators.
-func formatInt(n int64) string {
-	s := strconv.FormatInt(n, 10)
-	neg := strings.HasPrefix(s, "-")
-	if neg {
-		s = s[1:]
-	}
-	var b strings.Builder
-	for i, digit := range s {
-		if i > 0 && (len(s)-i)%3 == 0 {
-			_ = b.WriteByte(',')
-		}
-		_, _ = b.WriteRune(digit)
-	}
-	if neg {
-		return "-" + b.String()
-	}
-	return b.String()
+	return humanize.Comma(int64(math.Round(rate)))
 }
 
 // formatPayload renders a payload size as KiB when it divides evenly.

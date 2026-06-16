@@ -111,8 +111,15 @@ func applySizing(ctx context.Context, logger slog.Logger, cfg Config, pl plan) C
 			slog.F("derived_msgs", wantQueue),
 		)
 	}
-	if cfg.LocalQueueBytes <= 0 {
-		cfg.LocalQueueBytes = derivedQueueBytes(pl, cfg.PayloadSize)
+	wantBytes := derivedQueueBytes(pl, cfg.PayloadSize)
+	switch {
+	case cfg.LocalQueueBytes <= 0:
+		cfg.LocalQueueBytes = wantBytes
+	case cfg.LocalQueueBytes < wantBytes:
+		logger.Warn(ctx, "configured local queue bytes is below the derived size; drops are likely and will invalidate the run",
+			slog.F("configured_bytes", cfg.LocalQueueBytes),
+			slog.F("derived_bytes", wantBytes),
+		)
 	}
 
 	wantPending := derivedMaxPending(pl, cfg.PayloadSize)

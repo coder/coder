@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -16,10 +18,21 @@ import (
 )
 
 func main() {
-	if err := runCLI(os.Args, os.Stdout, os.Stderr); err != nil {
+	// os.Exit runs last so the deferred signal stop() in run() fires.
+	os.Exit(runMain())
+}
+
+func runMain() int {
+	// Cancel running scenarios on SIGINT/SIGTERM so the per-phase
+	// selects unwind cleanly instead of requiring kill -9.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := runCLI(ctx, os.Args, os.Stdout, os.Stderr); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "natsbench: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
+	return 0
 }
 
 // runCLI runs the natsbench command-line interface. args is the full
@@ -28,7 +41,7 @@ func main() {
 // flags it runs the default scenario matrix; -scenario runs one named
 // scenario; any custom shape flag runs a single custom configuration.
 // It returns an error when the flags are invalid or any run fails.
-func runCLI(args []string, stdout, stderr io.Writer) error {
+func runCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet(args[0], flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	var (
@@ -84,8 +97,14 @@ func runCLI(args []string, stdout, stderr io.Writer) error {
 	results := make([]ScenarioResult, 0, len(scenarios))
 	failed := false
 	for _, sc := range scenarios {
+		// Stop launching scenarios once interrupted, rather than
+		// letting each remaining Run fail with a confusing topology
+		// error from the canceled context.
+		if err := ctx.Err(); err != nil {
+			return xerrors.Errorf("interrupted before %s: %w", sc.Name, err)
+		}
 		_, _ = fmt.Fprintf(stderr, "running %s...\n", sc.Name)
-		res, runErr := Run(context.Background(), logger, sc.Config)
+		res, runErr := Run(ctx, logger, sc.Config)
 		results = append(results, ScenarioResult{Scenario: sc, Result: res, Err: runErr})
 		if runErr != nil {
 			failed = true

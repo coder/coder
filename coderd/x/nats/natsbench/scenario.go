@@ -15,9 +15,18 @@ type Scenario struct {
 const DefaultConns = 3
 
 // DefaultScenarios returns the standard matrix: payloads of 8 KiB and
-// 64 KiB at 1, 5, and 10 replicas. The 64 KiB cluster runs use a
-// reduced total message count because the fan-out byte volume is
-// memory-heavy.
+// 64 KiB at 1, 3, and 9 replicas. The 64 KiB cluster runs use a reduced
+// total message count because the fan-out byte volume is memory-heavy.
+//
+// The replica counts are deliberately coprime with the subject count
+// (10): the round-robin placement co-locates every publisher and
+// subscriber on a subject whenever Subjects % Replicas == 0, so divisor
+// replica counts would never exercise cross-node routing. 3 and 9 force
+// cross-node pairs, making the readiness gate prove route propagation
+// and the throughput numbers include routing cost.
+//
+// The returned configs leave Timeout unset; callers must set it before
+// passing them to Run (the CLI does this from its -timeout flag).
 func DefaultScenarios() []Scenario {
 	const (
 		subjects        = 10
@@ -35,7 +44,7 @@ func DefaultScenarios() []Scenario {
 
 	var scenarios []Scenario
 	for _, payload := range payloads {
-		for _, replicas := range []int{1, 5, 10} {
+		for _, replicas := range []int{1, 3, 9} {
 			messages := DefaultMessages
 			if payload.size == Payload64KB && replicas > 1 {
 				messages = reducedMessages

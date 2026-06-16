@@ -11,16 +11,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestFormatInt(t *testing.T) {
-	t.Parallel()
-
-	require.Equal(t, "0", formatInt(0))
-	require.Equal(t, "999", formatInt(999))
-	require.Equal(t, "1,000", formatInt(1000))
-	require.Equal(t, "123,456,789", formatInt(123456789))
-	require.Equal(t, "-1,234", formatInt(-1234))
-}
-
 func TestFormatPayload(t *testing.T) {
 	t.Parallel()
 

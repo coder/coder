@@ -202,9 +202,7 @@ func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, <-ch
 	errCh := make(chan error, len(w.pl.perPubMsgs))
 	var wg sync.WaitGroup
 	for i := range w.pl.perPubMsgs {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			<-start
 			node := w.top.nodes[w.pl.pubNode[i]]
 			subject := subjectName(w.pl.pubSubject[i])
@@ -215,7 +213,7 @@ func (w *workload) startPublishers(start <-chan struct{}) (<-chan struct{}, <-ch
 				}
 				w.published.Add(1)
 			}
-		}()
+		})
 	}
 	done := make(chan struct{})
 	go func() {
