@@ -1260,7 +1260,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					// No override
 					expectTokenUsageCostLookups(db, intc, nil, group, price)
 
-					// 300 + 1200 + 15 + 40.
+					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
@@ -1378,7 +1378,7 @@ func TestRecordTokenUsage(t *testing.T) {
 					// attribution stays NULL.
 					expectTokenUsageCostLookups(db, intc, nil, nil, price)
 
-					// 300 + 1200 + 15 + 40.
+					// input 300 + output 1200 + cache read 15 + cache write 40.
 					const wantCost int64 = 1555
 
 					db.EXPECT().InsertAIBridgeTokenUsage(gomock.Any(), gomock.Cond(func(p database.InsertAIBridgeTokenUsageParams) bool {
@@ -1543,7 +1543,7 @@ func TestRecordTokenUsageAuthorized(t *testing.T) {
 	require.Equal(t, sql.NullInt64{Int64: 6_000_000, Valid: true}, got.OutputPriceMicros, "output price")
 	require.Equal(t, sql.NullInt64{Int64: 300_000, Valid: true}, got.CacheReadPriceMicros, "cache read price")
 	require.Equal(t, sql.NullInt64{Int64: 4_000_000, Valid: true}, got.CacheWritePriceMicros, "cache write price")
-	// 300 + 1200 + 15 + 40.
+	// input 300 + output 1200 + cache read 15 + cache write 40.
 	require.Equal(t, sql.NullInt64{Int64: 1555, Valid: true}, got.CostMicros, "cost")
 }
 
