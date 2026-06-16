@@ -65,11 +65,11 @@ const AgentSettingsModelsPage: FC = () => {
 				modelCatalogError={
 					modelCatalogQuery.isError ? modelCatalogQuery.error : null
 				}
-				onCreateProvider={(req) => createProviderMutation.mutateAsync(req)}
+				onCreateProvider={(req) => createProviderMutation.mutate(req)}
 				onUpdateProvider={(providerConfigId, req) =>
-					updateProviderMutation.mutateAsync({ providerConfigId, req })
+					updateProviderMutation.mutate({ providerConfigId, req })
 				}
-				onDeleteProvider={(id) => deleteProviderMutation.mutateAsync(id)}
+				onDeleteProvider={(id) => deleteProviderMutation.mutate(id)}
 				isProviderMutationPending={
 					createProviderMutation.isPending ||
 					updateProviderMutation.isPending ||
@@ -80,11 +80,11 @@ const AgentSettingsModelsPage: FC = () => {
 					updateProviderMutation.error ??
 					deleteProviderMutation.error
 				}
-				onCreateModel={(req) => createModelMutation.mutateAsync(req)}
+				onCreateModel={(req) => createModelMutation.mutate(req)}
 				onUpdateModel={(modelConfigId, req) =>
-					updateModelMutation.mutateAsync({ modelConfigId, req })
+					updateModelMutation.mutate({ modelConfigId, req })
 				}
-				onDeleteModel={(id) => deleteModelMutation.mutateAsync(id)}
+				onDeleteModel={(id) => deleteModelMutation.mutate(id)}
 				isCreatingModel={createModelMutation.isPending}
 				isUpdatingModel={updateModelMutation.isPending}
 				isDeletingModel={deleteModelMutation.isPending}

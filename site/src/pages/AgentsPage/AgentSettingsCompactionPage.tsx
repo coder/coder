@@ -23,13 +23,13 @@ const AgentSettingsCompactionPage: FC = () => {
 		modelConfigId: string,
 		thresholdPercent: number,
 	) =>
-		saveThresholdMutation.mutateAsync({
+		saveThresholdMutation.mutate({
 			modelConfigId,
 			req: { threshold_percent: thresholdPercent },
 		});
 
 	const handleResetThreshold = (modelConfigId: string) =>
-		resetThresholdMutation.mutateAsync(modelConfigId);
+		resetThresholdMutation.mutate(modelConfigId);
 
 	return (
 		<AgentSettingsCompactionPageView

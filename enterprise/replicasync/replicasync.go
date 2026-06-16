@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -384,7 +385,8 @@ func PingPeerReplica(ctx context.Context, client http.Client, relayAddress strin
 	if err != nil {
 		return xerrors.Errorf("do probe: %w", err)
 	}
-	_ = res.Body.Close()
+	defer res.Body.Close()
+	_, _ = io.Copy(io.Discard, res.Body)
 	if res.StatusCode != http.StatusOK {
 		return xerrors.Errorf("unexpected status code: %d", res.StatusCode)
 	}

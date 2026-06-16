@@ -76,16 +76,18 @@ const NotificationsPage: FC = () => {
 	const disableMutation = useMutation(
 		disableNotification(user.id, queryClient),
 	);
-	const [searchParams] = useSearchParams();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const disabledId = searchParams.get("disabled");
 	useEffect(() => {
 		if (!disabledId) {
 			return;
 		}
-		searchParams.delete("disabled");
+		const newParams = new URLSearchParams(searchParams);
+		newParams.delete("disabled");
 		disableMutation
 			.mutateAsync(disabledId)
 			.then(() => {
+				setSearchParams(newParams);
 				toast.success("Notification has been disabled.");
 			})
 			.catch((error) => {
@@ -93,7 +95,7 @@ const NotificationsPage: FC = () => {
 					description: getErrorDetail(error),
 				});
 			});
-	}, [searchParams.delete, disabledId, disableMutation]);
+	}, [searchParams, disabledId, disableMutation, setSearchParams]);
 
 	const ready =
 		disabledPreferences.data &&

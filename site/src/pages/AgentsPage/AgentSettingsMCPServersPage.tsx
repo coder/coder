@@ -28,9 +28,9 @@ const AgentSettingsMCPServersPage: FC = () => {
 				serversData={serversQuery.data}
 				isLoadingServers={serversQuery.isLoading}
 				serversError={serversQuery.isError ? serversQuery.error : null}
-				onCreateServer={(req) => createServerMutation.mutateAsync(req)}
-				onUpdateServer={(args) => updateServerMutation.mutateAsync(args)}
-				onDeleteServer={(id) => deleteServerMutation.mutateAsync(id)}
+				onCreateServer={(req) => createServerMutation.mutate(req)}
+				onUpdateServer={(args) => updateServerMutation.mutate(args)}
+				onDeleteServer={(id) => deleteServerMutation.mutate(id)}
 				isCreatingServer={createServerMutation.isPending}
 				isUpdatingServer={updateServerMutation.isPending}
 				isDeletingServer={deleteServerMutation.isPending}

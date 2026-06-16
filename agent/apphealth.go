@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -96,8 +97,9 @@ func NewAppHealthReporterWithClock(
 						if err != nil {
 							return err
 						}
+						defer res.Body.Close()
+						_, _ = io.Copy(io.Discard, res.Body)
 						// successful healthcheck is a non-5XX status code
-						_ = res.Body.Close()
 						if res.StatusCode >= http.StatusInternalServerError {
 							return xerrors.Errorf("error status code: %d", res.StatusCode)
 						}
