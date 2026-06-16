@@ -19,7 +19,8 @@ import (
 // innerTextMarkdown renders Markdown to HTML for InnerTextFromMarkdown. The
 // Table extension renders table cells as text rather than pipe-delimited lines,
 // and WithUnsafe passes embedded raw HTML through so its inner text survives.
-// Read-only after construction.
+// Safe for concurrent Convert: the parser lazily initializes once via sync.Once
+// on first use, then only reads its configuration.
 var innerTextMarkdown = goldmark.New(
 	goldmark.WithExtensions(extension.Table),
 	goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()),
