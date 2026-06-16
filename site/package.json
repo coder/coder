@@ -170,7 +170,7 @@
 		"jest-websocket-mock": "2.5.0",
 		"jsdom": "27.2.0",
 		"knip": "5.71.0",
-		"msw": "2.4.8",
+		"msw": "2.14.6",
 		"postcss": "8.5.15",
 		"protobufjs": "7.6.1",
 		"resize-observer-polyfill": "1.5.1",
