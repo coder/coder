@@ -17,6 +17,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
+import { makeChat } from "#/testHelpers/chatEntities";
 import {
 	MockNoPermissions,
 	MockPermissions,
@@ -150,27 +151,17 @@ const mockUsageUsers: TypesGen.ChatCostUsersResponse = {
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 const todayTimestamp = new Date().toISOString();
 
-const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
-	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: "owner-1",
-	owner_username: "owner",
-	title: "Agent",
-	status: "completed",
-	last_model_config_id: defaultModelConfigs[0].id,
-	mcp_server_ids: [],
-	labels: {},
-	created_at: oneWeekAgo,
-	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
-	...overrides,
-});
+const buildChat = (overrides: Partial<Chat> = {}): Chat =>
+	makeChat({
+		id: "chat-default",
+		owner_id: "owner-1",
+		owner_username: "owner",
+		owner_name: undefined,
+		last_model_config_id: defaultModelConfigs[0].id,
+		created_at: oneWeekAgo,
+		updated_at: oneWeekAgo,
+		...overrides,
+	});
 
 // Use local noon so the rendered range label stays stable
 // across timezones.

@@ -7,6 +7,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { makeChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -58,28 +59,14 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
-	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: MockUserOwner.id,
-	owner_username: MockUserOwner.username,
-	owner_name: MockUserOwner.name,
-	title: "Agent",
-	status: "completed",
-	last_model_config_id: defaultModelConfigs[0].id,
-	mcp_server_ids: [],
-	labels: {},
-	created_at: oneWeekAgo,
-	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
-	...overrides,
-});
+const buildChat = (overrides: Partial<Chat> = {}): Chat =>
+	makeChat({
+		id: "chat-default",
+		last_model_config_id: defaultModelConfigs[0].id,
+		created_at: oneWeekAgo,
+		updated_at: oneWeekAgo,
+		...overrides,
+	});
 
 const agentsRouting = [
 	{ path: "/agents/:agentId", useStoryElement: true },

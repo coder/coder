@@ -5,6 +5,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import { makeChat } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -51,28 +52,18 @@ const defaultModelOptions: ModelSelectorOption[] = [
 
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
-	id: AGENT_ID,
-	organization_id: "test-org-id",
-	owner_id: "owner-1",
-	owner_username: "owner",
-	owner_name: "Owner",
-	title: "Help me refactor",
-	status: "completed",
-	last_model_config_id: defaultModelConfigID,
-	mcp_server_ids: [],
-	labels: {},
-	created_at: oneWeekAgo,
-	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
-	...overrides,
-});
+const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat =>
+	makeChat({
+		id: AGENT_ID,
+		owner_id: "owner-1",
+		owner_username: "owner",
+		owner_name: "Owner",
+		title: "Help me refactor",
+		last_model_config_id: defaultModelConfigID,
+		created_at: oneWeekAgo,
+		updated_at: oneWeekAgo,
+		...overrides,
+	});
 
 const buildEditing = (
 	overrides: Partial<ComponentProps<typeof AgentChatPageView>["editing"]> = {},
