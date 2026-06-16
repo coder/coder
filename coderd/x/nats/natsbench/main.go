@@ -43,6 +43,8 @@ func runCLI(args []string, stdout, stderr io.Writer) error {
 	fs.IntVar(&run.publishers, "publishers", 10, "number of publishers (custom run)")
 	fs.IntVar(&run.subscribers, "subscribers", 50, "number of subscribers (custom run)")
 	fs.IntVar(&run.replicas, "replicas", 1, "number of embedded pubsub nodes (custom run)")
+	fs.IntVar(&run.publishConns, "publish-conns", DefaultConns, "publisher connection pool size (applies to every run)")
+	fs.IntVar(&run.subscribeConns, "subscribe-conns", DefaultConns, "subscriber connection pool size (applies to every run)")
 	fs.DurationVar(&run.timeout, "timeout", 2*time.Minute, "per-phase timeout")
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -108,14 +110,16 @@ type cliRun struct {
 	scenarioName string
 	// shapeFlagSet is true when any custom-shape flag was passed, which
 	// selects a single custom run.
-	shapeFlagSet bool
-	messages     int
-	payload      int
-	subjects     int
-	publishers   int
-	subscribers  int
-	replicas     int
-	timeout      time.Duration
+	shapeFlagSet   bool
+	messages       int
+	payload        int
+	subjects       int
+	publishers     int
+	subscribers    int
+	replicas       int
+	publishConns   int
+	subscribeConns int
+	timeout        time.Duration
 }
 
 // scenarios resolves the parsed flags into the scenarios to run: one
@@ -135,6 +139,8 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			if c.messages > 0 {
 				sc.Config.Messages = c.messages
 			}
+			sc.Config.PublishConns = c.publishConns
+			sc.Config.SubscribeConns = c.subscribeConns
 			sc.Config.Timeout = c.timeout
 			return []Scenario{sc}, nil
 		}
@@ -147,13 +153,15 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 		return []Scenario{{
 			Name: "custom",
 			Config: Config{
-				Messages:    messages,
-				PayloadSize: c.payload,
-				Subjects:    c.subjects,
-				Publishers:  c.publishers,
-				Subscribers: c.subscribers,
-				Replicas:    c.replicas,
-				Timeout:     c.timeout,
+				Messages:       messages,
+				PayloadSize:    c.payload,
+				Subjects:       c.subjects,
+				Publishers:     c.publishers,
+				Subscribers:    c.subscribers,
+				Replicas:       c.replicas,
+				PublishConns:   c.publishConns,
+				SubscribeConns: c.subscribeConns,
+				Timeout:        c.timeout,
 			},
 		}}, nil
 	default:
@@ -162,6 +170,8 @@ func (c cliRun) scenarios() ([]Scenario, error) {
 			if c.messages > 0 {
 				scenarios[i].Config.Messages = c.messages
 			}
+			scenarios[i].Config.PublishConns = c.publishConns
+			scenarios[i].Config.SubscribeConns = c.subscribeConns
 			scenarios[i].Config.Timeout = c.timeout
 		}
 		return scenarios, nil

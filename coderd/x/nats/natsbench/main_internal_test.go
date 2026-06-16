@@ -13,11 +13,23 @@ func TestCLIScenarios(t *testing.T) {
 
 	t.Run("DefaultMatrix", func(t *testing.T) {
 		t.Parallel()
-		got, err := cliRun{timeout: testutil.WaitShort}.scenarios()
+		got, err := cliRun{timeout: testutil.WaitShort, publishConns: DefaultConns, subscribeConns: DefaultConns}.scenarios()
 		require.NoError(t, err)
 		require.Len(t, got, len(DefaultScenarios()))
 		for _, sc := range got {
 			require.Equal(t, testutil.WaitShort, sc.Config.Timeout)
+			require.Equal(t, DefaultConns, sc.Config.PublishConns)
+			require.Equal(t, DefaultConns, sc.Config.SubscribeConns)
+		}
+	})
+
+	t.Run("ConnOverride", func(t *testing.T) {
+		t.Parallel()
+		got, err := cliRun{timeout: testutil.WaitShort, publishConns: 1, subscribeConns: 1}.scenarios()
+		require.NoError(t, err)
+		for _, sc := range got {
+			require.Equal(t, 1, sc.Config.PublishConns)
+			require.Equal(t, 1, sc.Config.SubscribeConns)
 		}
 	})
 
@@ -48,13 +60,15 @@ func TestCLIScenarios(t *testing.T) {
 	t.Run("CustomShape", func(t *testing.T) {
 		t.Parallel()
 		got, err := cliRun{
-			shapeFlagSet: true,
-			payload:      Payload64KB,
-			subjects:     3,
-			publishers:   4,
-			subscribers:  8,
-			replicas:     2,
-			timeout:      testutil.WaitShort,
+			shapeFlagSet:   true,
+			payload:        Payload64KB,
+			subjects:       3,
+			publishers:     4,
+			subscribers:    8,
+			replicas:       2,
+			publishConns:   DefaultConns,
+			subscribeConns: DefaultConns,
+			timeout:        testutil.WaitShort,
 		}.scenarios()
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -63,6 +77,7 @@ func TestCLIScenarios(t *testing.T) {
 		require.Equal(t, DefaultMessages, got[0].Config.Messages)
 		require.Equal(t, Payload64KB, got[0].Config.PayloadSize)
 		require.Equal(t, 2, got[0].Config.Replicas)
+		require.Equal(t, DefaultConns, got[0].Config.PublishConns)
 	})
 
 	t.Run("ScenarioAndShapeConflict", func(t *testing.T) {

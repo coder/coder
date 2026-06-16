@@ -8,6 +8,12 @@ type Scenario struct {
 	Config Config
 }
 
+// DefaultConns is the default size of the publisher and subscriber
+// connection pools in the standard matrix. Production ships a single
+// connection each, but the benchmarks use three to match the prior
+// natsbench harness and to exercise cross-subject parallelism.
+const DefaultConns = 3
+
 // DefaultScenarios returns the standard matrix: payloads of 8 KiB and
 // 64 KiB at 1, 5, and 10 replicas. The 64 KiB cluster runs use a
 // reduced total message count because the fan-out byte volume is
@@ -37,12 +43,14 @@ func DefaultScenarios() []Scenario {
 			scenarios = append(scenarios, Scenario{
 				Name: fmt.Sprintf("%s-%dr", payload.label, replicas),
 				Config: Config{
-					Messages:    messages,
-					PayloadSize: payload.size,
-					Subjects:    subjects,
-					Publishers:  publishers,
-					Subscribers: subscribers,
-					Replicas:    replicas,
+					Messages:       messages,
+					PayloadSize:    payload.size,
+					Subjects:       subjects,
+					Publishers:     publishers,
+					Subscribers:    subscribers,
+					Replicas:       replicas,
+					PublishConns:   DefaultConns,
+					SubscribeConns: DefaultConns,
 				},
 			})
 		}
