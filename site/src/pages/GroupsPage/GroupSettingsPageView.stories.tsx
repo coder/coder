@@ -39,7 +39,7 @@ export const WithAIBudget: Story = {
 		await expect(canvas.getByText("AI budget")).toBeInTheDocument();
 		const helper = canvas.getByText(/month maximum/i);
 		await expect(helper).toHaveTextContent(
-			"$7,000.00/month maximum, based on 7 members.",
+			"$7,000/month maximum, based on 7 members.",
 		);
 	},
 };
@@ -68,7 +68,23 @@ export const AIBudgetDisabled: Story = {
 		// A budget of 0 is valid and reads as disabled spend.
 		const helper = canvas.getByText(/month maximum/i);
 		await expect(helper).toHaveTextContent(
-			"$0.00/month maximum, based on 7 members.",
+			"$0/month maximum, based on 7 members.",
+		);
+	},
+};
+
+export const AIBudgetDecimal: Story = {
+	args: {
+		showAISettings: true,
+		group: { ...MockGroup, total_member_count: 1 },
+		initialBudgetDollars: 99.99,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Cents are kept when the amount is not a whole dollar.
+		const helper = canvas.getByText(/month maximum/i);
+		await expect(helper).toHaveTextContent(
+			"$99.99/month maximum, based on 1 member.",
 		);
 	},
 };

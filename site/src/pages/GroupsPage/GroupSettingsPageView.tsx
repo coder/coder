@@ -9,12 +9,19 @@ import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { isEveryoneGroup } from "#/modules/groups";
-import { dollarsToMicros, formatCostMicros } from "#/utils/currency";
 import {
 	getFormHelpers,
 	nameValidator,
 	onChangeTrimmed,
 } from "#/utils/formUtils";
+
+// Drops the cents when the amount is a whole dollar (the common case).
+const usdMaximumFormatter = new Intl.NumberFormat("en-US", {
+	style: "currency",
+	currency: "USD",
+	minimumFractionDigits: 0,
+	maximumFractionDigits: 2,
+});
 
 type FormData = {
 	name: string;
@@ -79,8 +86,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 	const budgetField = getFieldHelpers("monthly_budget_per_member");
 	const budgetDollars = form.values.monthly_budget_per_member;
 	const memberCount = group.total_member_count;
-	const monthlyMaximum = formatCostMicros(
-		dollarsToMicros(budgetDollars) * memberCount,
+	const monthlyMaximum = usdMaximumFormatter.format(
+		Number(budgetDollars) * memberCount,
 	);
 
 	return (

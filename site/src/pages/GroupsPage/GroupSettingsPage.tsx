@@ -10,12 +10,12 @@ import {
 } from "#/api/queries/groups";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { dollarsToMicros, microsToDollars } from "#/utils/currency";
 import type { GroupPageOutletContext } from "./GroupPage";
 import GroupSettingsPageView from "./GroupSettingsPageView";
 
-// Empty is uncapped (no budget row); otherwise the budget in micros.
 const budgetFromInput = (dollars: string): number | null =>
 	dollars.trim() === "" ? null : dollarsToMicros(dollars);
 
@@ -29,8 +29,12 @@ const GroupSettingsPage: FC = () => {
 	const patchGroupMutation = useMutation(patchGroup(queryClient, organization));
 	const navigate = useNavigate();
 
-	// Budget routes are gated on aibridge; useFeatureVisibility is {} unlicensed.
-	const aibridgeVisible = Boolean(useFeatureVisibility().aibridge);
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
 	const budgetQuery = useQuery({
 		...groupAIBudget(groupData.id),
 		enabled: aibridgeVisible,
@@ -39,7 +43,6 @@ const GroupSettingsPage: FC = () => {
 		saveGroupAIBudget(queryClient, groupData.id),
 	);
 
-	// Load the budget before rendering so the form initializes with it.
 	if (aibridgeVisible && budgetQuery.isLoading) {
 		return (
 			<div className="flex items-center justify-center p-10">
@@ -69,20 +72,28 @@ const GroupSettingsPage: FC = () => {
 						add_users: [],
 						remove_users: [],
 					});
-
-					// Save only when the budget changed (0 disables, empty uncaps).
-					const next = budgetFromInput(monthly_budget_per_member);
-					if (aibridgeVisible && next !== currentBudgetMicros) {
-						await saveBudgetMutation.mutateAsync(next);
-					}
-
-					navigate(`/organizations/${organization}/groups/${data.name}`);
 				} catch (error) {
 					toast.error(
 						getErrorMessage(error, `Failed to update group "${groupName}".`),
 						{ description: getErrorDetail(error) },
 					);
+					return;
 				}
+
+				const next = budgetFromInput(monthly_budget_per_member);
+				if (aibridgeVisible && next !== currentBudgetMicros) {
+					try {
+						await saveBudgetMutation.mutateAsync(next);
+					} catch (error) {
+						toast.error(
+							getErrorMessage(error, "Failed to update the AI budget."),
+							{ description: getErrorDetail(error) },
+						);
+						return;
+					}
+				}
+
+				navigate(`/organizations/${organization}/groups/${data.name}`);
 			}}
 			group={groupData}
 			showAISettings={aibridgeVisible}
