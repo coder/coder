@@ -1165,10 +1165,12 @@ class ApiMethods {
 		versionId: string,
 		userId: string,
 		{
+			onOpen,
 			onMessage,
 			onError,
 			onClose,
 		}: {
+			onOpen?: () => void;
 			onMessage: (response: TypesGen.DynamicParametersResponse) => void;
 			onError: (error: Error) => void;
 			onClose: () => void;
@@ -1178,6 +1180,10 @@ class ApiMethods {
 			`/api/v2/templateversions/${versionId}/dynamic-parameters`,
 			new URLSearchParams({ user_id: userId }),
 		);
+
+		socket.addEventListener("open", () => {
+			onOpen?.();
+		});
 
 		socket.addEventListener("message", (event) =>
 			onMessage(JSON.parse(event.data) as TypesGen.DynamicParametersResponse),
@@ -3047,13 +3053,17 @@ class ApiMethods {
 		});
 	};
 
-	getAIBridgeInterceptions = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams(
-			"/api/v2/aibridge/interceptions",
-			options,
-		);
-		const response =
-			await this.axios.get<TypesGen.AIBridgeListInterceptionsResponse>(url);
+	getAIBridgeModels = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+
+		const response = await this.axios.get<string[]>(url);
+		return response.data;
+	};
+
+	getAIBridgeClients = async (options: SearchParamOptions) => {
+		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+
+		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
@@ -3074,20 +3084,6 @@ class ApiMethods {
 		);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeSessionThreadsResponse>(url);
-		return response.data;
-	};
-
-	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
-
-		const response = await this.axios.get<string[]>(url);
-		return response.data;
-	};
-
-	getAIBridgeClients = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
-
-		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
@@ -3130,6 +3126,27 @@ class ApiMethods {
 		await this.axios.delete(
 			`/api/v2/ai/providers/${encodeURIComponent(idOrName)}`,
 		);
+	};
+
+	getAIGatewayKeys = async (): Promise<TypesGen.AIGatewayKey[]> => {
+		const response = await this.axios.get<TypesGen.AIGatewayKey[]>(
+			"/api/v2/aibridge/keys",
+		);
+		return response.data;
+	};
+
+	createAIGatewayKey = async (
+		req: TypesGen.CreateAIGatewayKeyRequest,
+	): Promise<TypesGen.CreateAIGatewayKeyResponse> => {
+		const response = await this.axios.post<TypesGen.CreateAIGatewayKeyResponse>(
+			"/api/v2/aibridge/keys",
+			req,
+		);
+		return response.data;
+	};
+
+	deleteAIGatewayKey = async (id: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/aibridge/keys/${encodeURIComponent(id)}`);
 	};
 }
 

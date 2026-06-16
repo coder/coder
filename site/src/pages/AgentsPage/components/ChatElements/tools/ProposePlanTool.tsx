@@ -9,6 +9,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getPathBasename } from "../../../utils/path";
 import { Response } from "../Response";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolCall } from "./ToolCall";
@@ -55,7 +56,7 @@ export const ProposePlanTool: React.FC<{
 		? (inlineContent ?? "")
 		: (fileQuery.data ?? "");
 	const isRunning = status === "running";
-	const filename = (path || "PLAN.md").split("/").pop() || "PLAN.md";
+	const filename = getPathBasename(path || "PLAN.md") || "PLAN.md";
 	const effectiveError = isError || Boolean(fetchError);
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;

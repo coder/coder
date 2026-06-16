@@ -637,11 +637,10 @@ func waitForAgentReady(
 		var lastErr error
 		for {
 			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
-			conn, release, err := agentConnFn(attemptCtx, agentID)
+			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {
 				release()
-				_ = conn
 				break
 			}
 			lastErr = err

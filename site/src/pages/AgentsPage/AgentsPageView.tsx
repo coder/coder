@@ -40,6 +40,7 @@ export interface AgentsOutletContext {
 interface AgentsPageViewProps {
 	agentId: string | undefined;
 	chatList: TypesGen.Chat[];
+	currentUserId: string;
 	catalogModelOptions: readonly ModelSelectorOption[];
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	handleNewAgent: () => void;
@@ -83,6 +84,7 @@ interface AgentsPageViewProps {
 export const AgentsPageView: FC<AgentsPageViewProps> = ({
 	agentId,
 	chatList,
+	currentUserId,
 	catalogModelOptions,
 	modelConfigs,
 	handleNewAgent,
@@ -180,6 +182,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 			>
 				<ChatsSidebar
 					chats={chatList}
+					currentUserId={currentUserId}
 					chatErrorReasons={sidebarChatErrorReasons}
 					modelOptions={catalogModelOptions}
 					modelConfigs={modelConfigs}

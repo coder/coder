@@ -27,14 +27,12 @@ import (
 )
 
 const (
-	maxListInterceptionsLimit     = 1000
-	maxListSessionsLimit          = 1000
-	maxListModelsLimit            = 1000
-	maxListClientsLimit           = 1000
-	defaultListInterceptionsLimit = 100
-	defaultListSessionsLimit      = 100
-	defaultListModelsLimit        = 100
-	defaultListClientsLimit       = 100
+	maxListSessionsLimit     = 1000
+	maxListModelsLimit       = 1000
+	maxListClientsLimit      = 1000
+	defaultListSessionsLimit = 100
+	defaultListModelsLimit   = 100
+	defaultListClientsLimit  = 100
 	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow = time.Second
@@ -61,7 +59,6 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Group(func(r chi.Router) {
 			r.Use(middlewares...)
-			r.Get("/interceptions", api.aiBridgeListInterceptions)
 			r.Get("/sessions", api.aiBridgeListSessions)
 			r.Get("/sessions/{session_id}", api.aiBridgeGetSessionThreads)
 			r.Get("/models", api.aiBridgeListModels)
@@ -96,125 +93,6 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 			})
 		})
 	}
-}
-
-// aiBridgeListInterceptions returns all AI Bridge interceptions a user can read.
-// Optional filters with query params.
-//
-// Deprecated: Use /aibridge/sessions instead, which provides richer
-// session-level aggregation including threads and agentic actions.
-//
-// @Summary List AI Bridge interceptions
-// @ID list-ai-bridge-interceptions
-// @Security CoderSessionToken
-// @Produce json
-// @Tags AI Bridge
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, started_after, started_before."
-// @Param limit query int false "Page limit"
-// @Param after_id query string false "Cursor pagination after ID (cannot be used with offset)"
-// @Param offset query int false "Offset pagination (cannot be used with after_id)"
-// @Success 200 {object} codersdk.AIBridgeListInterceptionsResponse
-// @Router /api/v2/aibridge/interceptions [get]
-// @Deprecated Use /aibridge/sessions instead.
-func (api *API) aiBridgeListInterceptions(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	apiKey := httpmw.APIKey(r)
-
-	page, ok := coderd.ParsePagination(rw, r)
-	if !ok {
-		return
-	}
-	if page.AfterID != uuid.Nil && page.Offset != 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Query parameters have invalid values.",
-			Detail:  "Cannot use both after_id and offset pagination in the same request.",
-		})
-		return
-	}
-	if page.Limit == 0 {
-		page.Limit = defaultListInterceptionsLimit
-	}
-	if page.Limit > maxListInterceptionsLimit || page.Limit < 1 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid pagination limit value.",
-			Detail:  fmt.Sprintf("Pagination limit must be in range (0, %d]", maxListInterceptionsLimit),
-		})
-		return
-	}
-
-	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.AIBridgeInterceptions(ctx, api.Database, queryStr, page, apiKey.UserID)
-	if len(errs) > 0 {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message:     "Invalid workspace search query.",
-			Validations: errs,
-		})
-		return
-	}
-
-	var (
-		count int64
-		rows  []database.ListAIBridgeInterceptionsRow
-	)
-	err := api.Database.InTx(func(db database.Store) error {
-		// Validate the cursor interception exists and is visible.
-		if err := validateInterceptionCursor(ctx, db, page.AfterID, "after_id", ""); err != nil {
-			return err
-		}
-
-		var err error
-		// Get the full count of authorized interceptions matching the filter
-		// for pagination purposes.
-		count, err = db.CountAIBridgeInterceptions(ctx, database.CountAIBridgeInterceptionsParams{
-			StartedAfter:  filter.StartedAfter,
-			StartedBefore: filter.StartedBefore,
-			InitiatorID:   filter.InitiatorID,
-			Provider:      filter.Provider,
-			ProviderName:  filter.ProviderName,
-			Model:         filter.Model,
-			Client:        filter.Client,
-		})
-		if err != nil {
-			return xerrors.Errorf("count authorized aibridge interceptions: %w", err)
-		}
-
-		// This only returns authorized interceptions (when using dbauthz).
-		rows, err = db.ListAIBridgeInterceptions(ctx, filter)
-		if err != nil {
-			return xerrors.Errorf("list aibridge interceptions: %w", err)
-		}
-
-		return nil
-	}, nil)
-	if err != nil {
-		if errors.Is(err, errInvalidCursor) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid pagination cursor.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error getting AI Bridge interceptions.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	// This fetches the other rows associated with the interceptions.
-	items, err := populatedAndConvertAIBridgeInterceptions(ctx, api.Database, rows)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error converting database rows to API response.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.AIBridgeListInterceptionsResponse{
-		Count:   count,
-		Results: items,
-	})
 }
 
 // aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
@@ -656,57 +534,6 @@ func validateInterceptionCursor(ctx context.Context, db database.Store, cursorID
 	return nil
 }
 
-func populatedAndConvertAIBridgeInterceptions(ctx context.Context, db database.Store, dbInterceptions []database.ListAIBridgeInterceptionsRow) ([]codersdk.AIBridgeInterception, error) {
-	if len(dbInterceptions) == 0 {
-		return []codersdk.AIBridgeInterception{}, nil
-	}
-
-	ids := make([]uuid.UUID, len(dbInterceptions))
-	for i, row := range dbInterceptions {
-		ids[i] = row.AIBridgeInterception.ID
-	}
-
-	tokenUsagesRows, err := db.ListAIBridgeTokenUsagesByInterceptionIDs(ctx, ids)
-	if err != nil {
-		return nil, xerrors.Errorf("get linked aibridge token usages from database: %w", err)
-	}
-	tokenUsagesMap := make(map[uuid.UUID][]database.AIBridgeTokenUsage, len(dbInterceptions))
-	for _, row := range tokenUsagesRows {
-		tokenUsagesMap[row.InterceptionID] = append(tokenUsagesMap[row.InterceptionID], row)
-	}
-
-	userPromptRows, err := db.ListAIBridgeUserPromptsByInterceptionIDs(ctx, ids)
-	if err != nil {
-		return nil, xerrors.Errorf("get linked aibridge user prompts from database: %w", err)
-	}
-	userPromptsMap := make(map[uuid.UUID][]database.AIBridgeUserPrompt, len(dbInterceptions))
-	for _, row := range userPromptRows {
-		userPromptsMap[row.InterceptionID] = append(userPromptsMap[row.InterceptionID], row)
-	}
-
-	toolUsagesRows, err := db.ListAIBridgeToolUsagesByInterceptionIDs(ctx, ids)
-	if err != nil {
-		return nil, xerrors.Errorf("get linked aibridge tool usages from database: %w", err)
-	}
-	toolUsagesMap := make(map[uuid.UUID][]database.AIBridgeToolUsage, len(dbInterceptions))
-	for _, row := range toolUsagesRows {
-		toolUsagesMap[row.InterceptionID] = append(toolUsagesMap[row.InterceptionID], row)
-	}
-
-	items := make([]codersdk.AIBridgeInterception, len(dbInterceptions))
-	for i, row := range dbInterceptions {
-		items[i] = db2sdk.AIBridgeInterception(
-			row.AIBridgeInterception,
-			row.VisibleUser,
-			tokenUsagesMap[row.AIBridgeInterception.ID],
-			userPromptsMap[row.AIBridgeInterception.ID],
-			toolUsagesMap[row.AIBridgeInterception.ID],
-		)
-	}
-
-	return items, nil
-}
-
 // @Summary Get group AI budget
 // @ID get-group-ai-budget
 // @Security CoderSessionToken
@@ -748,7 +575,7 @@ func (api *API) upsertGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAIBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -803,7 +630,7 @@ func (api *API) deleteGroupAIBudget(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		group             = httpmw.GroupParam(r)
 		auditor           = api.AGPL.Auditor.Load()
-		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAiBudget](rw, &audit.RequestParams{
+		aReq, commitAudit = audit.InitRequest[database.AuditableGroupAIBudget](rw, &audit.RequestParams{
 			Audit:          *auditor,
 			Log:            api.Logger,
 			Request:        r,
@@ -887,7 +714,7 @@ func (api *API) upsertUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	}
 
 	auditor := api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAIBudgetOverride](rw, &audit.RequestParams{
 		Audit:          *auditor,
 		Log:            api.Logger,
 		Request:        r,
@@ -982,7 +809,7 @@ func (api *API) deleteUserAIBudgetOverride(rw http.ResponseWriter, r *http.Reque
 	}
 
 	auditor := api.AGPL.Auditor.Load()
-	aReq, commitAudit := audit.InitRequest[database.AuditableUserAiBudgetOverride](rw, &audit.RequestParams{
+	aReq, commitAudit := audit.InitRequest[database.AuditableUserAIBudgetOverride](rw, &audit.RequestParams{
 		Audit:          *auditor,
 		Log:            api.Logger,
 		Request:        r,

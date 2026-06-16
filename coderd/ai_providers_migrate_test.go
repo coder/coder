@@ -47,7 +47,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// One row exists for "openai".
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeOpenai, row.Type)
+		require.Equal(t, database.AIProviderTypeOpenai, row.Type)
 		require.Equal(t, "https://api.openai.com/v1", row.BaseUrl)
 		require.True(t, row.Enabled)
 
@@ -161,7 +161,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeBedrock, row.Type)
+		require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "us-west-2")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-haiku")
@@ -280,7 +280,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeOpenai, oa.Type)
+		require.Equal(t, database.AIProviderTypeOpenai, oa.Type)
 		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
 		require.NoError(t, err)
 		require.Len(t, oaKeys, 2)
@@ -289,7 +289,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, an.Type)
+		require.Equal(t, database.AIProviderTypeAnthropic, an.Type)
 		// Plain bearer-token Anthropic with no Bedrock fields: no
 		// settings blob, one bearer key.
 		require.False(t, an.Settings.Valid, "no settings blob for bearer-token Anthropic")
@@ -625,7 +625,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.NoError(t, err)
 		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:            row.ID,
-			Type:          database.AiProviderTypeAnthropic,
+			Type:          database.AIProviderTypeAnthropic,
 			DisplayName:   row.DisplayName,
 			Enabled:       row.Enabled,
 			BaseUrl:       row.BaseUrl,
@@ -635,7 +635,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.NoError(t, err)
 		row, err = db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, row.Type, "pre-condition: row must be anthropic before seed runs")
+		require.Equal(t, database.AIProviderTypeAnthropic, row.Type, "pre-condition: row must be anthropic before seed runs")
 
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 	})

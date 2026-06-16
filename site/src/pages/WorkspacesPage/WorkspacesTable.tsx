@@ -70,6 +70,7 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { abilitiesByWorkspaceStatus } from "#/modules/workspaces/actions";
 import { WorkspaceBuildCancelDialog } from "#/modules/workspaces/WorkspaceBuildCancelDialog/WorkspaceBuildCancelDialog";
@@ -759,15 +760,18 @@ const WorkspaceAppStatusLinks: FC<WorkspaceAppStatusLinksProps> = ({
 	workspace,
 }) => {
 	const status = workspace.latest_app_status;
-	const agent = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.find((a) => a?.id === status?.agent_id);
-	const app = agent?.apps.find((a) => a.id === status?.app_id);
+	const appWithAgent = status
+		? findWorkspaceAppWithAgent(workspace, status.agent_id, status.app_id)
+		: undefined;
 
 	return (
 		<>
-			{agent && app && (
-				<IconAppLink app={app} workspace={workspace} agent={agent} />
+			{appWithAgent && (
+				<IconAppLink
+					app={appWithAgent}
+					workspace={workspace}
+					agent={appWithAgent.agent}
+				/>
 			)}
 
 			{status?.uri && status?.uri !== "n/a" && (

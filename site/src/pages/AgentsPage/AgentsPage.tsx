@@ -679,6 +679,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}

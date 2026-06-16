@@ -624,6 +624,10 @@ func TestAPI(t *testing.T) {
 	t.Run("Watch", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS == "windows" {
+			t.Skip("Dev Container tests are not supported on Windows (this test uses mocks but fails due to Windows paths)")
+		}
+
 		fakeContainer1 := fakeContainer(t, func(c *codersdk.WorkspaceAgentContainer) {
 			c.ID = "container1"
 			c.FriendlyName = "devcontainer1"

@@ -136,6 +136,66 @@ type generatedTurnStatusLabel struct {
 	Label string `json:"label" description:"Compact 2-5 word current chat status label"`
 }
 
+// GenerateChatTitleAsync fires a best-effort, automatic title-generation
+// pass for a freshly created chat. It is intended to be called from the
+// chat-creation endpoint right after the chat and its initial user
+// message are persisted.
+//
+// The work runs in a tracked goroutine with a detached context so it
+// neither blocks the HTTP response nor is canceled when the request
+// completes. It resolves the chat's model and provider keys, then
+// delegates to maybeGenerateChatTitle, which only acts on the first user
+// turn (see titleInput) and is otherwise a no-op. Errors are logged and
+// swallowed.
+func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat) {
+	logger := p.logger.With(
+		slog.F("chat_id", chat.ID),
+		slog.F("owner_id", chat.OwnerID),
+	)
+	// Snapshot the messages synchronously so the first-turn eligibility
+	// check (titleInput) is evaluated against creation-time state. Loading
+	// inside the goroutine would race the chat worker's first assistant
+	// reply and could skip title generation.
+	messages, err := p.db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to load messages for automatic title generation",
+			slog.Error(err),
+		)
+		return
+	}
+	if _, ok := titleInput(chat, messages); !ok {
+		return
+	}
+	// Detach from the request lifetime so title generation can finish
+	// even after the create response is written.
+	titleCtx := context.WithoutCancel(ctx)
+	p.inflight.Go(func() {
+		modelOpts := modelBuildOptionsFromMessages(messages)
+		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
+		if err != nil {
+			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+				slog.Error(err),
+			)
+			return
+		}
+		p.maybeGenerateChatTitle(
+			titleCtx,
+			chat,
+			messages,
+			modelConfig.Provider,
+			modelConfig.Model,
+			model,
+			route,
+			keys,
+			modelOpts,
+			&generatedChatTitle{},
+			logger,
+			p.existingDebugService(),
+		)
+	})
+}
+
 // maybeGenerateChatTitle generates an AI title for the chat when
 // appropriate (first user message, no assistant reply yet, and the
 // current title is either empty or still the fallback truncation).
@@ -284,10 +344,6 @@ func (p *Server) maybeGenerateChatTitle(
 		chat.Title = title
 		generatedTitle.Store(title)
 		p.publishChatPubsubEvent(chat, codersdk.ChatWatchEventKindTitleChange, nil)
-
-		// AcquireChats uses SKIP LOCKED; re-wake so a wake racing this
-		// UPDATE's row lock does not strand a freshly-pending chat.
-		p.signalWake()
 		return
 	}
 
