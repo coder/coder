@@ -70,6 +70,17 @@ const defaultInitialValues: ProviderFormValues = {
 	enabled: true,
 };
 
+// Bedrock model defaults mirror codersdk/deployment.go's
+// aiGatewayBedrockModel and aiGatewayBedrockSmallFastModel defaults
+// so the create form lands on the same models the env-seeded path
+// uses. Update both sides together when AWS publishes new model IDs.
+const BEDROCK_DEFAULT_MODEL =
+	"global.anthropic.claude-sonnet-4-5-20250929-v1:0";
+const BEDROCK_DEFAULT_SMALL_FAST_MODEL =
+	"global.anthropic.claude-haiku-4-5-20251001-v1:0";
+const BEDROCK_MODEL_CARDS_URL =
+	"https://docs.aws.amazon.com/bedrock/latest/userguide/model-cards.html";
+
 const providerDefaults: Partial<
 	Record<AIProviderType, Partial<ProviderFormValues>>
 > = {
@@ -78,6 +89,8 @@ const providerDefaults: Partial<
 	bedrock: {
 		name: "bedrock",
 		baseUrl: "https://bedrock-runtime.us-east-2.amazonaws.com",
+		model: BEDROCK_DEFAULT_MODEL,
+		smallFastModel: BEDROCK_DEFAULT_SMALL_FAST_MODEL,
 	},
 	azure: {
 		name: "azure",
@@ -463,16 +476,28 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 								field={getFieldHelpers("model")}
 								label="Model"
 								className="w-full"
-								placeholder="anthropic.claude-3-5-sonnet-20241022-v2:0"
+								placeholder={BEDROCK_DEFAULT_MODEL}
 							/>
 							<FormField
 								required
 								field={getFieldHelpers("smallFastModel")}
 								label="Small-fast model"
 								className="w-full"
-								placeholder="anthropic.claude-3-haiku-20240307-v1:0"
+								placeholder={BEDROCK_DEFAULT_SMALL_FAST_MODEL}
 							/>
 						</div>
+						<p className="text-xs text-content-secondary m-0">
+							Find available Bedrock model IDs in the{" "}
+							<DocsLink
+								size="sm"
+								href={BEDROCK_MODEL_CARDS_URL}
+								target="_blank"
+								rel="noreferrer"
+							>
+								AWS Bedrock model cards
+							</DocsLink>
+							.
+						</p>
 						<div className="grid grid-cols-2 items-start gap-4">
 							<CredentialField
 								label="Access key"

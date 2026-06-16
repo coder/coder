@@ -116,17 +116,23 @@ export const AddOpenAI: Story = {
 
 export const AddBedrock: Story = {
 	args: {
-		initialValues: {
-			type: "bedrock",
-			name: "bedrock-prod",
-			displayName: "Bedrock Prod",
-			baseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com",
-			model: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-			smallFastModel: "anthropic.claude-3-5-haiku-20241022-v1:0",
-			accessKey: "AKIAIOSFODNN7EXAMPLE",
-			accessKeySecret: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-			enabled: true,
-		},
+		initialValues: { type: "bedrock" },
+	},
+	play: async ({ canvasElement }) => {
+		// AddProviderPageView passes only `{ type }`; verify the form
+		// pre-fills the deployment defaults for the model fields so an
+		// operator does not have to copy them from the docs.
+		const canvas = within(canvasElement);
+		const modelInput = await canvas.findByLabelText(/^model\s*\*?$/i);
+		const smallFastModelInput = await canvas.findByLabelText(
+			/^small-fast model\s*\*?$/i,
+		);
+		expect(modelInput).toHaveValue(
+			"global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+		);
+		expect(smallFastModelInput).toHaveValue(
+			"global.anthropic.claude-haiku-4-5-20251001-v1:0",
+		);
 	},
 };
 
