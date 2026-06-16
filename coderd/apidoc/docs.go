@@ -7358,6 +7358,105 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templatebuilder/compose": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/x-tar"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose template from base and modules",
+                "operationId": "compose-template-from-base-and-modules",
+                "parameters": [
+                    {
+                        "description": "Compose request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderComposeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/templatebuilder/compose/template": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "TemplateBuilder"
+                ],
+                "summary": "Compose and create a template",
+                "operationId": "compose-and-create-a-template",
+                "parameters": [
+                    {
+                        "description": "Create template request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateBuilderCreateTemplateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "504": {
+                        "description": "Gateway Timeout",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/templatebuilder/modules": {
             "get": {
                 "produces": [
@@ -23686,6 +23785,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.TemplateBuilderComposeModule": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "variables": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderComposeRequest": {
+            "type": "object",
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
+                    }
+                }
+            }
+        },
         "codersdk.TemplateBuilderConfig": {
             "type": "object",
             "properties": {
@@ -23694,6 +23821,54 @@ const docTemplate = `{
                 },
                 "registry_url": {
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.TemplateBuilderCreateTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "organization_id"
+            ],
+            "properties": {
+                "base_template_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "icon": {
+                    "type": "string"
+                },
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderComposeModule"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "provisioner_tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateBuilderCreateTemplateResponse": {
+            "type": "object",
+            "properties": {
+                "template": {
+                    "$ref": "#/definitions/codersdk.Template"
                 }
             }
         },

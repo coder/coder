@@ -3,8 +3,11 @@ package codersdk
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/google/uuid"
 )
 
 // TemplateBuilderVariableType enumerates the variable types
@@ -93,5 +96,67 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 		return TemplateBuilderModulesResponse{}, ReadBodyAsError(res)
 	}
 	var resp TemplateBuilderModulesResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// TemplateBuilderComposeRequest is the request body for
+// POST /api/v2/templatebuilder/compose.
+type TemplateBuilderComposeRequest struct {
+	BaseTemplateID string                         `json:"base_template_id"`
+	Modules        []TemplateBuilderComposeModule `json:"modules"`
+}
+
+// TemplateBuilderComposeModule identifies a module and its variable
+// values for the compose request.
+type TemplateBuilderComposeModule struct {
+	ID        string            `json:"id"`
+	Variables map[string]string `json:"variables,omitempty"`
+}
+
+// TemplateBuilderCompose renders a base template with the selected
+// modules and returns the resulting tar archive bytes.
+func (c *Client) TemplateBuilderCompose(ctx context.Context, req TemplateBuilderComposeRequest) ([]byte, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/templatebuilder/compose", req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	return io.ReadAll(res.Body)
+}
+
+// TemplateBuilderCreateTemplateRequest is the request body for
+// POST /api/v2/templatebuilder/compose/template.
+type TemplateBuilderCreateTemplateRequest struct {
+	BaseTemplateID  string                         `json:"base_template_id"`
+	Modules         []TemplateBuilderComposeModule `json:"modules"`
+	OrganizationID  uuid.UUID                      `json:"organization_id" format:"uuid" validate:"required"`
+	Name            string                         `json:"name" validate:"required,template_name"`
+	DisplayName     string                         `json:"display_name,omitempty" validate:"template_display_name"`
+	Description     string                         `json:"description,omitempty" validate:"lt=128"`
+	Icon            string                         `json:"icon,omitempty"`
+	ProvisionerTags map[string]string              `json:"provisioner_tags,omitempty"`
+}
+
+// TemplateBuilderCreateTemplateResponse is the response body for
+// POST /api/v2/templatebuilder/compose/template.
+type TemplateBuilderCreateTemplateResponse struct {
+	Template Template `json:"template"`
+}
+
+// TemplateBuilderCreateTemplate composes a template from a base and modules,
+// validates it via a provisioner import job, and creates the template.
+func (c *Client) TemplateBuilderCreateTemplate(ctx context.Context, req TemplateBuilderCreateTemplateRequest) (TemplateBuilderCreateTemplateResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/templatebuilder/compose/template", req)
+	if err != nil {
+		return TemplateBuilderCreateTemplateResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return TemplateBuilderCreateTemplateResponse{}, ReadBodyAsError(res)
+	}
+	var resp TemplateBuilderCreateTemplateResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

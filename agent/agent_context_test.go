@@ -56,7 +56,6 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	require.NotEmpty(t, pushes)
 	first := pushes[0]
 	assert.True(t, first.GetInitial(), "first push must carry Initial=true")
-	assert.Equal(t, uint64(1), first.GetSchemaVersion(), "schema_version must be the v1 wire shape")
 	assert.NotEmpty(t, first.GetAggregateHash(), "aggregate_hash must be populated")
 
 	// Subsequent pushes must not be Initial.

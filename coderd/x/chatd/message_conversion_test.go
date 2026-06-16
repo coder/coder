@@ -272,6 +272,134 @@ func TestCurrentTurnStepCount_CountsAssistantMessagesAfterLatestUser(t *testing.
 	require.Equal(t, 2, got)
 }
 
+func TestDecisionCompactsAgainAfterPostCompactionTurn(t *testing.T) {
+	t.Parallel()
+
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("initial request")),
+		dbMessage(t, 2, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("compacted summary")),
+		dbMessage(t, 3, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+		dbMessage(t, 4, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+		dbMessage(t, 5, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("continued after compaction")),
+		dbMessage(t, 6, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("next request")),
+	}
+
+	decision, err := decideGenerationAction(generationDecisionInput{
+		messages:                   messages,
+		compactionEnabled:          true,
+		compactionNeeded:           true,
+		compactionThresholdPercent: 70,
+		compactionContextLimit:     100,
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionCompact, decision.kind)
+}
+
+func TestCompactionStatusFromHistory(t *testing.T) {
+	t.Parallel()
+
+	const thresholdPercent = int32(70)
+
+	t.Run("needed without boundary", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("start")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusNeeded, got)
+	})
+
+	t.Run("after compaction without post boundary history", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusAfterCompaction, got)
+	})
+
+	t.Run("needed after under limit post compaction assistant", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageText("continued")), 20, 100),
+			dbMessage(t, 5, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("next")),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusNeeded, got)
+	})
+
+	t.Run("still over limit from first post compaction assistant usage", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 100),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusStillOverLimit, got)
+	})
+
+	t.Run("still over limit includes prompt cache tokens", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsageTokens(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), fantasy.Usage{CacheReadTokens: 80}, 100),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusStillOverLimit, got)
+	})
+
+	t.Run("still over limit uses configured context limit", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 80, 200),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusStillOverLimit, got)
+
+		got = compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 200)
+		require.Equal(t, compactionStatusNeeded, got)
+	})
+
+	t.Run("still over limit includes exact threshold boundary", func(t *testing.T) {
+		t.Parallel()
+
+		messages := []database.ChatMessage{
+			dbMessage(t, 1, database.ChatMessageRoleUser, true, codersdk.ChatMessageText("summary")),
+			dbMessage(t, 2, database.ChatMessageRoleAssistant, true, codersdk.ChatMessageToolCall("summary-1", "chat_summarized", nil)),
+			dbMessage(t, 3, database.ChatMessageRoleTool, true, codersdk.ChatMessageToolResult("summary-1", "chat_summarized", json.RawMessage(`{}`), false, false)),
+			withUsage(dbMessage(t, 4, database.ChatMessageRoleAssistant, false, codersdk.ChatMessageToolCall("read-1", "read_file", json.RawMessage(`{}`))), 70, 100),
+		}
+
+		got := compactionStatusFromHistory(messages, compactionRequirementNeeded, thresholdPercent, 100)
+		require.Equal(t, compactionStatusStillOverLimit, got)
+	})
+}
+
 func TestDecisionDetectsStopAfterToolFromCommittedHistory(t *testing.T) {
 	t.Parallel()
 
@@ -492,6 +620,21 @@ func dbMessage(t *testing.T, id int64, role database.ChatMessageRole, compressed
 		Visibility:     database.ChatMessageVisibilityBoth,
 		Compressed:     compressed,
 	}
+}
+
+func withUsage(msg database.ChatMessage, inputTokens int64, contextLimit int64) database.ChatMessage {
+	return withUsageTokens(msg, fantasy.Usage{InputTokens: inputTokens, TotalTokens: inputTokens}, contextLimit)
+}
+
+func withUsageTokens(msg database.ChatMessage, usage fantasy.Usage, contextLimit int64) database.ChatMessage {
+	msg.InputTokens = sql.NullInt64{Int64: usage.InputTokens, Valid: usage.InputTokens != 0}
+	msg.OutputTokens = sql.NullInt64{Int64: usage.OutputTokens, Valid: usage.OutputTokens != 0}
+	msg.TotalTokens = sql.NullInt64{Int64: usage.TotalTokens, Valid: usage.TotalTokens != 0}
+	msg.ReasoningTokens = sql.NullInt64{Int64: usage.ReasoningTokens, Valid: usage.ReasoningTokens != 0}
+	msg.CacheCreationTokens = sql.NullInt64{Int64: usage.CacheCreationTokens, Valid: usage.CacheCreationTokens != 0}
+	msg.CacheReadTokens = sql.NullInt64{Int64: usage.CacheReadTokens, Valid: usage.CacheReadTokens != 0}
+	msg.ContextLimit = sql.NullInt64{Int64: contextLimit, Valid: contextLimit != 0}
+	return msg
 }
 
 func requireNotNilTime(t *testing.T, value *time.Time) time.Time {

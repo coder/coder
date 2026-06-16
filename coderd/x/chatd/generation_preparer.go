@@ -610,14 +610,7 @@ func (server *Server) prepareGeneration(
 
 func latestPromptUsage(messages []database.ChatMessage) fantasy.Usage {
 	for i := len(messages) - 1; i >= 0; i-- {
-		usage := fantasy.Usage{
-			InputTokens:         messages[i].InputTokens.Int64,
-			OutputTokens:        messages[i].OutputTokens.Int64,
-			TotalTokens:         messages[i].TotalTokens.Int64,
-			ReasoningTokens:     messages[i].ReasoningTokens.Int64,
-			CacheCreationTokens: messages[i].CacheCreationTokens.Int64,
-			CacheReadTokens:     messages[i].CacheReadTokens.Int64,
-		}
+		usage := usageFromMessage(messages[i])
 		if usage != (fantasy.Usage{}) {
 			return usage
 		}
@@ -682,9 +675,7 @@ func (server *Server) afterGenerationOutcome(
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)
 		runResult := server.deriveFinalTurnRunResult(finalizeCtx, chat, logger)
-		statusLabel := server.generateFinalTurnStatusLabel(finalizeCtx, chat, chat.Status, runResult, logger)
-		server.updateLastTurnSummary(finalizeCtx, chat, chat.HistoryVersion, statusLabel, logger)
-		server.dispatchSuccessfulTurnPush(finalizeCtx, chat, statusLabel, logger)
+		server.maybeFinalizeTurnStatusLabelAndPush(finalizeCtx, chat, chat.Status, "", runResult, logger)
 	case runnerActionKindFinishError:
 		server.maybeFinalizeTurnStatusLabelAndPush(context.WithoutCancel(ctx), chat, chat.Status, outcome.LastError, runChatResult{}, logger)
 	case runnerActionKindEnterRequiresAction:

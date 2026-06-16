@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/ast"
@@ -314,7 +315,26 @@ func allPermsExcept(excepts ...Objecter) []Permission {
 //
 // This map will be replaced by database storage defined by this ticket.
 // https://github.com/coder/coder/issues/1194
-var builtInRoles map[string]func(orgID uuid.UUID) Role
+//
+// Stored behind an atomic.Pointer so test setups that call
+// ReloadBuiltinRoles do not race with handlers that look up roles via
+// RoleByName, ReservedRoleName, OrganizationRoles, or SiteBuiltInRoles.
+// Production callers reload once at startup; tests reload per coderd.
+type builtInRoleMap = map[string]func(orgID uuid.UUID) Role
+
+var builtInRoles atomic.Pointer[builtInRoleMap]
+
+// loadBuiltinRoles returns the current built-in roles snapshot. The
+// returned map is safe to read concurrently because ReloadBuiltinRoles
+// publishes a fresh map via atomic.Pointer.Store instead of mutating in
+// place.
+func loadBuiltinRoles() builtInRoleMap {
+	if m := builtInRoles.Load(); m != nil {
+		return *m
+	}
+	// Return an empty map to prevent nil pointer dereference
+	return map[string]func(orgID uuid.UUID) Role{}
+}
 
 type RoleOptions struct {
 	NoOwnerWorkspaceExec bool
@@ -333,7 +353,7 @@ type RoleOptions struct {
 // ReservedRoleName exists because the database should only allow unique role
 // names, but some roles are built in. So these names are reserved
 func ReservedRoleName(name string) bool {
-	_, ok := builtInRoles[name]
+	_, ok := loadBuiltinRoles()[name]
 	return ok
 }
 
@@ -515,7 +535,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		ByOrgID: map[string]OrgPermissions{},
 	}.withCachedRegoValue()
 
-	builtInRoles = map[string]func(orgID uuid.UUID) Role{
+	roles := builtInRoleMap{
 		// admin grants all actions to all resources.
 		owner: func(_ uuid.UUID) Role {
 			return ownerRole
@@ -733,6 +753,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			}
 		},
 	}
+
+	builtInRoles.Store(&roles)
 }
 
 // assignRoles is a map of roles that can be assigned if a user has a given
@@ -954,7 +976,7 @@ func CanAssignRole(subjectHasRoles ExpandableRoles, assignedRole RoleIdentifier)
 // api. We should maybe make an exported function that returns just the
 // human-readable content of the Role struct (name + display name).
 func RoleByName(name RoleIdentifier) (Role, error) {
-	roleFunc, ok := builtInRoles[name.Name]
+	roleFunc, ok := loadBuiltinRoles()[name.Name]
 	if !ok {
 		// No role found
 		return Role{}, xerrors.Errorf("role %q not found", name.String())
@@ -997,7 +1019,7 @@ func rolesByNames(roleNames []RoleIdentifier) ([]Role, error) {
 // the list from the builtins.
 func OrganizationRoles(organizationID uuid.UUID) []Role {
 	var roles []Role
-	for _, roleF := range builtInRoles {
+	for _, roleF := range loadBuiltinRoles() {
 		role := roleF(organizationID)
 		if role.Identifier.OrganizationID == organizationID {
 			roles = append(roles, role)
@@ -1013,7 +1035,7 @@ func OrganizationRoles(organizationID uuid.UUID) []Role {
 // the list from the builtins.
 func SiteBuiltInRoles() []Role {
 	var roles []Role
-	for _, roleF := range builtInRoles {
+	for _, roleF := range loadBuiltinRoles() {
 		// Must provide some non-nil uuid to filter out org roles.
 		role := roleF(uuid.New())
 		if !role.Identifier.IsOrgRole() {

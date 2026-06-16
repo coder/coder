@@ -8172,10 +8172,55 @@ export interface TemplateBuilderBasesResponse {
 	readonly bases: readonly TemplateBuilderBase[];
 }
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeModule identifies a module and its variable
+ * values for the compose request.
+ */
+export interface TemplateBuilderComposeModule {
+	readonly id: string;
+	readonly variables?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeRequest is the request body for
+ * POST /api/v2/templatebuilder/compose.
+ */
+export interface TemplateBuilderComposeRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+}
+
 // From codersdk/deployment.go
 export interface TemplateBuilderConfig {
 	readonly disabled?: boolean;
 	readonly registry_url?: string;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateRequest is the request body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateRequest {
+	readonly base_template_id: string;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+	readonly organization_id: string;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly description?: string;
+	readonly icon?: string;
+	readonly provisioner_tags?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateResponse is the response body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateResponse {
+	readonly template: Template;
 }
 
 // From codersdk/templatebuilder.go

@@ -3798,6 +3798,149 @@ func AllUserStatusValues() []UserStatus {
 	}
 }
 
+type WorkspaceAgentContextBodyKind string
+
+const (
+	WorkspaceAgentContextBodyKindInstructionFile WorkspaceAgentContextBodyKind = "instruction_file"
+	WorkspaceAgentContextBodyKindSkill           WorkspaceAgentContextBodyKind = "skill"
+	WorkspaceAgentContextBodyKindMcpConfig       WorkspaceAgentContextBodyKind = "mcp_config"
+	WorkspaceAgentContextBodyKindMcpServer       WorkspaceAgentContextBodyKind = "mcp_server"
+	WorkspaceAgentContextBodyKindPlugin          WorkspaceAgentContextBodyKind = "plugin"
+	WorkspaceAgentContextBodyKindHook            WorkspaceAgentContextBodyKind = "hook"
+	WorkspaceAgentContextBodyKindSubagent        WorkspaceAgentContextBodyKind = "subagent"
+	WorkspaceAgentContextBodyKindCommand         WorkspaceAgentContextBodyKind = "command"
+)
+
+func (e *WorkspaceAgentContextBodyKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentContextBodyKind(s)
+	case string:
+		*e = WorkspaceAgentContextBodyKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentContextBodyKind: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentContextBodyKind struct {
+	WorkspaceAgentContextBodyKind WorkspaceAgentContextBodyKind `json:"workspace_agent_context_body_kind"`
+	Valid                         bool                          `json:"valid"` // Valid is true if WorkspaceAgentContextBodyKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentContextBodyKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentContextBodyKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentContextBodyKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentContextBodyKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentContextBodyKind), nil
+}
+
+func (e WorkspaceAgentContextBodyKind) Valid() bool {
+	switch e {
+	case WorkspaceAgentContextBodyKindInstructionFile,
+		WorkspaceAgentContextBodyKindSkill,
+		WorkspaceAgentContextBodyKindMcpConfig,
+		WorkspaceAgentContextBodyKindMcpServer,
+		WorkspaceAgentContextBodyKindPlugin,
+		WorkspaceAgentContextBodyKindHook,
+		WorkspaceAgentContextBodyKindSubagent,
+		WorkspaceAgentContextBodyKindCommand:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
+	return []WorkspaceAgentContextBodyKind{
+		WorkspaceAgentContextBodyKindInstructionFile,
+		WorkspaceAgentContextBodyKindSkill,
+		WorkspaceAgentContextBodyKindMcpConfig,
+		WorkspaceAgentContextBodyKindMcpServer,
+		WorkspaceAgentContextBodyKindPlugin,
+		WorkspaceAgentContextBodyKindHook,
+		WorkspaceAgentContextBodyKindSubagent,
+		WorkspaceAgentContextBodyKindCommand,
+	}
+}
+
+type WorkspaceAgentContextResourceStatus string
+
+const (
+	WorkspaceAgentContextResourceStatusOk         WorkspaceAgentContextResourceStatus = "ok"
+	WorkspaceAgentContextResourceStatusOversize   WorkspaceAgentContextResourceStatus = "oversize"
+	WorkspaceAgentContextResourceStatusUnreadable WorkspaceAgentContextResourceStatus = "unreadable"
+	WorkspaceAgentContextResourceStatusInvalid    WorkspaceAgentContextResourceStatus = "invalid"
+	WorkspaceAgentContextResourceStatusExcluded   WorkspaceAgentContextResourceStatus = "excluded"
+)
+
+func (e *WorkspaceAgentContextResourceStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentContextResourceStatus(s)
+	case string:
+		*e = WorkspaceAgentContextResourceStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentContextResourceStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentContextResourceStatus struct {
+	WorkspaceAgentContextResourceStatus WorkspaceAgentContextResourceStatus `json:"workspace_agent_context_resource_status"`
+	Valid                               bool                                `json:"valid"` // Valid is true if WorkspaceAgentContextResourceStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentContextResourceStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentContextResourceStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentContextResourceStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentContextResourceStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentContextResourceStatus), nil
+}
+
+func (e WorkspaceAgentContextResourceStatus) Valid() bool {
+	switch e {
+	case WorkspaceAgentContextResourceStatusOk,
+		WorkspaceAgentContextResourceStatusOversize,
+		WorkspaceAgentContextResourceStatusUnreadable,
+		WorkspaceAgentContextResourceStatusInvalid,
+		WorkspaceAgentContextResourceStatusExcluded:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentContextResourceStatusValues() []WorkspaceAgentContextResourceStatus {
+	return []WorkspaceAgentContextResourceStatus{
+		WorkspaceAgentContextResourceStatusOk,
+		WorkspaceAgentContextResourceStatusOversize,
+		WorkspaceAgentContextResourceStatusUnreadable,
+		WorkspaceAgentContextResourceStatusInvalid,
+		WorkspaceAgentContextResourceStatusExcluded,
+	}
+}
+
 type WorkspaceAgentLifecycleState string
 
 const (
@@ -4402,6 +4545,10 @@ type AIBridgeInterception struct {
 	CredentialKind CredentialKind `db:"credential_kind" json:"credential_kind"`
 	// Masked credential identifier for audit (e.g. sk-a***efgh).
 	CredentialHint string `db:"credential_hint" json:"credential_hint"`
+	// The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.
+	AgentFirewallSessionID uuid.NullUUID `db:"agent_firewall_session_id" json:"agent_firewall_session_id"`
+	// The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.
+	AgentFirewallSequenceNumber sql.NullInt32 `db:"agent_firewall_sequence_number" json:"agent_firewall_sequence_number"`
 }
 
 // Audit log of model thinking in intercepted requests in AI Bridge
@@ -4650,6 +4797,10 @@ type Chat struct {
 	GroupACL                 ChatACL               `db:"group_acl" json:"group_acl"`
 	OwnerUsername            string                `db:"owner_username" json:"owner_username"`
 	OwnerName                string                `db:"owner_name" json:"owner_name"`
+	ContextAggregateHash     []byte                `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	ContextDirtySince        sql.NullTime          `db:"context_dirty_since" json:"context_dirty_since"`
+	ContextDirtyResources    pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
+	ContextError             string                `db:"context_error" json:"context_error"`
 }
 
 type ChatDebugRun struct {
@@ -4836,6 +4987,14 @@ type ChatTable struct {
 	RetryStateVersion        int64                 `db:"retry_state_version" json:"retry_state_version"`
 	RunnerID                 uuid.NullUUID         `db:"runner_id" json:"runner_id"`
 	RequiresActionDeadlineAt sql.NullTime          `db:"requires_action_deadline_at" json:"requires_action_deadline_at"`
+	// Aggregate hash of the agent context snapshot this chat is pinned to. NULL until first hydrated; compared against the agent's latest snapshot hash to detect drift.
+	ContextAggregateHash []byte `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+	// Set when an agent push changes the pinned hash; cleared on refresh. NULL means clean.
+	ContextDirtySince sql.NullTime `db:"context_dirty_since" json:"context_dirty_since"`
+	// Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.
+	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
+	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
+	ContextError string `db:"context_error" json:"context_error"`
 }
 
 type ChatUsageLimitConfig struct {
@@ -5977,6 +6136,42 @@ type WorkspaceAgent struct {
 	APIKeyScope AgentKeyScopeEnum `db:"api_key_scope" json:"api_key_scope"`
 	// Indicates whether or not the agent has been deleted. This is currently only applicable to sub agents.
 	Deleted bool `db:"deleted" json:"deleted"`
+}
+
+// Per-resource state for the latest pushed workspace agent context snapshot.
+type WorkspaceAgentContextResource struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.
+	Source string `db:"source" json:"source"`
+	// Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.
+	BodyKind WorkspaceAgentContextBodyKind `db:"body_kind" json:"body_kind"`
+	// protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.
+	Body json.RawMessage `db:"body" json:"body"`
+	// sha256 over the resource's original bytes (or transport-encoded server tool list).
+	ContentHash []byte `db:"content_hash" json:"content_hash"`
+	// Original payload size in bytes; populated regardless of status.
+	SizeBytes int64 `db:"size_bytes" json:"size_bytes"`
+	// Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.
+	Status WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
+	// Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.
+	Error string `db:"error" json:"error"`
+	// User-declared scan root that produced this resource. Empty for built-in scan roots.
+	SourcePath string    `db:"source_path" json:"source_path"`
+	CreatedAt  time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+}
+
+// Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.
+type WorkspaceAgentContextSnapshot struct {
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// Monotonic per-agent-process push counter. Resets to one when the agent process restarts; combined with the initial flag on the wire to detect agent reboots.
+	Version int64 `db:"version" json:"version"`
+	// sha256 over a canonical encoding of every resource in the snapshot. Identical inputs always produce identical hashes; chat hydration uses this to detect drift.
+	AggregateHash []byte `db:"aggregate_hash" json:"aggregate_hash"`
+	// Singular snapshot-level error string (count cap exceeded, watcher degraded, etc.). Empty when healthy.
+	SnapshotError string `db:"snapshot_error" json:"snapshot_error"`
+	// Time at which coderd received the push.
+	ReceivedAt time.Time `db:"received_at" json:"received_at"`
 }
 
 // Workspace agent devcontainer configuration

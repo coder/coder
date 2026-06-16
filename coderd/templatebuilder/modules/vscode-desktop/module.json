@@ -1,0 +1,44 @@
+{
+  "id": "vscode-desktop",
+  "display_name": "VS Code Desktop",
+  "description": "Add a one-click button to launch VS Code Desktop",
+  "icon": "/icon/code.svg",
+  "category": "IDE",
+  "tags": [
+    "ide",
+    "vscode"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.2.1",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "The folder to open in VS Code.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "open_recent",
+      "type": "bool",
+      "description": "Open the most recent workspace or folder. Falls back to the folder if there is no recent workspace or folder to open.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}
