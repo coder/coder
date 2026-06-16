@@ -371,11 +371,8 @@ func TestAgent_ReportsConnections_Disabled(t *testing.T) {
 	}
 }
 
-// Assert that a transient error opening the DERP map stream tears the
-// connection down and the agent reconnects, re-opening the stream. This
-// mirrors the real agent: a failing subroutine reconnects the whole dRPC
-// connection, which re-creates coderd's per-agent send goroutine. A
-// subscriber that silently died would stop stimulating that path.
+// Assert that a transient DERP stream error tears the connection down and the
+// agent reconnects, re-opening the stream so coderd keeps pushing updates.
 func TestAgent_ReconnectsOnDERPStreamError(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -481,4 +478,95 @@ func (c *derpFailingTailnetClient) StreamDERPMaps(ctx context.Context, in *tailn
 		return nil, xerrors.New("injected transient derp stream error")
 	}
 	return c.DRPCTailnetClient28.StreamDERPMaps(ctx, in)
+}
+
+// Assert that a transient BatchUpdateMetadata error tears the connection down
+// and the agent reconnects, matching the real agent (see agent.reportMetadata).
+func TestAgent_ReconnectsOnMetadataError(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	agentID := uuid.New()
+	manifest := agentsdk.Manifest{
+		AgentID:     agentID,
+		WorkspaceID: uuid.New(),
+		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
+			{Key: "01_meta", DisplayName: "Meta 01", Script: "noop", Interval: 1, Timeout: 10},
+		},
+	}
+	statsCh := make(chan *agentproto.Stats, 1)
+	coord := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() { _ = coord.Close() })
+	inner := agenttest.NewClient(t, logger, agentID, manifest, statsCh, coord)
+	t.Cleanup(inner.Close)
+
+	// Fail BatchUpdateMetadata exactly once so the first connection's metadata
+	// routine errors and forces a reconnect; the second connection succeeds.
+	dialer := &metadataFailingDialer{inner: inner}
+
+	a := agentfake.NewAgent(logger, nil, "",
+		agentfake.WithDialer(dialer),
+	)
+	t.Cleanup(a.Close)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+	runErr := make(chan error, 1)
+	go func() { runErr <- a.Run(runCtx) }()
+
+	require.Eventually(t, func() bool {
+		return dialer.connects.Load() >= 2
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"agent never reconnected after metadata error")
+
+	// On the (successful) second connection metadata is reported.
+	require.Eventually(t, func() bool {
+		return len(inner.GetMetadata()) >= 1
+	}, testutil.WaitShort, testutil.IntervalFast,
+		"fake agent never reported metadata after reconnect")
+
+	cancel()
+	select {
+	case err := <-runErr:
+		require.NoError(t, err, "Agent.Run returned unexpected error")
+	case <-ctx.Done():
+		t.Fatalf("timed out waiting for Agent.Run to return: %v", ctx.Err())
+	}
+}
+
+// metadataFailingDialer wraps an agenttest.Client, counts ConnectRPC calls, and
+// fails the first BatchUpdateMetadata call (across all connections).
+type metadataFailingDialer struct {
+	inner    *agenttest.Client
+	connects atomic.Int64
+	failed   atomic.Bool
+}
+
+func (d *metadataFailingDialer) ConnectRPC29WithRole(ctx context.Context, role string) (
+	agentproto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+) {
+	d.connects.Add(1)
+	agentClient, tailnetClient, err := d.inner.ConnectRPC29WithRole(ctx, role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return &metadataFailingAgentClient{
+		DRPCAgentClient29: agentClient,
+		failed:            &d.failed,
+	}, tailnetClient, nil
+}
+
+// metadataFailingAgentClient embeds a real agent client and overrides only
+// BatchUpdateMetadata to fail once.
+type metadataFailingAgentClient struct {
+	agentproto.DRPCAgentClient29
+	failed *atomic.Bool
+}
+
+func (c *metadataFailingAgentClient) BatchUpdateMetadata(ctx context.Context, in *agentproto.BatchUpdateMetadataRequest) (*agentproto.BatchUpdateMetadataResponse, error) {
+	if c.failed.CompareAndSwap(false, true) {
+		return nil, xerrors.New("injected transient metadata error")
+	}
+	return c.DRPCAgentClient29.BatchUpdateMetadata(ctx, in)
 }
