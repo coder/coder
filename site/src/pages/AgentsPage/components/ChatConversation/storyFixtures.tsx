@@ -1,4 +1,3 @@
-import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	type DeriveLiveStatusParams,
@@ -91,12 +90,6 @@ export const textResponseStreamParts = [
 		text: "Storybook streamed answer.",
 	},
 ] satisfies readonly TypesGen.ChatMessagePart[];
-
-export const withConversationFrame = (Story: FC) => (
-	<div className="mx-auto w-full max-w-3xl py-6">
-		<Story />
-	</div>
-);
 
 export const pinFixtureClock = () => {
 	const real = Date.now;

@@ -8,7 +8,6 @@ import {
 	buildStreamRenderState,
 	pinFixtureClock,
 	textResponseStreamParts,
-	withConversationFrame,
 } from "./storyFixtures";
 
 const retryThenResumedStream = buildStreamRenderState(textResponseStreamParts);
@@ -25,7 +24,6 @@ const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 const meta: Meta<typeof LiveStreamTailContent> = {
 	title: "pages/AgentsPage/ChatConversation/LiveStreamTail",
 	component: LiveStreamTailContent,
-	decorators: [withConversationFrame],
 	beforeEach: pinFixtureClock,
 };
 export default meta;

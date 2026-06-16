@@ -7,7 +7,6 @@ import {
 	buildRetryState,
 	buildStreamRenderState,
 	pinFixtureClock,
-	withConversationFrame,
 } from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent
@@ -16,7 +15,6 @@ import {
 const meta: Meta<typeof StreamingOutput> = {
 	title: "pages/AgentsPage/ChatConversation/StreamingOutput",
 	component: StreamingOutput,
-	decorators: [withConversationFrame],
 	beforeEach: pinFixtureClock,
 };
 export default meta;
