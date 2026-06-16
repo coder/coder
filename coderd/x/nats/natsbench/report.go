@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dustin/go-humanize"
 )
@@ -52,8 +53,8 @@ func renderGroup(b *strings.Builder, rows []ScenarioResult) {
 
 	// The Status column is left-aligned (free text); the rest are
 	// numeric and right-aligned.
-	headers := []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"}
-	aligns := []alignment{alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight}
+	headers := []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Converge", "Pubs/sec", "Deliveries/sec"}
+	aligns := []alignment{alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight, alignRight}
 	if withStatus {
 		headers = append(headers, "Status")
 		aligns = append(aligns, alignLeft)
@@ -144,28 +145,30 @@ func groupByPayload(results []ScenarioResult) []payloadGroup {
 	return groups
 }
 
-// rowCells returns the shape and throughput cells for one result, plus
-// a status string. The cells are: replicas, subjects, publishers,
-// subscribers, messages, pubs/sec, deliveries/sec. Invalid runs render
-// INVALID rates and a status describing why; valid runs render rates
-// and an "ok" status that callers may drop for all-clean groups.
+// rowCells returns the shape and measured cells for one result, plus a
+// status string. The cells are: replicas, subjects, publishers,
+// subscribers, messages, cluster convergence time, pubs/sec,
+// deliveries/sec. Invalid runs render INVALID rates and a status
+// describing why; valid runs render rates and an "ok" status that
+// callers may drop for all-clean groups.
 func rowCells(row ScenarioResult) (cells []string, status string) {
 	cfg := row.Scenario.Config
 	if row.Result != nil {
 		cfg = row.Result.Config
 	}
-	shape := []string{
+	cells = []string{
 		strconv.Itoa(cfg.Replicas),
 		strconv.Itoa(cfg.Subjects),
 		strconv.Itoa(cfg.Publishers),
 		strconv.Itoa(cfg.Subscribers),
 		humanize.Comma(int64(cfg.Messages)),
+		formatConvergence(row),
 	}
 
 	if row.valid() {
-		return append(shape, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec)), "ok"
+		return append(cells, formatRate(row.Result.PubsPerSec), formatRate(row.Result.DeliveriesPerSec)), "ok"
 	}
-	return append(shape, "INVALID", "INVALID"), shortReason(row)
+	return append(cells, "INVALID", "INVALID"), shortReason(row)
 }
 
 // shortReason summarizes why a run is invalid in one table-safe line.
@@ -187,6 +190,15 @@ func shortReason(row ScenarioResult) string {
 // formatRate renders a rate as a comma-separated integer.
 func formatRate(rate float64) string {
 	return humanize.Comma(int64(math.Round(rate)))
+}
+
+// formatConvergence renders the cluster convergence time, or "-" for
+// single-node runs and runs without a result, which have no gate.
+func formatConvergence(row ScenarioResult) string {
+	if row.Result == nil || row.Result.Config.Replicas <= 1 {
+		return "-"
+	}
+	return row.Result.ConvergenceDuration.Round(100 * time.Microsecond).String()
 }
 
 // formatPayload renders a payload size as KiB when it divides evenly.

@@ -59,6 +59,9 @@ type workload struct {
 	// expected delivery count; allDone closes when it hits zero.
 	outstanding atomic.Int64
 	allDone     chan struct{}
+	// convergence is how long the readiness gate took to propagate
+	// interest across the cluster; zero for single-node runs.
+	convergence time.Duration
 }
 
 // runWorkload executes one benchmark run on an already-built topology:
@@ -83,9 +86,12 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 		for j, st := range w.subs {
 			trackers[j] = st.tracker
 		}
-		if err := awaitTopologyReady(ctx, top, pl, cfg.Timeout, trackers); err != nil {
+		convergence, err := awaitTopologyReady(ctx, top, pl, cfg.Timeout, trackers)
+		if err != nil {
 			return nil, xerrors.Errorf("readiness gate: %w", err)
 		}
+		w.convergence = convergence
+		logger.Debug(ctx, "cluster converged", slog.F("duration", convergence))
 	}
 
 	// Both durations are measured from this instant. Goroutine spawn
@@ -286,14 +292,15 @@ func (w *workload) buildResult(publishDur, deliverDur time.Duration) *Result {
 		delivered += st.delivered.Load()
 	}
 	res := &Result{
-		Config:           w.cfg,
-		Published:        w.published.Load(),
-		Delivered:        delivered,
-		Drops:            w.drops.count.Load(),
-		PublishDuration:  publishDur,
-		DeliverDuration:  deliverDur,
-		PubsPerSec:       ratePerSec(w.published.Load(), publishDur),
-		DeliveriesPerSec: ratePerSec(delivered, deliverDur),
+		Config:              w.cfg,
+		Published:           w.published.Load(),
+		Delivered:           delivered,
+		Drops:               w.drops.count.Load(),
+		ConvergenceDuration: w.convergence,
+		PublishDuration:     publishDur,
+		DeliverDuration:     deliverDur,
+		PubsPerSec:          ratePerSec(w.published.Load(), publishDur),
+		DeliveriesPerSec:    ratePerSec(delivered, deliverDur),
 	}
 	return res
 }

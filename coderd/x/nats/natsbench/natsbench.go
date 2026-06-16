@@ -89,9 +89,15 @@ type Result struct {
 	// on actual loss, never an exact count.
 	Drops int64
 
-	// PublishDuration spans the start barrier to the last publisher
+	// ConvergenceDuration is how long the readiness gate took to
+	// propagate subscription interest across the cluster, measured from
+	// the first probe (right after all subscriptions are registered) to
+	// full propagation. Zero for single-node runs, which need no gate.
+	ConvergenceDuration time.Duration
+
+	// PublishDuration spans the hot start to the last publisher
 	// finishing, including the final flush. DeliverDuration spans the
-	// start barrier to the last subscriber reaching its expected count.
+	// hot start to the last subscriber reaching its expected count.
 	PublishDuration time.Duration
 	DeliverDuration time.Duration
 

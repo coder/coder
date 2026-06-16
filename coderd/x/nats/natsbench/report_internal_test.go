@@ -100,32 +100,38 @@ func assertAlignedTable(t *testing.T, out string) {
 func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	t.Parallel()
 
-	result := func(replicas int, pubs, dels float64) ScenarioResult {
+	result := func(replicas int, pubs, dels float64, converge time.Duration) ScenarioResult {
 		cfg := Config{
 			Messages: 100000, PayloadSize: Payload8KB, Replicas: replicas,
 			Subjects: 10, Publishers: 10, Subscribers: 50,
 		}
 		return ScenarioResult{
 			Scenario: Scenario{Config: cfg},
-			Result:   &Result{Config: cfg, PubsPerSec: pubs, DeliveriesPerSec: dels},
+			Result: &Result{
+				Config: cfg, PubsPerSec: pubs, DeliveriesPerSec: dels,
+				ConvergenceDuration: converge,
+			},
 		}
 	}
 
 	var b strings.Builder
 	require.NoError(t, RenderMarkdown(&b, []ScenarioResult{
-		result(1, 100000, 250000),
-		result(5, 90000, 220000),
+		result(1, 100000, 250000, 0),
+		result(5, 90000, 220000, 25*time.Millisecond),
 	}))
 	out := b.String()
 
-	// The shape columns are reported alongside throughput.
-	for _, header := range []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"} {
+	// The shape and measured columns are reported alongside throughput.
+	for _, header := range []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Converge", "Pubs/sec", "Deliveries/sec"} {
 		require.Contains(t, out, header)
 	}
 	// A clean group omits the conditional Status column.
 	require.NotContains(t, out, "Status")
 	require.Contains(t, out, "250,000")
 	require.Contains(t, out, "220,000")
+	// Single-replica rows have no gate; multi-replica rows show the
+	// convergence time.
+	require.Contains(t, out, "25ms")
 	assertAlignedTable(t, out)
 }
 

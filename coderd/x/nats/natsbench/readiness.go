@@ -96,25 +96,32 @@ func subjectNodes(pl plan) map[int]map[int]struct{} {
 	return out
 }
 
+// readinessCheckInterval is how often the gate polls for convergence.
+// It is finer than probeInterval so the measured convergence time
+// reflects when probes actually propagated rather than the probe
+// republish cadence.
+const readinessCheckInterval = time.Millisecond
+
 // awaitTopologyReady proves that subscription interest has propagated to
-// every publisher node before the measured phase. Each publisher node
-// repeatedly publishes an in-band probe on every subject it will
-// publish to; the gate converges when every subscriber has observed a
-// probe from every publisher node targeting its subject. Without this,
-// routed deliveries silently undercount on fresh clusters.
-func awaitTopologyReady(ctx context.Context, top *topology, pl plan, timeout time.Duration, trackers []*probeTracker) error {
+// every publisher node before the measured phase, and returns how long
+// that took. Each publisher node repeatedly publishes an in-band probe
+// on every subject it will publish to; the gate converges when every
+// subscriber has observed a probe from every publisher node targeting
+// its subject. Without this, routed deliveries silently undercount on
+// fresh clusters.
+//
+// The returned duration is the cluster convergence time: from the first
+// probe to the moment interest has propagated everywhere. It is
+// measured from gate entry, which is immediately after all subscriptions
+// are registered.
+func awaitTopologyReady(ctx context.Context, top *topology, pl plan, timeout time.Duration, trackers []*probeTracker) (time.Duration, error) {
 	bySubject := subjectNodes(pl)
 	required := make([]map[int]struct{}, len(pl.subSubject))
 	for j, subject := range pl.subSubject {
 		required[j] = bySubject[subject]
 	}
 
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	ticker := time.NewTicker(probeInterval)
-	defer ticker.Stop()
-
-	for {
+	publishProbes := func() error {
 		for subject, nodes := range bySubject {
 			for node := range nodes {
 				if err := top.nodes[node].Publish(subjectName(subject), probePayload(node)); err != nil {
@@ -127,17 +134,38 @@ func awaitTopologyReady(ctx context.Context, top *topology, pl plan, timeout tim
 				return xerrors.Errorf("flush probes from node %d: %w", node, err)
 			}
 		}
+		return nil
+	}
 
-		if isReady(trackers, required) {
-			return nil
-		}
+	started := time.Now()
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	publishTicker := time.NewTicker(probeInterval)
+	defer publishTicker.Stop()
+	checkTicker := time.NewTicker(readinessCheckInterval)
+	defer checkTicker.Stop()
 
+	if err := publishProbes(); err != nil {
+		return 0, err
+	}
+	if isReady(trackers, required) {
+		return time.Since(started), nil
+	}
+
+	for {
 		select {
 		case <-ctx.Done():
-			return xerrors.Errorf("readiness gate canceled: %w", ctx.Err())
+			return 0, xerrors.Errorf("readiness gate canceled: %w", ctx.Err())
 		case <-deadline.C:
-			return xerrors.Errorf("readiness gate timed out after %s: %s", timeout, unreadySubscribers(trackers, required))
-		case <-ticker.C:
+			return 0, xerrors.Errorf("readiness gate timed out after %s: %s", timeout, unreadySubscribers(trackers, required))
+		case <-publishTicker.C:
+			if err := publishProbes(); err != nil {
+				return 0, err
+			}
+		case <-checkTicker.C:
+			if isReady(trackers, required) {
+				return time.Since(started), nil
+			}
 		}
 	}
 }
