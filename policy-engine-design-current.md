@@ -50,17 +50,18 @@ Every pipeline member is a **stage**, classified on two orthogonal axes:
 
 **Every stage yields one `StageResult`** — `{verdict, message, annotations,
 edits, headers, route, err}` — through a uniform
-`Evaluate(ctx, Input) StageResult`, but stages do not construct it freely:
-each kind decodes its Rego output into a **typed per-kind struct**
-(`Decision`, `Annotations`, `RouteChanges`, `Transformation`) that **projects**
-into `StageResult`, and the guardrail adapter result funnels through the same
-projection. Effect masks are therefore enforced **by construction** (a
-`Decision` physically cannot carry an edit; an adapter physically cannot emit
-LOG), not by runtime checks. The annotation namespace is **host-stamped at
-projection** from the member's immutable name, so a stage cannot write into,
-or spoof, another stage's namespace. *(The unified projection/reducer is
-designed, not built; today per-kind appliers and the guardrail merge implement
-the same semantics separately.)*
+`Evaluate(ctx, Input) StageResult`, but stages never construct it freely. The
+single constructor is a **`Projector` interface** (`Project(stage) StageResult`):
+each kind decodes its Rego output into a **typed per-kind struct** (`Decision`,
+`Annotations`, `RouteChanges`, `Transformation`) that implements it, the
+guardrail adapter result funnels through the same projection via a
+`GuardrailOutcome`, and even the failure and undefined-rule paths are Projectors
+(`Failure`, `noop`). Effect masks are therefore enforced **by construction** (a
+`Decision` has no edit field to populate; an adapter physically cannot emit
+LOG), not by runtime checks. The annotation namespace (and the audit-only
+failure record) is **host-stamped at the single `Project` call** from the
+member's immutable name, so a stage cannot write into, or spoof, another
+stage's namespace.
 
 A **kind** is a single-effect Rego stage. Four kinds exist:
 
@@ -99,15 +100,17 @@ for audit. Sequential chains stop scheduling at BLOCK; a concurrent guardrail
 batch runs to completion and reduces normally (cancelling siblings would make
 the merge nondeterministic for little gain).
 
-**Failures are result synthesis at the stage boundary, not a parallel error
-path.** One `synthesize(stage, fail_mode, err)` wraps every invocation (eval
-error, network error, the global 1s eval timeout, decode failure):
-`fail_closed → BLOCK` with a generic message; `fail_open → LOG` (LOG, not
-ALLOW: a fail-open outage must be visible, not silent). The error rides an
-audit-only field on `StageResult`; the failing stage's identity never reaches
-the client message (telling an adversary the DLP scanner is down invites
-retries until it stays down). The reducer is total over `StageResult`s — no
-error branches, nothing to drift. No failure class bypasses `fail_mode`.
+**Failures are just another projection, not a parallel error path.** A failed
+invocation (eval error, network error, the global 1s eval timeout, decode
+failure) is replaced at the stage boundary with a **`Failure` Projector** that
+projects under the stage's fail mode exactly as a success would: `fail_closed →
+BLOCK` with a generic message; `fail_open → LOG` (LOG, not ALLOW: a fail-open
+outage must be visible, not silent). The error rides an audit-only field on
+`StageResult`; the failing stage's identity never reaches the client message
+(telling an adversary the DLP scanner is down invites retries until it stays
+down). Because success and failure share the one `Project` path, the reducer is
+total over `StageResult`s — no error branches, nothing to drift. No failure
+class bypasses `fail_mode`.
 
 ## 4. Hooks and pipelines
 
@@ -193,8 +196,9 @@ namespaces (kept even on BLOCK); a BLOCK freezes mutating effects; edits apply
 as a deterministic ordered chain (by guardrail name) with one re-validate
 after the guardrail stage (the policy transform then re-validates its own
 mutation: two mutation points, each re-validated). Each guardrail carries its
-own network timeout and `fail_mode` (default fail-closed); failures synthesize
-into ordinary StageResults (§3). No retries, no response caching in v1.
+own network timeout and `fail_mode` (default fail-closed); failures project
+through the `Failure` Projector into ordinary StageResults (§3). No retries, no
+response caching in v1.
 
 **What is scanned:** the **latest user prompt**, selected cross-provider as the
 most recent role-`user` item carrying a text block (trailing system/tool-result

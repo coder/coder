@@ -107,7 +107,7 @@ type Result struct {
 
 // Evaluate runs every stage against in and returns the combined Result. Stage
 // failures are normalized uniformly through each stage's fail mode by the stage
-// boundary (Synthesize): a fail-closed error blocks (anonymous to the client)
+// boundary (the Failure Projector): a fail-closed error blocks (anonymous to the client)
 // and short-circuits; a fail-open error rides through as LOG (never a silent
 // pass-through) and evaluation continues.
 func (p *Pipeline) Evaluate(ctx context.Context, in Input) (Result, error) {

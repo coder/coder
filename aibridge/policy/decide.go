@@ -18,6 +18,12 @@ type Decision struct {
 	Message string
 }
 
+// Project maps the decision into a StageResult. stage is unused: a decision
+// produces no annotations, so it has no namespace to stamp.
+func (d Decision) Project(string) StageResult {
+	return StageResult{Verdict: d.Verdict, Message: d.Message}
+}
+
 // Decide is a pure decision policy. It evaluates data.gateway.verdict and
 // returns a Verdict. An undefined rule defaults to ALLOW (registration requires
 // a default verdict, so this should not happen for stored policies); an
@@ -53,12 +59,8 @@ func (d *Decide) Name() string { return d.name }
 // Evaluate decodes the verdict (and optional message) and projects it into a
 // StageResult. A failure is synthesized through the stage's fail mode.
 func (d *Decide) Evaluate(ctx context.Context, in Input) StageResult {
-	return runStage(ctx, d.name, d.failMode, func(sctx context.Context) (StageResult, error) {
-		dec, err := d.decision(sctx, in)
-		if err != nil {
-			return StageResult{}, err
-		}
-		return StageResult{Verdict: dec.Verdict, Message: dec.Message}, nil
+	return runStage(ctx, d.name, d.failMode, func(sctx context.Context) (Projector, error) {
+		return d.decision(sctx, in)
 	})
 }
 

@@ -22,6 +22,12 @@ type Transformation struct {
 	Headers map[string]string
 }
 
+// Project maps the transformation into a StageResult's Edits and Headers. stage
+// is unused: a transform produces no annotations.
+func (t Transformation) Project(string) StageResult {
+	return StageResult{Edits: t.Edits, Headers: t.Headers}
+}
+
 // Transform rewrites the outgoing request. It evaluates data.gateway.body (the
 // whole replacement body, decoded into a root edit) and the optional
 // data.gateway.headers (an object of string header overrides). ok is false when
@@ -54,15 +60,15 @@ func (t *Transform) Name() string { return t.name }
 // Evaluate decodes the body/headers rules and projects them into a StageResult.
 // A failure is synthesized through the stage's fail mode.
 func (t *Transform) Evaluate(ctx context.Context, in Input) StageResult {
-	return runStage(ctx, t.name, t.failMode, func(sctx context.Context) (StageResult, error) {
+	return runStage(ctx, t.name, t.failMode, func(sctx context.Context) (Projector, error) {
 		tf, ok, err := t.transformation(sctx, in)
 		if err != nil {
-			return StageResult{}, err
+			return nil, err
 		}
 		if !ok {
-			return StageResult{}, nil
+			return noop{}, nil
 		}
-		return StageResult{Edits: tf.Edits, Headers: tf.Headers}, nil
+		return tf, nil
 	})
 }
 

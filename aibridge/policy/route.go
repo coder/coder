@@ -13,6 +13,12 @@ type RouteChanges struct {
 	Model string
 }
 
+// Project maps the route change into a StageResult's Route field. stage is
+// unused: a route produces no annotations.
+func (r RouteChanges) Project(string) StageResult {
+	return StageResult{Route: r.Model}
+}
+
 // Route surgically overrides the upstream model. It evaluates
 // data.gateway.model and returns the replacement model name. ok is false when
 // the rule is undefined (no override).
@@ -37,15 +43,15 @@ func (r *Route) Name() string { return r.name }
 // Evaluate decodes the model rule and projects it into a StageResult's Route
 // field. A failure is synthesized through the stage's fail mode.
 func (r *Route) Evaluate(ctx context.Context, in Input) StageResult {
-	return runStage(ctx, r.name, r.failMode, func(sctx context.Context) (StageResult, error) {
+	return runStage(ctx, r.name, r.failMode, func(sctx context.Context) (Projector, error) {
 		rc, ok, err := r.route(sctx, in)
 		if err != nil {
-			return StageResult{}, err
+			return nil, err
 		}
 		if !ok {
-			return StageResult{}, nil
+			return noop{}, nil
 		}
-		return StageResult{Route: rc.Model}, nil
+		return rc, nil
 	})
 }
 

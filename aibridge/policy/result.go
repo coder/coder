@@ -18,13 +18,16 @@ import (
 const evalTimeout = time.Second
 
 // StageResult is the single result type every stage (Rego policy or networked
-// guardrail) yields. Stages do not construct it freely: each kind decodes its
+// guardrail) yields. Stages never construct it freely: each kind decodes its
 // Rego output into a typed per-kind struct (Decision, Annotations, RouteChanges,
-// Transformation) and that struct projects into a StageResult, so the effect
-// mask is enforced by construction (a Decision cannot carry an edit). The
-// annotation namespace is host-stamped at projection from the member's
-// immutable name, so a stage cannot write into or spoof another stage's
-// namespace.
+// Transformation) and the guardrail decodes its network response into a
+// GuardrailOutcome; each of those implements Projector, and Project is the sole
+// way a StageResult is built (a failure is just the Failure Projector, a no-op
+// the noop Projector). The effect mask is therefore enforced by construction (a
+// Decision has no Edits field, so its Project cannot populate one). The
+// annotation namespace is host-stamped at
+// projection from the member's immutable name, so a stage cannot write into or
+// spoof another stage's namespace.
 type StageResult struct {
 	// Verdict is the stage's outcome (ALLOW, LOG, or BLOCK). The zero value is
 	// treated as ALLOW.
@@ -47,6 +50,66 @@ type StageResult struct {
 	Err *StageErr
 }
 
+// Projector is implemented by every typed stage output: the four single-effect
+// kind results (Decision, Annotations, RouteChanges, Transformation) and the
+// multi-effect guardrail result (GuardrailOutcome). Project is the single,
+// declared mapping into a StageResult; a stage's Evaluate decodes its Rego (or
+// network) output into one of these values and calls Project rather than
+// building a StageResult inline. The implementing type's field set is the
+// effect mask: a Decision has no Edits field, so its Project physically cannot
+// populate one. stage is the producer's immutable name; it is stamped onto the
+// annotation namespace (and the audit-only failure record) here and only here,
+// so a stage cannot spoof another stage's namespace. Failures and no-ops flow
+// through Project too, via the Failure and noop Projectors, so projection is the
+// single way any StageResult is built.
+type Projector interface {
+	Project(stage string) StageResult
+}
+
+// GuardrailOutcome is the multi-effect outcome of one networked guardrail,
+// decoded from its adapter Result. Unlike the four hermetic kinds a guardrail
+// is deliberately not single-effect: one network response may carry
+// annotations, a block, and body edits at once. Enforcing is the per-membership
+// effect mask, applied at projection: an advisory guardrail contributes
+// annotations only, its block and edits discarded. The guardrail package builds
+// this value and calls Project, so it never constructs a StageResult itself.
+type GuardrailOutcome struct {
+	// Annotations is the guardrail's classifier output, stamped under the
+	// guardrail's namespace at projection (advisory and enforcing alike).
+	Annotations map[string]any
+	// Enforcing reports whether the guardrail may block and rewrite the body on
+	// its own authority. When false, Block and Edits are dropped.
+	Enforcing bool
+	// Block requests an HTTP 400; honored only when Enforcing.
+	Block bool
+	// Message explains a block, surfaced to the user and audit; meaningful only
+	// when Block and Enforcing.
+	Message string
+	// Edits rewrite the request body (masking/redaction); honored only when
+	// Enforcing.
+	Edits []Edit
+}
+
+// Project maps the guardrail outcome into a StageResult under its effect mask.
+// Annotations are always stamped under stage's namespace; the block verdict and
+// edits are kept only for an enforcing guardrail. Edits are carried even on a
+// block (the reducer drops them, since a blocked request is never forwarded).
+func (g GuardrailOutcome) Project(stage string) StageResult {
+	res := StageResult{}
+	if len(g.Annotations) > 0 {
+		res.Annotations = map[string]any{stage: g.Annotations}
+	}
+	if !g.Enforcing {
+		return res
+	}
+	if g.Block {
+		res.Verdict = VerdictBlock
+		res.Message = g.Message
+	}
+	res.Edits = append(res.Edits, g.Edits...)
+	return res
+}
+
 // Edit is a single body mutation: set the JSON value at Pointer to Value. A
 // root edit (Pointer == "") replaces the whole body and is how a transform's
 // whole-body rewrite is represented; a non-root edit is an sjson path.
@@ -65,7 +128,7 @@ type StageErr struct {
 
 // Stage is the uniform interface every pipeline member implements. Evaluate
 // never returns an error: an evaluation/decode failure is normalized into an
-// ordinary StageResult through the stage's fail mode (see synthesize).
+// ordinary StageResult through the stage's fail mode (see Failure).
 type Stage interface {
 	Name() string
 	Evaluate(ctx context.Context, in Input) StageResult
@@ -153,38 +216,59 @@ func ApplyEdits(body []byte, edits []Edit) ([]byte, bool, error) {
 	return out, mutated, nil
 }
 
-// Synthesize normalizes a stage failure (eval error, network error, decode
-// failure, or the evaluation timeout) into an ordinary StageResult through the
-// stage's fail mode: fail-closed blocks with a generic (empty) message;
-// fail-open logs (LOG, not ALLOW, so a fail-open outage is visible in the log
-// stream, not silent). The error rides the audit-only Err field; the failing
-// stage's identity never reaches the client-facing message.
-func Synthesize(stage string, fm FailMode, err error) StageResult {
-	se := &StageErr{Stage: stage, Err: err}
-	if fm == FailClosed {
+// Failure is the Projector for a stage that could not produce a result: an eval
+// error, network error, decode failure, or the per-stage timeout. It normalizes
+// the failure through the stage's fail mode at projection: fail-closed blocks
+// with a generic (empty) message; fail-open logs (LOG, not ALLOW, so a fail-open
+// outage is visible in the log stream, not silent). The error rides the
+// audit-only Err field under stage's identity; that identity never reaches the
+// client-facing message. Modeling a failure as a Projector lets it flow through
+// the same Project(stage) path as a success, so projection is the single way
+// any StageResult is built.
+type Failure struct {
+	FailMode FailMode
+	Err      error
+}
+
+// Project implements Projector for the failure path.
+func (f Failure) Project(stage string) StageResult {
+	se := &StageErr{Stage: stage, Err: f.Err}
+	if f.FailMode == FailClosed {
 		return StageResult{Verdict: VerdictBlock, Err: se}
 	}
 	return StageResult{Verdict: VerdictLog, Err: se}
 }
 
-// runStage evaluates fn under the per-stage timeout and normalizes any error
-// into a StageResult via Synthesize. It is the single stage boundary every
-// kind's Evaluate funnels through.
-func runStage(ctx context.Context, name string, fm FailMode, fn func(context.Context) (StageResult, error)) StageResult {
+// noop is the Projector for a stage whose entrypoint rule was undefined: it
+// produced no effect, so it projects to the zero StageResult (ALLOW, no
+// annotations, edits, or route). It keeps "every StageResult comes from Project"
+// true even for the no-op case.
+type noop struct{}
+
+// Project implements Projector for the no-op path.
+func (noop) Project(string) StageResult { return StageResult{} }
+
+// runStage evaluates fn under the per-stage timeout and projects its outcome
+// through the stage's immutable name. It is the single stage boundary every
+// kind's Evaluate funnels through: fn decodes the Rego output into a Projector
+// (a typed kind result, or noop when the entrypoint rule is undefined), and any
+// error or fired timeout replaces it with a Failure Projector, so success and
+// failure alike become a StageResult via the same Project(name) call.
+func runStage(ctx context.Context, name string, fm FailMode, fn func(context.Context) (Projector, error)) StageResult {
 	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
 	defer cancel()
-	res, err := fn(sctx)
-	if err != nil {
-		return Synthesize(name, fm, err)
-	}
+	p, err := fn(sctx)
+	switch {
+	case err != nil:
+		p = Failure{FailMode: fm, Err: err}
 	// A fired deadline/cancellation means the result is not trustworthy even
 	// when the evaluator returned no error (a trivial Rego rule can complete
 	// without observing the cancelled context). Normalize it like any other
 	// failure so the timeout/cancellation flows through fail_mode uniformly.
-	if cerr := sctx.Err(); cerr != nil {
-		return Synthesize(name, fm, cerr)
+	case sctx.Err() != nil:
+		p = Failure{FailMode: fm, Err: sctx.Err()}
 	}
-	return res
+	return p.Project(name)
 }
 
 func mergeAnnotations(dst, src map[string]any) map[string]any {

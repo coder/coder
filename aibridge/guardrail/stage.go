@@ -141,33 +141,28 @@ func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, er
 	return out, nil
 }
 
-// project maps a member outcome to a [policy.StageResult] under its effect
-// mask. A failure is synthesized through the member's fail mode; an advisory
-// member keeps annotations only; an enforcing member may also block and emit
-// edits. Annotations are stamped under the guardrail's namespace.
+// project maps a member outcome to a [policy.StageResult] via a [policy.Projector].
+// A failure projects through a [policy.Failure]; otherwise the outcome is decoded
+// into a [policy.GuardrailOutcome] that projects under its effect mask (advisory
+// members contribute annotations only; enforcing members may also block and emit
+// edits, stamped under the guardrail's namespace). The guardrail package builds
+// the Projector but never constructs a StageResult directly: projection, like
+// the four hermetic kinds, is owned by the policy package.
 func (s *Stage) project(o memberOutcome) policy.StageResult {
 	if o.err != nil {
-		return policy.Synthesize(o.name, failModeToPolicy(s.failMode(o.name)), o.err)
+		return policy.Failure{FailMode: failModeToPolicy(s.failMode(o.name)), Err: o.err}.Project(o.name)
 	}
 
-	res := policy.StageResult{}
-	if len(o.result.Annotations) > 0 {
-		res.Annotations = map[string]any{o.name: o.result.Annotations}
-	}
-
-	// Advisory members contribute annotations only.
-	if o.mode != ModeEnforcing {
-		return res
-	}
-
-	if o.result.Action == ActionBlock {
-		res.Verdict = policy.VerdictBlock
-		res.Message = o.result.Reason
+	out := policy.GuardrailOutcome{
+		Annotations: o.result.Annotations,
+		Enforcing:   o.mode == ModeEnforcing,
+		Block:       o.result.Action == ActionBlock,
+		Message:     o.result.Reason,
 	}
 	for _, e := range o.result.Edits {
-		res.Edits = append(res.Edits, policy.Edit{Pointer: e.Pointer, Value: e.Value})
+		out.Edits = append(out.Edits, policy.Edit{Pointer: e.Pointer, Value: e.Value})
 	}
-	return res
+	return out.Project(o.name)
 }
 
 // failMode resolves a member's fail mode by name.

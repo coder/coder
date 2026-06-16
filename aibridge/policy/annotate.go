@@ -15,6 +15,13 @@ type Annotations struct {
 	Values map[string]any
 }
 
+// Project maps the annotations into a StageResult, stamping Values under stage's
+// host-owned namespace ({stage: values}). The namespace is applied here and only
+// here, so a stage cannot write into another stage's namespace.
+func (a Annotations) Project(stage string) StageResult {
+	return StageResult{Annotations: map[string]any{stage: a.Values}}
+}
+
 // Annotate attaches metadata. It evaluates data.gateway.annotations and returns
 // an annotation map to be merged into input.annotations for later stages.
 //
@@ -42,15 +49,15 @@ func (a *Annotate) Name() string { return a.name }
 // stamping the host-owned namespace (the stage's immutable name) at projection.
 // A failure is synthesized through the stage's fail mode.
 func (a *Annotate) Evaluate(ctx context.Context, in Input) StageResult {
-	return runStage(ctx, a.name, a.failMode, func(sctx context.Context) (StageResult, error) {
+	return runStage(ctx, a.name, a.failMode, func(sctx context.Context) (Projector, error) {
 		ann, ok, err := a.annotations(sctx, in)
 		if err != nil {
-			return StageResult{}, err
+			return nil, err
 		}
 		if !ok {
-			return StageResult{}, nil
+			return noop{}, nil
 		}
-		return StageResult{Annotations: map[string]any{a.name: ann.Values}}, nil
+		return ann, nil
 	})
 }
 
