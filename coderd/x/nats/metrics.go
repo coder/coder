@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"sync/atomic"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -63,103 +64,156 @@ var (
 	)
 )
 
-// initMetrics constructs the explicit Prometheus metrics and latency
-// measurer. It is called from newPubsub so that even internal tests
-// building via newPubsub never observe nil metric fields.
-func (p *Pubsub) initMetrics() {
-	p.latencyMeasurer = pubsub.NewLatencyMeasurer(p.logger.Named("latency-measurer"))
+// metrics owns all Prometheus state for the NATS Pubsub. Collaborators
+// such as groupSub depend on this narrow type rather than the whole
+// Pubsub, so the only thing they can do is record metrics.
+type metrics struct {
+	logger slog.Logger
 
-	p.publishesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "publishes_total",
-		Help:      "Total number of calls to Publish",
-	}, []string{"success"})
-	p.subscribesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "subscribes_total",
-		Help:      "Total number of calls to Subscribe/SubscribeWithErr",
-	}, []string{"success"})
-	p.messagesTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "messages_total",
-		Help:      "Total number of messages received from nats",
-	}, []string{"size"})
-	p.publishedBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "published_bytes_total",
-		Help:      "Total number of bytes successfully published across all publishes",
-	})
-	p.receivedBytesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "received_bytes_total",
-		Help:      "Total number of bytes received across all messages",
-	})
-	p.disconnectionsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "disconnections_total",
-		Help:      "Total number of times we disconnected unexpectedly from nats",
-	})
-	p.connected = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "coder",
-		Subsystem: "nats_pubsub",
-		Name:      "connected",
-		Help:      "Whether we are connected (1) or not connected (0) to nats",
-	})
+	publishesTotal      *prometheus.CounterVec
+	subscribesTotal     *prometheus.CounterVec
+	messagesTotal       *prometheus.CounterVec
+	publishedBytesTotal prometheus.Counter
+	receivedBytesTotal  prometheus.Counter
+	disconnectionsTotal prometheus.Counter
+	connected           prometheus.Gauge
+
+	latencyMeasurer       *pubsub.LatencyMeasurer
+	latencyMeasureCounter atomic.Int64
+	latencyErrCounter     atomic.Int64
+
+	// disconnectedConns tracks how many owned connections are currently
+	// disconnected. The connected gauge is 1 only when this is 0.
+	disconnectedConns atomic.Int64
 }
 
-// countReceived records metrics for a single received NATS message.
-func (p *Pubsub) countReceived(data []byte) {
+// newMetrics constructs the explicit Prometheus metrics and latency
+// measurer. It is always called so that collaborators never observe
+// nil metric fields.
+func newMetrics(logger slog.Logger) *metrics {
+	return &metrics{
+		logger:          logger,
+		latencyMeasurer: pubsub.NewLatencyMeasurer(logger.Named("latency-measurer")),
+
+		publishesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "publishes_total",
+			Help:      "Total number of calls to Publish",
+		}, []string{"success"}),
+		subscribesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "subscribes_total",
+			Help:      "Total number of calls to Subscribe/SubscribeWithErr",
+		}, []string{"success"}),
+		messagesTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "messages_total",
+			Help:      "Total number of messages received from nats",
+		}, []string{"size"}),
+		publishedBytesTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "published_bytes_total",
+			Help:      "Total number of bytes successfully published across all publishes",
+		}),
+		receivedBytesTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "received_bytes_total",
+			Help:      "Total number of bytes received across all messages",
+		}),
+		disconnectionsTotal: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "disconnections_total",
+			Help:      "Total number of times we disconnected unexpectedly from nats",
+		}),
+		connected: prometheus.NewGauge(prometheus.GaugeOpts{
+			Namespace: "coder",
+			Subsystem: "nats_pubsub",
+			Name:      "connected",
+			Help:      "Whether we are connected (1) or not connected (0) to nats",
+		}),
+	}
+}
+
+// recordPublishSuccess records a successful Publish of n bytes.
+func (m *metrics) recordPublishSuccess(n int) {
+	m.publishesTotal.WithLabelValues("true").Inc()
+	m.publishedBytesTotal.Add(float64(n))
+}
+
+// recordPublishFailure records a failed Publish.
+func (m *metrics) recordPublishFailure() {
+	m.publishesTotal.WithLabelValues("false").Inc()
+}
+
+// recordSubscribeSuccess records a successful Subscribe/SubscribeWithErr.
+func (m *metrics) recordSubscribeSuccess() {
+	m.subscribesTotal.WithLabelValues("true").Inc()
+}
+
+// recordSubscribeFailure records a failed Subscribe/SubscribeWithErr.
+func (m *metrics) recordSubscribeFailure() {
+	m.subscribesTotal.WithLabelValues("false").Inc()
+}
+
+// recordReceived records metrics for a single received NATS message.
+func (m *metrics) recordReceived(data []byte) {
 	sizeLabel := messageSizeNormal
 	if len(data) >= colossalThreshold {
 		sizeLabel = messageSizeColossal
 	}
-	p.messagesTotal.WithLabelValues(sizeLabel).Inc()
-	p.receivedBytesTotal.Add(float64(len(data)))
+	m.messagesTotal.WithLabelValues(sizeLabel).Inc()
+	m.receivedBytesTotal.Add(float64(len(data)))
+}
+
+// markConnected sets the connected gauge to 1. Called once all owned
+// connections have dialed successfully.
+func (m *metrics) markConnected() {
+	m.connected.Set(1)
 }
 
 // onDisconnect records an unexpected disconnect of one owned connection.
-func (p *Pubsub) onDisconnect() {
-	p.disconnectionsTotal.Inc()
-	p.disconnectedConns.Add(1)
-	p.connected.Set(0)
+func (m *metrics) onDisconnect() {
+	m.disconnectionsTotal.Inc()
+	m.disconnectedConns.Add(1)
+	m.connected.Set(0)
 }
 
 // onReconnect records that one owned connection reconnected. The
 // connected gauge returns to 1 only once every owned connection is
 // reconnected.
-func (p *Pubsub) onReconnect() {
+func (m *metrics) onReconnect() {
 	for {
-		cur := p.disconnectedConns.Load()
+		cur := m.disconnectedConns.Load()
 		if cur <= 0 {
-			p.connected.Set(1)
+			m.connected.Set(1)
 			return
 		}
-		if p.disconnectedConns.CompareAndSwap(cur, cur-1) {
+		if m.disconnectedConns.CompareAndSwap(cur, cur-1) {
 			if cur-1 <= 0 {
-				p.connected.Set(1)
+				m.connected.Set(1)
 			}
 			return
 		}
 	}
 }
 
-// Describe implements, along with Collect, the prometheus.Collector
-// interface for metrics.
-func (p *Pubsub) Describe(descs chan<- *prometheus.Desc) {
+// describe sends every metric descriptor, implementing the descriptor
+// half of prometheus.Collector for the owning Pubsub.
+func (m *metrics) describe(descs chan<- *prometheus.Desc) {
 	// explicit metrics
-	p.publishesTotal.Describe(descs)
-	p.subscribesTotal.Describe(descs)
-	p.messagesTotal.Describe(descs)
-	p.publishedBytesTotal.Describe(descs)
-	p.receivedBytesTotal.Describe(descs)
-	p.disconnectionsTotal.Describe(descs)
-	p.connected.Describe(descs)
+	m.publishesTotal.Describe(descs)
+	m.subscribesTotal.Describe(descs)
+	m.messagesTotal.Describe(descs)
+	m.publishedBytesTotal.Describe(descs)
+	m.receivedBytesTotal.Describe(descs)
+	m.disconnectionsTotal.Describe(descs)
+	m.connected.Describe(descs)
 
 	// implicit metrics
 	descs <- currentSubscribersDesc
@@ -172,42 +226,34 @@ func (p *Pubsub) Describe(descs chan<- *prometheus.Desc) {
 	descs <- pubsubLatencyMeasureErrDesc
 }
 
-// Collect implements, along with Describe, the prometheus.Collector
-// interface for metrics.
-func (p *Pubsub) Collect(metrics chan<- prometheus.Metric) {
+// collect emits all metrics. subscribers and events are the live
+// snapshot taken by the owning Pubsub; p is the pubsub used for the
+// out-of-band latency measurement.
+func (m *metrics) collect(ch chan<- prometheus.Metric, subscribers, events int, p pubsub.Pubsub) {
 	// explicit metrics
-	p.publishesTotal.Collect(metrics)
-	p.subscribesTotal.Collect(metrics)
-	p.messagesTotal.Collect(metrics)
-	p.publishedBytesTotal.Collect(metrics)
-	p.receivedBytesTotal.Collect(metrics)
-	p.disconnectionsTotal.Collect(metrics)
-	p.connected.Collect(metrics)
+	m.publishesTotal.Collect(ch)
+	m.subscribesTotal.Collect(ch)
+	m.messagesTotal.Collect(ch)
+	m.publishedBytesTotal.Collect(ch)
+	m.receivedBytesTotal.Collect(ch)
+	m.disconnectionsTotal.Collect(ch)
+	m.connected.Collect(ch)
 
 	// implicit metrics
-	p.mu.Lock()
-	events := len(p.subscriptions)
-	subs := 0
-	for _, g := range p.subscriptions {
-		g.mu.Lock()
-		subs += len(g.localSubs)
-		g.mu.Unlock()
-	}
-	p.mu.Unlock()
-	metrics <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subs))
-	metrics <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
+	ch <- prometheus.MustNewConstMetric(currentSubscribersDesc, prometheus.GaugeValue, float64(subscribers))
+	ch <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(events))
 
 	// additional metrics
 	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
 	defer cancel()
-	send, recv, err := p.latencyMeasurer.Measure(ctx, p)
+	send, recv, err := m.latencyMeasurer.Measure(ctx, p)
 
-	metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(p.latencyMeasureCounter.Add(1)))
+	ch <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(m.latencyMeasureCounter.Add(1)))
 	if err != nil {
-		p.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
-		metrics <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(p.latencyErrCounter.Add(1)))
+		m.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
+		ch <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(m.latencyErrCounter.Add(1)))
 		return
 	}
-	metrics <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
-	metrics <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
+	ch <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
+	ch <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
 }
