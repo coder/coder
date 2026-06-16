@@ -82,6 +82,26 @@ func TestMetricAliasRegisterer(t *testing.T) {
 		}
 	})
 
+	t.Run("RegisterRollsBackPartialFailure", func(t *testing.T) {
+		t.Parallel()
+
+		base := prometheus.NewRegistry()
+		counter := prometheus.NewCounter(prometheus.CounterOpts{
+			Name: "requests_total",
+			Help: "Total requests.",
+		})
+		prometheus.WrapRegistererWithPrefix("alias_two_", base).MustRegister(counter)
+
+		reg := prometheusmetrics.NewMetricAliasRegisterer(base, "canonical_", "alias_one_", "alias_two_")
+		err := reg.Register(counter)
+		require.Error(t, err)
+
+		families, err := base.Gather()
+		require.NoError(t, err)
+		require.Len(t, families, 1)
+		require.Equal(t, "alias_two_requests_total", families[0].GetName())
+	})
+
 	t.Run("Unregister", func(t *testing.T) {
 		t.Parallel()
 

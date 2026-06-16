@@ -17,7 +17,7 @@ These logs and metrics can be used to determine usage patterns, track costs, and
 
 ## Provider metrics
 
-`aibridged` (the in-process daemon) and `aibridgeproxyd` (the external
+AI Gateway (the in-process daemon) and AI Gateway Proxy (the external
 proxy) each export Prometheus metrics describing the configured
 provider pool and its reload loop. See
 [Provider Configuration](./providers.md) for the lifecycle these

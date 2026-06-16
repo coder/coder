@@ -147,10 +147,10 @@ promhttp_metric_handler_requests_in_flight 1
 promhttp_metric_handler_requests_total{code="200"} 2
 promhttp_metric_handler_requests_total{code="500"} 0
 promhttp_metric_handler_requests_total{code="503"} 0
-# HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by aibridge.
+# HELP coder_ai_gateway_injected_tool_invocations_total The number of times an injected MCP tool was invoked by AI Gateway.
 # TYPE coder_ai_gateway_injected_tool_invocations_total counter
 coder_ai_gateway_injected_tool_invocations_total{model="gpt-5-nano",name="coder_list_templates",provider="openai",server="https://xxx.pit-1.try.coder.app/api/experimental/mcp/http"} 1
-# HELP coder_ai_gateway_interceptions_duration_seconds The total duration of intercepted requests, in seconds. The majority of this time will be the upstream processing of the request. aibridge has no control over upstream processing time, so it's just an illustrative metric.
+# HELP coder_ai_gateway_interceptions_duration_seconds The total duration of intercepted requests, in seconds. The majority of this time will be the upstream processing of the request. AI Gateway has no control over upstream processing time, so it's just an illustrative metric.
 # TYPE coder_ai_gateway_interceptions_duration_seconds histogram
 coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="0.5"} 0
 coder_ai_gateway_interceptions_duration_seconds_bucket{model="gpt-5-nano",provider="openai",le="2"} 0
