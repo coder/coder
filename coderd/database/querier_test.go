@@ -11087,11 +11087,11 @@ func TestGetEnabledChatModelConfigsUsesAIProviders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	enabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
-		Type: database.AiProviderTypeOpenrouter,
+		Type: database.AIProviderTypeOpenrouter,
 		Name: "openrouter-" + uuid.NewString(),
 	})
 	disabledProvider := dbgen.AIProvider(t, store, database.AIProvider{
-		Type: database.AiProviderTypeVercel,
+		Type: database.AIProviderTypeVercel,
 		Name: "vercel-" + uuid.NewString(),
 	}, func(params *database.InsertAIProviderParams) {
 		params.Enabled = false
@@ -11400,7 +11400,7 @@ func TestGetChatMessagesForPromptByChatID(t *testing.T) {
 
 	// An AI provider row is required as a FK for model configs.
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
-		Type:        database.AiProviderTypeOpenai,
+		Type:        database.AIProviderTypeOpenai,
 		Name:        "test-" + uuid.NewString(),
 		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
 		Enabled:     true,
@@ -11739,7 +11739,7 @@ func TestUpsertAISeats(t *testing.T) {
 	newRow, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now.Add(time.Hour * -24),
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.True(t, newRow)
@@ -11747,7 +11747,7 @@ func TestUpsertAISeats(t *testing.T) {
 	alreadyExists, err := db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now.Add(time.Hour * -23),
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.False(t, alreadyExists)
@@ -11755,7 +11755,7 @@ func TestUpsertAISeats(t *testing.T) {
 	alreadyExists, err = db.UpsertAISeatState(ctx, database.UpsertAISeatStateParams{
 		UserID:        user.ID,
 		FirstUsedAt:   now,
-		LastEventType: database.AiSeatUsageReasonTask,
+		LastEventType: database.AISeatUsageReasonTask,
 	})
 	require.NoError(t, err)
 	require.False(t, alreadyExists)
@@ -14604,7 +14604,7 @@ func TestGetChatsFilter(t *testing.T) {
 	dbgen.OrganizationMember(t, store, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
 
 	provider := dbgen.AIProviderWithOptionalKey(t, store, database.AIProvider{
-		Type: database.AiProviderTypeOpenai,
+		Type: database.AIProviderTypeOpenai,
 	}, "test-key")
 
 	modelCfg, err := store.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
@@ -15395,67 +15395,67 @@ func TestAIGatewayKeysTableConstraints(t *testing.T) {
 		{
 			name:            "duplicate name",
 			params:          aiGatewayKeyParams(preExisting.Name, "key_test002"),
-			expectUniqueErr: database.UniqueAiGatewayKeysNameIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysNameIndex,
 		},
 		{
 			name:            "duplicate secret prefix",
 			params:          aiGatewayKeyParams("different-key", preExisting.SecretPrefix),
-			expectUniqueErr: database.UniqueAiGatewayKeysSecretPrefixIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysSecretPrefixIndex,
 		},
 		{
 			name:            "duplicate hashed secret",
 			params:          database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "other-name", SecretPrefix: "key_1234567", HashedSecret: preExisting.HashedSecret},
-			expectUniqueErr: database.UniqueAiGatewayKeysHashedSecretIndex,
+			expectUniqueErr: database.UniqueAIGatewayKeysHashedSecretIndex,
 		},
 		{
 			name:           "empty name",
 			params:         aiGatewayKeyParams("", "key_empty__"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with trailing dash",
 			params:         aiGatewayKeyParams("other-name-", "key_trail__"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with consecutive dashes",
 			params:         aiGatewayKeyParams("other--name", "key_consec_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with underscore",
 			params:         aiGatewayKeyParams("other_name", "key_undersc"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with space",
 			params:         aiGatewayKeyParams("other name", "key_spacen_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name with leading dash",
 			params:         aiGatewayKeyParams("-other-name", "key_leadng_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "name longer than 64 characters",
 			params:         aiGatewayKeyParams(strings.Repeat("a", 65), "key_longna_"),
-			expectCheckErr: database.CheckAiGatewayKeysNameCheck,
+			expectCheckErr: database.CheckAIGatewayKeysNameCheck,
 		},
 		{
 			name:           "empty secret prefix",
 			params:         aiGatewayKeyParams("check-empty-pfx", ""),
-			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+			expectCheckErr: database.CheckAIGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "invalid secret prefix length",
 			params:         aiGatewayKeyParams("check-short-pfx", "key_short"),
-			expectCheckErr: database.CheckAiGatewayKeysSecretPrefixCheck,
+			expectCheckErr: database.CheckAIGatewayKeysSecretPrefixCheck,
 		},
 		{
 			name:           "empty hashed secret",
 			params:         database.InsertAIGatewayKeyParams{ID: uuid.New(), Name: "check-empty-hash", SecretPrefix: "key_ehash__", HashedSecret: []byte{}},
-			expectCheckErr: database.CheckAiGatewayKeysHashedSecretCheck,
+			expectCheckErr: database.CheckAIGatewayKeysHashedSecretCheck,
 		},
 	}
 

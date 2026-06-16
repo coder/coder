@@ -2171,14 +2171,14 @@ func (q *querier) DeleteExternalAuthLink(ctx context.Context, arg database.Delet
 	}, q.db.DeleteExternalAuthLink)(ctx, arg)
 }
 
-func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (q *querier) DeleteGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	// Removing a group's AI budget counts as updating the group.
 	group, err := q.db.GetGroupByID(ctx, groupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.DeleteGroupAIBudget(ctx, groupID)
 }
@@ -2439,28 +2439,28 @@ func (q *querier) DeleteTask(ctx context.Context, arg database.DeleteTaskParams)
 	return q.db.DeleteTask(ctx, arg)
 }
 
-func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (q *querier) DeleteUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	// Removing a user's AI budget override affects both the user (clearing
 	// their per-user spend cap) and the group it was attributed to.
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, u); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	// Fetch the existing override to learn which group it attributes spend to,
 	// so we can authorize the caller against that group as well.
 	userOverride, err := q.db.GetUserAIBudgetOverride(ctx, userID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	g, err := q.db.GetGroupByID(ctx, userOverride.GroupID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, g); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.DeleteUserAIBudgetOverride(ctx, userID)
 }
@@ -2727,9 +2727,9 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
-func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AiModelPrice, error) {
+func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
-		return database.AiModelPrice{}, err
+		return database.AIModelPrice{}, err
 	}
 	return q.db.GetAIModelPriceByProviderModel(ctx, arg)
 }
@@ -3737,14 +3737,14 @@ func (q *querier) GetGitSSHKey(ctx context.Context, userID uuid.UUID) (database.
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetGitSSHKey)(ctx, userID)
 }
 
-func (q *querier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAiBudget, error) {
+func (q *querier) GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (database.GroupAIBudget, error) {
 	// Reading a group's AI budget requires read on the parent group.
 	group, err := q.db.GetGroupByID(ctx, groupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionRead, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.GetGroupAIBudget(ctx, groupID)
 }
@@ -4794,32 +4794,32 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
-func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAiBudgetOverride, error) {
+func (q *querier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UUID) (database.UserAIBudgetOverride, error) {
 	if _, err := q.GetUserByID(ctx, userID); err != nil { // AuthZ check
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.GetUserAIBudgetOverride(ctx, userID)
 }
 
-func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeyByProviderID(ctx context.Context, arg database.GetUserAIProviderKeyByProviderIDParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.GetUserAIProviderKeyByProviderID(ctx, arg)
 }
 
-func (q *querier) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeys(ctx context.Context) ([]database.UserAIProviderKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAIProvider); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserAIProviderKeys(ctx)
 }
 
-func (q *querier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAiProviderKey, error) {
+func (q *querier) GetUserAIProviderKeysByUserID(ctx context.Context, userID uuid.UUID) ([]database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -7295,12 +7295,12 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
 }
 
-func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpdateEncryptedUserAIProviderKey(ctx context.Context, arg database.UpdateEncryptedUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	// Encrypted user-owned provider keys can be rewritten on any row so
 	// dbcrypt rotation can move every key to a new digest. This is a
 	// maintenance path, not the self-service user key API.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIProvider); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateEncryptedUserAIProviderKey(ctx, arg)
 }
@@ -7831,13 +7831,13 @@ func (q *querier) UpdateUsageEventsPostPublish(ctx context.Context, arg database
 	return q.db.UpdateUsageEventsPostPublish(ctx, arg)
 }
 
-func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpdateUserAIProviderKey(ctx context.Context, arg database.UpdateUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpdateUserAIProviderKey(ctx, arg)
 }
@@ -8645,14 +8645,14 @@ func (q *querier) UpsertDefaultProxy(ctx context.Context, arg database.UpsertDef
 	return q.db.UpsertDefaultProxy(ctx, arg)
 }
 
-func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAiBudget, error) {
+func (q *querier) UpsertGroupAIBudget(ctx context.Context, arg database.UpsertGroupAIBudgetParams) (database.GroupAIBudget, error) {
 	// Setting a group's AI budget counts as updating the group.
 	group, err := q.db.GetGroupByID(ctx, arg.GroupID)
 	if err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, group); err != nil {
-		return database.GroupAiBudget{}, err
+		return database.GroupAIBudget{}, err
 	}
 	return q.db.UpsertGroupAIBudget(ctx, arg)
 }
@@ -8792,33 +8792,33 @@ func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {
 	return q.db.UpsertTemplateUsageStats(ctx)
 }
 
-func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAiBudgetOverride, error) {
+func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.UpsertUserAIBudgetOverrideParams) (database.UserAIBudgetOverride, error) {
 	// Setting a user's AI budget override affects both the user (their
 	// per-user spend cap) and the group (spend attribution).
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, u); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	g, err := q.db.GetGroupByID(ctx, arg.GroupID)
 	if err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, g); err != nil {
-		return database.UserAiBudgetOverride{}, err
+		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.UpsertUserAIBudgetOverride(ctx, arg)
 }
 
-func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAiProviderKey, error) {
+func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdatePersonal, u); err != nil {
-		return database.UserAiProviderKey{}, err
+		return database.UserAIProviderKey{}, err
 	}
 	return q.db.UpsertUserAIProviderKey(ctx, arg)
 }

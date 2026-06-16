@@ -1421,7 +1421,7 @@ func flattenAndSum(sums map[string]int64, prefix string, m map[string]json.RawMe
 	}
 }
 
-func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
+func GroupAIBudget(b database.GroupAIBudget) codersdk.GroupAIBudget {
 	return codersdk.GroupAIBudget{
 		GroupID:          b.GroupID,
 		SpendLimitMicros: b.SpendLimitMicros,
@@ -1430,7 +1430,7 @@ func GroupAIBudget(b database.GroupAiBudget) codersdk.GroupAIBudget {
 	}
 }
 
-func UserAIBudgetOverride(o database.UserAiBudgetOverride) codersdk.UserAIBudgetOverride {
+func UserAIBudgetOverride(o database.UserAIBudgetOverride) codersdk.UserAIBudgetOverride {
 	return codersdk.UserAIBudgetOverride{
 		UserID:           o.UserID,
 		GroupID:          o.GroupID,

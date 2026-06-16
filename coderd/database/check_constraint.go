@@ -6,17 +6,17 @@ type CheckConstraint string
 
 // CheckConstraint enums.
 const (
-	CheckAiGatewayKeysHashedSecretCheck               CheckConstraint = "ai_gateway_keys_hashed_secret_check"                 // ai_gateway_keys
-	CheckAiGatewayKeysNameCheck                       CheckConstraint = "ai_gateway_keys_name_check"                          // ai_gateway_keys
-	CheckAiGatewayKeysSecretPrefixCheck               CheckConstraint = "ai_gateway_keys_secret_prefix_check"                 // ai_gateway_keys
-	CheckAiModelPricesCacheReadPriceCheck             CheckConstraint = "ai_model_prices_cache_read_price_check"              // ai_model_prices
-	CheckAiModelPricesCacheWritePriceCheck            CheckConstraint = "ai_model_prices_cache_write_price_check"             // ai_model_prices
-	CheckAiModelPricesInputPriceCheck                 CheckConstraint = "ai_model_prices_input_price_check"                   // ai_model_prices
-	CheckAiModelPricesOutputPriceCheck                CheckConstraint = "ai_model_prices_output_price_check"                  // ai_model_prices
-	CheckAiProvidersNameCheck                         CheckConstraint = "ai_providers_name_check"                             // ai_providers
+	CheckAIGatewayKeysHashedSecretCheck               CheckConstraint = "ai_gateway_keys_hashed_secret_check"                 // ai_gateway_keys
+	CheckAIGatewayKeysNameCheck                       CheckConstraint = "ai_gateway_keys_name_check"                          // ai_gateway_keys
+	CheckAIGatewayKeysSecretPrefixCheck               CheckConstraint = "ai_gateway_keys_secret_prefix_check"                 // ai_gateway_keys
+	CheckAIModelPricesCacheReadPriceCheck             CheckConstraint = "ai_model_prices_cache_read_price_check"              // ai_model_prices
+	CheckAIModelPricesCacheWritePriceCheck            CheckConstraint = "ai_model_prices_cache_write_price_check"             // ai_model_prices
+	CheckAIModelPricesInputPriceCheck                 CheckConstraint = "ai_model_prices_input_price_check"                   // ai_model_prices
+	CheckAIModelPricesOutputPriceCheck                CheckConstraint = "ai_model_prices_output_price_check"                  // ai_model_prices
+	CheckAIProvidersNameCheck                         CheckConstraint = "ai_providers_name_check"                             // ai_providers
 	CheckAPIKeysAllowListNotEmpty                     CheckConstraint = "api_keys_allow_list_not_empty"                       // api_keys
 	CheckBoundaryLogsSequenceNumberCheck              CheckConstraint = "boundary_logs_sequence_number_check"                 // boundary_logs
-	CheckChatModelConfigsAiProviderRequiredWhenActive CheckConstraint = "chat_model_configs_ai_provider_required_when_active" // chat_model_configs
+	CheckChatModelConfigsAIProviderRequiredWhenActive CheckConstraint = "chat_model_configs_ai_provider_required_when_active" // chat_model_configs
 	CheckChatModelConfigsCompressionThresholdCheck    CheckConstraint = "chat_model_configs_compression_threshold_check"      // chat_model_configs
 	CheckChatModelConfigsContextLimitCheck            CheckConstraint = "chat_model_configs_context_limit_check"              // chat_model_configs
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck  CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"  // chat_usage_limit_config
@@ -33,7 +33,7 @@ const (
 	CheckUsersServiceAccountLoginType                 CheckConstraint = "users_service_account_login_type"                    // users
 	CheckUsersUsernameMinLength                       CheckConstraint = "users_username_min_length"                           // users
 	CheckOrganizationIDNotZero                        CheckConstraint = "organization_id_not_zero"                            // custom_roles
-	CheckGroupAiBudgetsSpendLimitMicrosCheck          CheckConstraint = "group_ai_budgets_spend_limit_micros_check"           // group_ai_budgets
+	CheckGroupAIBudgetsSpendLimitMicrosCheck          CheckConstraint = "group_ai_budgets_spend_limit_micros_check"           // group_ai_budgets
 	CheckGroupsChatSpendLimitMicrosCheck              CheckConstraint = "groups_chat_spend_limit_micros_check"                // groups
 	CheckMcpServerConfigsAuthTypeCheck                CheckConstraint = "mcp_server_configs_auth_type_check"                  // mcp_server_configs
 	CheckMcpServerConfigsAvailabilityCheck            CheckConstraint = "mcp_server_configs_availability_check"               // mcp_server_configs
@@ -47,8 +47,8 @@ const (
 	CheckTelemetryLockEventTypeConstraint             CheckConstraint = "telemetry_lock_event_type_constraint"                // telemetry_locks
 	CheckValidationMonotonicOrder                     CheckConstraint = "validation_monotonic_order"                          // template_version_parameters
 	CheckUsageEventTypeCheck                          CheckConstraint = "usage_event_type_check"                              // usage_events
-	CheckUserAiBudgetOverridesSpendLimitMicrosCheck   CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"   // user_ai_budget_overrides
-	CheckUserAiProviderKeysAPIKeyCheck                CheckConstraint = "user_ai_provider_keys_api_key_check"                 // user_ai_provider_keys
+	CheckUserAIBudgetOverridesSpendLimitMicrosCheck   CheckConstraint = "user_ai_budget_overrides_spend_limit_micros_check"   // user_ai_budget_overrides
+	CheckUserAIProviderKeysAPIKeyCheck                CheckConstraint = "user_ai_provider_keys_api_key_check"                 // user_ai_provider_keys
 	CheckUserSkillsContentSize                        CheckConstraint = "user_skills_content_size"                            // user_skills
 	CheckUserSkillsDescriptionSize                    CheckConstraint = "user_skills_description_size"                        // user_skills
 	CheckUserSkillsNameFormat                         CheckConstraint = "user_skills_name_format"                             // user_skills

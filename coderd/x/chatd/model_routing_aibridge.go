@@ -91,7 +91,7 @@ func (t *aiGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, er
 // OpenRouter-like providers typed as openai, where the provider type
 // strips the vendor prefix.
 func ValidateAIGatewayProviderModel(provider database.AIProvider, model string) error {
-	if provider.Type != database.AiProviderTypeOpenai {
+	if provider.Type != database.AIProviderTypeOpenai {
 		return nil
 	}
 	if !isSlashNamespacedAIGatewayModel(model) || !isOpenRouterLikeAIGatewayProvider(provider) {
@@ -188,10 +188,10 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 	var fantasyProvider string
 	baseURL := aibridgeLocalBaseURL + "/v1"
 	switch providerType {
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
 		fantasyProvider = fantasyanthropic.Name
 		baseURL = aibridgeLocalBaseURL
-	case database.AiProviderTypeOpenai:
+	case database.AIProviderTypeOpenai:
 		fantasyProvider = fantasyopenai.Name
 	default:
 		fantasyProvider = fantasyopenaicompat.Name
@@ -211,7 +211,7 @@ func fantasyConfigForAIBridge(providerType database.AIProviderType) aibridgeFant
 
 func aiGatewayRequestFormatForProviderType(providerType database.AIProviderType) aiGatewayRequestFormat {
 	switch providerType {
-	case database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock:
+	case database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock:
 		return aiGatewayRequestFormatAnthropic
 	default:
 		return aiGatewayRequestFormatOpenAI

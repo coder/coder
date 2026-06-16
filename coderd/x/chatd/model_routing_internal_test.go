@@ -85,10 +85,10 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 		wantProvider string
 		wantBaseURL  string
 	}{
-		{name: "OpenAI", providerType: database.AiProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Anthropic", providerType: database.AiProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Bedrock", providerType: database.AiProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Google", providerType: database.AiProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Bedrock", providerType: database.AIProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,7 +113,7 @@ func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai",
 		Enabled: true,
 		BaseUrl: baseURL,
@@ -141,7 +141,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 	ctx := t.Context()
 	ownerID := uuid.New()
 	providerID := uuid.New()
-	provider := database.AIProvider{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true}
+	provider := database.AIProvider{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true}
 
 	t.Run("OpenAIUserKey", func(t *testing.T) {
 		t.Parallel()
@@ -151,7 +151,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
@@ -168,7 +168,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatAnthropic)
@@ -185,7 +185,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{}, sql.ErrNoRows)
+		}).Return(database.UserAIProviderKey{}, sql.ErrNoRows)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
@@ -231,7 +231,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 	providerID := uuid.New()
 	provider := database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai",
 		Enabled: true,
 	}
@@ -251,7 +251,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, aiGatewayRoutingEnabled: true, allowBYOK: true}
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
@@ -296,7 +296,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 				path:          req.URL.Path,
 			}
 			body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
-			if provider.Type == database.AiProviderTypeAnthropic {
+			if provider.Type == database.AIProviderTypeAnthropic {
 				body = `{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}}`
 			}
 			return &http.Response{
@@ -318,7 +318,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"Authorization": "Bearer sk-user"},
 		}, seen)
@@ -340,7 +340,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AIProviderTypeAnthropic)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"X-Api-Key": "sk-user"},
 		}, seen)
@@ -361,7 +361,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
@@ -595,7 +595,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 
 	providerID := uuid.New()
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	aiProvider := aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)
+	aiProvider := aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)
 
 	t.Run("NilFactory", func(t *testing.T) {
 		t.Parallel()
@@ -618,7 +618,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Run("MissingProviderName", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		missingNameProvider := aibridgeTestAIProvider(providerID, "", database.AiProviderTypeOpenai)
+		missingNameProvider := aibridgeTestAIProvider(providerID, "", database.AIProviderTypeOpenai)
 		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(missingNameProvider), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "AI provider name")
 	})
@@ -652,7 +652,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 			aiGatewayRoutingEnabled:  true,
 			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
 		}
-		provider := aibridgeTestAIProvider(providerID, "openrouter", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(providerID, "openrouter", database.AIProviderTypeOpenai)
 		_, err := server.newModel(
 			t.Context(),
 			aibridgeTestRequest(chat, "anthropic/claude-opus-4.6"),
@@ -685,12 +685,12 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 		{
 			name:         "OpenRouter",
 			providerName: "openrouter",
-			providerType: database.AiProviderTypeOpenrouter,
+			providerType: database.AIProviderTypeOpenrouter,
 		},
 		{
 			name:         "OpenAICompat",
 			providerName: "openai-compatible-relay",
-			providerType: database.AiProviderTypeOpenaiCompat,
+			providerType: database.AIProviderTypeOpenaiCompat,
 		},
 	}
 
@@ -814,7 +814,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		ctx,
 		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)),
+		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
 		provider,
 		modelProvider,
 		modelName,
@@ -862,7 +862,7 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	}
 
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
+	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 	require.NoError(t, err)
 	_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 		Role:    fantasy.MessageRoleUser,

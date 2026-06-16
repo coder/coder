@@ -1127,7 +1127,7 @@ func TestAIProviders(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:     "anthropic-bedrock",
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			BaseUrl:  "https://bedrock-runtime.us-west-2.amazonaws.com/",
 			Settings: sql.NullString{String: settings, Valid: true},
 		})
@@ -1237,7 +1237,7 @@ func TestAIProviderKeys(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:    "openai-test",
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			BaseUrl: "https://api.openai.com/v1/",
 		})
 		key := dbgen.AIProviderKey(t, crypt, database.AIProviderKey{
@@ -1323,7 +1323,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t *testing.T,
 		crypt *dbCrypt,
 		ciphers []Cipher,
-	) (database.AIProvider, database.UserAiProviderKey) {
+	) (database.AIProvider, database.UserAIProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{})
@@ -1343,7 +1343,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		return provider, key
 	}
 
-	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAiProviderKey {
+	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAIProviderKey {
 		t.Helper()
 		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       userID,
