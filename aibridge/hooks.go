@@ -154,9 +154,9 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	}
 
 	// Guardrails are the networked head-of-hook stage: they run before the
-	// pre-req policy pipeline so their annotations are visible to it, an
-	// enforcing guardrail's body rewrite is applied before any policy sees the
-	// body, and an enforcing block short-circuits with HTTP 400.
+	// pre-req policy pipeline so their annotations are visible to it, a
+	// guardrail's body rewrite is applied before any policy sees the body, and a
+	// guardrail block short-circuits with HTTP 400.
 	if g := ph.PreReqGuardrails; g != nil && !g.Empty() {
 		gres, err := g.Run(ctx, payload.Body(), payload.Model())
 		if err != nil {
@@ -174,7 +174,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 		}
 		if gres.Verdict.Blocks() {
 			msg := blockedByGuardrailMessage
-			// BlockedBy is set only for a deliberate enforcing block; a
+			// BlockedBy is set only for a deliberate guardrail block; a
 			// synthesized failure block stays anonymous to the client.
 			if gres.BlockedBy != "" {
 				msg = fmt.Sprintf("request blocked by guardrail %q", gres.BlockedBy)
@@ -234,10 +234,11 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 }
 
 // toolGate builds an [intercept.ToolGate] for the provider's pre-tool pipeline,
-// capturing the (post-pre-req) request body, identity, and accumulated
-// annotations. It returns nil when the provider has no pre-tool pipeline, which
+// capturing the identity and accumulated annotations. The pre-tool envelope
+// gates the individual tool call, so it does not carry the request body or
+// headers. It returns nil when the provider has no pre-tool pipeline, which
 // makes tool gating a no-op for the request.
-func (h policyHooks) toolGate(ph ProviderPipelines, provider string, headers map[string]any, method, path string, body []byte, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
+func (h policyHooks) toolGate(ph ProviderPipelines, provider string, actor *aibcontext.Actor, annotations map[string]any, m *metrics.Metrics, logger slog.Logger) intercept.ToolGate {
 	if ph.PreTool == nil {
 		return nil
 	}
@@ -246,10 +247,6 @@ func (h policyHooks) toolGate(ph ProviderPipelines, provider string, headers map
 		failOpen:    ph.PreToolFailOpen,
 		version:     ph.Version,
 		provider:    provider,
-		headers:     headers,
-		method:      method,
-		path:        path,
-		body:        body,
 		identity:    identityFromActor(actor),
 		annotations: annotations,
 		metrics:     m,
@@ -263,10 +260,6 @@ type policyToolGate struct {
 	failOpen    bool
 	version     int32
 	provider    string
-	headers     map[string]any
-	method      string
-	path        string
-	body        []byte
 	identity    policy.Identity
 	annotations map[string]any
 	metrics     *metrics.Metrics
@@ -283,13 +276,7 @@ func (g *policyToolGate) ObserveHold(seconds float64) {
 
 func (g *policyToolGate) EvaluateToolCall(ctx context.Context, call intercept.ToolCall) (intercept.ToolGateDecision, error) {
 	in, err := policy.PreToolEnvelope{
-		PreReqEnvelope: policy.PreReqEnvelope{
-			Headers:  g.headers,
-			Method:   g.method,
-			Path:     g.path,
-			Request:  g.body,
-			Identity: g.identity,
-		},
+		Identity: g.identity,
 		ToolCall: policy.ToolCall{
 			ID:        call.ID,
 			Name:      call.Name,

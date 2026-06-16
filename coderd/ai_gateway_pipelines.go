@@ -140,7 +140,6 @@ type resolvedGuardrail struct {
 	guardrailVersionID uuid.UUID
 	name               string
 	hook               database.AIGatewayHook
-	mode               database.AIGatewayGuardrailMode
 	failMode           database.AIGatewayFailMode
 	networkTimeoutMs   int32
 	enabled            bool
@@ -175,7 +174,6 @@ func resolvePipelineGuardrails(ctx context.Context, db database.Store, reqs []co
 			guardrailVersionID: req.GuardrailVersionID,
 			name:               gr.Name,
 			hook:               database.AIGatewayHook(req.Hook),
-			mode:               database.AIGatewayGuardrailMode(req.Mode),
 			failMode:           database.AIGatewayFailMode(req.FailMode),
 			networkTimeoutMs:   timeout,
 			enabled:            enabled,
@@ -191,7 +189,6 @@ func insertPipelineGuardrails(ctx context.Context, tx database.Store, versionID 
 			PipelineVersionID:  versionID,
 			GuardrailVersionID: m.guardrailVersionID,
 			Hook:               m.hook,
-			Mode:               m.mode,
 			FailMode:           m.failMode,
 			NetworkTimeoutMs:   m.networkTimeoutMs,
 			Enabled:            m.enabled,

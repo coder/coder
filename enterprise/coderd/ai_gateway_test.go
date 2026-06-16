@@ -152,7 +152,6 @@ func TestAIGatewayPipelineMemberNameCollision(t *testing.T) {
 		Guardrails: []codersdk.AIGatewayPipelineGuardrailRequest{{
 			GuardrailVersionID: *gr.ActiveVersionID,
 			Hook:               codersdk.AIGatewayHookPreReq,
-			Mode:               codersdk.AIGatewayGuardrailModeAdvisory,
 			FailMode:           codersdk.AIGatewayFailModeClosed,
 		}},
 	})
@@ -216,7 +215,6 @@ func TestAIGatewayPipelineEditPreservesStagedGuardrail(t *testing.T) {
 	guardrailReq := []codersdk.AIGatewayPipelineGuardrailRequest{{
 		GuardrailVersionID: grVersion,
 		Hook:               codersdk.AIGatewayHookPreReq,
-		Mode:               codersdk.AIGatewayGuardrailModeAdvisory,
 		FailMode:           codersdk.AIGatewayFailModeClosed,
 	}}
 
@@ -244,14 +242,12 @@ func TestAIGatewayPipelineEditPreservesStagedGuardrail(t *testing.T) {
 	// guardrail forward. Re-mint from the tip's membership with a flipped policy.
 	tipGuardrails := make([]codersdk.AIGatewayPipelineGuardrailRequest, 0, len(got.LatestVersion.Guardrails))
 	for _, g := range got.LatestVersion.Guardrails {
-		mode := g.Mode
 		failMode := g.FailMode
 		timeout := g.NetworkTimeoutMS
 		enabled := g.Enabled
 		tipGuardrails = append(tipGuardrails, codersdk.AIGatewayPipelineGuardrailRequest{
 			GuardrailVersionID: g.GuardrailVersionID,
 			Hook:               g.Hook,
-			Mode:               mode,
 			FailMode:           failMode,
 			NetworkTimeoutMS:   &timeout,
 			Enabled:            &enabled,
@@ -313,7 +309,6 @@ func TestAIGatewayPipelineMemberToggleInPlace(t *testing.T) {
 		Guardrails: []codersdk.AIGatewayPipelineGuardrailRequest{{
 			GuardrailVersionID: *gr.ActiveVersionID,
 			Hook:               codersdk.AIGatewayHookPreReq,
-			Mode:               codersdk.AIGatewayGuardrailModeAdvisory,
 			FailMode:           codersdk.AIGatewayFailModeClosed,
 		}},
 	})
@@ -402,7 +397,6 @@ func TestAIGatewayGuardrailEditMintsPipelineVersion(t *testing.T) {
 		Guardrails: []codersdk.AIGatewayPipelineGuardrailRequest{{
 			GuardrailVersionID: grV1,
 			Hook:               codersdk.AIGatewayHookPreReq,
-			Mode:               codersdk.AIGatewayGuardrailModeAdvisory,
 			FailMode:           codersdk.AIGatewayFailModeClosed,
 		}},
 		Activate: false,

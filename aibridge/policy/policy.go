@@ -12,6 +12,30 @@ import (
 // (annotate), model (route), body (transform).
 const policyPackage = "gateway"
 
+// hermeticCapabilities is the OPA capability set every gateway policy is
+// compiled and evaluated against. It is the base set for this OPA version with
+// every non-deterministic builtin removed, so a policy physically cannot make a
+// network call (http.send), read the clock (time.now_ns), draw randomness
+// (rand.intn, uuid.rfc4122), or resolve DNS (net.lookup_ip_addr): such a policy
+// fails to compile at the validation gate and fails to prepare at load, rather
+// than evaluating non-deterministically. OPA tags these builtins
+// Nondeterministic, so that flag is the lever. Hermeticity is thus enforced, not
+// assumed (design doc §2).
+var hermeticCapabilities = newHermeticCapabilities()
+
+func newHermeticCapabilities() *ast.Capabilities {
+	caps := ast.CapabilitiesForThisVersion()
+	allowed := make([]*ast.Builtin, 0, len(caps.Builtins))
+	for _, b := range caps.Builtins {
+		if b.Nondeterministic {
+			continue
+		}
+		allowed = append(allowed, b)
+	}
+	caps.Builtins = allowed
+	return caps
+}
+
 // ruleQuery returns the prepared-query reference for a kind's entrypoint rule.
 func ruleQuery(rule string) string {
 	return "data." + policyPackage + "." + rule
@@ -71,6 +95,10 @@ func prepare(module, query string) (preparedQuery, error) {
 		rego.Query(query),
 		rego.ParsedModule(parsed),
 		rego.StrictBuiltinErrors(true),
+		// Compile and evaluate against the hermetic capability set so a policy
+		// referencing a non-deterministic builtin (http.send, time.now_ns, ...)
+		// fails to prepare rather than slipping through.
+		rego.Capabilities(hermeticCapabilities),
 	).PrepareForEval(context.Background())
 	if err != nil {
 		return preparedQuery{}, err

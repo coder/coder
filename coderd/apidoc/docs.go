@@ -15932,17 +15932,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.AIGatewayGuardrailMode": {
-            "type": "string",
-            "enum": [
-                "advisory",
-                "enforcing"
-            ],
-            "x-enum-varnames": [
-                "AIGatewayGuardrailModeAdvisory",
-                "AIGatewayGuardrailModeEnforcing"
-            ]
-        },
         "codersdk.AIGatewayGuardrailVersion": {
             "type": "object",
             "properties": {
@@ -16078,9 +16067,6 @@ const docTemplate = `{
                 "hook": {
                     "$ref": "#/definitions/codersdk.AIGatewayHook"
                 },
-                "mode": {
-                    "$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
-                },
                 "network_timeout_ms": {
                     "type": "integer"
                 }
@@ -16101,9 +16087,6 @@ const docTemplate = `{
                 },
                 "hook": {
                     "$ref": "#/definitions/codersdk.AIGatewayHook"
-                },
-                "mode": {
-                    "$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
                 },
                 "network_timeout_ms": {
                     "type": "integer"

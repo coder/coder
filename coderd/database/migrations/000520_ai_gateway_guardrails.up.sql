@@ -3,8 +3,6 @@
 -- they live in their own tables rather than the policy tables. They mirror the
 -- policy/version + active_version_id atomic-swap pattern.
 
-CREATE TYPE ai_gateway_guardrail_mode AS ENUM ('advisory', 'enforcing');
-
 -- ai_gateway_guardrails is the reusable parent for a versioned guardrail. The
 -- adapter_type selects the wire adapter (e.g. 'presidio', 'generic_api').
 CREATE TABLE ai_gateway_guardrails (
@@ -54,13 +52,13 @@ ALTER TABLE ai_gateway_guardrails
 -- pipeline version. It is separate from the policy membership table: guardrails
 -- have no kind and no per-kind cardinality cap (many concurrent guardrails per
 -- hook are allowed). Rows are immutable; composition changes mint a new pipeline
--- version. mode is the per-membership authority (advisory vs enforcing).
+-- version. A guardrail's authority is intrinsic to its adapter output (block /
+-- mask / annotate), so there is no per-membership mode.
 CREATE TABLE ai_gateway_pipeline_version_guardrails (
     id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     pipeline_version_id  uuid NOT NULL REFERENCES ai_gateway_pipeline_versions (id) ON DELETE CASCADE,
     guardrail_version_id uuid NOT NULL REFERENCES ai_gateway_guardrail_versions (id),
     hook                 ai_gateway_hook NOT NULL,
-    mode                 ai_gateway_guardrail_mode NOT NULL DEFAULT 'advisory',
     fail_mode            ai_gateway_fail_mode NOT NULL DEFAULT 'fail_closed',
     network_timeout_ms   integer NOT NULL DEFAULT 2000,
     enabled              boolean NOT NULL DEFAULT TRUE,
@@ -73,4 +71,4 @@ ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'ai_gateway_guardrail';
 
 COMMENT ON TABLE ai_gateway_guardrails IS 'Reusable, versioned networked guardrails for the AI gateway policy engine.';
 COMMENT ON TABLE ai_gateway_guardrail_versions IS 'Immutable adapter config + dbcrypt-encrypted credential for each guardrail version.';
-COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook, in which mode.';
+COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook.';

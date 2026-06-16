@@ -10,17 +10,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// AIGatewayGuardrailMode is the per-membership authority a guardrail is granted.
-type AIGatewayGuardrailMode string
-
-const (
-	// AIGatewayGuardrailModeAdvisory restricts a guardrail to annotations only.
-	AIGatewayGuardrailModeAdvisory AIGatewayGuardrailMode = "advisory"
-	// AIGatewayGuardrailModeEnforcing lets a guardrail block and rewrite the
-	// body on its own authority.
-	AIGatewayGuardrailModeEnforcing AIGatewayGuardrailMode = "enforcing"
-)
-
 // AIGatewayGuardrail is a reusable, versioned networked guardrail.
 type AIGatewayGuardrail struct {
 	ID              uuid.UUID                   `json:"id" format:"uuid"`

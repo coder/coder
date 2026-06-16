@@ -18,9 +18,9 @@ type Decision struct {
 	Message string
 }
 
-// Project maps the decision into a StageResult. stage is unused: a decision
-// produces no annotations, so it has no namespace to stamp.
-func (d Decision) Project(string) StageResult {
+// Project maps the decision into a StageResult. A decision produces no
+// annotations, so Resolve has no namespace to stamp.
+func (d Decision) Project() StageResult {
 	return StageResult{Verdict: d.Verdict, Message: d.Message}
 }
 

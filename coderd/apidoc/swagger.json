@@ -14212,14 +14212,6 @@
 				}
 			}
 		},
-		"codersdk.AIGatewayGuardrailMode": {
-			"type": "string",
-			"enum": ["advisory", "enforcing"],
-			"x-enum-varnames": [
-				"AIGatewayGuardrailModeAdvisory",
-				"AIGatewayGuardrailModeEnforcing"
-			]
-		},
 		"codersdk.AIGatewayGuardrailVersion": {
 			"type": "object",
 			"properties": {
@@ -14351,9 +14343,6 @@
 				"hook": {
 					"$ref": "#/definitions/codersdk.AIGatewayHook"
 				},
-				"mode": {
-					"$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
-				},
 				"network_timeout_ms": {
 					"type": "integer"
 				}
@@ -14374,9 +14363,6 @@
 				},
 				"hook": {
 					"$ref": "#/definitions/codersdk.AIGatewayHook"
-				},
-				"mode": {
-					"$ref": "#/definitions/codersdk.AIGatewayGuardrailMode"
 				},
 				"network_timeout_ms": {
 					"type": "integer"

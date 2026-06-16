@@ -329,14 +329,6 @@ export interface AIGatewayGuardrail {
 }
 
 // From codersdk/aigatewayguardrails.go
-export type AIGatewayGuardrailMode = "advisory" | "enforcing";
-
-export const AIGatewayGuardrailModes: AIGatewayGuardrailMode[] = [
-	"advisory",
-	"enforcing",
-];
-
-// From codersdk/aigatewayguardrails.go
 /**
  * AIGatewayGuardrailVersion is an immutable snapshot of a guardrail's adapter
  * config. The credential is write-only and never serialized back; HasCredential
@@ -415,7 +407,6 @@ export interface AIGatewayPipeline {
 export interface AIGatewayPipelineGuardrail {
 	readonly guardrail_version_id: string;
 	readonly hook: AIGatewayHook;
-	readonly mode: AIGatewayGuardrailMode;
 	readonly fail_mode: AIGatewayFailMode;
 	readonly network_timeout_ms: number;
 	readonly enabled: boolean;
@@ -430,7 +421,6 @@ export interface AIGatewayPipelineGuardrail {
 export interface AIGatewayPipelineGuardrailRequest {
 	readonly guardrail_version_id: string;
 	readonly hook: AIGatewayHook;
-	readonly mode: AIGatewayGuardrailMode;
 	readonly fail_mode: AIGatewayFailMode;
 	readonly network_timeout_ms?: number;
 	readonly enabled?: boolean;

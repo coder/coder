@@ -6899,7 +6899,7 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(v.GuardrailID).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionRead).Returns([]database.AIGatewayGuardrailVersion{v})
 	}))
 	s.Run("InsertAIGatewayPipelineVersionGuardrail", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.InsertAIGatewayPipelineVersionGuardrailParams{ID: uuid.New(), PipelineVersionID: uuid.New(), GuardrailVersionID: uuid.New(), Hook: database.AIGatewayHookPreReq, Mode: database.AIGatewayGuardrailModeAdvisory, FailMode: database.AIGatewayFailModeFailClosed}
+		arg := database.InsertAIGatewayPipelineVersionGuardrailParams{ID: uuid.New(), PipelineVersionID: uuid.New(), GuardrailVersionID: uuid.New(), Hook: database.AIGatewayHookPreReq, FailMode: database.AIGatewayFailModeFailClosed}
 		m := testutil.Fake(s.T(), faker, database.AIGatewayPipelineVersionGuardrail{ID: arg.ID})
 		dbm.EXPECT().InsertAIGatewayPipelineVersionGuardrail(gomock.Any(), arg).Return(m, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAIGatewayPolicy, policy.ActionCreate).Returns(m)

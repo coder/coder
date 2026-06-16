@@ -21,13 +21,13 @@ const evalTimeout = time.Second
 // guardrail) yields. Stages never construct it freely: each kind decodes its
 // Rego output into a typed per-kind struct (Decision, Annotations, RouteChanges,
 // Transformation) and the guardrail decodes its network response into a
-// GuardrailOutcome; each of those implements Projector, and Project is the sole
+// GuardrailOutcome; each of those implements Projector, and Resolve is the sole
 // way a StageResult is built (a failure is just the Failure Projector, a no-op
 // the noop Projector). The effect mask is therefore enforced by construction (a
 // Decision has no Edits field, so its Project cannot populate one). The
-// annotation namespace is host-stamped at
-// projection from the member's immutable name, so a stage cannot write into or
-// spoof another stage's namespace.
+// annotation namespace is host-stamped by Resolve from the member's immutable
+// name, never by the Projector itself, so a stage cannot choose, omit, or spoof
+// its namespace.
 type StageResult struct {
 	// Verdict is the stage's outcome (ALLOW, LOG, or BLOCK). The zero value is
 	// treated as ALLOW.
@@ -35,8 +35,9 @@ type StageResult struct {
 	// Message is surfaced to the user on a BLOCK. It is only meaningful for a
 	// deliberate (non-synthesized) block.
 	Message string
-	// Annotations are the stage's output, already nested under the stage's
-	// namespace ({stage_name: values}). The reducer unions them across stages.
+	// Annotations are the stage's output. As returned by Project they are the
+	// raw values; Resolve nests them under the stage's namespace
+	// ({stage_name: values}) before the reducer unions them across stages.
 	Annotations map[string]any
 	// Edits are body mutations applied as an ordered chain (whole-body rewrite
 	// is the degenerate root edit, Pointer == "").
@@ -51,57 +52,69 @@ type StageResult struct {
 }
 
 // Projector is implemented by every typed stage output: the four single-effect
-// kind results (Decision, Annotations, RouteChanges, Transformation) and the
-// multi-effect guardrail result (GuardrailOutcome). Project is the single,
-// declared mapping into a StageResult; a stage's Evaluate decodes its Rego (or
-// network) output into one of these values and calls Project rather than
-// building a StageResult inline. The implementing type's field set is the
-// effect mask: a Decision has no Edits field, so its Project physically cannot
-// populate one. stage is the producer's immutable name; it is stamped onto the
-// annotation namespace (and the audit-only failure record) here and only here,
-// so a stage cannot spoof another stage's namespace. Failures and no-ops flow
-// through Project too, via the Failure and noop Projectors, so projection is the
-// single way any StageResult is built.
+// kind results (Decision, Annotations, RouteChanges, Transformation), the
+// multi-effect guardrail result (GuardrailOutcome), and the Failure/noop paths.
+// Project is the single, declared mapping of a typed output into a StageResult;
+// a stage's Evaluate decodes its Rego (or network) output into one of these
+// values and projects it rather than building a StageResult inline. The
+// implementing type's field set is the effect mask: a Decision has no Edits
+// field, so its Project physically cannot populate one.
+//
+// Project deliberately has no access to the stage's name: it emits *raw*
+// annotations (the flat values the stage authored) and never stamps a
+// namespace. Host identity, the annotation namespace and the audit-only
+// Err.Stage, is applied solely by Resolve, so a stage cannot choose, omit, or
+// spoof its namespace. Always obtain a StageResult via Resolve, never by calling
+// Project directly.
 type Projector interface {
-	Project(stage string) StageResult
+	Project() StageResult
+}
+
+// Resolve projects p and stamps the host-owned stage identity onto the result:
+// it nests the stage's raw annotations under name (the annotation namespace) and
+// labels any audit-only failure record with name. It is the single site that
+// writes a stage's name into a StageResult, so namespacing is enforced by
+// construction rather than trusted to each Projector. name is the producer's
+// immutable, pipeline-unique stage name.
+func Resolve(name string, p Projector) StageResult {
+	res := p.Project()
+	if len(res.Annotations) > 0 {
+		res.Annotations = map[string]any{name: res.Annotations}
+	}
+	if res.Err != nil {
+		res.Err.Stage = name
+	}
+	return res
 }
 
 // GuardrailOutcome is the multi-effect outcome of one networked guardrail,
 // decoded from its adapter Result. Unlike the four hermetic kinds a guardrail
 // is deliberately not single-effect: one network response may carry
-// annotations, a block, and body edits at once. Enforcing is the per-membership
-// effect mask, applied at projection: an advisory guardrail contributes
-// annotations only, its block and edits discarded. The guardrail package builds
-// this value and calls Project, so it never constructs a StageResult itself.
+// annotations, a block, and body edits at once. A guardrail's authority is
+// intrinsic to what its adapter returns (there is no advisory/enforcing mode): a
+// scanner that only annotates simply leaves Block false and Edits empty, and a
+// downstream decide turns its annotation into a verdict. The guardrail package
+// builds this value and passes it to Resolve, so it never constructs or
+// namespaces a StageResult itself.
 type GuardrailOutcome struct {
-	// Annotations is the guardrail's classifier output, stamped under the
-	// guardrail's namespace at projection (advisory and enforcing alike).
+	// Annotations is the guardrail's classifier output (raw values; Resolve
+	// stamps the guardrail's namespace).
 	Annotations map[string]any
-	// Enforcing reports whether the guardrail may block and rewrite the body on
-	// its own authority. When false, Block and Edits are dropped.
-	Enforcing bool
-	// Block requests an HTTP 400; honored only when Enforcing.
+	// Block requests an HTTP 400.
 	Block bool
 	// Message explains a block, surfaced to the user and audit; meaningful only
-	// when Block and Enforcing.
+	// when Block.
 	Message string
-	// Edits rewrite the request body (masking/redaction); honored only when
-	// Enforcing.
+	// Edits rewrite the request body (masking/redaction).
 	Edits []Edit
 }
 
-// Project maps the guardrail outcome into a StageResult under its effect mask.
-// Annotations are always stamped under stage's namespace; the block verdict and
-// edits are kept only for an enforcing guardrail. Edits are carried even on a
-// block (the reducer drops them, since a blocked request is never forwarded).
-func (g GuardrailOutcome) Project(stage string) StageResult {
-	res := StageResult{}
-	if len(g.Annotations) > 0 {
-		res.Annotations = map[string]any{stage: g.Annotations}
-	}
-	if !g.Enforcing {
-		return res
-	}
+// Project maps the guardrail outcome into a StageResult with raw (un-namespaced)
+// annotations; Resolve stamps the guardrail's namespace. A block sets the
+// verdict and message. Edits are carried even on a block (the reducer drops
+// them, since a blocked request is never forwarded).
+func (g GuardrailOutcome) Project() StageResult {
+	res := StageResult{Annotations: g.Annotations}
 	if g.Block {
 		res.Verdict = VerdictBlock
 		res.Message = g.Message
@@ -221,18 +234,19 @@ func ApplyEdits(body []byte, edits []Edit) ([]byte, bool, error) {
 // the failure through the stage's fail mode at projection: fail-closed blocks
 // with a generic (empty) message; fail-open logs (LOG, not ALLOW, so a fail-open
 // outage is visible in the log stream, not silent). The error rides the
-// audit-only Err field under stage's identity; that identity never reaches the
-// client-facing message. Modeling a failure as a Projector lets it flow through
-// the same Project(stage) path as a success, so projection is the single way
-// any StageResult is built.
+// audit-only Err field; Resolve labels it with the stage's identity, which
+// never reaches the client-facing message. Modeling a failure as a Projector
+// lets it flow through the same Project path as a success, so Resolve is the
+// single way any StageResult is built.
 type Failure struct {
 	FailMode FailMode
 	Err      error
 }
 
-// Project implements Projector for the failure path.
-func (f Failure) Project(stage string) StageResult {
-	se := &StageErr{Stage: stage, Err: f.Err}
+// Project implements Projector for the failure path. The Err record is left
+// unattributed; Resolve stamps Err.Stage from the immutable stage name.
+func (f Failure) Project() StageResult {
+	se := &StageErr{Err: f.Err}
 	if f.FailMode == FailClosed {
 		return StageResult{Verdict: VerdictBlock, Err: se}
 	}
@@ -241,19 +255,19 @@ func (f Failure) Project(stage string) StageResult {
 
 // noop is the Projector for a stage whose entrypoint rule was undefined: it
 // produced no effect, so it projects to the zero StageResult (ALLOW, no
-// annotations, edits, or route). It keeps "every StageResult comes from Project"
+// annotations, edits, or route). It keeps "every StageResult comes from Resolve"
 // true even for the no-op case.
 type noop struct{}
 
 // Project implements Projector for the no-op path.
-func (noop) Project(string) StageResult { return StageResult{} }
+func (noop) Project() StageResult { return StageResult{} }
 
-// runStage evaluates fn under the per-stage timeout and projects its outcome
-// through the stage's immutable name. It is the single stage boundary every
+// runStage evaluates fn under the per-stage timeout and resolves its outcome
+// under the stage's immutable name. It is the single stage boundary every
 // kind's Evaluate funnels through: fn decodes the Rego output into a Projector
 // (a typed kind result, or noop when the entrypoint rule is undefined), and any
 // error or fired timeout replaces it with a Failure Projector, so success and
-// failure alike become a StageResult via the same Project(name) call.
+// failure alike become a StageResult via the same Resolve(name, ...) call.
 func runStage(ctx context.Context, name string, fm FailMode, fn func(context.Context) (Projector, error)) StageResult {
 	sctx, cancel := context.WithTimeout(ctx, evalTimeout)
 	defer cancel()
@@ -268,7 +282,7 @@ func runStage(ctx context.Context, name string, fm FailMode, fn func(context.Con
 	case sctx.Err() != nil:
 		p = Failure{FailMode: fm, Err: sctx.Err()}
 	}
-	return p.Project(name)
+	return Resolve(name, p)
 }
 
 func mergeAnnotations(dst, src map[string]any) map[string]any {

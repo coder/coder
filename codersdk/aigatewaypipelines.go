@@ -55,24 +55,22 @@ type AIGatewayPipelineVersion struct {
 // AIGatewayPipelineGuardrail is one guardrail member of a pipeline version: a
 // pinned guardrail version bound to a hook with a mode and fail mode.
 type AIGatewayPipelineGuardrail struct {
-	GuardrailVersionID uuid.UUID              `json:"guardrail_version_id" format:"uuid"`
-	Hook               AIGatewayHook          `json:"hook"`
-	Mode               AIGatewayGuardrailMode `json:"mode"`
-	FailMode           AIGatewayFailMode      `json:"fail_mode"`
-	NetworkTimeoutMS   int32                  `json:"network_timeout_ms"`
-	Enabled            bool                   `json:"enabled"`
+	GuardrailVersionID uuid.UUID         `json:"guardrail_version_id" format:"uuid"`
+	Hook               AIGatewayHook     `json:"hook"`
+	FailMode           AIGatewayFailMode `json:"fail_mode"`
+	NetworkTimeoutMS   int32             `json:"network_timeout_ms"`
+	Enabled            bool              `json:"enabled"`
 }
 
 // AIGatewayPipelineGuardrailRequest pins a guardrail version into a pipeline
 // version at a hook. NetworkTimeoutMS defaults to 2000 and Enabled to true when
 // omitted.
 type AIGatewayPipelineGuardrailRequest struct {
-	GuardrailVersionID uuid.UUID              `json:"guardrail_version_id" format:"uuid"`
-	Hook               AIGatewayHook          `json:"hook"`
-	Mode               AIGatewayGuardrailMode `json:"mode"`
-	FailMode           AIGatewayFailMode      `json:"fail_mode"`
-	NetworkTimeoutMS   *int32                 `json:"network_timeout_ms,omitempty"`
-	Enabled            *bool                  `json:"enabled,omitempty"`
+	GuardrailVersionID uuid.UUID         `json:"guardrail_version_id" format:"uuid"`
+	Hook               AIGatewayHook     `json:"hook"`
+	FailMode           AIGatewayFailMode `json:"fail_mode"`
+	NetworkTimeoutMS   *int32            `json:"network_timeout_ms,omitempty"`
+	Enabled            *bool             `json:"enabled,omitempty"`
 }
 
 // AIGatewayPipelinePolicy is one member of a pipeline version: a pinned policy
@@ -198,13 +196,6 @@ func validateAIGatewayPipelineGuardrails(guardrails []AIGatewayPipelineGuardrail
 		// v1 wires only pre-req guardrails into the runtime.
 		if g.Hook != AIGatewayHookPreReq {
 			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].hook", i), Detail: fmt.Sprintf("unsupported hook %q (only pre_req is supported)", g.Hook)})
-		}
-		switch g.Mode {
-		case AIGatewayGuardrailModeAdvisory, AIGatewayGuardrailModeEnforcing:
-		case "":
-			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].mode", i), Detail: "mode is required"})
-		default:
-			v = append(v, ValidationError{Field: fmt.Sprintf("guardrails[%d].mode", i), Detail: fmt.Sprintf("unsupported mode %q", g.Mode)})
 		}
 		switch g.FailMode {
 		case AIGatewayFailModeOpen, AIGatewayFailModeClosed:

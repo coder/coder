@@ -35,10 +35,16 @@ lock-in). Compensating controls: schema-checked compilation, per-kind smoke
 tests, and Go shape guards (§7, §8).
 
 **Hermeticity is enforced, not assumed.** Policies make no network calls and
-share no state; `http.send` and other network/time built-ins are disabled via
-OPA capabilities, making evaluation pure and deterministic. Policies compose
-only through host-threaded annotations (§5), never by calling each other.
-External signals enter exclusively via guardrails (§6).
+share no state. Every policy is compiled *and* evaluated against a restricted
+OPA capability set: the base set for the OPA version with every builtin OPA tags
+**non-deterministic** removed (`http.send`, `time.now_ns`, `rand.*`,
+`uuid.rfc4122`, `net.lookup_ip_addr`, `opa.runtime`, ...). A policy referencing
+one is rejected as an undefined function at the validation gate (compile, §8)
+and again at load (prepare), so it can never evaluate non-deterministically,
+rather than failing only at runtime. Evaluation is therefore pure and
+deterministic. Policies compose only through host-threaded annotations (§5),
+never by calling each other. External signals enter exclusively via guardrails
+(§6).
 
 ## 3. Stage model: two axes, one result type
 
@@ -50,18 +56,19 @@ Every pipeline member is a **stage**, classified on two orthogonal axes:
 
 **Every stage yields one `StageResult`** — `{verdict, message, annotations,
 edits, headers, route, err}` — through a uniform
-`Evaluate(ctx, Input) StageResult`, but stages never construct it freely. The
-single constructor is a **`Projector` interface** (`Project(stage) StageResult`):
-each kind decodes its Rego output into a **typed per-kind struct** (`Decision`,
-`Annotations`, `RouteChanges`, `Transformation`) that implements it, the
-guardrail adapter result funnels through the same projection via a
-`GuardrailOutcome`, and even the failure and undefined-rule paths are Projectors
-(`Failure`, `noop`). Effect masks are therefore enforced **by construction** (a
-`Decision` has no edit field to populate; an adapter physically cannot emit
-LOG), not by runtime checks. The annotation namespace (and the audit-only
-failure record) is **host-stamped at the single `Project` call** from the
-member's immutable name, so a stage cannot write into, or spoof, another
-stage's namespace.
+`Evaluate(ctx, Input) StageResult`, but stages never construct it freely. Each
+kind decodes its Rego output into a **typed per-kind struct** (`Decision`,
+`Annotations`, `RouteChanges`, `Transformation`) implementing a **`Projector`**
+(`Project() StageResult`); the guardrail adapter result funnels through the same
+interface via a `GuardrailOutcome`, and even the failure and undefined-rule
+paths are Projectors (`Failure`, `noop`). Effect masks are therefore enforced
+**by construction** (a `Decision` has no edit field to populate; an adapter
+physically cannot emit LOG), not by runtime checks. Crucially, `Project` has
+**no access to the stage's name**: it emits only raw effects. A single host
+function, **`Resolve(name, projector)`**, stamps the identity, nesting the raw
+annotations under the member's immutable name and labelling the audit-only
+failure record, so a stage cannot **choose, omit, or spoof** its namespace.
+`Resolve` is the one and only way a `StageResult` acquires a name.
 
 A **kind** is a single-effect Rego stage. Four kinds exist:
 
@@ -125,7 +132,7 @@ v1 hooks (post-resp and output inspection are deferred):
 |---|---|---|
 | **pre-auth** | raw request, headers, credentials; no identity | annotate, decide |
 | **pre-req** | + resolved identity/groups/roles, body, annotations | annotate, route, decide, transform |
-| **pre-tool** | + `tool_call` {id, name, arguments, index}, per call | annotate, decide |
+| **pre-tool** | `identity` + `tool_call` {id, name, arguments, index} + annotations, per call (no request body/headers) | annotate, decide |
 
 Pre-req is the richest hook and deliberately drops the raw credential (it is
 resolved into identity by then; re-exposing the secret is needless attack
@@ -169,7 +176,9 @@ authored are unpredictable). Stage **names are immutable at create**
 (`display_name` is the mutable label; a true rename is a fork) because names
 key annotation paths consumed by downstream policies, and a rename would
 silently turn those reads `undefined`, Rego's worst silent-failure mode.
-*(Namespacing enforcement: designed, not built.)*
+Enforcement is structural: `Resolve(name, projector)` (§3) is the sole site that
+nests a stage's raw annotations under its name, so a stage cannot write outside,
+omit, or spoof its namespace, the `Project` step never sees the name.
 
 ## 6. Guardrails (networked head-of-hook stage)
 
@@ -181,13 +190,19 @@ intervene-with-modification); any generic-API-compatible vendor works with
 zero per-vendor code, and materially-better native APIs get first-class
 adapters.
 
-**Two modes per guardrail:**
-
-- **Advisory** — annotate-only. A Rego `decide` policy turns the signal into a
-  verdict (e.g. "block contractors over moderation score X, log admins"). This
-  is also the engine's *only* enrichment mechanism: policies never fetch.
-- **Enforcing** — may BLOCK (HTTP 400, same as a policy block) and/or emit
-  edits, and always annotates. The zero-Rego "block/mask on detect" path.
+**Authority is intrinsic, not a mode.** A guardrail's effects are whatever its
+adapter returns; there is no advisory/enforcing toggle. A scanner that only
+emits annotations (e.g. a moderation score) leaves the block and edits empty,
+and a Rego `decide` turns the signal into a verdict (e.g. "block contractors
+over moderation score X, log admins") — this is also the engine's *only*
+enrichment mechanism: policies never fetch. A guardrail whose adapter returns a
+block (HTTP 400, same as a policy block) and/or edits is the zero-Rego
+"block/mask on detect" path; annotations always thread regardless. Observe-only
+rollout of a blocking adapter is handled by version-targeted rehearsal (§9) and
+the membership `enabled` flag, not a per-membership mode. *(A later
+concurrent-with-dispatch / output lane will be advisory by a structural
+invariant — it cannot influence a request that has already happened — which is a
+lane property, not this removed mode.)*
 
 **Execution.** A hook's guardrails run **concurrently** (network-bound, unlike
 CPU-bound Rego), and the batch runs to completion even when one blocks, then
@@ -215,9 +230,12 @@ response buffering, since a flushed chunk cannot be un-sent.
 
 The **pre-tool** hook is the last control point before a model-requested tool
 call reaches the client, where agentic clients execute it. It fires once per
-assembled client-bound tool call (annotate + decide only over
-`input.tool_call.*`; `index` makes "at most N calls per turn" expressible
-without state).
+assembled client-bound tool call (annotate + decide only). Its envelope is
+deliberately narrow: `input.tool_call.*` (the subject of the decision),
+`input.identity.*` (RBAC inputs), and threaded `input.annotations.*`, but **not**
+the request body or headers, since the gate's subject is the individual tool
+call, not the original request. `index` makes "at most N calls per turn"
+expressible without state.
 
 Tool calls are splayed across many SSE events, so the interceptor **holds** a
 client-bound tool block's events from start to completion while text outside
@@ -242,8 +260,13 @@ Rego's dynamic typing means correctness is enforced at the gate, not by the
 language. Validation is synchronous, in-process Go (no `opa` CLI), runs before
 the write transaction, and only valid rows ever persist:
 
+- **Compile with the hermetic capability set** (`ast.Compiler.WithCapabilities`):
+  rejects any reference to a non-deterministic builtin (`http.send`,
+  `time.now_ns`, `rand.*`, ...) as an undefined function, enforcing §2's
+  hermeticity at the gate. The same set is reused at load (prepare).
 - **Compile with schemas** (`ast.Compiler.WithSchemas`): catches typos and
-  hook-inappropriate field references against per-hook input schemas.
+  hook-inappropriate field references against per-hook input schemas
+  *(designed, not built)*.
 - **Kind/output binding:** assert the declared kind's entrypoint rule exists
   (`verdict`/`model`/`annotations`/`body`), `decide` has a `default verdict`,
   and the output conforms to the kind's contract on standard smoke inputs.

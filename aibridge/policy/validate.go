@@ -99,7 +99,10 @@ func Validate(kind Kind, module string) error {
 		return xerrors.Errorf("parse policy: %w", err)
 	}
 
-	compiler := ast.NewCompiler()
+	// Compile against the hermetic capability set so a policy referencing a
+	// non-deterministic builtin (http.send, time.now_ns, rand.*, ...) is
+	// rejected at the gate as an undefined function, not discovered at runtime.
+	compiler := ast.NewCompiler().WithCapabilities(hermeticCapabilities)
 	compiler.Compile(map[string]*ast.Module{"policy.rego": parsed})
 	if compiler.Failed() {
 		return xerrors.Errorf("compile policy: %w", compiler.Errors)

@@ -67,6 +67,29 @@ func TestValidate(t *testing.T) {
 			module:  "verdict := \"ALLOW\"",
 			wantErr: true,
 		},
+		{
+			name:    "non-deterministic http.send is rejected",
+			kind:    policy.KindDecide,
+			module:  "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if http.send({\"method\": \"get\", \"url\": \"http://example.com\"}).status_code == 200",
+			wantErr: true,
+		},
+		{
+			name:    "non-deterministic time.now_ns is rejected",
+			kind:    policy.KindDecide,
+			module:  "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if time.now_ns() > 0",
+			wantErr: true,
+		},
+		{
+			name:    "non-deterministic rand.intn is rejected",
+			kind:    policy.KindDecide,
+			module:  "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if rand.intn(\"x\", 10) == 0",
+			wantErr: true,
+		},
+		{
+			name:   "deterministic builtins are allowed",
+			kind:   policy.KindDecide,
+			module: "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if contains(input.request.body.model, \"gpt\")",
+		},
 	}
 
 	for _, tc := range cases {
@@ -80,4 +103,18 @@ func TestValidate(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestHermeticCapabilities_PrepareRejectsNonDeterministic asserts the prepare
+// (load) path enforces hermeticity too, not just the validation gate, so a
+// policy that somehow bypassed Validate still cannot evaluate against a
+// non-deterministic builtin.
+func TestHermeticCapabilities_PrepareRejectsNonDeterministic(t *testing.T) {
+	t.Parallel()
+
+	_, err := policy.NewDecide("net", "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if http.send({\"method\": \"get\", \"url\": \"http://example.com\"}).status_code == 200")
+	require.Error(t, err)
+
+	_, err = policy.NewDecide("ok", "default verdict := \"ALLOW\"\nverdict := \"BLOCK\" if contains(input.request.body.model, \"gpt\")")
+	require.NoError(t, err)
 }

@@ -15,11 +15,11 @@ type Annotations struct {
 	Values map[string]any
 }
 
-// Project maps the annotations into a StageResult, stamping Values under stage's
-// host-owned namespace ({stage: values}). The namespace is applied here and only
-// here, so a stage cannot write into another stage's namespace.
-func (a Annotations) Project(stage string) StageResult {
-	return StageResult{Annotations: map[string]any{stage: a.Values}}
+// Project maps the annotations into a StageResult with the raw emitted Values.
+// The host-owned namespace ({stage_name: values}) is applied by Resolve, not
+// here, so a stage cannot choose, omit, or spoof its namespace.
+func (a Annotations) Project() StageResult {
+	return StageResult{Annotations: a.Values}
 }
 
 // Annotate attaches metadata. It evaluates data.gateway.annotations and returns

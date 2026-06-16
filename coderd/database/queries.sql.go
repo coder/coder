@@ -2957,7 +2957,6 @@ SELECT
     pv.id AS pipeline_version_id,
     pv.version_number AS pipeline_version_number,
     m.hook,
-    m.mode,
     m.fail_mode,
     m.network_timeout_ms,
     g.id AS guardrail_id,
@@ -2982,22 +2981,21 @@ ORDER BY pl.provider_id, m.hook, g.name
 `
 
 type GetAIGatewayPipelineVersionGuardrailSnapshotRow struct {
-	ProviderID            uuid.UUID              `db:"provider_id" json:"provider_id"`
-	ProviderName          string                 `db:"provider_name" json:"provider_name"`
-	PipelineID            uuid.UUID              `db:"pipeline_id" json:"pipeline_id"`
-	PipelineVersionID     uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
-	PipelineVersionNumber int32                  `db:"pipeline_version_number" json:"pipeline_version_number"`
-	Hook                  AIGatewayHook          `db:"hook" json:"hook"`
-	Mode                  AIGatewayGuardrailMode `db:"mode" json:"mode"`
-	FailMode              AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
-	NetworkTimeoutMs      int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
-	GuardrailID           uuid.UUID              `db:"guardrail_id" json:"guardrail_id"`
-	GuardrailName         string                 `db:"guardrail_name" json:"guardrail_name"`
-	AdapterType           string                 `db:"adapter_type" json:"adapter_type"`
-	GuardrailVersionID    uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
-	Config                json.RawMessage        `db:"config" json:"config"`
-	Credential            string                 `db:"credential" json:"credential"`
-	CredentialKeyID       sql.NullString         `db:"credential_key_id" json:"credential_key_id"`
+	ProviderID            uuid.UUID         `db:"provider_id" json:"provider_id"`
+	ProviderName          string            `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID         `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID         `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32             `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook     `db:"hook" json:"hook"`
+	FailMode              AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs      int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	GuardrailID           uuid.UUID         `db:"guardrail_id" json:"guardrail_id"`
+	GuardrailName         string            `db:"guardrail_name" json:"guardrail_name"`
+	AdapterType           string            `db:"adapter_type" json:"adapter_type"`
+	GuardrailVersionID    uuid.UUID         `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Config                json.RawMessage   `db:"config" json:"config"`
+	Credential            string            `db:"credential" json:"credential"`
+	CredentialKeyID       sql.NullString    `db:"credential_key_id" json:"credential_key_id"`
 }
 
 // Like GetActiveAIGatewayPipelineGuardrails but resolves a specific (typically
@@ -3021,7 +3019,6 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Co
 			&i.PipelineVersionID,
 			&i.PipelineVersionNumber,
 			&i.Hook,
-			&i.Mode,
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
 			&i.GuardrailID,
@@ -3046,7 +3043,7 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Co
 }
 
 const getAIGatewayPipelineVersionGuardrails = `-- name: GetAIGatewayPipelineVersionGuardrails :many
-SELECT id, pipeline_version_id, guardrail_version_id, hook, mode, fail_mode, network_timeout_ms, enabled FROM ai_gateway_pipeline_version_guardrails
+SELECT id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled FROM ai_gateway_pipeline_version_guardrails
 WHERE pipeline_version_id = $1::uuid
 `
 
@@ -3064,7 +3061,6 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, 
 			&i.PipelineVersionID,
 			&i.GuardrailVersionID,
 			&i.Hook,
-			&i.Mode,
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
 			&i.Enabled,
@@ -3141,7 +3137,6 @@ SELECT
     pv.id AS pipeline_version_id,
     pv.version_number AS pipeline_version_number,
     m.hook,
-    m.mode,
     m.fail_mode,
     m.network_timeout_ms,
     g.id AS guardrail_id,
@@ -3167,22 +3162,21 @@ ORDER BY pl.provider_id, m.hook, g.name
 `
 
 type GetActiveAIGatewayPipelineGuardrailsRow struct {
-	ProviderID            uuid.UUID              `db:"provider_id" json:"provider_id"`
-	ProviderName          string                 `db:"provider_name" json:"provider_name"`
-	PipelineID            uuid.UUID              `db:"pipeline_id" json:"pipeline_id"`
-	PipelineVersionID     uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
-	PipelineVersionNumber int32                  `db:"pipeline_version_number" json:"pipeline_version_number"`
-	Hook                  AIGatewayHook          `db:"hook" json:"hook"`
-	Mode                  AIGatewayGuardrailMode `db:"mode" json:"mode"`
-	FailMode              AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
-	NetworkTimeoutMs      int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
-	GuardrailID           uuid.UUID              `db:"guardrail_id" json:"guardrail_id"`
-	GuardrailName         string                 `db:"guardrail_name" json:"guardrail_name"`
-	AdapterType           string                 `db:"adapter_type" json:"adapter_type"`
-	GuardrailVersionID    uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
-	Config                json.RawMessage        `db:"config" json:"config"`
-	Credential            string                 `db:"credential" json:"credential"`
-	CredentialKeyID       sql.NullString         `db:"credential_key_id" json:"credential_key_id"`
+	ProviderID            uuid.UUID         `db:"provider_id" json:"provider_id"`
+	ProviderName          string            `db:"provider_name" json:"provider_name"`
+	PipelineID            uuid.UUID         `db:"pipeline_id" json:"pipeline_id"`
+	PipelineVersionID     uuid.UUID         `db:"pipeline_version_id" json:"pipeline_version_id"`
+	PipelineVersionNumber int32             `db:"pipeline_version_number" json:"pipeline_version_number"`
+	Hook                  AIGatewayHook     `db:"hook" json:"hook"`
+	FailMode              AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs      int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	GuardrailID           uuid.UUID         `db:"guardrail_id" json:"guardrail_id"`
+	GuardrailName         string            `db:"guardrail_name" json:"guardrail_name"`
+	AdapterType           string            `db:"adapter_type" json:"adapter_type"`
+	GuardrailVersionID    uuid.UUID         `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Config                json.RawMessage   `db:"config" json:"config"`
+	Credential            string            `db:"credential" json:"credential"`
+	CredentialKeyID       sql.NullString    `db:"credential_key_id" json:"credential_key_id"`
 }
 
 // The runtime snapshot load for guardrails: every guardrail member of every
@@ -3206,7 +3200,6 @@ func (q *sqlQuerier) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) (
 			&i.PipelineVersionID,
 			&i.PipelineVersionNumber,
 			&i.Hook,
-			&i.Mode,
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
 			&i.GuardrailID,
@@ -3340,7 +3333,6 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     pipeline_version_id,
     guardrail_version_id,
     hook,
-    mode,
     fail_mode,
     network_timeout_ms,
     enabled
@@ -3349,23 +3341,21 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     $2::uuid,
     $3::uuid,
     $4::ai_gateway_hook,
-    $5::ai_gateway_guardrail_mode,
-    $6::ai_gateway_fail_mode,
-    $7::integer,
-    $8::boolean
+    $5::ai_gateway_fail_mode,
+    $6::integer,
+    $7::boolean
 )
-RETURNING id, pipeline_version_id, guardrail_version_id, hook, mode, fail_mode, network_timeout_ms, enabled
+RETURNING id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled
 `
 
 type InsertAIGatewayPipelineVersionGuardrailParams struct {
-	ID                 uuid.UUID              `db:"id" json:"id"`
-	PipelineVersionID  uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
-	GuardrailVersionID uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
-	Hook               AIGatewayHook          `db:"hook" json:"hook"`
-	Mode               AIGatewayGuardrailMode `db:"mode" json:"mode"`
-	FailMode           AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
-	NetworkTimeoutMs   int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
-	Enabled            bool                   `db:"enabled" json:"enabled"`
+	ID                 uuid.UUID         `db:"id" json:"id"`
+	PipelineVersionID  uuid.UUID         `db:"pipeline_version_id" json:"pipeline_version_id"`
+	GuardrailVersionID uuid.UUID         `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Hook               AIGatewayHook     `db:"hook" json:"hook"`
+	FailMode           AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs   int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Enabled            bool              `db:"enabled" json:"enabled"`
 }
 
 func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context, arg InsertAIGatewayPipelineVersionGuardrailParams) (AIGatewayPipelineVersionGuardrail, error) {
@@ -3374,7 +3364,6 @@ func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context
 		arg.PipelineVersionID,
 		arg.GuardrailVersionID,
 		arg.Hook,
-		arg.Mode,
 		arg.FailMode,
 		arg.NetworkTimeoutMs,
 		arg.Enabled,
@@ -3385,7 +3374,6 @@ func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context
 		&i.PipelineVersionID,
 		&i.GuardrailVersionID,
 		&i.Hook,
-		&i.Mode,
 		&i.FailMode,
 		&i.NetworkTimeoutMs,
 		&i.Enabled,

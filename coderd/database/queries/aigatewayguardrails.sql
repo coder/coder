@@ -82,7 +82,6 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     pipeline_version_id,
     guardrail_version_id,
     hook,
-    mode,
     fail_mode,
     network_timeout_ms,
     enabled
@@ -91,7 +90,6 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     @pipeline_version_id::uuid,
     @guardrail_version_id::uuid,
     @hook::ai_gateway_hook,
-    @mode::ai_gateway_guardrail_mode,
     @fail_mode::ai_gateway_fail_mode,
     @network_timeout_ms::integer,
     @enabled::boolean
@@ -126,7 +124,6 @@ SELECT
     pv.id AS pipeline_version_id,
     pv.version_number AS pipeline_version_number,
     m.hook,
-    m.mode,
     m.fail_mode,
     m.network_timeout_ms,
     g.id AS guardrail_id,
@@ -162,7 +159,6 @@ SELECT
     pv.id AS pipeline_version_id,
     pv.version_number AS pipeline_version_number,
     m.hook,
-    m.mode,
     m.fail_mode,
     m.network_timeout_ms,
     g.id AS guardrail_id,

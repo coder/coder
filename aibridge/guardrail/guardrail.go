@@ -26,19 +26,6 @@ const (
 	ActionBlock
 )
 
-// Mode is the per-membership authority a guardrail is granted.
-type Mode int
-
-const (
-	// ModeAdvisory restricts a guardrail to annotations only: its block and
-	// body edits are discarded, leaving a downstream Rego decide policy to turn
-	// the annotated signal into a verdict.
-	ModeAdvisory Mode = iota
-	// ModeEnforcing lets a guardrail block and rewrite the body on its own
-	// authority, in addition to annotating.
-	ModeEnforcing
-)
-
 // FailMode controls behavior when a guardrail cannot produce a result
 // (unreachable, timeout, 5xx). It mirrors policy.FailMode.
 type FailMode int
@@ -87,8 +74,9 @@ type Edit struct {
 }
 
 // Result is the outcome of one guardrail evaluation. A guardrail may set any
-// combination of fields; the [Stage] reduces results across guardrails and
-// applies the per-membership [Mode].
+// combination of fields; the [Stage] reduces results across guardrails. A
+// guardrail's authority is intrinsic to what its adapter returns (annotations
+// always thread; an ActionBlock blocks; Edits mask), not a per-membership mode.
 type Result struct {
 	// Action is the guardrail's verdict.
 	Action Action

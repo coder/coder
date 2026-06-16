@@ -531,7 +531,6 @@ func mintPipelineVersionWithMembers(ctx context.Context, tx database.Store, pl d
 			PipelineVersionID:  newPV.ID,
 			GuardrailVersionID: remapGuardrailVersion(m.GuardrailVersionID),
 			Hook:               m.Hook,
-			Mode:               m.Mode,
 			FailMode:           m.FailMode,
 			NetworkTimeoutMs:   m.NetworkTimeoutMs,
 			Enabled:            m.Enabled,

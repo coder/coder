@@ -167,7 +167,6 @@ func (r *PipelineVersionResolver) build(ctx context.Context, provider string, ve
 			GuardrailName:    row.GuardrailName,
 			Config:           row.Config,
 			Credential:       row.Credential,
-			Mode:             row.Mode,
 			FailMode:         row.FailMode,
 			NetworkTimeoutMs: row.NetworkTimeoutMs,
 		})

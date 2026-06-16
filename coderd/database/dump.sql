@@ -15,11 +15,6 @@ CREATE TYPE ai_gateway_fail_mode AS ENUM (
     'fail_closed'
 );
 
-CREATE TYPE ai_gateway_guardrail_mode AS ENUM (
-    'advisory',
-    'enforcing'
-);
-
 CREATE TYPE ai_gateway_hook AS ENUM (
     'pre_auth',
     'pre_req',
@@ -1368,13 +1363,12 @@ CREATE TABLE ai_gateway_pipeline_version_guardrails (
     pipeline_version_id uuid NOT NULL,
     guardrail_version_id uuid NOT NULL,
     hook ai_gateway_hook NOT NULL,
-    mode ai_gateway_guardrail_mode DEFAULT 'advisory'::ai_gateway_guardrail_mode NOT NULL,
     fail_mode ai_gateway_fail_mode DEFAULT 'fail_closed'::ai_gateway_fail_mode NOT NULL,
     network_timeout_ms integer DEFAULT 2000 NOT NULL,
     enabled boolean DEFAULT true NOT NULL
 );
 
-COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook, in which mode.';
+COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook.';
 
 CREATE TABLE ai_gateway_pipeline_version_policies (
     id uuid DEFAULT gen_random_uuid() NOT NULL,

@@ -398,7 +398,6 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
           "fail_mode": "fail_open",
           "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
           "hook": "pre_auth",
-          "mode": "advisory",
           "network_timeout_ms": 0
         }
       ],
@@ -409,7 +408,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
           "enabled": true,
           "fail_mode": "fail_open",
           "hook": "pre_auth",
-          "kind": "classify",
+          "kind": "annotate",
           "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
         }
       ],
@@ -427,7 +426,6 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
           "fail_mode": "fail_open",
           "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
           "hook": "pre_auth",
-          "mode": "advisory",
           "network_timeout_ms": 0
         }
       ],
@@ -438,7 +436,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines \
           "enabled": true,
           "fail_mode": "fail_open",
           "hook": "pre_auth",
-          "kind": "classify",
+          "kind": "annotate",
           "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
         }
       ],
@@ -472,7 +470,6 @@ Status Code **200**
 | `»»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `»»» guardrail_version_id` | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `»»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `»»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode)     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `»»» network_timeout_ms`   | integer                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `»» id`                    | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `»» pipeline_id`           | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -505,8 +502,7 @@ Status Code **200**
 |-------------|--------------------------------------------|
 | `fail_mode` | `fail_closed`, `fail_open`                 |
 | `hook`      | `pre_auth`, `pre_req`, `pre_tool`          |
-| `mode`      | `advisory`, `enforcing`                    |
-| `kind`      | `classify`, `decide`, `route`, `transform` |
+| `kind`      | `annotate`, `decide`, `route`, `transform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -535,7 +531,6 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -571,7 +566,6 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -582,7 +576,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -600,7 +594,6 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -611,7 +604,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -665,7 +658,6 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -676,7 +668,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -694,7 +686,6 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -705,7 +696,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -796,7 +787,6 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -807,7 +797,7 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -825,7 +815,6 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -836,7 +825,7 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id} \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -903,7 +892,6 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id}/members \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -914,7 +902,7 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id}/members \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -932,7 +920,6 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id}/members \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -943,7 +930,7 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/pipelines/{id}/members \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -997,7 +984,6 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -1008,7 +994,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -1027,26 +1013,25 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
 
 Status Code **200**
 
-| Name                      | Type                                                                         | Required | Restrictions | Description                                                                                                                               |
-|---------------------------|------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
-| `[array item]`            | array                                                                        | false    |              |                                                                                                                                           |
-| `» created_at`            | string(date-time)                                                            | false    |              |                                                                                                                                           |
-| `» guardrails`            | array                                                                        | false    |              |                                                                                                                                           |
-| `»» enabled`              | boolean                                                                      | false    |              |                                                                                                                                           |
-| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)           | false    |              |                                                                                                                                           |
-| `»» guardrail_version_id` | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                   | false    |              |                                                                                                                                           |
-| `»» mode`                 | [codersdk.AIGatewayGuardrailMode](schemas.md#codersdkaigatewayguardrailmode) | false    |              |                                                                                                                                           |
-| `»» network_timeout_ms`   | integer                                                                      | false    |              |                                                                                                                                           |
-| `» id`                    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» pipeline_id`           | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» policies`              | array                                                                        | false    |              |                                                                                                                                           |
-| `»» enabled`              | boolean                                                                      | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
-| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)           | false    |              |                                                                                                                                           |
-| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)                   | false    |              |                                                                                                                                           |
-| `»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind)       | false    |              |                                                                                                                                           |
-| `»» policy_version_id`    | string(uuid)                                                                 | false    |              |                                                                                                                                           |
-| `» version_number`        | integer                                                                      | false    |              |                                                                                                                                           |
+| Name                      | Type                                                                   | Required | Restrictions | Description                                                                                                                               |
+|---------------------------|------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`            | array                                                                  | false    |              |                                                                                                                                           |
+| `» created_at`            | string(date-time)                                                      | false    |              |                                                                                                                                           |
+| `» guardrails`            | array                                                                  | false    |              |                                                                                                                                           |
+| `»» enabled`              | boolean                                                                | false    |              |                                                                                                                                           |
+| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)     | false    |              |                                                                                                                                           |
+| `»» guardrail_version_id` | string(uuid)                                                           | false    |              |                                                                                                                                           |
+| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)             | false    |              |                                                                                                                                           |
+| `»» network_timeout_ms`   | integer                                                                | false    |              |                                                                                                                                           |
+| `» id`                    | string(uuid)                                                           | false    |              |                                                                                                                                           |
+| `» pipeline_id`           | string(uuid)                                                           | false    |              |                                                                                                                                           |
+| `» policies`              | array                                                                  | false    |              |                                                                                                                                           |
+| `»» enabled`              | boolean                                                                | false    |              | Enabled disables this policy within this pipeline without disabling it globally. Disabled members are excluded from the runtime snapshot. |
+| `»» fail_mode`            | [codersdk.AIGatewayFailMode](schemas.md#codersdkaigatewayfailmode)     | false    |              |                                                                                                                                           |
+| `»» hook`                 | [codersdk.AIGatewayHook](schemas.md#codersdkaigatewayhook)             | false    |              |                                                                                                                                           |
+| `»» kind`                 | [codersdk.AIGatewayPolicyKind](schemas.md#codersdkaigatewaypolicykind) | false    |              |                                                                                                                                           |
+| `»» policy_version_id`    | string(uuid)                                                           | false    |              |                                                                                                                                           |
+| `» version_number`        | integer                                                                | false    |              |                                                                                                                                           |
 
 #### Enumerated Values
 
@@ -1054,8 +1039,7 @@ Status Code **200**
 |-------------|--------------------------------------------|
 | `fail_mode` | `fail_closed`, `fail_open`                 |
 | `hook`      | `pre_auth`, `pre_req`, `pre_tool`          |
-| `mode`      | `advisory`, `enforcing`                    |
-| `kind`      | `classify`, `decide`, `route`, `transform` |
+| `kind`      | `annotate`, `decide`, `route`, `transform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1084,7 +1068,6 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -1119,7 +1102,6 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -1130,7 +1112,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/pipelines/{id}/versions \
       "enabled": true,
       "fail_mode": "fail_open",
       "hook": "pre_auth",
-      "kind": "classify",
+      "kind": "annotate",
       "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
     }
   ],
@@ -1170,7 +1152,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/policies \
     "created_at": "2019-08-24T14:15:22Z",
     "display_name": "string",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "kind": "classify",
+    "kind": "annotate",
     "name": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "versions": [
@@ -1225,7 +1207,7 @@ Status Code **200**
 
 | Property | Value(s)                                   |
 |----------|--------------------------------------------|
-| `kind`   | `classify`, `decide`, `route`, `transform` |
+| `kind`   | `annotate`, `decide`, `route`, `transform` |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1249,7 +1231,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/policies \
 {
   "description": "string",
   "display_name": "string",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "rego": "string"
 }
@@ -1271,7 +1253,7 @@ curl -X POST http://coder-server:8080/api/v2/aibridge/policies \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "versions": [
@@ -1327,7 +1309,7 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/policies/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "versions": [
@@ -1421,7 +1403,7 @@ curl -X PATCH http://coder-server:8080/api/v2/aibridge/policies/{id} \
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "versions": [

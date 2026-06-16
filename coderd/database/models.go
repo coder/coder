@@ -74,64 +74,6 @@ func AllAIGatewayFailModeValues() []AIGatewayFailMode {
 	}
 }
 
-type AIGatewayGuardrailMode string
-
-const (
-	AIGatewayGuardrailModeAdvisory  AIGatewayGuardrailMode = "advisory"
-	AIGatewayGuardrailModeEnforcing AIGatewayGuardrailMode = "enforcing"
-)
-
-func (e *AIGatewayGuardrailMode) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = AIGatewayGuardrailMode(s)
-	case string:
-		*e = AIGatewayGuardrailMode(s)
-	default:
-		return fmt.Errorf("unsupported scan type for AIGatewayGuardrailMode: %T", src)
-	}
-	return nil
-}
-
-type NullAIGatewayGuardrailMode struct {
-	AIGatewayGuardrailMode AIGatewayGuardrailMode `json:"ai_gateway_guardrail_mode"`
-	Valid                  bool                   `json:"valid"` // Valid is true if AIGatewayGuardrailMode is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullAIGatewayGuardrailMode) Scan(value interface{}) error {
-	if value == nil {
-		ns.AIGatewayGuardrailMode, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.AIGatewayGuardrailMode.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullAIGatewayGuardrailMode) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.AIGatewayGuardrailMode), nil
-}
-
-func (e AIGatewayGuardrailMode) Valid() bool {
-	switch e {
-	case AIGatewayGuardrailModeAdvisory,
-		AIGatewayGuardrailModeEnforcing:
-		return true
-	}
-	return false
-}
-
-func AllAIGatewayGuardrailModeValues() []AIGatewayGuardrailMode {
-	return []AIGatewayGuardrailMode{
-		AIGatewayGuardrailModeAdvisory,
-		AIGatewayGuardrailModeEnforcing,
-	}
-}
-
 type AIGatewayHook string
 
 const (
@@ -4757,16 +4699,15 @@ type AIGatewayPipelineVersion struct {
 	CreatedBy     uuid.NullUUID `db:"created_by" json:"created_by"`
 }
 
-// Guardrail membership of a pipeline version: which guardrail versions run at which hook, in which mode.
+// Guardrail membership of a pipeline version: which guardrail versions run at which hook.
 type AIGatewayPipelineVersionGuardrail struct {
-	ID                 uuid.UUID              `db:"id" json:"id"`
-	PipelineVersionID  uuid.UUID              `db:"pipeline_version_id" json:"pipeline_version_id"`
-	GuardrailVersionID uuid.UUID              `db:"guardrail_version_id" json:"guardrail_version_id"`
-	Hook               AIGatewayHook          `db:"hook" json:"hook"`
-	Mode               AIGatewayGuardrailMode `db:"mode" json:"mode"`
-	FailMode           AIGatewayFailMode      `db:"fail_mode" json:"fail_mode"`
-	NetworkTimeoutMs   int32                  `db:"network_timeout_ms" json:"network_timeout_ms"`
-	Enabled            bool                   `db:"enabled" json:"enabled"`
+	ID                 uuid.UUID         `db:"id" json:"id"`
+	PipelineVersionID  uuid.UUID         `db:"pipeline_version_id" json:"pipeline_version_id"`
+	GuardrailVersionID uuid.UUID         `db:"guardrail_version_id" json:"guardrail_version_id"`
+	Hook               AIGatewayHook     `db:"hook" json:"hook"`
+	FailMode           AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
+	NetworkTimeoutMs   int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Enabled            bool              `db:"enabled" json:"enabled"`
 }
 
 // Membership of a pipeline version: which policy versions run at which hook.

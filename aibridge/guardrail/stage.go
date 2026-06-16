@@ -14,7 +14,6 @@ import (
 // Member is a guardrail attached to a hook with its per-membership settings.
 type Member struct {
 	Guardrail Guardrail
-	Mode      Mode
 	FailMode  FailMode
 	// Timeout bounds the guardrail's network call. Zero means no per-member
 	// deadline (the parent context still applies).
@@ -55,7 +54,6 @@ func (s *Stage) Empty() bool { return s == nil || len(s.members) == 0 }
 // merge.
 type memberOutcome struct {
 	name   string
-	mode   Mode
 	result Result
 	err    error
 }
@@ -98,15 +96,15 @@ func evalMember(ctx context.Context, m Member, req Request) memberOutcome {
 		defer cancel()
 	}
 	res, err := m.Guardrail.Evaluate(ctx, req)
-	return memberOutcome{name: m.name(), mode: m.Mode, result: res, err: err}
+	return memberOutcome{name: m.name(), result: res, err: err}
 }
 
 // reduce projects each member outcome into a [policy.StageResult] (a failure is
-// synthesized through its fail mode; an advisory member contributes annotations
-// only; an enforcing member may also block and emit edits), then runs the
-// single shared reducer. Edits apply as a deterministic ordered chain by
-// guardrail name and only when the request is not blocked (BLOCK freezes
-// effects).
+// synthesized through its fail mode; otherwise the outcome's intrinsic effects
+// project: annotations always, plus a block and/or edits when the adapter
+// returned them), then runs the single shared reducer. Edits apply as a
+// deterministic ordered chain by guardrail name and only when the request is
+// not blocked (BLOCK freezes effects).
 func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, error) {
 	// Deterministic order by guardrail name for block attribution and the edit
 	// chain.
@@ -141,28 +139,27 @@ func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, er
 	return out, nil
 }
 
-// project maps a member outcome to a [policy.StageResult] via a [policy.Projector].
-// A failure projects through a [policy.Failure]; otherwise the outcome is decoded
-// into a [policy.GuardrailOutcome] that projects under its effect mask (advisory
-// members contribute annotations only; enforcing members may also block and emit
-// edits, stamped under the guardrail's namespace). The guardrail package builds
-// the Projector but never constructs a StageResult directly: projection, like
-// the four hermetic kinds, is owned by the policy package.
+// project maps a member outcome to a [policy.StageResult] via [policy.Resolve],
+// which stamps the guardrail's namespace from o.name. A failure resolves a
+// [policy.Failure]; otherwise the outcome is decoded into a
+// [policy.GuardrailOutcome] whose intrinsic effects (annotations always; an
+// ActionBlock blocks; Edits mask) Resolve namespaces. The guardrail package
+// builds the Projector but never constructs or namespaces a StageResult itself:
+// that, like the four hermetic kinds, is owned by the policy package.
 func (s *Stage) project(o memberOutcome) policy.StageResult {
 	if o.err != nil {
-		return policy.Failure{FailMode: failModeToPolicy(s.failMode(o.name)), Err: o.err}.Project(o.name)
+		return policy.Resolve(o.name, policy.Failure{FailMode: failModeToPolicy(s.failMode(o.name)), Err: o.err})
 	}
 
 	out := policy.GuardrailOutcome{
 		Annotations: o.result.Annotations,
-		Enforcing:   o.mode == ModeEnforcing,
 		Block:       o.result.Action == ActionBlock,
 		Message:     o.result.Reason,
 	}
 	for _, e := range o.result.Edits {
 		out.Edits = append(out.Edits, policy.Edit{Pointer: e.Pointer, Value: e.Value})
 	}
-	return out.Project(o.name)
+	return policy.Resolve(o.name, out)
 }
 
 // failMode resolves a member's fail mode by name.

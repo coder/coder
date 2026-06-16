@@ -106,7 +106,6 @@ func AIGatewayPipelineVersion(row database.AIGatewayPipelineVersion, members []d
 		out.Guardrails = append(out.Guardrails, codersdk.AIGatewayPipelineGuardrail{
 			GuardrailVersionID: g.GuardrailVersionID,
 			Hook:               codersdk.AIGatewayHook(g.Hook),
-			Mode:               codersdk.AIGatewayGuardrailMode(g.Mode),
 			FailMode:           codersdk.AIGatewayFailMode(g.FailMode),
 			NetworkTimeoutMS:   g.NetworkTimeoutMs,
 			Enabled:            g.Enabled,

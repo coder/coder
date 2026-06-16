@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/guardrail"
 	"github.com/coder/coder/v2/aibridge/guardrail/adapters"
@@ -23,7 +22,6 @@ type guardrailMember struct {
 	GuardrailName    string
 	Config           json.RawMessage
 	Credential       string
-	Mode             database.AIGatewayGuardrailMode
 	FailMode         database.AIGatewayFailMode
 	NetworkTimeoutMs int32
 }
@@ -56,7 +54,6 @@ func BuildProviderGuardrails(ctx context.Context, db database.Store, logger slog
 			GuardrailName:    row.GuardrailName,
 			Config:           row.Config,
 			Credential:       row.Credential,
-			Mode:             row.Mode,
 			FailMode:         row.FailMode,
 			NetworkTimeoutMs: row.NetworkTimeoutMs,
 		})
@@ -88,10 +85,6 @@ func attachGuardrailStages(ctx context.Context, logger slog.Logger, members []gu
 			continue
 		}
 
-		mode := guardrail.ModeAdvisory
-		if member.Mode == database.AIGatewayGuardrailModeEnforcing {
-			mode = guardrail.ModeEnforcing
-		}
 		failMode := guardrail.FailClosed
 		if member.FailMode == database.AIGatewayFailModeFailOpen {
 			failMode = guardrail.FailOpen
@@ -100,7 +93,6 @@ func attachGuardrailStages(ctx context.Context, logger slog.Logger, members []gu
 		key := hookKey{member.ProviderName, member.Hook}
 		grouped[key] = append(grouped[key], guardrail.Member{
 			Guardrail: g,
-			Mode:      mode,
 			FailMode:  failMode,
 			Timeout:   time.Duration(member.NetworkTimeoutMs) * time.Millisecond,
 		})

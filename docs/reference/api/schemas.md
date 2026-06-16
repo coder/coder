@@ -1305,20 +1305,6 @@
 | `updated_at`        | string                                                                            | false    |              |             |
 | `versions`          | array of [codersdk.AIGatewayGuardrailVersion](#codersdkaigatewayguardrailversion) | false    |              |             |
 
-## codersdk.AIGatewayGuardrailMode
-
-```json
-"advisory"
-```
-
-### Properties
-
-#### Enumerated Values
-
-| Value(s)                |
-|-------------------------|
-| `advisory`, `enforcing` |
-
 ## codersdk.AIGatewayGuardrailVersion
 
 ```json
@@ -1397,7 +1383,6 @@
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -1408,7 +1393,7 @@
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -1426,7 +1411,6 @@
         "fail_mode": "fail_open",
         "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
         "hook": "pre_auth",
-        "mode": "advisory",
         "network_timeout_ms": 0
       }
     ],
@@ -1437,7 +1421,7 @@
         "enabled": true,
         "fail_mode": "fail_open",
         "hook": "pre_auth",
-        "kind": "classify",
+        "kind": "annotate",
         "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
       }
     ],
@@ -1473,21 +1457,19 @@
   "fail_mode": "fail_open",
   "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
   "hook": "pre_auth",
-  "mode": "advisory",
   "network_timeout_ms": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                               | Required | Restrictions | Description |
-|------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `enabled`              | boolean                                                            | false    |              |             |
-| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode)           | false    |              |             |
-| `guardrail_version_id` | string                                                             | false    |              |             |
-| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)                   | false    |              |             |
-| `mode`                 | [codersdk.AIGatewayGuardrailMode](#codersdkaigatewayguardrailmode) | false    |              |             |
-| `network_timeout_ms`   | integer                                                            | false    |              |             |
+| Name                   | Type                                                     | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `enabled`              | boolean                                                  | false    |              |             |
+| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode) | false    |              |             |
+| `guardrail_version_id` | string                                                   | false    |              |             |
+| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)         | false    |              |             |
+| `network_timeout_ms`   | integer                                                  | false    |              |             |
 
 ## codersdk.AIGatewayPipelineGuardrailRequest
 
@@ -1497,21 +1479,19 @@
   "fail_mode": "fail_open",
   "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
   "hook": "pre_auth",
-  "mode": "advisory",
   "network_timeout_ms": 0
 }
 ```
 
 ### Properties
 
-| Name                   | Type                                                               | Required | Restrictions | Description |
-|------------------------|--------------------------------------------------------------------|----------|--------------|-------------|
-| `enabled`              | boolean                                                            | false    |              |             |
-| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode)           | false    |              |             |
-| `guardrail_version_id` | string                                                             | false    |              |             |
-| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)                   | false    |              |             |
-| `mode`                 | [codersdk.AIGatewayGuardrailMode](#codersdkaigatewayguardrailmode) | false    |              |             |
-| `network_timeout_ms`   | integer                                                            | false    |              |             |
+| Name                   | Type                                                     | Required | Restrictions | Description |
+|------------------------|----------------------------------------------------------|----------|--------------|-------------|
+| `enabled`              | boolean                                                  | false    |              |             |
+| `fail_mode`            | [codersdk.AIGatewayFailMode](#codersdkaigatewayfailmode) | false    |              |             |
+| `guardrail_version_id` | string                                                   | false    |              |             |
+| `hook`                 | [codersdk.AIGatewayHook](#codersdkaigatewayhook)         | false    |              |             |
+| `network_timeout_ms`   | integer                                                  | false    |              |             |
 
 ## codersdk.AIGatewayPipelinePolicy
 
@@ -1520,7 +1500,7 @@
   "enabled": true,
   "fail_mode": "fail_open",
   "hook": "pre_auth",
-  "kind": "classify",
+  "kind": "annotate",
   "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
 }
 ```
@@ -1566,7 +1546,6 @@
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -1577,7 +1556,7 @@
       "enabled": true,
       "fail_mode": "fail_open",
       "hook": "pre_auth",
-      "kind": "classify",
+      "kind": "annotate",
       "policy_version_id": "7cd41427-f4be-4006-ab17-5ead7f8f8446"
     }
   ],
@@ -1604,7 +1583,7 @@
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "versions": [
@@ -1639,7 +1618,7 @@
 ## codersdk.AIGatewayPolicyKind
 
 ```json
-"classify"
+"annotate"
 ```
 
 ### Properties
@@ -1648,7 +1627,7 @@
 
 | Value(s)                                   |
 |--------------------------------------------|
-| `classify`, `decide`, `route`, `transform` |
+| `annotate`, `decide`, `route`, `transform` |
 
 ## codersdk.AIGatewayPolicyVersion
 
@@ -4939,7 +4918,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -4975,7 +4953,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "fail_mode": "fail_open",
       "guardrail_version_id": "679d05fc-2e89-4d23-9f9d-93315fd86dfd",
       "hook": "pre_auth",
-      "mode": "advisory",
       "network_timeout_ms": 0
     }
   ],
@@ -5004,7 +4981,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "description": "string",
   "display_name": "string",
-  "kind": "classify",
+  "kind": "annotate",
   "name": "string",
   "rego": "string"
 }

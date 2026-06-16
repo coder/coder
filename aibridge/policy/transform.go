@@ -22,9 +22,9 @@ type Transformation struct {
 	Headers map[string]string
 }
 
-// Project maps the transformation into a StageResult's Edits and Headers. stage
-// is unused: a transform produces no annotations.
-func (t Transformation) Project(string) StageResult {
+// Project maps the transformation into a StageResult's Edits and Headers. A
+// transform produces no annotations.
+func (t Transformation) Project() StageResult {
 	return StageResult{Edits: t.Edits, Headers: t.Headers}
 }
 

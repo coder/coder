@@ -13,9 +13,9 @@ type RouteChanges struct {
 	Model string
 }
 
-// Project maps the route change into a StageResult's Route field. stage is
-// unused: a route produces no annotations.
-func (r RouteChanges) Project(string) StageResult {
+// Project maps the route change into a StageResult's Route field. A route
+// produces no annotations.
+func (r RouteChanges) Project() StageResult {
 	return StageResult{Route: r.Model}
 }
 

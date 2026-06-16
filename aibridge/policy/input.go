@@ -163,25 +163,19 @@ func (e PreReqEnvelope) Build() (Input, error) {
 	}), nil
 }
 
-// PreToolEnvelope holds the raw inputs for the pre-tool hook: a superset of the
-// pre-req envelope (headers, request, identity, annotations) plus the assembled
-// tool call. Like pre-req it omits credential. Build it once per tool call.
+// PreToolEnvelope holds the inputs for the pre-tool hook: the assembled tool
+// call and the resolved identity (plus the seeded annotations thread). It
+// deliberately omits the request body and headers that pre-req carries: the
+// subject of a pre-tool decision is the individual tool call, and identity
+// supplies the RBAC inputs. Build it once per tool call.
 type PreToolEnvelope struct {
-	PreReqEnvelope
+	Identity Identity
 	ToolCall ToolCall
 }
 
 // Build materializes the pre-tool Input. Invalid tool arguments JSON is an
 // error; the caller fails the call per its fail mode.
 func (e PreToolEnvelope) Build() (Input, error) {
-	hVal, err := ast.InterfaceToValue(e.Headers)
-	if err != nil {
-		return Input{}, xerrors.Errorf("convert headers: %w", err)
-	}
-	reqVal, err := requestValue(e.Method, e.Path, e.Request)
-	if err != nil {
-		return Input{}, err
-	}
 	idVal, err := e.Identity.value()
 	if err != nil {
 		return Input{}, xerrors.Errorf("convert identity: %w", err)
@@ -200,10 +194,11 @@ func (e PreToolEnvelope) Build() (Input, error) {
 		[2]*ast.Term{ast.StringTerm("arguments"), ast.NewTerm(args)},
 		[2]*ast.Term{ast.StringTerm("index"), ast.NewTerm(ast.IntNumberTerm(e.ToolCall.Index).Value)},
 	)
+	// annotations is seeded {} so a pre-tool policy reading input.annotations.*
+	// sees defined-but-empty; the host threads earlier-hook annotations in via
+	// WithAnnotations.
 	return envelope(map[string]ast.Value{
 		"tool_call":   tc,
-		"headers":     hVal,
-		"request":     reqVal,
 		"identity":    idVal,
 		"annotations": ast.NewObject(),
 	}), nil
