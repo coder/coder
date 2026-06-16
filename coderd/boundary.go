@@ -3,10 +3,8 @@ package coderd
 import (
 	"net/http"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
-
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -21,20 +19,8 @@ import (
 func (api *API) boundarySessionByID(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	if idStr == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Boundary session ID is required.",
-		})
-		return
-	}
-
-	id, err := uuid.Parse(idStr)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid boundary session ID.",
-			Detail:  err.Error(),
-		})
+	id, ok := httpmw.ParseUUIDParam(rw, r, "id")
+	if !ok {
 		return
 	}
 
