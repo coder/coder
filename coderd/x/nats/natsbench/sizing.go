@@ -53,7 +53,7 @@ func derivedMaxPending(pl plan, payloadSize int) int64 {
 	nodeBurst := make(map[int]int64)
 	// Each coalesced subscription delivers every subject message once
 	// per node, regardless of how many local subscribers share it.
-	for _, node := range uniqueInts(pl.subNode) {
+	for _, node := range pl.subNodes {
 		seen := make(map[int]struct{})
 		for j, subNode := range pl.subNode {
 			if subNode != node {

@@ -117,9 +117,7 @@ func awaitTopologyReady(ctx context.Context, top *topology, pl plan, timeout tim
 				}
 			}
 		}
-		// Multiple publishers can share a node (pubNode is indexed by
-		// publisher, not node), so flush each distinct node once.
-		for _, node := range uniqueInts(pl.pubNode) {
+		for _, node := range pl.pubNodes {
 			if err := top.nodes[node].Flush(); err != nil {
 				return xerrors.Errorf("flush probes from node %d: %w", node, err)
 			}

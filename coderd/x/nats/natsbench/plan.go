@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // plan deterministically assigns publishers and subscribers to subjects
 // and replica nodes by round-robin on their index, and precomputes each
@@ -44,6 +47,12 @@ type plan struct {
 	expectPerSub []int
 	// totalExpected is the sum of expectPerSub.
 	totalExpected int
+	// pubNodes and subNodes are the sorted distinct node indexes that
+	// host at least one publisher or subscriber. Several publishers or
+	// subscribers can share a node, so these dedupe pubNode / subNode
+	// for callers that act once per node (for example flushing).
+	pubNodes []int
+	subNodes []int
 }
 
 // buildPlan computes the deterministic workload assignment for cfg.
@@ -78,7 +87,17 @@ func buildPlan(cfg Config) plan {
 		pl.expectPerSub[j] = perSubjectMsgs[pl.subSubject[j]]
 		pl.totalExpected += pl.expectPerSub[j]
 	}
+
+	pl.pubNodes = uniqueInts(pl.pubNode)
+	pl.subNodes = uniqueInts(pl.subNode)
 	return pl
+}
+
+// uniqueInts returns the sorted distinct values of a slice.
+func uniqueInts(values []int) []int {
+	out := slices.Clone(values)
+	slices.Sort(out)
+	return slices.Compact(out)
 }
 
 // subjectName returns the NATS subject for subject index i.

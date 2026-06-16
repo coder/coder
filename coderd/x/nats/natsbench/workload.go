@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -110,7 +109,7 @@ func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan
 	if err := errors.Join(pubErrs...); err != nil {
 		return w.buildResult(time.Since(hot), time.Since(hot)), xerrors.Errorf("publish: %w", err)
 	}
-	for _, idx := range uniqueInts(pl.pubNode) {
+	for _, idx := range pl.pubNodes {
 		if err := top.nodes[idx].Flush(); err != nil {
 			return w.buildResult(time.Since(hot), time.Since(hot)), xerrors.Errorf("flush publisher node %d: %w", idx, err)
 		}
@@ -309,13 +308,6 @@ func ratePerSec(count int64, dur time.Duration) float64 {
 		return 0
 	}
 	return float64(count) / dur.Seconds()
-}
-
-// uniqueInts returns the sorted unique values of a slice.
-func uniqueInts(values []int) []int {
-	out := slices.Clone(values)
-	slices.Sort(out)
-	return slices.Compact(out)
 }
 
 // goroutineDump captures all goroutine stacks, growing the buffer until
