@@ -52,6 +52,7 @@ metrics describe.
 >
 > ```yaml
 > metric_relabel_configs:
+>   # Proxy rule must come first; the gateway regex below also matches proxy metrics.
 >   - source_labels: [__name__]
 >     regex: 'coder_ai_gateway_proxy_(.*)'
 >     target_label: __name__

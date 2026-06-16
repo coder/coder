@@ -8,7 +8,9 @@ type metricAliasRegisterer struct {
 }
 
 // NewMetricAliasRegisterer exposes collectors under canonicalPrefix and each
-// alias prefix. Every exported name reads from the same collector.
+// alias prefix. Every exported name reads from the same collector. Alias
+// prefixes are typically deprecated names scheduled for removal; see each
+// call site for the specific deprecation ticket.
 func NewMetricAliasRegisterer(base prometheus.Registerer, canonicalPrefix string, aliasPrefixes ...string) prometheus.Registerer {
 	prefixes := append([]string{canonicalPrefix}, aliasPrefixes...)
 	registerers := make([]prometheus.Registerer, 0, len(prefixes))
