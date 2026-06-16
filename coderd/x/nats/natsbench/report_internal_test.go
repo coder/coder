@@ -122,7 +122,8 @@ func TestRenderMarkdownCleanGroupOmitsStatus(t *testing.T) {
 	for _, header := range []string{"Replicas", "Subjects", "Publishers", "Subscribers", "Messages", "Pubs/sec", "Deliveries/sec"} {
 		require.Contains(t, out, header)
 	}
-	require.NotContains(t, out, "Drops")
+	// A clean group omits the conditional Status column.
+	require.NotContains(t, out, "Status")
 	require.Contains(t, out, "250,000")
 	require.Contains(t, out, "220,000")
 	assertAlignedTable(t, out)
