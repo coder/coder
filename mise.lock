@@ -747,6 +747,10 @@ backend = "npm:@devcontainers/cli"
 version = "2.13.0"
 backend = "npm:@puppeteer/browsers"
 
+[[tools."npm:vercel"]]
+version = "54.14.0"
+backend = "npm:vercel"
+
 [[tools.pnpm]]
 version = "10.33.2"
 backend = "aqua:pnpm/pnpm"
