@@ -257,7 +257,12 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_gateway_key:*',
     'ai_gateway_key:create',
     'ai_gateway_key:delete',
-    'ai_gateway_key:read'
+    'ai_gateway_key:read',
+    'workspace_build_orchestration:*',
+    'workspace_build_orchestration:create',
+    'workspace_build_orchestration:delete',
+    'workspace_build_orchestration:read',
+    'workspace_build_orchestration:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

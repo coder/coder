@@ -1,3 +1,6 @@
+-- Enum additions to api_key_scope are intentionally not reversed
+-- because Postgres cannot drop enum values safely.
+
 DROP TABLE IF EXISTS workspace_build_orchestrations;
 
 ALTER TABLE template_version_presets

@@ -94,3 +94,10 @@ COMMENT ON COLUMN workspace_build_orchestrations.attempt_count IS
 
 COMMENT ON COLUMN workspace_build_orchestrations.next_retry_after IS
     'When set, the orchestrator skips this pending row until the timestamp has passed.';
+
+-- Add workspace_build_orchestration scopes for RBAC.
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_build_orchestration:*';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_build_orchestration:create';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_build_orchestration:delete';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_build_orchestration:read';
+ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'workspace_build_orchestration:update';
