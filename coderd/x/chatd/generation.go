@@ -360,17 +360,17 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			Messages:          messages,
 			ChainModeDisabled: chainModeDisabled,
 		}
-		prepared, err := retryGenerationPhase(ctx, s.waitGenerationPhaseBackoff, func() (generationPrepared, error) {
+		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
 			return s.server.prepareGeneration(ctx, prepareInput)
 		})
 		if err != nil {
-			if errors.Is(err, errTaskExpectedExit) {
-				return errTaskExpectedExit
+			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+				return xerrors.Errorf("prepare generation: %w", err)
 			}
 			return s.finishGenerationError(ctx, machine, input, 0, err, generationAttemptNotRequired)
 		}
 		cleanup := prepared.Cleanup
-		decision, err := retryGenerationPhase(ctx, s.waitGenerationPhaseBackoff, func() (generationDecision, error) {
+		decision, err := retryGenerationPhase(ctx, s, "decide", func() (generationDecision, error) {
 			return decideGenerationAction(generationDecisionInput{
 				chat:                       prepared.Chat,
 				messages:                   prepared.Messages,
@@ -387,8 +387,8 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		})
 		if err != nil {
 			cleanup()
-			if errors.Is(err, errTaskExpectedExit) {
-				return errTaskExpectedExit
+			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
+				return xerrors.Errorf("decide generation: %w", err)
 			}
 			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
 				s.server.metrics.RecordCompaction(
@@ -424,19 +424,33 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if actionErr == nil {
 			return nil
 		}
-		if errors.Is(actionErr, errTaskExpectedExit) || errors.Is(actionErr, chatloop.ErrInterrupted) {
-			return nil
+		// Task cancellation is handled by the runner, not here.
+		if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
 		}
-		if errors.Is(actionErr, context.Canceled) && ctx.Err() != nil {
+		if errors.Is(actionErr, errTaskExpectedExit) || errors.Is(actionErr, chatloop.ErrInterrupted) {
 			return nil
 		}
 		classified := chaterror.Classify(actionErr)
 		if classified.Retryable {
+			action := decision.kind
 			decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
 			if err != nil {
 				return err
 			}
 			if decision.retry {
+				s.opts.Logger.Warn(ctx, "chat generation retrying",
+					slog.F("chat_id", input.ChatID),
+					slog.F("worker_id", input.WorkerID),
+					slog.F("action", action),
+					slog.F("generation_attempt", decision.generationAttempt),
+					slog.F("delay", decision.delay),
+					slog.F("error_kind", classified.Kind),
+					slog.F("provider", classified.Provider),
+					slog.F("status_code", classified.StatusCode),
+					slog.F("chain_broken", classified.ChainBroken),
+					slogError(actionErr),
+				)
 				if classified.ChainBroken {
 					chainModeDisabled = true
 				}
@@ -548,7 +562,7 @@ func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Durati
 	case <-timer.C:
 		return nil
 	case <-ctx.Done():
-		return errTaskExpectedExit
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation retry: %w", ctx.Err()))
 	}
 }
 
@@ -576,12 +590,9 @@ func generationPhaseBackoff(attempt int) time.Duration {
 // returns early on success or on a terminal error (see terminalGeneration).
 // Non-terminal errors are retried with exponential backoff. Context
 // cancellation returns errTaskExpectedExit so shutdown does not write an
-// error state. When every attempt fails, the last error is returned.
-func retryGenerationPhase[T any](
-	ctx context.Context,
-	wait func(context.Context, time.Duration) error,
-	fn func() (T, error),
-) (T, error) {
+// error state. Task timeouts return a retryable task error so the runner can
+// start a fresh attempt. When every attempt fails, the last error is returned.
+func retryGenerationPhase[T any](ctx context.Context, starter *taskStarter, phase string, fn func() (T, error)) (T, error) {
 	var zero T
 	var lastErr error
 	for attempt := 0; attempt < generationPhaseMaxAttempts; attempt++ {
@@ -590,14 +601,22 @@ func retryGenerationPhase[T any](
 			return result, nil
 		}
 		if isTerminalGeneration(err) {
-			return zero, err
+			return zero, xerrors.Errorf("retryGenerationPhase terminal error: %w", err)
 		}
 		if ctx.Err() != nil {
-			return zero, errTaskExpectedExit
+			return zero, errors.Join(errTaskExpectedExit, xerrors.Errorf("retryGenerationPhase %s: %w", phase, ctx.Err()))
 		}
 		lastErr = err
 		if attempt < generationPhaseMaxAttempts-1 {
-			if waitErr := wait(ctx, generationPhaseBackoff(attempt)); waitErr != nil {
+			delay := generationPhaseBackoff(attempt)
+			starter.opts.Logger.Warn(ctx, "chat generation phase retrying",
+				slog.F("phase", phase),
+				slog.F("attempt", attempt+1),
+				slog.F("max_attempts", generationPhaseMaxAttempts),
+				slog.F("delay", delay),
+				slogError(err),
+			)
+			if waitErr := starter.waitGenerationPhaseBackoff(ctx, delay); waitErr != nil {
 				return zero, waitErr
 			}
 		}
@@ -612,7 +631,7 @@ func (s *taskStarter) waitGenerationPhaseBackoff(ctx context.Context, delay time
 	case <-timer.C:
 		return nil
 	case <-ctx.Done():
-		return errTaskExpectedExit
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait generation phase backoff: %w", ctx.Err()))
 	}
 }
 

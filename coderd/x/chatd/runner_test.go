@@ -1,6 +1,7 @@
 package chatd //nolint:testpackage // Uses unexported chatworker helpers.
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ func TestRunner_CancelsActiveTaskWhenHistoryChanges(t *testing.T) {
 	updated := commitAssistantStep(t, f, chat.ID, "first step")
 	require.Greater(t, updated.HistoryVersion, first.input.HistoryVersion)
 	requireTaskCanceled(t, first)
+	require.NotErrorIs(t, context.Cause(first.ctx), errTaskTimeout)
 	second := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
 }
@@ -104,11 +106,39 @@ func TestRunner_AllowsReplacementForDifferentHistoryOrStatus(t *testing.T) {
 	require.Equal(t, updated.HistoryVersion, second.input.HistoryVersion)
 }
 
+func TestRunner_TaskTimeoutRetries(t *testing.T) {
+	t.Parallel()
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+	timeoutTrap := clock.Trap().AfterFunc("chatworker", "task-timeout-generation")
+	starter := newBlockingTaskStarter(false)
+	opts := testOptions(t, f, starter)
+	opts.Clock = clock
+	opts.TaskRetryInitialBackoff = time.Minute
+	opts.TaskRetryMaxBackoff = time.Minute
+	startWorker(t, opts)
+
+	timeoutTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
+	timeoutTrap.Close()
+	first := starter.waitCall(t, taskKindGeneration, chat.ID)
+	retryTrap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
+	defer retryTrap.Close()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock.Advance(defaultTaskTimeout).MustWait(ctx)
+	retryTrap.MustWait(ctx).MustRelease(ctx)
+	require.ErrorIs(t, context.Cause(first.ctx), errTaskTimeout)
+	clock.Advance(time.Minute).MustWait(ctx)
+	second := starter.waitCall(t, taskKindGeneration, chat.ID)
+	require.Equal(t, first.input.HistoryVersion, second.input.HistoryVersion)
+}
+
 func TestWorker_RoutesDatabaseSyncStateToActiveRunner(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
-	clock := quartz.NewMock(t)
+	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
 	starter := newBlockingTaskStarter(false)
 	opts := testOptions(t, f, starter)
 	opts.Clock = clock
