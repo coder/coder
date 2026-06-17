@@ -1198,7 +1198,7 @@ Disable chat sharing. Chat ACL checking is disabled and only owners can access t
 | Type        | <code>duration</code>                        |
 | Environment | <code>$CODER_SESSION_DURATION</code>         |
 | YAML        | <code>networking.http.sessionDuration</code> |
-| Default     | <code>24h0m0s</code>                         |
+| Default     | <code>12h0m0s</code>                         |
 
 The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.
 

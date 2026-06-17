@@ -3642,7 +3642,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "The token expiry duration for browser sessions. Sessions may last longer if they are actively making requests, but this functionality can be disabled via --disable-session-expiry-refresh.",
 			Flag:        "session-duration",
 			Env:         "CODER_SESSION_DURATION",
-			Default:     (24 * time.Hour).String(),
+			Default:     (12 * time.Hour).String(),
 			Value:       &c.Sessions.DefaultDuration,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "sessionDuration",
