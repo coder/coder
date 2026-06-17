@@ -12,6 +12,8 @@ package guardrail
 
 import (
 	"context"
+
+	"github.com/coder/coder/v2/aibridge/policy"
 )
 
 // Action is a guardrail's verdict on a request.
@@ -37,40 +39,72 @@ const (
 	FailOpen
 )
 
+// Identity is the resolved end-user identity made available to guardrail
+// adapters (some vendors vary behavior by actor, and the generic API forwards a
+// request_data block). It mirrors [policy.Identity].
+type Identity = policy.Identity
+
+// Role classifies a [TextRef]'s originating message role.
+type Role string
+
+const (
+	RoleSystem    Role = "system"
+	RoleUser      Role = "user"
+	RoleAssistant Role = "assistant"
+	RoleTool      Role = "tool"
+)
+
 // Request is the input to a guardrail evaluation. It is built once per stage
-// and shared across every guardrail in the stage. Texts are extracted from the
-// raw body so each adapter does not re-parse provider-specific message shapes;
-// Body is retained so an adapter can address edits back into the original
-// structure via [Edit.Pointer].
+// invocation and shared across every guardrail in that invocation. The host
+// extracts text spans from the raw body so each adapter does not re-parse
+// provider-specific message shapes; Body is retained so an adapter that rewrites
+// whole structures can address edits back via [Edit.Pointer].
+//
+// Two extraction scopes are provided so an adapter reads exactly what it needs
+// without re-walking Body:
+//
+//   - Prompt is the latest user prompt only (the masking-safe default; redacted
+//     spans are written straight back to these pointers).
+//   - Conversation is every role-tagged text span (system + all turns), for
+//     scanners that need context (prompt-injection, jailbreak, secret scanning)
+//     and would otherwise be forced to re-parse Body.
 type Request struct {
 	// Body is the raw JSON request body.
 	Body []byte
-	// Texts are the user-authored text spans the stage extracted from Body
-	// (the latest user prompt; see [UserPromptTexts]), each paired with the
-	// sjson pointer it was read from so a masking guardrail can write a redacted
-	// value back to the same location.
-	Texts []TextRef
 	// Model is the request's target model, for adapters that vary behavior by
 	// model.
 	Model string
+	// Prompt is the latest user prompt span(s) (see [UserPromptTexts]).
+	Prompt []TextRef
+	// Conversation is every role-tagged text span in the body (see
+	// [ConversationTexts]).
+	Conversation []TextRef
+	// Identity is the resolved actor, for vendors/the generic API that key on
+	// it. Decoupled from upstream-forwarded actor metadata; never sent upstream.
+	Identity Identity
 }
 
-// TextRef is a single extracted text span and the sjson-addressable location
-// it came from within the request body.
+// TextRef is a single extracted text span and the sjson-addressable location it
+// came from within the request body.
 type TextRef struct {
 	// Pointer is an sjson path (e.g. "messages.2.content") locating Value in
 	// the request body.
 	Pointer string
+	// Role is the originating message role (empty is treated as user).
+	Role Role
 	// Value is the extracted text.
 	Value string
 }
 
-// Edit is a single rewrite of the request body: set Pointer to Value. Edits
-// from concurrent guardrails are applied as an ordered chain so two masking
-// guardrails do not clobber each other via whole-body replacement.
+// Edit is a single rewrite of the request body: set Pointer to Value. A root
+// edit (Pointer == "") replaces the whole body. Value is any JSON value: text
+// masking sets a string, but a vendor that rewrites a structured node (content
+// array, whole body) sets the structured value directly. Guardrails run as a
+// sequential chain in store order, each seeing the body as rewritten by the
+// prior one, so two maskers compose rather than clobber.
 type Edit struct {
 	Pointer string
-	Value   string
+	Value   any
 }
 
 // Result is the outcome of one guardrail evaluation. A guardrail may set any
@@ -86,7 +120,8 @@ type Result struct {
 	// counts). They are threaded into input.annotations under the guardrail's
 	// name so a Rego decide policy can read them.
 	Annotations map[string]any
-	// Edits rewrite the request body (masking/redaction).
+	// Edits rewrite the request body (masking/redaction). Only meaningful for a
+	// mutating guardrail (see [Guardrail.Mutates]).
 	Edits []Edit
 }
 

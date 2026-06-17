@@ -156,7 +156,7 @@ func (g *Guardrail) Evaluate(ctx context.Context, req guardrail.Request) (guardr
 		counts = map[string]int{}
 	)
 
-	for _, ref := range req.Texts {
+	for _, ref := range req.Prompt {
 		if ref.Value == "" {
 			continue
 		}

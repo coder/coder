@@ -4708,6 +4708,7 @@ type AIGatewayPipelineVersionGuardrail struct {
 	FailMode           AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
 	NetworkTimeoutMs   int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
 	Enabled            bool              `db:"enabled" json:"enabled"`
+	Position           int32             `db:"position" json:"position"`
 }
 
 // Membership of a pipeline version: which policy versions run at which hook.

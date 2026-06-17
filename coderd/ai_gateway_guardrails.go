@@ -534,6 +534,7 @@ func mintPipelineVersionWithMembers(ctx context.Context, tx database.Store, pl d
 			FailMode:           m.FailMode,
 			NetworkTimeoutMs:   m.NetworkTimeoutMs,
 			Enabled:            m.Enabled,
+			Position:           m.Position,
 		}); err != nil {
 			return err
 		}

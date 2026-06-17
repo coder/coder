@@ -183,7 +183,9 @@ func resolvePipelineGuardrails(ctx context.Context, db database.Store, reqs []co
 }
 
 func insertPipelineGuardrails(ctx context.Context, tx database.Store, versionID uuid.UUID, members []resolvedGuardrail) error {
-	for _, m := range members {
+	// Membership order is the guardrail execution order (the sequential masking
+	// chain), so the request slice index becomes the stored position.
+	for i, m := range members {
 		if _, err := tx.InsertAIGatewayPipelineVersionGuardrail(ctx, database.InsertAIGatewayPipelineVersionGuardrailParams{
 			ID:                 uuid.New(),
 			PipelineVersionID:  versionID,
@@ -192,6 +194,8 @@ func insertPipelineGuardrails(ctx context.Context, tx database.Store, versionID 
 			FailMode:           m.failMode,
 			NetworkTimeoutMs:   m.networkTimeoutMs,
 			Enabled:            m.enabled,
+			// #nosec G115 -- guardrail membership count per pipeline is tiny.
+			Position: int32(i),
 		}); err != nil {
 			return err
 		}

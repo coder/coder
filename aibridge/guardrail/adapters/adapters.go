@@ -10,15 +10,21 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/aibridge/guardrail"
+	"github.com/coder/coder/v2/aibridge/guardrail/bedrock"
+	"github.com/coder/coder/v2/aibridge/guardrail/generic"
 	"github.com/coder/coder/v2/aibridge/guardrail/presidio"
 )
 
 // Build constructs a guardrail from its stored adapter_type and config. The
 // credential is the decrypted secret (empty for adapters that need none).
-func Build(adapterType, name string, config []byte, _ string) (guardrail.Guardrail, error) {
+func Build(adapterType, name string, config []byte, credential string) (guardrail.Guardrail, error) {
 	switch adapterType {
 	case "presidio":
 		return presidio.NewFromConfig(name, config)
+	case "generic":
+		return generic.NewFromConfig(name, config, credential)
+	case "bedrock":
+		return bedrock.NewFromConfig(name, config, credential)
 	default:
 		return nil, xerrors.Errorf("unknown guardrail adapter type %q", adapterType)
 	}

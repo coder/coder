@@ -285,6 +285,8 @@ type sqlcQuerier interface {
 	// mirroring the policy snapshot variant. credential is decrypted by the dbcrypt
 	// layer.
 	GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Context, pipelineVersionID uuid.UUID) ([]GetAIGatewayPipelineVersionGuardrailSnapshotRow, error)
+	// Ordered by position so re-minting a pipeline version (on activate/promote)
+	// preserves the guardrail execution order.
 	GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionGuardrail, error)
 	// Resolves a pipeline version's id from the provider name and the logical
 	// version number, for the version-targeted evaluation gate (§10.9). The

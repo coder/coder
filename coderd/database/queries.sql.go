@@ -2959,6 +2959,7 @@ SELECT
     m.hook,
     m.fail_mode,
     m.network_timeout_ms,
+    m.position,
     g.id AS guardrail_id,
     g.name AS guardrail_name,
     g.adapter_type,
@@ -2977,7 +2978,7 @@ WHERE pl.deleted = FALSE
     AND g.enabled = TRUE
     AND prov.deleted = FALSE
     AND g.deleted = FALSE
-ORDER BY pl.provider_id, m.hook, g.name
+ORDER BY pl.provider_id, m.hook, m.position, g.name
 `
 
 type GetAIGatewayPipelineVersionGuardrailSnapshotRow struct {
@@ -2989,6 +2990,7 @@ type GetAIGatewayPipelineVersionGuardrailSnapshotRow struct {
 	Hook                  AIGatewayHook     `db:"hook" json:"hook"`
 	FailMode              AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
 	NetworkTimeoutMs      int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Position              int32             `db:"position" json:"position"`
 	GuardrailID           uuid.UUID         `db:"guardrail_id" json:"guardrail_id"`
 	GuardrailName         string            `db:"guardrail_name" json:"guardrail_name"`
 	AdapterType           string            `db:"adapter_type" json:"adapter_type"`
@@ -3021,6 +3023,7 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Co
 			&i.Hook,
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
+			&i.Position,
 			&i.GuardrailID,
 			&i.GuardrailName,
 			&i.AdapterType,
@@ -3043,10 +3046,13 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrailSnapshot(ctx context.Co
 }
 
 const getAIGatewayPipelineVersionGuardrails = `-- name: GetAIGatewayPipelineVersionGuardrails :many
-SELECT id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled FROM ai_gateway_pipeline_version_guardrails
+SELECT id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled, position FROM ai_gateway_pipeline_version_guardrails
 WHERE pipeline_version_id = $1::uuid
+ORDER BY hook, position
 `
 
+// Ordered by position so re-minting a pipeline version (on activate/promote)
+// preserves the guardrail execution order.
 func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, pipelineVersionID uuid.UUID) ([]AIGatewayPipelineVersionGuardrail, error) {
 	rows, err := q.db.QueryContext(ctx, getAIGatewayPipelineVersionGuardrails, pipelineVersionID)
 	if err != nil {
@@ -3064,6 +3070,7 @@ func (q *sqlQuerier) GetAIGatewayPipelineVersionGuardrails(ctx context.Context, 
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
 			&i.Enabled,
+			&i.Position,
 		); err != nil {
 			return nil, err
 		}
@@ -3139,6 +3146,7 @@ SELECT
     m.hook,
     m.fail_mode,
     m.network_timeout_ms,
+    m.position,
     g.id AS guardrail_id,
     g.name AS guardrail_name,
     g.adapter_type,
@@ -3158,7 +3166,7 @@ WHERE pl.deleted = FALSE
     AND g.enabled = TRUE
     AND prov.deleted = FALSE
     AND g.deleted = FALSE
-ORDER BY pl.provider_id, m.hook, g.name
+ORDER BY pl.provider_id, m.hook, m.position, g.name
 `
 
 type GetActiveAIGatewayPipelineGuardrailsRow struct {
@@ -3170,6 +3178,7 @@ type GetActiveAIGatewayPipelineGuardrailsRow struct {
 	Hook                  AIGatewayHook     `db:"hook" json:"hook"`
 	FailMode              AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
 	NetworkTimeoutMs      int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
+	Position              int32             `db:"position" json:"position"`
 	GuardrailID           uuid.UUID         `db:"guardrail_id" json:"guardrail_id"`
 	GuardrailName         string            `db:"guardrail_name" json:"guardrail_name"`
 	AdapterType           string            `db:"adapter_type" json:"adapter_type"`
@@ -3202,6 +3211,7 @@ func (q *sqlQuerier) GetActiveAIGatewayPipelineGuardrails(ctx context.Context) (
 			&i.Hook,
 			&i.FailMode,
 			&i.NetworkTimeoutMs,
+			&i.Position,
 			&i.GuardrailID,
 			&i.GuardrailName,
 			&i.AdapterType,
@@ -3335,7 +3345,8 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     hook,
     fail_mode,
     network_timeout_ms,
-    enabled
+    enabled,
+    position
 ) VALUES (
     $1::uuid,
     $2::uuid,
@@ -3343,9 +3354,10 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     $4::ai_gateway_hook,
     $5::ai_gateway_fail_mode,
     $6::integer,
-    $7::boolean
+    $7::boolean,
+    $8::integer
 )
-RETURNING id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled
+RETURNING id, pipeline_version_id, guardrail_version_id, hook, fail_mode, network_timeout_ms, enabled, position
 `
 
 type InsertAIGatewayPipelineVersionGuardrailParams struct {
@@ -3356,6 +3368,7 @@ type InsertAIGatewayPipelineVersionGuardrailParams struct {
 	FailMode           AIGatewayFailMode `db:"fail_mode" json:"fail_mode"`
 	NetworkTimeoutMs   int32             `db:"network_timeout_ms" json:"network_timeout_ms"`
 	Enabled            bool              `db:"enabled" json:"enabled"`
+	Position           int32             `db:"position" json:"position"`
 }
 
 func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context, arg InsertAIGatewayPipelineVersionGuardrailParams) (AIGatewayPipelineVersionGuardrail, error) {
@@ -3367,6 +3380,7 @@ func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context
 		arg.FailMode,
 		arg.NetworkTimeoutMs,
 		arg.Enabled,
+		arg.Position,
 	)
 	var i AIGatewayPipelineVersionGuardrail
 	err := row.Scan(
@@ -3377,6 +3391,7 @@ func (q *sqlQuerier) InsertAIGatewayPipelineVersionGuardrail(ctx context.Context
 		&i.FailMode,
 		&i.NetworkTimeoutMs,
 		&i.Enabled,
+		&i.Position,
 	)
 	return i, err
 }

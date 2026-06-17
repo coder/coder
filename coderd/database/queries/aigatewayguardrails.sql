@@ -84,7 +84,8 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     hook,
     fail_mode,
     network_timeout_ms,
-    enabled
+    enabled,
+    position
 ) VALUES (
     @id::uuid,
     @pipeline_version_id::uuid,
@@ -92,7 +93,8 @@ INSERT INTO ai_gateway_pipeline_version_guardrails (
     @hook::ai_gateway_hook,
     @fail_mode::ai_gateway_fail_mode,
     @network_timeout_ms::integer,
-    @enabled::boolean
+    @enabled::boolean,
+    @position::integer
 )
 RETURNING *;
 
@@ -108,8 +110,11 @@ WHERE pipeline_version_id = @pipeline_version_id::uuid
     AND hook = @hook::ai_gateway_hook;
 
 -- name: GetAIGatewayPipelineVersionGuardrails :many
+-- Ordered by position so re-minting a pipeline version (on activate/promote)
+-- preserves the guardrail execution order.
 SELECT * FROM ai_gateway_pipeline_version_guardrails
-WHERE pipeline_version_id = @pipeline_version_id::uuid;
+WHERE pipeline_version_id = @pipeline_version_id::uuid
+ORDER BY hook, position;
 
 -- name: GetAIGatewayPipelineVersionGuardrailSnapshot :many
 -- Like GetActiveAIGatewayPipelineGuardrails but resolves a specific (typically
@@ -126,6 +131,7 @@ SELECT
     m.hook,
     m.fail_mode,
     m.network_timeout_ms,
+    m.position,
     g.id AS guardrail_id,
     g.name AS guardrail_name,
     g.adapter_type,
@@ -144,7 +150,7 @@ WHERE pl.deleted = FALSE
     AND g.enabled = TRUE
     AND prov.deleted = FALSE
     AND g.deleted = FALSE
-ORDER BY pl.provider_id, m.hook, g.name;
+ORDER BY pl.provider_id, m.hook, m.position, g.name;
 
 -- name: GetActiveAIGatewayPipelineGuardrails :many
 -- The runtime snapshot load for guardrails: every guardrail member of every
@@ -161,6 +167,7 @@ SELECT
     m.hook,
     m.fail_mode,
     m.network_timeout_ms,
+    m.position,
     g.id AS guardrail_id,
     g.name AS guardrail_name,
     g.adapter_type,
@@ -180,7 +187,7 @@ WHERE pl.deleted = FALSE
     AND g.enabled = TRUE
     AND prov.deleted = FALSE
     AND g.deleted = FALSE
-ORDER BY pl.provider_id, m.hook, g.name;
+ORDER BY pl.provider_id, m.hook, m.position, g.name;
 
 -- name: CountAIGatewayGuardrailVersionsInActivePipelines :one
 -- Used to block soft-deleting a guardrail whose versions are referenced by an

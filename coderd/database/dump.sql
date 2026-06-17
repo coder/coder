@@ -1365,7 +1365,8 @@ CREATE TABLE ai_gateway_pipeline_version_guardrails (
     hook ai_gateway_hook NOT NULL,
     fail_mode ai_gateway_fail_mode DEFAULT 'fail_closed'::ai_gateway_fail_mode NOT NULL,
     network_timeout_ms integer DEFAULT 2000 NOT NULL,
-    enabled boolean DEFAULT true NOT NULL
+    enabled boolean DEFAULT true NOT NULL,
+    "position" integer DEFAULT 0 NOT NULL
 );
 
 COMMENT ON TABLE ai_gateway_pipeline_version_guardrails IS 'Guardrail membership of a pipeline version: which guardrail versions run at which hook.';

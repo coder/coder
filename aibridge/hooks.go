@@ -158,7 +158,7 @@ func (h policyHooks) apply(w http.ResponseWriter, r *http.Request, payload inter
 	// guardrail's body rewrite is applied before any policy sees the body, and a
 	// guardrail block short-circuits with HTTP 400.
 	if g := ph.PreReqGuardrails; g != nil && !g.Empty() {
-		gres, err := g.Run(ctx, payload.Body(), payload.Model())
+		gres, err := g.Run(ctx, payload.Body(), payload.Model(), identityFromActor(actor))
 		if err != nil {
 			// An internal error (e.g. applying a body edit) fails closed.
 			logger.Warn(ctx, "evaluate guardrails", slog.F("hook", hookPreReq), slog.Error(err))

@@ -2,8 +2,6 @@ package guardrail
 
 import (
 	"context"
-	"sort"
-	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -12,6 +10,8 @@ import (
 )
 
 // Member is a guardrail attached to a hook with its per-membership settings.
+// Members are evaluated in slice order, which the loader populates from the
+// stored position column, so the operator controls the masking chain order.
 type Member struct {
 	Guardrail Guardrail
 	FailMode  FailMode
@@ -22,16 +22,21 @@ type Member struct {
 
 func (m Member) name() string { return m.Guardrail.Name() }
 
-// Stage is the set of guardrails for a single hook. Guardrails run
-// concurrently (they are network-bound); their results project into the shared
-// [policy.StageResult] and reduce through the single [policy.Reduce] + edits
-// applier, exactly like the Rego policy pipeline.
+// Stage is the ordered set of guardrails for a single hook. Guardrails run as a
+// sequential chain (matching litellm/Portkey): each member sees the request
+// body as rewritten by the members before it, so two maskers compose
+// deterministically instead of racing to clobber overlapping edits. Results
+// project into the shared [policy.StageResult] and reduce through the single
+// [policy.Reduce], exactly like the Rego policy pipeline. A deliberate BLOCK
+// stops the chain (later vendor calls are pointless once the request is
+// rejected); annotations from members that ran are always retained.
 type Stage struct {
 	members []Member
 }
 
-// NewStage builds a stage from its members. It returns an error if two members
-// share a name, since names namespace annotations and attribute blocks.
+// NewStage builds a stage from its members, preserving their order. It returns
+// an error if two members share a name, since names namespace annotations and
+// attribute blocks.
 func NewStage(members ...Member) (*Stage, error) {
 	seen := make(map[string]struct{}, len(members))
 	for _, m := range members {
@@ -50,72 +55,56 @@ func NewStage(members ...Member) (*Stage, error) {
 // Empty reports whether the stage has no members (a no-op stage).
 func (s *Stage) Empty() bool { return s == nil || len(s.members) == 0 }
 
-// memberOutcome is one member's evaluation, captured before the deterministic
-// merge.
-type memberOutcome struct {
-	name   string
-	result Result
-	err    error
-}
-
-// Run evaluates every guardrail concurrently against body and reduces the
-// results into a [policy.Result]. It never returns an error for a
-// guardrail-level failure; such failures are synthesized through the member's
-// fail mode (a fail-closed failure becomes a BLOCK, fail-open a LOG). An error
-// is returned only for an internal failure applying body edits.
-func (s *Stage) Run(ctx context.Context, body []byte, model string) (policy.Result, error) {
+// Run evaluates every guardrail in order against the request and reduces the
+// results into a [policy.Result]. The body is threaded through the chain: each
+// member's edits are applied before the next member runs (and its text spans
+// re-extracted from the rewritten body), so a downstream masker scans what an
+// upstream masker already redacted. identity is exposed to adapters that key on
+// the actor (and the generic API's request_data block).
+//
+// It never returns an error for a guardrail-level failure; such failures are
+// synthesized through the member's fail mode (a fail-closed failure becomes a
+// BLOCK, fail-open a LOG). An error is returned only for an internal failure
+// applying body edits.
+func (s *Stage) Run(ctx context.Context, body []byte, model string, identity Identity) (policy.Result, error) {
 	if s.Empty() {
 		return policy.Result{}, nil
 	}
 
-	req := Request{
-		Body:  body,
-		Texts: UserPromptTexts(body),
-		Model: model,
-	}
+	curBody := body
+	staged := make([]policy.StageOutcome, 0, len(s.members))
+	blocked := false
+	mutated := false
 
-	outcomes := make([]memberOutcome, len(s.members))
-	var wg sync.WaitGroup
-	for i, m := range s.members {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			outcomes[i] = evalMember(ctx, m, req)
-		}()
-	}
-	wg.Wait()
+	for _, m := range s.members {
+		req := Request{
+			Body:         curBody,
+			Model:        model,
+			Prompt:       UserPromptTexts(curBody),
+			Conversation: ConversationTexts(curBody),
+			Identity:     identity,
+		}
+		res := projectMember(ctx, m, req)
+		staged = append(staged, policy.StageOutcome{Name: m.name(), Result: res})
 
-	return s.reduce(outcomes, body)
-}
-
-// evalMember runs a single member under its timeout.
-func evalMember(ctx context.Context, m Member, req Request) memberOutcome {
-	if m.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, m.Timeout)
-		defer cancel()
-	}
-	res, err := m.Guardrail.Evaluate(ctx, req)
-	return memberOutcome{name: m.name(), result: res, err: err}
-}
-
-// reduce projects each member outcome into a [policy.StageResult] (a failure is
-// synthesized through its fail mode; otherwise the outcome's intrinsic effects
-// project: annotations always, plus a block and/or edits when the adapter
-// returned them), then runs the single shared reducer. Edits apply as a
-// deterministic ordered chain by guardrail name and only when the request is
-// not blocked (BLOCK freezes effects).
-func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, error) {
-	// Deterministic order by guardrail name for block attribution and the edit
-	// chain.
-	sort.Slice(outcomes, func(i, j int) bool { return outcomes[i].name < outcomes[j].name })
-
-	staged := make([]policy.StageOutcome, 0, len(outcomes))
-	var edits []policy.Edit
-	for _, o := range outcomes {
-		res := s.project(o)
-		staged = append(staged, policy.StageOutcome{Name: o.name, Result: res})
-		edits = append(edits, res.Edits...)
+		if res.Verdict.Blocks() {
+			// BLOCK freezes effects: stop the chain, the request is rejected and
+			// its body is moot. Remaining members would only waste vendor calls.
+			blocked = true
+			break
+		}
+		// Thread this member's edits into the body so the next member (and the
+		// downstream policy pipeline) sees the rewritten request.
+		if len(res.Edits) > 0 {
+			edited, changed, err := policy.ApplyEdits(curBody, res.Edits)
+			if err != nil {
+				return policy.Result{}, err
+			}
+			if changed {
+				curBody = edited
+				mutated = true
+			}
+		}
 	}
 
 	reduced := policy.Reduce(staged)
@@ -126,50 +115,46 @@ func (s *Stage) reduce(outcomes []memberOutcome, body []byte) (policy.Result, er
 		Annotations: reduced.Annotations,
 		Errors:      reduced.Errors,
 	}
-	// A blocked request is never forwarded, so its body rewrite is moot.
-	if !reduced.Verdict.Blocks() && len(edits) > 0 {
-		edited, mutated, err := policy.ApplyEdits(body, edits)
-		if err != nil {
-			return policy.Result{}, err
-		}
-		if mutated {
-			out.RequestBody = edited
-		}
+	// Surface the rewritten body only when the request proceeds and a member
+	// actually changed it (a blocked request is never forwarded).
+	if !blocked && !reduced.Verdict.Blocks() && mutated {
+		out.RequestBody = curBody
 	}
 	return out, nil
 }
 
-// project maps a member outcome to a [policy.StageResult] via [policy.Resolve],
-// which stamps the guardrail's namespace from o.name. A failure resolves a
-// [policy.Failure]; otherwise the outcome is decoded into a
+// project evaluates a member under its timeout and maps the outcome to a
+// [policy.StageResult] via [policy.Resolve], which stamps the guardrail's
+// namespace from its name. A failure resolves a [policy.Failure] through the
+// member's fail mode; otherwise the outcome is decoded into a
 // [policy.GuardrailOutcome] whose intrinsic effects (annotations always; an
 // ActionBlock blocks; Edits mask) Resolve namespaces. The guardrail package
-// builds the Projector but never constructs or namespaces a StageResult itself:
-// that, like the four hermetic kinds, is owned by the policy package.
-func (s *Stage) project(o memberOutcome) policy.StageResult {
-	if o.err != nil {
-		return policy.Resolve(o.name, policy.Failure{FailMode: failModeToPolicy(s.failMode(o.name)), Err: o.err})
+// builds the Projector but never constructs or namespaces a StageResult itself.
+func projectMember(ctx context.Context, m Member, req Request) policy.StageResult {
+	res, err := evalMember(ctx, m, req)
+	if err != nil {
+		return policy.Resolve(m.name(), policy.Failure{FailMode: failModeToPolicy(m.FailMode), Err: err})
 	}
 
 	out := policy.GuardrailOutcome{
-		Annotations: o.result.Annotations,
-		Block:       o.result.Action == ActionBlock,
-		Message:     o.result.Reason,
+		Annotations: res.Annotations,
+		Block:       res.Action == ActionBlock,
+		Message:     res.Reason,
 	}
-	for _, e := range o.result.Edits {
+	for _, e := range res.Edits {
 		out.Edits = append(out.Edits, policy.Edit{Pointer: e.Pointer, Value: e.Value})
 	}
-	return policy.Resolve(o.name, out)
+	return policy.Resolve(m.name(), out)
 }
 
-// failMode resolves a member's fail mode by name.
-func (s *Stage) failMode(name string) FailMode {
-	for _, m := range s.members {
-		if m.name() == name {
-			return m.FailMode
-		}
+// evalMember runs a single member under its timeout.
+func evalMember(ctx context.Context, m Member, req Request) (Result, error) {
+	if m.Timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, m.Timeout)
+		defer cancel()
 	}
-	return FailClosed
+	return m.Guardrail.Evaluate(ctx, req)
 }
 
 // failModeToPolicy maps a guardrail fail mode to the policy fail mode the shared

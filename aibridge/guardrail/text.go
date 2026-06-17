@@ -31,7 +31,7 @@ func UserPromptTexts(body []byte) []TextRef {
 	// OpenAI Responses: "input" as a string or an array of input items.
 	if input := root.Get("input"); input.Exists() {
 		if input.Type == gjson.String {
-			return single(TextRef{Pointer: "input", Value: input.String()})
+			return single(TextRef{Pointer: "input", Role: RoleUser, Value: input.String()})
 		}
 		if input.IsArray() {
 			items := input.Array()
@@ -50,6 +50,72 @@ func UserPromptTexts(body []byte) []TextRef {
 		}
 	}
 	return nil
+}
+
+// ConversationTexts returns every role-tagged text span in the request body,
+// in document order, each addressed by its sjson pointer. Unlike
+// [UserPromptTexts] it does not stop at the latest user turn and it includes
+// system/assistant/tool text, so a scanner that needs full context
+// (prompt-injection, jailbreak, secret detection) reads the whole conversation
+// without re-parsing provider-specific shapes. Anthropic's top-level "system"
+// string is included as a system span.
+func ConversationTexts(body []byte) []TextRef {
+	root := gjson.ParseBytes(body)
+	var refs []TextRef
+
+	// Anthropic top-level system prompt.
+	if sys := root.Get("system"); sys.Type == gjson.String {
+		refs = append(refs, TextRef{Pointer: "system", Role: RoleSystem, Value: sys.String()})
+	}
+
+	if input := root.Get("input"); input.Exists() {
+		if input.Type == gjson.String {
+			return append(refs, TextRef{Pointer: "input", Role: RoleUser, Value: input.String()})
+		}
+		if input.IsArray() {
+			return append(refs, itemTexts(input.Array(), "input")...)
+		}
+		return refs
+	}
+
+	if messages := root.Get("messages"); messages.IsArray() {
+		refs = append(refs, itemTexts(messages.Array(), "messages")...)
+	}
+	return refs
+}
+
+// itemTexts collects every text block of every message item, tagged by role.
+func itemTexts(items []gjson.Result, arrayPath string) []TextRef {
+	var refs []TextRef
+	for idx, item := range items {
+		role := roleOf(item.Get("role").String())
+		base := arrayPath + "." + strconv.Itoa(idx) + ".content"
+		content := item.Get("content")
+		switch {
+		case content.Type == gjson.String:
+			refs = append(refs, TextRef{Pointer: base, Role: role, Value: content.String()})
+		case content.IsArray():
+			for j, part := range content.Array() {
+				if t := part.Get("text"); t.Type == gjson.String {
+					refs = append(refs, TextRef{
+						Pointer: base + "." + strconv.Itoa(j) + ".text",
+						Role:    role,
+						Value:   t.String(),
+					})
+				}
+			}
+		}
+	}
+	return refs
+}
+
+func roleOf(s string) Role {
+	switch Role(s) {
+	case RoleSystem, RoleUser, RoleAssistant, RoleTool:
+		return Role(s)
+	default:
+		return RoleUser
+	}
 }
 
 // lastUserItemText walks items from the end and returns the text ref for the
@@ -77,13 +143,14 @@ func lastUserItemText(items []gjson.Result, arrayPath string) (TextRef, bool) {
 func lastTextBlock(content gjson.Result, pointer string) (TextRef, bool) {
 	switch {
 	case content.Type == gjson.String:
-		return TextRef{Pointer: pointer, Value: content.String()}, true
+		return TextRef{Pointer: pointer, Role: RoleUser, Value: content.String()}, true
 	case content.IsArray():
 		parts := content.Array()
 		for j := len(parts) - 1; j >= 0; j-- {
 			if t := parts[j].Get("text"); t.Type == gjson.String {
 				return TextRef{
 					Pointer: pointer + "." + strconv.Itoa(j) + ".text",
+					Role:    RoleUser,
 					Value:   t.String(),
 				}, true
 			}

@@ -34,15 +34,18 @@ func TestStage_EnforcingEditAppliedAndAnnotated(t *testing.T) {
 	st, err := guardrail.NewStage(guardrail.Member{Guardrail: g})
 	require.NoError(t, err)
 
-	res, err := st.Run(context.Background(), []byte(body), "gpt-4")
+	res, err := st.Run(context.Background(), []byte(body), "gpt-4", guardrail.Identity{})
 	require.NoError(t, err)
 	require.False(t, res.Verdict.Blocks())
 	require.Equal(t, "<REDACTED>", gjson.GetBytes(res.RequestBody, "messages.0.content").String())
 	require.Contains(t, res.Annotations, "redactor")
 }
 
-func TestStage_BlockWinsLowestName(t *testing.T) {
+func TestStage_BlockWinsFirstInStoreOrder(t *testing.T) {
 	t.Parallel()
+	// Guardrails run in store (slice) order, not sorted by name. The first
+	// member to block wins attribution and short-circuits the chain, so "b"
+	// (listed first) wins even though "a" sorts lower.
 	a := fake{name: "a", res: guardrail.Result{Action: guardrail.ActionBlock, Reason: "a-reason"}}
 	b := fake{name: "b", res: guardrail.Result{Action: guardrail.ActionBlock, Reason: "b-reason"}}
 	st, err := guardrail.NewStage(
@@ -51,11 +54,43 @@ func TestStage_BlockWinsLowestName(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	res, err := st.Run(context.Background(), []byte(body), "")
+	res, err := st.Run(context.Background(), []byte(body), "", guardrail.Identity{})
 	require.NoError(t, err)
 	require.True(t, res.Verdict.Blocks())
-	require.Equal(t, "a", res.BlockedBy)
-	require.Equal(t, "a-reason", res.Message)
+	require.Equal(t, "b", res.BlockedBy)
+	require.Equal(t, "b-reason", res.Message)
+}
+
+// threadingMasker masks by replacing the latest user prompt with its own name
+// plus the text it observed, so the test can prove each member saw the prior
+// member's rewrite rather than the original body.
+type threadingMasker struct {
+	name string
+}
+
+func (m threadingMasker) Name() string { return m.name }
+func (m threadingMasker) Evaluate(_ context.Context, req guardrail.Request) (guardrail.Result, error) {
+	span := req.Prompt[len(req.Prompt)-1]
+	return guardrail.Result{
+		Edits: []guardrail.Edit{{Pointer: span.Pointer, Value: m.name + ":" + span.Value}}, //nolint:gocritic
+	}, nil
+}
+
+func TestStage_SequentialMaskingComposes(t *testing.T) {
+	t.Parallel()
+	// Two maskers in order: the second must observe the first's rewrite (the
+	// sequential chain, not a concurrent merge), so the final body reflects both
+	// edits applied in order.
+	st, err := guardrail.NewStage(
+		guardrail.Member{Guardrail: threadingMasker{name: "first"}},
+		guardrail.Member{Guardrail: threadingMasker{name: "second"}},
+	)
+	require.NoError(t, err)
+
+	res, err := st.Run(context.Background(), []byte(body), "", guardrail.Identity{})
+	require.NoError(t, err)
+	require.False(t, res.Verdict.Blocks())
+	require.Equal(t, "second:first:hi", gjson.GetBytes(res.RequestBody, "messages.0.content").String())
 }
 
 func TestStage_BlockSuppressesBodyEdit(t *testing.T) {
@@ -70,7 +105,7 @@ func TestStage_BlockSuppressesBodyEdit(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	res, err := st.Run(context.Background(), []byte(body), "")
+	res, err := st.Run(context.Background(), []byte(body), "", guardrail.Identity{})
 	require.NoError(t, err)
 	require.True(t, res.Verdict.Blocks())
 	require.Nil(t, res.RequestBody)
@@ -88,7 +123,7 @@ func TestStage_AnnotationsOnlyDoesNotBlockOrMutate(t *testing.T) {
 	st, err := guardrail.NewStage(guardrail.Member{Guardrail: g})
 	require.NoError(t, err)
 
-	res, err := st.Run(context.Background(), []byte(body), "")
+	res, err := st.Run(context.Background(), []byte(body), "", guardrail.Identity{})
 	require.NoError(t, err)
 	require.False(t, res.Verdict.Blocks())
 	require.Nil(t, res.RequestBody)
@@ -101,7 +136,7 @@ func TestStage_FailModes(t *testing.T) {
 
 	closed, err := guardrail.NewStage(guardrail.Member{Guardrail: boom, FailMode: guardrail.FailClosed})
 	require.NoError(t, err)
-	res, err := closed.Run(context.Background(), []byte(body), "")
+	res, err := closed.Run(context.Background(), []byte(body), "", guardrail.Identity{})
 	require.NoError(t, err)
 	require.True(t, res.Verdict.Blocks())
 	// A synthesized failure block is anonymous to the client; the failing
@@ -112,7 +147,7 @@ func TestStage_FailModes(t *testing.T) {
 
 	open, err := guardrail.NewStage(guardrail.Member{Guardrail: boom, FailMode: guardrail.FailOpen})
 	require.NoError(t, err)
-	res, err = open.Run(context.Background(), []byte(body), "")
+	res, err = open.Run(context.Background(), []byte(body), "", guardrail.Identity{})
 	require.NoError(t, err)
 	// Fail-open synthesizes LOG (visible), never a silent pass-through.
 	require.False(t, res.Verdict.Blocks())

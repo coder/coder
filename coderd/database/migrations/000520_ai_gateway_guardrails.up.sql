@@ -62,6 +62,11 @@ CREATE TABLE ai_gateway_pipeline_version_guardrails (
     fail_mode            ai_gateway_fail_mode NOT NULL DEFAULT 'fail_closed',
     network_timeout_ms   integer NOT NULL DEFAULT 2000,
     enabled              boolean NOT NULL DEFAULT TRUE,
+    -- position orders guardrails within a (version, hook): guardrails run as a
+    -- sequential chain in ascending position, each seeing the body as rewritten
+    -- by the prior one, so maskers compose deterministically instead of racing.
+    -- Set from membership order at create and preserved across version mints.
+    position             integer NOT NULL DEFAULT 0,
     -- A guardrail appears at most once per hook in a given version.
     UNIQUE (pipeline_version_id, guardrail_version_id, hook)
 );

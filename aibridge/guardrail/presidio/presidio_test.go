@@ -93,7 +93,7 @@ func TestPresidio_Mask(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := g.Evaluate(context.Background(), guardrail.Request{
-		Texts: []guardrail.TextRef{
+		Prompt: []guardrail.TextRef{
 			{Pointer: "messages.0.content", Value: "my email is ishaan@berri.ai"},
 		},
 	})
@@ -122,7 +122,7 @@ func TestPresidio_Block(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := g.Evaluate(context.Background(), guardrail.Request{
-		Texts: []guardrail.TextRef{
+		Prompt: []guardrail.TextRef{
 			{Pointer: "messages.0.content", Value: "my ssn is on file"},
 		},
 	})
@@ -150,7 +150,7 @@ func TestPresidio_ThresholdFiltersOut(t *testing.T) {
 	require.NoError(t, err)
 
 	res, err := g.Evaluate(context.Background(), guardrail.Request{
-		Texts: []guardrail.TextRef{
+		Prompt: []guardrail.TextRef{
 			{Pointer: "messages.0.content", Value: "my email is ishaan@berri.ai"},
 		},
 	})

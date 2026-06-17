@@ -94,7 +94,9 @@ carries score + mask + verdict and cannot be un-bundled). Hermetic kinds stay
 single-effect; there is no reason to emulate the bundling in Rego.
 
 **One mutation algebra: edits.** All body mutation is a list of pointer/value
-edits; a whole-body rewrite is the degenerate root edit. Transform and
+edits; a whole-body rewrite is the degenerate root edit. An edit's value is any
+JSON value, so a guardrail can mask a span with a string *or* rewrite a
+structured node (a content array, the whole body) directly. Transform and
 guardrail masking share one representation, one applier (edits applied in
 stage order), one re-validate per mutation point, and edit-level audit
 granularity. *(Designed, not built: transform currently replaces whole
@@ -103,9 +105,9 @@ bodies.)*
 **Reducer rule: BLOCK freezes effects, never erases observations.** On BLOCK,
 verdict and message are final and no later mutating effect (edits, route)
 applies, but annotations from every stage that actually ran are always kept
-for audit. Sequential chains stop scheduling at BLOCK; a concurrent guardrail
-batch runs to completion and reduces normally (cancelling siblings would make
-the merge nondeterministic for little gain).
+for audit. Both the decide chain and the guardrail chain are sequential and
+stop scheduling at the first BLOCK; a buggy message can never alter the
+verdict, and a blocked request's body rewrite is moot (never forwarded).
 
 **Failures are just another projection, not a parallel error path.** A failed
 invocation (eval error, network error, the global 1s eval timeout, decode
@@ -184,11 +186,29 @@ omit, or spoof its namespace, the `Project` step never sees the name.
 
 Guardrails integrate external safety/DLP vendors (Presidio, Bedrock, Lakera,
 OpenAI moderation, ...). There is no industry-standard guardrail I/O format, so
-they integrate via per-vendor **adapters composed over a base** modelled on
-litellm's Generic Guardrail API (extract texts → POST → block / pass /
-intervene-with-modification); any generic-API-compatible vendor works with
-zero per-vendor code, and materially-better native APIs get first-class
-adapters.
+each is a **per-vendor adapter** behind one Go interface
+(`Name`, `Evaluate(ctx, Request) (Result, error)`). Three adapters exist:
+
+- **`generic`** speaks litellm's Generic Guardrail API (extract texts → POST →
+  `BLOCKED` / `NONE` / `GUARDRAIL_INTERVENED`, intervened responses returning
+  modified texts positionally aligned to the request). Any generic-API
+  compatible vendor (e.g. Pillar) works with **zero per-vendor code** by
+  pointing this adapter at its endpoint and supplying static headers/params and
+  an optional bearer credential.
+- **`presidio`** is the PII analyze/anonymize archetype (per-span offsets in,
+  redacted span out, no credential).
+- **`bedrock`** is the deliberately awkward native adapter that proves the
+  abstraction is not Presidio-shaped: its auth is **SigV4 request signing** (not
+  a bearer header) over a **multi-field credential blob** (access key, secret,
+  optional session token) rather than a single token; its response collapses
+  maskings into one output (so it scans a single span and writes the whole
+  masked value back to that pointer); and **block vs mask is not a response
+  field** (both arrive as `GUARDRAIL_INTERVENED`), so the adapter inspects the
+  `assessments` block to tell an `ANONYMIZED` mask from a `BLOCKED` filter/topic.
+
+The single registry (`adapters.Build`) maps `adapter_type` → constructor and is
+shared by config validation (API) and runtime construction (loader), so a
+supported adapter is defined in exactly one place.
 
 **Authority is intrinsic, not a mode.** A guardrail's effects are whatever its
 adapter returns; there is no advisory/enforcing toggle. A scanner that only
@@ -204,22 +224,38 @@ concurrent-with-dispatch / output lane will be advisory by a structural
 invariant — it cannot influence a request that has already happened — which is a
 lane property, not this removed mode.)*
 
-**Execution.** A hook's guardrails run **concurrently** (network-bound, unlike
-CPU-bound Rego), and the batch runs to completion even when one blocks, then
-reduces under the shared rule (§3): annotations union under per-guardrail
-namespaces (kept even on BLOCK); a BLOCK freezes mutating effects; edits apply
-as a deterministic ordered chain (by guardrail name) with one re-validate
-after the guardrail stage (the policy transform then re-validates its own
-mutation: two mutation points, each re-validated). Each guardrail carries its
-own network timeout and `fail_mode` (default fail-closed); failures project
-through the `Failure` Projector into ordinary StageResults (§3). No retries, no
-response caching in v1.
+**Execution: a sequential chain, not a concurrent merge.** A hook's guardrails
+run **in order** (the stored `position`, §9), each receiving the request body as
+rewritten by the members before it; its text spans are re-extracted from that
+rewritten body before it runs. This is litellm's and Portkey's model, and it is
+the one that makes **two maskers compose instead of clobber**: the second
+masker scans what the first already redacted, so there is no nondeterministic
+"merge overlapping edits" step to get wrong (the alternative, concurrent
+evaluation with a name-ordered edit merge, has no defined semantics for a
+whole-body rewrite composed with a sibling span mask, which is exactly the
+common masking case). A deliberate BLOCK stops the chain (later vendor calls are
+pointless once the request is rejected). Results reduce under the shared rule
+(§3): annotations union under per-guardrail namespaces (kept even on BLOCK);
+the body is re-validated after the guardrail stage (the policy transform then
+re-validates its own mutation). Each guardrail carries its own network timeout
+and `fail_mode` (default fail-closed); failures project through the `Failure`
+Projector into ordinary StageResults (§3). No concurrent read-only lane in v1
+(a separate scoring lane is deferred, not load-bearing); no retries, no response
+caching.
 
-**What is scanned:** the **latest user prompt**, selected cross-provider as the
-most recent role-`user` item carrying a text block (trailing system/tool-result
-turns are skipped, since agentic clients append them after the user's prompt).
-Only the latest user turn is scanned; earlier-turn PII in resent history is not
-re-masked.
+**What is scanned: two extraction scopes.** The host extracts both once per
+member and the adapter reads what it needs:
+
+- **prompt** (default, masking-safe): the **latest user prompt**, selected
+  cross-provider as the most recent role-`user` item carrying a text block
+  (trailing system/tool-result turns are skipped, since agentic clients append
+  them after the user's prompt). Redacted spans write straight back to that
+  pointer. Only the latest user turn is scanned; earlier-turn PII in resent
+  history is not re-masked.
+- **conversation**: every role-tagged span (system + all turns), pointer
+  addressed, for scanners that need context (prompt-injection, jailbreak, secret
+  detection) and would otherwise re-parse the body. The `generic` adapter
+  selects scope by config; Presidio and Bedrock scan the prompt.
 
 v1 ships serial **pre-req input guardrails** only (injection detection, PII /
 secret masking, tool gating, moderation→annotations→decide). Output guardrails
@@ -322,7 +358,10 @@ FKs guarantee a parent can only activate its *own* versions):
   readable, diffable, and decision-logged, so policies are never encrypted
   and embedded secrets are documented-unsupported. Guardrails join pipeline
   versions through a dedicated membership table (no kind column, no
-  cardinality cap; many concurrent guardrails per hook).
+  cardinality cap; many guardrails per hook) carrying a `position` column that
+  orders the sequential masking chain within a hook. Position is set from
+  membership order at create and preserved across version mints, so the operator
+  controls execution (and thus masking) order explicitly.
 
 Enable/disable exists at exactly two levels: the **pipeline** (whole posture
 off) and the **membership** (one policy/guardrail off within one pipeline,
