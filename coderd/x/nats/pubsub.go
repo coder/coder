@@ -39,18 +39,13 @@ import (
 // absorbs.
 const DefaultServerMaxPendingBytes int64 = 512 << 20
 
-// DefaultListenerQueueSize is the per-listener inbox capacity used when
-// PendingLimits.Msgs is not positive.
-const DefaultListenerQueueSize = 1024
-
 // DefaultClientMaxPendingBytes is the per-subscription pending byte limit used
 // when PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes, which
 // bounds the server-side outbound buffer for a whole connection, this
 // bounds the client-side inbound buffer for a single subscription:
 // messages the client has received but the listener callback has not yet
 // processed. A slow listener overflows this and the subscription drops
-// messages, signaling pubsub.ErrDroppedMessages. The companion message
-// count limit is DefaultListenerQueueSize.
+// messages, signaling pubsub.ErrDroppedMessages.
 const DefaultClientMaxPendingBytes = 512 * 1024 * 1024
 
 const (
@@ -64,9 +59,9 @@ var errClosed = xerrors.New("nats pubsub closed")
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
 type PendingLimits struct {
-	// Msgs is the per-subscription pending message limit. Positive
-	// values also set each local listener queue capacity.
-	// Zero uses the package default. Negative disables this limit.
+	// Msgs is the per-subscription pending message limit. Zero or
+	// negative disables the message limit, leaving the byte limit
+	// (PendingLimits.Bytes) as the only per-subscription bound.
 	Msgs int
 
 	// Bytes is the per-subscription pending byte limit.
