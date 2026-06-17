@@ -147,29 +147,40 @@ export const ContextUsageIndicator: FC<{
 	// Drive the listed context from the chat's pinned resources, falling back
 	// to the last injected context parts while the pin has not loaded.
 	const usePinned = (pinnedResources?.length ?? 0) > 0;
-	const fileItems: readonly ContextFileItem[] = usePinned
-		? (pinnedResources ?? [])
-				.filter((resource) => resource.kind === "instruction_file")
-				.map((resource) => ({ path: resource.source }))
-		: (usage?.lastInjectedContext ?? [])
-				.filter((part) => part.type === "context-file")
-				.map((part) => ({
-					path: part.context_file_path,
-					truncated: part.context_file_truncated,
-				}));
-	const skillItems: readonly ContextSkillItem[] = usePinned
-		? (pinnedResources ?? [])
-				.filter((resource) => resource.kind === "skill")
-				.map((resource) => ({
-					name: resource.skill_name || getPathBasename(resource.source),
-					description: resource.skill_description,
-				}))
-		: (usage?.lastInjectedContext ?? [])
-				.filter((part) => part.type === "skill")
-				.map((part) => ({
-					name: part.skill_name,
-					description: part.skill_description,
-				}));
+	const fileItems: readonly ContextFileItem[] = (
+		usePinned
+			? (pinnedResources ?? [])
+					.filter((resource) => resource.kind === "instruction_file")
+					.map((resource) => ({ path: resource.source }))
+			: (usage?.lastInjectedContext ?? [])
+					.filter((part) => part.type === "context-file")
+					.map((part) => ({
+						path: part.context_file_path,
+						truncated: part.context_file_truncated,
+					}))
+	)
+		// Drop entries with no usable path. The injected-context fallback can
+		// carry an empty context-file marker, which would otherwise render as a
+		// nameless "Context files" row.
+		.filter((file) => file.path.trim().length > 0);
+	const skillItems: readonly ContextSkillItem[] = (
+		usePinned
+			? (pinnedResources ?? [])
+					.filter((resource) => resource.kind === "skill")
+					.map((resource) => ({
+						name: resource.skill_name || getPathBasename(resource.source),
+						description: resource.skill_description,
+					}))
+			: (usage?.lastInjectedContext ?? [])
+					.filter((part) => part.type === "skill")
+					.map((part) => ({
+						name: part.skill_name,
+						description: part.skill_description,
+					}))
+	)
+		// Drop entries with no usable name so an empty skill marker never renders
+		// as a blank row.
+		.filter((skill) => skill.name.trim().length > 0);
 	const hasContextList = fileItems.length > 0 || skillItems.length > 0;
 
 	const ariaLabel = hasPercent
