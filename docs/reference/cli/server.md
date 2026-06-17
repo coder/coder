@@ -1137,6 +1137,7 @@ Enables SCIM and sets the authentication header for the built-in SCIM server. Ne
 |-------------|-------------------------------------|
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_SCIM_USE_LEGACY</code> |
+| YAML        | <code>scimUseLegacy</code>          |
 | Default     | <code>true</code>                   |
 
 Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
