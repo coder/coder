@@ -428,6 +428,12 @@ oidc:
   # setting can also break OIDC, so use with caution.
   # (default: <unset>, type: url)
   oidc-redirect-url:
+  # OIDC based users require the IdP issuer and subject in the claims to be static.
+  # If a new provider is configured, this option is required to be 'true'. It will
+  # reset any existing users to the previous provider, and match by email on their
+  # next login.
+  # (default: true, type: bool)
+  oidc-repair-links: true
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
