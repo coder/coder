@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 )
@@ -86,17 +85,6 @@ func (v version) Equal(b version) bool {
 	return v.Major == b.Major && v.Minor == b.Minor && v.Patch == b.Patch && v.Pre == b.Pre
 }
 
-// sortVersionsDesc sorts a slice of versions in descending order
-// using semver-correct comparison. This is necessary because git's
-// --sort=-v:refname treats pre-release suffixes (e.g. -rc.0) as
-// greater than the release version, which is the opposite of semver
-// where v2.32.0 > v2.32.0-rc.0.
-func sortVersionsDesc(tags []version) {
-	sort.Slice(tags, func(i, j int) bool {
-		return tags[i].GreaterThan(tags[j])
-	})
-}
-
 // allSemverTags returns all semver tags sorted descending.
 func allSemverTags() ([]version, error) {
 	out, err := gitOutput("tag", "--sort=-v:refname")
@@ -112,7 +100,6 @@ func allSemverTags() ([]version, error) {
 			tags = append(tags, v)
 		}
 	}
-	sortVersionsDesc(tags)
 	return tags, nil
 }
 
@@ -132,6 +119,5 @@ func mergedSemverTags() ([]version, error) {
 			tags = append(tags, v)
 		}
 	}
-	sortVersionsDesc(tags)
 	return tags, nil
 }
