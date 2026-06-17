@@ -11,13 +11,11 @@ import type { AddableProvider } from "../components/addableProviderTypes";
 import { ProviderForm } from "../components/ProviderForm";
 import { getProviderIcon } from "../components/ProviderIcon";
 import { providerFormValuesToCreate } from "../components/providerFormApiMap";
+import { indefiniteArticle } from "#/utils/text";
 
 interface AddProviderPageViewProps {
 	provider: AddableProvider;
 }
-
-const indefiniteArticle = (word: string): string =>
-	/^[aeiou]/i.test(word) ? "an" : "a";
 
 const AddProviderPageView: React.FC<AddProviderPageViewProps> = ({
 	provider,

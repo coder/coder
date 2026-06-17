@@ -19,6 +19,8 @@ export const getProviderIcon = (provider: string): string | undefined => {
 			return "/icon/github-copilot.svg";
 		case "google":
 			return "/icon/google.svg";
+		case "gemini":
+			return "/icon/gemini.svg";
 		case "vercel":
 			return "/icon/vercel.svg";
 		default:
@@ -40,6 +42,8 @@ const getProviderName = (provider: string): string => {
 			return "GitHub Copilot";
 		case "google":
 			return "Google";
+		case "gemini":
+			return "Google Gemini";
 		case "openai-compat":
 			return "OpenAI-compatible";
 		case "openrouter":
