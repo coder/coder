@@ -184,6 +184,11 @@ func (m *metrics) markConnected(total int) {
 func (m *metrics) markClosed() {
 	m.connMu.Lock()
 	defer m.connMu.Unlock()
+	// Zero both counters so setConnectedLocked's totalConns > 0 guard is
+	// permanently false: a late reconnect callback during the shutdown
+	// window cannot increment connectedConns back up and flip the gauge
+	// to 1.
+	m.totalConns = 0
 	m.connectedConns = 0
 	m.connected.Set(0)
 }

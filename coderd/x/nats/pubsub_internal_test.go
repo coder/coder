@@ -264,10 +264,20 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
 	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
 
+	handlers := ps.buildConnHandlers()
 	require.NoError(t, ps.Close())
 
 	// Close reports disconnected even though the disconnect handler is
 	// suppressed for our own connection closes.
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
+
+	// Late reconnect callbacks during the shutdown window must not flip
+	// the gauge back to 1: markClosed zeroes totalConns so the connected
+	// guard stays false even if every owned connection reports a
+	// reconnect. Fire one per owned connection to exercise that.
+	for range len(ps.publishPool) + len(ps.subscribePool) {
+		handlers.reconnect(nil)
+	}
 	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
 
 	// Closing our own connections must not invoke the disconnect handler,
