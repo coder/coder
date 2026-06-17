@@ -1532,6 +1532,25 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/ai-gateway/serve": {
+            "get": {
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "AI Gateway serve",
+                "operationId": "ai-gateway-serve",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
+                    }
+                },
+                "security": [
+                    {
+                        "AIGatewayKey": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai-gateway/sessions": {
             "get": {
                 "description": "Alias: also available at /api/v2/aibridge/sessions for backward compatibility.",
@@ -28908,6 +28927,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "AIGatewayKey": {
+            "type": "apiKey",
+            "name": "X-AI-Governance-Gateway-Key",
+            "in": "header"
+        },
         "Authorization": {
             "type": "apiKey",
             "name": "Authorizaiton",
