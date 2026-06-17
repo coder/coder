@@ -2,6 +2,10 @@
 {{- fail "coder.listenerset.parentRef is required when coder.listenerset.enable=true" -}}
 {{- end -}}
 
+{{- if and .Values.coder.listenerset.enable (empty .Values.coder.listenerset.listeners) -}}
+{{- fail "coder.listenerset.listeners is required when coder.listenerset.enable=true" -}}
+{{- end -}}
+
 {{- if .Values.coder.listenerset.enable -}}
 apiVersion: gateway.networking.k8s.io/v1
 kind: ListenerSet

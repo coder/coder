@@ -1,7 +1,3 @@
-{{- if and .Values.coder.httproute.enable (empty .Values.coder.httproute.parentRefs) -}}
-{{- fail "coder.httproute.parentRefs is required when coder.httproute.enable=true" -}}
-{{- end -}}
-
 {{- if and .Values.coder.httproute.enable .Values.coder.httproute.httpsRedirect.enable (empty .Values.coder.httproute.httpsRedirect.parentRefs) -}}
 {{- fail "coder.httproute.httpsRedirect.parentRefs is required when coder.httproute.httpsRedirect.enable=true" -}}
 {{- end -}}
