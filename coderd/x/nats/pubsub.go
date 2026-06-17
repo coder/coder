@@ -26,12 +26,15 @@ import (
 // connection a slow consumer and drops messages rather than buffer
 // without bound.
 //
-// In a cluster, every local subscriber is coalesced onto a single
-// subscribe connection, so cross-node fan-out bursts concentrate on one
-// outbound buffer. Benchmarking high-fanout cluster workloads (10
-// subjects, 10 publishers, 50 subscribers) showed the 128 MiB default
-// overflowing and dropping 10-15% of deliveries, while 256 MiB and above
-// dropped none; 512 MiB is chosen for headroom.
+// The connection that fills this buffer in practice is the subscribe
+// connection: the server writes every message bound for a replica's
+// local subscribers out over its subscribe connection pool, which
+// defaults to a single connection. In a cluster, cross-node fan-out
+// therefore concentrates all of a replica's inbound deliveries on that
+// one connection's outbound buffer. Benchmarking high-fanout cluster
+// workloads (10 subjects, 10 publishers, 50 subscribers) showed the 128
+// MiB default overflowing and dropping 10-15% of deliveries, while 256
+// MiB and above dropped none; 512 MiB is chosen for headroom.
 //
 // This is a ceiling, not a reservation: the buffer grows only with
 // actual backlog, so a connection that keeps up holds nearly nothing and
