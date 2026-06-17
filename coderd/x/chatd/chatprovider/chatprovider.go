@@ -82,6 +82,7 @@ type ProviderAPIKeys struct {
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
+	RegionByProvider  map[string]string
 }
 
 // Empty reports whether no provider keys or base URL overrides are set.
@@ -89,7 +90,8 @@ func (k ProviderAPIKeys) Empty() bool {
 	return k.OpenAI == "" &&
 		k.Anthropic == "" &&
 		len(k.ByProvider) == 0 &&
-		len(k.BaseURLByProvider) == 0
+		len(k.BaseURLByProvider) == 0 &&
+		len(k.RegionByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.
@@ -111,6 +113,7 @@ type ConfiguredProvider struct {
 	Provider                   string
 	APIKey                     string
 	BaseURL                    string
+	Region                     string
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
@@ -166,6 +169,15 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
+// Region returns the configured region for a provider.
+func (k ProviderAPIKeys) Region(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.RegionByProvider == nil {
+		return ""
+	}
+	return strings.TrimSpace(k.RegionByProvider[normalized])
+}
+
 // ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
 func ProviderBaseURLHostname(baseURL string) string {
 	parsed, ok := parseProviderBaseURL(baseURL)
@@ -198,6 +210,14 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		ByProvider:        map[string]string{},
 		BaseURLByProvider: map[string]string{},
 	}
+	setRegion := func(provider, region string) {
+		if region = strings.TrimSpace(region); region != "" {
+			if merged.RegionByProvider == nil {
+				merged.RegionByProvider = map[string]string{}
+			}
+			merged.RegionByProvider[provider] = region
+		}
+	}
 	for provider, apiKey := range fallback.ByProvider {
 		normalizedProvider := NormalizeProvider(provider)
 		if normalizedProvider == "" {
@@ -215,6 +235,13 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if url := strings.TrimSpace(baseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+	}
+	for provider, region := range fallback.RegionByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		setRegion(normalizedProvider, region)
 	}
 
 	if merged.OpenAI != "" {
@@ -236,6 +263,7 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		setRegion(normalizedProvider, provider.Region)
 
 		switch normalizedProvider {
 		case fantasyopenai.Name:
@@ -267,6 +295,14 @@ func ResolveUserProviderKeys(
 		ByProvider:        map[string]string{},
 		BaseURLByProvider: map[string]string{},
 	}
+	setRegion := func(provider, region string) {
+		if region = strings.TrimSpace(region); region != "" {
+			if merged.RegionByProvider == nil {
+				merged.RegionByProvider = map[string]string{}
+			}
+			merged.RegionByProvider[provider] = region
+		}
+	}
 	for provider, apiKey := range fallback.ByProvider {
 		normalizedProvider := NormalizeProvider(provider)
 		if normalizedProvider == "" {
@@ -284,6 +320,13 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(baseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+	}
+	for provider, region := range fallback.RegionByProvider {
+		normalizedProvider := NormalizeProvider(provider)
+		if normalizedProvider == "" {
+			continue
+		}
+		setRegion(normalizedProvider, region)
 	}
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
@@ -312,6 +355,7 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
@@ -515,17 +559,28 @@ func (*ModelCatalog) ListConfiguredProviderAvailability(
 }
 
 // PruneDisabledProviderKeys removes entries from keys that do not
-// belong to an enabled provider. It clears ByProvider and
-// BaseURLByProvider entries for disabled providers and zeroes the
-// legacy OpenAI and Anthropic fields when those providers are not
-// enabled.
+// belong to an enabled provider. It clears ByProvider,
+// BaseURLByProvider, and RegionByProvider entries for disabled
+// providers and zeroes the legacy OpenAI and Anthropic fields when
+// those providers are not enabled.
 func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
 	for provider := range keys.ByProvider {
 		if _, ok := enabledProviders[provider]; ok {
 			continue
 		}
 		delete(keys.ByProvider, provider)
+	}
+	for provider := range keys.BaseURLByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
 		delete(keys.BaseURLByProvider, provider)
+	}
+	for provider := range keys.RegionByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.RegionByProvider, provider)
 	}
 	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
 		keys.OpenAI = ""
@@ -878,6 +933,9 @@ func ModelFromConfig(
 	case fantasybedrock.Name:
 		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithUserAgent(userAgent),
+		}
+		if region := providerKeys.Region(provider); region != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithRegion(region))
 		}
 		if apiKey != "" {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))

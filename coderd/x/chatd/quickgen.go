@@ -60,7 +60,7 @@ var preferredTitleModels = []struct {
 	{fantasyopenai.Name, "gpt-4o-mini"},
 	{fantasygoogle.Name, "gemini-2.5-flash"},
 	{fantasyazure.Name, "gpt-4o-mini"},
-	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{fantasybedrock.Name, "global.anthropic.claude-haiku-4-5-20251001-v1:0"},
 	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
