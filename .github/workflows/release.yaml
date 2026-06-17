@@ -15,6 +15,10 @@ on:
         description: "Optional: commit SHA to tag (defaults to HEAD of selected branch)"
         type: string
         default: ""
+      dry_run:
+        description: "Dry run: calculate the version and print the release plan without creating tags, branches, or publishing."
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -87,12 +91,16 @@ jobs:
           RELEASE_TYPE: ${{ inputs.release_type }}
           REF_NAME: ${{ github.ref_name }}
           COMMIT_SHA: ${{ inputs.commit_sha }}
+          DRY_RUN: ${{ inputs.dry_run }}
         run: |
           set -euo pipefail
 
           args=(--type "$RELEASE_TYPE" --ref "$REF_NAME")
           if [[ -n "$COMMIT_SHA" ]]; then
             args+=(--commit "$COMMIT_SHA")
+          fi
+          if [[ "$DRY_RUN" == "true" ]]; then
+            args+=(--dry-run)
           fi
 
           output=$(go run ./scripts/release-action prepare-release "${args[@]}")
@@ -134,6 +142,10 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "> **Dry run:** no tags, branches, or releases were created. The build and publish jobs are skipped." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Generate release notes
         env:
           VERSION: ${{ steps.prepare.outputs.version }}
@@ -154,6 +166,10 @@ jobs:
   release:
     name: Build and publish
     needs: [check-perms, prepare-release]
+    # Skip the build and publish steps entirely in dry-run mode. This
+    # cascades to publish-homebrew, publish-winget, and update-docs,
+    # which all depend on this job.
+    if: ${{ !inputs.dry_run }}
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
       # Required to publish a release
