@@ -1493,16 +1493,43 @@ WHERE id = @id::uuid;
 
 -- name: HydrateAgentChatsContext :exec
 -- Stamps the pinned hash and error on every not-yet-hydrated chat for
--- an agent (context_aggregate_hash IS NULL). Runs as a side effect of
--- an agent push so chats created before the agent was ready pick up the
--- snapshot without a dirty event. Does not bump updated_at.
-UPDATE chats
-SET
-    context_aggregate_hash = @aggregate_hash,
-    context_error = @context_error
-WHERE agent_id = @agent_id::uuid
-    AND archived = false
-    AND context_aggregate_hash IS NULL;
+-- an agent (context_aggregate_hash IS NULL) and copies the agent's
+-- current context resources onto those chats in the same statement, so
+-- a chat's pinned hash and pinned bodies are always written together.
+-- Runs as a side effect of an agent push and of chat-create hydration,
+-- so chats created before the agent was ready pick up the snapshot
+-- without a dirty event. The ON CONFLICT upsert is defensive: a
+-- not-yet-hydrated chat has no pinned rows, so it normally inserts.
+-- Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+-- sets chat_context_resources.updated_at on the rows it rewrites.
+WITH hydrated AS (
+    UPDATE chats
+    SET
+        context_aggregate_hash = @aggregate_hash,
+        context_error = @context_error
+    WHERE agent_id = @agent_id::uuid
+        AND archived = false
+        AND context_aggregate_hash IS NULL
+    RETURNING id
+)
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM hydrated
+CROSS JOIN workspace_agent_context_resources r
+WHERE r.workspace_agent_id = @agent_id::uuid
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body_kind = EXCLUDED.body_kind,
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
+    updated_at = now();
 
 -- name: MarkChatsContextDirtyByAgent :many
 -- Flips active, already-hydrated chats for an agent to dirty when the
@@ -1519,6 +1546,34 @@ WHERE agent_id = @agent_id::uuid
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
+
+-- name: InsertAgentContextResourcesIntoChat :exec
+-- Copies an agent's current context resources onto a single chat. Pair
+-- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+-- transaction) to re-pin a chat to its agent's latest snapshot from the
+-- refresh endpoint and on agent rebinding.
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM workspace_agent_context_resources r
+WHERE r.workspace_agent_id = @agent_id::uuid;
+
+-- name: DeleteChatContextResourcesByChatID :exec
+-- Clears a chat's pinned context resources. Used as the first half of a
+-- clear-then-copy re-pin, and on its own when the chat's current agent
+-- has no snapshot.
+DELETE FROM chat_context_resources
+WHERE chat_id = @chat_id::uuid;
+
+-- name: ListChatContextResourcesByChatID :many
+-- Lists a chat's pinned context resources, ordered deterministically by
+-- source.
+SELECT * FROM chat_context_resources
+WHERE chat_id = @chat_id::uuid
+ORDER BY source ASC;
 
 -- name: LinkChatFiles :one
 -- LinkChatFiles inserts file associations into the chat_file_links

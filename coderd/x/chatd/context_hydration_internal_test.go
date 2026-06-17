@@ -36,6 +36,8 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 			SnapshotError:    "one source failed",
 		}
 
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(snapshot, nil)
 		// The guarded agent-scoped stamp, not an unconditional SetChatContextSnapshot,
@@ -70,6 +72,8 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 		agentID := uuid.New()
 		// ErrNoRows means the agent has not pushed yet; no stamp is written
 		// (HydrateAgentChatsContext has no EXPECT, so a call would fail the test).
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
 		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows)
 
