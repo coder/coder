@@ -649,7 +649,7 @@ jobs:
       - name: Extract Linear release version
         id: linear_version
         run: |
-          # Skip RC releases — they must not complete the Linear release.
+          # Skip RC releases. They must not complete the Linear release.
           if [[ "$VERSION" == *-rc* ]]; then
             echo "RC release (${VERSION}), skipping Linear release completion."
             echo "skip=true" >> "$GITHUB_OUTPUT"

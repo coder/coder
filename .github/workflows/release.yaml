@@ -130,7 +130,7 @@ jobs:
           release_branch="release/${base_version%.*}"
 
           if [[ "$version" == *-rc.* ]]; then
-            echo "RC release detected — skipping release branch check (RC tags are cut from main)."
+            echo "RC release detected, skipping release branch check (RC tags are cut from main)."
           else
             branch_contains_tag=$(git branch --remotes --contains "${GITHUB_REF}" --list "*/${release_branch}" --format='%(refname)')
             if [[ -z "${branch_contains_tag}" ]]; then
