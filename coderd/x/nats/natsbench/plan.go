@@ -6,10 +6,10 @@ import (
 	"slices"
 )
 
-// plan assigns publishers and subscribers to subjects round-robin by
-// index, places each one on a pseudorandom replica node (seeded for
-// reproducibility), and precomputes each subscriber's expected delivery
-// count so the workload can do exact accounting.
+// plan assigns each publisher and subscriber to a subject round-robin by
+// index (index % Subjects), places each one on a pseudorandom replica
+// node (seeded for reproducibility), and precomputes each subscriber's
+// expected delivery count so the workload can do exact accounting.
 //
 // Node placement is random to model a real deployment, where each
 // client connects to an arbitrary replica. Round-robin node placement
