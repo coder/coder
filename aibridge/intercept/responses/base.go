@@ -33,7 +33,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -67,7 +66,7 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	// per-attempt in the failover loop.
 	if byok, ok := intercept.AsBYOK(i.cred); ok {
 		i.logger.Debug(ctx, "using byok auth",
-			slog.F("auth_header", byok.Header), slog.F("key_hint", utils.MaskSecret(byok.Secret)),
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
 		opts = append(opts, option.WithAPIKey(byok.Secret))
 	}

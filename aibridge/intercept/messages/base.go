@@ -212,7 +212,7 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	// per-attempt in the failover loop, and Bedrock signs via AWS below.
 	if byok, ok := intercept.AsBYOK(i.cred); ok {
 		i.logger.Debug(ctx, "using byok auth",
-			slog.F("auth_header", byok.Header), slog.F("key_hint", utils.MaskSecret(byok.Secret)),
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
 		)
 		switch byok.Header {
 		case intercept.AuthHeaderAuthorization:
