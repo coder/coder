@@ -375,6 +375,10 @@ For tool-specific configuration details, check the [client compatibility table](
 
 ### TLS certificate verification failures
 
+TLS verification can fail on either leg of the connection: between AI Gateway Proxy and Coder, or between the AI tool and the proxy.
+
+#### AI Gateway Proxy to Coder
+
 When the Coder access URL uses HTTPS, AI Gateway Proxy must trust the TLS certificate served at that URL (either Coder's
 own certificate or a load balancer's, if TLS is terminated there) to forward intercepted requests to AI Gateway.
 This primarily affects deployments using a self-signed or internal CA, since publicly trusted CAs are typically already
@@ -389,7 +393,7 @@ To resolve, add the CA that signed that certificate to the [system trust store](
 AI Gateway Proxy (the same host as `coderd`, since the proxy runs in-process), then restart Coder so AI Gateway Proxy
 reloads the trust store.
 
-#### AI tool does not trust the proxy CA certificate
+#### Client to AI Gateway Proxy
 
 If an AI tool fails with:
 
@@ -434,8 +438,15 @@ rejected as expired or invalid.
 > An initial `missing_credentials` warning can accompany a connection that ultimately succeeds.
 
 Confirm the token is current and set in the password field of the proxy credentials.
+See [Client Configuration](#client-configuration) for how to configure the proxy credentials.
 
 ### Connections to internal services are blocked
 
-Tunneled requests to private or reserved IP ranges are blocked by default. To allow specific internal networks, set
+Tunneled requests to private or reserved IP ranges are blocked by default. When a request is blocked, coderd logs:
+
+```shell
+WARN  blocking connection to private/reserved IP  hostname=... port=... resolved_ip=...
+```
+
+To allow specific internal networks, set
 [`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](#restricting-proxy-access).
