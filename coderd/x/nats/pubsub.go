@@ -17,16 +17,41 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// DefaultMaxPending is the per-client outbound pending byte budget.
-const DefaultMaxPending int64 = 128 << 20
+// DefaultServerMaxPendingBytes caps how many bytes the embedded NATS server will
+// hold in memory for a single client connection while waiting to write
+// them out to that connection. Each message the server needs to deliver
+// to a connection is queued in that connection's outbound buffer until
+// the socket can accept it; if the consumer reads slower than messages
+// arrive, the buffer grows. When it exceeds this cap, NATS declares the
+// connection a slow consumer and drops messages rather than buffer
+// without bound.
+//
+// In a cluster, every local subscriber is coalesced onto a single
+// subscribe connection, so cross-node fan-out bursts concentrate on one
+// outbound buffer. Benchmarking high-fanout cluster workloads (10
+// subjects, 10 publishers, 50 subscribers) showed the 128 MiB default
+// overflowing and dropping 10-15% of deliveries, while 256 MiB and above
+// dropped none; 512 MiB is chosen for headroom.
+//
+// This is a ceiling, not a reservation: the buffer grows only with
+// actual backlog, so a connection that keeps up holds nearly nothing and
+// raising the cap costs memory only during the overload bursts it
+// absorbs.
+const DefaultServerMaxPendingBytes int64 = 512 << 20
 
 // DefaultListenerQueueSize is the per-listener inbox capacity used when
 // PendingLimits.Msgs is not positive.
 const DefaultListenerQueueSize = 1024
 
-// DefaultPendingBytes is the per-subscription pending byte limit used
-// when PendingLimits.Bytes is zero.
-const DefaultPendingBytes = 512 * 1024 * 1024
+// DefaultClientMaxPendingBytes is the per-subscription pending byte limit used
+// when PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes, which
+// bounds the server-side outbound buffer for a whole connection, this
+// bounds the client-side inbound buffer for a single subscription:
+// messages the client has received but the listener callback has not yet
+// processed. A slow listener overflows this and the subscription drops
+// messages, signaling pubsub.ErrDroppedMessages. The companion message
+// count limit is DefaultListenerQueueSize.
+const DefaultClientMaxPendingBytes = 512 * 1024 * 1024
 
 const (
 	defaultClusterName   = "coder"
@@ -210,7 +235,7 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 		out.Msgs = -1
 	}
 	if out.Bytes == 0 {
-		out.Bytes = DefaultPendingBytes
+		out.Bytes = DefaultClientMaxPendingBytes
 	}
 	return out
 }
