@@ -7,6 +7,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -18,7 +19,7 @@ func TestServer(t *testing.T) {
 
 		socketPath := testutil.AgentSocketPath(t)
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
+		server, err := agentsocket.NewServer(logger, unit.NewManager(), agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		require.NoError(t, server.Close())
 	})
@@ -28,10 +29,10 @@ func TestServer(t *testing.T) {
 
 		socketPath := testutil.AgentSocketPath(t)
 		logger := slog.Make().Leveled(slog.LevelDebug)
-		server1, err := agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
+		server1, err := agentsocket.NewServer(logger, unit.NewManager(), agentsocket.WithPath(socketPath))
 		require.NoError(t, err)
 		defer server1.Close()
-		_, err = agentsocket.NewServer(logger, agentsocket.WithPath(socketPath))
+		_, err = agentsocket.NewServer(logger, unit.NewManager(), agentsocket.WithPath(socketPath))
 		require.ErrorContains(t, err, "create socket")
 	})
 }

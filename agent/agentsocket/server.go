@@ -33,7 +33,12 @@ type Server struct {
 }
 
 // NewServer creates a new agent socket server.
-func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
+// The provided unit.Manager is used for dependency tracking and must not be nil.
+func NewServer(logger slog.Logger, unitManager *unit.Manager, opts ...Option) (*Server, error) {
+	if unitManager == nil {
+		return nil, xerrors.New("unit manager must not be nil")
+	}
+
 	options := &options{}
 	for _, opt := range opts {
 		opt(options)
@@ -45,7 +50,7 @@ func NewServer(logger slog.Logger, opts ...Option) (*Server, error) {
 		path:   options.path,
 		service: &DRPCAgentSocketService{
 			logger:      logger,
-			unitManager: unit.NewManager(),
+			unitManager: unitManager,
 		},
 	}
 

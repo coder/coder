@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -354,4 +355,116 @@ func (*fakeScriptLogger) Flush(context.Context) error {
 
 func newFakeScriptLogger() *fakeScriptLogger {
 	return &fakeScriptLogger{make(chan agentsdk.Log, 100)}
+}
+
+func setupWithUnitManager(t *testing.T, getScriptLogger func(uuid.UUID) agentscripts.ScriptLogger) (*agentscripts.Runner, *unit.Manager) {
+	t.Helper()
+	logger := testutil.Logger(t)
+	fs := afero.NewOsFs()
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = s.Close()
+	})
+	m := unit.NewManager()
+	r := agentscripts.New(agentscripts.Options{
+		LogDir:          t.TempDir(),
+		DataDirBase:     t.TempDir(),
+		Logger:          logger,
+		SSHServer:       s,
+		Filesystem:      fs,
+		GetScriptLogger: getScriptLogger,
+		UnitManager:     m,
+	})
+	return r, m
+}
+
+func TestScriptUnitsRegistered(t *testing.T) {
+	t.Parallel()
+
+	runner, mgr := setupWithUnitManager(t, func(_ uuid.UUID) agentscripts.ScriptLogger {
+		return noopScriptLogger{}
+	})
+	defer runner.Close()
+
+	scripts := []codersdk.WorkspaceAgentScript{
+		{
+			ID:          uuid.New(),
+			LogSourceID: uuid.New(),
+			DisplayName: "Install Tools",
+			Script:      "echo install",
+			RunOnStart:  true,
+		},
+		{
+			ID:          uuid.New(),
+			LogSourceID: uuid.New(),
+			DisplayName: "Configure Environment",
+			Script:      "echo configure",
+			RunOnStart:  true,
+		},
+		{
+			ID:          uuid.New(),
+			LogSourceID: uuid.New(),
+			DisplayName: "", // No display name; should be skipped.
+			Script:      "echo nameless",
+			RunOnStart:  true,
+		},
+	}
+
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+	err := runner.Init(scripts, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+
+	// All scripts with a display name should be registered as pending.
+	units := mgr.ListUnits()
+	require.Len(t, units, 2)
+
+	unitsByName := make(map[unit.ID]unit.Unit)
+	for _, u := range units {
+		unitsByName[u.ID()] = u
+	}
+
+	for _, name := range []string{"Install Tools", "Configure Environment"} {
+		u, ok := unitsByName[unit.ID(name)]
+		require.True(t, ok, "expected unit %q to be registered", name)
+		require.Equal(t, unit.StatusPending, u.Status(), "unit %q should be pending", name)
+	}
+}
+
+func TestScriptUnitsLifecycle(t *testing.T) {
+	t.Parallel()
+
+	runner, mgr := setupWithUnitManager(t, func(_ uuid.UUID) agentscripts.ScriptLogger {
+		return noopScriptLogger{}
+	})
+	defer runner.Close()
+
+	scriptName := "My Script"
+	scripts := []codersdk.WorkspaceAgentScript{
+		{
+			ID:          uuid.New(),
+			LogSourceID: uuid.New(),
+			DisplayName: scriptName,
+			Script:      "echo lifecycle",
+			RunOnStart:  true,
+		},
+	}
+
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
+	err := runner.Init(scripts, aAPI.ScriptCompleted)
+	require.NoError(t, err)
+
+	// Before execution: pending.
+	u, err := mgr.Unit(unit.ID(scriptName))
+	require.NoError(t, err)
+	require.Equal(t, unit.StatusPending, u.Status())
+
+	// Execute the script.
+	err = runner.Execute(context.Background(), agentscripts.ExecuteStartScripts)
+	require.NoError(t, err)
+
+	// After execution: completed.
+	u, err = mgr.Unit(unit.ID(scriptName))
+	require.NoError(t, err)
+	require.Equal(t, unit.StatusComplete, u.Status())
 }
