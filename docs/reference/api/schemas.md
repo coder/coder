@@ -3059,6 +3059,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -3575,6 +3576,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "auto_repair_links": true,
     "client_cert_file": "string",
     "client_id": "string",
     "client_key_file": "string",
@@ -5771,6 +5773,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "auto_repair_links": true,
   "client_cert_file": "string",
   "client_id": "string",
   "client_key_file": "string",
@@ -5828,6 +5831,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auto_repair_links`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |

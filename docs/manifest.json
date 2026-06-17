@@ -1692,6 +1692,11 @@
 							"path": "reference/cli/server_dbcrypt_rotate.md"
 						},
 						{
+							"title": "server fix-oidc-links",
+							"description": "Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.",
+							"path": "reference/cli/server_fix-oidc-links.md"
+						},
+						{
 							"title": "server postgres-builtin-serve",
 							"description": "Run the built-in PostgreSQL deployment.",
 							"path": "reference/cli/server_postgres-builtin-serve.md"

@@ -16102,6 +16102,9 @@ const docTemplate = `{
                 "auth_url_params": {
                     "type": "object"
                 },
+                "auto_repair_links": {
+                    "type": "boolean"
+                },
                 "client_cert_file": {
                     "type": "string"
                 },

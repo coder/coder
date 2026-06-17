@@ -1,0 +1,203 @@
+package cli_test
+
+import (
+	"context"
+	"database/sql"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+)
+
+// fakeOIDCDiscovery returns a test server serving an OIDC discovery document.
+func fakeOIDCDiscovery(t *testing.T, issuer string) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/openid-configuration" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"issuer": issuer,
+		})
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestFixOIDCLinks(t *testing.T) {
+	t.Parallel()
+
+	t.Run("DryRun", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
+
+		const expectedIssuer = "https://accounts.google.com"
+		oidcSrv := fakeOIDCDiscovery(t, expectedIssuer)
+
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		db := database.New(sqlDB)
+
+		// Seed a correctly linked user.
+		correctUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    correctUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  expectedIssuer + "||sub-correct",
+		})
+
+		// Seed a mismatched user.
+		mismatchedUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://old-issuer.example.com||sub-mismatched",
+		})
+
+		inv, _ := clitest.New(t,
+			"server", "fix-oidc-links",
+			"--postgres-url", connectionURL,
+			"--issuer-url", oidcSrv.URL,
+			"--dry-run",
+		)
+
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		pty.ExpectMatchContext(ctx, "Resolved OIDC issuer: \""+expectedIssuer+"\"")
+		pty.ExpectMatchContext(ctx, "Total OIDC users:")
+		pty.ExpectMatchContext(ctx, "Correctly linked:")
+		pty.ExpectMatchContext(ctx, "Linked to other issuers:")
+		w.RequireSuccess()
+
+		// Verify no changes were made.
+		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "https://old-issuer.example.com||sub-mismatched", link.LinkedID, "dry-run must not modify the database")
+	})
+
+	t.Run("Confirm", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
+
+		const expectedIssuer = "https://accounts.google.com"
+		oidcSrv := fakeOIDCDiscovery(t, expectedIssuer)
+
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		db := database.New(sqlDB)
+
+		// Seed a correctly linked user.
+		correctUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    correctUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  expectedIssuer + "||sub-correct",
+		})
+
+		// Seed mismatched users.
+		mismatchedUser := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "https://old-issuer.example.com||sub-mismatched",
+		})
+
+		inv, _ := clitest.New(t,
+			"server", "fix-oidc-links",
+			"--postgres-url", connectionURL,
+			"--issuer-url", oidcSrv.URL,
+			"--yes",
+		)
+
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		pty.ExpectMatchContext(ctx, "Reset 1 linked IDs.")
+		w.RequireSuccess()
+
+		// Verify the mismatched link was reset.
+		link, err := db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    mismatchedUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "", link.LinkedID)
+
+		// Verify the correct link is unchanged.
+		link, err = db.GetUserLinkByUserIDLoginType(ctx, database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    correctUser.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, expectedIssuer+"||sub-correct", link.LinkedID)
+	})
+
+	t.Run("NothingToDo", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		t.Cleanup(cancel)
+
+		const expectedIssuer = "https://accounts.google.com"
+		oidcSrv := fakeOIDCDiscovery(t, expectedIssuer)
+
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := sql.Open("postgres", connectionURL)
+		require.NoError(t, err)
+		defer sqlDB.Close()
+
+		db := database.New(sqlDB)
+
+		// All users correctly linked.
+		user := dbgen.User(t, db, database.User{LoginType: database.LoginTypeOIDC})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  expectedIssuer + "||sub-correct",
+		})
+
+		inv, _ := clitest.New(t,
+			"server", "fix-oidc-links",
+			"--postgres-url", connectionURL,
+			"--issuer-url", oidcSrv.URL,
+			"--yes",
+		)
+
+		pty := ptytest.New(t).Attach(inv)
+		w := clitest.StartWithWaiter(t, inv)
+
+		pty.ExpectMatchContext(ctx, "Nothing to do")
+		w.RequireSuccess()
+	})
+}
