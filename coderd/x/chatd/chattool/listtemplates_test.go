@@ -308,6 +308,11 @@ func TestTemplateAllowlistEnforcement(t *testing.T) {
 	})
 }
 
+// TestListTemplates_ReadmeExcerpt runs list_templates through a dbauthz-wrapped
+// store as an ordinary org member (not the site owner) and asserts which
+// templates surface a readme_excerpt. Exercising it under real RBAC as a
+// non-owner also guards against regressing to a system-scoped version query that
+// only the owner role can run.
 func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 	t.Parallel()
 
@@ -318,59 +323,42 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		UserID:         user.ID,
 		OrganizationID: org.ID,
 	})
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// seed creates a template whose active version carries readme, linking the
+	// version back to the template so GetTemplateVersionByID authorizes via the
+	// parent template (the production path), not the broader org-level fallback
+	// used for unlinked versions.
+	seed := func(name, readme string) database.Template {
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Readme:         readme,
+		})
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			Name:            name,
+			ActiveVersionID: tv.ID,
+		})
+		require.NoError(t, db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
+			ID:         tv.ID,
+			TemplateID: uuid.NullUUID{UUID: tmpl.ID, Valid: true},
+			UpdatedAt:  tv.UpdatedAt,
+			Name:       tv.Name,
+			Message:    tv.Message,
+		}))
+		return tmpl
+	}
 
 	longReadme := strings.TrimSpace(strings.Repeat("Go with Docker. ", 90))
-	withReadme := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-		Readme:         longReadme + "\n",
-	})
-	tWith := dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       user.ID,
-		Name:            "with-readme",
-		ActiveVersionID: withReadme.ID,
-	})
-
+	tWith := seed("with-readme", longReadme+"\n")
 	// A README that opens with a frontmatter block: the excerpt must skip the
 	// metadata and surface the body prose instead.
-	frontmatterReadme := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-		Readme:         "---\ndisplay_name: With Frontmatter\ntags: [a, b]\n---\nRouting prose for the agent.\n",
-	})
-	tFrontmatter := dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       user.ID,
-		Name:            "frontmatter-readme",
-		ActiveVersionID: frontmatterReadme.ID,
-	})
-
-	emptyReadme := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-		Readme:         " \n\t\n",
-	})
-	_ = dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       user.ID,
-		Name:            "empty-readme",
-		ActiveVersionID: emptyReadme.ID,
-	})
-
+	tFrontmatter := seed("frontmatter-readme", "---\ndisplay_name: With Frontmatter\ntags: [a, b]\n---\nRouting prose for the agent.\n")
+	seed("empty-readme", " \n\t\n")
 	// A frontmatter-only README has no body, so the excerpt is omitted.
-	frontmatterOnlyReadme := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-		Readme:         "---\ndisplay_name: Only Frontmatter\n---\n",
-	})
-	_ = dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       user.ID,
-		Name:            "frontmatter-only",
-		ActiveVersionID: frontmatterOnlyReadme.ID,
-	})
-
+	seed("frontmatter-only", "---\ndisplay_name: Only Frontmatter\n---\n")
 	_ = dbgen.Template(t, db, database.Template{
 		OrganizationID:  org.ID,
 		CreatedBy:       user.ID,
@@ -378,8 +366,16 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 		ActiveVersionID: uuid.New(),
 	})
 
-	ctx := testutil.Context(t, testutil.WaitShort)
-	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{OwnerID: user.ID})
+	// Run through a dbauthz-wrapped store so the tool executes under real RBAC as
+	// the member, not with the raw store's implicit system access.
+	authzDB := dbauthz.New(
+		db,
+		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
+		slogtest.Make(t, nil),
+		testAccessControlStorePointer(),
+	)
+
+	tool := chattool.ListTemplates(authzDB, org.ID, chattool.ListTemplatesOptions{OwnerID: user.ID})
 	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "list", Name: "list_templates", Input: "{}"})
 	require.NoError(t, err)
 	require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
@@ -423,66 +419,4 @@ func TestListTemplates_ReadmeExcerpt(t *testing.T) {
 	// Frontmatter is skipped so the body prose fills the excerpt.
 	require.Equal(t, "Routing prose for the agent.", byID[tFrontmatter.ID.String()]["readme_excerpt"],
 		"readme_excerpt should skip frontmatter and surface the body")
-}
-
-// TestListTemplates_ReadmeExcerpt_NonOwnerRBAC runs list_templates under a
-// real dbauthz wrapper as an ordinary org member (not the site owner) and
-// asserts readme_excerpt is still surfaced. This guards against regressing to
-// a system-scoped version query that only the owner role can run.
-func TestListTemplates_ReadmeExcerpt_NonOwnerRBAC(t *testing.T) {
-	t.Parallel()
-
-	db, _ := dbtestutil.NewDB(t)
-	member := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         member.ID,
-		OrganizationID: org.ID,
-	})
-	ctx := testutil.Context(t, testutil.WaitShort)
-	readme := "# Title\n\nMember-visible routing context.\n"
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      member.ID,
-		Readme:         readme,
-	})
-	tmpl := dbgen.Template(t, db, database.Template{
-		OrganizationID:  org.ID,
-		CreatedBy:       member.ID,
-		Name:            "with-readme",
-		ActiveVersionID: tv.ID,
-	})
-	// Link the version to the template so GetTemplateVersionByID authorizes via
-	// the parent template (the production path), not the broader org-level
-	// fallback used for unlinked versions.
-	require.NoError(t, db.UpdateTemplateVersionByID(ctx, database.UpdateTemplateVersionByIDParams{
-		ID:         tv.ID,
-		TemplateID: uuid.NullUUID{UUID: tmpl.ID, Valid: true},
-		UpdatedAt:  tv.UpdatedAt,
-		Name:       tv.Name,
-		Message:    tv.Message,
-	}))
-
-	// Seed with the raw store, but run the tool through a dbauthz-wrapped store
-	// so the tool executes under real RBAC as the member.
-	authzDB := dbauthz.New(
-		db,
-		rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()),
-		slogtest.Make(t, nil),
-		testAccessControlStorePointer(),
-	)
-
-	tool := chattool.ListTemplates(authzDB, org.ID, chattool.ListTemplatesOptions{OwnerID: member.ID})
-	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "list", Name: "list_templates", Input: "{}"})
-	require.NoError(t, err)
-	require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
-
-	var result map[string]any
-	require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
-	items := result["templates"].([]any)
-	require.Len(t, items, 1)
-	m := items[0].(map[string]any)
-	require.Equal(t, tmpl.ID.String(), m["id"])
-	require.Equal(t, "Title\nMember-visible routing context.", m["readme_excerpt"],
-		"a non-owner member must still receive readme_excerpt")
 }

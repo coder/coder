@@ -16,11 +16,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// innerTextMarkdown renders Markdown to HTML for InnerTextFromMarkdown. The
-// Table extension renders table cells as text rather than pipe-delimited lines,
-// and WithUnsafe passes embedded raw HTML through so its inner text survives.
-// Safe for concurrent Convert: the parser lazily initializes once via sync.Once
-// on first use, then only reads its configuration.
+// innerTextMarkdown converts Markdown to HTML for InnerTextFromMarkdown. Table
+// renders cells as text (not pipe-delimited lines); WithUnsafe lets embedded raw
+// HTML through so its inner text survives. Safe to share: goldmark inits the
+// parser once via sync.Once, then only reads it.
 var innerTextMarkdown = goldmark.New(
 	goldmark.WithExtensions(extension.Table),
 	goldmark.WithRendererOptions(goldmarkhtml.WithUnsafe()),
@@ -123,15 +122,12 @@ func HTMLFromMarkdown(markdown string) string {
 	return string(bytes.TrimSpace(gomarkdown.Render(doc, renderer)))
 }
 
-// InnerTextFromMarkdown renders Markdown (including any embedded raw HTML) to
-// HTML and returns its visible text content (its "innerText"), preserving line
-// structure: block boundaries, code-block lines, and table cells stay on
-// separate lines while intra-line whitespace is collapsed. Link text is kept and
-// link URLs dropped; images and badges are dropped whole; code blocks and tables
-// are preserved as text.
+// InnerTextFromMarkdown renders Markdown (including embedded raw HTML) to HTML
+// and returns its visible text ("innerText"). Block, code-line, and table-cell
+// boundaries become newlines and intra-line whitespace is collapsed; link text
+// is kept but URLs, images, and badges are dropped.
 //
-// The input is treated as untrusted: a panic from the markdown or HTML parser is
-// recovered and returned as an error.
+// Input is untrusted: a parser panic is recovered and returned as an error.
 func InnerTextFromMarkdown(markdown string) (out string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -146,10 +142,9 @@ func InnerTextFromMarkdown(markdown string) (out string, err error) {
 
 	z := xhtml.NewTokenizer(&rendered)
 	var b strings.Builder
-	// script and style are raw-text elements: their content is the single text
-	// token that follows the start tag. Skip that one run rather than tracking a
-	// depth, so a stray </script> or an unterminated tag cannot latch the skip on
-	// and swallow the rest of the document.
+	// script and style are raw-text elements: their body is the single text token
+	// after the start tag. Skip just that token (not a running depth) so a stray
+	// </script> or unterminated tag can't swallow the rest of the document.
 	skipNextText := false
 	for {
 		if z.Next() == xhtml.ErrorToken {
@@ -163,16 +158,14 @@ func InnerTextFromMarkdown(markdown string) (out string, err error) {
 				skipNextText = false
 				continue
 			}
-			// Write text as-is; goldmark's newlines are normalized below.
 			_, _ = b.WriteString(tok.Data)
 		default:
 			skipNextText = false
 		}
 	}
 
-	// Collapse intra-line whitespace but keep newlines, so code lines, table
-	// cells, and block boundaries stay on separate lines. Blank lines are
-	// dropped, leaving a single newline between content lines.
+	// Collapse intra-line whitespace but keep newlines so code lines, table
+	// cells, and block boundaries stay on separate lines; drop blank lines.
 	var lines []string
 	for _, line := range strings.Split(b.String(), "\n") {
 		if f := strings.Join(strings.Fields(line), " "); f != "" {

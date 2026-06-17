@@ -7,10 +7,8 @@ import (
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// readmeInputMaxBytes bounds how much README markdown is parsed. version.Readme
-// is only capped by the ~100MB tarball limit, so without this a pathological
-// README would build an HTML tree far larger than any excerpt needs. 64KiB sits
-// well above the largest (8192-rune) output cap.
+// version.Readme is capped only by the ~100MB tarball limit, so bound it to
+// 64KiB to avoid pathological inputs.
 const readmeInputMaxBytes = 64 * 1024
 
 // readmeText returns the README as bounded, frontmatter-stripped plain text
@@ -24,10 +22,9 @@ func readmeText(readme string, maxRunes int) string {
 	return coderstrings.Truncate(text, maxRunes, coderstrings.TruncateWithEllipsis)
 }
 
-// boundInput caps s at readmeInputMaxBytes before any full-input pass touches the
-// untrusted README, backing off to the last newline within the cap so the parser
-// is not handed a fragment cut mid-line (which would leak debris such as a
-// half-written tag). A run longer than the cap with no newline is hard-cut.
+// boundInput caps s at readmeInputMaxBytes, backing off to the last newline so
+// the parser never sees a line cut mid-tag. A capped run with no newline is
+// hard-cut.
 func boundInput(s string) string {
 	if len(s) <= readmeInputMaxBytes {
 		return s
@@ -38,15 +35,13 @@ func boundInput(s string) string {
 	return s[:readmeInputMaxBytes]
 }
 
-// stripReadmeFrontmatter removes a single leading "---" fenced YAML
-// frontmatter block so README routing prose, not metadata, fills the budget.
-// READMEs without a leading fence, or with an unterminated fence, are returned
-// with only a leading BOM stripped. A column-0 "---" inside a quoted multiline
-// scalar can be mistaken for the closing fence; this is accepted to avoid a full
-// YAML parser.
+// stripReadmeFrontmatter removes a single leading "---" YAML frontmatter block
+// so routing prose, not metadata, fills the budget. Without a leading or closing
+// fence, only a leading BOM is stripped. A "---" inside a quoted YAML scalar can
+// be misread as the closing fence; accepted to avoid a full YAML parser.
 func stripReadmeFrontmatter(readme string) string {
-	// Strip a leading UTF-8 BOM so a fence on the first line still matches, and
-	// so the BOM never leaks into the output on the unchanged paths below.
+	// Strip a leading UTF-8 BOM so the first-line fence matches and the BOM
+	// never leaks downstream.
 	s := strings.TrimPrefix(readme, "\ufeff")
 	lines := strings.Split(s, "\n")
 

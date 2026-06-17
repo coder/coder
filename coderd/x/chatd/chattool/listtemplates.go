@@ -135,10 +135,9 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				if desc := strings.TrimSpace(t.Description); desc != "" {
 					item["description"] = truncateRunes(desc, 200)
 				}
-				// Fetch the active version README for routing context, best-effort
-				// and template-scoped like read_template. The batched query needs
-				// ResourceSystem and would drop excerpts for non-owners, so accept
-				// an N+1 bounded by the page size.
+				// Per-template README fetch: the batched query needs ResourceSystem
+				// and would drop excerpts for non-owners, so accept an N+1 bounded
+				// by the page size.
 				if version, vErr := db.GetTemplateVersionByID(ctx, t.ActiveVersionID); vErr == nil {
 					if excerpt := readmeText(version.Readme, ListTemplatesReadmeExcerptMaxRunes); excerpt != "" {
 						item["readme_excerpt"] = excerpt

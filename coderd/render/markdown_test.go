@@ -126,7 +126,11 @@ func TestInnerTextFromMarkdown(t *testing.T) {
 		{"UnterminatedScriptEatsRest", "Intro.\n\n<script>\nvar x = 1;\n\nMore prose.", "Intro."},
 		{"EmphasisAndCodeSpanFlattened", "Run `make` for **speed**.", "Run make for speed."},
 		{"HeadingParagraphOrder", "# Title\n\nLead.\n\n## Prereq\n\nDetail.", "Title\nLead.\nPrereq\nDetail."},
-		{"SmartPunctuationNotApplied", `He typed "10--20" verbatim.`, `He typed "10--20" verbatim.`},
+		// Straight ASCII punctuation must stay ASCII (goldmark applies no
+		// Typographer), and existing smart punctuation passes through unchanged.
+		// The smart characters are \u-escaped so the docs linter does not rewrite
+		// them back to ASCII in source.
+		{"PunctuationNotRewritten", "Range 10\u201420, \"q\", ... and smart \u201cq\u201d \u2014 \u2026", "Range 10\u201420, \"q\", ... and smart \u201cq\u201d \u2014 \u2026"},
 		{"EmptyReturnsEmpty", "", ""},
 		{"WhitespaceReturnsEmpty", "   \n\t\n", ""},
 	}
