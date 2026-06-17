@@ -123,7 +123,7 @@ jobs:
           reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'local' }}
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
-          filter_mode: "file"
+          filter_mode: ${{ github.event_name == 'pull_request' && 'file' || 'nofilter' }}
 
       - name: Send Slack notification
         if: failure() && github.event_name != 'pull_request'
