@@ -1,4 +1,5 @@
 import {
+	MockProvisionerJob,
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockTemplateVersion2,
@@ -275,6 +276,102 @@ describe("api.ts", () => {
 		});
 	});
 
+	describe("changeWorkspaceVersion", () => {
+		it("stops workspace before changing version if running", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "succeeded",
+			});
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id);
+
+			expect(API.stopWorkspace).toHaveBeenCalledWith(MockWorkspace.id);
+			expect(API.postWorkspaceBuild).toHaveBeenCalledWith(MockWorkspace.id, {
+				transition: "start",
+				template_version_id: MockTemplateVersion2.id,
+				rich_parameter_values: [],
+			});
+		});
+
+		it("does not stop workspace if already stopped", async () => {
+			vi.spyOn(API, "stopWorkspace");
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				template_version_id: MockTemplateVersion2.id,
+				transition: "start",
+			});
+
+			await API.changeWorkspaceVersion(
+				MockStoppedWorkspace,
+				MockTemplateVersion2.id,
+			);
+
+			expect(API.stopWorkspace).not.toHaveBeenCalled();
+		});
+
+		it("rejects if stop is canceled", async () => {
+			vi.spyOn(API, "stopWorkspace").mockResolvedValueOnce({
+				...MockWorkspaceBuild,
+				transition: "stop",
+			});
+			vi.spyOn(API, "waitForBuild").mockResolvedValueOnce({
+				...MockProvisionerJob,
+				status: "canceled",
+			});
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce(
+				[],
+			);
+			vi.spyOn(API, "postWorkspaceBuild");
+
+			await expect(
+				API.changeWorkspaceVersion(MockWorkspace, MockTemplateVersion2.id),
+			).rejects.toThrow("Workspace stop was canceled");
+			expect(API.postWorkspaceBuild).not.toHaveBeenCalled();
+		});
+
+		it("throws MissingBuildParameters for missing params", async () => {
+			vi.spyOn(API, "getWorkspaceBuildParameters").mockResolvedValueOnce([]);
+			vi.spyOn(API, "getTemplateVersionRichParameters").mockResolvedValueOnce([
+				MockTemplateVersionParameter1,
+				{ ...MockTemplateVersionParameter2, mutable: false },
+			]);
+
+			let error = new Error();
+			try {
+				await API.changeWorkspaceVersion(
+					MockStoppedWorkspace,
+					MockTemplateVersion2.id,
+				);
+			} catch (e) {
+				error = e as Error;
+			}
+
+			expect(error).toBeInstanceOf(MissingBuildParameters);
+			expect((error as MissingBuildParameters).parameters).toEqual([
+				MockTemplateVersionParameter1,
+				{ ...MockTemplateVersionParameter2, mutable: false },
+			]);
+		});
+	});
+
 	describe("chat configuration endpoints", () => {
 		it.each<[string, () => Promise<unknown>, unknown]>([
 			[
@@ -283,11 +380,6 @@ describe("api.ts", () => {
 				{
 					providers: [],
 				},
-			],
-			[
-				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
-				[],
 			],
 			[
 				"/api/experimental/chats/model-configs",
@@ -311,10 +403,6 @@ describe("api.ts", () => {
 				() => API.experimental.getChatModels(),
 			],
 			[
-				"/api/experimental/chats/providers",
-				() => API.experimental.getChatProviderConfigs(),
-			],
-			[
 				"/api/experimental/chats/model-configs",
 				() => API.experimental.getChatModelConfigs(),
 			],
@@ -324,6 +412,142 @@ describe("api.ts", () => {
 
 			await expect(request()).rejects.toBe(expectedError);
 			expect(axiosInstance.get).toHaveBeenCalledWith(path);
+		});
+	});
+
+	describe("user secrets endpoints", () => {
+		const userId = "me";
+		const secretName = "EXAMPLE_TOKEN";
+		const secretNameWithPathChars = "foo%2Fbar value";
+		const userSecret: TypesGen.UserSecret = {
+			id: "00000000-0000-0000-0000-000000000001",
+			name: secretName,
+			description: "Example token for tests",
+			env_name: secretName,
+			file_path: "",
+			created_at: "2026-05-04T00:00:00Z",
+			updated_at: "2026-05-04T00:00:00Z",
+		};
+
+		it("lists user secrets with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: [userSecret],
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecrets(userId);
+
+			expect(axiosMockGet).toHaveBeenCalledWith("/api/v2/users/me/secrets");
+			expect(result).toStrictEqual([userSecret]);
+		});
+
+		it("gets a user secret with the correct method and URL", async () => {
+			const axiosMockGet = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.get = axiosMockGet;
+
+			const result = await API.getUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockGet).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("creates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.CreateUserSecretRequest = {
+				name: secretName,
+				value: "",
+				description: "Example token for tests",
+				env_name: secretName,
+			};
+			const axiosMockPost = vi.fn().mockResolvedValueOnce({
+				data: userSecret,
+			});
+			axiosInstance.post = axiosMockPost;
+
+			const result = await API.createUserSecret(userId, request);
+
+			expect(axiosMockPost).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets",
+				request,
+			);
+			expect(result).toStrictEqual(userSecret);
+		});
+
+		it("updates a user secret with the correct method and URL", async () => {
+			const request: TypesGen.UpdateUserSecretRequest = {
+				description: "Updated example token for tests",
+			};
+			const updatedSecret: TypesGen.UserSecret = {
+				...userSecret,
+				description: "Updated example token for tests",
+				updated_at: "2026-05-04T00:01:00Z",
+			};
+			const axiosMockPatch = vi.fn().mockResolvedValueOnce({
+				data: updatedSecret,
+			});
+			axiosInstance.patch = axiosMockPatch;
+
+			const result = await API.updateUserSecret(
+				userId,
+				secretNameWithPathChars,
+				request,
+			);
+
+			expect(axiosMockPatch).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+				request,
+			);
+			expect(result).toStrictEqual(updatedSecret);
+		});
+
+		it("deletes a user secret with the correct method and URL", async () => {
+			const axiosMockDelete = vi.fn().mockResolvedValueOnce(undefined);
+			axiosInstance.delete = axiosMockDelete;
+
+			await API.deleteUserSecret(userId, secretNameWithPathChars);
+
+			expect(axiosMockDelete).toHaveBeenCalledWith(
+				"/api/v2/users/me/secrets/foo%252Fbar%20value",
+			);
+		});
+	});
+
+	describe("chat ACL endpoints", () => {
+		const chatId = "chat-1";
+		const chatACL: TypesGen.ChatACL = {
+			users: [],
+			groups: [],
+		};
+
+		it("gets a chat ACL", async () => {
+			vi.spyOn(axiosInstance, "get").mockResolvedValueOnce({
+				data: chatACL,
+			});
+
+			const result = await API.experimental.getChatACL(chatId);
+
+			expect(axiosInstance.get).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+			);
+			expect(result).toStrictEqual(chatACL);
+		});
+
+		it("updates a chat ACL", async () => {
+			const request: TypesGen.UpdateChatACL = {
+				user_roles: { "user-1": "read" },
+			};
+
+			vi.spyOn(axiosInstance, "patch").mockResolvedValueOnce({});
+
+			await API.experimental.updateChatACL(chatId, request);
+
+			expect(axiosInstance.patch).toHaveBeenCalledWith(
+				`/api/experimental/chats/${chatId}/acl`,
+				request,
+			);
 		});
 	});
 });

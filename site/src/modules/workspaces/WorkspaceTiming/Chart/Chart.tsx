@@ -13,15 +13,13 @@ export const Chart = (props: HTMLProps<HTMLDivElement>) => {
 		<div
 			{...props}
 			className={cn("flex h-full flex-col", props.className)}
-			style={
-				{
-					"--header-height": "40px",
-					"--section-padding": "16px",
-					"--x-axis-rows-gap": "20px",
-					"--y-axis-width": "200px",
-					...props.style,
-				} as React.CSSProperties
-			}
+			style={{
+				"--header-height": "40px",
+				"--section-padding": "16px",
+				"--x-axis-rows-gap": "20px",
+				"--y-axis-width": "200px",
+				...props.style,
+			}}
 		/>
 	);
 };

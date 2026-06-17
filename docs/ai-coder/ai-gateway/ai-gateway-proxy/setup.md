@@ -15,17 +15,17 @@ Once enabled, `coderd` runs the `aibridgeproxyd` in-memory and intercepts traffi
 AI Gateway Proxy is disabled by default. To enable it, set the following configuration options:
 
 ```shell
-CODER_AIBRIDGE_ENABLED=true \
-CODER_AIBRIDGE_PROXY_ENABLED=true \
-CODER_AIBRIDGE_PROXY_CERT_FILE=/path/to/ca.crt \
-CODER_AIBRIDGE_PROXY_KEY_FILE=/path/to/ca.key \
+CODER_AI_GATEWAY_ENABLED=true \
+CODER_AI_GATEWAY_PROXY_ENABLED=true \
+CODER_AI_GATEWAY_PROXY_CERT_FILE=/path/to/ca.crt \
+CODER_AI_GATEWAY_PROXY_KEY_FILE=/path/to/ca.key \
 coder server
 # or via CLI flags:
 coder server \
-  --aibridge-enabled=true \
-  --aibridge-proxy-enabled=true \
-  --aibridge-proxy-cert-file=/path/to/ca.crt \
-  --aibridge-proxy-key-file=/path/to/ca.key
+  --ai-gateway-enabled=true \
+  --ai-gateway-proxy-enabled=true \
+  --ai-gateway-proxy-cert-file=/path/to/ca.crt \
+  --ai-gateway-proxy-key-file=/path/to/ca.key
 ```
 
 Both the certificate and private key are required for AI Gateway Proxy to start.
@@ -35,11 +35,11 @@ By default, the proxy listener accepts plain HTTP connections.
 To serve the listener over HTTPS, provide a TLS certificate and key:
 
 ```shell
-CODER_AIBRIDGE_PROXY_TLS_CERT_FILE=/path/to/listener.crt
-CODER_AIBRIDGE_PROXY_TLS_KEY_FILE=/path/to/listener.key
+CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE=/path/to/listener.crt
+CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE=/path/to/listener.key
 # or via CLI flags:
---aibridge-proxy-tls-cert-file=/path/to/listener.crt
---aibridge-proxy-tls-key-file=/path/to/listener.key
+--ai-gateway-proxy-tls-cert-file=/path/to/listener.crt
+--ai-gateway-proxy-tls-key-file=/path/to/listener.key
 ```
 
 Both files must be provided together.
@@ -85,12 +85,12 @@ The IP validation and TCP connect happen atomically, preventing DNS rebinding at
 To prevent unauthorized use, restrict network access to the proxy so that only authorized clients can connect.
 
 In case the Coder access URL resolves to a private address, it is automatically exempt from this restriction so the proxy can always reach its own deployment.
-If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server.md#--aibridge-proxy-allowed-private-cidrs)):
+If you need to allow access to additional internal networks via the proxy, use the Allowlist CIDRs option ([`CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS`](../../../reference/cli/server.md#--ai-gateway-proxy-allowed-private-cidrs)):
 
 ```shell
-CODER_AIBRIDGE_PROXY_ALLOWED_PRIVATE_CIDRS=10.0.0.0/8,172.16.0.0/12
+CODER_AI_GATEWAY_PROXY_ALLOWED_PRIVATE_CIDRS=10.0.0.0/8,172.16.0.0/12
 # or via CLI flag:
---aibridge-proxy-allowed-private-cidrs=10.0.0.0/8,172.16.0.0/12
+--ai-gateway-proxy-allowed-private-cidrs=10.0.0.0/8,172.16.0.0/12
 ```
 
 ## CA Certificate
@@ -124,8 +124,8 @@ openssl req -new -x509 -days 3650 \
 Configure AI Gateway Proxy with both files:
 
 ```shell
-CODER_AIBRIDGE_PROXY_CERT_FILE=/path/to/ca.crt
-CODER_AIBRIDGE_PROXY_KEY_FILE=/path/to/ca.key
+CODER_AI_GATEWAY_PROXY_CERT_FILE=/path/to/ca.crt
+CODER_AI_GATEWAY_PROXY_KEY_FILE=/path/to/ca.key
 ```
 
 ### Corporate CA certificate
@@ -136,8 +136,8 @@ This simplifies deployment since AI tools that already trust your organization's
 Your organization's CA issues a certificate and private key pair for the proxy. Configure the proxy with both files:
 
 ```shell
-CODER_AIBRIDGE_PROXY_CERT_FILE=/path/to/intermediate-ca.crt
-CODER_AIBRIDGE_PROXY_KEY_FILE=/path/to/intermediate-ca.key
+CODER_AI_GATEWAY_PROXY_CERT_FILE=/path/to/intermediate-ca.crt
+CODER_AI_GATEWAY_PROXY_KEY_FILE=/path/to/intermediate-ca.key
 ```
 
 ### Securing the private key
@@ -182,11 +182,11 @@ The AI Gateway Proxy enforces a minimum TLS version of 1.2.
 In addition to the required proxy configuration, set the following to enable TLS on the proxy:
 
 ```shell
-CODER_AIBRIDGE_PROXY_TLS_CERT_FILE=/path/to/listener.crt
-CODER_AIBRIDGE_PROXY_TLS_KEY_FILE=/path/to/listener.key
+CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE=/path/to/listener.crt
+CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE=/path/to/listener.key
 # or via CLI flags:
---aibridge-proxy-tls-cert-file=/path/to/listener.crt
---aibridge-proxy-tls-key-file=/path/to/listener.key
+--ai-gateway-proxy-tls-cert-file=/path/to/listener.crt
+--ai-gateway-proxy-tls-key-file=/path/to/listener.key
 ```
 
 Both files must be provided together. If only one is set, the proxy will fail to start.
@@ -243,7 +243,7 @@ If your organization requires all outbound traffic to pass through a corporate p
 
 ### How it works
 
-Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AIBRIDGE_PROXY_UPSTREAM`](../../../reference/cli/server.md#--aibridge-proxy-upstream).
+Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AI_GATEWAY_PROXY_UPSTREAM`](../../../reference/cli/server.md#--ai-gateway-proxy-upstream).
 
 MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then communicates with AI providers.
 To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the Coder server process.
@@ -260,21 +260,17 @@ To ensure AI Gateway also routes requests through the upstream proxy, make sure 
 Configure the upstream proxy URL:
 
 ```shell
-CODER_AIBRIDGE_PROXY_UPSTREAM=http://<corporate-proxy-url>:8080
+CODER_AI_GATEWAY_PROXY_UPSTREAM=http://<corporate-proxy-url>:8080
 ```
 
 For HTTPS upstream proxies, if the upstream proxy uses a certificate not trusted by the system, provide the CA certificate:
 
 ```shell
-CODER_AIBRIDGE_PROXY_UPSTREAM=https://<corporate-proxy-url>:8080
-CODER_AIBRIDGE_PROXY_UPSTREAM_CA=/path/to/corporate-ca.crt
+CODER_AI_GATEWAY_PROXY_UPSTREAM=https://<corporate-proxy-url>:8080
+CODER_AI_GATEWAY_PROXY_UPSTREAM_CA=/path/to/corporate-ca.crt
 ```
 
-If the system already trusts the upstream proxy's CA certificate, [`CODER_AIBRIDGE_PROXY_UPSTREAM_CA`](../../../reference/cli/server.md#--aibridge-proxy-upstream-ca) is not required.
-
-<!-- TODO(ssncferreira): Add Client Configuration section -->
-
-<!-- TODO(ssncferreira): Add Troubleshooting section -->
+If the system already trusts the upstream proxy's CA certificate, [`CODER_AI_GATEWAY_PROXY_UPSTREAM_CA`](../../../reference/cli/server.md#--ai-gateway-proxy-upstream-ca) is not required.
 
 ## Client Configuration
 
@@ -315,7 +311,7 @@ Consult the tool's documentation for specific instructions.
 Download the certificate:
 
 ```shell
-curl -o coder-aibridge-proxy-ca.pem \
+curl -o coder-ai-gateway-proxy-ca.pem \
   -H "Coder-Session-Token: ${CODER_SESSION_TOKEN}" \
   https://<coder-url>/api/v2/aibridge/proxy/ca-cert.pem
 ```
@@ -326,7 +322,7 @@ When [TLS is enabled](#proxy-tls-configuration) on the proxy, AI tools must trus
 Combine both certificates into a single PEM file:
 
 ```shell
-cat coder-aibridge-proxy-ca.pem listener.crt > combined-ca.pem
+cat coder-ai-gateway-proxy-ca.pem listener.crt > combined-ca.pem
 ```
 
 Use this combined file for any of the environment variables listed below.
@@ -346,10 +342,10 @@ Set the environment variables associated with the AI tool's runtime.
 If you're unsure which runtime the tool uses, or if you use multiple AI tools, the simplest approach is to set all of them:
 
 ```shell
-export NODE_EXTRA_CA_CERTS="/path/to/coder-aibridge-proxy-ca.pem"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
-export REQUESTS_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
-export CURL_CA_BUNDLE="/path/to/coder-aibridge-proxy-ca.pem"
+export NODE_EXTRA_CA_CERTS="/path/to/coder-ai-gateway-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
+export REQUESTS_CA_BUNDLE="/path/to/coder-ai-gateway-proxy-ca.pem"
+export CURL_CA_BUNDLE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 #### System trust store
@@ -360,7 +356,7 @@ This makes the certificate trusted by all applications on the system.
 On Linux:
 
 ```shell
-sudo cp coder-aibridge-proxy-ca.pem /usr/local/share/ca-certificates/
+sudo cp coder-ai-gateway-proxy-ca.pem /usr/local/share/ca-certificates/
 sudo update-ca-certificates
 ```
 
@@ -374,3 +370,21 @@ This provides a seamless experience where users don't need to configure anything
 <!-- TODO(ssncferreira): Add registry link for AI Gateway Proxy module for Coder workspaces: https://github.com/coder/internal/issues/1187 -->
 
 For tool-specific configuration details, check the [client compatibility table](../clients/index.md#compatibility) for clients that require proxy-based integration.
+
+## Troubleshooting
+
+### TLS certificate verification failures
+
+When the Coder access URL uses HTTPS, AI Gateway Proxy must trust the TLS certificate served at that URL (either Coder's
+own certificate or a load balancer's, if TLS is terminated there) to forward intercepted requests to AI Gateway.
+This primarily affects deployments using a self-signed or internal CA, since publicly trusted CAs are typically already
+in the system trust store.
+If the certificate is signed by a CA not in the system trust store, the connection fails and the Coder server logs:
+
+```shell
+WARN: Cannot read TLS response from mitm'd server tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+To resolve, add the CA that signed that certificate to the [system trust store](#system-trust-store) of the host running
+AI Gateway Proxy (the same host as `coderd`, since the proxy runs in-process), then restart Coder so AI Gateway Proxy
+reloads the trust store.

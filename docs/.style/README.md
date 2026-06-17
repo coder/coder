@@ -1,20 +1,25 @@
 # `docs/.style/`
 
-Contributor-facing style guide and prose-lint configuration for the Coder
-documentation. Nothing under this directory is published to
+Contributor-facing style and content guidance for the Coder documentation.
+Nothing under this directory is published to
 [coder.com/docs](https://coder.com/docs).
 
 ## What lives here
 
-| Path             | Purpose                                                    |
-|------------------|------------------------------------------------------------|
-| `style-guide.md` | Canonical prose style guide for `docs/`                    |
-| `styles/Coder/`  | Custom Vale rules specific to Coder (product voice, terms) |
+| Path                    | Purpose                                                             |
+|-------------------------|---------------------------------------------------------------------|
+| `content-guidelines.md` | Canonical content rules: what belongs in `docs/`, what doesn't, why |
+| `style-guide.md`        | Canonical prose style guide for `docs/`                             |
+| `styles/Coder/`         | Custom Vale rules specific to Coder (product voice, terms)          |
 
-See [`docs/.style/style-guide.md`](style-guide.md) for the style guide
-itself. The `styles/Coder/` directory holds the custom Vale rules that
-enforce parts of the guide. Vale's `StylesPath` in the repo-root
-`.vale.ini` points at `docs/.style/styles/`.
+See [`content-guidelines.md`](content-guidelines.md) for the canonical
+rules on what content belongs in `docs/` and what should be routed
+elsewhere (blog, changelog, Support KB, etc.).
+
+See [`style-guide.md`](style-guide.md) for the prose style guide. The
+`styles/Coder/` directory holds the custom Vale rules that enforce parts
+of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` (added in
+a follow-up PR) points at `docs/.style/styles/`.
 
 ## Why a hidden directory
 
@@ -51,49 +56,28 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale, once configured per
-  [DOCS-40](https://linear.app/codercom/issue/DOCS-40), lints the entire
+- Vale, once `.vale.ini` lands in a follow-up PR, lints the entire
   `docs/**/*.md` set including `docs/.style/style-guide.md`.
 
 ## What does not run against this directory
 
 - `linkspector`: excluded via `excludedDirs` in `.github/.linkspector.yml`.
   External-link checking is overkill for contributor tooling.
+- The `deploy-docs` workflow: its `paths:` filter negates `docs/.style/**`,
+  and the surgical-reindex git-diff invocation excludes the same path. See
+  `.github/workflows/deploy-docs.yaml`.
+- The `docs-preview` workflow: its `paths:` filter negates `docs/.style/**`,
+  so `.style`-only PRs produce no preview comment. The selection logic also
+  skips `.style` files when picking the preview target on mixed PRs. See
+  `.github/workflows/docs-preview.yaml`.
+
+## Editing the content guidelines
+
+Open a PR against `docs/.style/content-guidelines.md`. The rules in that
+file apply to humans and AI-assisted workflows alike; when it conflicts
+with another style or contributing doc in the repo, it governs.
 
 ## Editing the style guide
 
-Open a PR against `docs/.style/style-guide.md`. The rule-specific tickets
-in the
-[Docs style guide](https://linear.app/codercom/project/docs-style-guide-7828445b9afc)
-project fill in the body section by section.
-
-## Running Vale locally
-
-The canonical entry point is `make lint/prose`. The first run downloads
-the pinned Vale binary and the configured style packages (Google, alex,
-write-good) into `docs/.style/styles/`; subsequent runs are fast.
-
-```shell
-make lint/prose
-```
-
-The target uses Vale's `--no-exit` flag so the baseline error count from
-un-overridden Google rules does not produce a non-zero exit; real
-failures (missing binary, bad config) still propagate. To see Vale's raw
-exit code on errors, drop `--no-exit` and invoke the binary directly:
-
-```shell
-make docs/.style/.vale-synced
-./build/vale-* docs/    # or pass specific files
-```
-
-The `./build/vale-*` glob expands to whatever Vale binaries exist under
-`build/`. If you bump the version in `mise.toml` without running
-`make clean`, multiple `vale-*` binaries can coexist and the glob expands
-to multiple arguments, breaking the invocation. The canonical `make
-lint/prose` path uses the exact versioned binary and is always correct;
-run `make clean` before using the direct-invocation form if you've ever
-changed the pinned version locally.
-
-`.vale.ini` at the repo root selects the curated rule set. See its
-inline comments for the rationale on each enabled or disabled rule.
+Open a PR against `docs/.style/style-guide.md`. Follow-up PRs add each
+rule and the matching style-guide section together.

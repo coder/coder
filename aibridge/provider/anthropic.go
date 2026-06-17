@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -70,7 +69,7 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 	if cfg.KeyPool == nil && cfg.Key != "" {
 		// keypool.New only fails on empty or duplicate keys,
 		// neither possible with a single non-empty key.
-		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
 		if err != nil {
 			panic(fmt.Sprintf("anthropic provider: build single-key pool: %s", err))
 		}
@@ -95,6 +94,8 @@ func (*Anthropic) Type() string {
 func (p *Anthropic) Name() string {
 	return p.cfg.Name
 }
+
+func (*Anthropic) Enabled() bool { return true }
 
 func (p *Anthropic) RoutePrefix() string {
 	return fmt.Sprintf("/%s", p.Name())
@@ -169,15 +170,10 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 		authHeaderName = "Authorization"
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
-			credSecret = k.Value()
-		}
 	}
-
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	var interceptor intercept.Interceptor
@@ -198,44 +194,22 @@ func (*Anthropic) AuthHeader() string {
 	return "X-Api-Key"
 }
 
-func (p *Anthropic) InjectAuthHeader(headers *http.Header) {
-	if headers == nil {
-		headers = &http.Header{}
-	}
-
-	// BYOK: if the request already carries user-supplied credentials,
-	// do not overwrite them with the centralized key.
-	if headers.Get("X-Api-Key") != "" || headers.Get("Authorization") != "" {
-		return
-	}
-
-	// Centralized: pull a single key from the pool. No failover
-	// or exhaustion handling here.
-	// TODO(ssncferreira): replace with RoundTripper-based auth
-	// in the upstack passthrough PR.
-	if p.cfg.KeyPool == nil {
-		return
-	}
-	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
-		headers.Set(p.AuthHeader(), key.Value())
-	}
+func (p *Anthropic) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
 }
 
 func (p *Anthropic) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
-	name := p.Name()
 	return keypool.KeyFailoverConfig{
-		Pool: p.cfg.KeyPool,
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("X-Api-Key") != "" || r.Header.Get("Authorization") != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
 			h.Set("X-Api-Key", key)
 		},
-		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
-		},
-		BuildExhaustedResponse: func(err error) *http.Response {
-			return messages.ProcessKeyPoolError(err).ToResponse()
+		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
+			return messages.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
 		},
 	}
 }

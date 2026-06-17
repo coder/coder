@@ -17,11 +17,14 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -37,6 +40,7 @@ type modelOverrideConfigResolver func(
 
 type modelOverrideProviderKeysResolver func(
 	context.Context,
+	uuid.UUID,
 	uuid.UUID,
 ) (chatprovider.ProviderAPIKeys, error)
 
@@ -75,30 +79,6 @@ type messageAgentArgs struct {
 
 type closeAgentArgs struct {
 	ChatID string `json:"chat_id"`
-}
-
-// providerConfigured reports whether a provider has an API key from
-// static configuration or from the database provider configuration.
-func (p *Server) providerConfigured(ctx context.Context, provider string) (bool, error) {
-	normalizedProvider := chatprovider.NormalizeProvider(provider)
-	if normalizedProvider == "" {
-		return false, nil
-	}
-	if p.providerAPIKeys.APIKey(normalizedProvider) != "" {
-		return true, nil
-	}
-
-	dbProviders, err := p.configCache.EnabledProviders(ctx)
-	if err != nil {
-		return false, xerrors.Errorf("list enabled chat providers: %w", err)
-	}
-	for _, prov := range dbProviders {
-		if chatprovider.NormalizeProvider(prov.Provider) == normalizedProvider &&
-			strings.TrimSpace(prov.APIKey) != "" {
-			return true, nil
-		}
-	}
-	return false, nil
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
@@ -177,12 +157,12 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
-	providers []database.ChatProvider,
+	providers []database.AIProvider,
 	providerName string,
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
 			return true
 		}
 	}
@@ -292,7 +272,7 @@ func (p *Server) resolveConfiguredModelOverride(
 		return database.ChatModelConfig{}, false, nil
 	}
 
-	providerKeys, err := resolveProviderKeys(ctx, ownerID)
+	providerKeys, err := resolveProviderKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -425,7 +405,7 @@ func (p *Server) resolvePersonalModelOverride(
 		}
 		return database.ChatModelConfig{}, false, nil
 	}
-	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID)
+	providerKeys, err := p.resolveUserProviderAPIKeys(ctx, ownerID, modelConfigAIProviderID(modelConfig))
 	if err != nil {
 		return database.ChatModelConfig{}, false, xerrors.Errorf(
 			"resolve provider API keys: %w",
@@ -499,6 +479,13 @@ func (p *Server) resolveSubagentModelConfigID(
 	return modelConfig.ID, nil
 }
 
+func modelConfigAIProviderID(modelConfig database.ChatModelConfig) uuid.UUID {
+	if !modelConfig.AIProviderID.Valid {
+		return uuid.Nil
+	}
+	return modelConfig.AIProviderID.UUID
+}
+
 func (p *Server) resolveModelConfigAndNormalizedProvider(
 	ctx context.Context,
 	modelConfigID uuid.UUID,
@@ -509,6 +496,26 @@ func (p *Server) resolveModelConfigAndNormalizedProvider(
 	modelConfig, err := p.configCache.ModelConfigByID(ctx, modelConfigID)
 	if err != nil {
 		return database.ChatModelConfig{}, "", err
+	}
+	if !modelConfig.Enabled {
+		return database.ChatModelConfig{}, "", sql.ErrNoRows
+	}
+	if modelConfig.AIProviderID.Valid {
+		provider, err := p.db.GetAIProviderByID(ctx, modelConfig.AIProviderID.UUID)
+		if err != nil {
+			return database.ChatModelConfig{}, "", err
+		}
+		if !provider.Enabled {
+			return database.ChatModelConfig{}, "", sql.ErrNoRows
+		}
+		providerName := chatprovider.NormalizeProvider(string(provider.Type))
+		if providerName == "" {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		if _, _, err := chatprovider.ResolveModelWithProviderHint(modelConfig.Model, providerName); err != nil {
+			return database.ChatModelConfig{}, "", errInvalidModelOverrideMetadata
+		}
+		return modelConfig, providerName, nil
 	}
 	modelConfig, providerName, err := validateModelConfigAndResolveProvider(modelConfig)
 	if err != nil {
@@ -904,6 +911,14 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
+func (*Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	if !ok || apiKeyID == "" {
+		return "", xerrors.New("active turn API key ID is required for subagent messages")
+	}
+	return apiKeyID, nil
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
@@ -946,6 +961,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
+	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	childPlanMode := parent.PlanMode
 	if opts.planModeOverride != nil {
@@ -970,145 +989,114 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// for another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
 
-	var child database.Chat
-	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
-			return limitErr
-		}
-
-		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
-			OrganizationID:    parent.OrganizationID,
-			OwnerID:           parent.OwnerID,
-			WorkspaceID:       parent.WorkspaceID,
-			BuildID:           parent.BuildID,
-			AgentID:           parent.AgentID,
-			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
-			LastModelConfigID: modelConfigID,
-			Title:             title,
-			Mode:              opts.chatMode,
-			PlanMode:          childPlanMode,
-			ClientType:        parent.ClientType,
-			Status:            database.ChatStatusPending,
-			MCPServerIDs:      mcpServerIDs,
-			Labels: pqtype.NullRawMessage{
-				RawMessage: labelsJSON,
-				Valid:      true,
-			},
-			DynamicTools: pqtype.NullRawMessage{},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert child chat: %w", err)
-		}
-
-		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
-		if insertedChat.WorkspaceID.Valid {
-			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
-		}
-		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(workspaceAwareness),
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal workspace awareness: %w", err)
-		}
-		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
-		if err != nil {
-			return xerrors.Errorf("marshal initial user content: %w", err)
-		}
-
-		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-			ChatID: insertedChat.ID,
-		}
-		if deploymentPrompt != "" {
-			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(deploymentPrompt),
-			})
-			if err != nil {
-				return xerrors.Errorf("marshal deployment system prompt: %w", err)
-			}
-			appendChatMessage(&systemParams, newChatMessage(
-				database.ChatMessageRoleSystem,
-				deploymentContent,
-				database.ChatMessageVisibilityModel,
-				modelConfigID,
-				chatprompt.CurrentContentVersion,
-			))
-		}
-		if childSystemPrompt != "" {
-			childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(childSystemPrompt),
-			})
-			if err != nil {
-				return xerrors.Errorf("marshal child system prompt: %w", err)
-			}
-			appendChatMessage(&systemParams, newChatMessage(
-				database.ChatMessageRoleSystem,
-				childSystemPromptContent,
-				database.ChatMessageVisibilityModel,
-				modelConfigID,
-				chatprompt.CurrentContentVersion,
-			))
-		}
-		appendChatMessage(&systemParams, newChatMessage(
-			database.ChatMessageRoleSystem,
-			workspaceAwarenessContent,
-			database.ChatMessageVisibilityModel,
-			modelConfigID,
-			chatprompt.CurrentContentVersion,
-		))
-		if _, err := tx.InsertChatMessages(ctx, systemParams); err != nil {
-			return xerrors.Errorf("insert initial child system messages: %w", err)
-		}
-
-		child = insertedChat
-
-		// Copy persisted context before the initial child prompt so the
-		// child cannot be acquired until its inherited context is in
-		// place. signalWake runs only after commit.
-		copiedContextParts, err := copyParentContextMessages(ctx, p.logger, tx, parent, child)
-		if err != nil {
-			return xerrors.Errorf("copy parent context messages: %w", err)
-		}
-		if err := updateChildLastInjectedContext(ctx, p.logger, tx, child.ID, copiedContextParts); err != nil {
-			return xerrors.Errorf("update child injected context: %w", err)
-		}
-
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-			ChatID: insertedChat.ID,
-		}
-		appendChatMessage(&userParams, newChatMessage(
-			database.ChatMessageRoleUser,
-			userContent,
-			database.ChatMessageVisibilityBoth,
-			modelConfigID,
-			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID))
-		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
-			return xerrors.Errorf("insert initial child user message: %w", err)
-		}
-
-		return nil
-	}, nil)
-	if txErr != nil {
-		return database.Chat{}, xerrors.Errorf("create child chat: %w", txErr)
+	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
+		return database.Chat{}, limitErr
 	}
 
+	workspaceAwareness := workspaceDetachedNoCreateAwareness
+	if parent.WorkspaceID.Valid {
+		workspaceAwareness = workspaceAttachedAwareness
+	}
+	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(workspaceAwareness),
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
+	}
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
+	}
+
+	initialMessages := make([]chatstate.Message, 0, 4)
+	if deploymentPrompt != "" {
+		deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(deploymentPrompt),
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal deployment system prompt: %w", err)
+		}
+		initialMessages = append(initialMessages, systemMessage(deploymentContent, modelConfigID))
+	}
+	if childSystemPrompt != "" {
+		childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(childSystemPrompt),
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal child system prompt: %w", err)
+		}
+		initialMessages = append(initialMessages, systemMessage(childSystemPromptContent, modelConfigID))
+	}
+	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
+
+	copiedContextParts, err := copyParentContextMessages(ctx, p.logger, p.db, parent)
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("copy parent context messages: %w", err)
+	}
+	var lastInjectedContext pqtype.NullRawMessage
+	if len(copiedContextParts) > 0 {
+		filteredContent, err := chatprompt.MarshalParts(copiedContextParts)
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal copied context parts: %w", err)
+		}
+		initialMessages = append(initialMessages, userMessageWithAPIKeyID(
+			filteredContent,
+			modelConfigID,
+			parent.OwnerID,
+			childAPIKeyID,
+		))
+		lastInjectedContext, err = BuildLastInjectedContext(FilterContextPartsToLatestAgent(copiedContextParts))
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("build inherited injected context: %w", err)
+		}
+	}
+	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID))
+
+	publisher := p.pubsub
+	if publisher == nil {
+		publisher = dbpubsub.NewInMemory()
+	}
+	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+		OrganizationID:    parent.OrganizationID,
+		OwnerID:           parent.OwnerID,
+		WorkspaceID:       parent.WorkspaceID,
+		BuildID:           parent.BuildID,
+		AgentID:           parent.AgentID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
+		LastModelConfigID: modelConfigID,
+		Title:             title,
+		Mode:              opts.chatMode,
+		PlanMode:          childPlanMode,
+		MCPServerIDs:      mcpServerIDs,
+		Labels: pqtype.NullRawMessage{
+			RawMessage: labelsJSON,
+			Valid:      true,
+		},
+		DynamicTools:        pqtype.NullRawMessage{},
+		ClientType:          parent.ClientType,
+		InitialMessages:     initialMessages,
+		LastInjectedContext: lastInjectedContext,
+	})
+	if err != nil {
+		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
+	}
+
+	child := result.Chat
+
 	p.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
-	p.signalWake()
 	return child, nil
 }
 
 // copyParentContextMessages reads persisted context-file and skill
-// messages from the parent chat and inserts copies into the child
-// chat. This ensures sub-agents inherit the same instruction and
-// skill context as their parent without independently re-fetching
-// from the agent.
+// messages from the parent chat. This ensures sub-agents inherit the
+// same instruction and skill context as their parent without
+// independently re-fetching from the agent.
 func copyParentContextMessages(
 	ctx context.Context,
 	logger slog.Logger,
 	store database.Store,
 	parent database.Chat,
-	child database.Chat,
 ) ([]codersdk.ChatMessagePart, error) {
 	parentMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  parent.ID,
@@ -1118,12 +1106,7 @@ func copyParentContextMessages(
 		return nil, xerrors.Errorf("get parent messages: %w", err)
 	}
 
-	var (
-		copiedParts      []codersdk.ChatMessagePart
-		copiedRole       database.ChatMessageRole
-		copiedVisibility database.ChatMessageVisibility
-		copiedVersion    int16
-	)
+	var copiedParts []codersdk.ChatMessagePart
 	for _, msg := range parentMessages {
 		if !msg.Content.Valid {
 			continue
@@ -1142,11 +1125,6 @@ func copyParentContextMessages(
 		if len(messageContextParts) == 0 {
 			continue
 		}
-		if copiedParts == nil {
-			copiedRole = msg.Role
-			copiedVisibility = msg.Visibility
-			copiedVersion = msg.ContentVersion
-		}
 		copiedParts = append(copiedParts, messageContextParts...)
 	}
 	if len(copiedParts) == 0 {
@@ -1154,56 +1132,8 @@ func copyParentContextMessages(
 	}
 
 	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
-	filteredContent, err := chatprompt.MarshalParts(copiedParts)
-	if err != nil {
-		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
-	}
-
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-		ChatID: child.ID,
-	}
-	appendChatMessage(&msgParams, newChatMessage(
-		copiedRole,
-		filteredContent,
-		copiedVisibility,
-		child.LastModelConfigID,
-		copiedVersion,
-	))
-	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
-		return nil, xerrors.Errorf("insert context message: %w", err)
-	}
 
 	return copiedParts, nil
-}
-
-func updateChildLastInjectedContext(
-	ctx context.Context,
-	logger slog.Logger,
-	store database.Store,
-	chatID uuid.UUID,
-	parts []codersdk.ChatMessagePart,
-) error {
-	parts = FilterContextPartsToLatestAgent(parts)
-	param, err := BuildLastInjectedContext(parts)
-	if err != nil {
-		logger.Warn(ctx, "failed to marshal inherited injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return xerrors.Errorf("marshal inherited injected context: %w", err)
-	}
-	if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-		ID:                  chatID,
-		LastInjectedContext: param,
-	}); err != nil {
-		logger.Warn(ctx, "failed to update inherited injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return xerrors.Errorf("update inherited injected context: %w", err)
-	}
-
-	return nil
 }
 
 func (p *Server) sendSubagentMessage(
@@ -1232,10 +1162,16 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
+	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -1274,34 +1210,29 @@ func (p *Server) awaitSubagentCompletion(
 	timer := p.clock.NewTimer(timeout, "chatd", "subagent_await")
 	defer timer.Stop()
 
-	// When pubsub is available, subscribe for fast status
-	// notifications and use a less aggressive fallback poll.
-	// Without pubsub (single-instance / in-memory) fall back
-	// to the original 200ms polling.
-	pollInterval := subagentAwaitPollInterval
-	var notifyCh <-chan struct{}
-	if p.pubsub != nil {
-		pollInterval = subagentAwaitFallbackPoll
-		ch := make(chan struct{}, 1)
-		notifyCh = ch
-		cancel, subErr := p.pubsub.SubscribeWithErr(
-			coderdpubsub.ChatStreamNotifyChannel(targetChatID),
-			func(_ context.Context, _ []byte, _ error) {
-				// Non-blocking send so we never stall the
-				// pubsub dispatch goroutine.
-				select {
-				case ch <- struct{}{}:
-				default:
-				}
-			},
-		)
-		if subErr == nil {
-			defer cancel()
-		} else {
-			// Subscription failed; fall back to fast polling.
-			pollInterval = subagentAwaitPollInterval
-			notifyCh = nil
-		}
+	// Subscribe for fast status notifications and use a less
+	// aggressive fallback poll. If subscription fails, fall back to
+	// the original 200ms polling.
+	pollInterval := subagentAwaitFallbackPoll
+	ch := make(chan struct{}, 1)
+	notifyCh := (<-chan struct{})(ch)
+	cancel, subErr := p.pubsub.SubscribeWithErr(
+		coderdpubsub.ChatStateUpdateChannel(targetChatID),
+		func(_ context.Context, _ []byte, _ error) {
+			// Non-blocking send so we never stall the
+			// pubsub dispatch goroutine.
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		},
+	)
+	if subErr == nil {
+		defer cancel()
+	} else {
+		// Subscription failed; fall back to fast polling.
+		pollInterval = subagentAwaitPollInterval
+		notifyCh = nil
 	}
 
 	ticker := p.clock.NewTicker(pollInterval, "chatd", "subagent_poll")
@@ -1365,10 +1296,18 @@ func (p *Server) closeSubagent(
 		return targetChat, nil
 	}
 
-	updatedChat := p.InterruptChat(ctx, targetChat)
-	if updatedChat.Status != database.ChatStatusWaiting {
-		return database.Chat{}, xerrors.New("set target chat waiting")
+	updatedChat, err := p.InterruptChat(ctx, targetChat)
+	if err != nil {
+		// Idle / archived chats no longer satisfy the
+		// chatstate.Interrupt precondition. Surface the error
+		// so the caller can decide whether the parent expected
+		// the subagent to already be waiting.
+		return database.Chat{}, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
+	// chatstate.Interrupt lands active runs in `interrupting`
+	// and requires-action chats in `running`. Workers finalize
+	// the transition; accept either non-active status as long as
+	// the transition committed.
 	return updatedChat, nil
 }
 

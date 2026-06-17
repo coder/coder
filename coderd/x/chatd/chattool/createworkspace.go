@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -89,7 +90,11 @@ type createWorkspaceArgs struct {
 func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, options CreateWorkspaceOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"create_workspace",
-		"Create a new workspace from a template. Requires a "+
+		"Create a new workspace from a template only when workspace-backed "+
+			"file inspection, command execution, or file editing is required, "+
+			"or when the user explicitly asks for one. Do not use this as a "+
+			"default first step for requests answerable from conversation "+
+			"context, provider tools, or external MCP tools. Requires a "+
 			"template_id (from list_templates). Optionally provide "+
 			"a name and parameter values (from read_template). "+
 			"If no name is given, one will be generated. "+
@@ -234,7 +239,7 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				)
 			}
 
-			workspace, err := options.CreateFn(ctx, ownerID, createReq)
+			workspace, err := createWorkspaceWithNameRetry(ctx, ownerID, createReq, options.CreateFn)
 			if err != nil {
 				if responseErr, ok := httperror.IsResponder(err); ok {
 					_, resp := responseErr.Response()
@@ -632,11 +637,10 @@ func waitForAgentReady(
 		var lastErr error
 		for {
 			attemptCtx, attemptCancel := context.WithTimeout(agentCtx, agentAttemptTimeout)
-			conn, release, err := agentConnFn(attemptCtx, agentID)
+			_, release, err := agentConnFn(attemptCtx, agentID)
 			attemptCancel()
 			if err == nil {
 				release()
-				_ = conn
 				break
 			}
 			lastErr = err
@@ -697,6 +701,41 @@ func waitForAgentReady(
 		case <-ticker.C:
 		}
 	}
+}
+
+func createWorkspaceWithNameRetry(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	req codersdk.CreateWorkspaceRequest,
+	createFn CreateWorkspaceFn,
+) (codersdk.Workspace, error) {
+	workspace, err := createFn(ctx, ownerID, req)
+	if err == nil {
+		return workspace, nil
+	}
+	if !isWorkspaceNameConflict(err) {
+		return codersdk.Workspace{}, err
+	}
+
+	req.Name = generatedWorkspaceName(req.Name)
+	return createFn(ctx, ownerID, req)
+}
+
+func isWorkspaceNameConflict(err error) bool {
+	responseErr, ok := httperror.IsResponder(err)
+	if !ok {
+		return false
+	}
+	status, resp := responseErr.Response()
+	if status != http.StatusConflict {
+		return false
+	}
+	for _, validation := range resp.Validations {
+		if validation.Field == "name" {
+			return true
+		}
+	}
+	return false
 }
 
 func generatedWorkspaceName(seed string) string {

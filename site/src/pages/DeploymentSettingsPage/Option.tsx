@@ -129,7 +129,7 @@ export const OptionConfigFlag: FC<HTMLAttributes<HTMLDivElement>> = (props) => {
 			data-slot="option-config-flag"
 			className={cn(
 				"block rounded-[1px] bg-border-secondary px-1 py-0.5",
-				"text-[10px] font-semibold leading-none",
+				"text-[10px] font-semibold leading-none text-content-primary",
 				props.className,
 			)}
 		/>

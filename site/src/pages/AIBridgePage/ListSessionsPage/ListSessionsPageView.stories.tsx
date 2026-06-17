@@ -92,6 +92,7 @@ export const MultipleSessions: Story = {
 			...MockSession,
 			id: `session-${i}`,
 			threads: i + 1,
+			providers: i % 2 === 0 ? ["anthropic", "openai"] : ["anthropic"],
 			last_prompt: [
 				"But *can* I really fix it?",
 				"Can you refactor the entire authentication module to use JWT tokens instead of session cookies?",

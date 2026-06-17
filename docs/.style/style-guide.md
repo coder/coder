@@ -3,13 +3,15 @@
 This is the canonical style guide for the Coder documentation. It is the
 source of truth that the Vale rules in `docs/.style/styles/Coder/` enforce.
 
-Status: scaffold. Sections below are populated by the rule-specific
-tickets in the
-[Docs style guide](https://linear.app/codercom/project/docs-style-guide-7828445b9afc)
-project; this page starts as a table of contents and grows as those
-tickets land.
+Status: scaffold. Sections below are populated by follow-up PRs; this
+page starts as a table of contents and grows as those PRs land.
 
 ## How to use this guide
+
+This page is a scaffold while follow-up PRs land. Sections marked "To be
+filled in" are placeholders. For anything not yet covered, see the
+public summary at
+[`docs/about/contributing/documentation.md`](../about/contributing/documentation.md).
 
 - **Contributors**: read the section that matches what you are writing.
   Each rule notes the Vale rule ID, if any, so you can reproduce the
@@ -24,56 +26,44 @@ tickets land.
 
 ## Voice and tone
 
-To be filled in by rule-specific tickets. Planned coverage:
+To be filled in by follow-up PRs. Planned coverage:
 
 - Active voice
 - Second person
 - Plural nouns and pronouns where number is uncertain
 - Product voice (`stop` over `kill`, `turn off` over `disable` in
-  user-facing copy) - see
-  [DOCS-183](https://linear.app/codercom/issue/DOCS-183)
-- Limiting "we" - see
-  [DOCS-35](https://linear.app/codercom/issue/DOCS-35)
+  user-facing copy)
+- Limiting "we"
 
 ## Word choice
 
-To be filled in by rule-specific tickets. Planned coverage:
+To be filled in by follow-up PRs. Planned coverage:
 
-- Inclusive language substitutions - see
-  [DOCS-182](https://linear.app/codercom/issue/DOCS-182)
-- HashiCorp casing - see
-  [DOCS-34](https://linear.app/codercom/issue/DOCS-34)
-- Dev Container terminology - see
-  [DOCS-33](https://linear.app/codercom/issue/DOCS-33)
-- "Setup" vs "set up" and Quickstart casing - see
-  [DOCS-36](https://linear.app/codercom/issue/DOCS-36)
-- "Next steps" vs "Learn more" - see
-  [DOCS-37](https://linear.app/codercom/issue/DOCS-37)
-- Weasel words - see
-  [DOCS-42](https://linear.app/codercom/issue/DOCS-42)
+- Inclusive-language substitutions
+- HashiCorp casing
+- Dev Container terminology
+- "Setup" vs "set up" and Quickstart casing
+- "Next steps" vs "Learn more"
+- Weasel words
 
 ## Capitalization and punctuation
 
-To be filled in by rule-specific tickets. Planned coverage:
+To be filled in by follow-up PRs. Planned coverage:
 
 - Sentence case in titles and headings
-- General capitalization policy - see
-  [DOCS-38](https://linear.app/codercom/issue/DOCS-38)
-- Em-dash and en-dash ban (use comma, semicolon, or period) - see
-  [DOCS-44](https://linear.app/codercom/issue/DOCS-44), origin tracked
-  in [DOCS-181](https://linear.app/codercom/issue/DOCS-181)
+- General capitalization policy
+- Em-dash and en-dash ban (use comma, semicolon, or period)
 
 ## Formatting
 
-To be filled in by rule-specific tickets. Planned coverage:
+To be filled in by follow-up PRs. Planned coverage:
 
 - Bold for UI elements
 - Italics for parameter names and version variables
 - Code font for user input, command-line utility names, filenames,
   environment variables, HTTP verbs and status codes, placeholder
   variables
-- Code blocks with explicit language fences - see
-  [DOCS-43](https://linear.app/codercom/issue/DOCS-43) for MD040
+- Code blocks with explicit language fences
 
 ## Vale enforcement
 
@@ -85,58 +75,29 @@ The repo-root `.vale.ini` configures Vale to read styles from
 - A curated subset of `write-good` (wordiness)
 - Coder-specific custom rules in `docs/.style/styles/Coder/`
 
-See [DOCS-40](https://linear.app/codercom/issue/DOCS-40) for the rationale
-behind the cherry-picked base styles and the severity policy.
-
-### Running Vale locally
-
-See [`docs/.style/README.md`](README.md#running-vale-locally) for the
-make target, the `--no-exit` rationale, and the rule-set pointer.
-
-### Severity policy (v1)
-
-Rule severity sits at a level that reflects two things together: the
-rule's false-positive rate against real Coder docs and the gravity of the
-rule. Low FPs plus high gravity argues for `error`; lower gravity or more
-judgment calls argue for `warning` or `suggestion`.
-
-v1 lands most rules at `warning` and the wordiness rules at `suggestion`.
-A rule promotes to `error` only when (a) its false-positive rate against
-real content is effectively zero and (b) the existing-content violation
-count for that rule is also zero.
-
-Vale exits non-zero only on error-level alerts, regardless of
-`MinAlertLevel`. The Makefile invokes Vale with `--no-exit` so the
-baseline error count from un-overridden Google rules does not fail CI;
-real failures (missing binary, bad config) still propagate. Drop
-`--no-exit` once the baseline error count is zero.
-
-### Active rule set
-
-The curated set lives in `.vale.ini`'s inline comments. Run
-`make lint/prose` to see it in action. The high-level shape:
-
-- **Google** as the base, with a handful of disables and softer levels
-  on high-volume rules.
-- **write-good** for wordiness, with passive voice and E-Prime off.
-- **alex** loaded a la carte for the inclusive-language checks that do
-  not fire on technical vocabulary.
-- **Coder** for custom rules. Empty in v1; rules land through the
-  rule-specific tickets in this project (see
-  `docs/.style/styles/Coder/README.md`).
+The rationale for the cherry-picked base styles and the severity
+policy lives in the follow-up PR that lands `.vale.ini`.
 
 ## Editor setup
 
-To be filled in by
-[DOCS-178](https://linear.app/codercom/issue/DOCS-178). Will cover VS
-Code, Cursor, JetBrains, and Neovim.
+To be filled in by a follow-up PR. Will cover VS Code, Cursor,
+JetBrains, and Neovim.
+
+## Relationship to `docs/about/contributing/documentation.md`
+
+A public-facing prose summary lives today at
+[`docs/about/contributing/documentation.md`](../about/contributing/documentation.md).
+A follow-up PR will redirect that page to this guide; until then,
+follow the public summary for anything the scaffolded sections above do
+not yet cover. New prose rules land here; the public page is frozen
+pending the redirect.
 
 ## Third-party references
 
 When this guide does not cover something, consult:
 
-| Type of guidance     | Reference                                                                               |
-|----------------------|-----------------------------------------------------------------------------------------|
-| Spelling             | [Merriam-Webster](https://www.merriam-webster.com/)                                     |
-| Style - nontechnical | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)           |
-| Style - technical    | [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/) |
+| Type of guidance    | Reference                                                                               |
+|---------------------|-----------------------------------------------------------------------------------------|
+| Spelling            | [Merriam-Webster](https://www.merriam-webster.com/)                                     |
+| Style, nontechnical | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)           |
+| Style, technical    | [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/welcome/) |

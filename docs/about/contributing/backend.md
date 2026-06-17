@@ -50,7 +50,7 @@ Coder's backend is built using a collection of robust, modern Go libraries and i
 The Coder backend is organized into multiple packages and directories, each with a specific purpose. Here's a high-level overview of the most important ones:
 
 * [agent](https://github.com/coder/coder/tree/main/agent): core logic of a workspace agent, supports DevContainers, remote SSH, startup/shutdown script execution. Protobuf definitions for DRPC communication with `coderd` are kept in [proto](https://github.com/coder/coder/tree/main/agent/proto).
-* [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/cliui), and [testdata](https://github.com/coder/coder/tree/docs-backend-contrib-guide/cli/testdata) contains golden files for common CLI calls
+* [cli](https://github.com/coder/coder/tree/main/cli): CLI interface for `coder` command built on [coder/serpent](https://github.com/coder/serpent). Input controls are defined in [cliui](https://github.com/coder/coder/tree/main/cli/cliui), and [testdata](https://github.com/coder/coder/tree/main/cli/testdata) contains golden files for common CLI calls
 * [cmd](https://github.com/coder/coder/tree/main/cmd): entry points for CLI and services, including `coderd`
 * [coderd](https://github.com/coder/coder/tree/main/coderd): the main API server implementation with [chi](https://github.com/go-chi/chi) endpoints
   * [audit](https://github.com/coder/coder/tree/main/coderd/audit): audit log logic, defines target resources, actions and extra fields
@@ -72,7 +72,7 @@ The Coder backend is organized into multiple packages and directories, each with
   * [dbpurge](https://github.com/coder/coder/tree/main/coderd/database/dbpurge): simple wrapper for periodic database cleanup operations
   * [migrations](https://github.com/coder/coder/tree/main/coderd/database/migrations): an ordered list of up/down database migrations, use `./create_migration.sh my_migration_name` to modify the database schema
   * [pubsub](https://github.com/coder/coder/tree/main/coderd/database/pubsub): PubSub implementation using PostgreSQL and in-memory drop-in replacement
-  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/docs-backend-contrib-guide/coderd/database/queries.sql.go)
+  * [queries](https://github.com/coder/coder/tree/main/coderd/database/queries): contains SQL files with queries, `sqlc` compiles them to [Go functions](https://github.com/coder/coder/blob/main/coderd/database/queries.sql.go)
   * [sqlc.yaml](https://github.com/coder/coder/tree/main/coderd/database/sqlc.yaml): defines mappings between SQL types and custom Go structures
 * [codersdk](https://github.com/coder/coder/tree/main/codersdk): user-facing API entities used by CLI and site to communicate with `coderd` endpoints
 * [dogfood](https://github.com/coder/coder/tree/main/dogfood): Terraform definition of the dogfood cluster deployment
@@ -169,9 +169,9 @@ There are two types of fixtures that are used to test that migrations don't
 break existing Coder deployments:
 
 * Partial fixtures
-  [`migrations/testdata/fixtures`](../../../coderd/database/migrations/testdata/fixtures)
+  [`migrations/testdata/fixtures`](https://github.com/coder/coder/tree/main/coderd/database/migrations/testdata/fixtures)
 * Full database dumps
-  [`migrations/testdata/full_dumps`](../../../coderd/database/migrations/testdata/full_dumps)
+  [`migrations/testdata/full_dumps`](https://github.com/coder/coder/tree/main/coderd/database/migrations/testdata/full_dumps)
 
 Both types behave like database migrations (they also
 [`migrate`](https://github.com/golang-migrate/migrate)). Their behavior mirrors
@@ -194,7 +194,7 @@ To add a new partial fixture, run the following command:
 ```
 
 Then add some queries to insert data and commit the file to the repo. See
-[`000024_example.up.sql`](../../../coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
+[`000024_example.up.sql`](https://github.com/coder/coder/blob/main/coderd/database/migrations/testdata/fixtures/000024_example.up.sql)
 for an example.
 
 To create a full dump, run a fully fledged Coder deployment and use it to

@@ -1,12 +1,12 @@
 package chatloop
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -17,6 +17,7 @@ import (
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	"charm.land/fantasy/schema"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -33,16 +34,11 @@ import (
 )
 
 const (
-	interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
-	// maxCompactionRetries limits how many times the post-run
-	// compaction safety net can re-enter the step loop. This
-	// prevents infinite compaction loops when the model keeps
-	// hitting the context limit after summarization.
-	maxCompactionRetries = 3
-	// defaultStartupTimeout bounds how long an individual
-	// model attempt may spend starting to respond before
+	// defaultStreamSilenceTimeout bounds how long an individual
+	// model attempt may go without receiving a stream part before
 	// the attempt is canceled and retried.
-	defaultStartupTimeout = 60 * time.Second
+	defaultStreamSilenceTimeout = 10 * time.Minute
+	streamSilenceGuardTimerTag  = "streamSilenceGuard"
 )
 
 var (
@@ -53,8 +49,8 @@ var (
 	// the run should terminate cleanly after persistence.
 	ErrStopAfterTool = xerrors.New("stop after tool")
 
-	errStartupTimeout = xerrors.New(
-		"chat response did not start before the startup timeout",
+	errStreamSilenceTimeout = xerrors.New(
+		"chat stream was silent for longer than the configured timeout",
 	)
 )
 
@@ -114,14 +110,14 @@ type RunOptions struct {
 	Messages []fantasy.Message
 	Tools    []fantasy.AgentTool
 	MaxSteps int
-	// StartupTimeout bounds how long each model attempt may
-	// spend opening the provider stream and waiting for its
-	// first stream part before the attempt is canceled and
-	// retried. Zero uses the production default.
-	StartupTimeout time.Duration
-	// Clock creates startup guard timers. In production use a
-	// real clock; tests can inject quartz.NewMock(t) to make
-	// startup timeout behavior deterministic.
+	// StreamSilenceTimeout bounds how long each model attempt
+	// may go without receiving a stream part before the
+	// attempt is canceled and retried. Zero uses the
+	// production default.
+	StreamSilenceTimeout time.Duration
+	// Clock creates stream silence guard timers. In production
+	// use a real clock; tests can inject quartz.NewMock(t) to
+	// make timeout behavior deterministic.
 	Clock quartz.Clock
 
 	ActiveTools          []string
@@ -213,6 +209,85 @@ type RunOptions struct {
 	BuiltinToolNames map[string]bool
 }
 
+// GenerateAssistantOptions configures one assistant model call.
+type GenerateAssistantOptions struct {
+	Model fantasy.LanguageModel
+	// ErrorProvider labels user-facing errors with the configured provider
+	// identity (e.g. "bedrock"). It differs from Model.Provider(), which
+	// reflects the fantasy transport client and is "anthropic" for Bedrock
+	// routed through aibridge. Metrics and prompt preparation keep using
+	// Model.Provider(). When empty, Model.Provider() is used.
+	ErrorProvider        string
+	Messages             []fantasy.Message
+	Tools                []fantasy.AgentTool
+	ActiveTools          []string
+	ProviderTools        []ProviderTool
+	StreamSilenceTimeout time.Duration
+	Clock                quartz.Clock
+
+	ContextLimitFallback int64
+	ModelConfig          codersdk.ChatModelCallConfig
+	ProviderOptions      fantasy.ProviderOptions
+
+	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	Logger             slog.Logger
+	Metrics            *Metrics
+}
+
+// AssistantOutcome is the durable assistant-side result from one model call.
+type AssistantOutcome struct {
+	Step         PersistedStep
+	ToolCalls    []fantasy.ToolCallContent
+	FinishReason fantasy.FinishReason
+	ModelStopped bool
+}
+
+// ExecuteLocalToolsOptions configures one local tool execution batch.
+type ExecuteLocalToolsOptions struct {
+	Tools         []fantasy.AgentTool
+	ActiveTools   []string
+	ProviderTools []ProviderTool
+	ToolCalls     []fantasy.ToolCallContent
+
+	ExclusiveToolNames map[string]bool
+	BuiltinToolNames   map[string]bool
+	ModelProvider      string
+	ModelName          string
+
+	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	Logger             slog.Logger
+	Metrics            *Metrics
+	Clock              quartz.Clock
+}
+
+// ToolExecutionOutcome is the durable tool-result content from one batch.
+type ToolExecutionOutcome struct {
+	Step PersistedStep
+}
+
+// GenerateCompactionOptions configures one context compaction call.
+type GenerateCompactionOptions struct {
+	Model    fantasy.LanguageModel
+	Messages []fantasy.Message
+
+	ThresholdPercent     int32
+	ContextLimit         int64
+	ContextLimitFallback int64
+	SummaryPrompt        string
+	SystemSummaryPrefix  string
+	Timeout              time.Duration
+	StepUsage            fantasy.Usage
+	StepMetadata         fantasy.ProviderMetadata
+
+	DebugSvc            *chatdebug.Service
+	ChatID              uuid.UUID
+	HistoryTipMessageID int64
+	ToolCallID          string
+	ToolName            string
+
+	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+}
+
 // ProviderTool pairs a provider-native tool definition with an
 // optional local executor. When Runner is nil the tool is fully
 // provider-executed (e.g. web search). When Runner is non-nil
@@ -244,106 +319,6 @@ type stepResult struct {
 	reasoningCompletedAt []time.Time
 }
 
-// toResponseMessages converts step content into messages suitable
-// for appending to the conversation. Mirrors fantasy's
-// toResponseMessages logic.
-func (r stepResult) toResponseMessages() []fantasy.Message {
-	var assistantParts []fantasy.MessagePart
-	var toolParts []fantasy.MessagePart
-
-	for _, c := range r.content {
-		switch c.GetType() {
-		case fantasy.ContentTypeText:
-			text, ok := fantasy.AsContentType[fantasy.TextContent](c)
-			if !ok || strings.TrimSpace(text.Text) == "" {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.TextPart{
-				Text:            text.Text,
-				ProviderOptions: fantasy.ProviderOptions(text.ProviderMetadata),
-			})
-		case fantasy.ContentTypeReasoning:
-			reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](c)
-			if !ok {
-				continue
-			}
-			opts := fantasy.ProviderOptions(reasoning.ProviderMetadata)
-			if strings.TrimSpace(reasoning.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.ReasoningPart{
-				Text:            reasoning.Text,
-				ProviderOptions: opts,
-			})
-		case fantasy.ContentTypeToolCall:
-			toolCall, ok := fantasy.AsContentType[fantasy.ToolCallContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.ToolCallPart{
-				ToolCallID:       toolCall.ToolCallID,
-				ToolName:         toolCall.ToolName,
-				Input:            toolCall.Input,
-				ProviderExecuted: toolCall.ProviderExecuted,
-				ProviderOptions:  fantasy.ProviderOptions(toolCall.ProviderMetadata),
-			})
-		case fantasy.ContentTypeFile:
-			file, ok := fantasy.AsContentType[fantasy.FileContent](c)
-			if !ok {
-				continue
-			}
-			assistantParts = append(assistantParts, fantasy.FilePart{
-				Data:            file.Data,
-				MediaType:       file.MediaType,
-				ProviderOptions: fantasy.ProviderOptions(file.ProviderMetadata),
-			})
-		case fantasy.ContentTypeSource:
-			// Sources are metadata about references; they don't
-			// need to be included in conversation messages.
-			continue
-		case fantasy.ContentTypeToolResult:
-			result, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
-			if !ok {
-				continue
-			}
-			part := fantasy.ToolResultPart{
-				ToolCallID:       result.ToolCallID,
-				Output:           result.Result,
-				ProviderExecuted: result.ProviderExecuted,
-				ProviderOptions:  fantasy.ProviderOptions(result.ProviderMetadata),
-			}
-			// Provider-executed tool results (e.g. web_search)
-			// must stay in the assistant message so the result
-			// block appears inline after the corresponding
-			// server_tool_use block. This matches the persistence
-			// layer in chatd.go which keeps them in
-			// assistantBlocks.
-			if result.ProviderExecuted {
-				assistantParts = append(assistantParts, part)
-			} else {
-				toolParts = append(toolParts, part)
-			}
-		default:
-			continue
-		}
-	}
-
-	var messages []fantasy.Message
-	if len(assistantParts) > 0 {
-		messages = append(messages, fantasy.Message{
-			Role:    fantasy.MessageRoleAssistant,
-			Content: assistantParts,
-		})
-	}
-	if len(toolParts) > 0 {
-		messages = append(messages, fantasy.Message{
-			Role:    fantasy.MessageRoleTool,
-			Content: toolParts,
-		})
-	}
-	return messages
-}
-
 // reasoningState accumulates reasoning content and provider
 // metadata while the stream is in flight.
 type reasoningState struct {
@@ -352,20 +327,14 @@ type reasoningState struct {
 	startedAt time.Time
 }
 
-// Run executes the chat step-stream loop and delegates
-// persistence/publishing to callbacks.
-func Run(ctx context.Context, opts RunOptions) error {
+// GenerateAssistant performs one assistant model stream and returns the
+// durable assistant-side content. It does not execute tools, retry, or persist.
+func GenerateAssistant(ctx context.Context, opts GenerateAssistantOptions) (AssistantOutcome, error) {
 	if opts.Model == nil {
-		return xerrors.New("chat model is required")
+		return AssistantOutcome{}, xerrors.New("chat model is required")
 	}
-	if opts.PersistStep == nil {
-		return xerrors.New("persist step callback is required")
-	}
-	if opts.MaxSteps <= 0 {
-		opts.MaxSteps = 1
-	}
-	if opts.StartupTimeout <= 0 {
-		opts.StartupTimeout = defaultStartupTimeout
+	if opts.StreamSilenceTimeout <= 0 {
+		opts.StreamSilenceTimeout = defaultStreamSilenceTimeout
 	}
 	if opts.Clock == nil {
 		opts.Clock = quartz.NewReal()
@@ -375,360 +344,212 @@ func Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-		if opts.PublishMessagePart == nil {
-			return
+		if opts.PublishMessagePart != nil {
+			opts.PublishMessagePart(role, part)
 		}
-		opts.PublishMessagePart(role, part)
 	}
 
-	tools := buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools)
+	provider := opts.Model.Provider()
+	modelName := opts.Model.Model()
+	// errorProvider labels user-facing errors with the configured provider;
+	// see GenerateAssistantOptions.ErrorProvider. The transport provider is
+	// kept for prompt preparation, Anthropic history sanitization, and the
+	// metric labels below.
+	errorProvider := cmp.Or(opts.ErrorProvider, provider)
+	runOpts := RunOptions{
+		Model:  opts.Model,
+		Logger: opts.Logger,
+	}
+	_, prepared, err := prepareMessagesForRequest(ctx, runOpts, opts.Messages, provider, modelName, 0, 1)
+	if err != nil {
+		return AssistantOutcome{}, xerrors.Errorf("prepare prompt: %w", err)
+	}
+	opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
+	opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
+	opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
 
-	messages := opts.Messages
-	var lastUsage fantasy.Usage
-	var lastProviderMetadata fantasy.ProviderMetadata
-	needsFullHistoryReload := false
-	reloadFullHistory := func(stage string) error {
-		if opts.ReloadMessages == nil {
-			return nil
+	call := fantasy.Call{
+		Prompt:           prepared,
+		Tools:            buildToolDefinitions(opts.Tools, opts.ActiveTools, opts.ProviderTools),
+		MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
+		Temperature:      opts.ModelConfig.Temperature,
+		TopP:             opts.ModelConfig.TopP,
+		TopK:             opts.ModelConfig.TopK,
+		PresencePenalty:  opts.ModelConfig.PresencePenalty,
+		FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
+		ProviderOptions:  opts.ProviderOptions,
+	}
+
+	stepStart := opts.Clock.Now()
+	stepCtx := chatdebug.ReuseStep(ctx)
+	attempt, streamErr := guardedStream(
+		stepCtx,
+		provider,
+		modelName,
+		opts.Clock,
+		opts.StreamSilenceTimeout,
+		func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
+			return opts.Model.Stream(attemptCtx, call)
+		},
+		opts.Metrics,
+	)
+	if streamErr != nil {
+		wrappedErr := wrapProviderStreamError(errorProvider, streamErr)
+		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
+		if classified.Retryable {
+			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
 		}
-		reloaded, err := opts.ReloadMessages(ctx)
-		if err != nil {
-			return xerrors.Errorf("reload messages %s: %w", stage, err)
+		return AssistantOutcome{}, wrappedErr
+	}
+	defer attempt.release()
+
+	result, processErr := processStepStream(attempt.ctx, attempt.stream, opts.Clock, publishMessagePart)
+	if err := attempt.finish(processErr); err != nil {
+		if errors.Is(err, ErrInterrupted) {
+			return AssistantOutcome{}, ErrInterrupted
 		}
-		messages = reloaded
+		wrappedErr := wrapProviderStreamError(errorProvider, err)
+		classified := chaterror.Classify(wrappedErr).WithProvider(errorProvider)
+		if classified.Retryable {
+			opts.Metrics.RecordStreamRetry(provider, modelName, classified)
+		}
+		return AssistantOutcome{}, wrappedErr
+	}
+
+	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
+	result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
+		ctx, opts.Logger, provider, modelName,
+		"assistant_helper", 0, result.finishReason, result.content,
+	)
+	step := PersistedStep{
+		Content:              result.content,
+		Usage:                result.usage,
+		ContextLimit:         contextLimit,
+		ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
+		Runtime:              opts.Clock.Since(stepStart),
+		ToolCallCreatedAt:    result.toolCallCreatedAt,
+		ToolResultCreatedAt:  result.toolResultCreatedAt,
+		ReasoningStartedAt:   result.reasoningStartedAt,
+		ReasoningCompletedAt: result.reasoningCompletedAt,
+	}
+	return AssistantOutcome{
+		Step:         step,
+		ToolCalls:    append([]fantasy.ToolCallContent(nil), result.toolCalls...),
+		FinishReason: result.finishReason,
+		ModelStopped: len(result.content) == 0,
+	}, nil
+}
+
+func wrapProviderStreamError(provider string, err error) error {
+	if err == nil {
 		return nil
 	}
-
-	totalSteps := 0
-	// When totalSteps reaches MaxSteps the inner loop exits immediately
-	// (its condition is false), stoppedByModel stays false, and the
-	// post-loop guard breaks the outer compaction loop.
-	for compactionAttempt := 0; ; compactionAttempt++ {
-		alreadyCompacted := false
-		// stoppedByModel is true when the inner step loop
-		// exited because the model produced no tool calls
-		// (shouldContinue was false). This distinguishes a
-		// natural stop from hitting MaxSteps.
-		stoppedByModel := false
-		// compactedOnFinalStep tracks whether compaction
-		// occurred on the very step where the model stopped.
-		// Only in that case should we re-enter, because the
-		// agent never had a chance to use the compacted context.
-		compactedOnFinalStep := false
-
-		for step := 0; totalSteps < opts.MaxSteps; step++ {
-			totalSteps++
-			provider := opts.Model.Provider()
-			modelName := opts.Model.Model()
-			opts.Metrics.StepsTotal.WithLabelValues(provider, modelName).Inc()
-			stepStart := time.Now()
-			if opts.PrepareTools != nil {
-				if updated := opts.PrepareTools(opts.Tools); updated != nil {
-					opts.ActiveTools = mergeNewToolNames(
-						opts.ActiveTools, opts.Tools, updated,
-					)
-					opts.Tools = updated
-					tools = buildToolDefinitions(
-						opts.Tools, opts.ActiveTools, opts.ProviderTools,
-					)
-				}
-			}
-			var prepared []fantasy.Message
-			var prepareErr error
-			messages, prepared, prepareErr = prepareMessagesForRequest(
-				ctx, opts, messages, provider, modelName, step, totalSteps,
-			)
-			if prepareErr != nil {
-				return xerrors.Errorf("prepare prompt: %w", prepareErr)
-			}
-			opts.Metrics.MessageCount.WithLabelValues(provider, modelName).Observe(float64(len(prepared)))
-			opts.Metrics.PromptSizeBytes.WithLabelValues(provider, modelName).Observe(float64(EstimatePromptSize(prepared)))
-
-			call := fantasy.Call{
-				Prompt:           prepared,
-				Tools:            tools,
-				MaxOutputTokens:  opts.ModelConfig.MaxOutputTokens,
-				Temperature:      opts.ModelConfig.Temperature,
-				TopP:             opts.ModelConfig.TopP,
-				TopK:             opts.ModelConfig.TopK,
-				PresencePenalty:  opts.ModelConfig.PresencePenalty,
-				FrequencyPenalty: opts.ModelConfig.FrequencyPenalty,
-				ProviderOptions:  opts.ProviderOptions,
-			}
-
-			var result stepResult
-			var retryPrepareErr error
-			stepCtx := chatdebug.ReuseStep(ctx)
-			err := chatretry.Retry(stepCtx, func(retryCtx context.Context) error {
-				if retryPrepareErr != nil {
-					return retryPrepareErr
-				}
-				attempt, streamErr := guardedStream(
-					retryCtx,
-					provider,
-					modelName,
-					opts.Clock,
-					opts.StartupTimeout,
-					func(attemptCtx context.Context) (fantasy.StreamResponse, error) {
-						return opts.Model.Stream(attemptCtx, call)
-					},
-					opts.Metrics,
-				)
-				if streamErr != nil {
-					return streamErr
-				}
-				defer attempt.release()
-				var processErr error
-				result, processErr = processStepStream(
-					attempt.ctx,
-					attempt.stream,
-					publishMessagePart,
-				)
-				return attempt.finish(processErr)
-			}, func(
-				attempt int,
-				retryErr error,
-				classified chatretry.ClassifiedError,
-				delay time.Duration,
-			) {
-				// Reset result from the failed attempt so the next
-				// attempt starts clean.
-				result = stepResult{}
-				// Record before OnRetry so a panicking callback can't
-				// drop the sample. The metric's provider label comes
-				// from the outer local; WithProvider only affects the
-				// classified payload handed to OnRetry.
-				classified = classified.WithProvider(provider)
-				opts.Metrics.RecordStreamRetry(provider, modelName, classified)
-				if classified.ChainBroken {
-					if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
-						opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
-					}
-					if chatopenai.HasPreviousResponseID(call.ProviderOptions) {
-						call.ProviderOptions = chatopenai.ClearPreviousResponseID(call.ProviderOptions)
-					}
-					if opts.DisableChainMode != nil {
-						opts.DisableChainMode()
-					}
-					if opts.ReloadMessages != nil {
-						reloaded, err := opts.ReloadMessages(ctx)
-						if err != nil {
-							opts.Logger.Warn(ctx,
-								"chain-broken recovery: reload messages failed",
-								slog.Error(err),
-							)
-						} else {
-							// Reloaded history replaces the prompt prepared before
-							// the failed attempt, so run the same preparation
-							// pipeline used by normal provider requests.
-							var (
-								reloadedCanonical []fantasy.Message
-								retryPrompt       []fantasy.Message
-								prepareErr        error
-							)
-							call.Prompt = nil
-							reloadedCanonical, retryPrompt, prepareErr = prepareMessagesForRequest(
-								ctx, opts, reloaded, provider, modelName, step, totalSteps,
-							)
-							if prepareErr != nil {
-								retryPrepareErr = prepareErr
-							} else {
-								messages = reloadedCanonical
-								call.Prompt = retryPrompt
-							}
-						}
-					}
-				}
-				if opts.OnRetry != nil {
-					opts.OnRetry(attempt, retryErr, classified, delay)
-				}
-			})
-			if err != nil {
-				if errors.Is(err, ErrInterrupted) {
-					persistInterruptedStep(ctx, opts, &result)
-					return ErrInterrupted
-				}
-				if retryPrepareErr != nil && errors.Is(err, retryPrepareErr) {
-					return xerrors.Errorf("prepare prompt: %w", err)
-				}
-				return xerrors.Errorf("stream response: %w", err)
-			}
-
-			// Execute tools before persisting so that tool results
-			// are included in the persisted step content. The
-			// persistence layer splits assistant and tool-result
-			// blocks into separate database messages by role.
-			var toolResults []fantasy.ToolResultContent
-			if result.shouldContinue {
-				var err error
-				toolResults, err = executeToolsForStep(ctx, opts, &result, provider, modelName, step, stepStart, publishMessagePart)
-				if err != nil {
-					return err
-				}
-			}
-			// Extract context limit from provider metadata.
-			contextLimit := extractContextLimitWithFallback(
-				result.providerMetadata,
-				opts.ContextLimitFallback,
-			)
-			result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
-				ctx, opts.Logger, provider, modelName,
-				"normal_persist", step, result.finishReason, result.content,
-			)
-			if len(result.content) == 0 {
-				lastUsage = result.usage
-				lastProviderMetadata = result.providerMetadata
-				stoppedByModel = true
-				break
-			}
-
-			// Persist the step. If persistence fails because
-			// the chat was interrupted between the previous
-			// check and here, fall back to the interrupt-safe
-			// path so partial content is not lost.
-			if err := opts.PersistStep(ctx, PersistedStep{
-				Content:              result.content,
-				Usage:                result.usage,
-				ContextLimit:         contextLimit,
-				ProviderResponseID:   chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-				Runtime:              time.Since(stepStart),
-				ToolCallCreatedAt:    result.toolCallCreatedAt,
-				ToolResultCreatedAt:  result.toolResultCreatedAt,
-				ReasoningStartedAt:   result.reasoningStartedAt,
-				ReasoningCompletedAt: result.reasoningCompletedAt,
-			}); err != nil {
-				if errors.Is(err, ErrInterrupted) {
-					persistInterruptedStep(ctx, opts, &result)
-					return ErrInterrupted
-				}
-				return xerrors.Errorf("persist step: %w", err)
-			}
-			lastUsage = result.usage
-			lastProviderMetadata = result.providerMetadata
-
-			// Check if any executed tool triggers an early stop.
-			if shouldStopAfterTools(opts.StopAfterTools, toolResults) {
-				tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
-				return ErrStopAfterTool
-			}
-
-			// When chain mode is active (PreviousResponseID set), exit
-			// it after persisting the first chained step. Continuation
-			// steps include tool-result messages, which fantasy rejects
-			// when previous_response_id is set, so we must leave chain
-			// mode and reload the full history before the next call.
-			stepMessages := result.toResponseMessages()
-			if chatopenai.HasPreviousResponseID(opts.ProviderOptions) {
-				opts.ProviderOptions = chatopenai.ClearPreviousResponseID(opts.ProviderOptions)
-				if opts.DisableChainMode != nil {
-					opts.DisableChainMode()
-				}
-				switch {
-				case opts.ReloadMessages != nil:
-					if err := reloadFullHistory("after chain mode exit"); err != nil {
-						return err
-					}
-					needsFullHistoryReload = false
-				default:
-					messages = append(messages, stepMessages...)
-					needsFullHistoryReload = false
-				}
-			} else {
-				messages = append(messages, stepMessages...)
-			}
-
-			if needsFullHistoryReload && !result.shouldContinue &&
-				opts.ReloadMessages != nil {
-				if err := reloadFullHistory("before final compaction after chain mode exit"); err != nil {
-					return err
-				}
-				needsFullHistoryReload = false
-			}
-
-			// Inline compaction.
-			if !needsFullHistoryReload && opts.Compaction != nil && opts.ReloadMessages != nil {
-				did, compactErr := tryCompact(
-					ctx,
-					opts.Model,
-					opts.Compaction,
-					opts.ContextLimitFallback,
-					result.usage,
-					result.providerMetadata,
-					messages,
-				)
-				opts.Metrics.RecordCompaction(provider, modelName, did, compactErr)
-				if compactErr != nil && opts.Compaction.OnError != nil {
-					opts.Compaction.OnError(compactErr)
-				}
-
-				if did {
-					alreadyCompacted = true
-					compactedOnFinalStep = true
-					if err := reloadFullHistory("after compaction"); err != nil {
-						return err
-					}
-				}
-			}
-			if !result.shouldContinue {
-				stoppedByModel = true
-				break
-			}
-
-			// The agent is continuing with tool calls, so any
-			// prior compaction has already been consumed.
-			compactedOnFinalStep = false
+	classified := chaterror.Classify(err).WithProvider(provider)
+	if !classified.Retryable && classified.StatusCode == 0 && errors.Is(err, context.Canceled) {
+		wrapped := errors.Join(chaterror.ErrProviderTransportReset, err)
+		reclassified := chaterror.Classify(wrapped).WithProvider(provider)
+		if reclassified.Retryable {
+			classified = reclassified
+			err = wrapped
 		}
+	}
+	return xerrors.Errorf("stream response: %w", chaterror.WithClassification(err, classified))
+}
 
-		if needsFullHistoryReload && stoppedByModel && opts.ReloadMessages != nil {
-			if err := reloadFullHistory("before post-run compaction after chain mode exit"); err != nil {
-				return err
-			}
-			needsFullHistoryReload = false
+// ExecuteLocalTools runs local tool calls and returns durable tool results. It
+// does not retry or persist.
+func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (ToolExecutionOutcome, error) {
+	if opts.Metrics == nil {
+		opts.Metrics = NopMetrics()
+	}
+	provider := opts.ModelProvider
+	if provider == "" {
+		provider = "unknown"
+	}
+	modelName := opts.ModelName
+	if modelName == "" {
+		modelName = "unknown"
+	}
+	publishMessagePart := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+		if opts.PublishMessagePart != nil {
+			opts.PublishMessagePart(role, part)
 		}
-
-		// Post-run compaction safety net: if we never compacted
-		// during the loop, try once at the end.
-		if !needsFullHistoryReload && !alreadyCompacted && opts.Compaction != nil && opts.ReloadMessages != nil {
-			did, err := tryCompact(
-				ctx,
-				opts.Model,
-				opts.Compaction,
-				opts.ContextLimitFallback,
-				lastUsage,
-				lastProviderMetadata,
-				messages,
-			)
-			opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, err)
-			if err != nil {
-				if opts.Compaction.OnError != nil {
-					opts.Compaction.OnError(err)
-				}
-			}
-			if did {
-				compactedOnFinalStep = true
-			}
-		}
-		// Re-enter the step loop when compaction fired on the
-		// model's final step. This lets the agent continue
-		// working with fresh summarized context instead of
-		// stopping. When the inner loop continued after inline
-		// compaction (tool-call steps kept going), the agent
-		// already used the compacted context, so no re-entry
-		// is needed. Limit retries to prevent infinite loops.
-		if compactedOnFinalStep && stoppedByModel &&
-			opts.ReloadMessages != nil &&
-			compactionAttempt < maxCompactionRetries {
-			reloaded, reloadErr := opts.ReloadMessages(ctx)
-			if reloadErr != nil {
-				return xerrors.Errorf("reload messages after compaction: %w", reloadErr)
-			}
-			messages = reloaded
-			continue
-		}
-		break
+	}
+	// Expose the publisher on the execution context so tools that stream
+	// intermediate output (e.g. the advisor tool) can publish parts
+	// without capturing the publisher at construction time.
+	ctx = WithMessagePartPublisher(ctx, opts.PublishMessagePart)
+	if ctx.Err() != nil {
+		return ToolExecutionOutcome{}, ctx.Err()
 	}
 
-	return nil
+	localCalls := make([]fantasy.ToolCallContent, 0, len(opts.ToolCalls))
+	for _, tc := range opts.ToolCalls {
+		if !tc.ProviderExecuted {
+			localCalls = append(localCalls, tc)
+		}
+	}
+	if len(localCalls) == 0 {
+		return ToolExecutionOutcome{}, nil
+	}
+
+	var result stepResult
+	policyResults, exclusiveViolation := applyExclusiveToolPolicy(
+		localCalls,
+		opts.ExclusiveToolNames,
+		opts.Metrics,
+		provider,
+		modelName,
+	)
+	if exclusiveViolation {
+		now := clockNow(opts.Clock)
+		for _, tr := range policyResults {
+			recordToolResultTimestamp(&result, tr.ToolCallID, now)
+			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
+			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+			ssePart.CreatedAt = &now
+			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
+			result.content = append(result.content, tr)
+		}
+		if ctx.Err() != nil {
+			return ToolExecutionOutcome{}, ctx.Err()
+		}
+		return ToolExecutionOutcome{Step: PersistedStep{
+			Content:             result.content,
+			ToolResultCreatedAt: result.toolResultCreatedAt,
+		}}, nil
+	}
+
+	toolResults := executeTools(
+		ctx,
+		opts.Clock,
+		opts.Tools,
+		opts.ActiveTools,
+		opts.ProviderTools,
+		localCalls,
+		opts.Metrics,
+		opts.Logger,
+		provider,
+		modelName,
+		opts.BuiltinToolNames,
+		func(tr fantasy.ToolResultContent, completedAt time.Time) {
+			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
+			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
+			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
+			ssePart.CreatedAt = &completedAt
+			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
+		},
+	)
+	if ctx.Err() != nil {
+		return ToolExecutionOutcome{}, ctx.Err()
+	}
+	for _, tr := range toolResults {
+		result.content = append(result.content, tr)
+	}
+	return ToolExecutionOutcome{Step: PersistedStep{
+		Content:             result.content,
+		ToolResultCreatedAt: result.toolResultCreatedAt,
+	}}, nil
 }
 
 // prepareMessagesForRequest applies the prompt preparation pipeline used
@@ -782,9 +603,9 @@ func prepareMessagesForRequest(
 	return canonical, prompt, nil
 }
 
-// guardedAttempt owns an attempt-scoped context and startup guard
+// guardedAttempt owns an attempt-scoped context and silence guard
 // around a provider stream. release is idempotent and frees the
-// attempt-scoped timer/context. finish canonicalizes startup timeout
+// attempt-scoped timer/context. finish canonicalizes silence timeout
 // errors before the retry loop classifies them.
 type guardedAttempt struct {
 	ctx     context.Context
@@ -793,50 +614,80 @@ type guardedAttempt struct {
 	finish  func(error) error
 }
 
-// startupGuard arbitrates whether an attempt times out during
-// stream startup. Exactly one outcome wins: the timer cancels
-// the attempt, or the first-part path disarms the timer.
-type startupGuard struct {
-	timer  *quartz.Timer
-	cancel context.CancelCauseFunc
-	once   sync.Once
+// streamSilenceGuard arbitrates whether an attempt times out while
+// waiting for the next stream part. Exactly one outcome wins: the
+// timer cancels the attempt, or release disarms the timer.
+type streamSilenceGuard struct {
+	mu      sync.Mutex
+	timer   *quartz.Timer
+	cancel  context.CancelCauseFunc
+	timeout time.Duration
+	settled bool
 }
 
-func newStartupGuard(
+func newStreamSilenceGuard(
 	clock quartz.Clock,
 	timeout time.Duration,
 	cancel context.CancelCauseFunc,
-) *startupGuard {
-	guard := &startupGuard{cancel: cancel}
-	guard.timer = clock.AfterFunc(timeout, guard.onTimeout, "startupGuard")
+) *streamSilenceGuard {
+	guard := &streamSilenceGuard{
+		cancel:  cancel,
+		timeout: timeout,
+	}
+	guard.timer = clock.AfterFunc(
+		timeout,
+		guard.onTimeout,
+		streamSilenceGuardTimerTag,
+	)
 	return guard
 }
 
-func (g *startupGuard) onTimeout() {
-	g.once.Do(func() {
-		g.cancel(errStartupTimeout)
-	})
+func (g *streamSilenceGuard) settle() bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return false
+	}
+	g.settled = true
+	return true
 }
 
-func (g *startupGuard) Disarm() {
-	g.once.Do(func() {
-		g.timer.Stop()
-	})
+func (g *streamSilenceGuard) onTimeout() {
+	if !g.settle() {
+		return
+	}
+	g.cancel(errStreamSilenceTimeout)
 }
 
-func classifyStartupTimeout(
+func (g *streamSilenceGuard) Reset() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.settled {
+		return
+	}
+	g.timer.Reset(g.timeout, streamSilenceGuardTimerTag)
+}
+
+func (g *streamSilenceGuard) Disarm() {
+	if !g.settle() {
+		return
+	}
+	g.timer.Stop()
+}
+
+func classifyStreamSilenceTimeout(
 	attemptCtx context.Context,
 	provider string,
 	err error,
 ) error {
-	if !errors.Is(context.Cause(attemptCtx), errStartupTimeout) {
+	if !errors.Is(context.Cause(attemptCtx), errStreamSilenceTimeout) {
 		return err
 	}
 	if err == nil {
-		err = errStartupTimeout
+		err = errStreamSilenceTimeout
 	}
 	return chaterror.WithClassification(err, chaterror.ClassifiedError{
-		Kind:      codersdk.ChatErrorKindStartupTimeout,
+		Kind:      codersdk.ChatErrorKindStreamSilenceTimeout,
 		Provider:  provider,
 		Retryable: true,
 	})
@@ -851,7 +702,7 @@ func guardedStream(
 	metrics *Metrics,
 ) (guardedAttempt, error) {
 	attemptCtx, cancelAttempt := context.WithCancelCause(parent)
-	guard := newStartupGuard(clock, timeout, cancelAttempt)
+	guard := newStreamSilenceGuard(clock, timeout, cancelAttempt)
 	var releaseOnce sync.Once
 	release := func() {
 		releaseOnce.Do(func() {
@@ -863,7 +714,7 @@ func guardedStream(
 	streamStart := clock.Now()
 	stream, err := openStream(attemptCtx)
 	if err != nil {
-		err = classifyStartupTimeout(attemptCtx, provider, err)
+		err = classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		release()
 		return guardedAttempt{}, err
 	}
@@ -877,7 +728,7 @@ func guardedStream(
 		ctx: attemptCtx,
 		stream: fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 			for part := range stream {
-				guard.Disarm()
+				guard.Reset()
 				recordTTFT()
 				if !yield(part) {
 					return
@@ -886,9 +737,15 @@ func guardedStream(
 		}),
 		release: release,
 		finish: func(err error) error {
-			return classifyStartupTimeout(attemptCtx, provider, err)
+			return classifyStreamSilenceTimeout(attemptCtx, provider, err)
 		},
 	}, nil
+}
+
+// clockNow returns the clock's current time normalized the same
+// way as dbtime.Now so persisted timestamps are Postgres-safe.
+func clockNow(clock quartz.Clock) time.Time {
+	return dbtime.Time(clock.Now().UTC())
 }
 
 // processStepStream consumes a fantasy StreamResponse and
@@ -897,6 +754,7 @@ func guardedStream(
 func processStepStream(
 	ctx context.Context,
 	stream fantasy.StreamResponse,
+	clock quartz.Clock,
 	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
 ) (stepResult, error) {
 	var result stepResult
@@ -931,18 +789,23 @@ func processStepStream(
 			activeReasoningContent[part.ID] = reasoningState{
 				text:      part.Delta,
 				options:   part.ProviderMetadata,
-				startedAt: dbtime.Now(),
+				startedAt: clockNow(clock),
 			}
 
 		case fantasy.StreamPartTypeReasoningDelta:
+			reasoningPart := codersdk.ChatMessageReasoning(part.Delta)
 			if active, exists := activeReasoningContent[part.ID]; exists {
 				active.text += part.Delta
 				if len(part.ProviderMetadata) > 0 {
 					active.options = part.ProviderMetadata
 				}
 				activeReasoningContent[part.ID] = active
+				if !active.startedAt.IsZero() {
+					startedAt := active.startedAt
+					reasoningPart.CreatedAt = &startedAt
+				}
 			}
-			publishMessagePart(codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageReasoning(part.Delta))
+			publishMessagePart(codersdk.ChatMessageRoleAssistant, reasoningPart)
 
 		case fantasy.StreamPartTypeReasoningEnd:
 			if active, exists := activeReasoningContent[part.ID]; exists {
@@ -955,7 +818,7 @@ func processStepStream(
 				}
 				result.content = append(result.content, content)
 				result.reasoningStartedAt = append(result.reasoningStartedAt, active.startedAt)
-				result.reasoningCompletedAt = append(result.reasoningCompletedAt, dbtime.Now())
+				result.reasoningCompletedAt = append(result.reasoningCompletedAt, clockNow(clock))
 				delete(activeReasoningContent, part.ID)
 			}
 		case fantasy.StreamPartTypeToolInputStart:
@@ -1006,7 +869,7 @@ func processStepStream(
 			// Record when the model emitted this tool call
 			// so the persisted part carries an accurate
 			// timestamp for duration computation.
-			now := dbtime.Now()
+			now := clockNow(clock)
 			if result.toolCallCreatedAt == nil {
 				result.toolCallCreatedAt = make(map[string]time.Time)
 			}
@@ -1047,7 +910,7 @@ func processStepStream(
 				}
 				result.content = append(result.content, tr)
 
-				now := dbtime.Now()
+				now := clockNow(clock)
 				if result.toolResultCreatedAt == nil {
 					result.toolResultCreatedAt = make(map[string]time.Time)
 				}
@@ -1078,6 +941,7 @@ func processStepStream(
 				// still streaming when the interrupt arrived.
 				flushActiveState(
 					&result,
+					clock,
 					activeTextContent,
 					activeReasoningContent,
 					activeToolCalls,
@@ -1098,6 +962,7 @@ func processStepStream(
 		errors.Is(context.Cause(ctx), ErrInterrupted) {
 		flushActiveState(
 			&result,
+			clock,
 			activeTextContent,
 			activeReasoningContent,
 			activeToolCalls,
@@ -1123,6 +988,7 @@ func processStepStream(
 // event ordering for SSE subscribers.
 func executeTools(
 	ctx context.Context,
+	clock quartz.Clock,
 	allTools []fantasy.AgentTool,
 	activeTools []string,
 	providerTools []ProviderTool,
@@ -1195,7 +1061,7 @@ func executeTools(
 				// Record when this tool completed (or panicked).
 				// Captured per-goroutine so parallel tools get
 				// accurate individual completion times.
-				completedAt[i] = dbtime.Now()
+				completedAt[i] = clockNow(clock)
 			}()
 			results[i] = executeSingleTool(
 				ctx,
@@ -1222,187 +1088,6 @@ func executeTools(
 		}
 	}
 	return results
-}
-
-// executeToolsForStep runs the tool-execution phase of a single
-// chatloop step. It enforces the exclusive-tool policy, partitions
-// built-in versus dynamic tool calls, dispatches built-in tools, and
-// when dynamic tool calls are present persists the step and returns
-// ErrDynamicToolCall so the caller can execute them externally.
-// Returns the tool results to append to the step, or an error that the
-// caller must propagate (ErrInterrupted, ErrDynamicToolCall, ctx.Err(),
-// or a persistence failure).
-func executeToolsForStep(
-	ctx context.Context,
-	opts RunOptions,
-	result *stepResult,
-	provider, modelName string,
-	step int,
-	stepStart time.Time,
-	publishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart),
-) ([]fantasy.ToolResultContent, error) {
-	// Check for context cancellation before starting tool
-	// execution. If the chat was interrupted between stream
-	// completion and here, persist what we have and bail out.
-	if ctx.Err() != nil {
-		if errors.Is(context.Cause(ctx), ErrInterrupted) {
-			persistInterruptedStep(ctx, opts, result)
-			return nil, ErrInterrupted
-		}
-		return nil, ctx.Err()
-	}
-
-	// Enforce exclusivity across ALL locally-executable tool
-	// calls (both built-in and dynamic) before partitioning.
-	// Checking only the built-in partition would let the model
-	// bypass the policy by mixing an exclusive tool with a
-	// dynamic tool: the exclusive tool would still run and the
-	// dynamic call would still be handed to the caller for
-	// external execution, breaking the planning-only contract.
-	localCandidates := make([]fantasy.ToolCallContent, 0, len(result.toolCalls))
-	for _, tc := range result.toolCalls {
-		if !tc.ProviderExecuted {
-			localCandidates = append(localCandidates, tc)
-		}
-	}
-	policyResults, exclusiveViolation := applyExclusiveToolPolicy(
-		localCandidates,
-		opts.ExclusiveToolNames,
-		opts.Metrics,
-		provider,
-		modelName,
-	)
-	if exclusiveViolation {
-		now := dbtime.Now()
-		for _, tr := range policyResults {
-			recordToolResultTimestamp(result, tr.ToolCallID, now)
-			publishToolAttachments(ctx, opts.Logger, tr, now, publishMessagePart)
-			ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
-			ssePart.CreatedAt = &now
-			publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
-		}
-		for _, tr := range policyResults {
-			result.content = append(result.content, tr)
-		}
-		// Mirror the post-execution interruption check used by the
-		// non-policy path: if the chat was interrupted while we
-		// synthesized policy errors, route through
-		// persistInterruptedStep so the synthesized results are not
-		// dropped when the regular PersistStep path fails on a
-		// canceled context.
-		if ctx.Err() != nil {
-			if errors.Is(context.Cause(ctx), ErrInterrupted) {
-				persistInterruptedStep(ctx, opts, result)
-				return nil, ErrInterrupted
-			}
-			return nil, ctx.Err()
-		}
-		// Fall through to the normal persistence path so the loop
-		// continues with error results that the model can observe
-		// and retry. Skip partitioning, execution, and
-		// pending-dynamic persistence.
-		return policyResults, nil
-	}
-
-	// Partition tool calls into built-in and dynamic.
-	var builtinCalls, dynamicCalls []fantasy.ToolCallContent
-	if len(opts.DynamicToolNames) > 0 {
-		for _, tc := range result.toolCalls {
-			if opts.DynamicToolNames[tc.ToolName] {
-				dynamicCalls = append(dynamicCalls, tc)
-			} else {
-				builtinCalls = append(builtinCalls, tc)
-			}
-		}
-	} else {
-		builtinCalls = result.toolCalls
-	}
-
-	// Execute only built-in tools.
-	toolResults := executeTools(ctx, opts.Tools, opts.ActiveTools, opts.ProviderTools, builtinCalls, opts.Metrics, opts.Logger, provider, modelName, opts.BuiltinToolNames, func(tr fantasy.ToolResultContent, completedAt time.Time) {
-		recordToolResultTimestamp(result, tr.ToolCallID, completedAt)
-		publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
-		ssePart := chatprompt.PartFromContentWithLogger(ctx, opts.Logger, tr)
-		ssePart.CreatedAt = &completedAt
-		publishMessagePart(codersdk.ChatMessageRoleTool, ssePart)
-	})
-	for _, tr := range toolResults {
-		result.content = append(result.content, tr)
-	}
-
-	// If dynamic tools were called, persist what we have
-	// (assistant + built-in results) and exit so the caller can
-	// execute them externally.
-	if len(dynamicCalls) > 0 {
-		// Strip Anthropic provider-executed tool calls without
-		// matching results before persisting so the action-required
-		// step does not carry a malformed tool-call history into
-		// downstream provider requests.
-		result.content = chatsanitize.SanitizeAnthropicProviderToolStepContent(
-			ctx, opts.Logger, provider, modelName,
-			"dynamic_tool_persist", step, result.finishReason, result.content,
-		)
-		if err := persistPendingDynamicStep(ctx, opts, result, stepStart, dynamicCalls); err != nil {
-			return nil, err
-		}
-		tryCompactOnExit(ctx, opts, result.usage, result.providerMetadata)
-		return nil, ErrDynamicToolCall
-	}
-
-	// Check for interruption after tool execution. Tools that
-	// were canceled mid-flight produce error results via ctx
-	// cancellation. Persist the full step (assistant blocks +
-	// tool results) through the interrupt-safe path so nothing
-	// is lost.
-	if ctx.Err() != nil {
-		if errors.Is(context.Cause(ctx), ErrInterrupted) {
-			persistInterruptedStep(ctx, opts, result)
-			return nil, ErrInterrupted
-		}
-		return nil, ctx.Err()
-	}
-
-	return toolResults, nil
-}
-
-// persistPendingDynamicStep persists a step that has pending dynamic
-// tool calls awaiting external execution. Returns ErrInterrupted when
-// persistence fails because the chat was interrupted.
-func persistPendingDynamicStep(
-	ctx context.Context,
-	opts RunOptions,
-	result *stepResult,
-	stepStart time.Time,
-	dynamicCalls []fantasy.ToolCallContent,
-) error {
-	pending := make([]PendingToolCall, 0, len(dynamicCalls))
-	for _, dc := range dynamicCalls {
-		pending = append(pending, PendingToolCall{
-			ToolCallID: dc.ToolCallID,
-			ToolName:   dc.ToolName,
-			Args:       dc.Input,
-		})
-	}
-
-	contextLimit := extractContextLimitWithFallback(result.providerMetadata, opts.ContextLimitFallback)
-
-	if err := opts.PersistStep(ctx, PersistedStep{
-		Content:                 result.content,
-		Usage:                   result.usage,
-		ContextLimit:            contextLimit,
-		ProviderResponseID:      chatopenai.ExtractResponseIDIfStored(opts.ProviderOptions, result.providerMetadata),
-		Runtime:                 time.Since(stepStart),
-		PendingDynamicToolCalls: pending,
-		ReasoningStartedAt:      result.reasoningStartedAt,
-		ReasoningCompletedAt:    result.reasoningCompletedAt,
-	}); err != nil {
-		if errors.Is(err, ErrInterrupted) {
-			persistInterruptedStep(ctx, opts, result)
-			return ErrInterrupted
-		}
-		return xerrors.Errorf("persist step: %w", err)
-	}
-	return nil
 }
 
 // applyExclusiveToolPolicy checks whether toolCalls violate the
@@ -1612,6 +1297,7 @@ func executeSingleTool(
 // persistence.
 func flushActiveState(
 	result *stepResult,
+	clock quartz.Clock,
 	activeText map[string]string,
 	activeReasoning map[string]reasoningState,
 	activeToolCalls map[string]*fantasy.ToolCallContent,
@@ -1628,7 +1314,7 @@ func flushActiveState(
 	// completedAt is filled in here with the interruption
 	// time so partial reasoning shows the time spent before
 	// the interruption.
-	flushedAt := dbtime.Now()
+	flushedAt := clockNow(clock)
 	for _, rs := range activeReasoning {
 		if rs.text == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(fantasy.ProviderOptions(rs.options)) {
 			continue
@@ -1667,171 +1353,8 @@ func flushActiveState(
 	}
 }
 
-// persistInterruptedStep saves durable content from a partial stream.
-// Provider-executed calls without results are removed because their result
-// metadata cannot be synthesized safely, except when removal would mutate
-// signed Anthropic replay state.
-func persistInterruptedStep(
-	ctx context.Context,
-	opts RunOptions,
-	result *stepResult,
-) {
-	if result == nil || (len(result.content) == 0 && len(result.toolCalls) == 0) {
-		return
-	}
-
-	provider := ""
-	modelName := ""
-	if opts.Model != nil {
-		provider = opts.Model.Provider()
-		modelName = opts.Model.Model()
-	}
-	var sanitizeStats chatsanitize.AnthropicProviderToolSanitizationStats
-	result.content, sanitizeStats = chatsanitize.SanitizeAnthropicProviderToolContent(provider, result.content)
-	chatsanitize.LogAnthropicProviderToolSanitization(
-		ctx, opts.Logger, "interrupted_persist", provider, modelName, sanitizeStats,
-	)
-
-	// Track which tool calls already have results in the content.
-	answeredToolCalls := make(map[string]struct{})
-	for _, c := range result.content {
-		tr, ok := fantasy.AsContentType[fantasy.ToolResultContent](c)
-		if ok && tr.ToolCallID != "" {
-			answeredToolCalls[tr.ToolCallID] = struct{}{}
-		}
-	}
-
-	// Copy existing timestamps and add result timestamps for
-	// interrupted tool calls so the frontend can show partial
-	// duration.
-	toolCallCreatedAt := maps.Clone(result.toolCallCreatedAt)
-	if toolCallCreatedAt == nil {
-		toolCallCreatedAt = make(map[string]time.Time)
-	}
-	toolResultCreatedAt := maps.Clone(result.toolResultCreatedAt)
-	if toolResultCreatedAt == nil {
-		toolResultCreatedAt = make(map[string]time.Time)
-	}
-
-	// Build combined content: all accumulated content + synthetic
-	// interrupted results for any unanswered tool calls.
-	content := make([]fantasy.Content, 0, len(result.content))
-	content = append(content, result.content...)
-
-	interruptedAt := dbtime.Now()
-	for _, tc := range result.toolCalls {
-		if tc.ToolCallID == "" {
-			continue
-		}
-		if _, exists := answeredToolCalls[tc.ToolCallID]; exists {
-			continue
-		}
-		if chatsanitize.IsAnthropicProviderExecutedToolCall(provider, tc) {
-			continue
-		}
-		content = append(content, fantasy.ToolResultContent{
-			ToolCallID:       tc.ToolCallID,
-			ToolName:         tc.ToolName,
-			ProviderExecuted: tc.ProviderExecuted,
-			Result: fantasy.ToolResultOutputContentError{
-				Error: xerrors.New(interruptedToolResultErrorMessage),
-			},
-		})
-		// Only stamp synthetic results; don't clobber
-		// timestamps from tools that completed before
-		// the interruption arrived.
-		if _, exists := toolResultCreatedAt[tc.ToolCallID]; !exists {
-			toolResultCreatedAt[tc.ToolCallID] = interruptedAt
-		}
-		answeredToolCalls[tc.ToolCallID] = struct{}{}
-	}
-
-	if len(content) == 0 {
-		return
-	}
-
-	persistCtx := context.WithoutCancel(ctx)
-	if err := opts.PersistStep(persistCtx, PersistedStep{
-		Content:              content,
-		ToolCallCreatedAt:    toolCallCreatedAt,
-		ToolResultCreatedAt:  toolResultCreatedAt,
-		ReasoningStartedAt:   result.reasoningStartedAt,
-		ReasoningCompletedAt: result.reasoningCompletedAt,
-	}); err != nil {
-		if opts.OnInterruptedPersistError != nil {
-			opts.OnInterruptedPersistError(err)
-		}
-	}
-}
-
-// tryCompactOnExit runs compaction when the chatloop is about
-// to exit early (e.g. via ErrDynamicToolCall). The normal
-// inline and post-run compaction paths are unreachable in
-// early-exit scenarios, so this ensures the context window
-// doesn't grow unbounded.
-func tryCompactOnExit(
-	ctx context.Context,
-	opts RunOptions,
-	usage fantasy.Usage,
-	metadata fantasy.ProviderMetadata,
-) {
-	if opts.Compaction == nil || opts.ReloadMessages == nil {
-		return
-	}
-	reloaded, err := opts.ReloadMessages(ctx)
-	if err != nil {
-		return
-	}
-	did, compactErr := tryCompact(
-		ctx,
-		opts.Model,
-		opts.Compaction,
-		opts.ContextLimitFallback,
-		usage,
-		metadata,
-		reloaded,
-	)
-	opts.Metrics.RecordCompaction(opts.Model.Provider(), opts.Model.Model(), did, compactErr)
-	if compactErr != nil && opts.Compaction.OnError != nil {
-		opts.Compaction.OnError(compactErr)
-	}
-}
-
 func isToolActive(name string, activeTools []string) bool {
 	return len(activeTools) == 0 || slices.Contains(activeTools, name)
-}
-
-// mergeNewToolNames returns activeTools augmented with any tool names
-// from newTools that are not present in oldTools and not already in
-// activeTools. This keeps newly injected tools (e.g. via PrepareTools)
-// callable even when activeTools is non-empty.
-//
-// When activeTools is empty, all tools are already active and the slice
-// is returned unchanged.
-func mergeNewToolNames(activeTools []string, oldTools, newTools []fantasy.AgentTool) []string {
-	if len(activeTools) == 0 {
-		return activeTools
-	}
-	old := make(map[string]struct{}, len(oldTools))
-	for _, t := range oldTools {
-		old[t.Info().Name] = struct{}{}
-	}
-	active := make(map[string]struct{}, len(activeTools))
-	for _, name := range activeTools {
-		active[name] = struct{}{}
-	}
-	for _, t := range newTools {
-		name := t.Info().Name
-		if _, alreadyActive := active[name]; alreadyActive {
-			continue
-		}
-		if _, existedBefore := old[name]; existedBefore {
-			continue
-		}
-		activeTools = append(activeTools, name)
-		active[name] = struct{}{}
-	}
-	return activeTools
 }
 
 // buildToolDefinitions converts AgentTool definitions into the
@@ -1868,24 +1391,6 @@ func buildToolDefinitions(tools []fantasy.AgentTool, activeTools []string, provi
 		prepared = append(prepared, pt.Definition)
 	}
 	return prepared
-}
-
-// shouldStopAfterTools returns true if any tool result in the
-// slice matches a name in stopTools and produced a successful
-// (non-error) result.
-func shouldStopAfterTools(stopTools map[string]struct{}, results []fantasy.ToolResultContent) bool {
-	if len(stopTools) == 0 {
-		return false
-	}
-	for _, tr := range results {
-		if _, ok := stopTools[tr.ToolName]; !ok {
-			continue
-		}
-		if _, isErr := tr.Result.(fantasy.ToolResultOutputContentError); !isErr {
-			return true
-		}
-	}
-	return false
 }
 
 func shouldApplyAnthropicPromptCaching(model fantasy.LanguageModel) bool {

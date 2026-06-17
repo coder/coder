@@ -6,6 +6,18 @@ FROM
 WHERE
     id = @id::uuid AND deleted = FALSE;
 
+-- name: GetAIProviderByIDForReferenceLock :one
+SELECT
+    *
+FROM
+    ai_providers
+WHERE
+    id = @id::uuid AND deleted = FALSE
+-- Lock the provider row until the model-config write completes. The
+-- transaction alone does not stop a concurrent soft-delete or disable
+-- between validation and writing the model config reference.
+FOR SHARE;
+
 -- name: GetAIProviderByName :one
 SELECT
     *
@@ -54,6 +66,7 @@ RETURNING
 UPDATE
     ai_providers
 SET
+    type = @type::ai_provider_type,
     display_name = sqlc.narg('display_name')::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,

@@ -19,7 +19,6 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
-	"github.com/openai/openai-go/v3/shared"
 	"github.com/openai/openai-go/v3/shared/constant"
 	"github.com/tidwall/gjson"
 	"go.opentelemetry.io/otel/attribute"
@@ -35,7 +34,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -143,7 +141,7 @@ func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *ResponseError) {
+func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
 	if oaiErr == nil {
 		return
 	}
@@ -183,74 +181,9 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return i.cfg.KeyPool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
-}
-
-// ProcessKeyPoolError translates a keypool exhaustion error
-// into a developer-facing ResponseError shaped for the OpenAI
-// API. Returns nil if err is not an exhaustion error.
-func ProcessKeyPoolError(err error) *ResponseError {
-	var transient *keypool.TransientKeyPoolError
-	switch {
-	case errors.As(err, &transient):
-		return newErrorResponse(
-			"all configured keys are rate-limited",
-			intercept.OpenAIErrTypeRateLimit,
-			intercept.OpenAIErrCodeRateLimit,
-			http.StatusTooManyRequests,
-			transient.RetryAfter,
-		)
-	case errors.Is(err, keypool.ErrPermanentKeyPool):
-		return newErrorResponse(
-			"all configured keys failed authentication",
-			intercept.OpenAIErrTypeAPI,
-			intercept.OpenAIErrCodeServer,
-			http.StatusBadGateway,
-			0,
-		)
-	default:
-		return nil
-	}
-}
-
-func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
-	return &ResponseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    code,
-			Message: msg,
-			Type:    errType,
-		},
-		StatusCode: status,
-		RetryAfter: retryAfter,
-	}
-}
-
-var _ error = &ResponseError{}
-
-type ResponseError struct {
-	ErrorObject *shared.ErrorObject `json:"error"`
-	StatusCode  int                 `json:"-"`
-	RetryAfter  time.Duration       `json:"-"`
-}
-
-func (e *ResponseError) Error() string {
-	if e.ErrorObject == nil {
-		return ""
-	}
-	return e.ErrorObject.Message
-}
-
-// ToResponse marshals e into an *http.Response shaped for the
-// OpenAI API.
-func (e *ResponseError) ToResponse() *http.Response {
-	body, err := json.Marshal(e)
-	if err != nil {
-		body = []byte(`{"error":{"type":"error","message":"error marshaling upstream error","code":"server_error"}}`)
-	}
-	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
 }
 
 // sendCustomErr sends custom responses.Error error to the client
@@ -503,6 +436,11 @@ func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
 	}
 
 	w.Header().Set("Content-Type", r.responseHeaders.Get("Content-Type"))
+	// Preserve the upstream retry-after header so clients can honor it on
+	// rate-limited or unavailable responses.
+	if retryAfter := r.responseHeaders.Get("Retry-After"); retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
 	w.WriteHeader(r.responseStatus)
 
 	b, err := r.readAll()

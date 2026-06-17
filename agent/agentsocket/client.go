@@ -133,6 +133,25 @@ func (c *Client) SyncStatus(ctx context.Context, unitName unit.ID) (SyncStatusRe
 	}, nil
 }
 
+// SyncList returns all registered units and their current statuses.
+func (c *Client) SyncList(ctx context.Context) ([]SyncListItem, error) {
+	resp, err := c.client.SyncList(ctx, &proto.SyncListRequest{})
+	if err != nil {
+		return nil, err
+	}
+
+	var items []SyncListItem
+	for _, u := range resp.Units {
+		items = append(items, SyncListItem{
+			UnitName: unit.ID(u.Unit),
+			Status:   unit.Status(u.Status),
+			IsReady:  u.IsReady,
+		})
+	}
+
+	return items, nil
+}
+
 // UpdateAppStatus forwards an app status update to coderd via the agent.
 func (c *Client) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {
 	return c.client.UpdateAppStatus(ctx, req)
@@ -144,6 +163,13 @@ type SyncStatusResponse struct {
 	Status       unit.Status      `table:"status" json:"status"`
 	IsReady      bool             `table:"ready" json:"is_ready"`
 	Dependencies []DependencyInfo `table:"dependencies" json:"dependencies"`
+}
+
+// SyncListItem contains summary information for a single unit.
+type SyncListItem struct {
+	UnitName unit.ID     `table:"unit,default_sort" json:"unit_name"`
+	Status   unit.Status `table:"status" json:"status"`
+	IsReady  bool        `table:"ready" json:"is_ready"`
 }
 
 // DependencyInfo contains information about a unit dependency.

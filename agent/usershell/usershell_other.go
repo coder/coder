@@ -10,9 +10,10 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Get returns the /etc/passwd entry for the username provided.
-// Deprecated: use SystemEnvInfo.UserShell instead.
-func Get(username string) (string, error) {
+// get resolves the user's shell from /etc/passwd, falling back to
+// $SHELL. It backs SystemEnvInfo.Shell. Callers resolve the shell
+// through an EnvInfoer.
+func get(username string) (string, error) {
 	contents, err := os.ReadFile("/etc/passwd")
 	if err != nil {
 		return "", xerrors.Errorf("read /etc/passwd: %w", err)

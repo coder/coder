@@ -106,6 +106,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	shouldLoop := true
 	srv := i.newResponsesService()
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for shouldLoop {
 		shouldLoop = false
 
@@ -134,16 +139,22 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 			var currentKey *keypool.Key
 			if walker != nil {
-				key, err := walker.Next()
-				if respErr := ProcessKeyPoolError(err); respErr != nil {
+				key, keyPoolErr := walker.Next()
+				if keyPoolErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
 					// instead of streaming them downstream, so the
 					// SSE connection has not been opened yet.
-					i.writeUpstreamError(w, respErr)
-					return xerrors.Errorf("key pool exhausted: %w", err)
+					totalKeyAttempts += walker.Attempts()
+					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
+					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
 				currentKey = key
+				// Record the key in use so the hint reflects the last attempted key.
+				i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+				i.logger.Debug(ctx, "using centralized api key",
+					slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
 					// Disable SDK retries because the failover
@@ -169,6 +180,8 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			// Stream started successfully: commit to this key.
 			break
 		}
+
+		totalKeyAttempts += walker.Attempts()
 
 		// func scope to defer steam.Close()
 		err := func() error {

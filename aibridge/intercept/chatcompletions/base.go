@@ -9,12 +9,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
-	"github.com/openai/openai-go/v3/shared"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
@@ -27,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
-	"github.com/coder/coder/v2/aibridge/utils"
 	"github.com/coder/quartz"
 )
 
@@ -189,7 +186,7 @@ func (i *interceptionBase) unmarshalArgs(in string) (args recorder.ToolArgs) {
 }
 
 // writeUpstreamError marshals and writes a given error.
-func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *ResponseError) {
+func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
 	if oaiErr == nil {
 		return
 	}
@@ -229,37 +226,9 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return i.cfg.KeyPool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
-}
-
-// ProcessKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the OpenAI
-// API. Returns nil if err is not an exhaustion error.
-func ProcessKeyPoolError(err error) *ResponseError {
-	var transient *keypool.TransientKeyPoolError
-	switch {
-	case errors.As(err, &transient):
-		return newErrorResponse(
-			"all configured keys are rate-limited",
-			intercept.OpenAIErrTypeRateLimit,
-			intercept.OpenAIErrCodeRateLimit,
-			http.StatusTooManyRequests,
-			transient.RetryAfter,
-		)
-	case errors.Is(err, keypool.ErrPermanentKeyPool):
-		return newErrorResponse(
-			"all configured keys failed authentication",
-			intercept.OpenAIErrTypeAPI,
-			intercept.OpenAIErrCodeServer,
-			http.StatusBadGateway,
-			0,
-		)
-	default:
-		return nil
-	}
 }
 
 func (i *interceptionBase) hasInjectableTools() bool {
@@ -291,49 +260,4 @@ func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
 	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
 	return in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
 		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */
-}
-
-func getErrorResponse(err error) *ResponseError {
-	var apiErr *openai.Error
-	if !errors.As(err, &apiErr) {
-		return nil
-	}
-	return newErrorResponse(apiErr.Message, apiErr.Type, apiErr.Code, apiErr.StatusCode, keypool.ParseRetryAfter(apiErr.Response))
-}
-
-var _ error = &ResponseError{}
-
-type ResponseError struct {
-	ErrorObject *shared.ErrorObject `json:"error"`
-	StatusCode  int                 `json:"-"`
-	RetryAfter  time.Duration       `json:"-"`
-}
-
-func newErrorResponse(msg, errType, code string, status int, retryAfter time.Duration) *ResponseError {
-	return &ResponseError{
-		ErrorObject: &shared.ErrorObject{
-			Code:    code,
-			Message: msg,
-			Type:    errType,
-		},
-		StatusCode: status,
-		RetryAfter: retryAfter,
-	}
-}
-
-func (e *ResponseError) Error() string {
-	if e.ErrorObject == nil {
-		return ""
-	}
-	return e.ErrorObject.Message
-}
-
-// ToResponse marshals e into an *http.Response shaped for the
-// OpenAI API.
-func (e *ResponseError) ToResponse() *http.Response {
-	body, err := json.Marshal(e)
-	if err != nil {
-		body = []byte(`{"error":{"type":"error","message":"error marshaling upstream error","code":"server_error"}}`)
-	}
-	return utils.NewJSONErrorResponse(e.StatusCode, e.RetryAfter, body)
 }

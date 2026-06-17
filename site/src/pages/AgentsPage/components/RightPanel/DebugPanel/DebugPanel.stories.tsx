@@ -99,6 +99,34 @@ const makeLargeRecord = (
 type StoryCanvas = ReturnType<typeof within>;
 type StoryUser = ReturnType<typeof userEvent.setup>;
 
+const expectVisibleCopyButtonOnHover = async ({
+	canvas,
+	label,
+}: {
+	canvas: StoryCanvas;
+	label: RegExp;
+}) => {
+	const copyButton = canvas.getByRole("button", { name: label });
+	const groupContainer = copyButton.closest("[data-debug-code-block]");
+	if (!(groupContainer instanceof HTMLElement)) {
+		throw new Error("Missing debug-code hover wrapper.");
+	}
+	let supportsNativeHover = false;
+	try {
+		const { userEvent: browserUserEvent } = await import("vitest/browser");
+		await browserUserEvent.hover(groupContainer);
+		supportsNativeHover = true;
+	} catch {
+		await userEvent.hover(groupContainer);
+	}
+	if (supportsNativeHover) {
+		await waitFor(() => {
+			expect(copyButton).toBeVisible();
+		});
+	}
+	return copyButton;
+};
+
 // Story fixtures use structured normalized payloads even though the generated
 // API type still models them as string records.
 const makeNormalizedPayloadFixture = (
@@ -752,12 +780,11 @@ export const SingleStepSuccessfulRun: Story = {
 		// Request body toggle should be available once the step is open.
 		expect(canvas.getByText("Request body")).toBeVisible();
 
-		// Verify a copy button is reachable for normalized body sections.
+		// Verify a copy button becomes visible for normalized body sections.
 		await user.click(canvas.getByText("Request body"));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy request body JSON/i,
 		});
 	},
 };
@@ -1098,16 +1125,17 @@ export const MultiStepRunWithRetries: Story = {
 		});
 
 		await user.click(canvas.getByRole("button", { name: /Attempt 1/i }));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy raw request JSON/i }),
-			).toBeVisible();
-			expect(
-				canvas.getByRole("button", { name: /Copy raw response JSON/i }),
-			).toBeVisible();
-			expect(
-				canvas.getByRole("button", { name: /Copy raw attempt error/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw request JSON/i,
+		});
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw response JSON/i,
+		});
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy raw attempt error/i,
 		});
 	},
 };
@@ -1152,10 +1180,9 @@ export const ErrorStateWithRedactedHeaders: Story = {
 
 		// Expand request body to reveal the redacted headers.
 		await user.click(canvas.getByText("Request body"));
-		await waitFor(() => {
-			expect(
-				canvas.getByRole("button", { name: /Copy request body JSON/i }),
-			).toBeVisible();
+		await expectVisibleCopyButtonOnHover({
+			canvas,
+			label: /Copy request body JSON/i,
 		});
 
 		// After expanding, verify [REDACTED] markers appear in the

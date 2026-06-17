@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -60,7 +59,7 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.KeyPool == nil && cfg.Key != "" {
 		// keypool.New only fails on empty or duplicate keys,
 		// neither possible with a single non-empty key.
-		pool, err := keypool.New([]string{cfg.Key}, quartz.NewReal())
+		pool, err := keypool.New(cfg.Name, []string{cfg.Key}, quartz.NewReal(), nil)
 		if err != nil {
 			panic(fmt.Sprintf("openai provider: build single-key pool: %s", err))
 		}
@@ -84,6 +83,8 @@ func (*OpenAI) Type() string {
 func (p *OpenAI) Name() string {
 	return p.cfg.Name
 }
+
+func (*OpenAI) Enabled() bool { return true }
 
 func (p *OpenAI) RoutePrefix() string {
 	// Route prefix includes version to match default OpenAI base URL.
@@ -142,14 +143,10 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		cfg.KeyPool = nil
 		credKind = intercept.CredentialKindBYOK
 		credSecret = token
-	} else if cfg.KeyPool != nil {
-		// Centralized: use the first key as a placeholder hint.
-		// TODO(ssncferreira): record the actually-used key in
-		// the interception record to reflect failover.
-		if k, err := cfg.KeyPool.Walker().Next(); err == nil {
-			credSecret = k.Value()
-		}
 	}
+	// Centralized leaves credSecret empty: the hint is set by the
+	// failover loop on each key attempt and persisted at
+	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
@@ -197,44 +194,22 @@ func (*OpenAI) AuthHeader() string {
 	return "Authorization"
 }
 
-func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
-	if headers == nil {
-		headers = &http.Header{}
-	}
-
-	// BYOK: if the request already carries user-supplied credentials,
-	// do not overwrite them with the centralized key.
-	if headers.Get("Authorization") != "" {
-		return
-	}
-
-	// Centralized: pull a single key from the pool. No failover
-	// or exhaustion handling here.
-	// TODO(ssncferreira): replace with RoundTripper-based auth
-	// in the upstack passthrough PR.
-	if p.cfg.KeyPool == nil {
-		return
-	}
-	if key, err := p.cfg.KeyPool.Walker().Next(); err == nil {
-		headers.Set(p.AuthHeader(), "Bearer "+key.Value())
-	}
+func (p *OpenAI) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
 }
 
 func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
-	name := p.Name()
 	return keypool.KeyFailoverConfig{
-		Pool: p.cfg.KeyPool,
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
 		IsBYOK: func(r *http.Request) bool {
 			return r.Header.Get("Authorization") != ""
 		},
 		InjectAuthKey: func(h *http.Header, key string) {
 			h.Set("Authorization", "Bearer "+key)
 		},
-		MarkKey: func(ctx context.Context, key *keypool.Key, resp *http.Response) bool {
-			return keypool.MarkKeyOnStatus(ctx, key, resp, logger, name)
-		},
-		BuildExhaustedResponse: func(err error) *http.Response {
-			return chatcompletions.ProcessKeyPoolError(err).ToResponse()
+		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
+			return intercept.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
 		},
 	}
 }

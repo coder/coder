@@ -1,0 +1,282 @@
+FROM ubuntu:26.04@sha256:5e275723f82c67e387ba9e3c24baa0abdcb268917f276a0561c97bef9450d0b4
+
+SHELL ["/bin/bash", "-c"]
+
+# Install packages from apt repositories
+ARG DEBIAN_FRONTEND="noninteractive"
+
+# Updated certificates are necessary to use the teraswitch mirror.
+# This must be ran before copying in configuration since the config replaces
+# the default mirror with teraswitch.
+# Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
+# and unminimize to include man pages.
+RUN apt-get update && \
+	apt-get install --yes ca-certificates locales unminimize && \
+	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
+	locale-gen && \
+	yes | unminimize
+
+COPY dogfood/coder/ubuntu-26.04/files /
+
+# We used to copy /etc/sudoers.d/* in from files/ but this causes issues with
+# permissions and layer caching. Instead, create the file directly.
+RUN mkdir -p /etc/sudoers.d && \
+	echo 'coder ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/nopasswd && \
+	chmod 750 /etc/sudoers.d/ && \
+	chmod 640 /etc/sudoers.d/nopasswd
+
+# Use more reliable mirrors for Ubuntu packages
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g; s|http://security.ubuntu.com/ubuntu/|http://mirrors.edge.kernel.org/ubuntu/|g' /etc/apt/sources.list.d/ubuntu.sources && \
+	apt-get update --quiet && apt-get install --yes \
+	ansible \
+	apt-transport-https \
+	apt-utils \
+	asciinema \
+	bash \
+	bash-completion \
+	bat \
+	bats \
+	bind9-dnsutils \
+	bison \
+	build-essential \
+	ca-certificates \
+	containerd.io \
+	crypto-policies \
+	curl \
+	docker-ce \
+	docker-ce-cli \
+	docker-compose-plugin \
+	eza \
+	fd-find \
+	file \
+	fish \
+	flex \
+	gettext-base \
+	git \
+	gnupg \
+	google-cloud-sdk \
+	hx \
+	htop \
+	httpie \
+	inetutils-tools \
+	iproute2 \
+	iputils-ping \
+	iputils-tracepath \
+	jq \
+	kubectl \
+	language-pack-en \
+	less \
+	libgbm-dev \
+	libicu-dev \
+	libreadline-dev \
+	libssl-dev \
+	libx11-xcb1 \
+	lsb-release \
+	lsof \
+	man \
+	meld \
+	ncdu \
+	neovim \
+	net-tools \
+	openjdk-11-jdk-headless \
+	openssh-server \
+	openssl \
+	pkg-config \
+	procps \
+	postgresql-18 \
+	python3 \
+	python3-pip \
+	ripgrep \
+	rsync \
+	screen \
+	shellcheck \
+	strace \
+	sudo \
+	tcptraceroute \
+	termshark \
+	tmux \
+	traceroute \
+	unzip \
+	uuid-dev \
+	vim \
+	wget \
+	xauth \
+	zip \
+	zlib1g-dev \
+	zsh \
+	zstd && \
+	# Keep Docker's engine, CLI, runtime, and plugins on the versions selected by
+	# the apt pins copied above. Future apt operations in this image should not
+	# upgrade Docker 27 or containerd.io 1.7.23 out from under sysbox / DinD.
+	apt-mark hold \
+		containerd.io \
+		docker-buildx-plugin \
+		docker-ce \
+		docker-ce-cli \
+		docker-compose-plugin && \
+	# Delete package cache to avoid consuming space in layer
+	apt-get clean && \
+	# Configure FIPS-compliant policies
+	update-crypto-policies --set FIPS
+
+# Install Google Chrome directly from Google. Ubuntu 26.04 ships
+# chromium-browser as a snap-only package, which does not work in
+# Docker containers.
+# configure-chrome-flags.sh is automatically run after dpkg operations
+# by dogfood/coder/files/etc/apt/apt.conf.d/99-chrome-flags.
+RUN chmod a+x /opt/configure-chrome-flags.sh && \
+	wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+	apt-get install --yes ./google-chrome-stable_current_amd64.deb && \
+	rm google-chrome-stable_current_amd64.deb
+
+# Install Rust via rustup. Using rustup ensures we get a current stable
+# toolchain.
+ENV RUSTUP_HOME=/usr/local/rustup \
+	CARGO_HOME=/usr/local/cargo
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+	sh -s -- -y --default-toolchain stable --profile default -c rust-src
+ENV PATH=$CARGO_HOME/bin:$PATH
+
+# Install the docker buildx component.
+RUN DOCKER_BUILDX_VERSION=$(curl -s "https://api.github.com/repos/docker/buildx/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"(v[^"]+)".*/\1/') && \
+	mkdir -p /usr/local/lib/docker/cli-plugins && \
+	curl -Lo /usr/local/lib/docker/cli-plugins/docker-buildx "https://github.com/docker/buildx/releases/download/${DOCKER_BUILDX_VERSION}/buildx-${DOCKER_BUILDX_VERSION}.linux-amd64" && \
+	chmod a+x /usr/local/lib/docker/cli-plugins/docker-buildx
+
+# GitHub CLI to /usr/bin/gh. The wrapper at files/usr/local/bin/gh
+# execs this for coder external-auth fallback. Apt repo is unreliable:
+# https://github.com/cli/cli/issues/6175#issuecomment-1235984381
+RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L https://github.com/cli/cli/releases/download/v${GH_CLI_VERSION}/gh_${GH_CLI_VERSION}_linux_amd64.deb -o gh.deb && \
+	dpkg -i gh.deb && \
+	rm gh.deb
+
+# Ensure PostgreSQL binaries are in the users $PATH.
+RUN update-alternatives --install /usr/local/bin/initdb initdb /usr/lib/postgresql/18/bin/initdb 100 && \
+	update-alternatives --install /usr/local/bin/postgres postgres /usr/lib/postgresql/18/bin/postgres 100
+
+# Create links for injected dependencies
+RUN ln --symbolic /var/tmp/coder/coder-cli/coder /usr/local/bin/coder && \
+	ln --symbolic /var/tmp/coder/code-server/bin/code-server /usr/local/bin/code-server
+
+# Disable the PostgreSQL systemd service.
+# Coder uses a custom timescale container to test the database instead.
+RUN systemctl disable \
+	postgresql
+
+# Configure systemd services for CVMs
+RUN systemctl enable \
+	docker \
+	ssh && \
+	# Workaround for envbuilder cache probing not working unless the filesystem is modified.
+	touch /tmp/.envbuilder-systemctl-enable-docker-ssh-workaround
+
+# Add coder user and allow use of docker/sudo.
+# Ubuntu 26.04 ships a default "ubuntu" user at UID 1000;
+# remove it so we can create "coder" with that UID.
+RUN userdel -r ubuntu && \
+	useradd coder \
+	--create-home \
+	--shell=/bin/bash \
+	--groups=docker \
+	--uid=1000 \
+	--user-group
+
+# Install mise. Binary at /opt/mise/bin so it survives the home
+# volume mount; data dir under ~/.local/share/mise so installs ride
+# along on the per-workspace home volume, matching Homebrew's pattern
+# (see /home/linuxbrew volume in main.tf).
+ARG MISE_VERSION=v2026.5.12 \
+	MISE_SHA256=a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48 \
+	MISE_INSTALL_DIR=/opt/mise/bin \
+	HOMEBREW_INSTALL_COMMIT=540da2ca91271886910572df3a50332540ca84e4 \
+	HOMEBREW_INSTALL_SHA256=dfd5145fe2aa5956a600e35848765273f5798ce6def01bd08ecec088a1268d91
+RUN install --directory --owner=coder --group=coder --mode=0755 "${MISE_INSTALL_DIR}" && \
+	curl --silent --show-error --location --fail \
+		"https://github.com/jdx/mise/releases/download/${MISE_VERSION}/mise-${MISE_VERSION}-linux-x64" \
+		--output "${MISE_INSTALL_DIR}/mise" && \
+	echo "${MISE_SHA256}  ${MISE_INSTALL_DIR}/mise" | sha256sum -c && \
+	chown coder:coder "${MISE_INSTALL_DIR}/mise" && \
+	chmod 0755 "${MISE_INSTALL_DIR}/mise" && \
+	ln --symbolic "${MISE_INSTALL_DIR}/mise" /usr/local/bin/mise && \
+	test -x /usr/local/bin/mise && \
+	sudo --login --user=coder /bin/bash -lc 'set -euo pipefail && mise_bin="$(readlink --canonicalize /usr/local/bin/mise)" && test -w "$(dirname "$mise_bin")" && /usr/local/bin/mise --version && /usr/local/bin/mise self-update --help >/dev/null && /usr/local/bin/mise upgrade --help >/dev/null'
+
+ENV MISE_DATA_DIR=/home/coder/.local/share/mise
+
+# Bake a system fallback for trusted_config_paths so the canonical
+# /home/coder/coder repo and the mise-oci-synthesized /etc/mise/config.toml
+# are trusted without a per-config prompt. The workspace template
+# (dogfood/coder/main.tf install-deps coder_script) seeds a matching
+# user-owned ~/.config/mise/conf.d/00-coder-trust.toml on workspace
+# start, which the user can edit to add their own paths; that file
+# lives on the persistent home volume and overrides this fallback.
+RUN install --directory --mode=0755 /etc/mise /etc/mise/conf.d
+COPY --chmod=0644 <<'EOF' /etc/mise/conf.d/00-coder-trust.toml
+[settings]
+trusted_config_paths = [
+  "/home/coder/coder",
+  "/etc/mise",
+]
+EOF
+
+# Reserve the mount_point declared in mise.toml [oci]. The path is
+# duplicated below in MISE_SHARED_INSTALL_DIRS and PATH; if it ever
+# changes, update all three plus mise.toml. Ownership of /opt/mise
+# and /opt/mise/data is reasserted at workspace start by the
+# install-deps coder_script in dogfood/coder/main.tf: `mise oci
+# build` emits deterministic tar layers with hardcoded uid=0/gid=0
+# (see src/oci/layer.rs), so the final image always overwrites
+# whatever ownership we set here.
+RUN install --directory --owner=coder --group=coder --mode=0755 /opt/mise /opt/mise/data
+
+# Install Homebrew as the coder user so the supported Linux prefix remains
+# writable after the image build.
+RUN sudo --login --user=coder env \
+		NONINTERACTIVE=1 \
+		CI=1 \
+		HOMEBREW_INSTALL_COMMIT=${HOMEBREW_INSTALL_COMMIT} \
+		HOMEBREW_INSTALL_SHA256=${HOMEBREW_INSTALL_SHA256} \
+		/bin/bash -lc 'set -euo pipefail && installer="$(mktemp)" && trap '"'"'rm -f "${installer}"'"'"' EXIT && curl --silent --show-error --location --fail "https://raw.githubusercontent.com/Homebrew/install/${HOMEBREW_INSTALL_COMMIT}/install.sh" --output "${installer}" && echo "${HOMEBREW_INSTALL_SHA256}  ${installer}" | sha256sum -c && /bin/bash "${installer}"' && \
+	test -x /home/linuxbrew/.linuxbrew/bin/brew && \
+	sudo --login --user=coder /bin/bash -lc '/home/linuxbrew/.linuxbrew/bin/brew --version'
+
+# Adjust OpenSSH config and drop the apt lists / cache that survived
+# the package installs above. No later step in this image needs apt.
+RUN echo "PermitUserEnvironment yes" >>/etc/ssh/sshd_config && \
+	echo "X11Forwarding yes" >>/etc/ssh/sshd_config && \
+	echo "X11UseLocalhost no" >>/etc/ssh/sshd_config && \
+	apt-get clean && rm -rf /var/lib/apt/lists/*
+
+USER coder
+
+# mise shims must lead so `command -v` and `mise doctor` resolve
+# mise-managed tools ahead of Homebrew and system binaries.
+ENV HOMEBREW_PREFIX="/home/linuxbrew/.linuxbrew" \
+	HOMEBREW_CELLAR="/home/linuxbrew/.linuxbrew/Cellar" \
+	HOMEBREW_REPOSITORY="/home/linuxbrew/.linuxbrew/Homebrew"
+# Pin npm globals to a stable home dir, otherwise they land in
+# mise's version-specific node bin dir which isn't on PATH.
+ENV NPM_CONFIG_PREFIX="/home/coder/.npm-global"
+# Baked shims trail user shims on PATH so user installs win when
+# both exist.
+ENV MISE_SHARED_INSTALL_DIRS="/opt/mise/data/installs"
+ENV PATH="/home/coder/.npm-global/bin:${MISE_DATA_DIR}/shims:/opt/mise/data/shims:${HOMEBREW_PREFIX}/bin:${HOMEBREW_PREFIX}/sbin:/home/coder/go/bin:${PATH}"
+
+# Override CARGO_HOME so cargo registry/cache writes go to the coder
+# user's home directory instead of the root-owned /usr/local/cargo.
+# The rustup-installed binaries remain on PATH via /usr/local/cargo/bin.
+ENV CARGO_HOME="/home/coder/.cargo"
+
+# This setting prevents Go from using the public checksum database for
+# our module path prefixes. It is required because these are in private
+# repositories that require authentication.
+#
+# For details, see: https://golang.org/ref/mod#private-modules
+ENV GOPRIVATE="coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder"
+
+# Increase memory allocation to NodeJS
+ENV NODE_OPTIONS="--max-old-space-size=8192"
+
+# This should be removed when we can upgrade to Playwright 1.61.
+ENV PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=ubuntu24.04-x64

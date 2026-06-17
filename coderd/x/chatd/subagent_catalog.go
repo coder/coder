@@ -127,16 +127,16 @@ func allSubagentDefinitions() []subagentDefinition {
 				}
 				return ""
 			},
-			buildOptions: func(ctx context.Context, p *Server, _ database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
+			buildOptions: func(ctx context.Context, p *Server, currentChat database.Chat, _ database.Chat, _ uuid.UUID, prompt string) (childSubagentChatOptions, error) {
 				provider, _, _, err := p.computerUseProviderAndModelFromConfig(ctx)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				configured, err := p.providerConfigured(ctx, provider)
+				providerKeys, err := p.resolveUserProviderAPIKeysForProviderType(ctx, currentChat.OwnerID, provider)
 				if err != nil {
 					return childSubagentChatOptions{}, err
 				}
-				if !configured {
+				if !userCanUseProviderKeys(providerKeys, provider) {
 					return childSubagentChatOptions{}, xerrors.Errorf(
 						`API key for computer-use provider %q is not configured`,
 						provider,

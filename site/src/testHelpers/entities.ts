@@ -21,6 +21,7 @@ export const MockOrganization: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockDefaultOrganization: TypesGen.Organization = {
@@ -37,6 +38,7 @@ export const MockOrganization2: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockOrganization3: TypesGen.Organization = {
@@ -49,6 +51,7 @@ export const MockOrganization3: TypesGen.Organization = {
 	created_at: "",
 	updated_at: "",
 	is_default: false,
+	default_org_member_roles: ["organization-workspace-access"],
 };
 
 export const MockTemplateDAUResponse: TypesGen.DAUsResponse = {
@@ -567,6 +570,54 @@ export const MockUserAppearanceSettings: TypesGen.UserAppearanceSettings = {
 	theme_dark: "dark",
 	terminal_font: "",
 };
+
+export const MockUserSecrets: TypesGen.UserSecret[] = [
+	{
+		id: "secret-env-only",
+		name: "EXAMPLE_TOKEN",
+		description: "Used by example templates.",
+		env_name: "EXAMPLE_TOKEN",
+		file_path: "",
+		created_at: "2026-04-28T16:30:00Z",
+		updated_at: "2026-04-30T16:30:00Z",
+	},
+	{
+		id: "secret-file-only",
+		name: "config-json",
+		description: "Mounted as a workspace file.",
+		env_name: "",
+		file_path: "~/.config/example/config.json",
+		created_at: "2026-04-29T16:30:00Z",
+		updated_at: "2026-05-01T16:30:00Z",
+	},
+	{
+		id: "secret-env-and-file",
+		name: "SERVICE_API_KEY",
+		description: "Available as an environment variable and file.",
+		env_name: "SERVICE_API_KEY",
+		file_path: "/var/run/secrets/service-api-key",
+		created_at: "2026-04-30T16:30:00Z",
+		updated_at: "2026-05-02T16:30:00Z",
+	},
+	{
+		id: "secret-not-injected",
+		name: "SERVICE_PASSWORD",
+		description: "",
+		env_name: "",
+		file_path: "",
+		created_at: "2026-05-01T16:30:00Z",
+		updated_at: "2026-05-03T16:30:00Z",
+	},
+	{
+		id: "secret-duplicate",
+		name: "DUPLICATE_API_KEY",
+		description: "Used to exercise duplicate validation.",
+		env_name: "DUPLICATE_API_KEY",
+		file_path: "",
+		created_at: "2026-05-01T18:30:00Z",
+		updated_at: "2026-05-03T18:30:00Z",
+	},
+];
 
 export const MockTasksTabVisible: boolean = false;
 
@@ -1510,7 +1561,7 @@ export const MockBuilds = [
 
 export const MockWorkspace: TypesGen.Workspace = {
 	id: "test-workspace",
-	name: "Test-Workspace",
+	name: "test-workspace",
 	created_at: "",
 	updated_at: "",
 	template_id: MockTemplate.id,
@@ -1894,6 +1945,25 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 		options: [],
 		required: true,
 		ephemeral: true,
+	};
+
+// Not required and the default is a blank string.
+export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
+	{
+		name: "seventh_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is seventh parameter",
+		description_plaintext: "Markdown: This is seventh parameter",
+		default_value: "",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		validation_min: 1,
+		validation_max: 10,
+		validation_monotonic: "decreasing",
+		required: false,
+		ephemeral: false,
 	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
@@ -3250,6 +3320,8 @@ export const MockPermissions: Permissions = {
 	viewAnyIdpSyncSettings: true,
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: true,
+	viewAIGatewayKeys: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3284,6 +3356,8 @@ export const MockNoPermissions: Permissions = {
 	viewAnyIdpSyncSettings: false,
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
+	viewAnyAIProvider: false,
+	viewAIGatewayKeys: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -3369,6 +3443,12 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	value: "5",
 };
 
+// Has a blank value.
+export const MockWorkspaceBuildParameter7: TypesGen.WorkspaceBuildParameter = {
+	name: MockTemplateVersionParameter7.name,
+	value: "",
+};
+
 export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	name: "parameter1",
 	display_name: "Parameter 1",
@@ -3386,6 +3466,62 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	icon: "",
 	styling: {},
 	order: 0,
+};
+
+// A text parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter1.
+export const MockPreviewParameter1: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter1.name,
+	display_name: MockTemplateVersionParameter1.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter1.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter1.default_value },
+};
+
+// A number parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter2.
+export const MockPreviewParameter2: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter2.name,
+	display_name: MockTemplateVersionParameter2.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter2.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter2.default_value },
+};
+
+// A text parameter that is required and immutable.  Maps to
+// MockTemplateVersionParameter4.
+export const MockPreviewParameter4: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter4.name,
+	display_name: MockTemplateVersionParameter4.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter4.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter4.default_value },
+	mutable: false,
+};
+
+// A text parameter that is mutable, not required, and has a blank value.  Maps
+// to MockTemplateVersionParameter7.
+export const MockPreviewParameter7: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter7.name,
+	display_name: MockTemplateVersionParameter7.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter7.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter7.default_value },
+	required: MockTemplateVersionParameter7.required,
+	mutable: MockTemplateVersionParameter7.mutable,
+	ephemeral: MockTemplateVersionParameter7.ephemeral,
 };
 
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
@@ -5364,81 +5500,6 @@ export const MockDisplayNameTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
-export const MockInterception: TypesGen.AIBridgeInterception = {
-	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	initiator: {
-		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
-		username: "testuser",
-		avatar_url: "https://example.com/avatar.png",
-	},
-	provider: "openai",
-	provider_name: "openai",
-	model: "gpt-4o",
-	started_at: "2022-05-17T17:39:01.382927298Z",
-	ended_at: "2022-05-17T17:39:01.382927298Z",
-	token_usages: [
-		{
-			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			input_tokens: 5,
-			output_tokens: 1,
-			cache_read_input_tokens: 3,
-			cache_write_input_tokens: 1,
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	metadata: {},
-	user_prompts: [
-		{
-			id: "85154044-818e-4ee4-bac2-87f3ac8f066b",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			prompt: "Hello OpenAI",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	tool_usages: [],
-	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	client: "Claude Code",
-};
-
-export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-	provider: "anthropic",
-	model: "claude-sonnet-4.5",
-	user_prompts: [
-		{
-			id: "c820f31f-0170-4044-8b7c-b1b18747b4fb",
-			interception_id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-			provider_response_id: "res_2345678901",
-			prompt: "Hello Anthropic",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
-export const MockInterceptionCopilot: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-	provider: "copilot",
-	model: "claude-opus-4-5",
-	user_prompts: [
-		{
-			id: "c6c613d1-177e-416f-95b5-c7f0eeefb922",
-			interception_id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-			provider_response_id: "res_3456789012",
-			prompt: "Hello Copilot",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
 export const MockSession: TypesGen.AIBridgeSession = {
 	id: "c8f2df8c-149c-43e1-9d51-898daaa2c505",
 	initiator: {
@@ -5467,3 +5528,104 @@ export const MockSession: TypesGen.AIBridgeSession = {
 	last_prompt: "But *can* I really fix it?",
 	last_active_at: "2026-03-09T10:28:15.03152Z",
 };
+
+export const MockAIProviderOpenAI: TypesGen.AIProvider = {
+	id: "7a5d6b6a-5f02-4a9c-9c4e-2b3e2a3d2f01",
+	type: "openai",
+	name: "openai",
+	display_name: "OpenAI",
+	base_url: "https://api.openai.com",
+	enabled: false,
+	api_keys: [
+		{
+			id: "6d7c1f3a-1f0b-4a12-a1b5-0fb1f8e72e01",
+			masked: "sk-***\u2026***ABCD",
+			created_at: "2026-05-14T10:00:00Z",
+		},
+	],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderAnthropic: TypesGen.AIProvider = {
+	id: "4f81f1ee-37c1-4a37-a9d5-7e0c1c8c0c11",
+	type: "anthropic",
+	name: "anthropic",
+	display_name: "Anthropic",
+	base_url: "https://api.anthropic.com",
+	enabled: false,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+/**
+ * Bedrock providers come over the wire with `type: "anthropic"` and a
+ * `settings._type: "bedrock"` discriminator. `isBedrockProvider` and the
+ * backend (see `coderd/ai_providers.go`) enforce this convention.
+ */
+export const MockAIProviderBedrock: TypesGen.AIProvider = {
+	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
+	type: "anthropic",
+	name: "bedrock",
+	display_name: "Bedrock",
+	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",
+	enabled: true,
+	api_keys: [],
+	settings: {
+		_type: "bedrock",
+		_version: 1,
+		region: "us-east-2",
+		model: "anthropic.claude-opus-4-7",
+		small_fast_model: "anthropic.claude-haiku-4-5",
+	} as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviderCopilot: TypesGen.AIProvider = {
+	id: "b3f0d2c8-6a4e-4d11-8c2f-1e9a7c5b4d31",
+	type: "copilot",
+	name: "copilot",
+	display_name: "GitHub Copilot",
+	base_url: "https://api.business.githubcopilot.com",
+	enabled: true,
+	api_keys: [],
+	settings: null as unknown as TypesGen.AIProviderSettings,
+	created_at: "2026-05-14T10:00:00Z",
+	updated_at: "2026-05-14T10:00:00Z",
+};
+
+export const MockAIProviders: TypesGen.AIProvider[] = [
+	MockAIProviderOpenAI,
+	MockAIProviderAnthropic,
+	MockAIProviderBedrock,
+	MockAIProviderCopilot,
+];
+
+export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
+	{
+		id: "1c2e6f4a-8b3d-4f1a-9c7e-2a5b8d6f0e11",
+		name: "primary-gateway",
+		key_prefix: "a1B2c3D4e5F",
+		created_at: "2024-05-01T14:00:00Z",
+		last_used_at: "2024-05-20T09:30:00Z",
+	},
+	{
+		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",
+		name: "backup-gateway",
+		key_prefix: "z9Y8x7W6v5U",
+		created_at: "2024-05-10T08:15:00Z",
+	},
+];
+
+export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse =
+	{
+		id: "3e4a8b6c-0d5f-4b3c-9e7a-4c7d0f8a2b33",
+		name: "new-gateway",
+		key: "K3mNp7qRs2TvW9xY4zA6bC1dE8fG5hJ0kL3nM7pQ2rS",
+		key_prefix: "K3mNp7qRs2T",
+		created_at: "2024-05-28T12:00:00Z",
+	};

@@ -1,11 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
-import {
-	buildStreamRenderState,
-	FIXTURE_NOW,
-} from "./ChatConversation/storyFixtures";
+import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
 import { ChatPageTimeline } from "./ChatPageContent";
 
 const meta = {
@@ -29,7 +27,7 @@ const buildMessage = (
 	content,
 });
 
-const buildRegressionStore = () => {
+const buildThinkingSpacerStore = () => {
 	const store = createChatStore();
 
 	store.replaceMessages([
@@ -37,102 +35,81 @@ const buildRegressionStore = () => {
 		buildMessage(2, "assistant", [
 			{
 				type: "reasoning",
-				text: "I should read SKILL.md and main.go to understand the codebase.",
-			},
-			{
-				type: "tool-call",
-				tool_call_id: "tool-1",
-				tool_name: "read_file",
-				args: { path: "SKILL.md" },
-			},
-			{
-				type: "tool-call",
-				tool_call_id: "tool-2",
-				tool_name: "read_file",
-				args: { path: "main.go" },
+				text: "I should think before answering.",
 			},
 		]),
-		buildMessage(3, "tool", [
-			{
-				type: "tool-result",
-				tool_call_id: "tool-1",
-				result: { output: "# SKILL.md contents" },
-			},
-		]),
-		buildMessage(4, "tool", [
-			{
-				type: "tool-result",
-				tool_call_id: "tool-2",
-				result: { output: "package main" },
-			},
-		]),
+		// A following message is needed so the spacer renders.
+		buildMessage(3, "user", [{ type: "text", text: "Any progress?" }]),
 	]);
 
 	return store;
 };
 
-export const StreamingToolCallGapRegression: Story = {
+export const SpacerVisibleWhenNotStreaming: Story = {
 	render: () => {
-		const store = buildRegressionStore();
-		const { streamState } = buildStreamRenderState([
-			{
-				type: "tool-call",
-				tool_call_id: "tool-streaming",
-				tool_name: "read_file",
-				args: { path: "types.go" },
-			},
-		]);
-		store.setStreamState(streamState);
-		store.setChatStatus("pending");
+		const store = buildThinkingSpacerStore();
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
+		canvas.getByRole("button", { name: /thinking/i });
+		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
 	},
 };
 
-export const StartingPhaseToolCallGapRegression: Story = {
+export const DurableUnresolvedWorkspaceToolRuns: Story = {
 	render: () => {
-		const store = buildRegressionStore();
+		const store = createChatStore();
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Create a workspace" }]),
+			buildMessage(2, "assistant", [
+				{
+					type: "tool-call",
+					tool_call_id: "create-workspace-call",
+					tool_name: "create_workspace",
+					args: { name: "dev" },
+				},
+			]),
+		]);
 		store.setChatStatus("running");
 
 		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
+			<ChatWorkspaceContext value={{ workspaceId: "workspace-1" }}>
+				<ChatPageTimeline store={store} persistedError={undefined} />
+			</ChatWorkspaceContext>
 		);
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		canvas.getAllByText("Thinking...");
-		expect(canvas.queryByTestId("assistant-bottom-spacer")).toBeNull();
+		expect(canvas.getByText("Creating workspace…")).toBeInTheDocument();
+		expect(canvas.queryByText("Created workspace")).toBeNull();
+		expect(canvas.getByText("Loading build logs…")).toBeInTheDocument();
 	},
 };
 
-export const SpacerVisibleWhenNotStreaming: Story = {
+export const HiddenAssistantPlaceholderDoesNotRender: Story = {
 	render: () => {
-		const store = buildRegressionStore();
+		const store = createChatStore();
 
-		return (
-			<ChatPageTimeline
-				chatID={CHAT_ID}
-				store={store}
-				persistedError={undefined}
-			/>
-		);
+		store.replaceMessages([
+			buildMessage(1, "user", [{ type: "text", text: "Run the command" }]),
+			buildMessage(2, "assistant", [{ type: "text", text: "Done." }]),
+			buildMessage(3, "assistant", []),
+			buildMessage(4, "user", [{ type: "text", text: "Thanks!" }]),
+		]);
+
+		return <ChatPageTimeline store={store} persistedError={undefined} />;
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
+		expect(canvas.queryByText("Message has no renderable content.")).toBeNull();
+
+		const rows = canvasElement.querySelectorAll(
+			'[data-role="user"], [data-role="assistant"]',
+		);
+		expect(rows).toHaveLength(3);
+		expect(rows[1]).toHaveAttribute("data-role", "assistant");
+		expect(rows[1]).toHaveTextContent("Done.");
 	},
 };

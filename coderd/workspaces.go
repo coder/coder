@@ -25,7 +25,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
-	"github.com/coder/coder/v2/coderd/dynamicparameters"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpapi/httperror"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -91,7 +90,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again.", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?include_deleted=true' and trying again.", workspace.ID.String()),
 		})
 		return
 	}
@@ -795,7 +794,6 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
-			Logger(api.Logger.Named("wsbuilder")).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -2010,36 +2008,6 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
-
-	// Surface whether the active template version declares coder_secret
-	// requirements that the workspace owner's secrets do not satisfy. The
-	// intention is for this information to inform the workspace update
-	// requirement so the user knows autostart will not run an auto-update
-	// build until the missing secrets are satisfied.
-	//
-	// Callers without user_secret:read on the workspace owner produce a
-	// forbidden warning diagnostic. This is treated as "unknown" and
-	// no mismatch is reported rather than returning a partial answer.
-	secretMismatch, err := dynamicparameters.EvaluateSecretMismatch(
-		ctx,
-		api.Logger.Named("dynamicparameters"),
-		api.Database, api.FileCache, version, workspace.OwnerID, dbBuildParams,
-	)
-	switch {
-	case err == nil:
-		response.SecretMismatch = secretMismatch
-	case xerrors.Is(err, dynamicparameters.ErrTemplateVersionNotReady):
-		// Active version's provisioner job hasn't completed yet. Leave
-		// SecretMismatch false.
-	default:
-		// Don't drop the already-computed ParameterMismatch signal on a
-		// renderer infrastructure error. Log and treat as "unknown."
-		api.Logger.Warn(ctx, "failed to evaluate secret requirements",
-			slog.F("workspace_id", workspace.ID),
-			slog.Error(err),
-		)
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, response)
 }
 
@@ -2065,7 +2033,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspace(
@@ -2262,7 +2230,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	defer cancel()
 
 	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)

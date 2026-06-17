@@ -38,6 +38,19 @@ const (
 
 	// tokenRevocationTimeout timeout for requests to external oauth provider.
 	tokenRevocationTimeout = 10 * time.Second
+
+	// defaultRefreshRetryInitialBackoff is the starting wait between transient
+	// refresh retry attempts when the IDP returns a temporary failure (5xx,
+	// 429, network error, ...).
+	defaultRefreshRetryInitialBackoff = 250 * time.Millisecond
+
+	// defaultRefreshRetryMaxBackoff caps the exponential backoff between
+	// transient refresh retry attempts.
+	defaultRefreshRetryMaxBackoff = 2 * time.Second
+
+	// defaultRefreshRetryTimeout bounds the total time spent retrying a
+	// transient refresh failure across all attempts.
+	defaultRefreshRetryTimeout = 10 * time.Second
 )
 
 // Config is used for authentication for Git operations.
@@ -115,15 +128,30 @@ type Config struct {
 	// This field can be nil if unspecified in the config.
 	MCPToolDenyRegex              *regexp.Regexp
 	CodeChallengeMethodsSupported []promoauth.Oauth2PKCEChallengeMethod
+
+	// RefreshRetryInitialBackoff overrides the initial wait between transient
+	// refresh retry attempts. A zero value applies
+	// defaultRefreshRetryInitialBackoff.
+	RefreshRetryInitialBackoff time.Duration
+	// RefreshRetryMaxBackoff overrides the maximum wait between transient
+	// refresh retry attempts. A zero value applies
+	// defaultRefreshRetryMaxBackoff.
+	RefreshRetryMaxBackoff time.Duration
+	// RefreshRetryTimeout overrides the total budget for retrying a transient
+	// refresh failure across all attempts. A zero value applies
+	// defaultRefreshRetryTimeout. A negative value disables transient-failure
+	// retries entirely, so exactly one refresh attempt is made.
+	RefreshRetryTimeout time.Duration
 }
 
-// Git returns a Provider for this config if the provider type
-// is a supported git hosting provider. Returns nil for non-git
-// providers (e.g. Slack, JFrog).
-func (c *Config) Git(client *http.Client) gitprovider.Provider {
+// Git returns a Provider for this config if the provider type is a
+// supported git hosting provider. Returns (nil, nil) for non-git
+// providers (e.g. Slack, JFrog). Returns a non-nil error if provider
+// construction fails.
+func (c *Config) Git(client *http.Client) (gitprovider.Provider, error) {
 	norm := strings.ToLower(c.Type)
 	if !codersdk.EnhancedExternalAuthProvider(norm).Git() {
-		return nil
+		return nil, nil //nolint:nilnil // nil provider means non-git type, not an error
 	}
 	return gitprovider.New(norm, c.APIBaseURL, client)
 }
@@ -191,7 +219,15 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 	// Note: The TokenSource(...) method will make no remote HTTP requests if the
 	// token is expired and no refresh token is set. This is important to prevent
 	// spamming the API, consuming rate limits, when the token is known to fail.
-	token, err := c.TokenSource(ctx, existingToken).Token()
+	//
+	// External providers (GitHub in particular) intermittently fail token
+	// refreshes with transient errors such as 5xx responses, network timeouts,
+	// and rate-limited 429s. Retry with exponential backoff before surfacing
+	// the failure so a brief upstream blip does not force users to
+	// re-authenticate. Errors classified as permanent by isFailedRefresh
+	// (e.g. revoked or rotated refresh tokens) are not retried since those
+	// will never succeed and retrying wastes the refresh quota.
+	token, err := c.refreshTokenWithRetry(ctx, existingToken)
 	if err != nil {
 		// TokenSource can fail for numerous reasons. If it fails because of
 		// a bad refresh token, then the refresh token is invalid, and we should
@@ -350,6 +386,65 @@ validate:
 	}
 
 	return externalAuthLink, nil
+}
+
+// refreshTokenWithRetry exchanges the refresh token for a new access token,
+// retrying with exponential backoff on transient failures. Permanent
+// failures (as classified by isFailedRefresh), the no-op case where no
+// refresh token is set, and a negative RefreshRetryTimeout all bypass the
+// retry loop so a doomed or unwanted refresh is not repeatedly attempted.
+func (c *Config) refreshTokenWithRetry(ctx context.Context, existingToken *oauth2.Token) (*oauth2.Token, error) {
+	// Without a refresh token the oauth2 library short-circuits with
+	// "token expired and refresh token is not set". No retry can recover
+	// from that, so make a single attempt and return.
+	if existingToken.RefreshToken == "" {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
+	// A negative RefreshRetryTimeout disables retries entirely, so make a
+	// single attempt and return.
+	if c.RefreshRetryTimeout < 0 {
+		return c.TokenSource(ctx, existingToken).Token()
+	}
+
+	initial := c.RefreshRetryInitialBackoff
+	if initial <= 0 {
+		initial = defaultRefreshRetryInitialBackoff
+	}
+	maximum := c.RefreshRetryMaxBackoff
+	if maximum <= 0 {
+		maximum = defaultRefreshRetryMaxBackoff
+	}
+	total := c.RefreshRetryTimeout
+	if total == 0 {
+		total = defaultRefreshRetryTimeout
+	}
+
+	retryCtx, retryCancel := context.WithTimeout(ctx, total)
+	defer retryCancel()
+	backoff := retry.New(initial, maximum)
+
+	var (
+		token *oauth2.Token
+		err   error
+	)
+	for {
+		token, err = c.TokenSource(ctx, existingToken).Token()
+		if err == nil || isFailedRefresh(existingToken, err) {
+			return token, err
+		}
+		// Bail out before waiting if the retry budget is already gone.
+		// retry.Wait selects between time.After(delay) and ctx.Done(); when
+		// delay is zero and the context is already canceled the two cases
+		// race nondeterministically, which would cause an unwanted extra
+		// refresh attempt with a near-zero budget.
+		if retryCtx.Err() != nil {
+			return token, err
+		}
+		if !backoff.Wait(retryCtx) {
+			return token, err
+		}
+	}
 }
 
 // ValidateToken checks if the Git token provided is valid.
@@ -957,6 +1052,11 @@ func copyDefaultSettings(config *codersdk.ExternalAuthConfig, defaults codersdk.
 			config.APIBaseURL = "https://api.github.com"
 		case codersdk.EnhancedExternalAuthProviderGitLab:
 			config.APIBaseURL = "https://gitlab.com/api/v4"
+			if config.AuthURL != "" {
+				if au, err := url.Parse(config.AuthURL); err == nil && !strings.EqualFold(au.Host, "gitlab.com") {
+					config.APIBaseURL = au.Scheme + "://" + au.Host + "/api/v4"
+				}
+			}
 		case codersdk.EnhancedExternalAuthProviderGitea:
 			config.APIBaseURL = "https://gitea.com/api/v1"
 		}
@@ -1038,7 +1138,7 @@ func gitlabDefaults(config *codersdk.ExternalAuthConfig) codersdk.ExternalAuthCo
 		DisplayName:                   "GitLab",
 		DisplayIcon:                   "/icon/gitlab.svg",
 		Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
-		Scopes:                        []string{"write_repository"},
+		Scopes:                        []string{"write_repository", "read_api"},
 		CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 	}
 

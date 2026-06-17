@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -96,17 +97,21 @@ func insertAgentChatTestModelConfig(
 
 	createdBy := uuid.NullUUID{UUID: userID, Valid: true}
 
-	_ = dbgen.ChatProvider(t, db, database.ChatProvider{
-		Provider:    "openai",
-		DisplayName: "OpenAI",
-		APIKey:      "test-api-key",
-		CreatedBy:   createdBy,
+	provider := dbgen.AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderTypeOpenai,
+		Name:        "test-openai",
+		DisplayName: sql.NullString{String: "OpenAI", Valid: true},
+	})
+	dbgen.AIProviderKey(t, db, database.AIProviderKey{
+		ProviderID: provider.ID,
+		APIKey:     "test-api-key",
 	})
 
 	return dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:  "openai",
-		CreatedBy: createdBy,
-		UpdatedBy: createdBy,
-		IsDefault: true,
+		Provider:     "openai",
+		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+		CreatedBy:    createdBy,
+		UpdatedBy:    createdBy,
+		IsDefault:    true,
 	})
 }

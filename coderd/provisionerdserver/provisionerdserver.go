@@ -591,26 +591,6 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 			}
 		}
 
-		// Fetch user secrets for build-time injection, but only on start
-		// transitions where the workspace actually needs them.
-		var userSecrets []*sdkproto.UserSecretValue
-		if workspaceBuild.Transition == database.WorkspaceTransitionStart {
-			dbSecrets, err := s.Database.ListUserSecretsWithValues(ctx, owner.ID)
-			if err != nil {
-				return nil, failJob(fmt.Sprintf("get user secrets: %s", err))
-			}
-			for _, secret := range dbSecrets {
-				if secret.EnvName == "" && secret.FilePath == "" {
-					continue
-				}
-				userSecrets = append(userSecrets, &sdkproto.UserSecretValue{
-					EnvName:  secret.EnvName,
-					FilePath: secret.FilePath,
-					Value:    []byte(secret.Value),
-				})
-			}
-		}
-
 		transition, err := convertWorkspaceTransition(workspaceBuild.Transition)
 		if err != nil {
 			return nil, failJob(fmt.Sprintf("convert workspace transition: %s", err))
@@ -793,8 +773,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					TaskPrompt:                    task.Prompt,
 					TemplateVersionModulesFile:    versionModulesFile,
 				},
-				LogLevel:    input.LogLevel,
-				UserSecrets: userSecrets,
+				LogLevel: input.LogLevel,
 			},
 		}
 	case database.ProvisionerJobTypeTemplateVersionDryRun:
@@ -1609,7 +1588,10 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	if err != nil {
+		return fail(xerrors.Errorf("prepare file upload: %w", err))
+	}
 
 	err = stream.Send(&sdkproto.FileUpload{
 		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},
@@ -1722,6 +1704,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 					slog.F("transition", transition))
 
 				if err := InsertWorkspaceResource(ctx, db, jobID, transition, resource, telemetrySnapshot); err != nil {
+					s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 					return xerrors.Errorf("insert resource: %w", err)
 				}
 			}
@@ -2140,6 +2123,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
 			)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
 		}
@@ -2608,6 +2592,7 @@ func (s *server) completeTemplateDryRunJob(ctx context.Context, job database.Pro
 
 			err := InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert resource: %w", err)
 			}
 		}
@@ -3632,6 +3617,32 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 	return nil
 }
 
+type workspaceAppRebindError struct {
+	slug    string
+	appID   uuid.UUID
+	agentID uuid.UUID
+}
+
+func (e *workspaceAppRebindError) Error() string {
+	return fmt.Sprintf("workspace app slug %q with ID %q is already bound to a workspace-owned agent and cannot be rebound to an agent in another workspace or to an agent without a workspace; refusing to rebind to agent ID %q", e.slug, e.appID, e.agentID)
+}
+
+func (s *server) warnWorkspaceAppRebindRejected(ctx context.Context, jobID uuid.UUID, err error) {
+	slog.Helper()
+
+	var rebindErr *workspaceAppRebindError
+	if !errors.As(err, &rebindErr) {
+		return
+	}
+
+	s.Logger.Warn(ctx, "workspace app rebind rejected by SQL guard",
+		slog.F("job_id", jobID.String()),
+		slog.F("app_id", rebindErr.appID.String()),
+		slog.F("agent_id", rebindErr.agentID.String()),
+		slog.F("app_slug", rebindErr.slug),
+	)
+}
+
 func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, app *sdkproto.App, appSlugs map[string]struct{}, snapshot *telemetry.Snapshot) error {
 	// Similar logic is duplicated in terraform/resources.go.
 	slug := app.Slug
@@ -3720,6 +3731,17 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		Tooltip:      app.Tooltip,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// The upsert's ON CONFLICT guard refused to rebind an app
+			// owned by a workspace to an agent outside that workspace,
+			// including agents from import or dry-run jobs that resolve
+			// to no workspace (SEC-91).
+			return &workspaceAppRebindError{
+				slug:    slug,
+				appID:   id,
+				agentID: agentID,
+			}
+		}
 		return xerrors.Errorf("upsert app: %w", err)
 	}
 

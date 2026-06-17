@@ -115,12 +115,23 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 	if seed.Content.Valid {
 		content = string(seed.Content.RawMessage)
 	}
+	role := takeFirst(seed.Role, database.ChatMessageRoleUser)
+	apiKeyID := seed.APIKeyID.String
+	// Mint a real API key for user turns so the api_key_id foreign key is
+	// satisfied. Without a creator we leave it empty, which the insert query
+	// stores as NULL.
+	if role == database.ChatMessageRoleUser && apiKeyID == "" &&
+		seed.CreatedBy.Valid && seed.CreatedBy.UUID != uuid.Nil {
+		key, _ := APIKey(t, db, database.APIKey{UserID: seed.CreatedBy.UUID})
+		apiKeyID = key.ID
+	}
 
 	msgs, err := db.InsertChatMessages(genCtx, database.InsertChatMessagesParams{
 		ChatID:              seed.ChatID,
 		CreatedBy:           []uuid.UUID{seed.CreatedBy.UUID},
+		APIKeyID:            []string{apiKeyID},
 		ModelConfigID:       []uuid.UUID{seed.ModelConfigID.UUID},
-		Role:                []database.ChatMessageRole{takeFirst(seed.Role, database.ChatMessageRoleUser)},
+		Role:                []database.ChatMessageRole{role},
 		Content:             []string{content},
 		ContentVersion:      []int16{takeFirst(seed.ContentVersion, chatprompt.CurrentContentVersion)},
 		Visibility:          []database.ChatMessageVisibility{takeFirst(seed.Visibility, database.ChatMessageVisibilityBoth)},
@@ -149,8 +160,29 @@ const (
 
 func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelConfig, munge ...func(*database.InsertChatModelConfigParams)) database.ChatModelConfig {
 	t.Helper()
+	providerName := takeFirst(seed.Provider, "openai")
+	aiProviderID := seed.AIProviderID
+	if !aiProviderID.Valid {
+		providers, err := db.GetAIProviders(genCtx, database.GetAIProvidersParams{IncludeDisabled: true})
+		require.NoError(t, err, "get ai providers")
+		var provider database.AIProvider
+		for _, candidate := range providers {
+			if candidate.Type != database.AIProviderType(providerName) {
+				continue
+			}
+			if provider.ID == uuid.Nil || candidate.CreatedAt.After(provider.CreatedAt) {
+				provider = candidate
+			}
+		}
+		if provider.ID == uuid.Nil {
+			provider = AIProvider(t, db, database.AIProvider{
+				Type: database.AIProviderType(providerName),
+			})
+		}
+		aiProviderID = uuid.NullUUID{UUID: provider.ID, Valid: true}
+	}
 	params := database.InsertChatModelConfigParams{
-		Provider:             takeFirst(seed.Provider, "openai"),
+		Provider:             providerName,
 		Model:                takeFirst(seed.Model, "gpt-4o-mini"),
 		DisplayName:          takeFirst(seed.DisplayName, "Test Model"),
 		CreatedBy:            seed.CreatedBy,
@@ -160,6 +192,7 @@ func ChatModelConfig(t testing.TB, db database.Store, seed database.ChatModelCon
 		ContextLimit:         takeFirst(seed.ContextLimit, defaultChatModelContextLimit),
 		CompressionThreshold: takeFirst(seed.CompressionThreshold, defaultChatModelCompressionThreshold),
 		Options:              takeFirstSlice(seed.Options, json.RawMessage(`{}`)),
+		AIProviderID:         aiProviderID,
 	}
 	for _, fn := range munge {
 		fn(&params)
@@ -177,7 +210,7 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 	}
 	provType := seed.Type
 	if provType == "" {
-		provType = database.AiProviderTypeOpenai
+		provType = database.AIProviderTypeOpenai
 	}
 	name := takeFirst(seed.Name, testutil.GetRandomNameHyphenated(t))
 	displayName := seed.DisplayName
@@ -225,6 +258,26 @@ func AIProviderKey(t testing.TB, db database.Store, seed database.AIProviderKey,
 	return key
 }
 
+// AIProviderWithOptionalKey inserts an AI provider and, when apiKey is not
+// empty, inserts a provider-scoped key for it.
+func AIProviderWithOptionalKey(
+	t testing.TB,
+	db database.Store,
+	seed database.AIProvider,
+	apiKey string,
+	munge ...func(*database.InsertAIProviderParams),
+) database.AIProvider {
+	t.Helper()
+	provider := AIProvider(t, db, seed, munge...)
+	if apiKey != "" {
+		AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID: provider.ID,
+			APIKey:     apiKey,
+		})
+	}
+	return provider
+}
+
 func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, munge ...func(*database.InsertChatProviderParams)) database.ChatProvider {
 	t.Helper()
 	params := database.InsertChatProviderParams{
@@ -242,9 +295,36 @@ func ChatProvider(t testing.TB, db database.Store, seed database.ChatProvider, m
 	for _, fn := range munge {
 		fn(&params)
 	}
-	provider, err := db.InsertChatProvider(genCtx, params)
-	require.NoError(t, err, "insert chat provider")
-	return provider
+	provider := AIProvider(t, db, database.AIProvider{
+		Type:        database.AIProviderType(params.Provider),
+		Name:        "test-" + uuid.NewString(),
+		DisplayName: sql.NullString{String: params.DisplayName, Valid: params.DisplayName != ""},
+		BaseUrl:     params.BaseUrl,
+	}, func(p *database.InsertAIProviderParams) {
+		p.Enabled = params.Enabled
+	})
+	if params.APIKey != "" {
+		AIProviderKey(t, db, database.AIProviderKey{
+			ProviderID:  provider.ID,
+			APIKey:      params.APIKey,
+			ApiKeyKeyID: params.ApiKeyKeyID,
+		})
+	}
+	return database.ChatProvider{
+		ID:                         provider.ID,
+		Provider:                   params.Provider,
+		DisplayName:                params.DisplayName,
+		APIKey:                     params.APIKey,
+		BaseUrl:                    params.BaseUrl,
+		ApiKeyKeyID:                params.ApiKeyKeyID,
+		CreatedBy:                  params.CreatedBy,
+		Enabled:                    params.Enabled,
+		CentralApiKeyEnabled:       params.CentralApiKeyEnabled,
+		AllowUserApiKey:            params.AllowUserApiKey,
+		AllowCentralApiKeyFallback: params.AllowCentralApiKeyFallback,
+		CreatedAt:                  provider.CreatedAt,
+		UpdatedAt:                  provider.UpdatedAt,
+	}
 }
 
 func MCPServerConfig(t testing.TB, db database.Store, seed database.MCPServerConfig) database.MCPServerConfig {
@@ -382,6 +462,67 @@ func ConnectionLog(t testing.TB, db database.Store, seed database.UpsertConnecti
 	}
 	require.Failf(t, "connection log not found", "id=%s", arg.ID)
 	return database.ConnectionLog{} // unreachable
+}
+
+func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySession) database.BoundarySession {
+	session, err := db.InsertBoundarySession(genCtx, database.InsertBoundarySessionParams{
+		ID:                  takeFirst(seed.ID, uuid.New()),
+		WorkspaceAgentID:    takeFirst(seed.WorkspaceAgentID, uuid.New()),
+		OwnerID:             seed.OwnerID,
+		ConfinedProcessName: takeFirst(seed.ConfinedProcessName, "claude-code"),
+		StartedAt:           takeFirst(seed.StartedAt, dbtime.Now()),
+		UpdatedAt:           takeFirst(seed.UpdatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert boundary session")
+	return session
+}
+
+func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) []database.BoundaryLog {
+	ids := make([]uuid.UUID, 0, len(seed))
+	sessionID := seed[0].SessionID
+	sequenceNumbers := make([]int32, 0, len(seed))
+	capturedAt := make([]time.Time, 0, len(seed))
+	createdAt := make([]time.Time, 0, len(seed))
+	protos := make([]string, 0, len(seed))
+	method := make([]string, 0, len(seed))
+	detail := make([]string, 0, len(seed))
+	matchedRule := make([]string, 0, len(seed))
+	for _, log := range seed {
+		log = takeFirstBoundaryLog(log)
+		ids = append(ids, log.ID)
+		sequenceNumbers = append(sequenceNumbers, log.SequenceNumber)
+		capturedAt = append(capturedAt, log.CapturedAt)
+		createdAt = append(createdAt, log.CreatedAt)
+		protos = append(protos, log.Proto)
+		method = append(method, log.Method)
+		detail = append(detail, log.Detail)
+		matchedRule = append(matchedRule, log.MatchedRule.String)
+	}
+	logs, err := db.InsertBoundaryLogs(genCtx, database.InsertBoundaryLogsParams{
+		ID:             ids,
+		SessionID:      sessionID,
+		SequenceNumber: sequenceNumbers,
+		CapturedAt:     capturedAt,
+		CreatedAt:      createdAt,
+		Proto:          protos,
+		Method:         method,
+		Detail:         detail,
+		MatchedRule:    matchedRule,
+	})
+	require.NoError(t, err, "insert boundary logs")
+	return logs
+}
+
+func takeFirstBoundaryLog(seed database.BoundaryLog) database.BoundaryLog {
+	seed.ID = takeFirst(seed.ID, uuid.New())
+	seed.SessionID = takeFirst(seed.SessionID, uuid.New())
+	seed.SequenceNumber = takeFirst(seed.SequenceNumber, 0)
+	seed.CapturedAt = takeFirst(seed.CapturedAt, dbtime.Now())
+	seed.CreatedAt = takeFirst(seed.CreatedAt, dbtime.Now())
+	seed.Proto = takeFirst(seed.Proto, "http")
+	seed.Method = takeFirst(seed.Method, "GET")
+	seed.Detail = takeFirst(seed.Detail, "https://example.com")
+	return seed
 }
 
 func Template(t testing.TB, db database.Store, seed database.Template) database.Template {
@@ -890,11 +1031,12 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 
 func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) database.GitSSHKey {
 	key, err := db.InsertGitSSHKey(genCtx, database.InsertGitSSHKeyParams{
-		UserID:     takeFirst(orig.UserID, uuid.New()),
-		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:  takeFirst(orig.UpdatedAt, dbtime.Now()),
-		PrivateKey: takeFirst(orig.PrivateKey, ""),
-		PublicKey:  takeFirst(orig.PublicKey, ""),
+		UserID:          takeFirst(orig.UserID, uuid.New()),
+		CreatedAt:       takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:       takeFirst(orig.UpdatedAt, dbtime.Now()),
+		PrivateKey:      takeFirst(orig.PrivateKey, ""),
+		PrivateKeyKeyID: takeFirst(orig.PrivateKeyKeyID, sql.NullString{}),
+		PublicKey:       takeFirst(orig.PublicKey, ""),
 	})
 	require.NoError(t, err, "insert ssh key")
 	return key
@@ -902,13 +1044,14 @@ func GitSSHKey(t testing.TB, db database.Store, orig database.GitSSHKey) databas
 
 func Organization(t testing.TB, db database.Store, orig database.Organization) database.Organization {
 	org, err := db.InsertOrganization(genCtx, database.InsertOrganizationParams{
-		ID:          takeFirst(orig.ID, uuid.New()),
-		Name:        takeFirst(orig.Name, testutil.GetRandomName(t)),
-		DisplayName: takeFirst(orig.Name, testutil.GetRandomName(t)),
-		Description: takeFirst(orig.Description, testutil.GetRandomName(t)),
-		Icon:        takeFirst(orig.Icon, ""),
-		CreatedAt:   takeFirst(orig.CreatedAt, dbtime.Now()),
-		UpdatedAt:   takeFirst(orig.UpdatedAt, dbtime.Now()),
+		ID:                    takeFirst(orig.ID, uuid.New()),
+		Name:                  takeFirst(orig.Name, testutil.GetRandomName(t)),
+		DisplayName:           takeFirst(orig.Name, testutil.GetRandomName(t)),
+		Description:           takeFirst(orig.Description, testutil.GetRandomName(t)),
+		Icon:                  takeFirst(orig.Icon, ""),
+		CreatedAt:             takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:             takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DefaultOrgMemberRoles: takeFirstSlice(orig.DefaultOrgMemberRoles, rbac.DefaultOrgMemberRoles()),
 	})
 	require.NoError(t, err, "insert organization")
 
@@ -1854,25 +1997,28 @@ func ClaimPrebuild(
 
 func AIBridgeInterception(t testing.TB, db database.Store, seed database.InsertAIBridgeInterceptionParams, endedAt *time.Time) database.AIBridgeInterception {
 	interception, err := db.InsertAIBridgeInterception(genCtx, database.InsertAIBridgeInterceptionParams{
-		ID:                         takeFirst(seed.ID, uuid.New()),
-		APIKeyID:                   seed.APIKeyID,
-		InitiatorID:                takeFirst(seed.InitiatorID, uuid.New()),
-		Provider:                   takeFirst(seed.Provider, "provider"),
-		ProviderName:               takeFirst(seed.ProviderName, "provider-name"),
-		Model:                      takeFirst(seed.Model, "model"),
-		Metadata:                   takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
-		StartedAt:                  takeFirst(seed.StartedAt, dbtime.Now()),
-		Client:                     seed.Client,
-		ThreadParentInterceptionID: seed.ThreadParentInterceptionID,
-		ThreadRootInterceptionID:   seed.ThreadRootInterceptionID,
-		ClientSessionID:            seed.ClientSessionID,
-		CredentialKind:             takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
-		CredentialHint:             takeFirst(seed.CredentialHint, ""),
+		ID:                          takeFirst(seed.ID, uuid.New()),
+		APIKeyID:                    seed.APIKeyID,
+		InitiatorID:                 takeFirst(seed.InitiatorID, uuid.New()),
+		Provider:                    takeFirst(seed.Provider, "provider"),
+		ProviderName:                takeFirst(seed.ProviderName, "provider-name"),
+		Model:                       takeFirst(seed.Model, "model"),
+		Metadata:                    takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
+		StartedAt:                   takeFirst(seed.StartedAt, dbtime.Now()),
+		Client:                      seed.Client,
+		ThreadParentInterceptionID:  seed.ThreadParentInterceptionID,
+		ThreadRootInterceptionID:    seed.ThreadRootInterceptionID,
+		ClientSessionID:             seed.ClientSessionID,
+		CredentialKind:              takeFirst(seed.CredentialKind, database.CredentialKindCentralized),
+		CredentialHint:              takeFirst(seed.CredentialHint, ""),
+		AgentFirewallSessionID:      seed.AgentFirewallSessionID,
+		AgentFirewallSequenceNumber: seed.AgentFirewallSequenceNumber,
 	})
 	if endedAt != nil {
 		interception, err = db.UpdateAIBridgeInterceptionEnded(genCtx, database.UpdateAIBridgeInterceptionEndedParams{
-			ID:      interception.ID,
-			EndedAt: *endedAt,
+			ID:             interception.ID,
+			EndedAt:        *endedAt,
+			CredentialHint: takeFirst(seed.CredentialHint, ""),
 		})
 		require.NoError(t, err, "insert aibridge interception")
 	}
@@ -1891,6 +2037,12 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheWriteInputTokens: seed.CacheWriteInputTokens,
 		Metadata:              takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		CreatedAt:             takeFirst(seed.CreatedAt, dbtime.Now()),
+		EffectiveGroupID:      seed.EffectiveGroupID,
+		InputPriceMicros:      seed.InputPriceMicros,
+		OutputPriceMicros:     seed.OutputPriceMicros,
+		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
+		CacheWritePriceMicros: seed.CacheWritePriceMicros,
+		CostMicros:            seed.CostMicros,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

@@ -329,6 +329,12 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 	}
 
 	var out []option.RequestOption
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+		}
+		return next(req)
+	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
 
 	// If a custom base URL is set, override the default endpoint constructed by the bedrock middleware.
@@ -577,38 +583,41 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return i.cfg.KeyPool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
 }
 
-// ProcessKeyPoolError translates a keypool exhaustion error
-// into a developer-facing responseError shaped for the Anthropic
-// API. Returns nil if err is not an exhaustion error.
-func ProcessKeyPoolError(err error) *ResponseError {
-	var transient *keypool.TransientKeyPoolError
-	switch {
-	case errors.As(err, &transient):
-		return newErrorResponse(
-			"all configured keys are rate-limited",
-			string(constant.ValueOf[constant.RateLimitError]()),
-			http.StatusTooManyRequests,
-			transient.RetryAfter,
-		)
-	case errors.Is(err, keypool.ErrPermanentKeyPool):
-		return newErrorResponse(
-			"all configured keys failed authentication",
+// ResponseErrorFromKeyPool translates a *keypool.Error into
+// a developer-facing ResponseError shaped for the Anthropic API.
+func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
+	switch keyPoolErr.Kind {
+	case keypool.ErrorKindPermanent:
+		return newResponseError(
+			keyPoolErr.Error(),
 			string(constant.ValueOf[constant.APIError]()),
 			http.StatusBadGateway,
-			0,
+			keyPoolErr.RetryAfter,
+		)
+	case keypool.ErrorKindRateLimited:
+		return newResponseError(
+			keyPoolErr.Error(),
+			string(constant.ValueOf[constant.RateLimitError]()),
+			http.StatusTooManyRequests,
+			keyPoolErr.RetryAfter,
 		)
 	default:
-		return nil
+		// Fall back to a generic 502.
+		return newResponseError(
+			keyPoolErr.Error(),
+			string(constant.ValueOf[constant.APIError]()),
+			http.StatusBadGateway,
+			keyPoolErr.RetryAfter,
+		)
 	}
 }
 
-func getErrorResponse(err error) *ResponseError {
+func responseErrorFromAPIError(err error) *ResponseError {
 	var apierr *anthropic.Error
 	if !errors.As(err, &apierr) {
 		return nil
@@ -626,7 +635,7 @@ func getErrorResponse(err error) *ResponseError {
 		errType = string(detail.Type)
 	}
 
-	return newErrorResponse(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
+	return newResponseError(msg, errType, apierr.StatusCode, keypool.ParseRetryAfter(apierr.Response))
 }
 
 var _ error = &ResponseError{}
@@ -638,7 +647,7 @@ type ResponseError struct {
 	RetryAfter time.Duration `json:"-"`
 }
 
-func newErrorResponse(msg, errType string, status int, retryAfter time.Duration) *ResponseError {
+func newResponseError(msg, errType string, status int, retryAfter time.Duration) *ResponseError {
 	return &ResponseError{
 		ErrorResponse: &shared.ErrorResponse{
 			Error: shared.ErrorObjectUnion{

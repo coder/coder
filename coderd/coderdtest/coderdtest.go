@@ -154,11 +154,14 @@ type Options struct {
 	IncludeProvisionerDaemon      bool
 	ChatdInstructionLookupTimeout time.Duration
 	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
-	ProvisionerDaemonVersion      string
-	ProvisionerDaemonTags         map[string]string
-	MetricsCacheRefreshInterval   time.Duration
-	AgentStatsRefreshInterval     time.Duration
-	DeploymentValues              *codersdk.DeploymentValues
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker. Used in tests.
+	ChatWorkerDisabled          bool
+	ProvisionerDaemonVersion    string
+	ProvisionerDaemonTags       map[string]string
+	MetricsCacheRefreshInterval time.Duration
+	AgentStatsRefreshInterval   time.Duration
+	DeploymentValues            *codersdk.DeploymentValues
 
 	// Set update check options to enable update check.
 	UpdateCheckOptions *updatecheck.Options
@@ -166,8 +169,9 @@ type Options struct {
 	// Overriding the database is heavily discouraged.
 	// It should only be used in cases where multiple Coder
 	// test instances are running against the same database.
-	Database database.Store
-	Pubsub   pubsub.Pubsub
+	Database          database.Store
+	Pubsub            pubsub.Pubsub
+	ReplicaSyncPubsub *pubsub.PGPubsub
 
 	// APIMiddleware inserts middleware before api.RootHandler, this can be
 	// useful in certain tests where you want to intercept requests before
@@ -286,6 +290,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 	if options.Database == nil {
 		options.Database, options.Pubsub = dbtestutil.NewDB(t)
+	}
+	if options.ReplicaSyncPubsub == nil {
+		pgPubsub, ok := options.Pubsub.(*pubsub.PGPubsub)
+		require.True(t, ok, "ReplicaSyncPubsub must be a PGPubsub")
+		options.ReplicaSyncPubsub = pgPubsub
 	}
 	if options.CoordinatorResumeTokenProvider == nil {
 		options.CoordinatorResumeTokenProvider = tailnet.NewInsecureTestResumeTokenProvider()
@@ -588,6 +597,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			AgentInactiveDisconnectTimeout: testutil.WaitShort,
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
+			ChatWorkerDisabled:             options.ChatWorkerDisabled,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,
@@ -596,6 +606,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			RuntimeConfig:                  runtimeManager,
 			Database:                       options.Database,
 			Pubsub:                         options.Pubsub,
+			ReplicaSyncPubsub:              options.ReplicaSyncPubsub,
 			ExternalAuthConfigs:            options.ExternalAuthConfigs,
 			UsageInserter:                  usageInserter,
 
@@ -901,6 +912,16 @@ func AuthzUserSubjectWithDB(ctx context.Context, t testing.TB, db database.Store
 	require.NoError(t, err)
 	for _, org := range orgs {
 		roles = append(roles, rbac.ScopedRoleOrgMember(org.ID))
+		// The implicit role set (organization-member plus the org's
+		// default_org_member_roles) is unioned at request time by
+		// GetAuthorizationUserRoles. Subjects built directly here bypass
+		// that SQL union, so mirror it explicitly.
+		for _, name := range org.DefaultOrgMemberRoles {
+			roles = append(roles, rbac.RoleIdentifier{
+				Name:           name,
+				OrganizationID: org.ID,
+			})
+		}
 	}
 
 	//nolint:gocritic // We need to expand DB-backed/system roles. The caller
@@ -1276,6 +1297,22 @@ func NewWorkspaceAgentWaiter(t testing.TB, client *codersdk.Client, workspaceID 
 		client:      client,
 		workspaceID: workspaceID,
 	}
+}
+
+// RequireWorkspaceAgentByName avoids weak nil UUID assertions when a fixture requires a specific agent.
+func RequireWorkspaceAgentByName(t testing.TB, resources []codersdk.WorkspaceResource, name string) codersdk.WorkspaceAgent {
+	t.Helper()
+
+	for _, resource := range resources {
+		for _, agent := range resource.Agents {
+			if agent.Name == name {
+				return agent
+			}
+		}
+	}
+
+	require.FailNowf(t, "workspace agent not found", "workspace agent %q not found in resources", name)
+	return codersdk.WorkspaceAgent{}
 }
 
 // AgentNames instructs the waiter to wait for the given, named agents to be connected and will
@@ -1818,6 +1855,18 @@ func UpdateProvisionerLastSeenAt(t *testing.T, db database.Store, id uuid.UUID, 
 	})
 	require.NoError(t, err)
 	t.Logf("Successfully updated provisioner LastSeenAt")
+}
+
+// NextAutostartTick returns workspace.NextStartAt for use as the autobuild
+// tick. The executor's eligibility query checks next_start_at <= tick.
+// Computing from build.CreatedAt is racy: next_start_at derives from build
+// completion time, so it can advance past sched.Next(build.CreatedAt) and
+// the workspace misses the eligibility window.
+func NextAutostartTick(t testing.TB, workspace codersdk.Workspace) time.Time {
+	t.Helper()
+	require.NotNil(t, workspace.NextStartAt,
+		"workspace next_start_at is nil; ensure autostart is enabled and the latest build has completed before calling NextAutostartTick")
+	return *workspace.NextStartAt
 }
 
 func MustWaitForAnyProvisioner(t *testing.T, db database.Store) {

@@ -34,6 +34,7 @@ import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { ProviderState } from "./ChatModelAdminPanel";
+import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
@@ -128,10 +129,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 				selectedProviderState.providerConfig.allow_user_api_key),
 	);
 	const formTitle = isEditing
-		? "Edit Model"
+		? "Edit model"
 		: isDuplicating
-			? "Duplicate Model"
-			: "Add Model";
+			? "Duplicate model"
+			: "Add model";
 	const formDescription = isDuplicating
 		? "Review the copied settings, then save to create a new model."
 		: undefined;
@@ -140,6 +141,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 		if (isDuplicating) return "duplicate";
 		return "add";
 	})();
+
+	const selectedProviderType =
+		selectedProviderState?.provider ?? selectedProvider;
 
 	const form = useFormik<ModelFormValues>({
 		initialValues,
@@ -158,7 +162,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 			);
 
 			const buildResult = buildModelConfigFromForm(
-				selectedProvider,
+				selectedProviderType,
 				values.config,
 			);
 			if (Object.keys(buildResult.fieldErrors).length > 0) return;
@@ -166,8 +170,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 			const trimmedDisplayName = values.displayName.trim();
 			const builtModelConfig = buildResult.modelConfig;
 
+			const selectedProviderConfigID =
+				selectedProviderState?.providerConfig?.id;
+
 			if (isEditing && editingModel) {
 				const req: TypesGen.UpdateChatModelConfigRequest = {
+					...(selectedProviderConfigID &&
+						selectedProviderConfigID !==
+							readOptionalString(editingModel.ai_provider_id) && {
+							provider: selectedProviderState.provider,
+							ai_provider_id: selectedProviderConfigID,
+						}),
 					...(trimmedModel !== editingModel.model && {
 						model: trimmedModel,
 					}),
@@ -198,7 +211,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 				if (!selectedProvider || !selectedProviderState?.providerConfig) return;
 
 				const req: TypesGen.CreateChatModelConfigRequest = {
-					provider: selectedProvider,
+					provider: selectedProviderState.provider,
+					ai_provider_id: selectedProviderState.providerConfig.id,
 					model: trimmedModel,
 					enabled: values.enabled,
 					is_default: values.isDefault,
@@ -227,7 +241,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const getFieldHelpers = getFormHelpers(form);
 
 	const modelConfigFormBuildResult = buildModelConfigFromForm(
-		selectedProvider,
+		selectedProviderType,
 		form.values.config,
 	);
 
@@ -249,7 +263,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 			<Select
 				value={selectedProvider ?? ""}
 				onValueChange={onSelectedProviderChange}
-				disabled={isEditing || isDuplicating || providerStates.length === 0}
+				disabled={
+					((isEditing || isDuplicating) && selectedProviderState !== null) ||
+					providerStates.length === 0
+				}
 			>
 				<SelectTrigger
 					id="providerSelect"
@@ -259,9 +276,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 				</SelectTrigger>
 				<SelectContent>
 					{providerStates.map((ps) => (
-						<SelectItem key={ps.provider} value={ps.provider}>
+						<SelectItem key={ps.key} value={ps.key}>
 							<span className="flex items-center gap-2">
-								<ProviderIcon provider={ps.provider} className="h-4 w-4" />
+								<ProviderIcon provider={ps.provider} className="size-4" />
 								{ps.label}
 							</span>
 						</SelectItem>
@@ -331,7 +348,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				{selectedProviderState && (
 					<ProviderIcon
 						provider={selectedProviderState.provider}
-						className="h-8 w-8"
+						className="size-8"
 					/>
 				)}
 				<div className="inline-flex items-center gap-1">
@@ -351,7 +368,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 							placeholder={initialModel?.model ?? "Model name"}
 						/>
 					</div>
-					<PencilIcon className="h-3.5 w-3.5 shrink-0 text-content-secondary" />
+					<PencilIcon className="size-3.5 shrink-0 text-content-secondary" />
 				</div>{" "}
 				{initialModel && (
 					<Tooltip>
@@ -386,7 +403,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				autoComplete="off"
 			>
 				<div className="space-y-6">
-					{/* Model ID + Context Limit + Pricing */}
+					{/* Model ID + Context limit + Pricing */}
 					<div className="space-y-4">
 						<div className="grid items-start gap-4 sm:grid-cols-2">
 							{" "}
@@ -394,7 +411,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 								form={form}
 								modelField={modelField}
 								mode={mode}
-								selectedProvider={selectedProvider}
+								selectedProvider={selectedProviderType}
 								disabled={isSaving}
 							/>
 							<div className="grid gap-1.5">
@@ -402,13 +419,13 @@ export const ModelForm: FC<ModelFormProps> = ({
 									htmlFor={contextLimitField.id}
 									className="inline-flex items-center gap-1 text-sm font-medium text-content-primary"
 								>
-									Context Limit{" "}
+									Context limit{" "}
 									<span className="text-xs font-bold text-content-destructive">
 										*
 									</span>
 									<Tooltip>
 										<TooltipTrigger asChild>
-											<InfoIcon className="h-3 w-3 text-content-secondary" />
+											<InfoIcon className="size-3 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent side="top" className="max-w-[240px]">
 											Max tokens in the context window.
@@ -447,7 +464,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						</div>
 					</div>
 
-					{/* Usage Tracking */}
+					{/* Cost tracking */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
@@ -456,7 +473,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						>
 							<div>
 								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Cost Tracking{" "}
+									Cost tracking
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Set per-token pricing so Coder can track costs and enforce
@@ -464,9 +481,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showPricing ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showPricing && (
@@ -481,7 +498,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						)}
 					</div>
 
-					{/* Provider Configuration */}
+					{/* Provider configuration */}
 					<div className="border-0 border-t border-solid border-border pt-4">
 						<button
 							type="button"
@@ -490,7 +507,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 						>
 							<div>
 								<h3 className="m-0 text-sm font-medium text-content-primary">
-									Provider Configuration
+									Provider configuration
 								</h3>
 								<p className="m-0 text-xs text-content-secondary">
 									Tune provider-specific behavior like reasoning, tool calling,
@@ -498,9 +515,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showProviderConfig ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showProviderConfig && (
@@ -532,9 +549,9 @@ export const ModelForm: FC<ModelFormProps> = ({
 								</p>
 							</div>
 							{showAdvanced ? (
-								<ChevronDownIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronDownIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							) : (
-								<ChevronRightIcon className="mt-0.5 h-4 w-4 shrink-0 text-content-secondary" />
+								<ChevronRightIcon className="mt-0.5 size-4 shrink-0 text-content-secondary" />
 							)}
 						</button>
 						{showAdvanced && (
@@ -550,10 +567,10 @@ export const ModelForm: FC<ModelFormProps> = ({
 										htmlFor={compressionThresholdField.id}
 										className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
 									>
-										Compression Threshold
+										Compression threshold
 										<Tooltip>
 											<TooltipTrigger asChild>
-												<InfoIcon className="h-3 w-3 text-content-secondary" />
+												<InfoIcon className="size-3 text-content-secondary" />
 											</TooltipTrigger>
 											<TooltipContent side="top" className="max-w-[240px]">
 												Percentage at which context is compressed.
