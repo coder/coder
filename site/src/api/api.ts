@@ -2265,6 +2265,30 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/groups/${groupId}`);
 	};
 
+	getGroupAIBudget = async (
+		groupId: string,
+	): Promise<TypesGen.GroupAIBudget> => {
+		const response = await this.axios.get(
+			`/api/v2/groups/${groupId}/ai/budget`,
+		);
+		return response.data;
+	};
+
+	upsertGroupAIBudget = async (
+		groupId: string,
+		data: TypesGen.UpsertGroupAIBudgetRequest,
+	): Promise<TypesGen.GroupAIBudget> => {
+		const response = await this.axios.put(
+			`/api/v2/groups/${groupId}/ai/budget`,
+			data,
+		);
+		return response.data;
+	};
+
+	deleteGroupAIBudget = async (groupId: string): Promise<void> => {
+		await this.axios.delete(`/api/v2/groups/${groupId}/ai/budget`);
+	};
+
 	getWorkspaceQuota = async (
 		organizationName: string,
 		username: string,
