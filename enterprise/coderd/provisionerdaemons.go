@@ -313,8 +313,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		})
 		return
 	}
-	// Align with the frame size of yamux.
-	conn.SetReadLimit(256 * 1024)
+	// Align with yamux's default stream window size.
+	conn.SetReadLimit(drpcsdk.YamuxDefaultStreamWindowSize)
 
 	// Multiplexes the incoming connection using yamux.
 	// This allows multiple function calls to occur over

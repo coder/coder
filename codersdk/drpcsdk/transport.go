@@ -18,6 +18,10 @@ const (
 	// MaxMessageSize is the maximum payload size that can be
 	// transported without error.
 	MaxMessageSize = 4 << 20
+
+	// YamuxDefaultStreamWindowSize matches hashicorp/yamux's unexported
+	// initialStreamWindow, which DefaultConfig uses as MaxStreamWindowSize.
+	YamuxDefaultStreamWindowSize = 256 * 1024
 )
 
 func DefaultDRPCOptions(options *drpcmanager.Options) drpcmanager.Options {

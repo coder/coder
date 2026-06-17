@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 
-	"golang.org/x/xerrors"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
@@ -71,17 +70,8 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	if err != nil {
 		return nil, err
 	}
-	err = aibridgedproto.DRPCRegisterRecorder(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register recorder service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterMCPConfigurator(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register MCP configurator service: %w", err)
-	}
-	err = aibridgedproto.DRPCRegisterAuthorizer(mux, srv)
-	if err != nil {
-		return nil, xerrors.Errorf("register key validator service: %w", err)
+	if err := aibridgedserver.Register(mux, srv); err != nil {
+		return nil, err
 	}
 	server := drpcserver.NewWithOptions(&tracing.DRPCHandler{Handler: mux},
 		drpcserver.Options{
