@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -21,6 +22,9 @@ var numberPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 // ComposeRequest describes which base template and modules to render.
 type ComposeRequest struct {
 	BaseTemplateID string
+	// BaseVariableValues maps base template variable names to their
+	// user-supplied values.
+	BaseVariableValues map[string]string
 	// RegistryURL is the module registry base URL from the deployment
 	// config (CODER_TEMPLATE_BUILDER_REGISTRY_URL).
 	RegistryURL string
@@ -49,7 +53,7 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID)
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
 	if err != nil {
 		return nil, err
 	}
@@ -93,9 +97,14 @@ func formatHCL(src []byte) []byte {
 	return hclwrite.Format(src)
 }
 
-// renderBase renders the base template for the given example ID.
-func renderBase(baseTemplateID string) ([]byte, error) {
+// renderBase renders the base template for the given example ID,
+// merging any user-supplied variable values into the render context.
+func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
+	if renderCtx.Variables == nil {
+		renderCtx.Variables = make(map[string]string)
+	}
+	maps.Copy(renderCtx.Variables, baseVars)
 	mainTF, err := RenderBaseTemplate(baseTemplateID, "main.tf.tmpl", renderCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("render base template: %w", err)

@@ -34,12 +34,53 @@ func TestTemplateBuilderBases(t *testing.T) {
 			basesByID[b.ID] = b
 		}
 
-		for _, id := range templatebuilder.BaseTemplateIDs() {
-			b, ok := basesByID[id]
-			require.True(t, ok, "base %q missing from response", id)
-			require.NotEmpty(t, b.Name)
-			require.NotEmpty(t, b.Icon)
-			require.Equal(t, string(templatebuilder.BaseTemplateOS(id)), b.OS)
+		type baseSpec struct {
+			id           string
+			expectedOS   string
+			expectedVars []string
+			hasVariables bool
+		}
+
+		specs := []baseSpec{
+			{
+				id:           "docker",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
+			{
+				id:           "kubernetes",
+				expectedOS:   "linux",
+				hasVariables: true,
+				expectedVars: []string{"namespace", "use_kubeconfig"},
+			},
+			{
+				id:           "aws-linux",
+				expectedOS:   "linux",
+				hasVariables: false,
+			},
+		}
+
+		for _, spec := range specs {
+			b, ok := basesByID[spec.id]
+			require.True(t, ok, "base %q missing from response", spec.id)
+			require.NotEmpty(t, b.Name, "base %q should have a name", spec.id)
+			require.NotEmpty(t, b.Icon, "base %q should have an icon", spec.id)
+			require.Equal(t, spec.expectedOS, b.OS, "base %q OS mismatch", spec.id)
+			require.NotNil(t, b.Variables, "base %q should have non-nil variables slice", spec.id)
+
+			if spec.hasVariables {
+				require.NotEmpty(t, b.Variables, "base %q should have variables", spec.id)
+				varNames := make(map[string]bool, len(b.Variables))
+				for _, v := range b.Variables {
+					varNames[v.Name] = true
+				}
+				for _, expected := range spec.expectedVars {
+					require.True(t, varNames[expected],
+						"base %q should have variable %q", spec.id, expected)
+				}
+			} else {
+				require.Empty(t, b.Variables, "base %q should have no variables", spec.id)
+			}
 		}
 	})
 

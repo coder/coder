@@ -25,7 +25,19 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
       "icon": "string",
       "id": "string",
       "name": "string",
-      "os": "string"
+      "os": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
     }
   ]
 }
@@ -57,6 +69,10 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose \
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "modules": [
     {
       "id": "string",
@@ -102,6 +118,10 @@ curl -X POST http://coder-server:8080/api/v2/templatebuilder/compose/template \
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "description": "string",
   "display_name": "string",
   "icon": "string",

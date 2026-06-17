@@ -11883,19 +11883,32 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "id": "string",
   "name": "string",
-  "os": "string"
+  "os": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `os`          | string | false    |              |             |
+| Name          | Type                                                                                      | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                                                                    | false    |              |             |
+| `icon`        | string                                                                                    | false    |              |             |
+| `id`          | string                                                                                    | false    |              |             |
+| `name`        | string                                                                                    | false    |              |             |
+| `os`          | string                                                                                    | false    |              |             |
+| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -11907,7 +11920,19 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "icon": "string",
       "id": "string",
       "name": "string",
-      "os": "string"
+      "os": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
     }
   ]
 }
@@ -11944,6 +11969,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "modules": [
     {
       "id": "string",
@@ -11958,10 +11987,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                                                                    | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id` | string                                                                                  | false    |              |             |
-| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
 
 ## codersdk.TemplateBuilderConfig
 
@@ -11984,6 +12015,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -12007,17 +12042,19 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                                                                    | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id` | string                                                                                  | false    |              |             |
-| `description`      | string                                                                                  | false    |              |             |
-| `display_name`     | string                                                                                  | false    |              |             |
-| `icon`             | string                                                                                  | false    |              |             |
-| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
-| `name`             | string                                                                                  | true     |              |             |
-| `organization_id`  | string                                                                                  | true     |              |             |
-| `provisioner_tags` | object                                                                                  | false    |              |             |
-| » `[any property]` | string                                                                                  | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `description`          | string                                                                                  | false    |              |             |
+| `display_name`         | string                                                                                  | false    |              |             |
+| `icon`                 | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`                 | string                                                                                  | true     |              |             |
+| `organization_id`      | string                                                                                  | true     |              |             |
+| `provisioner_tags`     | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
 
 ## codersdk.TemplateBuilderCreateTemplateResponse
 
