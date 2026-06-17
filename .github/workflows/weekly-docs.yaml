@@ -117,7 +117,10 @@ jobs:
           # See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
           PUPPETEER_EXECUTABLE_PATH: ${{ needs.prepare-linkspector-browser.outputs.chrome-path }}
         with:
-          reporter: github-pr-review
+          # On PRs, use github-pr-review for inline comments. On schedule/dispatch,
+          # use local so reviewdog actually reports failures instead of silently
+          # exiting 0 (github-pr-review requires a PR context).
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'local' }}
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
           filter_mode: "file"
@@ -128,7 +131,7 @@ jobs:
           curl \
             -X POST \
             -H 'Content-type: application/json' \
-            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+            -d '{"text":":warning: *Broken links found in the documentation.*\nPlease check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}
@@ -190,7 +193,7 @@ jobs:
           curl \
             -X POST \
             -H 'Content-type: application/json' \
-            -d '{"msg":"Stale docs paths found in site/src/. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+            -d '{"text":":warning: *Stale docs paths found in site/src/.*\nTS/TSX files reference docs URLs that now redirect. Please check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}
