@@ -180,9 +180,11 @@ jobs:
             **.md
           separator: ","
 
-      # `**.md` (not `docs/**.md`) because the latter silently skips
-      # dot-prefixed dirs and would miss docs/.style/style-guide.md. The
-      # prose step below re-filters to docs/ paths.
+      # `**.md` (not `docs/**.md`) because the action's globber collapses a
+      # `**` adjacent to `.md` to a single path segment, so `docs/**.md`
+      # only matches top-level docs/*.md and misses nested pages such as
+      # docs/.style/style-guide.md. The prose step below re-filters to
+      # docs/ paths.
       # Cache split into restore + conditional save to avoid letting PR
       # runs populate a cache that other branches restore from (the
       # zizmor `cache-poisoning` concern). Only pushes to the default
