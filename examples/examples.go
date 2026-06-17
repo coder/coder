@@ -40,7 +40,6 @@ var (
 	//go:embed templates/kubernetes-devcontainer
 	//go:embed templates/nomad-docker
 	//go:embed templates/scratch
-	//go:embed templates/tasks-docker
 	files embed.FS
 
 	exampleBasePath = "https://github.com/coder/registry/tree/main/registry/coder/templates/"

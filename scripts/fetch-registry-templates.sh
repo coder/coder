@@ -42,7 +42,6 @@ TEMPLATES=(
 	kubernetes-envbox
 	nomad-docker
 	scratch
-	tasks-docker
 )
 
 log() {
