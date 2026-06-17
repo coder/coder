@@ -748,6 +748,11 @@ export const Loading: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -767,6 +772,11 @@ export const LoadingWithModelOptions: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -785,6 +795,11 @@ export const LoadingWithRightPanel: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -804,6 +819,11 @@ export const LoadingSidebarCollapsed: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
