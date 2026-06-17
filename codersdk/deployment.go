@@ -955,6 +955,8 @@ type OIDCConfig struct {
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
+
+	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -2985,6 +2987,23 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			UseInstead: nil,
 			// In most deployments, this setting can only complicate and break OIDC.
 			// So hide it, and only surface it to the small number of users that need it.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Auto Repair Links",
+			Description: "OIDC based users require the IdP issuer and subject in the claims to be static. " +
+				"If a new provider is configured, this option is required to be 'true'. It will reset any existing users to the " +
+				"previous provider, and match by email on their next login.",
+			Required:   false,
+			Default:    "true",
+			Flag:       "oidc-repair-links",
+			Env:        "CODER_OIDC_REPAIR_LINKS",
+			YAML:       "oidc-repair-links",
+			Value:      &c.OIDC.AutoRepairLinks,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// This flag should be removed after validation in real deployments. Leaving it
+			// as a flag as an escape hatch for now.
 			Hidden: true,
 		},
 		// Telemetry settings
