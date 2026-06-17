@@ -3585,6 +3585,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
 			Flag:        "scim-use-legacy",
 			Env:         "CODER_SCIM_USE_LEGACY",
+			YAML:        "scimUseLegacy",
 			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
 			Default:     "true",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
