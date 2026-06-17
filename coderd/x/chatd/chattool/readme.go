@@ -7,32 +7,22 @@ import (
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
 )
 
-// version.Readme is capped only by the ~100MB tarball limit, so bound it to
-// 64KiB to avoid pathological inputs.
+// readmeInputMaxBytes caps how many README bytes are parsed so a giant README
+// can't OOM coderd. It sits well above the output rune cap, so it never trims a
+// real excerpt.
 const readmeInputMaxBytes = 64 * 1024
 
 // readmeText returns the README as bounded, frontmatter-stripped plain text
 // truncated to maxRunes, or "" when the README is blank or conversion fails.
 func readmeText(readme string, maxRunes int) string {
-	body := stripReadmeFrontmatter(boundInput(readme))
-	text, err := render.InnerTextFromMarkdown(body)
+	// Cap the parse input first (see readmeInputMaxBytes); goldmark and the
+	// tokenizer tolerate a mid-line or mid-rune cut.
+	bounded := readme[:min(len(readme), readmeInputMaxBytes)]
+	text, err := render.InnerTextFromMarkdown(stripReadmeFrontmatter(bounded))
 	if err != nil {
 		return ""
 	}
 	return coderstrings.Truncate(text, maxRunes, coderstrings.TruncateWithEllipsis)
-}
-
-// boundInput caps s at readmeInputMaxBytes, backing off to the last newline so
-// the parser never sees a line cut mid-tag. A capped run with no newline is
-// hard-cut.
-func boundInput(s string) string {
-	if len(s) <= readmeInputMaxBytes {
-		return s
-	}
-	if i := strings.LastIndexByte(s[:readmeInputMaxBytes], '\n'); i >= 0 {
-		return s[:i]
-	}
-	return s[:readmeInputMaxBytes]
 }
 
 // stripReadmeFrontmatter removes a single leading "---" YAML frontmatter block

@@ -32,42 +32,26 @@ func TestReadmeText(t *testing.T) {
 		require.Equal(t, '…', gotRunes[len(gotRunes)-1])
 	})
 
-	t.Run("BoundsHugeInput", func(t *testing.T) {
+	t.Run("CapsParseInput", func(t *testing.T) {
 		t.Parallel()
-		// Smoke test: a README far larger than the input bound still flows through
-		// the whole pipeline within the cap. boundInput's branches are covered
-		// directly by TestBoundInput.
-		huge := "# Title\n\n" + strings.Repeat("word word word\n", readmeInputMaxBytes/8) // >64KiB, newlines throughout
-		got := readmeText(huge, maxRunes)
-		require.LessOrEqual(t, len([]rune(got)), maxRunes)
-		require.NotContains(t, got, "<")
-	})
-}
-
-func TestBoundInput(t *testing.T) {
-	t.Parallel()
-
-	t.Run("UnderCapUnchanged", func(t *testing.T) {
-		t.Parallel()
-		s := "short\nreadme\n"
-		require.Equal(t, s, boundInput(s))
+		// A rune budget far larger than the input makes the byte cap the only
+		// thing bounding the output, so this fails if readmeText stops capping the
+		// parse input.
+		huge := strings.Repeat("word ", 40_000) // ~200KiB of prose
+		got := readmeText(huge, 10_000_000)
+		require.NotEmpty(t, got)
+		require.LessOrEqual(t, len(got), readmeInputMaxBytes)
 	})
 
-	t.Run("NewlineBackoff", func(t *testing.T) {
+	t.Run("RawTextElementSpanningCutRendersEmpty", func(t *testing.T) {
 		t.Parallel()
-		// A newline within the cap: cut there, dropping the partial final line so
-		// the parser never sees a fragment cut mid-line.
-		head := strings.Repeat("a", readmeInputMaxBytes-3)
-		got := boundInput(head + "\n" + strings.Repeat("b", 100))
-		require.Equal(t, head, got)
-		require.NotContains(t, got, "b")
-	})
-
-	t.Run("NoNewlineHardCut", func(t *testing.T) {
-		t.Parallel()
-		// No newline in the first cap bytes: hard-cut at exactly the cap.
-		got := boundInput(strings.Repeat("a", readmeInputMaxBytes+100))
-		require.Len(t, got, readmeInputMaxBytes)
+		// A <style> that opens before the cap and closes after it is left
+		// unterminated by truncation, so its raw-text run swallows the document and
+		// the excerpt is empty. The same content under the cap renders fine, which
+		// isolates the mid-cut as the cause.
+		css := strings.Repeat("  .x { color: red; }\n", readmeInputMaxBytes/10) // > cap
+		require.Equal(t, "", readmeText("<style>\n"+css+"</style>\n\nReal prose.\n", maxRunes))
+		require.Equal(t, "Real prose.", readmeText("<style>\n.x{}\n</style>\n\nReal prose.\n", maxRunes))
 	})
 }
 
