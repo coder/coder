@@ -441,30 +441,21 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub.mu.Lock()
 		defer gSub.mu.Unlock()
 		gSub.localSubs[lSub] = struct{}{}
-		// Count subscribers at map insertion so the gauge stays an exact
-		// mirror of localSubs membership. The decrements (failure path,
-		// cancel, and Close) all fire on map removal, so coupling the
-		// increment to insertion keeps them balanced under the same locks.
-		p.metrics.addSubscriber()
 		return lSub, gSub
 	}()
 
 	if _, err := g.sub.get(); err != nil {
 		p.metrics.recordSubscribeFailure()
-		// The subscribe failed, so drop the localSub we optimistically
-		// added. The group is abandoned by subscribeGroup, so this just
-		// keeps the subscriber gauge balanced.
-		if l != nil {
-			g.mu.Lock()
-			if _, ok := g.localSubs[l]; ok {
-				delete(g.localSubs, l)
-				p.metrics.removeSubscriber()
-			}
-			g.mu.Unlock()
-		}
+		// A failed subscribe was never counted (we increment only on
+		// success below), so there is nothing to undo here.
 		return nil, err
 	}
 	p.metrics.recordSubscribeSuccess()
+	// Count the subscriber once the NATS subscription is established. The
+	// matching decrement is in closeLocalSubFunc when the localSub is
+	// removed. A mid-subscribe Close may decrement without a matching
+	// increment, but the gauge is irrelevant once we are shutting down.
+	p.metrics.addSubscriber()
 	return p.closeLocalSubFunc(l, g), nil
 }
 
