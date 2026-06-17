@@ -3,7 +3,7 @@ coder v0.0.0-devel
 USAGE:
   coder ai-gateway keys
 
-  Manage AI Gateway keys.
+  Manage AI Gateway keys
 
 SUBCOMMANDS:
     create    Create an AI Gateway key

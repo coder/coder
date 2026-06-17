@@ -1,7 +1,7 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 # ai-gateway keys
 
-Manage AI Gateway keys.
+Manage AI Gateway keys
 
 ## Usage
 

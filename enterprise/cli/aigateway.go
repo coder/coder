@@ -15,7 +15,7 @@ import (
 func (r *RootCmd) aiGateway() *serpent.Command {
 	return &serpent.Command{
 		Use:   "ai-gateway",
-		Short: "Manage AI Gateway.",
+		Short: "Manage AI Gateway",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -28,7 +28,7 @@ func (r *RootCmd) aiGateway() *serpent.Command {
 func (r *RootCmd) aiGatewayKeys() *serpent.Command {
 	return &serpent.Command{
 		Use:   "keys",
-		Short: "Manage AI Gateway keys.",
+		Short: "Manage AI Gateway keys",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
@@ -161,19 +161,19 @@ func (r *RootCmd) aiGatewayKeysDelete() *serpent.Command {
 
 // aiGatewayKeyByNameOrID resolves an AI Gateway key from a name or ID. Names
 // take priority over IDs.
-func aiGatewayKeyByNameOrID(ctx context.Context, client *codersdk.Client, arg string) (codersdk.AIGatewayKey, error) {
+func aiGatewayKeyByNameOrID(ctx context.Context, client *codersdk.Client, nameOrID string) (codersdk.AIGatewayKey, error) {
 	keys, err := client.ListAIGatewayKeys(ctx)
 	if err != nil {
 		return codersdk.AIGatewayKey{}, xerrors.Errorf("list AI Gateway keys: %w", err)
 	}
 
 	for _, key := range keys {
-		if key.Name == arg {
+		if key.Name == nameOrID {
 			return key, nil
 		}
 	}
 
-	if id, err := uuid.Parse(arg); err == nil {
+	if id, err := uuid.Parse(nameOrID); err == nil {
 		for _, key := range keys {
 			if key.ID == id {
 				return key, nil
@@ -181,5 +181,5 @@ func aiGatewayKeyByNameOrID(ctx context.Context, client *codersdk.Client, arg st
 		}
 	}
 
-	return codersdk.AIGatewayKey{}, xerrors.Errorf("AI Gateway key %q not found", arg)
+	return codersdk.AIGatewayKey{}, xerrors.Errorf("AI Gateway key %q not found", nameOrID)
 }
