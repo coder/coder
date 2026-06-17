@@ -20,7 +20,7 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	}
 	maxPending := opts.MaxPending
 	if maxPending <= 0 {
-		maxPending = DefaultMaxPending
+		maxPending = DefaultServerMaxPendingBytes
 	}
 
 	sopts := &natsserver.Options{

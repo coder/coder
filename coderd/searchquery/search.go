@@ -218,7 +218,7 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 	return params, parser.Errors
 }
 
-func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration, actorID uuid.UUID) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -274,8 +274,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
-	// TODO: support "me" by passing in the actorID
-	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
 	// Translate healthy filter to has-agent statuses
 	// healthy:true = connected, healthy:false = disconnected or timeout
