@@ -14,7 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestGroupList(t *testing.T) {
@@ -41,11 +42,9 @@ func TestGroupList(t *testing.T) {
 
 		inv, conf := newCLI(t, "groups", "list")
 
-		pty := ptytest.New(t)
-
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, anotherClient, conf)
-
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		err := inv.Run()
 		require.NoError(t, err)
 
@@ -56,7 +55,7 @@ func TestGroupList(t *testing.T) {
 		}
 
 		for _, match := range matches {
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 		}
 	})
 
@@ -72,9 +71,8 @@ func TestGroupList(t *testing.T) {
 
 		inv, conf := newCLI(t, "groups", "list")
 
-		pty := ptytest.New(t)
-
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		clitest.SetupConfig(t, anotherClient, conf)
 
 		err := inv.Run()
@@ -86,7 +84,7 @@ func TestGroupList(t *testing.T) {
 		}
 
 		for _, match := range matches {
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 		}
 	})
 

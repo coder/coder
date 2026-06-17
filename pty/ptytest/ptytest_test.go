@@ -17,9 +17,10 @@ func TestPtytest(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		pty := ptytest.New(t)
 		pty.Output().Write([]byte("write"))
-		pty.ExpectMatch("write")
+		pty.ExpectMatch(ctx, "write")
 		pty.WriteLine("read")
 	})
 
@@ -38,7 +39,7 @@ func TestPtytest(t *testing.T) {
 		require.Equal(t, "line 2", pty.ReadLine(ctx))
 		require.Equal(t, "line 3", pty.ReadLine(ctx))
 		require.Equal(t, "line 4", pty.ReadLine(ctx))
-		require.Equal(t, "line 5", pty.ExpectMatch("5"))
+		require.Equal(t, "line 5", pty.ExpectMatch(ctx, "5"))
 	})
 
 	// See https://github.com/coder/coder/issues/2122 for the motivation

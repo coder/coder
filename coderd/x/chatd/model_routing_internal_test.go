@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -20,8 +21,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type aibridgeTestFactory struct {
@@ -82,10 +85,10 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 		wantProvider string
 		wantBaseURL  string
 	}{
-		{name: "OpenAI", providerType: database.AiProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Anthropic", providerType: database.AiProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Bedrock", providerType: database.AiProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
-		{name: "Google", providerType: database.AiProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Bedrock", providerType: database.AIProviderTypeBedrock, wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
+		{name: "Google", providerType: database.AIProviderTypeGoogle, wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -110,7 +113,7 @@ func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai",
 		Enabled: true,
 		BaseUrl: baseURL,
@@ -138,7 +141,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 	ctx := t.Context()
 	ownerID := uuid.New()
 	providerID := uuid.New()
-	provider := database.AIProvider{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true}
+	provider := database.AIProvider{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true}
 
 	t.Run("OpenAIUserKey", func(t *testing.T) {
 		t.Parallel()
@@ -148,7 +151,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
@@ -165,7 +168,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatAnthropic)
@@ -182,7 +185,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{}, sql.ErrNoRows)
+		}).Return(database.UserAIProviderKey{}, sql.ErrNoRows)
 
 		server := &Server{db: db, allowBYOK: true}
 		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
@@ -228,7 +231,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 	providerID := uuid.New()
 	provider := database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai",
 		Enabled: true,
 	}
@@ -248,7 +251,7 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       ownerID,
 			AIProviderID: providerID,
-		}).Return(database.UserAiProviderKey{APIKey: "sk-user"}, nil)
+		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, aiGatewayRoutingEnabled: true, allowBYOK: true}
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig, chatprovider.ProviderAPIKeys{})
@@ -293,7 +296,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 				path:          req.URL.Path,
 			}
 			body := `{"id":"resp_test","object":"response","created_at":0,"status":"completed","model":"gpt-4","output":[{"id":"msg_test","type":"message","role":"assistant","content":[{"type":"output_text","text":"hello"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`
-			if provider.Type == database.AiProviderTypeAnthropic {
+			if provider.Type == database.AIProviderTypeAnthropic {
 				body = `{"id":"msg_test","type":"message","role":"assistant","model":"claude-haiku-4-5","content":[{"type":"text","text":"hello"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":1}}`
 			}
 			return &http.Response{
@@ -315,7 +318,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"Authorization": "Bearer sk-user"},
 		}, seen)
@@ -337,7 +340,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AiProviderTypeAnthropic)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-anthropic", database.AIProviderTypeAnthropic)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{
 			Headers: map[string]string{"X-Api-Key": "sk-user"},
 		}, seen)
@@ -358,7 +361,7 @@ func TestAIGatewayModelForwardsProviderAuth(t *testing.T) {
 		t.Parallel()
 
 		seen := make(chan seenRequest, 1)
-		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AiProviderTypeOpenai)
+		provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
 		server, route := newServer(t, provider, aiGatewayProviderAuth{}, seen)
 		apiKeyID := uuid.NewString()
 		model, err := server.newModel(t.Context(), aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, "gpt-4"), route, modelBuildOptions{ActiveAPIKeyID: apiKeyID})
@@ -403,13 +406,61 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			},
 		},
 		{
-			name: "SkipsModelOnlyUserMessages",
+			name: "SkipsUncompressedModelOnlyUserMessages",
 			messages: []database.ChatMessage{
 				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
 				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
 			},
 			wantKey: oldKeyID,
 			wantOK:  true,
+		},
+		{
+			name: "CompressedSummaryFallback",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "LatestCompressedSummaryWins",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(currentKeyID)},
+				{ID: 3, Role: database.ChatMessageRoleAssistant, Visibility: database.ChatMessageVisibilityBoth},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "VisibleUserWinsOverCompressedSummary",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(currentKeyID)},
+			},
+			wantKey: currentKeyID,
+			wantOK:  true,
+		},
+		{
+			name: "MissingVisibleUserKeyDoesNotFallBackToCompressedSummary",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth},
+			},
+		},
+		{
+			name: "UncompressedModelOnlyUserIgnored",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, APIKeyID: sqlNullString(currentKeyID)},
+			},
+		},
+		{
+			name: "CompressedSummaryMissingKeyDoesNotFallBack",
+			messages: []database.ChatMessage{
+				{ID: 1, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityBoth, APIKeyID: sqlNullString(oldKeyID)},
+				{ID: 2, Role: database.ChatMessageRoleUser, Visibility: database.ChatMessageVisibilityModel, Compressed: true},
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -419,15 +470,11 @@ func TestActiveTurnAPIKeyIDFromMessages(t *testing.T) {
 			gotKey, gotOK := activeTurnAPIKeyIDFromMessages(tt.messages)
 			require.Equal(t, tt.wantOK, gotOK)
 			require.Equal(t, tt.wantKey, gotKey)
-			ctx := contextWithActiveTurnAPIKeyID(t.Context(), tt.messages)
-			ctxKey, ctxOK := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-			require.Equal(t, tt.wantOK, ctxOK)
-			require.Equal(t, tt.wantKey, ctxKey)
 		})
 	}
 }
 
-func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
+func TestPromptMessagesForVisibleUserPreserveActiveAPIKeyID(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -475,10 +522,68 @@ func TestActiveTurnContextUsesPromptMessages(t *testing.T) {
 
 	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
 	require.NoError(t, err)
-	ctx = contextWithActiveTurnAPIKeyID(ctx, messages)
-	gotKey, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
 	require.True(t, ok)
 	require.Equal(t, currentKey.ID, gotKey)
+}
+
+func TestPromptMessagesForCompactedChatPreserveActiveAPIKeyID(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := t.Context()
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: model.ID})
+	key, _ := dbgen.APIKey(t, db, database.APIKey{UserID: user.ID})
+
+	visibleUser := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityBoth,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+	compressedSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Visibility:    database.ChatMessageVisibilityModel,
+		Compressed:    true,
+		APIKeyID:      sqlNullString(key.ID),
+	})
+	afterSummary := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleAssistant,
+		Visibility:    database.ChatMessageVisibilityBoth,
+	})
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+
+	ids := make(map[int64]struct{}, len(messages))
+	for _, message := range messages {
+		ids[message.ID] = struct{}{}
+	}
+	_, hasVisibleUser := ids[visibleUser.ID]
+	require.False(t, hasVisibleUser)
+	_, hasSummary := ids[compressedSummary.ID]
+	require.True(t, hasSummary)
+	_, hasAfterSummary := ids[afterSummary.ID]
+	require.True(t, hasAfterSummary)
+
+	gotKey, ok := activeTurnAPIKeyIDFromMessages(messages)
+	require.True(t, ok)
+	require.Equal(t, key.ID, gotKey)
 }
 
 func sqlNullString(value string) sql.NullString {
@@ -490,7 +595,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 
 	providerID := uuid.New()
 	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	aiProvider := aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)
+	aiProvider := aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)
 
 	t.Run("NilFactory", func(t *testing.T) {
 		t.Parallel()
@@ -513,7 +618,7 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 	t.Run("MissingProviderName", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{aiGatewayRoutingEnabled: true}
-		missingNameProvider := aibridgeTestAIProvider(providerID, "", database.AiProviderTypeOpenai)
+		missingNameProvider := aibridgeTestAIProvider(providerID, "", database.AIProviderTypeOpenai)
 		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(missingNameProvider), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "AI provider name")
 	})
@@ -530,6 +635,34 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		}
 		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aiProvider), modelBuildOptions{})
 		require.ErrorContains(t, err, "active turn API key ID")
+
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindMissingKey, classified.Kind,
+			"production path must return a pre-classified missing_key error")
+		require.False(t, classified.Retryable)
+	})
+
+	t.Run("OpenRouterMisconfiguredAsOpenAI", func(t *testing.T) {
+		t.Parallel()
+		factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			t.Fatal("transport must not be used for invalid provider config")
+			return nil, xerrors.New("unreachable")
+		})}
+		server := &Server{
+			aiGatewayRoutingEnabled:  true,
+			aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+		}
+		provider := aibridgeTestAIProvider(providerID, "openrouter", database.AIProviderTypeOpenai)
+		_, err := server.newModel(
+			t.Context(),
+			aibridgeTestRequest(chat, "anthropic/claude-opus-4.6"),
+			aibridgeTestRoute(provider),
+			modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+		)
+		require.ErrorContains(t, err, "does not support slash-namespaced models")
+		classified := chaterror.Classify(err)
+		require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+		require.False(t, classified.Retryable)
 	})
 
 	t.Run("StaticModel", func(t *testing.T) {
@@ -538,6 +671,112 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		_, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), newAIGatewayModelRoute(database.AIProvider{}, "", aiGatewayProviderAuth{}), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
 		require.ErrorContains(t, err, "concrete AI provider")
 	})
+}
+
+func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
+	t.Parallel()
+
+	const modelName = "anthropic/claude-opus-4.6"
+	tests := []struct {
+		name         string
+		providerName string
+		providerType database.AIProviderType
+	}{
+		{
+			name:         "OpenRouter",
+			providerName: "openrouter",
+			providerType: database.AIProviderTypeOpenrouter,
+		},
+		{
+			name:         "OpenAICompat",
+			providerName: "openai-compatible-relay",
+			providerType: database.AIProviderTypeOpenaiCompat,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			type seenRequest struct {
+				model string
+				path  string
+			}
+			seen := make(chan seenRequest, 1)
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				body, err := io.ReadAll(req.Body)
+				require.NoError(t, err)
+				var payload struct {
+					Model string `json:"model"`
+				}
+				require.NoError(t, json.Unmarshal(body, &payload))
+				seen <- seenRequest{model: payload.Model, path: req.URL.Path}
+
+				var responsePayload map[string]any
+				if strings.Contains(req.URL.Path, "/responses") {
+					responsePayload = map[string]any{
+						"id":         "resp_test",
+						"object":     "response",
+						"created_at": 0,
+						"status":     "completed",
+						"model":      modelName,
+						"output": []map[string]any{{
+							"id":      "msg_test",
+							"type":    "message",
+							"role":    "assistant",
+							"content": []map[string]any{{"type": "output_text", "text": "hello"}},
+						}},
+						"usage": map[string]any{"input_tokens": 1, "output_tokens": 1, "total_tokens": 2},
+					}
+				} else {
+					responsePayload = map[string]any{
+						"id":      "chatcmpl-test",
+						"object":  "chat.completion",
+						"created": 0,
+						"model":   modelName,
+						"choices": []map[string]any{{
+							"index":         0,
+							"message":       map[string]any{"role": "assistant", "content": "hello"},
+							"finish_reason": "stop",
+						}},
+						"usage": map[string]any{"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+					}
+				}
+				responseBody, err := json.Marshal(responsePayload)
+				require.NoError(t, err)
+				return &http.Response{
+					StatusCode: http.StatusOK,
+					Header:     http.Header{"Content-Type": []string{"application/json"}},
+					Body:       io.NopCloser(strings.NewReader(string(responseBody))),
+					Request:    req,
+				}, nil
+			})}
+			chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
+			server := &Server{
+				aiGatewayRoutingEnabled:  true,
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+
+			model, err := server.newModel(
+				t.Context(),
+				aibridgeTestRequest(chat, modelName),
+				aibridgeTestRoute(aibridgeTestAIProvider(uuid.New(), tt.providerName, tt.providerType)),
+				modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			)
+			require.NoError(t, err)
+			_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
+				Role:    fantasy.MessageRoleUser,
+				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
+			}}})
+			require.NoError(t, err)
+
+			got := <-seen
+			require.NotEmpty(t, got.path)
+			require.Equal(t, modelName, got.model)
+			require.Equal(t, tt.providerName, factory.providerName)
+			require.Equal(t, aibridge.SourceAgents, factory.source)
+		})
+	}
 }
 
 func TestDirectModelBuildDoesNotRequireActiveAPIKeyID(t *testing.T) {
@@ -575,7 +814,7 @@ func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	model, debugEnabled, resolvedProvider, resolvedModel, err := server.resolveComputerUseModel(
 		ctx,
 		chat,
-		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)),
+		aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)),
 		provider,
 		modelProvider,
 		modelName,
@@ -623,7 +862,7 @@ func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
 	}
 
 	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AiProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
+	model, err := server.newModel(ctx, aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(aibridgeTestAIProvider(providerID, "primary-openai", database.AIProviderTypeOpenai)), modelBuildOptions{ActiveAPIKeyID: apiKeyID, RecordHTTP: true})
 	require.NoError(t, err)
 	_, err = model.Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
 		Role:    fantasy.MessageRoleUser,

@@ -86,6 +86,11 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	}
 	shouldLoop := true
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for shouldLoop {
 		srv := i.newResponsesService()
 		respCopy = responseCopier{}
@@ -99,7 +104,9 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
 		}
 
-		response, upstreamErr = i.newResponse(ctx, srv, opts)
+		var keyAttempts int
+		response, keyAttempts, upstreamErr = i.newResponse(ctx, srv, opts)
+		totalKeyAttempts += keyAttempts
 
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
@@ -146,12 +153,14 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-// newResponse routes between BYOK (single attempt) and
-// centralized failover.
-func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
+// newResponse routes between BYOK (single attempt) and centralized failover,
+// returning the upstream response, the number of key attempts made for this
+// call, and any error.
+func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
 	// BYOK: single attempt, no failover.
 	if i.cfg.KeyPool == nil {
-		return i.newResponseWithKey(ctx, srv, opts)
+		response, err := i.newResponseWithKey(ctx, srv, opts)
+		return response, 0, err
 	}
 	return i.newResponseWithKeyFailover(ctx, srv, opts)
 }
@@ -165,21 +174,22 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 	return srv.New(ctx, responses.ResponseNewParams{}, opts...)
 }
 
-// newResponseWithKeyFailover walks the centralized key pool,
-// trying each key until one succeeds or the pool is exhausted.
-// Keys are marked temporary on 429 and permanent on 401/403.
-// Errors that aren't key-specific don't trigger failover and
-// are returned to the caller.
-func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
+// newResponseWithKeyFailover walks the centralized key pool, trying each key
+// until one succeeds or the pool is exhausted. Keys are marked temporary on
+// 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
+// failover and are returned to the caller. It returns the upstream response,
+// the number of key attempts made for this call, and any error.
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
 	walker := i.cfg.KeyPool.Walker()
 	for {
 		key, keyPoolErr := walker.Next()
 		if keyPoolErr != nil {
-			return nil, keyPoolErr
+			return nil, walker.Attempts(), keyPoolErr
 		}
+		// Record the key in use so the hint reflects the last attempted key.
+		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+		i.logger.Debug(ctx, "using centralized api key",
+			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
@@ -195,6 +205,6 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 		}
 		// Either success (response, nil) or a non-key error
 		// (nil, err): nothing to retry, return as-is.
-		return response, err
+		return response, walker.Attempts(), err
 	}
 }

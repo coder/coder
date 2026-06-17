@@ -142,7 +142,8 @@ const reconnectStatesEqual = (
 
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "pending";
+): boolean =>
+	status === "running" || status === "pending" || status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -661,7 +662,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	// Show the "Thinking..." indicator when the store has no stream
+	// Show the Thinking indicator when the store has no stream
 	// data yet and the conversation is waiting for an assistant
 	// response. For "running" status we use the existing broad
 	// check (any non-assistant latest message). For "pending" we

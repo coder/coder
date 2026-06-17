@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -55,6 +56,18 @@ type Agent struct {
 	logger   slog.Logger
 	clock    quartz.Clock
 	dialer   rpcDialer // nil → built from coderURL+token in Run
+	metrics  *Metrics  // nil → no metrics
+
+	// firstConnected guards firstConnect so reconnects don't re-report.
+	firstConnect   chan<- time.Duration
+	firstConnected atomic.Bool
+
+	// A zero connReportInterval or connReportDuration disables synthetic SSH
+	// connection reporting.
+	connReportInterval time.Duration
+	connReportDuration time.Duration
+
+	start time.Time
 
 	cancel context.CancelFunc
 }
@@ -82,7 +95,34 @@ func WithDialer(d rpcDialer) Option {
 	}
 }
 
-func NewAgent(coderURL *url.URL, token string, logger slog.Logger, opts ...Option) *Agent {
+// WithMetrics injects Prometheus collectors. A nil *Metrics (the
+// default when this option is not used) is a valid no-op; every
+// collector helper method nil-guards on the receiver.
+func WithMetrics(m *Metrics) Option {
+	return func(a *Agent) {
+		a.metrics = m
+	}
+}
+
+// WithFirstConnect sets a shared channel used by the Manager to aggregate
+// time-to-first-connect across all agents without one stalled agent blocking
+// the others.
+func WithFirstConnect(ch chan<- time.Duration) Option {
+	return func(a *Agent) {
+		a.firstConnect = ch
+	}
+}
+
+// WithConnectionReports enables periodic synthetic SSH connection reporting.
+// A zero interval or duration disables reporting.
+func WithConnectionReports(interval, duration time.Duration) Option {
+	return func(a *Agent) {
+		a.connReportInterval = interval
+		a.connReportDuration = duration
+	}
+}
+
+func NewAgent(logger slog.Logger, coderURL *url.URL, token string, opts ...Option) *Agent {
 	a := &Agent{
 		coderURL: coderURL,
 		token:    token,
@@ -109,6 +149,7 @@ func (a *Agent) Run(ctx context.Context) error {
 	if client == nil {
 		client = agentsdk.New(a.coderURL, agentsdk.WithFixedToken(a.token))
 	}
+	a.start = a.clock.Now()
 	for {
 		if err := runCtx.Err(); err != nil {
 			return nil
@@ -130,14 +171,33 @@ func (a *Agent) Run(ctx context.Context) error {
 
 // connectAndServe opens one dRPC websocket, announces lifecycle = READY, then blocks until ctx is canceled or the
 // connection is closed by either side. Returns the underlying error, if any.
+//
+// A child ctx (connCtx) is derived from ctx and canceled when this function
+// returns. Background goroutines started for the lifetime of this single dRPC
+// connection (notably runMetadata) bind to connCtx rather than ctx so that
+// they exit promptly on remote-close + reconnect, instead of leaking and
+// continuing to issue RPCs against an already-closed rpc handle until the
+// outer ctx (the whole Agent's lifetime) eventually cancels.
 func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 	rpc, _, err := client.ConnectRPC29WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
+	connCtx, cancelConn := context.WithCancel(ctx)
+	defer cancelConn()
 	conn := rpc.DRPCConn()
+	a.metrics.incConnected()
+	// Non-blocking so a slow collector can never stall this agent's
+	// reconnect loop.
+	if a.firstConnect != nil && a.firstConnected.CompareAndSwap(false, true) {
+		select {
+		case a.firstConnect <- a.clock.Since(a.start):
+		default:
+		}
+	}
 	defer func() {
 		_ = conn.Close()
+		a.metrics.decConnected()
 	}()
 
 	// Real agents transition to READY once their startup script finishes. Fakes have no startup script, so they're
@@ -176,8 +236,11 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 				slog.Error(idErr))
 			workspaceID = uuid.Nil
 		}
-		go a.runMetadata(ctx, rpc, workspaceID, descs)
+		go a.runMetadata(connCtx, rpc, workspaceID, descs)
 	}
+
+	// Bound to connCtx so the goroutine exits on reconnect, like runMetadata.
+	go a.runConnectionReports(connCtx, rpc)
 
 	select {
 	case <-ctx.Done():
@@ -278,6 +341,67 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 		}
 		return nil
 	}, "agentfake", "runMetadata").Wait()
+}
+
+// runConnectionReports emits periodic synthetic SSH sessions (CONNECT then
+// DISCONNECT) via ReportConnection. Each session reuses one connection_id so
+// coderd pairs the two halves onto a single connection_log row.
+func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentClient29) {
+	// A zero-length session is meaningless, so a zero interval or duration
+	// disables reporting entirely.
+	if a.connReportInterval <= 0 || a.connReportDuration <= 0 {
+		return
+	}
+
+	// Tick at the smaller of the two so neither boundary is overshot.
+	tick := min(a.connReportInterval, a.connReportDuration)
+
+	var (
+		openID   uuid.UUID
+		closeAt  time.Time
+		nextOpen = a.clock.Now().Add(a.connReportInterval)
+	)
+	_ = a.clock.TickerFunc(ctx, tick, func() error {
+		now := a.clock.Now()
+		switch {
+		case openID != uuid.Nil && !now.Before(closeAt):
+			// A failed DISCONNECT send is non-fatal for scaletesting, so we
+			// ignore the result and always reset the session.
+			a.sendConnection(ctx, rpc, openID, proto.Connection_DISCONNECT, now)
+			openID = uuid.Nil
+			nextOpen = now.Add(a.connReportInterval)
+		case openID == uuid.Nil && !now.Before(nextOpen):
+			id := uuid.New()
+			closeAt = now.Add(a.connReportDuration)
+			if a.sendConnection(ctx, rpc, id, proto.Connection_CONNECT, now) {
+				openID = id
+			} else {
+				// Leave openID nil so a failed CONNECT retries next interval
+				// instead of desyncing the connect/disconnect pairing.
+				nextOpen = now.Add(a.connReportInterval)
+			}
+		}
+		return nil
+	}, "agentfake", "connectionReports").Wait()
+}
+
+func (a *Agent) sendConnection(ctx context.Context, rpc proto.DRPCAgentClient29, id uuid.UUID, action proto.Connection_Action, now time.Time) bool {
+	_, err := rpc.ReportConnection(ctx, &proto.ReportConnectionRequest{
+		Connection: &proto.Connection{
+			Id:        id[:],
+			Action:    action,
+			Type:      proto.Connection_SSH,
+			Timestamp: timestamppb.New(now),
+			Ip:        "127.0.0.1",
+		},
+	})
+	if err != nil && ctx.Err() == nil {
+		a.logger.Debug(ctx, "report connection failed",
+			slog.F("action", action.String()),
+			slog.Error(err))
+		return false
+	}
+	return true
 }
 
 // Close stops the agent. Safe to call multiple times.

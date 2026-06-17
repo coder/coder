@@ -1,14 +1,18 @@
 package clilog_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -146,6 +150,57 @@ func TestBuilder(t *testing.T) {
 	})
 }
 
+func TestMaybeDiscardOnPipeError(t *testing.T) {
+	t.Parallel()
+
+	const payload = "log entry"
+
+	t.Run("LeavesStdoutStderrUnchanged", func(t *testing.T) {
+		t.Parallel()
+
+		require.Same(t, os.Stdout, clilog.MaybeDiscardOnPipeError(os.Stdout))
+		require.Same(t, os.Stderr, clilog.MaybeDiscardOnPipeError(os.Stderr))
+	})
+
+	t.Run("DiscardsClosedPipe", func(t *testing.T) {
+		t.Parallel()
+
+		for _, target := range []error{
+			io.ErrClosedPipe,
+			syscall.EPIPE,
+			xerrors.Errorf("wrapped: %w", io.ErrClosedPipe),
+			xerrors.Errorf("wrapped: %w", syscall.EPIPE),
+		} {
+			fw := &fakeWriter{err: target}
+			n, err := clilog.MaybeDiscardOnPipeError(fw).Write([]byte(payload))
+			require.NoError(t, err, "%v should be discarded", target)
+			assert.Equal(t, len(payload), n)
+		}
+	})
+
+	t.Run("ReportsOtherErrors", func(t *testing.T) {
+		t.Parallel()
+
+		// os.ErrClosed stays reported: a write to a writer we closed ourselves
+		// is worth surfacing.
+		for _, target := range []error{os.ErrClosed, io.ErrShortWrite, xerrors.New("boom")} {
+			fw := &fakeWriter{err: target}
+			_, err := clilog.MaybeDiscardOnPipeError(fw).Write([]byte(payload))
+			require.ErrorIs(t, err, target)
+		}
+	})
+
+	t.Run("PassesThroughSuccess", func(t *testing.T) {
+		t.Parallel()
+
+		fw := &fakeWriter{}
+		n, err := clilog.MaybeDiscardOnPipeError(fw).Write([]byte(payload))
+		require.NoError(t, err)
+		assert.Equal(t, len(payload), n)
+		assert.Equal(t, payload, fw.buf.String())
+	})
+}
+
 var (
 	debug     = "DEBUG"
 	info      = "INFO"
@@ -215,4 +270,16 @@ func assertLogsJSON(t testing.TB, path string, levelExpected ...string) {
 		require.Equal(t, levelExpected[2*i], entry.Level)
 		require.Equal(t, levelExpected[2*i+1], entry.Message)
 	}
+}
+
+type fakeWriter struct {
+	buf bytes.Buffer
+	err error
+}
+
+func (f *fakeWriter) Write(p []byte) (int, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
+	return f.buf.Write(p)
 }

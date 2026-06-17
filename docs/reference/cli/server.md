@@ -16,6 +16,7 @@ coder server [flags]
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>fix-oidc-links</code>](./server_fix-oidc-links.md)                 | Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.        |
 | [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 
 ## Options
@@ -982,7 +983,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code>   |
 | YAML        | <code>networking.proxyTrustedOrigins</code> |
 
-Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
 ### --cache-dir
 
@@ -1130,6 +1131,17 @@ Whether Coder only allows connections to workspaces via the browser.
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
 
+### --scim-use-legacy
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_SCIM_USE_LEGACY</code> |
+| YAML        | <code>scimUseLegacy</code>          |
+| Default     | <code>true</code>                   |
+
+Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
+
 ### --external-token-encryption-keys
 
 |             |                                                    |
@@ -1228,7 +1240,7 @@ Specify a YAML file to load configuration from.
 | YAML        | <code>client.workspaceHostnameSuffix</code>   |
 | Default     | <code>coder</code>                            |
 
-Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.
+Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).
 
 ### --ssh-config-options
 
@@ -1238,7 +1250,7 @@ Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Des
 | Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
 | YAML        | <code>client.sshConfigOptions</code>   |
 
-These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas.Using this incorrectly can break SSH to your deployment, use cautiously.
+These SSH config options will override the default SSH config options. Provide options in "key=value" or "key value" format separated by commas. Using this incorrectly can break SSH to your deployment, use cautiously. The following options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option values must not contain newline, carriage return, or NUL characters.
 
 ### --cli-upgrade-message
 
@@ -1743,7 +1755,7 @@ Whether to start an in-memory AI Gateway instance.
 | YAML        | <code>ai_gateway.openai_base_url</code>        |
 | Default     | <code>https://api.openai.com/v1/</code>        |
 
-The base URL of the OpenAI API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the OpenAI API.
 
 ### --ai-gateway-openai-key
 
@@ -1752,7 +1764,7 @@ The base URL of the OpenAI API.
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_AI_GATEWAY_OPENAI_KEY</code> |
 
-The key to authenticate against the OpenAI API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the OpenAI API.
 
 ### --ai-gateway-anthropic-base-url
 
@@ -1763,7 +1775,7 @@ The key to authenticate against the OpenAI API.
 | YAML        | <code>ai_gateway.anthropic_base_url</code>        |
 | Default     | <code>https://api.anthropic.com/</code>           |
 
-The base URL of the Anthropic API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL of the Anthropic API.
 
 ### --ai-gateway-anthropic-key
 
@@ -1772,7 +1784,7 @@ The base URL of the Anthropic API.
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_AI_GATEWAY_ANTHROPIC_KEY</code> |
 
-The key to authenticate against the Anthropic API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The key to authenticate against the Anthropic API.
 
 ### --ai-gateway-bedrock-base-url
 
@@ -1782,7 +1794,7 @@ The key to authenticate against the Anthropic API.
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_BASE_URL</code> |
 | YAML        | <code>ai_gateway.bedrock_base_url</code>        |
 
-The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 
 ### --ai-gateway-bedrock-region
 
@@ -1792,7 +1804,7 @@ The base URL to use for the AWS Bedrock API. Use this setting to specify an exac
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_REGION</code> |
 | YAML        | <code>ai_gateway.bedrock_region</code>        |
 
-The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
 ### --ai-gateway-bedrock-access-key
 
@@ -1801,7 +1813,7 @@ The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedr
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY</code> |
 
-The access key to authenticate against the AWS Bedrock API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key to authenticate against the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-access-key-secret
 
@@ -1810,7 +1822,7 @@ The access key to authenticate against the AWS Bedrock API.
 | Type        | <code>string</code>                                      |
 | Environment | <code>$CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET</code> |
 
-The access key secret to use with the access key to authenticate against the AWS Bedrock API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The access key secret to use with the access key to authenticate against the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-model
 
@@ -1821,7 +1833,7 @@ The access key secret to use with the access key to authenticate against the AWS
 | YAML        | <code>ai_gateway.bedrock_model</code>                         |
 | Default     | <code>global.anthropic.claude-sonnet-4-5-20250929-v1:0</code> |
 
-The model to use when making requests to the AWS Bedrock API.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The model to use when making requests to the AWS Bedrock API.
 
 ### --ai-gateway-bedrock-small-fastmodel
 
@@ -1832,7 +1844,7 @@ The model to use when making requests to the AWS Bedrock API.
 | YAML        | <code>ai_gateway.bedrock_small_fast_model</code>             |
 | Default     | <code>global.anthropic.claude-haiku-4-5-20251001-v1:0</code> |
 
-The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
 ### --ai-gateway-retention
 
@@ -2088,6 +2100,17 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --boundary-log-retention
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_BOUNDARY_LOG_RETENTION</code> |
+| YAML        | <code>retention.boundary_logs</code>       |
+| Default     | <code>0</code>                             |
+
+How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.
 
 ### --disable-template-builder
 

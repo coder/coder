@@ -51,6 +51,13 @@ message RecordInterceptionRequest {
   string provider_name = 12;
   string credential_kind = 13;
   string credential_hint = 14;
+  // Agent Firewall session UUID linking this interception to an Agent Firewall
+  // session. Populated only when the request passed through an Agent Firewall proxy.
+  optional string agent_firewall_session_id = 15;
+  // Monotonically increasing sequence number assigned by Agent Firewall,
+  // used to order network requests relative to Agent Firewall audit events.
+  // Absent when the request did not pass through Agent Firewall.
+  optional int32 agent_firewall_sequence_number = 16;
 }
 
 message RecordInterceptionResponse {}
@@ -58,6 +65,7 @@ message RecordInterceptionResponse {}
 message RecordInterceptionEndedRequest {
   string id = 1; // UUID.
   google.protobuf.Timestamp ended_at = 2;
+  string credential_hint = 3;
 }
 
 message RecordInterceptionEndedResponse {}

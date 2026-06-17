@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -501,7 +502,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
 	defer encoder.Close(websocket.StatusNormalClosure)
@@ -861,7 +862,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 		return
 	}
 
-	ctx, cancel := context.WithCancel(r.Context())
+	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// Here we close the websocket for reading, so that the websocket library will handle pings and
@@ -871,7 +872,7 @@ func (api *API) watchWorkspaceAgentContainers(rw http.ResponseWriter, r *http.Re
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatCloseWithClock(ctx, logger, cancel, conn, api.Clock)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 
@@ -1095,6 +1096,11 @@ func (api *API) workspaceAgentDeleteDevcontainer(rw http.ResponseWriter, r *http
 func (api *API) workspaceAgentRecreateDevcontainer(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	waws := httpmw.WorkspaceAgentAndWorkspaceParam(r)
+
+	if !api.Authorize(r, policy.ActionUpdate, waws.WorkspaceTable) {
+		httpapi.Forbidden(rw)
+		return
+	}
 
 	devcontainer := chi.URLParam(r, "devcontainer")
 	if devcontainer == "" {
@@ -1366,9 +1372,7 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close()
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
@@ -1665,7 +1669,7 @@ func (api *API) watchWorkspaceAgentMetadataSSE(rw http.ResponseWriter, r *http.R
 // @Router /api/v2/workspaceagents/{workspaceagent}/watch-metadata-ws [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchWorkspaceAgentMetadataWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspaceAgentMetadata(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspaceAgentMetadata(
@@ -2296,7 +2300,7 @@ func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
 		Name: "client",
 		ID:   peerID,
@@ -2548,10 +2552,11 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err = api.Database.InTx(func(tx database.Store) error {
-		locked, err := tx.GetChatByIDForUpdate(sysCtx, chat.ID)
+	machine := chatstate.NewChatMachine(api.Database, api.Pubsub, chat.ID)
+	err = machine.Update(sysCtx, func(tx *chatstate.Tx, store database.Store) error {
+		locked, err := store.GetChatByID(sysCtx, chat.ID)
 		if err != nil {
-			return xerrors.Errorf("lock chat: %w", err)
+			return xerrors.Errorf("load chat: %w", err)
 		}
 		if !isActiveAgentChat(locked) {
 			return errChatNotActive
@@ -2562,31 +2567,68 @@ func (api *API) workspaceAgentAddChatContext(rw http.ResponseWriter, r *http.Req
 		if locked.OwnerID != workspace.OwnerID {
 			return errChatDoesNotBelongToWorkspaceOwner
 		}
-		if _, err := tx.InsertChatMessages(sysCtx, chatd.BuildSingleUserChatMessageInsertParams(
-			chat.ID,
-			"", // Agent-initiated context injection has no caller API key.
-			content,
-			database.ChatMessageVisibilityBoth,
-			locked.LastModelConfigID,
-			chatprompt.CurrentContentVersion,
-			uuid.Nil,
-		)); err != nil {
-			return xerrors.Errorf("insert context message: %w", err)
+		apiKeyID, err := resolveAgentChatContextAPIKeyID(sysCtx, store, locked)
+		if err != nil {
+			return err
 		}
-		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, tx, chat.ID); err != nil {
+		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
+			Message: chatstate.Message{
+				Role:           database.ChatMessageRoleUser,
+				Content:        content,
+				Visibility:     database.ChatMessageVisibilityBoth,
+				ModelConfigID:  uuid.NullUUID{UUID: locked.LastModelConfigID, Valid: locked.LastModelConfigID != uuid.Nil},
+				CreatedBy:      uuid.NullUUID{UUID: locked.OwnerID, Valid: locked.OwnerID != uuid.Nil},
+				ContentVersion: chatprompt.CurrentContentVersion,
+				APIKeyID:       sql.NullString{String: apiKeyID, Valid: apiKeyID != ""},
+			},
+			BusyBehavior: chatstate.BusyBehaviorInterrupt,
+		})
+		if err != nil {
+			return err
+		}
+		if len(sendResult.InsertedMessages) == 0 {
+			return nil
+		}
+		if err := updateAgentChatLastInjectedContextFromMessages(sysCtx, api.Logger, store, chat.ID); err != nil {
 			return xerrors.Errorf("rebuild injected context cache: %w", err)
 		}
 		return nil
-	}, nil)
+	})
 	if err != nil {
-		if errors.Is(err, errChatNotActive) || errors.Is(err, errChatDoesNotBelongToAgent) || errors.Is(err, errChatDoesNotBelongToWorkspaceOwner) {
+		switch {
+		case errors.Is(err, errChatNotActive), errors.Is(err, errChatDoesNotBelongToAgent), errors.Is(err, errChatDoesNotBelongToWorkspaceOwner):
 			writeAgentChatError(ctx, rw, err)
-			return
+		case errors.Is(err, errChatAPIKeyAttributionUnavailable):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot modify context: chat has no API key attribution.",
+			})
+		case errors.Is(err, chatstate.ErrMessageQueueFull):
+			var queueFull *chatstate.MessageQueueFullError
+			detail := ""
+			if errors.As(err, &queueFull) {
+				detail = fmt.Sprintf("Maximum %d messages can be queued.", queueFull.Max)
+			}
+			httpapi.Write(ctx, rw, http.StatusTooManyRequests, codersdk.Response{
+				Message: "Message queue is full.",
+				Detail:  detail,
+			})
+		case errors.Is(err, chatstate.ErrInvalidState):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is in an invalid state.",
+			})
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Chat is not in a state that accepts new context.",
+				Detail:  err.Error(),
+			})
+		case errors.Is(err, chatstate.ErrChatNotFound):
+			writeAgentChatError(ctx, rw, errChatNotFound)
+		default:
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Failed to persist context message.",
+				Detail:  err.Error(),
+			})
 		}
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to persist context message.",
-			Detail:  err.Error(),
-		})
 		return
 	}
 
@@ -2655,6 +2697,7 @@ var (
 	errChatNotActive                     = xerrors.New("chat is not active")
 	errChatDoesNotBelongToAgent          = xerrors.New("chat does not belong to this agent")
 	errChatDoesNotBelongToWorkspaceOwner = xerrors.New("chat does not belong to this workspace owner")
+	errChatAPIKeyAttributionUnavailable  = xerrors.New("chat has no API key attribution")
 )
 
 type multipleActiveChatsError struct {
@@ -2751,6 +2794,56 @@ func isActiveAgentChat(chat database.Chat) bool {
 	default:
 		return false
 	}
+}
+
+func resolveAgentChatContextAPIKeyID(ctx context.Context, db database.Store, chat database.Chat) (string, error) {
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("load chat messages for API key attribution: %w", err)
+	}
+	for i := len(messages) - 1; i >= 0; i-- {
+		message := messages[i]
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if !message.APIKeyID.Valid || message.APIKeyID.String == "" {
+			continue
+		}
+		return message.APIKeyID.String, nil
+	}
+
+	loginTypes := []database.LoginType{
+		database.LoginTypePassword,
+		database.LoginTypeOIDC,
+		database.LoginTypeGithub,
+		database.LoginTypeToken,
+		database.LoginTypeNone,
+	}
+	var newest database.APIKey
+	hasNewest := false
+	for _, loginType := range loginTypes {
+		keys, err := db.GetAPIKeysByUserID(ctx, database.GetAPIKeysByUserIDParams{
+			LoginType:      loginType,
+			UserID:         chat.OwnerID,
+			IncludeExpired: false,
+		})
+		if err != nil {
+			return "", xerrors.Errorf("load owner API keys for attribution: %w", err)
+		}
+		for _, key := range keys {
+			if !hasNewest || key.CreatedAt.After(newest.CreatedAt) {
+				newest = key
+				hasNewest = true
+			}
+		}
+	}
+	if !hasNewest {
+		return "", errChatAPIKeyAttributionUnavailable
+	}
+	return newest.ID, nil
 }
 
 func clearAgentChatContext(

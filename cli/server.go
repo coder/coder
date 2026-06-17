@@ -7,6 +7,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
@@ -56,6 +57,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
@@ -63,6 +65,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
@@ -97,6 +100,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -113,6 +117,58 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 )
+
+// oidcAuthLinks validates and can repair any broken OIDC auth links from changes in
+// OIDC providers. This function should avoid returning a fatal error as much as possible.
+// If this function fails, it should just log the error and exit.
+func oidcAuthLinks(ctx context.Context, logger slog.Logger, cli *http.Client, vals *codersdk.DeploymentValues, db database.Store) error {
+	// nolint:gocritic // Requires system privileges
+	ctx = dbauthz.AsSystemRestricted(ctx)
+	expectedIssuer, err := authlink.ResolveIssuer(ctx, cli, vals.OIDC.IssuerURL.String())
+	if err != nil {
+		// Always log if there is a failure here
+		logger.Error(ctx, "unable to resolve OIDC 'issuer'",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+		)
+		return nil
+	}
+
+	analysis, err := authlink.AnalyzeOIDCLinks(ctx, db, expectedIssuer)
+	if err != nil {
+		// Do not make this error fatal
+		logger.Error(ctx, "unable to analyze OIDC links, OIDC user links cannot be verified as linked to this issuer",
+			slog.F("error", err.Error()),
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+		)
+		return nil
+	}
+
+	if !vals.OIDC.AutoRepairLinks.Value() {
+		return nil
+	}
+
+	// Repair any broken OIDC links
+	if analysis.MismatchedTotal() > 0 {
+		count, err := authlink.ResetMismatchedOIDCLinks(ctx, db, expectedIssuer)
+		if err != nil {
+			logger.Error(ctx, "unable to reset mismatched OIDC links",
+				slog.F("error", err.Error()),
+				slog.F("url", vals.OIDC.IssuerURL.String()),
+				slog.F("issuer", expectedIssuer),
+			)
+			return nil
+		}
+
+		logger.Info(ctx, "oidc users OIDC links reset",
+			slog.F("url", vals.OIDC.IssuerURL.String()),
+			slog.F("issuer", expectedIssuer),
+			slog.F("count", count),
+		)
+	}
+	return nil
+}
 
 func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.DeploymentValues) (*coderd.OIDCConfig, error) {
 	if vals.OIDC.ClientID == "" {
@@ -428,6 +484,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				logger.Debug(ctx, "tracing closed", slog.Error(traceCloseErr))
 			}()
 
+			configSSHOptions, err := vals.SSHConfig.ParseOptions()
+			if err != nil {
+				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
+			}
+			sshConfigResponse := codersdk.SSHConfigResponse{
+				HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
+				HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
+				SSHConfigOptions: configSSHOptions,
+			}
+			if err := sshConfigResponse.Validate(); err != nil {
+				return xerrors.Errorf("invalid ssh config: %w", err)
+			}
+
 			httpServers, err := ConfigureHTTPServers(logger, inv, vals)
 			if err != nil {
 				return xerrors.Errorf("configure http(s): %w", err)
@@ -638,20 +707,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("parse real ip config: %w", err)
 			}
 
-			configSSHOptions, err := vals.SSHConfig.ParseOptions()
-			if err != nil {
-				return xerrors.Errorf("parse ssh config options %q: %w", vals.SSHConfig.SSHConfigOptions.String(), err)
-			}
-
-			// The workspace hostname suffix is always interpreted as implicitly beginning with a single dot, so it is
-			// a config error to explicitly include the dot. This ensures that we always interpret the suffix as a
-			// separate DNS label, and not just an ordinary string suffix. E.g. a suffix of 'coder' will match
-			// 'en.coder' but not 'encoder'.
-			if strings.HasPrefix(vals.WorkspaceHostnameSuffix.String(), ".") {
-				return xerrors.Errorf("you must omit any leading . in workspace hostname suffix: %s",
-					vals.WorkspaceHostnameSuffix.String())
-			}
-
 			options := &coderd.Options{
 				AccessURL:                   vals.AccessURL.Value(),
 				AppHostname:                 appHostname,
@@ -681,14 +736,10 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				HTTPClient:                  httpClient,
 				TemplateScheduleStore:       &atomic.Pointer[schedule.TemplateScheduleStore]{},
 				UserQuietHoursScheduleStore: &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{},
-				SSHConfig: codersdk.SSHConfigResponse{
-					HostnamePrefix:   vals.SSHConfig.DeploymentName.String(),
-					SSHConfigOptions: configSSHOptions,
-					HostnameSuffix:   vals.WorkspaceHostnameSuffix.String(),
-				},
-				AllowWorkspaceRenames: vals.AllowWorkspaceRenames.Value(),
-				Entitlements:          entitlements.New(),
-				NotificationsEnqueuer: notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
+				SSHConfig:                   sshConfigResponse,
+				AllowWorkspaceRenames:       vals.AllowWorkspaceRenames.Value(),
+				Entitlements:                entitlements.New(),
+				NotificationsEnqueuer:       notifications.NewNoopEnqueuer(), // Changed further down if notifications enabled.
 			}
 			if httpServers.TLSConfig != nil {
 				options.TLSCertificates = httpServers.TLSConfig.Certificates
@@ -720,29 +771,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						}
 					},
 				}
-			}
-
-			// As OIDC clients can be confidential or public,
-			// we should only check for a client id being set.
-			// The underlying library handles the case of no
-			// client secrets correctly. For more details on
-			// client types: https://oauth.net/2/client-types/
-			if vals.OIDC.ClientID != "" {
-				if vals.OIDC.IgnoreEmailVerified {
-					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
-				}
-
-				// This OIDC config is **not** being instrumented with the
-				// oauth2 instrument wrapper. If we implement the missing
-				// oidc methods, then we can instrument it.
-				// Missing:
-				//	- Userinfo
-				//	- Verify
-				oc, err := createOIDCConfig(ctx, options.Logger, vals)
-				if err != nil {
-					return xerrors.Errorf("create oidc config: %w", err)
-				}
-				options.OIDCConfig = oc
 			}
 
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
@@ -777,16 +805,34 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			options.Database = database.New(sqlDB)
-			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+			experiments := coderd.ReadExperiments(options.Logger, options.DeploymentValues.Experiments.Value())
+
+			pgPubsub, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
-			options.Pubsub = ps
+			options.Pubsub = pgPubsub
+			options.ReplicaSyncPubsub = pgPubsub
+			defer pgPubsub.Close()
+
 			if options.DeploymentValues.Prometheus.Enable {
-				options.PrometheusRegistry.MustRegister(ps)
+				options.PrometheusRegistry.MustRegister(pgPubsub)
 			}
-			defer options.Pubsub.Close()
-			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), ps)
+
+			// Use NATS for pubsub if the experiment is enabled.
+			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
+				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
+				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+					ClusterAuthToken: token,
+				})
+				if err != nil {
+					return xerrors.Errorf("create nats pubsub: %w", err)
+				}
+				options.Pubsub = natsps
+				defer natsps.Close()
+			}
+
+			psWatchdog := pubsub.NewWatchdog(ctx, logger.Named("pswatch"), options.Pubsub)
 			pubsubWatchdogTimeout = psWatchdog.Timeout()
 			defer psWatchdog.Close()
 
@@ -820,6 +866,35 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}, nil)
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
+			}
+
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
+				if vals.OIDC.IgnoreEmailVerified {
+					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
+				}
+
+				// This OIDC config is **not** being instrumented with the
+				// oauth2 instrument wrapper. If we implement the missing
+				// oidc methods, then we can instrument it.
+				// Missing:
+				//	- Userinfo
+				//	- Verify
+				oc, err := createOIDCConfig(ctx, options.Logger, vals)
+				if err != nil {
+					return xerrors.Errorf("create oidc config: %w", err)
+				}
+				options.OIDCConfig = oc
+
+				// Repair any existing broken OIDC
+				err = oidcAuthLinks(ctx, logger, httpClient, vals, options.Database)
+				if err != nil {
+					return xerrors.Errorf("oidc auth links: %w", err)
+				}
 			}
 
 			extAuthEnv, err := ReadExternalAuthProvidersFromEnv(os.Environ())
@@ -1032,6 +1107,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			); err != nil {
 				return xerrors.Errorf("seed ai providers from env: %w", err)
 			}
+			// Must run after newAPI so options.Database is dbcrypt-wrapped.
+			coderd.BackfillBedrockProviderType(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
+			// Must run after BackfillBedrockProviderType; shares aibridgeInitCtx so
+			// a timeout on the first backfill will skip this one until next startup.
+			coderd.BackfillChatModelConfigProviderStrings(aibridgeInitCtx, options.Database, logger.Named("aibridge.backfill"))
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
@@ -1041,12 +1121,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// unconditionally when the bridge feature is enabled by config so
 			// chatd can use it regardless of license entitlement.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				aibridgeProviders, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"))
+				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
+				// See AIGOV-447:
+				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
+				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_", "coder_aibridged_")
+				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+				aibridgeProviders, _, err := BuildProviders(aibridgeInitCtx, options.Database, vals.AI.BridgeConfig, logger.Named("aibridge.providers"), aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("build AI providers: %w", err)
 				}
 				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig)
+				aibridgeDaemon, unsubscribeProviderReload, err = newAIBridgeDaemon(coderAPI, aibridgeProviders, vals.AI.BridgeConfig, aibridgeReg, aibridgeMetrics)
 				if err != nil {
 					return xerrors.Errorf("create aibridged: %w", err)
 				}
@@ -1135,7 +1220,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			defer shutdownConns()
 
 			// Ensures that old database entries are cleaned up over time!
-			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry, &coderAPI.Auditor, dbpurge.WithNotificationsEnqueuer(options.NotificationsEnqueuer))
+			purger := dbpurge.New(ctx, logger.Named("dbpurge"), options.Database, options.DeploymentValues, options.PrometheusRegistry)
 			defer purger.Close()
 
 			// Updates workspace usage
@@ -1404,6 +1489,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	createAdminUserCmd := r.newCreateAdminUserCommand()
 	regenerateVapidKeypairCmd := r.newRegenerateVapidKeypairCommand()
+	fixOIDCLinksCmd := r.newFixOIDCLinksCommand()
 
 	rawURLOpt := serpent.Option{
 		Flag: "raw-url",
@@ -1417,7 +1503,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 	serverCmd.Children = append(
 		serverCmd.Children,
-		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd,
+		createAdminUserCmd, postgresBuiltinURLCmd, postgresBuiltinServeCmd, regenerateVapidKeypairCmd, fixOIDCLinksCmd,
 	)
 
 	return serverCmd
@@ -2886,11 +2972,22 @@ func ReadExternalAuthProvidersFromEnv(environ []string) ([]codersdk.ExternalAuth
 // external auth providers. A prefix is provided to support the legacy
 // parsing of `GITAUTH` environment variables.
 func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]codersdk.ExternalAuthConfig, error) {
-	// The index numbers must be in-order.
-	slices.Sort(environ)
+	parsed := serpent.ParseEnviron(environ, prefix)
+
+	// Sort by numeric index so that PROVIDER_2 comes before PROVIDER_10.
+	// A lexicographic sort would order PROVIDER_10 between PROVIDER_1 and
+	// PROVIDER_2 and trip the "provider num skipped" check below.
+	slices.SortFunc(parsed, func(a, b serpent.EnvVar) int {
+		aIdx, _ := strconv.Atoi(strings.SplitN(a.Name, "_", 2)[0])
+		bIdx, _ := strconv.Atoi(strings.SplitN(b.Name, "_", 2)[0])
+		if aIdx != bIdx {
+			return aIdx - bIdx
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	var providers []codersdk.ExternalAuthConfig
-	for _, v := range serpent.ParseEnviron(environ, prefix) {
+	for _, v := range parsed {
 		tokens := strings.SplitN(v.Name, "_", 2)
 		if len(tokens) != 2 {
 			return nil, xerrors.Errorf("invalid env var: %s", v.Name)
@@ -2979,6 +3076,11 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
+const (
+	aiGatewayProviderEnvPrefix = "CODER_AI_GATEWAY_PROVIDER_"
+	aiBridgeProviderEnvPrefix  = "CODER_AIBRIDGE_PROVIDER_"
+)
+
 // ReadAIProvidersFromEnv parses CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 // environment variables into a slice of AIProviderConfig.
 // Deprecated alias env vars with the CODER_AIBRIDGE_PROVIDER_<N>_<KEY>
@@ -2986,16 +3088,22 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 //
 // This follows the same indexed pattern as ReadExternalAuthProvidersFromEnv.
 func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AIProviderConfig, error) {
-	providers, err := readAIProvidersForPrefix(logger, environ, "CODER_AIBRIDGE_PROVIDER_")
+	providers, err := readAIProvidersForPrefix(logger, environ, aiBridgeProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
-	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, "CODER_AI_GATEWAY_PROVIDER_")
+	gatewayProviders, err := readAIProvidersForPrefix(logger, environ, aiGatewayProviderEnvPrefix)
 	if err != nil {
 		return nil, err
 	}
 	if len(providers) > 0 && len(gatewayProviders) > 0 {
-		return nil, xerrors.New("cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables, please consolidate onto CODER_AI_GATEWAY_PROVIDER_*")
+		return nil, xerrors.Errorf("cannot mix %s* and %s* environment variables, please consolidate onto %s*", aiBridgeProviderEnvPrefix, aiGatewayProviderEnvPrefix, aiGatewayProviderEnvPrefix)
+	}
+	var activePrefix string
+	if len(providers) > 0 {
+		activePrefix = aiBridgeProviderEnvPrefix
+	} else if len(gatewayProviders) > 0 {
+		activePrefix = aiGatewayProviderEnvPrefix
 	}
 	providers = append(providers, gatewayProviders...)
 
@@ -3029,26 +3137,26 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
 		// with KEYS) and required on bedrock. Any other TYPE rejecting
 		// them prevents silently-ignored credentials.
-		isBedrockType := providerType == database.AiProviderTypeBedrock
-		isAnthropicType := providerType == database.AiProviderTypeAnthropic
+		isBedrockType := providerType == database.AIProviderTypeBedrock
+		isAnthropicType := providerType == database.AIProviderTypeAnthropic
 		if !isAnthropicType && !isBedrockType && isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): BEDROCK_* fields are only supported with TYPE %q or %q",
-				i, p.Type, database.AiProviderTypeAnthropic, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeAnthropic, database.AIProviderTypeBedrock)
 		}
 
 		if isBedrockType && !isBedrock {
 			return nil, xerrors.Errorf("provider %d (%s): TYPE %q requires BEDROCK_* fields to be configured",
-				i, p.Type, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeBedrock)
 		}
 
 		if isBedrockType && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q (use BEDROCK_* fields)",
-				i, p.Type, database.AiProviderTypeBedrock)
+				i, p.Type, database.AIProviderTypeBedrock)
 		}
 
-		if providerType == database.AiProviderTypeCopilot && len(p.Keys) > 0 {
+		if providerType == database.AIProviderTypeCopilot && len(p.Keys) > 0 {
 			return nil, xerrors.Errorf("provider %d (%s): KEY/KEYS are not supported for TYPE %q",
-				i, p.Type, database.AiProviderTypeCopilot)
+				i, p.Type, database.AIProviderTypeCopilot)
 		}
 
 		// An Anthropic provider authenticates either via a bearer
@@ -3077,7 +3185,25 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 		names[p.Name] = i
 	}
 
+	warnIfAIProvidersConfiguredFromEnv(context.Background(), logger, activePrefix, providers)
+
 	return providers, nil
+}
+
+func warnIfAIProvidersConfiguredFromEnv(ctx context.Context, logger slog.Logger, prefix string, providers []codersdk.AIProviderConfig) {
+	if len(providers) == 0 {
+		return
+	}
+
+	if prefix == "" {
+		return
+	}
+
+	logger.Warn(ctx,
+		"ai provider environment variables are deprecated for provider management and only seed provider configuration at startup",
+		slog.F("env_prefix", prefix),
+		slog.F("replacement", "Manage AI Providers from the Coder UI or HTTP API."),
+	)
 }
 
 // readAIProvidersForPrefix parses provider env vars under a single

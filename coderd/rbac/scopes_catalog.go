@@ -44,7 +44,7 @@ var externalLowLevel = map[ScopeName]struct{}{
 	"user:read":            {},
 	"user:read_personal":   {},
 	"user:update_personal": {},
-	"user.*":               {},
+	"user:*":               {},
 
 	// User secrets
 	"user_secret:read":   {},

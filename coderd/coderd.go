@@ -163,7 +163,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub *pubsub.PGPubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -248,12 +251,16 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatSubscribeFn provides cross-replica subscription merging.
-	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatSubscribeFn chatd.SubscribeFn
+	// ChatStreamPartsDialer dials remote chat stream parts.
+	// Set by enterprise for HA deployments. Nil uses chatd's local
+	// in-process channel dialer.
+	ChatStreamPartsDialer chatd.StreamPartsDialer
 	// ChatProviderAPIKeys overrides deployment-derived provider keys.
 	// Test harnesses use this to route chat models to local providers.
 	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker.
+	ChatWorkerDisabled bool
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -345,11 +352,16 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing || options.DeploymentValues.DisableChatSharing {
+	experiments := ReadExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
+
+	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
-			NoChatSharing:        bool(options.DeploymentValues.DisableChatSharing),
+			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
+			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
 		})
 	}
 
@@ -388,9 +400,6 @@ func New(options *Options) *API {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
-	experiments := ReadExperiments(
-		options.Logger, options.DeploymentValues.Experiments.Value(),
-	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -619,10 +628,9 @@ func New(options *Options) *API {
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          uuid.New(),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -810,11 +818,11 @@ func New(options *Options) *API {
 		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
 			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
 
-		api.chatDaemon = chatd.New(chatd.Config{
+		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
-			SubscribeFn:                    options.ChatSubscribeFn,
+			StreamPartsDialer:              options.ChatStreamPartsDialer,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
 			ProviderAPIKeys:                providerAPIKeys,
 			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
@@ -828,12 +836,16 @@ func New(options *Options) *API {
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
 			StopWorkspace:                  api.chatStopWorkspace,
-			Pubsub:                         options.Pubsub,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
 			OIDCTokenSource:                oidcMCPSrc,
-		}).Start()
+			NotificationsEnqueuer:          options.NotificationsEnqueuer,
+			Auditor:                        &api.Auditor,
+		})
+		if !options.ChatWorkerDisabled {
+			api.chatDaemon.Start()
+		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -914,6 +926,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
+
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
@@ -926,6 +941,7 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
@@ -994,7 +1010,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry, wsMetrics)
 
 	r.Use(
 		sharedhttpmw.Recover(api.Logger),
@@ -1004,7 +1020,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store
@@ -1235,9 +1253,6 @@ func New(options *Options) *API {
 					r.Get("/summary", api.chatCostSummary)
 				})
 			})
-			r.Route("/insights", func(r chi.Router) {
-				r.Get("/pull-requests", api.prInsights)
-			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
 				r.Post("/", api.postChatFile)
@@ -1332,14 +1347,17 @@ func New(options *Options) *API {
 				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
+					r.Get("/parts", api.streamChatParts)
 					r.Get("/desktop", api.watchChatDesktop)
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Put("/context", api.refreshChatContext)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
@@ -1600,8 +1618,10 @@ func New(options *Options) *API {
 				r.Use(
 					apiKeyMiddleware,
 				)
-				// Endpoints added by DEVEX-275 (bases), DEVEX-276
-				// (modules), DEVEX-277/279 (compose).
+				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
+				r.Post("/compose", api.templateBuilderCompose)
+				r.Post("/compose/template", api.templateBuilderCreateTemplate)
 			})
 		}
 
@@ -2251,6 +2271,7 @@ type API struct {
 	metadataBatcher          *metadatabatcher.Batcher
 	lifecycleMetrics         *agentapi.LifecycleMetrics
 	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	wsWatcher                *httpapi.WSWatcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app

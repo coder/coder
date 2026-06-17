@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/coder/coder/v2/aibridge"
 )
 
 type providerHint struct {
@@ -67,10 +69,12 @@ var (
 	usageLimitPatterns = []string{
 		"quota",
 		"billing",
-		"insufficient_quota",
 		"payment required",
 	}
-	configPatterns = []string{
+	// Hard usage exhaustion codes that fire at any HTTP status,
+	// including 429.
+	usageLimitAnyStatusPatterns = []string{"insufficient_quota"}
+	configPatterns              = []string{
 		"invalid model",
 		"model not found",
 		"model_not_found",
@@ -83,6 +87,7 @@ var (
 	}
 	genericRetryablePatterns = []string{"server error", "internal server error"}
 	interruptedPatterns      = []string{"chat interrupted", "request interrupted", "operation interrupted"}
+	providerDisabledPatterns = []string{aibridge.ErrorCodeProviderDisabled}
 )
 
 func extractStatusCode(lower string) int {

@@ -8,6 +8,11 @@ import type { RBACAction, RBACResource } from "./typesGenerated";
 export const RBACResourceActions: Partial<
 	Record<RBACResource, Partial<Record<RBACAction, string>>>
 > = {
+	ai_gateway_key: {
+		create: "create an AI Gateway key",
+		delete: "delete an AI Gateway key",
+		read: "read AI Gateway keys",
+	},
 	ai_model_price: {
 		read: "read AI model prices",
 		update: "update AI model prices",
@@ -49,6 +54,11 @@ export const RBACResourceActions: Partial<
 	audit_log: {
 		create: "create new audit log entries",
 		read: "read audit logs",
+	},
+	boundary_log: {
+		create: "create boundary log records",
+		delete: "delete boundary logs",
+		read: "read boundary logs and session metadata",
 	},
 	boundary_usage: {
 		delete: "delete boundary usage statistics",

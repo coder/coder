@@ -66,7 +66,7 @@ export const PersonalInstructionsSettings: FC<
 	return (
 		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<h3 className="m-0 text-sm font-semibold text-content-primary">
-				Personal Instructions
+				Personal instructions
 			</h3>
 			<p className="m-0 text-xs text-content-secondary">
 				Applied to all your conversations. Only visible to you.

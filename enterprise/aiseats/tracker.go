@@ -97,13 +97,13 @@ func (t *SeatTracker) RecordUsage(ctx context.Context, userID uuid.UUID, reason 
 		if auditor == nil || *auditor == nil {
 			return
 		}
-		audit.BackgroundAudit[database.AiSeatState](ctx, &audit.BackgroundAuditParams[database.AiSeatState]{
+		audit.BackgroundAudit[database.AISeatState](ctx, &audit.BackgroundAuditParams[database.AISeatState]{
 			Audit:  *auditor,
 			Log:    t.logger,
 			UserID: userID,
 			Time:   now,
 			Action: database.AuditActionCreate,
-			New: database.AiSeatState{
+			New: database.AISeatState{
 				UserID:               userID,
 				FirstUsedAt:          now,
 				LastUsedAt:           now,

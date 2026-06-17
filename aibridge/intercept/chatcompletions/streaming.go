@@ -128,6 +128,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		interceptionErr error
 	)
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
 
@@ -164,6 +169,11 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				break
 			}
 			currentKey = key
+			// Record the key in use so the hint reflects the last attempted key.
+			i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
+			logger.Debug(ctx, "using centralized api key",
+				slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
+
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
 				// Disable SDK retries because the failover
@@ -171,6 +181,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				option.WithMaxRetries(0),
 			)
 		}
+
+		totalKeyAttempts += walker.Attempts()
 
 		// TODO(ssncferreira): inject actor headers directly in the client-header
 		//   middleware instead of using SDK options.
@@ -181,7 +193,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		// We take control of request body here and pass it to the SDK as a raw byte slice.
 		// This is because the SDK's serialization applies hidden request options that result in
 		// unexpected, breaking behavior. See https://github.com/coder/aibridge/pull/164
-		body, err := json.Marshal(i.req.ChatCompletionNewParams)
+		// chatCompletionRequestBody also applies provider-specific
+		// compatibility patches to the exact body sent upstream.
+		body, err := i.chatCompletionRequestBody()
 		if err != nil {
 			return xerrors.Errorf("marshal request body: %w", err)
 		}

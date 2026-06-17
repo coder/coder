@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"bytes"
+	"database/sql"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,7 +47,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		// One row exists for "openai".
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeOpenai, row.Type)
+		require.Equal(t, database.AIProviderTypeOpenai, row.Type)
 		require.Equal(t, "https://api.openai.com/v1", row.BaseUrl)
 		require.True(t, row.Enabled)
 
@@ -91,21 +92,23 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
-		// Changing the API key alone does NOT count as drift: keys
-		// live in a separate table and operators rotate them via the
-		// API. Only changes to non-credential provider-level fields
-		// (base_url, type, Bedrock region/model) trip the drift check.
+		// Changing the API key counts as drift: keys are included
+		// in the canonical hash so operators notice when env-var
+		// credential changes are ignored by an existing provider.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
-
-		// Changing the base URL is real drift.
-		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+
+		// Changing the base URL is also real drift.
+		cfg.LegacyOpenAI.Key = serpent.String("sk-original")
+		cfg.LegacyOpenAI.BaseURL = serpent.String("https://api.openai.com/v2")
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
 
-	t.Run("BedrockCredentialRotationIsNotDrift", func(t *testing.T) {
+	t.Run("BedrockCredentialChangeIsDrift", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -120,17 +123,20 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		}
 		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 
-		// Rotating the Bedrock access key and secret in env must NOT
-		// trip the drift check: they're credentials, equivalent to
-		// bearer API keys, and operators rotate them via the API.
+		// Rotating the Bedrock access key in env trips the drift
+		// check so operators know the change did not take effect.
 		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-rotated")
 		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 
 		// Changing the Bedrock region (a non-credential field) is
-		// real drift.
+		// also real drift.
+		cfg.LegacyBedrock.AccessKey = serpent.String("AKIA-original")
+		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret-original")
 		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "differs from the current environment configuration")
 	})
@@ -140,8 +146,8 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 
-		// Bedrock fields without an Anthropic key produce a Bedrock-
-		// authenticated Anthropic provider with no bearer keys.
+		// Bedrock fields without an Anthropic key produce a type=bedrock
+		// provider named "anthropic" with no bearer keys.
 		cfg := codersdk.AIBridgeConfig{
 			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
 				Region:          serpent.String("us-west-2"),
@@ -155,7 +161,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		row, err := db.GetAIProviderByName(ctx, "anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, row.Type)
+		require.Equal(t, database.AIProviderTypeBedrock, row.Type)
 		require.Contains(t, row.Settings.String, "us-west-2")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-sonnet")
 		require.Contains(t, row.Settings.String, "anthropic.claude-3-5-haiku")
@@ -274,7 +280,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeOpenai, oa.Type)
+		require.Equal(t, database.AIProviderTypeOpenai, oa.Type)
 		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
 		require.NoError(t, err)
 		require.Len(t, oaKeys, 2)
@@ -283,7 +289,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 
 		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
 		require.NoError(t, err)
-		require.Equal(t, database.AiProviderTypeAnthropic, an.Type)
+		require.Equal(t, database.AIProviderTypeAnthropic, an.Type)
 		// Plain bearer-token Anthropic with no Bedrock fields: no
 		// settings blob, one bearer key.
 		require.False(t, an.Settings.Valid, "no settings blob for bearer-token Anthropic")
@@ -291,6 +297,57 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, anKeys, 1)
 		require.Equal(t, "sk-ant-1", anKeys[0].APIKey)
+	})
+
+	t.Run("IndexedProvidersKeyDriftWithMultipleKeysAndProviders", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "primary-openai",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-openai-1", "sk-openai-2"},
+				},
+				{
+					Type:    "anthropic",
+					Name:    "primary-anthropic",
+					BaseURL: "https://api.anthropic.com/",
+					Keys:    []string{"sk-ant-1", "sk-ant-2"},
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		// Reordering keys must not count as drift. The canonical hash
+		// sorts keys before hashing, so equivalent key sets remain
+		// stable across restarts.
+		cfg.Providers[0].Keys = []string{"sk-openai-2", "sk-openai-1"}
+		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-1"}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		// Changing one key on one provider must block startup even
+		// when multiple providers are configured.
+		cfg.Providers[1].Keys = []string{"sk-ant-2", "sk-ant-rotated"}
+		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
+		require.Contains(t, err.Error(), `"primary-anthropic"`)
+
+		oa, err := db.GetAIProviderByName(ctx, "primary-openai")
+		require.NoError(t, err)
+		oaKeys, err := db.GetAIProviderKeysByProviderID(ctx, oa.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"sk-openai-1", "sk-openai-2"}, []string{oaKeys[0].APIKey, oaKeys[1].APIKey})
+
+		an, err := db.GetAIProviderByName(ctx, "primary-anthropic")
+		require.NoError(t, err)
+		anKeys, err := db.GetAIProviderKeysByProviderID(ctx, an.ID)
+		require.NoError(t, err)
+		require.ElementsMatch(t, []string{"sk-ant-1", "sk-ant-2"}, []string{anKeys[0].APIKey, anKeys[1].APIKey})
 	})
 
 	t.Run("BedrockIndexedProviderHasNoKeys", func(t *testing.T) {
@@ -424,7 +481,7 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Empty(t, all, "expected no active rows after soft-delete + re-seed")
 	})
 
-	t.Run("ExistingKeysArePreserved", func(t *testing.T) {
+	t.Run("ExistingKeysBlockOnDrift", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -440,15 +497,17 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		row, err := db.GetAIProviderByName(ctx, "openai")
 		require.NoError(t, err)
 
-		// Operator rotates the env key. The seed must not duplicate
-		// keys on a row that already exists; the new key is only
-		// installed via the API/CRUD layer in this flow.
+		// Operator rotates the env key. The seed now blocks startup
+		// because the keys differ, alerting the operator.
 		cfg.LegacyOpenAI.Key = serpent.String("sk-rotated")
-		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		err = coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "differs from the current environment configuration")
 
+		// The original key is still in the database.
 		keys, err := db.GetAIProviderKeysByProviderID(ctx, row.ID)
 		require.NoError(t, err)
-		require.Len(t, keys, 1, "env reseed must not duplicate keys on existing rows")
+		require.Len(t, keys, 1)
 		require.Equal(t, "sk-original", keys[0].APIKey)
 	})
 
@@ -482,6 +541,40 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		require.Len(t, all, 1, "duplicate indexed entries with matching hash must produce a single row")
 	})
 
+	t.Run("IndexedDuplicateNameMatchingHashDedupesReorderedKeys", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		// Key order should not affect the canonical hash. Reordered
+		// duplicates under the same name should still dedupe.
+		cfg := codersdk.AIBridgeConfig{
+			Providers: []codersdk.AIProviderConfig{
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-1", "sk-2"},
+				},
+				{
+					Type:    "openai",
+					Name:    "shared",
+					BaseURL: "https://api.openai.com/v1",
+					Keys:    []string{"sk-2", "sk-1"},
+				},
+			},
+		}
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+
+		all, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{})
+		require.NoError(t, err)
+		require.Len(t, all, 1)
+		keys, err := db.GetAIProviderKeysByProviderID(ctx, all[0].ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 2)
+		require.ElementsMatch(t, []string{"sk-1", "sk-2"}, []string{keys[0].APIKey, keys[1].APIKey})
+	})
+
 	t.Run("IndexedDuplicateNameMismatchingHashFails", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -507,6 +600,44 @@ func TestSeedAIProvidersFromEnv(t *testing.T) {
 		err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t))
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicting fields")
+	})
+
+	t.Run("SeedIsIdempotentAfterBedrockBackfill", func(t *testing.T) {
+		t.Parallel()
+		// Regression: seed must not treat a type=anthropic row promoted to
+		// type=bedrock by the backfill as drift.
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		cfg := codersdk.AIBridgeConfig{
+			LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+				Region:          serpent.String("us-east-1"),
+				AccessKey:       serpent.String("AKIA"),
+				AccessKeySecret: serpent.String("secret"),
+				Model:           serpent.String("anthropic.claude-3-5-sonnet"),
+			},
+		}
+
+		// Seed to get a row with correct settings, then set type=anthropic to
+		// simulate the pre-upgrade state where the old seed stored that type.
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
+		row, err := db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
+			ID:            row.ID,
+			Type:          database.AIProviderTypeAnthropic,
+			DisplayName:   row.DisplayName,
+			Enabled:       row.Enabled,
+			BaseUrl:       row.BaseUrl,
+			Settings:      row.Settings,
+			SettingsKeyID: sql.NullString{},
+		})
+		require.NoError(t, err)
+		row, err = db.GetAIProviderByName(ctx, "anthropic")
+		require.NoError(t, err)
+		require.Equal(t, database.AIProviderTypeAnthropic, row.Type, "pre-condition: row must be anthropic before seed runs")
+
+		require.NoError(t, coderd.SeedAIProvidersFromEnv(ctx, db, cfg, testLogger(t)))
 	})
 }
 

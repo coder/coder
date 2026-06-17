@@ -12,6 +12,10 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	MockChatModelConfig,
+	MockChatProviderConfig,
+} from "#/testHelpers/chatModels";
+import {
 	ChatModelAdminPanel,
 	type ChatModelAdminSection,
 } from "./ChatModelAdminPanel";
@@ -24,19 +28,13 @@ const createProviderConfig = (
 	overrides: Partial<TypesGen.ChatProviderConfig> &
 		Pick<TypesGen.ChatProviderConfig, "id" | "provider">,
 ): TypesGen.ChatProviderConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	display_name: overrides.display_name ?? "",
-	enabled: overrides.enabled ?? true,
-	has_api_key: overrides.has_api_key ?? false,
-	central_api_key_enabled: overrides.central_api_key_enabled ?? true,
-	allow_user_api_key: overrides.allow_user_api_key ?? false,
-	allow_central_api_key_fallback:
-		overrides.allow_central_api_key_fallback ?? false,
-	base_url: overrides.base_url ?? "",
-	source: overrides.source ?? "database",
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
+	...MockChatProviderConfig,
+	display_name: "",
+	has_api_key: false,
+	allow_central_api_key_fallback: false,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
 const createProviderKey = (providerId: string): TypesGen.AIProviderKey => ({
@@ -66,18 +64,10 @@ const createModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> &
 		Pick<TypesGen.ChatModelConfig, "id" | "provider" | "model">,
 ): TypesGen.ChatModelConfig => ({
-	id: overrides.id,
-	provider: overrides.provider,
-	ai_provider_id: overrides.ai_provider_id,
-	model: overrides.model,
-	display_name: overrides.display_name ?? overrides.model,
-	enabled: overrides.enabled ?? true,
-	is_default: overrides.is_default ?? false,
-	context_limit: overrides.context_limit ?? 200000,
-	compression_threshold: overrides.compression_threshold ?? 70,
-	model_config: overrides.model_config,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
+	...MockChatModelConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
 type ChatModelAdminPanelStoryProps = ComponentProps<typeof ChatModelAdminPanel>;
@@ -965,8 +955,7 @@ export const SubmitModelConfigExplicitly: Story = {
 			await body.findByLabelText(/Max output tokens/i),
 			"32000",
 		);
-		// Reasoning Effort is a provider option under "Provider Configuration".
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		const effortGroup = await body.findByRole("radiogroup", {
 			name: "Reasoning Effort",
 		});
@@ -1192,7 +1181,7 @@ const ensureCostTrackingOpen = async (body: ReturnType<typeof within>) => {
 	if (body.queryByLabelText(/^Input$/i)) {
 		return;
 	}
-	await expandSection(body, "Cost Tracking");
+	await expandSection(body, "Cost tracking");
 	await body.findByLabelText(/^Input$/i);
 };
 
@@ -1271,7 +1260,7 @@ const ensureProviderConfigurationOpen = async (
 	if (body.queryByLabelText(/Max Completion Tokens/i)) {
 		return;
 	}
-	await expandSection(body, "Provider Configuration");
+	await expandSection(body, "Provider configuration");
 	await body.findByLabelText(/Max Completion Tokens/i);
 };
 
@@ -1321,7 +1310,7 @@ export const OpenAIKnownModelHappyPath: Story = {
 		);
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1050000");
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Max Completion Tokens/i),
 		).toHaveValue("128000");
@@ -1374,9 +1363,9 @@ export const AnthropicKnownModelHappyPath: Story = {
 
 		await openKnownModelPopover(body);
 		const options = await body.findAllByRole("option");
-		await userEvent.click(findOptionByText(options, "claude-opus-4-7"));
+		await userEvent.click(findOptionByText(options, "claude-opus-4-8"));
 
-		await expectModelIdentifierValue(body, "claude-opus-4-7");
+		await expectModelIdentifierValue(body, "claude-opus-4-8");
 		await expect(body.getByLabelText(/Context limit/i)).toHaveValue("1000000");
 
 		await expandSection(body, "Advanced");
@@ -1384,7 +1373,7 @@ export const AnthropicKnownModelHappyPath: Story = {
 			"128000",
 		);
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		const sendReasoningGroup = await body.findByRole("radiogroup", {
 			name: "Send Reasoning",
 		});
@@ -1409,7 +1398,7 @@ export const AnthropicHaikuKnownModelUsesThinkingBudgetNotEffort: Story = {
 		await openAddModelForm(body, "Anthropic");
 		await selectKnownModel(body, "claude-haiku-4-5");
 
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 
 		// Reasoning Effort should remain empty because Haiku 4.5 uses the
 		// thinking budget path instead of Anthropic adaptive thinking.
@@ -1858,7 +1847,7 @@ export const KnownModelAutoHidePopoverWhenNoMatches: Story = {
 			name: /Model Identifier/i,
 		});
 		await userEvent.click(input);
-		await expect(await body.findByText("Claude Opus 4.7")).toBeInTheDocument();
+		await expect(await body.findByText("Claude Opus 4.8")).toBeInTheDocument();
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "claude-opus-4-5");
@@ -1981,7 +1970,7 @@ export const ModelFormOpenAI: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -1996,7 +1985,7 @@ export const ModelFormAnthropic: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Anthropic");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),
 		).toBeInTheDocument();
@@ -2011,7 +2000,7 @@ export const ModelFormGoogle: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Google");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Thinking Config Thinking Budget/i),
 		).toBeInTheDocument();
@@ -2026,7 +2015,7 @@ export const ModelFormOpenAICompat: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenAI-compatible");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
 		).toBeInTheDocument();
@@ -2038,7 +2027,7 @@ export const ModelFormOpenRouter: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "OpenRouter");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -2053,7 +2042,7 @@ export const ModelFormVercel: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Vercel AI Gateway");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		await expect(
 			await body.findByLabelText(/Reasoning Enabled/i),
 		).toBeInTheDocument();
@@ -2068,7 +2057,7 @@ export const ModelFormAzure: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "Azure OpenAI");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		// Azure aliases to OpenAI fields.
 		await expect(
 			await body.findByLabelText(/Reasoning Effort/i),
@@ -2084,7 +2073,7 @@ export const ModelFormBedrock: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await openAddModelForm(body, "AWS Bedrock");
-		await expandSection(body, "Provider Configuration");
+		await expandSection(body, "Provider configuration");
 		// Bedrock aliases to Anthropic fields.
 		await expect(
 			await body.findByLabelText(/Send Reasoning/i),

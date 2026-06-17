@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/coderd"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -35,7 +36,8 @@ func buildFromEnv(t *testing.T, cfg codersdk.AIBridgeConfig) ([]aibridge.Provide
 	if err := coderd.SeedAIProvidersFromEnv(ctx, db, cfg, logger); err != nil {
 		return nil, err
 	}
-	return BuildProviders(ctx, db, cfg, logger)
+	providers, _, err := BuildProviders(ctx, db, cfg, logger, nil)
+	return providers, err
 }
 
 func TestBuildProviders(t *testing.T) {
@@ -237,7 +239,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("NativeAnthropicDefaultBaseURL", func(t *testing.T) {
 		t.Parallel()
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    aibridge.ProviderAnthropic,
 			BaseUrl: "https://api.anthropic.com/",
 		}
@@ -247,7 +249,7 @@ func TestBuildProviders(t *testing.T) {
 	t.Run("NativeAnthropicCustomBaseURL", func(t *testing.T) {
 		t.Parallel()
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-proxy",
 			BaseUrl: "https://internal-proxy.example.com/anthropic/",
 		}
@@ -261,7 +263,7 @@ func TestBuildProviders(t *testing.T) {
 		model := "anthropic.claude-3-5-sonnet-20241022-v2:0"
 		smallModel := "anthropic.claude-3-5-haiku-20241022-v1:0"
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-bedrock",
 			BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
 		}
@@ -290,7 +292,7 @@ func TestBuildProviders(t *testing.T) {
 		// produce a Bedrock config; the provider's generic BaseUrl is
 		// not a Bedrock detection signal.
 		row := database.AIProvider{
-			Type:    database.AiProviderTypeAnthropic,
+			Type:    database.AIProviderTypeAnthropic,
 			Name:    "anthropic-empty-bedrock",
 			BaseUrl: "https://api.anthropic.com/",
 		}
@@ -317,34 +319,41 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			Name:     "anthropic-broken",
 			BaseUrl:  "https://api.anthropic.com/",
 			Settings: sql.NullString{String: "not-json", Valid: true},
 		})
 
-		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
+		require.Len(t, outcomes, 1)
+		assert.Equal(t, "anthropic-broken", outcomes[0].Name)
+		assert.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
+		assert.Error(t, outcomes[0].Err)
 	})
 
-	t.Run("UnsupportedType", func(t *testing.T) {
+	t.Run("EnabledButNoKeys", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-		// Azure is a valid DB-level provider type but has no runtime
-		// builder yet; it must hit the default branch and be skipped.
+		// Azure routes through the OpenAI-family builder, which rejects
+		// rows without keys when BYOK is disabled. The row must be
+		// classified as error and excluded from the snapshot.
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:    database.AiProviderTypeAzure,
+			Type:    database.AIProviderTypeAzure,
 			Name:    "azure-openai",
 			BaseUrl: "https://example.openai.azure.com/",
 		})
 
-		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		assert.Empty(t, providers)
+		require.Len(t, outcomes, 1)
+		assert.Equal(t, aibridged.ProviderStatusError, outcomes[0].Status)
 	})
 
 	t.Run("BadRowDoesNotBlockGoodRow", func(t *testing.T) {
@@ -354,13 +363,13 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
 		dbgen.AIProvider(t, db, database.AIProvider{
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			Name:     "anthropic-broken",
 			BaseUrl:  "https://api.anthropic.com/",
 			Settings: sql.NullString{String: "{not valid json", Valid: true},
 		})
 		good := dbgen.AIProvider(t, db, database.AIProvider{
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			Name:    "openai-good",
 			BaseUrl: "https://api.openai.com/",
 		})
@@ -369,10 +378,75 @@ func TestBuildProvidersSkipsBadRows(t *testing.T) {
 			APIKey:     "sk-good",
 		})
 
-		providers, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger)
+		providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
 		require.NoError(t, err)
 		require.Len(t, providers, 1)
 		assert.Equal(t, "openai-good", providers[0].Name())
+		require.Len(t, outcomes, 2)
+		byName := map[string]aibridged.ProviderOutcome{}
+		for _, o := range outcomes {
+			byName[o.Name] = o
+		}
+		assert.Equal(t, aibridged.ProviderStatusError, byName["anthropic-broken"].Status)
+		assert.Equal(t, aibridged.ProviderStatusEnabled, byName["openai-good"].Status)
+	})
+
+	t.Run("DisabledRowClassifiedAsDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name string
+			row  database.AIProvider
+		}{
+			{
+				name: "OpenAI",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeOpenai,
+					Name:    "openai-off",
+					BaseUrl: "https://api.openai.com/",
+				},
+			},
+			{
+				// Anthropic and Bedrock have stricter credential checks
+				// than the OpenAI family; the disabled short-circuit
+				// must reach them too. No keys, no bedrock settings.
+				name: "Anthropic",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeAnthropic,
+					Name:    "anthropic-off",
+					BaseUrl: "https://api.anthropic.com/",
+				},
+			},
+			{
+				name: "Bedrock",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeBedrock,
+					Name:    "bedrock-off",
+					BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				},
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+				logger := slogtest.Make(t, nil)
+
+				dbgen.AIProvider(t, db, tc.row, func(p *database.InsertAIProviderParams) {
+					p.Enabled = false
+				})
+
+				providers, outcomes, err := BuildProviders(ctx, db, codersdk.AIBridgeConfig{}, logger, nil)
+				require.NoError(t, err)
+				require.Len(t, providers, 1, "disabled providers stay in the snapshot so the bridge can serve a 503 sentinel")
+				assert.Equal(t, tc.row.Name, providers[0].Name())
+				assert.False(t, providers[0].Enabled())
+				require.Len(t, outcomes, 1)
+				assert.Equal(t, tc.row.Name, outcomes[0].Name)
+				assert.Equal(t, aibridged.ProviderStatusDisabled, outcomes[0].Status)
+				assert.NoError(t, outcomes[0].Err)
+			})
+		}
 	})
 }
 

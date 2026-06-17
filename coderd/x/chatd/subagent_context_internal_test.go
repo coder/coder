@@ -155,6 +155,7 @@ func createParentChatWithInheritedContext(
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent-with-context",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -324,6 +325,7 @@ func createParentChatWithRotatedInheritedContext(
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent-with-rotated-context",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -400,6 +402,7 @@ func TestCreateChildSubagentChatCopiesOnlyLatestAgentContext(t *testing.T) {
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithRotatedInheritedContext(ctx, t, db, server)
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
 	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
 	require.NoError(t, err)
 
@@ -493,6 +496,7 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 	// before the Anthropic provider was inserted.
 	server.configCache.InvalidateProviders()
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, db, parentChat.OwnerID))
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)
