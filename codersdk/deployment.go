@@ -5154,6 +5154,7 @@ const (
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
+	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5178,6 +5179,8 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
+	case ExperimentAgentAppTabs:
+		return "Coder Agents App and Port Tabs"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5198,6 +5201,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
+	ExperimentAgentAppTabs,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
