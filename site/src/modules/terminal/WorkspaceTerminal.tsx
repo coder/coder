@@ -258,7 +258,7 @@ export const WorkspaceTerminal = ({
 				const decoded = new TextDecoder().decode(bytes);
 				void copyToClipboard(decoded);
 			} catch {
-				// Invalid base64; let the default handler run.
+				// Invalid base64; ignore.
 				return false;
 			}
 			return true;

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { Workspace } from "#/api/typesGenerated";
 import {
@@ -249,26 +249,76 @@ describe("TerminalPage", () => {
 		expect(closeSpy).toHaveBeenCalled();
 	});
 
-	it("copies to clipboard via OSC 52", async () => {
-		const writeTextMock = vi.fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText: writeTextMock, readText: vi.fn() },
-			writable: true,
-			configurable: true,
+	describe("OSC 52 clipboard", () => {
+		let writeTextMock: ReturnType<typeof vi.fn>;
+		let originalClipboard: PropertyDescriptor | undefined;
+
+		beforeEach(() => {
+			originalClipboard = Object.getOwnPropertyDescriptor(
+				navigator,
+				"clipboard",
+			);
+			writeTextMock = vi.fn().mockResolvedValue(undefined);
+			Object.defineProperty(navigator, "clipboard", {
+				value: { writeText: writeTextMock, readText: vi.fn() },
+				writable: true,
+				configurable: true,
+			});
 		});
 
-		const ws = createWorkspaceTerminalWebSocket();
-		await renderTerminal();
-		// Wait for initial resize so the connection is fully established.
-		await ws.nextMessage;
+		afterEach(() => {
+			if (originalClipboard) {
+				Object.defineProperty(navigator, "clipboard", originalClipboard);
+			}
+		});
 
-		// Send the OSC 52 sequence from the issue:
-		// printf "\033]52;c;$(echo -n 'Coder is Cool' | base64)\a"
-		const base64 = btoa("Coder is Cool");
-		ws.send(`\x1b]52;c;${base64}\x07`);
+		it("copies to clipboard via OSC 52", async () => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal();
+			await ws.nextMessage;
 
-		await waitFor(() => {
-			expect(writeTextMock).toHaveBeenCalledWith("Coder is Cool");
+			// OSC 52 sequence per #16577:
+			// printf "\033]52;c;$(echo -n 'Coder is Cool' | base64)\a"
+			const base64 = btoa("Coder is Cool");
+			ws.send(`\x1b]52;c;${base64}\x07`);
+
+			await waitFor(() => {
+				expect(writeTextMock).toHaveBeenCalledWith("Coder is Cool");
+			});
+		});
+
+		it("ignores OSC 52 with missing separator", async () => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal();
+			await ws.nextMessage;
+
+			ws.send("\x1b]52;no-separator\x07");
+
+			// Give the parser time to process, then verify no clipboard write.
+			await new Promise((r) => setTimeout(r, 100));
+			expect(writeTextMock).not.toHaveBeenCalled();
+		});
+
+		it("ignores OSC 52 clipboard read query", async () => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal();
+			await ws.nextMessage;
+
+			ws.send("\x1b]52;c;?\x07");
+
+			await new Promise((r) => setTimeout(r, 100));
+			expect(writeTextMock).not.toHaveBeenCalled();
+		});
+
+		it("ignores OSC 52 with invalid base64", async () => {
+			const ws = createWorkspaceTerminalWebSocket();
+			await renderTerminal();
+			await ws.nextMessage;
+
+			ws.send("\x1b]52;c;!!!invalid-base64!!!\x07");
+
+			await new Promise((r) => setTimeout(r, 100));
+			expect(writeTextMock).not.toHaveBeenCalled();
 		});
 	});
 
