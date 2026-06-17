@@ -456,6 +456,13 @@ const AISettingsGatewayKeysPage = lazy(
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
 );
+const AISettingsAddModelPage = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/AddModelPage/AddModelPage"),
+);
+const AISettingsUpdateModelPage = lazy(
+	() =>
+		import("./pages/AISettingsPage/ModelsPage/UpdateModelPage/UpdateModelPage"),
+);
 
 const AISettingsIndexPage = () => {
 	const { permissions } = useAuthenticated();
@@ -730,6 +737,11 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexPage />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="models/add" element={<AISettingsAddModelPage />} />
+						<Route
+							path="models/:modelId"
+							element={<AISettingsUpdateModelPage />}
+						/>
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
 							path=":providerId"
