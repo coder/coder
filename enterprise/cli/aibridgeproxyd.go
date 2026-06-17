@@ -45,8 +45,8 @@ func newAIBridgeProxyDaemon(coderAPI *coderd.API) (io.Closer, error) {
 
 	logger := coderAPI.Logger.Named("aibridgeproxyd")
 
-	// TODO(deprecation): Remove "coder_aibridgeproxyd_" after the 2.34 ESR
-	// deprecation window. See AIGOV-447:
+	// TODO(deprecation): Remove "coder_aibridgeproxyd_" in v2.37.
+	// See AIGOV-447:
 	// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
 	reg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, "coder_ai_gateway_proxy_", "coder_aibridgeproxyd_")
 	metrics := aibridgeproxyd.NewMetrics(reg)

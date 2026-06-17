@@ -43,12 +43,12 @@ metrics describe.
 > including the interception, token, prompt, tool, and circuit-breaker counters
 > listed in the [Prometheus reference](../../admin/integrations/prometheus.md).
 > The legacy `coder_aibridged_*` and `coder_aibridgeproxyd_*` names are still
-> emitted with identical values during a deprecation window and will be removed
-> in a future release. Migrate dashboards and alerts to the new names now. Do
-> not relabel new names back to old names while legacy names are still emitted,
-> because that creates duplicate legacy series in the same scrape. After legacy
-> names are removed, use `metric_relabel_configs` only if you need a temporary
-> compatibility bridge for dashboards that still use the old names:
+> emitted with identical values during the v2.35 and v2.36 deprecation window.
+> They are planned for removal in v2.37. Migrate dashboards and alerts to the new
+> names now. Do not relabel new names back to old names while legacy names are
+> still emitted, because that creates duplicate legacy series in the same scrape.
+> After legacy names are removed, use `metric_relabel_configs` only if you need a
+> temporary compatibility bridge for dashboards that still use the old names:
 >
 > ```yaml
 > metric_relabel_configs:
