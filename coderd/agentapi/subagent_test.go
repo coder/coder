@@ -819,6 +819,14 @@ func TestSubAgentAPI(t *testing.T) {
 			TroubleshootingURL:       "https://example.com/troubleshoot",
 			APIKeyScope:              database.AgentKeyScopeEnumAll,
 		}
+		workspace := database.Workspace{
+			ID:         uuid.New(),
+			TemplateID: uuid.New(),
+		}
+		template := database.Template{
+			ID:                  workspace.TemplateID,
+			MaxPortSharingLevel: database.AppSharingLevelPublic,
+		}
 		insertedSubAgent := database.WorkspaceAgent{
 			ID:         uuid.New(),
 			ParentID:   uuid.NullUUID{UUID: parentAgent.ID, Valid: true},
@@ -828,6 +836,8 @@ func TestSubAgentAPI(t *testing.T) {
 		}
 
 		dbM := dbmock.NewMockStore(gomock.NewController(t))
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), parentAgent.ID).Return(workspace, nil)
+		dbM.EXPECT().GetTemplateByID(gomock.Any(), workspace.TemplateID).Return(template, nil)
 		dbM.EXPECT().InsertWorkspaceAgent(gomock.Any(), gomock.Cond(func(params database.InsertWorkspaceAgentParams) bool {
 			return params.ParentID.Valid && params.ParentID.UUID == parentAgent.ID &&
 				params.ResourceID == parentAgent.ResourceID &&
