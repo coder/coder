@@ -344,6 +344,14 @@ func (m queryMetricsStore) CountInProgressPrebuilds(ctx context.Context) ([]data
 	return r0, r1
 }
 
+func (m queryMetricsStore) CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]database.CountOIDCLinkedIDsByIssuerRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountOIDCLinkedIDsByIssuer(ctx)
+	m.queryLatencies.WithLabelValues("CountOIDCLinkedIDsByIssuer").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountOIDCLinkedIDsByIssuer").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) CountPendingNonActivePrebuilds(ctx context.Context) ([]database.CountPendingNonActivePrebuildsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.CountPendingNonActivePrebuilds(ctx)
@@ -4374,6 +4382,14 @@ func (m queryMetricsStore) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID
 	m.queryLatencies.WithLabelValues("UnfavoriteWorkspace").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnfavoriteWorkspace").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.UnlinkOIDCUsersByIssuerMismatch(ctx, expectedPrefix)
+	m.queryLatencies.WithLabelValues("UnlinkOIDCUsersByIssuerMismatch").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnlinkOIDCUsersByIssuerMismatch").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UnpinChatByID(ctx context.Context, id uuid.UUID) error {
