@@ -39,13 +39,16 @@ import (
 // absorbs.
 const DefaultServerMaxPendingBytes int64 = 512 << 20
 
-// DefaultClientMaxPendingBytes is the per-subscription pending byte limit used
-// when PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes, which
-// bounds the server-side outbound buffer for a whole connection, this
-// bounds the client-side inbound buffer for a single subscription:
-// messages the client has received but the listener callback has not yet
-// processed. A slow listener overflows this and the subscription drops
-// messages, signaling pubsub.ErrDroppedMessages.
+// DefaultClientMaxPendingBytes is the pending byte limit applied via
+// SetPendingLimits to each coalesced *natsgo.Subscription when
+// PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes,
+// which bounds the server-side outbound buffer for a whole connection,
+// this bounds the nats.go client's per-subscription pending buffer:
+// messages the client has received from the server but the
+// subscription's async message handler has not yet dispatched. When
+// that handler falls behind and the buffer overflows, NATS marks the
+// subscription a slow consumer and drops messages, which the package
+// surfaces as pubsub.ErrDroppedMessages.
 const DefaultClientMaxPendingBytes = 512 * 1024 * 1024
 
 const (
