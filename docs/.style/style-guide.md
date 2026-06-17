@@ -63,6 +63,50 @@ To be filled in by rule-specific tickets. Planned coverage:
   [DOCS-44](https://linear.app/codercom/issue/DOCS-44), origin tracked
   in [DOCS-181](https://linear.app/codercom/issue/DOCS-181)
 
+## Headings
+
+To be filled in by rule-specific tickets. Planned coverage:
+
+- Sentence case in titles and headings - see
+  [DOCS-38](https://linear.app/codercom/issue/DOCS-38)
+
+### Gerund headings
+
+**Rule**: `Coder.GerundHeading` (warning).
+
+Avoid leading a heading with a gerund (an -ing word: "Installing,"
+"Configuring," "Setting up"). Two alternatives almost always read more
+cleanly:
+
+1. **Imperative** for task headings. Use the bare verb instead of the
+   -ing form when the section is a step or how-to.
+2. **Noun** for concept headings. Use the noun form when the section
+   describes a thing rather than an action.
+
+| Avoid                        | Prefer (imperative)        | Prefer (noun)       |
+|------------------------------|----------------------------|---------------------|
+| Installing Coder             | Install Coder              | Installation        |
+| Configuring authentication   | Configure authentication   | Authentication      |
+| Setting up your workspace    | Set up your workspace      | Workspace setup     |
+| Managing workspace schedules | Manage workspace schedules | Workspace schedules |
+
+The right choice depends on the page. Imperative reads well in tutorials
+and reference sections that walk through tasks. Noun reads well in
+overview, conceptual, and feature-list pages. Concept-noun gerunds like
+"Logging," "Monitoring," "Networking," and "Troubleshooting" are flagged
+by the rule. Promote them to imperative ("Monitor your deployment") or
+convert them fully to nouns ("Network architecture") when the rewrite
+reads better; leave them as-is when the gerund-form is the established
+term and the alternatives feel forced.
+
+The rule fires on the first word of any heading or title that ends in
+`-ing` and starts with a capital letter. A small exception list covers
+non-gerund words that happen to end in `-ing` (`Bring`, `String`,
+`Spring`, `King`, `Ring`, `Sting`, `Sing`, `Thing`, `Wing`). To silence a
+specific instance that the exception list does not cover, wrap the
+heading with `<!-- vale Coder.GerundHeading = NO -->` and
+`<!-- vale Coder.GerundHeading = YES -->`. Add a justifying comment.
+
 ## Formatting
 
 To be filled in by rule-specific tickets. Planned coverage:

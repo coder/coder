@@ -1,0 +1,76 @@
+# Coder.GerundHeading - flag titles and headings whose first word ends in
+# -ing (typically a gerund or present participle, e.g., "Installing",
+# "Configuring", "Setting").
+#
+# Why: gerund-leading headings are a common stylistic anti-pattern. Two
+# alternatives almost always read more cleanly:
+#
+#   1. Imperative: "Install Coder" instead of "Installing Coder".
+#   2. Noun:       "Installation"  instead of "Installing".
+#
+# The right choice is context-dependent (imperative for task headings,
+# noun for concept headings), so this rule lands at warning rather than
+# error: it surfaces candidates for review without forcing a rewrite.
+#
+# Implementation: pure regex on a heading-scoped existence rule.
+#
+# Why not `extends: sequence` with `tag: VBG`? It cannot reach headings
+# in Vale 3.14.x. Two architectural facts force this:
+#
+#   1. `internal/check/sequence.go` ends NewSequence with
+#      `rule.Definition.Scope = []string{"sentence"}` (and the Run
+#      method's comment reads "This is *always* sentence-scoped."),
+#      so any user-supplied `scope:` is overwritten.
+#   2. `internal/lint/ast.go::lintScope` dispatches heading content
+#      with scope `text.heading.h2.md` straight to `lintBlock` and
+#      skips the `lintProse` path. Only `lintProse` calls
+#      `nlp.Compute`, which is the function that produces the
+#      `sentence.*`-scoped sub-blocks that sequence rules match.
+#
+# Net effect: heading text never appears as a block whose scope
+# contains `sentence`, so a sequence rule's hardcoded `sentence` scope
+# can never match a heading. Verified empirically against Vale 3.14.1
+# with `extends: sequence` + `pattern: '\w+ing'` + `tag: VBG` and
+# `scope: heading`: fires on paragraph text, silent on H1-H6.
+#
+# For heading-targeted rules, Google's and Microsoft's style packages
+# both use existence + scope: heading + regex; we follow the same
+# pattern. The trade-off is that we maintain a small exceptions list
+# for words like "Bring" and "String" that look like gerunds to a
+# regex but aren't. POS tagging would catch those automatically, at
+# the cost of (a) not running on headings at all and (b) the
+# noun-vs-gerund ambiguity on terse heading text. The exceptions list
+# is small and stable, so the maintenance cost is low.
+#
+# DOCS-185 tracks the broader investigation: filing an upstream Vale
+# issue to make sequence rules honor user-supplied `scope:`, or
+# alternatively exposing POS tags to script-based rules so a
+# `extends: script` rule could implement this principled-ly.
+#
+# False positives: words that end in "ing" but aren't gerunds, like
+# "Bring" or "String". The exceptions list below collects these. Concept
+# nouns formed from gerunds ("Logging", "Networking", "Monitoring") are
+# intentionally NOT in the exceptions list: those headings often read
+# better as nouns or imperatives, and writers should see the warning and
+# decide.
+extends: existence
+message: "Heading starts with an -ing word ('%s'); consider imperative ('Install') or noun ('Installation') instead. See style-guide.md."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide.md#gerund-headings
+level: warning
+scope: heading
+nonword: false
+# These words end in "ing" but are not gerunds (verb-base or non-verb
+# nouns). Headings that begin with one of these are not the target of
+# this rule.
+exceptions:
+  - Bring
+  - Spring
+  - String
+  - King
+  - Ring
+  - Sting
+  - Sing
+  - Thing
+  - Wing
+tokens:
+  - '^[A-Z][a-z]+ing\b'

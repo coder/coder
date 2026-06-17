@@ -21,6 +21,7 @@ Linear project add rules incrementally:
 | [DOCS-44](https://linear.app/codercom/issue/DOCS-44)   | Em-dash and en-dash mirror in Vale |
 | [DOCS-182](https://linear.app/codercom/issue/DOCS-182) | Inclusive-language substitutions   |
 | [DOCS-183](https://linear.app/codercom/issue/DOCS-183) | Product-voice rules                |
+| [DOCS-191](https://linear.app/codercom/issue/DOCS-191) | Gerund-leading headings            |
 
 ## Authoring a new rule
 
