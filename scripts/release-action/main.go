@@ -83,6 +83,41 @@ func main() {
 				},
 			},
 			{
+				Use:   "prepare-release",
+				Short: "Calculate version, create and push tag (and optionally release branch).",
+				Options: serpent.OptionSet{
+					{
+						Name:        "type",
+						Flag:        "type",
+						Description: "Release type: rc, release, or create-release-branch.",
+						Value:       serpent.StringOf(&releaseType),
+						Required:    true,
+					},
+					{
+						Name:        "ref",
+						Flag:        "ref",
+						Description: "Git ref (branch name) the workflow is running on.",
+						Value:       serpent.StringOf(&ref),
+						Required:    true,
+					},
+					{
+						Name:        "commit",
+						Flag:        "commit",
+						Description: "Commit SHA to tag (defaults to HEAD of --ref if empty).",
+						Value:       serpent.StringOf(&commitSHA),
+					},
+					dryRunOption,
+				},
+				Handler: func(inv *serpent.Invocation) error {
+					result, err := prepareRelease(newExecutor(), releaseType, ref, commitSHA)
+					if err != nil {
+						return err
+					}
+					_, _ = fmt.Fprintln(inv.Stdout, result.String())
+					return nil
+				},
+			},
+			{
 				Use:   "generate-notes",
 				Short: "Generate release notes from commit log and PR metadata.",
 				Options: serpent.OptionSet{

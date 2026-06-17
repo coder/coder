@@ -81,7 +81,7 @@ jobs:
         with:
           use-cache: false
 
-      - name: Calculate version and create tag
+      - name: Prepare release (calculate version, create tag and branch)
         id: prepare
         env:
           RELEASE_TYPE: ${{ inputs.release_type }}
@@ -95,7 +95,7 @@ jobs:
             args+=(--commit "$COMMIT_SHA")
           fi
 
-          output=$(go run ./scripts/release-action calculate-version "${args[@]}")
+          output=$(go run ./scripts/release-action prepare-release "${args[@]}")
           echo "Raw output: $output"
 
           version=$(echo "$output" | jq -r '.version')
@@ -108,7 +108,7 @@ jobs:
           for var in version previous_version target_ref; do
             eval "val=\$$var"
             if [[ -z "$val" || "$val" == "null" ]]; then
-              echo "::error::calculate-version returned empty or null '$var'"
+              echo "::error::prepare-release returned empty or null '$var'"
               exit 1
             fi
           done
@@ -133,35 +133,6 @@ jobs:
               echo "| Create branch | \`$create_branch\` |"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Create and push tag
-        env:
-          VERSION: ${{ steps.prepare.outputs.version }}
-          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
-        run: |
-          set -euo pipefail
-          # Skip if tag already exists (idempotent)
-          if git rev-parse "$VERSION" >/dev/null 2>&1; then
-            echo "Tag $VERSION already exists, skipping."
-            exit 0
-          fi
-          git tag -a "$VERSION" -m "Release $VERSION" "$TARGET_REF"
-          git push origin "$VERSION"
-
-      - name: Create release branch
-        if: ${{ steps.prepare.outputs.create_branch != '' }}
-        env:
-          CREATE_BRANCH: ${{ steps.prepare.outputs.create_branch }}
-          TARGET_REF: ${{ steps.prepare.outputs.target_ref }}
-        run: |
-          set -euo pipefail
-          # Skip if branch already exists
-          if git ls-remote --exit-code origin "refs/heads/$CREATE_BRANCH" >/dev/null 2>&1; then
-            echo "Branch $CREATE_BRANCH already exists, skipping."
-            exit 0
-          fi
-          git branch "$CREATE_BRANCH" "$TARGET_REF"
-          git push origin "$CREATE_BRANCH"
 
       - name: Generate release notes
         env:
