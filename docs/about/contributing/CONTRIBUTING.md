@@ -305,9 +305,13 @@ to use the original commit title instead of the PR title.
 When a merged PR on `main` should also ship in older releases, add the
 `backport` label to the PR. The
 [backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
-will automatically detect the latest three `release/*` branches,
-cherry-pick the merge commit onto each one, and open PRs for
-review.
+will automatically detect the latest three `release/*` branches plus any
+active ESR (Extended Support Release) branches, cherry-pick the merge
+commit onto each one, and open PRs for review. A release that is both in
+the latest three and an active ESR is only backported once.
+
+Active ESR versions are defined in
+[`scripts/lib/esr_versions.sh`](https://github.com/coder/coder/blob/main/scripts/lib/esr_versions.sh).
 
 The label can be added before or after the PR is merged. Each backport
 PR reuses the original title (e.g.
