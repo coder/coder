@@ -175,6 +175,29 @@ func (s *DRPCAgentSocketService) SyncStatus(_ context.Context, req *proto.SyncSt
 	}, nil
 }
 
+// SyncList returns all registered units and their current statuses.
+func (s *DRPCAgentSocketService) SyncList(_ context.Context, _ *proto.SyncListRequest) (*proto.SyncListResponse, error) {
+	if s.unitManager == nil {
+		return nil, xerrors.Errorf("cannot list units: %w", ErrUnitManagerNotAvailable)
+	}
+
+	units := s.unitManager.ListUnits()
+	var unitInfos []*proto.UnitInfo
+	for _, u := range units {
+		isReady, err := s.unitManager.IsReady(u.ID())
+		if err != nil {
+			return nil, xerrors.Errorf("cannot check readiness for unit %q: %w", u.ID(), err)
+		}
+		unitInfos = append(unitInfos, &proto.UnitInfo{
+			Unit:    string(u.ID()),
+			Status:  string(u.Status()),
+			IsReady: isReady,
+		})
+	}
+
+	return &proto.SyncListResponse{Units: unitInfos}, nil
+}
+
 // UpdateAppStatus forwards an app status update to coderd via the
 // agent API. Returns an error if the agent is not connected.
 func (s *DRPCAgentSocketService) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppStatusRequest) (*agentproto.UpdateAppStatusResponse, error) {

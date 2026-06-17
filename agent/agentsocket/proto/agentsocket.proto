@@ -54,6 +54,18 @@ message SyncStatusResponse {
   repeated DependencyInfo dependencies = 3;
 }
 
+message SyncListRequest {}
+
+message UnitInfo {
+  string unit = 1;
+  string status = 2;
+  bool is_ready = 3;
+}
+
+message SyncListResponse {
+  repeated UnitInfo units = 1;
+}
+
 // AgentSocket provides direct access to the agent over local IPC.
 service AgentSocket {
   // Ping the agent to check if it is alive.
@@ -68,6 +80,8 @@ service AgentSocket {
   rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
   // Get the status of a unit and list its dependencies.
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  // List all registered units and their current statuses.
+  rpc SyncList(SyncListRequest) returns (SyncListResponse);
   // Update app status, forwarded to coderd.
   rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse);
 }

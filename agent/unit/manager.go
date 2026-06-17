@@ -284,6 +284,18 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 	return unmetDependencies, nil
 }
 
+// ListUnits returns a snapshot of all registered units and their current status.
+func (m *Manager) ListUnits() []Unit {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	units := make([]Unit, 0, len(m.units))
+	for _, u := range m.units {
+		units = append(units, u)
+	}
+	return units
+}
+
 // ExportDOT exports the dependency graph to DOT format for visualization.
 func (m *Manager) ExportDOT(name string) (string, error) {
 	return m.graph.ToDOT(name)
