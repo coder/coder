@@ -39,7 +39,6 @@ func TestPubsub_Metrics(t *testing.T) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
-	defer unsub0()
 	go func() {
 		err := uut.Publish(event, []byte(data))
 		assert.NoError(t, err)
@@ -74,7 +73,6 @@ func TestPubsub_Metrics(t *testing.T) {
 		messageChannel <- message
 	})
 	require.NoError(t, err)
-	defer unsub1()
 	go func() {
 		err := uut.Publish(event, colossalData)
 		assert.NoError(t, err)
@@ -101,5 +99,19 @@ func TestPubsub_Metrics(t *testing.T) {
 			testutil.PromGaugeAssertion(t, metrics, func(in float64) bool { return in > 0 }, "coder_nats_pubsub_receive_latency_seconds") &&
 			testutil.PromCounterHasValue(t, metrics, gatherCount, "coder_nats_pubsub_latency_measures_total") &&
 			!testutil.PromCounterGathered(t, metrics, "coder_nats_pubsub_latency_measure_errs_total")
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	// Unsubscribing both local subscribers should decrement the
+	// subscriber gauge back to 0, and removing the last subscriber on the
+	// event should decrement the event gauge back to 0.
+	unsub0()
+	unsub1()
+
+	require.Eventually(t, func() bool {
+		metrics, err = registry.Gather()
+		gatherCount++
+		assert.NoError(t, err)
+		return testutil.PromGaugeHasValue(t, metrics, 0, "coder_nats_pubsub_current_events") &&
+			testutil.PromGaugeHasValue(t, metrics, 0, "coder_nats_pubsub_current_subscribers")
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
