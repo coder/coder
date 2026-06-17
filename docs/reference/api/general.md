@@ -424,6 +424,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -534,6 +535,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },

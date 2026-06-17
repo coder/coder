@@ -342,6 +342,9 @@ jobs:
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
+      - name: Start PostgreSQL container
+        run: make test-postgres-docker
+
       - name: make gen
         timeout-minutes: 8
         run: |
@@ -354,6 +357,17 @@ jobs:
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
+
+      - name: Collect PostgreSQL logs
+        if: always()
+        run: make test-postgres-docker-logs > postgres.log 2>&1
+
+      - name: Upload PostgreSQL logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gen-postgres-logs
+          path: postgres.log
 
   fmt:
     needs: changes
@@ -936,6 +950,37 @@ jobs:
           name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
+
+  storybook:
+    name: Storybook
+
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        name: Checkout
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        name: Install dependencies
+        with:
+          run_install: true
+          cache: true
+
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build Storybook
+
+      - run: pnpm playwright:install
+        working-directory: site/
+        name: Install Chromium
+
+      - run: pnpm pixel-storybook
+        working-directory: site/
+        name: Snapshot
+        env:
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
 
   # Reference guide:
   # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event

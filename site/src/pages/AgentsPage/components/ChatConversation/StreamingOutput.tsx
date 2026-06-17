@@ -1,7 +1,6 @@
 import type { FC } from "react";
 import type { UrlTransform } from "streamdown";
 import type * as TypesGen from "#/api/typesGenerated";
-import { cn } from "#/utils/cn";
 import {
 	ConversationItem,
 	Message,
@@ -19,18 +18,10 @@ import type { MergedTool, StreamState } from "./types";
 const hasCalloutLiveStatus = (liveStatus: LiveStatusModel): boolean =>
 	liveStatus.phase === "retrying" || liveStatus.phase === "reconnecting";
 
-const LiveActivitySlot: FC<{
-	visible: boolean;
-	detached: boolean;
-}> = ({ visible, detached }) => (
+const LiveActivitySlot: FC = () => (
 	<div
 		data-testid="live-activity-slot"
-		aria-hidden={!visible}
-		className={cn(
-			"flex items-center gap-2 text-content-secondary",
-			detached ? "pointer-events-none absolute left-0 top-full mt-2" : "h-6",
-			!visible && "invisible",
-		)}
+		className="flex h-6 items-center gap-2 text-content-secondary"
 	>
 		<ToolIcon name="thinking" isError={false} />
 		<Shimmer as="span" className="text-[13px] leading-6">
@@ -72,8 +63,6 @@ export const StreamingOutput: FC<{
 		streamState,
 		streamTools,
 	});
-	const hasVisibleFlowContent =
-		shouldShowBlocks || hasCalloutLiveStatus(liveStatus);
 
 	const conversationItemProps = { role: "assistant" as const };
 
@@ -98,10 +87,7 @@ export const StreamingOutput: FC<{
 						{hasCalloutLiveStatus(liveStatus) && (
 							<ChatStatusCallout status={liveStatus} />
 						)}
-						<LiveActivitySlot
-							visible={showActivity}
-							detached={hasVisibleFlowContent}
-						/>
+						{showActivity && <LiveActivitySlot />}
 					</div>
 				</MessageContent>
 			</Message>

@@ -1629,6 +1629,64 @@ export const AssistantMessageCopyButton: Story = {
 	},
 };
 
+/**
+ * Assistant messages that end with a tool call get no copy button,
+ * because the action row would otherwise render directly below the
+ * tool row instead of below copyable text.
+ */
+export const NoCopyButtonAfterTrailingToolCall: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Run the tests" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Running the test suite now." },
+					{
+						type: "tool-call",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						args: { command: "make test" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						result: { output: "ok" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Running the test suite now.");
+		// The assistant message ends with a tool call, so no copy button.
+		const actions = canvas.getAllByTestId("message-actions");
+		expect(actions).toHaveLength(1);
+		for (const actionRow of actions) {
+			expect(
+				within(actionRow).getByRole("button", { name: "Copy message" }),
+			).toBeInTheDocument();
+		}
+	},
+};
+
 /** Persisted ask-user-question answers survive reloads. */
 export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
@@ -1918,7 +1976,7 @@ export const MultiAssistantTurnCopyButton: Story = {
 };
 
 /**
- * Regression: thinking-only assistant messages must have consistent
+ * Thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
  * gap that would normally come from the invisible action bar.
  */
@@ -1957,6 +2015,40 @@ export const ThinkingOnlyAssistantSpacing: Story = {
 		// it should still have visible text and a spacer element.
 		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
 		expect(canvas.getByText("Any progress?")).toBeInTheDocument();
+		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
+	},
+};
+
+/** No following bubble to space against; the spacer would be a dangling blank. */
+export const NoSpacerAfterTrailingThinkingMessage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("assistant-bottom-spacer"),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -204,7 +204,12 @@ func Classify(err error) ClassifiedError {
 	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
-	usageLimitMatch := containsAny(lower, usageLimitPatterns...)
+	// Usage limits do not have a dedicated status code, so provider
+	// response bodies can be the only reliable signal. Other classes
+	// already have status-code signals or transport wrapper text.
+	usageLimitText := lower + "\n" + strings.ToLower(structured.detail)
+	usageLimitMatch := containsAny(usageLimitText, usageLimitAnyStatusPatterns...) ||
+		(statusCode != 429 && containsAny(usageLimitText, usageLimitPatterns...))
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
@@ -226,8 +231,8 @@ func Classify(err error) ClassifiedError {
 	// transient-looking errors like "503 invalid model" fail fast.
 	// Overloaded stays ahead because 529/overloaded is a dedicated
 	// provider saturation signal, not a common transport wrapper.
-	// Usage-limit fires before auth so that quota/billing text wins
-	// over whatever HTTP status code the provider happened to use.
+	// Usage-limit fires before auth so non-429 quota/billing text,
+	// plus insufficient_quota at any status, wins over auth signals.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
 	// Provider-disabled must precede timeout because disabled providers
@@ -287,8 +292,12 @@ func Classify(err error) ClassifiedError {
 		if !rule.match {
 			continue
 		}
+		detail := structured.detail
+		if rule.kind != codersdk.ChatErrorKindAuth {
+			detail = resolveDiagnosticDetail(structured.detail, err)
+		}
 		return normalizeClassification(ClassifiedError{
-			Detail:     structured.detail,
+			Detail:     detail,
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
@@ -309,7 +318,7 @@ func Classify(err error) ClassifiedError {
 	}
 
 	return normalizeClassification(ClassifiedError{
-		Detail:     structured.detail,
+		Detail:     resolveDiagnosticDetail(structured.detail, err),
 		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,

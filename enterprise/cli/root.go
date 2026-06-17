@@ -27,7 +27,6 @@ func (r *RootCmd) enterpriseOnly() []*serpent.Command {
 		r.prebuilds(),
 		r.provisionerd(),
 		r.externalWorkspaces(),
-		r.aibridge(),
 	}
 }
 

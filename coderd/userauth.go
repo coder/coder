@@ -1853,6 +1853,24 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			}
 		}
 
+		// Reject the login if the linked user is suspended. Suspending only
+		// applies to existing users, so this check is intentionally placed
+		// after the new-user creation branch above. Returning an HTTPError
+		// rolls back the transaction so no link/sync side effects are
+		// persisted, and the caller renders a static error page describing
+		// what happened.
+		if user.Status == database.UserStatusSuspended {
+			return &idpsync.HTTPError{
+				Code: http.StatusForbidden,
+				Msg:  "Account suspended",
+				Detail: fmt.Sprintf(
+					"Your account %q has been suspended. Contact your Coder administrator to reactivate your account.",
+					user.Username,
+				),
+				RenderStaticPage: true,
+			}
+		}
+
 		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
 			// This is necessary because transactions can be retried, and we

@@ -501,6 +501,8 @@ func (x *SyncStatusRequest) GetUnit() string {
 	return ""
 }
 
+// DependencyInfo represents a directed edge in the dependency graph from one unit
+// to a unit it depends on, along with the required and current status of the dependency.
 type DependencyInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -643,6 +645,156 @@ func (x *SyncStatusResponse) GetDependencies() []*DependencyInfo {
 	return nil
 }
 
+type SyncListRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+}
+
+func (x *SyncListRequest) Reset() {
+	*x = SyncListRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[13]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SyncListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncListRequest) ProtoMessage() {}
+
+func (x *SyncListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[13]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncListRequest.ProtoReflect.Descriptor instead.
+func (*SyncListRequest) Descriptor() ([]byte, []int) {
+	return file_agent_agentsocket_proto_agentsocket_proto_rawDescGZIP(), []int{13}
+}
+
+// UnitInfo represents a single unit vertex in the dependency graph.
+// Includes the state of the unit itself.
+type UnitInfo struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Unit    string `protobuf:"bytes,1,opt,name=unit,proto3" json:"unit,omitempty"`
+	Status  string `protobuf:"bytes,2,opt,name=status,proto3" json:"status,omitempty"`
+	IsReady bool   `protobuf:"varint,3,opt,name=is_ready,json=isReady,proto3" json:"is_ready,omitempty"`
+}
+
+func (x *UnitInfo) Reset() {
+	*x = UnitInfo{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[14]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *UnitInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnitInfo) ProtoMessage() {}
+
+func (x *UnitInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[14]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnitInfo.ProtoReflect.Descriptor instead.
+func (*UnitInfo) Descriptor() ([]byte, []int) {
+	return file_agent_agentsocket_proto_agentsocket_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *UnitInfo) GetUnit() string {
+	if x != nil {
+		return x.Unit
+	}
+	return ""
+}
+
+func (x *UnitInfo) GetStatus() string {
+	if x != nil {
+		return x.Status
+	}
+	return ""
+}
+
+func (x *UnitInfo) GetIsReady() bool {
+	if x != nil {
+		return x.IsReady
+	}
+	return false
+}
+
+type SyncListResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	Units []*UnitInfo `protobuf:"bytes,1,rep,name=units,proto3" json:"units,omitempty"`
+}
+
+func (x *SyncListResponse) Reset() {
+	*x = SyncListResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[15]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SyncListResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SyncListResponse) ProtoMessage() {}
+
+func (x *SyncListResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_agent_agentsocket_proto_agentsocket_proto_msgTypes[15]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SyncListResponse.ProtoReflect.Descriptor instead.
+func (*SyncListResponse) Descriptor() ([]byte, []int) {
+	return file_agent_agentsocket_proto_agentsocket_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *SyncListResponse) GetUnits() []*UnitInfo {
+	if x != nil {
+		return x.Units
+	}
+	return nil
+}
+
 var File_agent_agentsocket_proto_agentsocket_proto protoreflect.FileDescriptor
 
 var file_agent_agentsocket_proto_agentsocket_proto_rawDesc = []byte{
@@ -695,7 +847,18 @@ var file_agent_agentsocket_proto_agentsocket_proto_rawDesc = []byte{
 	0x65, 0x73, 0x18, 0x03, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x24, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
 	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e,
 	0x44, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x79, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x0c,
-	0x64, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x32, 0x9f, 0x05, 0x0a,
+	0x64, 0x65, 0x70, 0x65, 0x6e, 0x64, 0x65, 0x6e, 0x63, 0x69, 0x65, 0x73, 0x22, 0x11, 0x0a, 0x0f,
+	0x53, 0x79, 0x6e, 0x63, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x22,
+	0x51, 0x0a, 0x08, 0x55, 0x6e, 0x69, 0x74, 0x49, 0x6e, 0x66, 0x6f, 0x12, 0x12, 0x0a, 0x04, 0x75,
+	0x6e, 0x69, 0x74, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x75, 0x6e, 0x69, 0x74, 0x12,
+	0x16, 0x0a, 0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x06, 0x73, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x19, 0x0a, 0x08, 0x69, 0x73, 0x5f, 0x72, 0x65,
+	0x61, 0x64, 0x79, 0x18, 0x03, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x69, 0x73, 0x52, 0x65, 0x61,
+	0x64, 0x79, 0x22, 0x48, 0x0a, 0x10, 0x53, 0x79, 0x6e, 0x63, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65,
+	0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x34, 0x0a, 0x05, 0x75, 0x6e, 0x69, 0x74, 0x73, 0x18,
+	0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x1e, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
+	0x65, 0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x55, 0x6e, 0x69,
+	0x74, 0x49, 0x6e, 0x66, 0x6f, 0x52, 0x05, 0x75, 0x6e, 0x69, 0x74, 0x73, 0x32, 0xfa, 0x05, 0x0a,
 	0x0b, 0x41, 0x67, 0x65, 0x6e, 0x74, 0x53, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x4d, 0x0a, 0x04,
 	0x50, 0x69, 0x6e, 0x67, 0x12, 0x21, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65,
 	0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x69, 0x6e, 0x67,
@@ -731,17 +894,23 @@ var file_agent_agentsocket_proto_agentsocket_proto_rawDesc = []byte{
 	0x79, 0x6e, 0x63, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
 	0x1a, 0x28, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x6f,
 	0x63, 0x6b, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x79, 0x6e, 0x63, 0x53, 0x74, 0x61, 0x74,
-	0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x62, 0x0a, 0x0f, 0x55, 0x70,
-	0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x26, 0x2e,
-	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55,
-	0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65,
-	0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67,
-	0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70,
-	0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x33,
-	0x5a, 0x31, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64,
-	0x65, 0x72, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x61, 0x67, 0x65, 0x6e,
-	0x74, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x75, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x59, 0x0a, 0x08, 0x53, 0x79,
+	0x6e, 0x63, 0x4c, 0x69, 0x73, 0x74, 0x12, 0x25, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61,
+	0x67, 0x65, 0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x79,
+	0x6e, 0x63, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x26, 0x2e,
+	0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65,
+	0x74, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x79, 0x6e, 0x63, 0x4c, 0x69, 0x73, 0x74, 0x52, 0x65, 0x73,
+	0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x62, 0x0a, 0x0f, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41,
+	0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x12, 0x26, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72,
+	0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76, 0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65,
+	0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74,
+	0x1a, 0x27, 0x2e, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2e, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2e, 0x76,
+	0x32, 0x2e, 0x55, 0x70, 0x64, 0x61, 0x74, 0x65, 0x41, 0x70, 0x70, 0x53, 0x74, 0x61, 0x74, 0x75,
+	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x33, 0x5a, 0x31, 0x67, 0x69, 0x74,
+	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x63, 0x6f, 0x64, 0x65, 0x72, 0x2f, 0x63, 0x6f,
+	0x64, 0x65, 0x72, 0x2f, 0x76, 0x32, 0x2f, 0x61, 0x67, 0x65, 0x6e, 0x74, 0x2f, 0x61, 0x67, 0x65,
+	0x6e, 0x74, 0x73, 0x6f, 0x63, 0x6b, 0x65, 0x74, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x06,
+	0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -756,7 +925,7 @@ func file_agent_agentsocket_proto_agentsocket_proto_rawDescGZIP() []byte {
 	return file_agent_agentsocket_proto_agentsocket_proto_rawDescData
 }
 
-var file_agent_agentsocket_proto_agentsocket_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_agent_agentsocket_proto_agentsocket_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_agent_agentsocket_proto_agentsocket_proto_goTypes = []interface{}{
 	(*PingRequest)(nil),                   // 0: coder.agentsocket.v1.PingRequest
 	(*PingResponse)(nil),                  // 1: coder.agentsocket.v1.PingResponse
@@ -771,30 +940,36 @@ var file_agent_agentsocket_proto_agentsocket_proto_goTypes = []interface{}{
 	(*SyncStatusRequest)(nil),             // 10: coder.agentsocket.v1.SyncStatusRequest
 	(*DependencyInfo)(nil),                // 11: coder.agentsocket.v1.DependencyInfo
 	(*SyncStatusResponse)(nil),            // 12: coder.agentsocket.v1.SyncStatusResponse
-	(*proto.UpdateAppStatusRequest)(nil),  // 13: coder.agent.v2.UpdateAppStatusRequest
-	(*proto.UpdateAppStatusResponse)(nil), // 14: coder.agent.v2.UpdateAppStatusResponse
+	(*SyncListRequest)(nil),               // 13: coder.agentsocket.v1.SyncListRequest
+	(*UnitInfo)(nil),                      // 14: coder.agentsocket.v1.UnitInfo
+	(*SyncListResponse)(nil),              // 15: coder.agentsocket.v1.SyncListResponse
+	(*proto.UpdateAppStatusRequest)(nil),  // 16: coder.agent.v2.UpdateAppStatusRequest
+	(*proto.UpdateAppStatusResponse)(nil), // 17: coder.agent.v2.UpdateAppStatusResponse
 }
 var file_agent_agentsocket_proto_agentsocket_proto_depIdxs = []int32{
 	11, // 0: coder.agentsocket.v1.SyncStatusResponse.dependencies:type_name -> coder.agentsocket.v1.DependencyInfo
-	0,  // 1: coder.agentsocket.v1.AgentSocket.Ping:input_type -> coder.agentsocket.v1.PingRequest
-	2,  // 2: coder.agentsocket.v1.AgentSocket.SyncStart:input_type -> coder.agentsocket.v1.SyncStartRequest
-	4,  // 3: coder.agentsocket.v1.AgentSocket.SyncWant:input_type -> coder.agentsocket.v1.SyncWantRequest
-	6,  // 4: coder.agentsocket.v1.AgentSocket.SyncComplete:input_type -> coder.agentsocket.v1.SyncCompleteRequest
-	8,  // 5: coder.agentsocket.v1.AgentSocket.SyncReady:input_type -> coder.agentsocket.v1.SyncReadyRequest
-	10, // 6: coder.agentsocket.v1.AgentSocket.SyncStatus:input_type -> coder.agentsocket.v1.SyncStatusRequest
-	13, // 7: coder.agentsocket.v1.AgentSocket.UpdateAppStatus:input_type -> coder.agent.v2.UpdateAppStatusRequest
-	1,  // 8: coder.agentsocket.v1.AgentSocket.Ping:output_type -> coder.agentsocket.v1.PingResponse
-	3,  // 9: coder.agentsocket.v1.AgentSocket.SyncStart:output_type -> coder.agentsocket.v1.SyncStartResponse
-	5,  // 10: coder.agentsocket.v1.AgentSocket.SyncWant:output_type -> coder.agentsocket.v1.SyncWantResponse
-	7,  // 11: coder.agentsocket.v1.AgentSocket.SyncComplete:output_type -> coder.agentsocket.v1.SyncCompleteResponse
-	9,  // 12: coder.agentsocket.v1.AgentSocket.SyncReady:output_type -> coder.agentsocket.v1.SyncReadyResponse
-	12, // 13: coder.agentsocket.v1.AgentSocket.SyncStatus:output_type -> coder.agentsocket.v1.SyncStatusResponse
-	14, // 14: coder.agentsocket.v1.AgentSocket.UpdateAppStatus:output_type -> coder.agent.v2.UpdateAppStatusResponse
-	8,  // [8:15] is the sub-list for method output_type
-	1,  // [1:8] is the sub-list for method input_type
-	1,  // [1:1] is the sub-list for extension type_name
-	1,  // [1:1] is the sub-list for extension extendee
-	0,  // [0:1] is the sub-list for field type_name
+	14, // 1: coder.agentsocket.v1.SyncListResponse.units:type_name -> coder.agentsocket.v1.UnitInfo
+	0,  // 2: coder.agentsocket.v1.AgentSocket.Ping:input_type -> coder.agentsocket.v1.PingRequest
+	2,  // 3: coder.agentsocket.v1.AgentSocket.SyncStart:input_type -> coder.agentsocket.v1.SyncStartRequest
+	4,  // 4: coder.agentsocket.v1.AgentSocket.SyncWant:input_type -> coder.agentsocket.v1.SyncWantRequest
+	6,  // 5: coder.agentsocket.v1.AgentSocket.SyncComplete:input_type -> coder.agentsocket.v1.SyncCompleteRequest
+	8,  // 6: coder.agentsocket.v1.AgentSocket.SyncReady:input_type -> coder.agentsocket.v1.SyncReadyRequest
+	10, // 7: coder.agentsocket.v1.AgentSocket.SyncStatus:input_type -> coder.agentsocket.v1.SyncStatusRequest
+	13, // 8: coder.agentsocket.v1.AgentSocket.SyncList:input_type -> coder.agentsocket.v1.SyncListRequest
+	16, // 9: coder.agentsocket.v1.AgentSocket.UpdateAppStatus:input_type -> coder.agent.v2.UpdateAppStatusRequest
+	1,  // 10: coder.agentsocket.v1.AgentSocket.Ping:output_type -> coder.agentsocket.v1.PingResponse
+	3,  // 11: coder.agentsocket.v1.AgentSocket.SyncStart:output_type -> coder.agentsocket.v1.SyncStartResponse
+	5,  // 12: coder.agentsocket.v1.AgentSocket.SyncWant:output_type -> coder.agentsocket.v1.SyncWantResponse
+	7,  // 13: coder.agentsocket.v1.AgentSocket.SyncComplete:output_type -> coder.agentsocket.v1.SyncCompleteResponse
+	9,  // 14: coder.agentsocket.v1.AgentSocket.SyncReady:output_type -> coder.agentsocket.v1.SyncReadyResponse
+	12, // 15: coder.agentsocket.v1.AgentSocket.SyncStatus:output_type -> coder.agentsocket.v1.SyncStatusResponse
+	15, // 16: coder.agentsocket.v1.AgentSocket.SyncList:output_type -> coder.agentsocket.v1.SyncListResponse
+	17, // 17: coder.agentsocket.v1.AgentSocket.UpdateAppStatus:output_type -> coder.agent.v2.UpdateAppStatusResponse
+	10, // [10:18] is the sub-list for method output_type
+	2,  // [2:10] is the sub-list for method input_type
+	2,  // [2:2] is the sub-list for extension type_name
+	2,  // [2:2] is the sub-list for extension extendee
+	0,  // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_agent_agentsocket_proto_agentsocket_proto_init() }
@@ -959,6 +1134,42 @@ func file_agent_agentsocket_proto_agentsocket_proto_init() {
 				return nil
 			}
 		}
+		file_agent_agentsocket_proto_agentsocket_proto_msgTypes[13].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SyncListRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_agentsocket_proto_agentsocket_proto_msgTypes[14].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*UnitInfo); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_agent_agentsocket_proto_agentsocket_proto_msgTypes[15].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SyncListResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -966,7 +1177,7 @@ func file_agent_agentsocket_proto_agentsocket_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_agent_agentsocket_proto_agentsocket_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   13,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

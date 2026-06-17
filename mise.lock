@@ -967,6 +967,10 @@ url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_
 checksum = "sha256:2f652dd854af7b7fbb51301afc55b5ef1d3f6e287be7889d4cc3818df891cd38"
 url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_windows_amd64.zip"
 
+[[tools.vercel]]
+version = "54.14.0"
+backend = "npm:vercel"
+
 [[tools.zizmor]]
 version = "1.11.0"
 backend = "aqua:zizmorcore/zizmor"

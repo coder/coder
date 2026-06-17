@@ -63,7 +63,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
@@ -570,6 +569,21 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
+	// Separate from handleContentChange, which avoids setState to prevent
+	// per-keystroke re-renders. The loading editor is a different instance
+	// that unmounts on load, so the seed must advance here.
+	const handleLoadingDraftChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
+		handleContentChange(content, serializedEditorState, hasFileReferences);
+		setDraftState({
+			editorInitialValue: content,
+			initialEditorState: serializedEditorState,
+		});
+	};
+
 	return {
 		inputValueRef,
 		chatInputRef,
@@ -585,6 +599,7 @@ export function useConversationEditingState(deps: {
 		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
+		handleLoadingDraftChange,
 	};
 }
 
@@ -1130,31 +1145,6 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const isAdmin = permissions.editDeploymentConfig;
-	const agentSetupNotice = (() => {
-		// Admin: show when providers or models are missing
-		if (
-			isAdmin &&
-			providerCount !== undefined &&
-			modelCount !== undefined &&
-			(providerCount === 0 || modelCount === 0)
-		) {
-			return (
-				<AgentSetupNotice
-					isAdmin
-					providerCount={providerCount}
-					modelCount={modelCount}
-				/>
-			);
-		}
-		// Member: show when no models are available
-		if (!isAdmin && modelCount !== undefined && modelCount === 0) {
-			return (
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			);
-		}
-		return undefined;
-	})();
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
@@ -1574,6 +1564,11 @@ const AgentChatPage: FC = () => {
 					preferencesQuery.isLoading,
 				)}
 				titleElement={titleElement}
+				inputRef={editing.chatInputRef}
+				initialValue={editing.editorInitialValue}
+				initialEditorState={editing.initialEditorState}
+				remountKey={editing.remountKey}
+				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
 				setSelectedModel={setSelectedModel}
@@ -1626,7 +1621,9 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			providerCount={providerCount}
+			modelCount={modelCount}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}

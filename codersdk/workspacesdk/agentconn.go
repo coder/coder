@@ -505,7 +505,7 @@ func (c *agentConn) WatchContainers(ctx context.Context, logger slog.Logger) (<-
 	url := fmt.Sprintf("http://%s%s", host, "/api/v0/containers/watch")
 
 	conn, res, err := websocket.Dial(ctx, url, &websocket.DialOptions{
-		HTTPClient: c.apiClient(),
+		HTTPClient: c.apiClient(ctx),
 
 		// We want `NoContextTakeover` compression to balance improving
 		// bandwidth cost/latency with minimal memory usage overhead.
@@ -541,7 +541,7 @@ func (c *agentConn) WatchGit(ctx context.Context, logger slog.Logger, chatID uui
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(),
+		HTTPClient:      c.apiClient(ctx),
 		CompressionMode: websocket.CompressionNoContextTakeover,
 	}
 	c.headersMu.RLock()
@@ -583,7 +583,7 @@ func (c *agentConn) ConnectDesktopVNC(ctx context.Context) (net.Conn, error) {
 	host := net.JoinHostPort(c.agentAddress().String(), strconv.Itoa(AgentHTTPAPIServerPort))
 
 	dialOpts := &websocket.DialOptions{
-		HTTPClient:      c.apiClient(),
+		HTTPClient:      c.apiClient(ctx),
 		CompressionMode: websocket.CompressionDisabled,
 	}
 	c.headersMu.RLock()
@@ -696,7 +696,7 @@ func (c *agentConn) ExecuteDesktopAction(ctx context.Context, action DesktopActi
 	}
 	c.headersMu.RUnlock()
 
-	resp, err := c.apiClient().Do(req)
+	resp, err := c.apiClient(ctx).Do(req)
 	if err != nil {
 		return DesktopActionResponse{}, xerrors.Errorf("action request: %w", err)
 	}
@@ -1352,12 +1352,14 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 		}
 	}
 
-	return c.apiClient().Do(req)
+	return c.apiClient(ctx).Do(req)
 }
 
 // apiClient returns an HTTP client that can be used to make
-// requests to the workspace agent's HTTP API server.
-func (c *agentConn) apiClient() *http.Client {
+// requests to the workspace agent's HTTP API server. The client is
+// scoped to a single request: its transport cancels in-flight dials
+// once reqCtx ends.
+func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
@@ -1377,6 +1379,18 @@ func (c *agentConn) apiClient() *http.Client {
 				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
+
+				// http.Transport detaches ctx from the request context so
+				// a pending dial can outlive its request and serve future
+				// requests. This client is request-scoped with keep-alives
+				// disabled, so a detached dial can never be reused. Without
+				// re-linking cancellation, a canceled request would leave
+				// the dial blocked in AwaitReachable until the agent becomes
+				// reachable, which may be never.
+				ctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				stop := context.AfterFunc(reqCtx, cancel)
+				defer stop()
 
 				if !c.AwaitReachable(ctx) {
 					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())

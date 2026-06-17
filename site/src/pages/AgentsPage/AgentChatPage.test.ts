@@ -324,6 +324,9 @@ describe("useConversationEditingState", () => {
 			);
 		});
 		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		// handleContentChange persists only; it must not advance the seed.
+		expect(result.current.editorInitialValue).toBe("");
+		expect(result.current.initialEditorState).toBeUndefined();
 
 		act(() => {
 			// Even though the serialized state is non-empty (Lexical always
@@ -332,6 +335,27 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
 		});
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+
+		unmount();
+	});
+
+	it("carries a draft typed during loading into the seed for the loaded editor", () => {
+		const { result, unmount } = renderEditing();
+
+		// handleContentChange persists but does not advance the seed.
+		const editorState =
+			'{"root":{"children":[{"text":"typed while loading"}]}}';
+		act(() => {
+			result.current.handleLoadingDraftChange(
+				"typed while loading",
+				editorState,
+				false,
+			);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("typed while loading");
+		expect(result.current.initialEditorState).toBe(editorState);
 
 		unmount();
 	});

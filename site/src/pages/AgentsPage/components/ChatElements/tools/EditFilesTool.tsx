@@ -4,6 +4,8 @@ import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { getPathBasename } from "../../../utils/path";
+import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
@@ -40,14 +42,14 @@ export const EditFilesTool: React.FC<{
 	let label: string;
 	if (isRunning) {
 		if (files.length === 1) {
-			label = `Editing ${files[0].path.split("/").pop() || files[0].path}…`;
+			label = `Editing ${getPathBasename(files[0].path)}…`;
 		} else if (files.length > 1) {
 			label = `Editing ${files.length} files…`;
 		} else {
 			label = "Editing files…";
 		}
 	} else if (files.length === 1) {
-		const filename = files[0].path.split("/").pop() || files[0].path;
+		const filename = getPathBasename(files[0].path);
 		label = `Edited ${filename}`;
 	} else if (files.length > 1) {
 		label = `Edited ${files.length} files`;
@@ -85,6 +87,9 @@ export const EditFilesTool: React.FC<{
 									fileDiff={stripNoNewline(diff)}
 									options={getDiffViewerOptions(isDark)}
 									style={DIFFS_FONT_STYLE}
+									renderCustomHeader={(fileDiff) => (
+										<DiffFileHeader file={fileDiff} />
+									)}
 								/>
 							</ScrollArea>
 						) : null,

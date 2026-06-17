@@ -325,8 +325,8 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// misconfiguration from sitting silently in the encrypted
 		// blob.
 		if existing.Bedrock != nil &&
-			old.Type != database.AiProviderTypeAnthropic &&
-			old.Type != database.AiProviderTypeBedrock {
+			old.Type != database.AIProviderTypeAnthropic &&
+			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
 		settings, err := encodeAIProviderSettings(existing)
@@ -340,7 +340,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errBedrockRejectsAPIKeys
 		}
 
-		if req.APIKeys != nil && old.Type == database.AiProviderTypeCopilot && len(*req.APIKeys) > 0 {
+		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
 			return errCopilotRejectsAPIKeys
 		}
 
@@ -351,6 +351,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 		params := database.UpdateAIProviderParams{
 			ID:          old.ID,
+			Type:        old.Type,
 			DisplayName: displayName,
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
 			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
