@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -81,6 +82,13 @@ type metrics struct {
 	latencyMeasurer       *pubsub.LatencyMeasurer
 	latencyMeasureCounter atomic.Int64
 	latencyErrCounter     atomic.Int64
+
+	// connMu guards the connection-state accounting below. Connect and
+	// disconnect callbacks are rare, so a mutex keeps the gauge update
+	// atomic with the count without meaningful contention.
+	connMu         sync.Mutex
+	totalConns     int
+	connectedConns int
 
 	// currentEvents and currentSubscribers shadow the sizes of the
 	// Pubsub's subscriptions map and per-event localSubs maps. They are
@@ -174,24 +182,46 @@ func (m *metrics) recordReceived(data []byte) {
 	m.receivedBytesTotal.Add(float64(len(data)))
 }
 
-// markConnected sets the connected gauge to 1. Called once all owned
-// connections have dialed successfully.
-func (m *metrics) markConnected() {
-	m.connected.Set(1)
+// markConnected records that all total owned connections have dialed
+// successfully. The connected gauge is 1 only while every owned
+// connection is up.
+func (m *metrics) markConnected(total int) {
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	m.totalConns = total
+	m.connectedConns = total
+	m.setConnectedLocked()
 }
 
-// onDisconnect records an unexpected disconnect and marks us
-// disconnected. Like PGPubsub, connectivity is treated as a binary
-// signal: any disconnect sets the gauge to 0.
+// onDisconnect records an unexpected disconnect of one owned connection.
 func (m *metrics) onDisconnect() {
 	m.disconnectionsTotal.Inc()
-	m.connected.Set(0)
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	if m.connectedConns > 0 {
+		m.connectedConns--
+	}
+	m.setConnectedLocked()
 }
 
-// onReconnect marks us connected again. Any reconnect sets the gauge
-// back to 1.
+// onReconnect records that one owned connection reconnected.
 func (m *metrics) onReconnect() {
-	m.connected.Set(1)
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	if m.connectedConns < m.totalConns {
+		m.connectedConns++
+	}
+	m.setConnectedLocked()
+}
+
+// setConnectedLocked sets the connected gauge to 1 only when every owned
+// connection is up. Callers must hold connMu.
+func (m *metrics) setConnectedLocked() {
+	if m.totalConns > 0 && m.connectedConns == m.totalConns {
+		m.connected.Set(1)
+		return
+	}
+	m.connected.Set(0)
 }
 
 // addEvent and removeEvent track the number of subscribed event

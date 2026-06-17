@@ -311,7 +311,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
 	// All owned connections dialed successfully above.
-	p.metrics.markConnected()
+	p.metrics.markConnected(len(publishPool) + len(subscribePool))
 
 	if p.clustered {
 		go p.runPeerRefresh()
@@ -441,6 +441,10 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub.mu.Lock()
 		defer gSub.mu.Unlock()
 		gSub.localSubs[lSub] = struct{}{}
+		// Count subscribers at map insertion so the gauge stays an exact
+		// mirror of localSubs membership. The decrements (failure path,
+		// cancel, and Close) all fire on map removal, so coupling the
+		// increment to insertion keeps them balanced under the same locks.
 		p.metrics.addSubscriber()
 		return lSub, gSub
 	}()
