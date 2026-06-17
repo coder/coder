@@ -1,18 +1,18 @@
 package cli
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
-	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -40,20 +40,16 @@ func (r *RootCmd) chatContextCommand() *serpent.Command {
 	var socketPath string
 	return &serpent.Command{
 		Use:   "context",
-		Short: "Manage workspace context",
-		Long: "Inspect and manage the workspace context sources (instruction files, " +
-			"skills, and MCP configs) the agent resolves, and refresh a chat to the " +
-			"agent's latest snapshot.\n\nThe list, show, add, and remove commands manage " +
-			"agent-local sources and must be run from inside the workspace.",
+		Short: "Manage chat context",
+		Long: "Inspect, refresh, add, or clear the workspace context (instruction " +
+			"files and skills) for a chat.",
 		Handler: func(i *serpent.Invocation) error {
 			return i.Command.HelpHandler(i)
 		},
 		Children: []*serpent.Command{
-			r.chatContextListCommand(&socketPath),
-			r.chatContextShowCommand(&socketPath),
-			r.chatContextAddCommand(&socketPath),
-			r.chatContextRemoveCommand(&socketPath),
-			r.chatContextRefreshCommand(&socketPath),
+			r.chatContextShowCommand(),
+			r.chatContextRefreshCommand(),
+			r.chatContextAddCommand(),
 			r.chatContextClearCommand(),
 		},
 		Options: serpent.OptionSet{{
@@ -65,50 +61,177 @@ func (r *RootCmd) chatContextCommand() *serpent.Command {
 	}
 }
 
-// resolveContextSourcePath makes a user-supplied source path absolute so the
-// agent (which requires absolute, canonical paths) accepts it. A leading ~ is
-// preserved for the agent to expand against its own home directory. A path that
-// is already absolute on the agent's POSIX filesystem (a leading /) is cleaned
-// and passed through; filepath.Abs is host-OS specific and would mangle such a
-// path on a Windows CLI host, so it is reserved for resolving relative paths
-// against the CLI's working directory, which shares the workspace filesystem
-// with the agent.
-func resolveContextSourcePath(p string) (string, error) {
-	p = strings.TrimSpace(p)
-	if p == "" {
-		return "", xerrors.New("path is empty")
-	}
-	if p == "~" || strings.HasPrefix(p, "~/") {
-		return p, nil
-	}
-	if strings.HasPrefix(p, "/") {
-		return path.Clean(p), nil
-	}
-	abs, err := filepath.Abs(p)
-	if err != nil {
-		return "", xerrors.Errorf("resolve path %q: %w", p, err)
-	}
-	return abs, nil
+// chatContextResourceRow is the table view of a pinned context resource.
+type chatContextResourceRow struct {
+	Source string `table:"source,default_sort"`
+	Kind   string `table:"kind"`
+	Size   int64  `table:"size bytes"`
+	Skill  string `table:"skill"`
 }
 
-// dialAgentContextSocket connects to the workspace agent's local IPC socket.
-// It is only reachable from inside the workspace.
-func dialAgentContextSocket(ctx context.Context, socketPath string) (*agentsocket.Client, error) {
-	opts := []agentsocket.Option{}
-	if socketPath != "" {
-		opts = append(opts, agentsocket.WithPath(socketPath))
-	}
-	client, err := agentsocket.NewClient(ctx, opts...)
-	if err != nil {
-		return nil, xerrors.Errorf("connect to agent socket (run this from inside the workspace): %w", err)
-	}
-	return client, nil
+// chatContextChangeRow is the table view of one source-level context change.
+type chatContextChangeRow struct {
+	Status string `table:"status,default_sort"`
+	Kind   string `table:"kind"`
+	Source string `table:"source"`
+	Skill  string `table:"skill"`
 }
 
-func (*RootCmd) chatContextListCommand(socketPath *string) *serpent.Command {
-	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]agentsocket.ContextSource{}, []string{"path"}),
-		cliui.JSONFormat(),
+func (r *RootCmd) chatContextShowCommand() *serpent.Command {
+	var outputFormat string
+	cmd := &serpent.Command{
+		Use:   "show <chat>",
+		Short: "Show a chat's pinned workspace context and any drift",
+		Long: "Display the workspace context a chat is pinned to (instruction files " +
+			"and skills), whether it has drifted from the agent's latest snapshot, " +
+			"and the per-source changes when it has.",
+		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
+		Options: serpent.OptionSet{{
+			Name:          "output",
+			Flag:          "output",
+			FlagShorthand: "o",
+			Default:       "text",
+			Description:   "Output format. Supported values: text, json.",
+			Value:         serpent.EnumOf(&outputFormat, "text", "json"),
+		}},
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			chatID, err := uuid.Parse(inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("invalid chat ID %q: %w", inv.Args[0], err)
+			}
+
+			exp := codersdk.NewExperimentalClient(client)
+			chat, err := exp.GetChat(ctx, chatID)
+			if err != nil {
+				return xerrors.Errorf("get chat: %w", err)
+			}
+
+			if outputFormat == "json" {
+				// Emit the context object directly; it is null when the chat
+				// has no pinned context yet.
+				out, err := json.MarshalIndent(chat.Context, "", "  ")
+				if err != nil {
+					return xerrors.Errorf("marshal chat context: %w", err)
+				}
+				_, _ = fmt.Fprintln(inv.Stdout, string(out))
+				return nil
+			}
+			return renderChatContextText(inv.Stdout, chat)
+		},
+	}
+	return cmd
+}
+
+func renderChatContextText(out io.Writer, chat codersdk.Chat) error {
+	if chat.Context == nil {
+		_, _ = fmt.Fprintf(out, "Chat %s has no pinned workspace context.\n", chat.ID)
+		return nil
+	}
+	cc := chat.Context
+
+	status := "clean"
+	if cc.Dirty {
+		status = "drifted"
+		if cc.DirtySince != nil {
+			status = fmt.Sprintf("drifted (since %s)", cc.DirtySince.Format(time.RFC3339))
+		}
+	}
+	_, _ = fmt.Fprintf(out, "Context for chat %s\n", chat.ID)
+	_, _ = fmt.Fprintf(out, "  Status: %s\n", status)
+	if cc.Error != "" {
+		_, _ = fmt.Fprintf(out, "  Error:  %s\n", cc.Error)
+	}
+
+	resourceRows := make([]chatContextResourceRow, 0, len(cc.Resources))
+	for _, res := range cc.Resources {
+		resourceRows = append(resourceRows, chatContextResourceRow{
+			Source: res.Source,
+			Kind:   string(res.Kind),
+			Size:   res.SizeBytes,
+			Skill:  res.SkillName,
+		})
+	}
+	_, _ = fmt.Fprintf(out, "\nPinned resources (%d)\n", len(resourceRows))
+	if len(resourceRows) == 0 {
+		_, _ = fmt.Fprintln(out, "  (none)")
+	} else {
+		tbl, err := cliui.DisplayTable(resourceRows, "source", nil)
+		if err != nil {
+			return xerrors.Errorf("render resources: %w", err)
+		}
+		_, _ = fmt.Fprintln(out, tbl)
+	}
+
+	if !cc.Dirty {
+		return nil
+	}
+
+	changeRows := make([]chatContextChangeRow, 0, len(cc.Changes))
+	for _, change := range cc.Changes {
+		changeRows = append(changeRows, chatContextChangeRow{
+			Status: string(change.Status),
+			Kind:   string(change.Kind),
+			Source: change.Source,
+			Skill:  change.SkillName,
+		})
+	}
+	_, _ = fmt.Fprintf(out, "\nChanges vs latest snapshot (%d)\n", len(changeRows))
+	if len(changeRows) == 0 {
+		_, _ = fmt.Fprintln(out, "  (none)")
+	} else {
+		tbl, err := cliui.DisplayTable(changeRows, "status", nil)
+		if err != nil {
+			return xerrors.Errorf("render changes: %w", err)
+		}
+		_, _ = fmt.Fprintln(out, tbl)
+	}
+	_, _ = fmt.Fprintf(out, "Run 'coder chat context refresh %s' to adopt the latest context.\n", chat.ID)
+	return nil
+}
+
+func (r *RootCmd) chatContextRefreshCommand() *serpent.Command {
+	cmd := &serpent.Command{
+		Use:   "refresh <chat>",
+		Short: "Refresh a chat's workspace context to the latest snapshot",
+		Long: "Re-pin a chat to the workspace agent's latest context snapshot and " +
+			"clear the drift marker. The chat's next turn uses the refreshed context.",
+		Middleware: serpent.Chain(serpent.RequireNArgs(1)),
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			client, err := r.InitClient(inv)
+			if err != nil {
+				return err
+			}
+			chatID, err := uuid.Parse(inv.Args[0])
+			if err != nil {
+				return xerrors.Errorf("invalid chat ID %q: %w", inv.Args[0], err)
+			}
+
+			exp := codersdk.NewExperimentalClient(client)
+			chat, err := exp.RefreshChatContext(ctx, chatID)
+			if err != nil {
+				return xerrors.Errorf("refresh chat context: %w", err)
+			}
+
+			_, _ = fmt.Fprintf(inv.Stdout, "Refreshed context for chat %s.\n", chatID)
+			if chat.Context != nil && chat.Context.Error != "" {
+				_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", chat.Context.Error)
+			}
+			return nil
+		},
+	}
+	return cmd
+}
+
+func (*RootCmd) chatContextAddCommand() *serpent.Command {
+	var (
+		dir    string
+		chatID string
 	)
 	cmd := &serpent.Command{
 		Use:   "list",
