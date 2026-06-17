@@ -2753,6 +2753,15 @@ func (q *querier) GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, in
 	return q.db.GetAIBridgeUserPromptsByInterceptionID(ctx, interceptionID)
 }
 
+// Authenticates a standalone AI Gateway replica by its hashed key secret, returning the key ID used to record liveness.
+func (q *querier) GetAIGatewayKeyIDByHashedSecret(ctx context.Context, hashedSecret []byte) (uuid.UUID, error) {
+	// Standalone AI Gateway has no Coder identity. Credential read is a system operation.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return uuid.Nil, err
+	}
+	return q.db.GetAIGatewayKeyIDByHashedSecret(ctx, hashedSecret)
+}
+
 func (q *querier) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
 		return database.AIModelPrice{}, err
@@ -7020,6 +7029,15 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 		return database.AIBridgeInterception{}, err
 	}
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
+}
+
+// Records liveness for an active DRPC sessions between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) error {
+	// Standalone AI Gateway has no Coder identity. DRPC connection liveness update is a system operation.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateAIGatewayKeyLastUsedAt(ctx, id)
 }
 
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {

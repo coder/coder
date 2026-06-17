@@ -1130,6 +1130,14 @@ func (m queryMetricsStore) GetAIBridgeUserPromptsByInterceptionID(ctx context.Co
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetAIGatewayKeyIDByHashedSecret(ctx context.Context, hashedSecret []byte) (uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAIGatewayKeyIDByHashedSecret(ctx, hashedSecret)
+	m.queryLatencies.WithLabelValues("GetAIGatewayKeyIDByHashedSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetAIGatewayKeyIDByHashedSecret").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetAIModelPriceByProviderModel(ctx, arg)
@@ -5040,6 +5048,14 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	m.queryLatencies.WithLabelValues("UpdateAIBridgeInterceptionEnded").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIBridgeInterceptionEnded").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, arg uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.UpdateAIGatewayKeyLastUsedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastUsedAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastUsedAt").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
