@@ -124,6 +124,40 @@ func TestBuildPlanNodePlacement(t *testing.T) {
 	require.Len(t, pl.subNodes, cfg.Replicas)
 }
 
+// TestDefaultSeedSpreadsEvenly guards the DefaultSeed comment's claim:
+// with the matrix shape (10 publishers) it places publishers perfectly
+// evenly across nodes at every matrix replica count (1, 5, and 10), so
+// no node is left publisher-less and cross-node routing is not skewed.
+func TestDefaultSeedSpreadsEvenly(t *testing.T) {
+	t.Parallel()
+
+	const publishers = 10
+	for _, replicas := range []int{1, 5, 10} {
+		cfg := Config{
+			Messages:   1000,
+			Subjects:   10,
+			Publishers: publishers,
+			// Subscribers do not affect publisher placement, but a plan
+			// needs at least one.
+			Subscribers: 1,
+			Replicas:    replicas,
+			Seed:        DefaultSeed,
+		}
+		pl := buildPlan(cfg)
+
+		perNode := make([]int, replicas)
+		for _, n := range pl.pubNode {
+			perNode[n]++
+		}
+		want := publishers / replicas
+		for node, got := range perNode {
+			require.Equalf(t, want, got,
+				"replicas=%d node=%d expected %d publishers, got %d (placement %v)",
+				replicas, node, want, got, perNode)
+		}
+	}
+}
+
 func TestSubjectName(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, "bench.0", subjectName(0))

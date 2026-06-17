@@ -242,9 +242,9 @@ const deliveryPollInterval = 100 * time.Millisecond
 // before a run that dropped messages is declared complete. It is a fixed
 // internal constant rather than a knob: only a run that drops messages
 // ever waits it out, and on loopback a backlogged subscriber catches up
-// in milliseconds, so two seconds is ample headroom. Too short would
+// in milliseconds, so five seconds is ample headroom. Too short would
 // overcount drops; too long only slows runs that already dropped.
-const defaultSettleWindow = 2 * time.Second
+const defaultSettleWindow = 5 * time.Second
 
 // awaitDelivery waits for the deliver phase to finish and returns its
 // duration measured from hot.
