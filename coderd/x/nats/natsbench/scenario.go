@@ -16,8 +16,8 @@ const DefaultConns = 3
 
 // DefaultSeed seeds the pseudorandom node placement. With the matrix
 // shape (10 publishers) and 10 replicas, most seeds leave several nodes
-// publisher-less by the birthday problem (only ~1 in 5000 seeds covers
-// every node), which would skew cross-node routing measurements. 2068
+// publisher-less (only ~1 in 5000 seeds covers every node), which would
+// skew cross-node routing measurements. 2068
 // was selected because it spreads publishers perfectly evenly across
 // nodes at every matrix replica count (1, 5, and 10): one publisher per
 // node at 10 replicas, two per node at 5. Override with -seed to sample
