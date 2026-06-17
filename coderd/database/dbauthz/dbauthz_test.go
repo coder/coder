@@ -2911,26 +2911,6 @@ func (s *MethodTestSuite) TestTemplate() {
 		dbm.EXPECT().GetTemplateInsightsByTemplate(gomock.Any(), arg).Return([]database.GetTemplateInsightsByTemplateRow{}, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
-	s.Run("GetPRInsightsSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetPRInsightsSummaryParams{}
-		dbm.EXPECT().GetPRInsightsSummary(gomock.Any(), arg).Return(database.GetPRInsightsSummaryRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
-	}))
-	s.Run("GetPRInsightsTimeSeries", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetPRInsightsTimeSeriesParams{}
-		dbm.EXPECT().GetPRInsightsTimeSeries(gomock.Any(), arg).Return([]database.GetPRInsightsTimeSeriesRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
-	}))
-	s.Run("GetPRInsightsPerModel", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetPRInsightsPerModelParams{}
-		dbm.EXPECT().GetPRInsightsPerModel(gomock.Any(), arg).Return([]database.GetPRInsightsPerModelRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
-	}))
-	s.Run("GetPRInsightsPullRequests", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.GetPRInsightsPullRequestsParams{}
-		dbm.EXPECT().GetPRInsightsPullRequests(gomock.Any(), arg).Return([]database.GetPRInsightsPullRequestsRow{}, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceDeploymentConfig, policy.ActionRead)
-	}))
 	s.Run("GetTelemetryTaskEvents", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.GetTelemetryTaskEventsParams{}
 		dbm.EXPECT().GetTelemetryTaskEvents(gomock.Any(), arg).Return([]database.GetTelemetryTaskEventsRow{}, nil).AnyTimes()
