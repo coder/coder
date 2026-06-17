@@ -3233,8 +3233,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 
 	_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, nil)
 
-	// This can take a while, so set a relatively long timeout.
-	ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
+	// This can take a while, so set a long timeout that outlasts the three
+	// build awaits below.
+	ctx := testutil.Context(t, 6*testutil.WaitSuperLong)
 
 	// Creating a template as a template admin must succeed
 	templateFiles := map[string]string{"main.tf": mainTfTemplate}
@@ -3250,7 +3251,9 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		UserVariableValues: []codersdk.VariableValue{},
 	})
 	require.NoError(t, err, "failed to create template version")
-	coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+	// Uncached Windows runners make real terraform builds much slower than
+	// the default await timeout.
+	coderdtest.AwaitTemplateVersionJobCompletedWithTimeout(t, templateAdmin, tv.ID, 2*testutil.WaitSuperLong)
 	tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 	// Set to dynamic params
@@ -3281,7 +3284,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 	// Then: the build should succeed. The updated value of param_min should be
 	// used to validate param instead of the value defined in the temp
 	require.NoError(t, err, "failed to create workspace")
-	createBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+	// Same timeout reason as above.
+	createBuild := coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, ws.LatestBuild.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, createBuild.Status, codersdk.WorkspaceStatusRunning)
 
 	// File should exist
@@ -3293,7 +3297,8 @@ func TestWorkspaceTemplateParamsChange(t *testing.T) {
 		Transition: codersdk.WorkspaceTransitionDelete,
 	})
 	require.NoError(t, err)
-	build = coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, build.ID)
+	// Same timeout reason as above.
+	build = coderdtest.AwaitWorkspaceBuildJobCompletedWithTimeout(t, member, build.ID, 2*testutil.WaitSuperLong)
 	require.Equal(t, codersdk.WorkspaceStatusDeleted, build.Status)
 
 	logsCh, closeLogs, err := member.WorkspaceBuildLogsAfter(ctx, build.ID, 0)
