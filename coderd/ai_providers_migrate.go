@@ -126,8 +126,15 @@ func SeedAIProvidersFromEnv(
 				for _, k := range existingKeyRows {
 					existingKeys = append(existingKeys, k.APIKey)
 				}
+				// Use the canonical type so that a row promoted from
+				// type=anthropic to type=bedrock by the startup backfill
+				// is not mistaken for drift on the next startup.
+				existingType := existing.Type
+				if existingSettings.Bedrock != nil && existing.Type == database.AiProviderTypeAnthropic {
+					existingType = database.AiProviderTypeBedrock
+				}
 				existingDP := desiredAIProvider{
-					Type:    existing.Type,
+					Type:    existingType,
 					BaseURL: existing.BaseUrl,
 					Bedrock: existingSettings.Bedrock,
 					Keys:    existingKeys,
@@ -330,6 +337,7 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 			Type: database.AiProviderTypeAnthropic,
 		}
 		if hasLegacyBedrock {
+			dp.Type = database.AiProviderTypeBedrock
 			if hasAnthropicKey {
 				logger.Warn(ctx, "ignoring legacy Anthropic API key because Bedrock credentials are configured; Bedrock authenticates via access keys or credential chain",
 					slog.F("provider", aibridge.ProviderAnthropic),
