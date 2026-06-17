@@ -101,7 +101,7 @@ func publishRelease(exec CommandExecutor, versionTag string, stable bool, notesF
 		ghArgs = append(ghArgs, filepath.Join(tempDir, e.Name()))
 	}
 
-	if err := exec.RunStdout(os.Stdout, os.Stderr, "gh", ghArgs...); err != nil {
+	if err := exec.RunMutationStdout(os.Stdout, os.Stderr, "gh", ghArgs...); err != nil {
 		return xerrors.Errorf("gh release create: %w", err)
 	}
 

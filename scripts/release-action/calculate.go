@@ -53,7 +53,7 @@ var branchRe = regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 // the tool defaults to HEAD of the ref.
 func calculateNextVersion(exec CommandExecutor, releaseType, ref, commitSHA string) (calculateResult, error) {
 	// Ensure we have up-to-date remote state.
-	if _, err := gitOutput(exec, "fetch", "--tags", "--force", "origin"); err != nil {
+	if err := gitMutate(exec, "fetch", "--tags", "--force", "origin"); err != nil {
 		return nil, xerrors.Errorf("git fetch: %w", err)
 	}
 

@@ -26,11 +26,21 @@ func TestRealExecutor_Run(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestRealExecutor_RunStdout(t *testing.T) {
+func TestRealExecutor_RunMutation(t *testing.T) {
+	t.Parallel()
+	exec := realExecutor{}
+	err := exec.RunMutation("true")
+	require.NoError(t, err)
+
+	err = exec.RunMutation("false")
+	require.Error(t, err)
+}
+
+func TestRealExecutor_RunMutationStdout(t *testing.T) {
 	t.Parallel()
 	exec := realExecutor{}
 	var stdout, stderr bytes.Buffer
-	err := exec.RunStdout(&stdout, &stderr, "echo", "output")
+	err := exec.RunMutationStdout(&stdout, &stderr, "echo", "output")
 	require.NoError(t, err)
 	assert.Equal(t, "output\n", stdout.String())
 }
@@ -57,26 +67,36 @@ func TestDryRunExecutor_RunDelegates(t *testing.T) {
 	assert.Empty(t, buf.String(), "Run should not produce dry-run output")
 }
 
-func TestDryRunExecutor_RunStdoutPrints(t *testing.T) {
+func TestDryRunExecutor_RunMutationPrints(t *testing.T) {
+	t.Parallel()
+	var buf bytes.Buffer
+	exec := newDryRunExecutor(&buf)
+
+	err := exec.RunMutation("git", "fetch", "--tags", "--force", "origin")
+	require.NoError(t, err)
+	assert.Contains(t, buf.String(), "[dry-run] would run: git fetch --tags --force origin")
+}
+
+func TestDryRunExecutor_RunMutationStdoutPrints(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	exec := newDryRunExecutor(&buf)
 
 	var stdout, stderr bytes.Buffer
-	err := exec.RunStdout(&stdout, &stderr, "gh", "release", "create", "--repo", "coder/coder", "--title", "v2.21.0")
+	err := exec.RunMutationStdout(&stdout, &stderr, "gh", "release", "create", "--repo", "coder/coder", "--title", "v2.21.0")
 	require.NoError(t, err)
 
-	assert.Empty(t, stdout.String(), "RunStdout should not produce real output in dry-run")
+	assert.Empty(t, stdout.String(), "RunMutationStdout should not produce real output in dry-run")
 	assert.Contains(t, buf.String(), "[dry-run] would run: gh release create --repo coder/coder --title v2.21.0")
 }
 
-func TestDryRunExecutor_RunStdoutQuotesArgs(t *testing.T) {
+func TestDryRunExecutor_RunMutationStdoutQuotesArgs(t *testing.T) {
 	t.Parallel()
 	var buf bytes.Buffer
 	exec := newDryRunExecutor(&buf)
 
 	var stdout, stderr bytes.Buffer
-	err := exec.RunStdout(&stdout, &stderr, "gh", "release", "create", "--title", "has space")
+	err := exec.RunMutationStdout(&stdout, &stderr, "gh", "release", "create", "--title", "has space")
 	require.NoError(t, err)
 
 	assert.Contains(t, buf.String(), "'has space'")

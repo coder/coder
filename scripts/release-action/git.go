@@ -5,9 +5,16 @@ func gitOutput(exec CommandExecutor, args ...string) (string, error) {
 	return exec.RunOutput("git", args...)
 }
 
-// gitRun runs a git command, discarding stdout/stderr. Use this
-// for commands where only the exit code matters (e.g. merge-base
-// --is-ancestor).
+// gitRun runs a read-only git command, discarding stdout/stderr.
+// Use this for commands where only the exit code matters (e.g.
+// merge-base --is-ancestor).
 func gitRun(exec CommandExecutor, args ...string) error {
 	return exec.Run("git", args...)
+}
+
+// gitMutate runs a git command that modifies state (e.g. fetch,
+// push, tag). In dry-run mode the command is printed instead of
+// executed.
+func gitMutate(exec CommandExecutor, args ...string) error {
+	return exec.RunMutation("git", args...)
 }
