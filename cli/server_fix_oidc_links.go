@@ -9,8 +9,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/authlink"
 	"github.com/coder/coder/v2/coderd/database"

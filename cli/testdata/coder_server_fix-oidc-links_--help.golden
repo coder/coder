@@ -23,7 +23,7 @@ OPTIONS:
           case).
 
   -y, --yes bool
-          Bypass confirmation prompts.
+          Bypass prompts.
 
 ———
 Run `coder --help` for a list of global options.

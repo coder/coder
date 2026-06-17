@@ -17,7 +17,7 @@ coder server fix-oidc-links [flags]
 |------|-------------------|
 | Type | <code>bool</code> |
 
-Bypass confirmation prompts.
+Bypass prompts.
 
 ### --postgres-url
 

@@ -3171,6 +3171,7 @@ export interface OIDCConfig {
 	readonly icon_url: string;
 	readonly signups_disabled_text: string;
 	readonly skip_issuer_checks: boolean;
+	readonly auto_repair_links: boolean;
 }
 
 // From codersdk/parameters.go

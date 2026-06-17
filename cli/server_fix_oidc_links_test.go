@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // fakeOIDCDiscovery returns a test server serving an OIDC discovery document.
@@ -79,13 +79,13 @@ func TestFixOIDCLinks(t *testing.T) {
 			"--dry-run",
 		)
 
-		stdout := expecter.NewAttachedToInvocation(t, inv)
+		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
 
-		stdout.ExpectMatch(ctx, "Resolved OIDC issuer: \""+expectedIssuer+"\"")
-		stdout.ExpectMatch(ctx, "Total OIDC users:")
-		stdout.ExpectMatch(ctx, "Correctly linked:")
-		stdout.ExpectMatch(ctx, "Linked to other issuers:")
+		pty.ExpectMatchContext(ctx, "Resolved OIDC issuer: \""+expectedIssuer+"\"")
+		pty.ExpectMatchContext(ctx, "Total OIDC users:")
+		pty.ExpectMatchContext(ctx, "Correctly linked:")
+		pty.ExpectMatchContext(ctx, "Linked to other issuers:")
 		w.RequireSuccess()
 
 		// Verify no changes were made.
@@ -138,10 +138,10 @@ func TestFixOIDCLinks(t *testing.T) {
 			"--yes",
 		)
 
-		stdout := expecter.NewAttachedToInvocation(t, inv)
+		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
 
-		stdout.ExpectMatch(ctx, "Reset 1 linked IDs.")
+		pty.ExpectMatchContext(ctx, "Reset 1 linked IDs.")
 		w.RequireSuccess()
 
 		// Verify the mismatched link was reset.
@@ -194,10 +194,10 @@ func TestFixOIDCLinks(t *testing.T) {
 			"--yes",
 		)
 
-		stdout := expecter.NewAttachedToInvocation(t, inv)
+		pty := ptytest.New(t).Attach(inv)
 		w := clitest.StartWithWaiter(t, inv)
 
-		stdout.ExpectMatch(ctx, "Nothing to do")
+		pty.ExpectMatchContext(ctx, "Nothing to do")
 		w.RequireSuccess()
 	})
 }
