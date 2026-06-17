@@ -23621,6 +23621,12 @@ const docTemplate = `{
                 },
                 "os": {
                     "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
+                    }
                 }
             }
         },
@@ -23655,6 +23661,12 @@ const docTemplate = `{
                 "base_template_id": {
                     "type": "string"
                 },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "modules": {
                     "type": "array",
                     "items": {
@@ -23683,6 +23695,12 @@ const docTemplate = `{
             "properties": {
                 "base_template_id": {
                     "type": "string"
+                },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "description": {
                     "type": "string"

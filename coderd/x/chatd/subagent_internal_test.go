@@ -3315,7 +3315,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	server.drainInflight()
+	WaitUntilIdleForTest(server)
 
 	insertedFile := insertLinkedChatFile(
 		ctx,
@@ -3501,6 +3501,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
+		// signalWake from CreateChat may trigger immediate processing.
+		// Wait for it to settle, then reset chats to the state we need.
+		WaitUntilIdleForTest(server)
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -3578,7 +3581,8 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
 		// This case should return immediately, so use the shared
-		// real-clock passive server instead of a mock clock.
+		// real-clock server instead of a mock clock.
+		WaitUntilIdleForTest(server)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
