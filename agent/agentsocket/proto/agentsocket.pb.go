@@ -501,6 +501,8 @@ func (x *SyncStatusRequest) GetUnit() string {
 	return ""
 }
 
+// DependencyInfo represents a directed edge in the dependency graph from one unit
+// to a unit it depends on, along with the required and current status of the dependency.
 type DependencyInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
@@ -681,6 +683,9 @@ func (*SyncListRequest) Descriptor() ([]byte, []int) {
 	return file_agent_agentsocket_proto_agentsocket_proto_rawDescGZIP(), []int{13}
 }
 
+// UnitInfo represents a single unit vertex in the dependency graph.
+// Unlike DependencyInfo, which represents a directed edge between two units,
+// UnitInfo captures the state of the unit itself.
 type UnitInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

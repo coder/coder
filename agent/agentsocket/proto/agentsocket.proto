@@ -40,6 +40,8 @@ message SyncStatusRequest {
   string unit = 1;
 }
 
+// DependencyInfo represents a directed edge in the dependency graph from one unit
+// to a unit it depends on, along with the required and current status of the dependency.
 message DependencyInfo {
   string unit = 1;
   string depends_on = 2;
@@ -56,6 +58,9 @@ message SyncStatusResponse {
 
 message SyncListRequest {}
 
+// UnitInfo represents a single unit vertex in the dependency graph.
+// Unlike DependencyInfo, which represents a directed edge between two units,
+// UnitInfo captures the state of the unit itself.
 message UnitInfo {
   string unit = 1;
   string status = 2;

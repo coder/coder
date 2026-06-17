@@ -285,6 +285,8 @@ func (m *Manager) GetUnmetDependencies(unit ID) ([]Dependency, error) {
 }
 
 // ListUnits returns a snapshot of all registered units and their current status.
+// Unit contains only value-type fields (ID, Status, bool), so iterating over
+// the map produces independent copies with no shared mutable state.
 func (m *Manager) ListUnits() []Unit {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
