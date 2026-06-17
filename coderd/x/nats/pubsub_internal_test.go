@@ -262,8 +262,13 @@ func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
 
 	ps := newTestPubsub(t, defaultTestOptions())
 	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.connected))
 
 	require.NoError(t, ps.Close())
+
+	// Close reports disconnected even though the disconnect handler is
+	// suppressed for our own connection closes.
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.connected))
 
 	// Closing our own connections must not invoke the disconnect handler,
 	// so disconnections_total stays 0. The async callback would fire

@@ -176,6 +176,18 @@ func (m *metrics) markConnected(total int) {
 	m.setConnectedLocked()
 }
 
+// markClosed records that the Pubsub is shutting down and forces the
+// connected gauge to 0. Closing our own connections does not fire the
+// disconnect handler (see NoCallbacksAfterClientClose), so without this
+// the gauge would still read 1 after Close. connectedConns is zeroed so
+// a late reconnect callback cannot flip the gauge back to 1.
+func (m *metrics) markClosed() {
+	m.connMu.Lock()
+	defer m.connMu.Unlock()
+	m.connectedConns = 0
+	m.connected.Set(0)
+}
+
 // onDisconnect records an unexpected disconnect of one owned connection.
 func (m *metrics) onDisconnect() {
 	m.disconnectionsTotal.Inc()

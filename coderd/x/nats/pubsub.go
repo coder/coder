@@ -552,6 +552,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *groupSub) {
 // Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
 	p.closeOnce.Do(func() {
+		// Report disconnected immediately. The owned connections are
+		// closed below without firing the disconnect handler, so nothing
+		// else resets the gauge during shutdown.
+		p.metrics.markClosed()
 		p.mu.Lock()
 		p.logger.Debug(p.ctx, "closing pubsub")
 		// Cancel while holding p.mu so subscriber state cleanup below
