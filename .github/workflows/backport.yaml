@@ -1,11 +1,16 @@
-# Automatically backport merged PRs to the last N release branches when the
-# "backport" label is applied. Works whether the label is added before or
-# after the PR is merged.
+# Automatically backport merged PRs to the last 3 release branches plus all
+# active ESR branches when the "backport" label is applied. Works whether the
+# label is added before or after the PR is merged.
+#
+# ESR (Extended Support Release) versions are defined in
+# scripts/lib/esr_versions.sh. It is typical for one of the latest 3 releases
+# to also be an ESR; duplicates are removed automatically.
 #
 # Usage:
 #   1. Add the "backport" label to a PR targeting main.
 #   2. When the PR merges (or if already merged), the workflow detects the
-#      latest release/* branches and opens one cherry-pick PR per branch.
+#      latest release/* branches and ESR branches, then opens one cherry-pick
+#      PR per branch.
 #
 # The created backport PRs follow existing repo conventions:
 #   - Branch:  backport/<pr>-to-<version>
@@ -49,6 +54,10 @@ jobs:
       - name: Find latest release branches
         id: find
         run: |
+          # Source the shared ESR version list.
+          # shellcheck source=../../scripts/lib/esr_versions.sh
+          source "${GITHUB_WORKSPACE}/scripts/lib/esr_versions.sh"
+
           # List remote release branches matching the exact release/2.X
           # pattern (no suffixes like release/2.31_hotfix), sort by minor
           # version descending, and take the top 3.
@@ -59,6 +68,18 @@ jobs:
               | sort -t. -k2 -n -r \
               | head -3
           )
+
+          # Append ESR release branches that are not already in the list.
+          for minor in "${ESR_VERSIONS[@]}"; do
+            esr_branch="release/2.${minor}"
+            if echo "$BRANCHES" | grep -qxF "$esr_branch"; then
+              continue
+            fi
+            # Only add if the branch actually exists on the remote.
+            if git branch -r | grep -qE "^\s*origin/${esr_branch}$"; then
+              BRANCHES=$(printf '%s\n%s' "$BRANCHES" "$esr_branch")
+            fi
+          done
 
           if [ -z "$BRANCHES" ]; then
             echo "No release branches found."
