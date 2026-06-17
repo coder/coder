@@ -50,8 +50,16 @@ else
 	fi
 
 	if [[ -z "$base" ]]; then
-		echo "WARNING: no base ref found, scanning all tracked files."
-		scan_all_files
+		# No base ref is available outside of pull requests, for
+		# example push builds on release branches with a shallow
+		# clone where neither GITHUB_BASE_REF nor origin/main is
+		# present. The diff check has nothing to compare against,
+		# and scanning every tracked file would flag pre-existing
+		# characters that are unrelated to the change under test.
+		# Skip instead; pass --all to force a full-tree scan.
+		echo "OK: no base ref found (not a pull request); skipping emdash check."
+		echo "    Pass --all to scan every tracked file."
+		exit 0
 	else
 		# Ensure the base ref is fetchable. CI shallow clones
 		# (fetch-depth: 1) may not have the base branch available.
