@@ -257,6 +257,23 @@ func Test_Pubsub_failureMetrics(t *testing.T) {
 	require.Equal(t, 1.0, promtestutil.ToFloat64(ps.metrics.subscribesTotal.WithLabelValues("false")))
 }
 
+func Test_Pubsub_gracefulCloseDoesNotCountDisconnect(t *testing.T) {
+	t.Parallel()
+
+	ps := newTestPubsub(t, defaultTestOptions())
+	require.Equal(t, 0.0, promtestutil.ToFloat64(ps.metrics.disconnectionsTotal))
+
+	require.NoError(t, ps.Close())
+
+	// Closing our own connections must not invoke the disconnect handler,
+	// so disconnections_total stays 0. The async callback would fire
+	// within milliseconds if it were going to, so a short window catches a
+	// regression without making the test slow.
+	require.Never(t, func() bool {
+		return promtestutil.ToFloat64(ps.metrics.disconnectionsTotal) > 0
+	}, 2*time.Second, testutil.IntervalFast)
+}
+
 func Test_localSub(t *testing.T) {
 	t.Parallel()
 

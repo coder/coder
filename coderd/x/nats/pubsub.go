@@ -413,7 +413,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		defer p.mu.Unlock()
 
 		if p.ctx.Err() != nil {
-			return nil, erroredGroupSub(errClosed)
+			return nil, erroredGroupSub(p.metrics, errClosed)
 		}
 
 		var (
@@ -719,10 +719,11 @@ func pickConn(pool []conn, subject string) conn {
 }
 
 // erroredGroupSub returns a groupSub that shows an error rather than an active subscription.
-func erroredGroupSub(err error) *groupSub {
+func erroredGroupSub(m *metrics, err error) *groupSub {
 	c := make(chan struct{})
 	close(c)
 	return &groupSub{
+		metrics: m,
 		sub: &subGetter{
 			subscribeDone: c,
 			err:           err,
