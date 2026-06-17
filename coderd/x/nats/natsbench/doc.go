@@ -25,9 +25,9 @@
 //   - Delivery completion: a zero-drop run finishes precisely when every
 //     subscriber reaches its expected count. A run that dropped messages
 //     can never reach that count, so the deliver phase instead completes
-//     by quiescence: once the delivery counter stays flat for
-//     Config.SettleWindow, the phase ends, and the rate is measured to
-//     the last observed delivery so the idle wait stays out of it.
+//     by quiescence: once the delivery counter stays flat for a fixed
+//     settle window, the phase ends, and the rate is measured to the
+//     last observed delivery so the idle wait stays out of it.
 //   - Readiness gate: in multi-replica runs, cross-route delivery is
 //     silent when subscription interest has not yet propagated. Before
 //     the measured phase, in-band probe messages prove that every

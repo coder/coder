@@ -72,13 +72,6 @@ type Config struct {
 	// Timeout bounds each phase (readiness, publish, deliver). It must
 	// be positive.
 	Timeout time.Duration
-	// SettleWindow is how long the delivery counter must stay flat
-	// before a run that dropped messages is declared complete. A run
-	// that drops messages can never reach its exact expected count, so
-	// the deliver phase falls back to quiescence detection. Zero-drop
-	// runs finish precisely on the exact count and never wait this long.
-	// It must be positive and less than Timeout.
-	SettleWindow time.Duration
 }
 
 // Result reports one run's exact accounting and throughput.
@@ -152,12 +145,6 @@ func (c Config) validate() error {
 	}
 	if c.Timeout <= 0 {
 		return xerrors.Errorf("timeout must be positive, got %s", c.Timeout)
-	}
-	if c.SettleWindow <= 0 {
-		return xerrors.Errorf("settle window must be positive, got %s", c.SettleWindow)
-	}
-	if c.SettleWindow >= c.Timeout {
-		return xerrors.Errorf("settle window %s must be less than timeout %s", c.SettleWindow, c.Timeout)
 	}
 	return nil
 }

@@ -156,7 +156,6 @@ func TestDefaultScenarios(t *testing.T) {
 		seen[sc.Name] = struct{}{}
 		cfg := sc.Config
 		cfg.Timeout = testutil.WaitShort
-		cfg.SettleWindow = time.Second
 		require.NoError(t, cfg.validate())
 		if sc.Config.PayloadSize == Payload64KB && sc.Config.Replicas > 1 {
 			require.Less(t, sc.Config.Messages, DefaultMessages,

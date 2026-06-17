@@ -48,6 +48,10 @@ type workload struct {
 	// convergence is how long the readiness gate took to propagate
 	// interest across the cluster; zero for single-node runs.
 	convergence time.Duration
+	// settleWindow is the delivery quiescence window used when a run
+	// dropped messages and can never reach its exact count. It defaults
+	// to defaultSettleWindow; tests override it to stay fast.
+	settleWindow time.Duration
 }
 
 // runWorkload executes one benchmark run on an already-built topology:
@@ -55,11 +59,12 @@ type workload struct {
 // together, and account for every expected delivery.
 func runWorkload(ctx context.Context, logger slog.Logger, top *topology, pl plan, cfg Config) (*Result, error) {
 	w := &workload{
-		logger:  logger,
-		top:     top,
-		pl:      pl,
-		cfg:     cfg,
-		allDone: make(chan struct{}),
+		logger:       logger,
+		top:          top,
+		pl:           pl,
+		cfg:          cfg,
+		allDone:      make(chan struct{}),
+		settleWindow: defaultSettleWindow,
 	}
 	defer w.cancelAll()
 	if err := w.subscribe(); err != nil {
@@ -142,15 +147,6 @@ func (w *workload) subscribe() error {
 			return xerrors.Errorf("register subscriber %d: %w", j, err)
 		}
 		w.cancels = append(w.cancels, cancel)
-	}
-	// Listeners close allDone when the last subscriber reaches its
-	// expected count. This pre-close handles the degenerate plan where
-	// every subscriber expects zero messages, since no listener would
-	// ever fire. It is mutually exclusive with the listener close: a
-	// listener only decrements outstanding for a subscriber with a
-	// positive expectation, so if outstanding is zero here, none will.
-	if w.outstanding.Load() == 0 {
-		close(w.allDone)
 	}
 	return nil
 }
@@ -242,6 +238,14 @@ func (w *workload) awaitPhase(ctx context.Context, phase string, signal <-chan s
 // allDone regardless of this cadence.
 const deliveryPollInterval = 100 * time.Millisecond
 
+// defaultSettleWindow is how long the delivery counter must stay flat
+// before a run that dropped messages is declared complete. It is a fixed
+// internal constant rather than a knob: only a run that drops messages
+// ever waits it out, and on loopback a backlogged subscriber catches up
+// in milliseconds, so two seconds is ample headroom. Too short would
+// overcount drops; too long only slows runs that already dropped.
+const defaultSettleWindow = 2 * time.Second
+
 // awaitDelivery waits for the deliver phase to finish and returns its
 // duration measured from hot.
 //
@@ -249,7 +253,7 @@ const deliveryPollInterval = 100 * time.Millisecond
 // finishes precisely with no settle delay. A run that dropped messages
 // can never reach that count, so it instead completes by quiescence: the
 // total delivered counter is polled, and once it has not advanced for
-// SettleWindow the phase is declared complete. The duration is measured
+// settleWindow the phase is declared complete. The duration is measured
 // to the last observed progress, not to the end of the settle window, so
 // the idle wait never inflates the delivery rate.
 //
@@ -279,7 +283,7 @@ func (w *workload) awaitDelivery(ctx context.Context, hot time.Time) (time.Durat
 				lastProgress = now
 				continue
 			}
-			if now.Sub(lastProgress) >= w.cfg.SettleWindow {
+			if now.Sub(lastProgress) >= w.settleWindow {
 				return lastProgress.Sub(hot), nil
 			}
 		}

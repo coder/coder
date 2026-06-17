@@ -32,9 +32,10 @@ func TestAwaitDeliveryExactCount(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	w := &workload{
-		logger:  testutil.Logger(t),
-		cfg:     Config{Timeout: testutil.WaitShort, SettleWindow: testutil.WaitShort},
-		allDone: make(chan struct{}),
+		logger:       testutil.Logger(t),
+		cfg:          Config{Timeout: testutil.WaitShort},
+		allDone:      make(chan struct{}),
+		settleWindow: testutil.WaitShort,
 	}
 	st := &subscriberState{expect: 3, tracker: newProbeTracker()}
 	w.subs = []*subscriberState{st}
@@ -61,10 +62,11 @@ func TestAwaitDeliveryQuiescence(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	w := &workload{
 		logger: testutil.Logger(t),
+		cfg:    Config{Timeout: testutil.WaitShort},
 		// A short settle window keeps the test fast; the timeout is far
 		// larger so quiescence, not the hard timeout, ends the phase.
-		cfg:     Config{Timeout: testutil.WaitShort, SettleWindow: deliveryPollInterval / 2},
-		allDone: make(chan struct{}),
+		allDone:      make(chan struct{}),
+		settleWindow: deliveryPollInterval / 2,
 	}
 	// A subscriber that never reaches its expectation models a dropped
 	// message: allDone can never close, so the phase must complete by
