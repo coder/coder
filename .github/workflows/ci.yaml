@@ -183,10 +183,15 @@ jobs:
       # `**.md` (not `docs/**.md`) because the latter silently skips
       # dot-prefixed dirs and would miss docs/.style/style-guide.md. The
       # prose step below re-filters to docs/ paths.
-      - name: Cache Vale styles and binary
+      # Cache split into restore + conditional save to avoid letting PR
+      # runs populate a cache that other branches restore from (the
+      # zizmor `cache-poisoning` concern). Only pushes to the default
+      # branch may write the cache; PRs may only read it.
+      - name: Restore Vale styles and binary
+        id: vale-cache
         if: steps.changed-md.outputs.any_changed == 'true'
         continue-on-error: true
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           # Negation excludes the hand-authored Coder rules from the cache;
           # the key also hashes them so a rule change always invalidates it.
@@ -196,6 +201,8 @@ jobs:
             docs/.style/.vale-synced
             build/vale-*
           key: vale-${{ hashFiles('.vale.ini', 'mise.toml', 'docs/.style/styles/Coder/**') }}
+          restore-keys: |
+            vale-
 
       - name: Prepare Vale styles
         if: steps.changed-md.outputs.any_changed == 'true'
@@ -223,6 +230,21 @@ jobs:
           echo "::add-matcher::.github/vale-problem-matcher.json"
           printf '%s\n' "$files" | xargs -d '\n' "$vale" --no-exit --output=line
           echo "::remove-matcher owner=vale::"
+
+      - name: Save Vale styles and binary
+        # Only the default branch is trusted to write the cache, so PR
+        # runs cannot poison the cache that subsequent runs restore from.
+        # Skip when the cache already had an exact key hit (no new content).
+        if: github.ref == 'refs/heads/main' && steps.changed-md.outputs.any_changed == 'true' && steps.vale-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
+            docs/.style/.vale-synced
+            build/vale-*
+          key: ${{ steps.vale-cache.outputs.cache-primary-key }}
 
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
   # Re-enable once the flake hash calculation is stable.
