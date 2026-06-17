@@ -16,13 +16,11 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FC, useState } from "react";
-import { useMutation, useQuery } from "react-query";
+import { useMutation } from "react-query";
 import * as Yup from "yup";
-import { API } from "#/api/api";
 import {
 	deleteWorkspacePortShare,
 	upsertWorkspacePortShare,
-	workspacePortShares,
 } from "#/api/queries/workspaceportsharing";
 import {
 	type Template,
@@ -53,6 +51,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { usePortsData } from "#/modules/resources/usePortsData";
 import { docs } from "#/utils/docs";
 import { getFormHelpers } from "#/utils/formUtils";
 import {
@@ -76,19 +75,11 @@ export const PortForwardButton: FC<PortForwardButtonProps> = ({
 }) => {
 	const { entitlements } = useDashboard();
 
-	const { data: listeningPorts } = useQuery({
-		queryKey: ["portForward", agent.id],
-		queryFn: () => API.getAgentListeningPorts(agent.id),
-		enabled: agent.status === "connected",
-		refetchInterval: 5_000,
-		select: (res) => res.ports,
-	});
-
-	const { data: sharedPorts, refetch: refetchSharedPorts } = useQuery({
-		...workspacePortShares(workspace.id),
-		enabled: agent.status === "connected",
-		select: (res) => res.shares,
-	});
+	const { listeningPorts, sharedPorts, refetchSharedPorts } = usePortsData(
+		workspace,
+		agent,
+		agent.status === "connected",
+	);
 
 	return (
 		<Popover>
@@ -193,13 +184,10 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers(form, submitError);
 
-	// filter out shared ports that are not from this agent
-	const filteredSharedPorts = sharedPorts.filter(
-		(port) => port.agent_name === agent.name,
-	);
-	// we don't want to show listening ports if it's a shared port
+	// usePortsData already filters shared ports down to this agent, so only
+	// hide listening ports that are also shared.
 	const filteredListeningPorts = listeningPorts.filter((port) =>
-		filteredSharedPorts.every((sharedPort) => sharedPort.port !== port.port),
+		sharedPorts.every((sharedPort) => sharedPort.port !== port.port),
 	);
 	// only disable the form if shared port controls are entitled and the template doesn't allow sharing ports
 	const canSharePorts = !(
@@ -423,7 +411,7 @@ export const PortForwardPopoverView: FC<PortForwardPopoverViewProps> = ({
 				</HelpPopoverText>
 				{canSharePorts && (
 					<div>
-						{filteredSharedPorts?.map((share) => {
+						{sharedPorts.map((share) => {
 							const url = portForwardURL(
 								host,
 								share.port,
