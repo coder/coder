@@ -982,5 +982,9 @@ These options are only available in the Enterprise Edition.
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
 
+      --scim-use-legacy bool, $CODER_SCIM_USE_LEGACY (default: true)
+          Use the legacy SCIM implementation instead of the SCIM 2.0 handler.
+          This is provided for backward compatibility for existing users.
+
 ———
 Run `coder --help` for a list of global options.
