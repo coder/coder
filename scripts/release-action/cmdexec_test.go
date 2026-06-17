@@ -72,9 +72,9 @@ func TestDryRunExecutor_RunMutationPrints(t *testing.T) {
 	var buf bytes.Buffer
 	exec := newDryRunExecutor(&buf)
 
-	err := exec.RunMutation("git", "fetch", "--tags", "--force", "origin")
+	err := exec.RunMutation("git", "push", "origin", "refs/tags/v2.21.0:refs/tags/v2.21.0")
 	require.NoError(t, err)
-	assert.Contains(t, buf.String(), "[dry-run] would run: git fetch --tags --force origin")
+	assert.Contains(t, buf.String(), "[dry-run] would run: git push origin refs/tags/v2.21.0:refs/tags/v2.21.0")
 }
 
 func TestDryRunExecutor_RunMutationStdoutPrints(t *testing.T) {

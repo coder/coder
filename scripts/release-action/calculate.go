@@ -52,8 +52,10 @@ var branchRe = regexp.MustCompile(`^release/(\d+)\.(\d+)$`)
 // (github.ref_name). commitSHA is an optional override; when empty
 // the tool defaults to HEAD of the ref.
 func calculateNextVersion(exec CommandExecutor, releaseType, ref, commitSHA string) (calculateResult, error) {
-	// Ensure we have up-to-date remote state.
-	if err := gitMutate(exec, "fetch", "--tags", "--force", "origin"); err != nil {
+	// Ensure we have up-to-date remote state. Fetching only updates
+	// local remote-tracking refs, so it runs even in dry-run mode to
+	// keep version calculation accurate.
+	if _, err := gitOutput(exec, "fetch", "--tags", "--force", "origin"); err != nil {
 		return nil, xerrors.Errorf("git fetch: %w", err)
 	}
 

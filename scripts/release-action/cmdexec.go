@@ -25,8 +25,8 @@ type CommandExecutor interface {
 	// Use for read-only commands where only the exit code matters.
 	Run(name string, args ...string) error
 
-	// RunMutation executes a command that modifies state (e.g. git
-	// fetch, git push, git tag). In dry-run mode it prints instead
+	// RunMutation executes a command that modifies remote state
+	// (e.g. git push, git tag). In dry-run mode it prints instead
 	// of executing.
 	RunMutation(name string, args ...string) error
 

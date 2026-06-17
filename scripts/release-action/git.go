@@ -12,7 +12,7 @@ func gitRun(exec CommandExecutor, args ...string) error {
 	return exec.Run("git", args...)
 }
 
-// gitMutate runs a git command that modifies state (e.g. fetch,
+// gitMutate runs a git command that modifies remote state (e.g.
 // push, tag). In dry-run mode the command is printed instead of
 // executed.
 func gitMutate(exec CommandExecutor, args ...string) error {
