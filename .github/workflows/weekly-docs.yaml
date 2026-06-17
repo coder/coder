@@ -126,7 +126,7 @@ jobs:
           filter_mode: "file"
 
       - name: Send Slack notification
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name != 'pull_request'
         run: |
           curl \
             -X POST \
@@ -188,7 +188,7 @@ jobs:
           fi
 
       - name: Send Slack notification
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name != 'pull_request'
         run: |
           curl \
             -X POST \
