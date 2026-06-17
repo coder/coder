@@ -30,7 +30,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("ByTaskName_WithArgument", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
@@ -38,7 +38,7 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
@@ -46,7 +46,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("ByTaskID_WithArgument", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
@@ -54,7 +54,7 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
@@ -62,7 +62,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("ByTaskName_WithStdin", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "carry on with the task", "you got it"))
 
 		var stdout strings.Builder
@@ -71,14 +71,14 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdin = strings.NewReader("carry on with the task")
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 	})
 
 	t.Run("TaskNotFound_ByName", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -96,7 +96,7 @@ func Test_TaskSend(t *testing.T) {
 
 	t.Run("TaskNotFound_ByID", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -115,7 +115,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("SendError", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendErr(assert.AnError))
 
 		var stdout strings.Builder
@@ -123,7 +123,7 @@ func Test_TaskSend(t *testing.T) {
 		inv.Stdout = &stdout
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, assert.AnError.Error())
 	})
@@ -131,7 +131,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("WaitsForInitializingTask", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
 
 		// Close the first agent, pause, then resume the task so the
@@ -145,7 +145,7 @@ func Test_TaskSend(t *testing.T) {
 		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		inv = inv.WithContext(ctx)
 
 		// Use a pty so we can wait for the command to produce build
@@ -185,7 +185,7 @@ func Test_TaskSend(t *testing.T) {
 	t.Run("ResumesPausedTask", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
 
 		// Close the first agent before pausing so it does not conflict
@@ -197,7 +197,7 @@ func Test_TaskSend(t *testing.T) {
 		inv, root := clitest.New(t, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		inv = inv.WithContext(ctx)
 
 		// Use a pty so we can wait for the command to produce build
@@ -241,7 +241,7 @@ func Test_TaskSend(t *testing.T) {
 		// workspace is started but no agent is connected. The
 		// command enters waitForTaskIdle directly (initializing
 		// path), where we verify it handles an external pause.
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		require.NoError(t, setup.agent.Close())
@@ -257,7 +257,7 @@ func Test_TaskSend(t *testing.T) {
 		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		inv = inv.WithContext(ctx)
 
 		stdout := expecter.NewAttachedToInvocation(t, inv)
@@ -305,7 +305,7 @@ func Test_TaskSend(t *testing.T) {
 		t.Parallel()
 
 		// Given: An active task whose app is in "working" state.
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some task input", "some task response"))
 
 		// Move the app into "working" state before running the command.
@@ -325,7 +325,7 @@ func Test_TaskSend(t *testing.T) {
 		inv, root := clitest.NewWithClock(t, mClock, "task", "send", setup.task.Name, "some task input")
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
 
@@ -374,7 +374,7 @@ func Test_TaskSend(t *testing.T) {
 			t.Run(string(appState), func(t *testing.T) {
 				t.Parallel()
 
-				setupCtx := testutil.Context(t, testutil.WaitLong)
+				setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 				setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskSendOK(t, "some input", "some response"))
 
 				agentClient := agentsdk.New(setup.userClient.URL, agentsdk.WithFixedToken(setup.agentToken))
@@ -387,7 +387,7 @@ func Test_TaskSend(t *testing.T) {
 				inv, root := clitest.New(t, "task", "send", setup.task.Name, "some input")
 				clitest.SetupConfig(t, setup.userClient, root)
 
-				ctx := testutil.Context(t, testutil.WaitLong)
+				ctx := testutil.Context(t, testutil.WaitSuperLong)
 				err := inv.WithContext(ctx).Run()
 				require.NoError(t, err)
 			})

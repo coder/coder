@@ -74,7 +74,7 @@ ExtractCommandPathsLoop:
 	for _, tt := range cases {
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 			var outBuf bytes.Buffer
 
@@ -249,7 +249,7 @@ func extractVisibleCommandPaths(cmdPath []string, cmds []*serpent.Command) [][]s
 func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	t.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
 
 	// This needs to be a fixed timezone because timezones increase the length

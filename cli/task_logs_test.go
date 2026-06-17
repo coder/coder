@@ -40,14 +40,14 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("ByTaskName_JSON", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", setup.task.Name, "--output", "json")
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -63,14 +63,14 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("ByTaskID_JSON", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String(), "--output", "json")
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -86,14 +86,14 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("ByTaskID_Table", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsOK(testMessages))
 
 		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String())
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -103,7 +103,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 
 	t.Run("TaskNotFound_ByName", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -121,7 +121,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 
 	t.Run("TaskNotFound_ByID", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -140,13 +140,13 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("ErrorFetchingLogs", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, fakeAgentAPITaskLogsErr(assert.AnError))
 
 		inv, root := clitest.New(t, "task", "logs", setup.task.ID.String())
 		clitest.SetupConfig(t, setup.userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.ErrorContains(t, err, assert.AnError.Error())
 	})
@@ -154,7 +154,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("SnapshotWithLogs_Table", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, task := setupCLITaskTestWithSnapshot(setupCtx, t, codersdk.TaskStatusPaused, testMessages)
 		userClient := client
 
@@ -162,7 +162,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -173,7 +173,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("SnapshotWithLogs_JSON", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, task := setupCLITaskTestWithSnapshot(setupCtx, t, codersdk.TaskStatusPaused, testMessages)
 		userClient := client
 
@@ -181,7 +181,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -203,7 +203,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -223,7 +223,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 			},
 		}
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, task := setupCLITaskTestWithSnapshot(setupCtx, t, codersdk.TaskStatusPending, singleMessage)
 		userClient := client
 
@@ -231,7 +231,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -242,7 +242,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("SnapshotEmptyLogs", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, task := setupCLITaskTestWithSnapshot(setupCtx, t, codersdk.TaskStatusInitializing, []agentapisdk.Message{})
 		userClient := client
 
@@ -250,7 +250,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
@@ -261,7 +261,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 	t.Run("InitializingTaskSnapshot", func(t *testing.T) {
 		t.Parallel()
 
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		client, task := setupCLITaskTestWithSnapshot(setupCtx, t, codersdk.TaskStatusInitializing, testMessages)
 		userClient := client
 
@@ -269,7 +269,7 @@ func Test_TaskLogs_Golden(t *testing.T) {
 		output := clitest.Capture(inv)
 		clitest.SetupConfig(t, userClient, root)
 
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 

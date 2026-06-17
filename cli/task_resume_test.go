@@ -20,7 +20,7 @@ func TestExpTaskResume(t *testing.T) {
 		t.Parallel()
 
 		// Given: A paused task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
@@ -46,7 +46,7 @@ func TestExpTaskResume(t *testing.T) {
 		t.Parallel()
 
 		// Given: A different user's paused task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
@@ -71,7 +71,7 @@ func TestExpTaskResume(t *testing.T) {
 		t.Parallel()
 
 		// Given: A paused task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
@@ -101,7 +101,7 @@ func TestExpTaskResume(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Given: A paused task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
@@ -132,7 +132,7 @@ func TestExpTaskResume(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Given: A paused task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 		pauseTask(setupCtx, t, setup.userClient, setup.task)
 
@@ -160,7 +160,7 @@ func TestExpTaskResume(t *testing.T) {
 		t.Parallel()
 
 		// Given: A running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to resume the task that is not paused

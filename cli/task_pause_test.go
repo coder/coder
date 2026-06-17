@@ -19,7 +19,7 @@ func TestExpTaskPause(t *testing.T) {
 		t.Parallel()
 
 		// Given: A running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to pause the task
@@ -44,7 +44,7 @@ func TestExpTaskPause(t *testing.T) {
 		t.Parallel()
 
 		// Given: A different user's running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to pause their task
@@ -69,7 +69,7 @@ func TestExpTaskPause(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Given: A running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to pause the task
@@ -99,7 +99,7 @@ func TestExpTaskPause(t *testing.T) {
 
 		logger := testutil.Logger(t)
 		// Given: A running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// When: We attempt to pause the task
@@ -126,7 +126,7 @@ func TestExpTaskPause(t *testing.T) {
 		t.Parallel()
 
 		// Given: A running task
-		setupCtx := testutil.Context(t, testutil.WaitLong)
+		setupCtx := testutil.Context(t, testutil.WaitSuperLong)
 		setup := setupCLITaskTest(setupCtx, t, nil)
 
 		// And: We paused the running task
