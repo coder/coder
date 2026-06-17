@@ -10,9 +10,7 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
-import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
-import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -1751,82 +1749,6 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 		queryClient.invalidateQueries({ queryKey: chatModelsKey }),
 	]);
 };
-
-const generatedAIProviderName = (provider: string): string => {
-	const suffix =
-		globalThis.crypto?.randomUUID?.() ??
-		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-	return `${provider}-${suffix}`;
-};
-
-const normalizeAIProviderType = (provider: string): AIProviderType => {
-	const normalized = provider.trim().toLowerCase();
-	const aliased =
-		normalized === "openai-compatible" || normalized === "openai_compatible"
-			? "openai-compat"
-			: normalized;
-	const providerType = AIProviderTypes.find(
-		(candidate) => candidate === aliased,
-	);
-	if (!providerType) {
-		throw new Error(`Unsupported AI provider type "${provider}".`);
-	}
-	return providerType;
-};
-
-export const createChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
-		const providerType = normalizeAIProviderType(req.provider);
-		const apiKey = req.api_key;
-		return API.experimental.createAIProvider({
-			type: providerType,
-			name: generatedAIProviderName(providerType),
-			display_name: req.display_name || formatProviderLabel(providerType),
-			base_url: req.base_url ?? "",
-			enabled: req.enabled ?? true,
-			api_keys: apiKey ? [apiKey] : undefined,
-		});
-	},
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
-
-type UpdateChatProviderConfigMutationArgs = {
-	providerConfigId: string;
-	req: TypesGen.UpdateChatProviderConfigRequest;
-};
-
-export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: async ({
-		providerConfigId,
-		req,
-	}: UpdateChatProviderConfigMutationArgs) => {
-		const apiKey = req.api_key;
-		return API.experimental.updateAIProvider(providerConfigId, {
-			display_name: req.display_name,
-			base_url: req.base_url,
-			enabled: req.enabled,
-			api_keys:
-				req.api_key === undefined
-					? undefined
-					: apiKey
-						? [{ api_key: apiKey }]
-						: [],
-		});
-	},
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
-
-export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteAIProvider(providerConfigId),
-	onSuccess: async () => {
-		await invalidateChatConfigurationQueries(queryClient);
-	},
-});
 
 export const createChatModelConfig = (queryClient: QueryClient) => ({
 	mutationFn: (req: TypesGen.CreateChatModelConfigRequest) =>
