@@ -503,6 +503,25 @@ export const buildWriteFileDiff = (
 };
 
 /**
+ * Builds a unified-diff string from the old and new content of a file, for
+ * rendering context-file edits. Added changes pass an empty old side,
+ * removed changes an empty new side, and modified changes both. Returns an
+ * empty string when both sides are empty, so callers can concatenate results
+ * across files and hand the joined string to useParsedDiff.
+ */
+export const buildContentPatch = (
+	path: string,
+	oldContent: string,
+	newContent: string,
+): string => {
+	if (!oldContent && !newContent) return "";
+	// Strip the leading slash so the a/ and b/ prefixes don't produce a
+	// double-slash that confuses the diff parser.
+	const diffPath = path.startsWith("/") ? path.slice(1) : path;
+	return Diff.createPatch(diffPath, oldContent, newContent, "", "");
+};
+
+/**
  * For write_file tool calls, extracts the path and content from args
  * and builds a FileDiffMetadata showing all lines as additions.
  */

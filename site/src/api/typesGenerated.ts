@@ -1694,6 +1694,12 @@ export interface ChatContext {
 	 * payloads leave it nil to stay lightweight.
 	 */
 	readonly resources?: readonly ChatContextResource[];
+	/**
+	 * Changes lists how the pinned context differs from the agent's latest
+	 * snapshot, by source. It is populated only on the single-chat GET
+	 * response and only while the chat is dirty; otherwise nil.
+	 */
+	readonly changes?: readonly ChatContextResourceChange[];
 }
 
 // From codersdk/chats.go
@@ -1727,8 +1733,7 @@ export interface ChatContextFilePart {
 export interface ChatContextResource {
 	/**
 	 * Source is the resource locator: the canonical file path for an
-	 * instruction file, the skill directory for a skill, the file path for
-	 * an MCP config, or the server name for an MCP server.
+	 * instruction file, or the skill directory for a skill.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
@@ -1741,71 +1746,51 @@ export interface ChatContextResource {
 	 */
 	readonly skill_name?: string;
 	readonly skill_description?: string;
-	/**
-	 * Tools lists the tools exposed by an MCP server. Populated only for the
-	 * mcp_server kind; nil otherwise.
-	 */
-	readonly tools?: readonly ChatContextTool[];
-	/**
-	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
-	 * oversize, excluded) are still reported so the UI can surface why a
-	 * resource was dropped from the prompt instead of silently omitting it;
-	 * their body-specific fields (skill name, tools) are empty.
-	 */
-	readonly status: ChatContextResourceStatus;
-	/**
-	 * Error explains a non-ok Status; empty when healthy. May also carry a
-	 * non-fatal warning when Status is ok.
-	 */
-	readonly error?: string;
 }
-
-// From codersdk/chats.go
-export type ChatContextResourceKind =
-	| "instruction_file"
-	| "mcp_config"
-	| "mcp_server"
-	| "skill";
-
-export const ChatContextResourceKinds: ChatContextResourceKind[] = [
-	"instruction_file",
-	"mcp_config",
-	"mcp_server",
-	"skill",
-];
-
-// From codersdk/chats.go
-export type ChatContextResourceStatus =
-	| "excluded"
-	| "invalid"
-	| "ok"
-	| "oversize"
-	| "unreadable";
-
-export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
-	"excluded",
-	"invalid",
-	"ok",
-	"oversize",
-	"unreadable",
-];
 
 // From codersdk/chats.go
 /**
- * ChatContextTool is one tool exposed by a pinned MCP server, reported on the
- * single-chat GET response. Metadata only; the input schema is omitted.
+ * ChatContextResourceChange is one source-level difference between the chat's
+ * pinned context and the agent's latest snapshot. Reported only on the
+ * single-chat GET response while the chat is dirty.
  */
-export interface ChatContextTool {
+export interface ChatContextResourceChange {
 	/**
-	 * Name is the tool name with the "<server>__" prefix the agent adds
-	 * stripped, so it reads as the server exposes it.
+	 * Source is the resource locator that differs.
 	 */
-	readonly name: string;
+	readonly source: string;
+	readonly kind: ChatContextResourceKind;
+	readonly status: ChatContextResourceChangeStatus;
 	/**
-	 * Description is the tool's human-readable summary; may be empty.
+	 * OldContent and NewContent carry the sanitized instruction-file bodies
+	 * for the pinned and snapshot sides, capped for display. Removed changes
+	 * fill OldContent only, added changes fill NewContent only, and modified
+	 * changes fill both. Empty for skills.
 	 */
-	readonly description?: string;
+	readonly old_content?: string;
+	readonly new_content?: string;
+	/**
+	 * SkillName and SkillDescription identify a changed skill: the snapshot
+	 * side for added/modified, the pinned side for removed. Empty for
+	 * instruction files.
+	 */
+	readonly skill_name?: string;
+	readonly skill_description?: string;
 }
+
+// From codersdk/chats.go
+export type ChatContextResourceChangeStatus = "added" | "modified" | "removed";
+
+export const ChatContextResourceChangeStatuses: ChatContextResourceChangeStatus[] =
+	["added", "modified", "removed"];
+
+// From codersdk/chats.go
+export type ChatContextResourceKind = "instruction_file" | "skill";
+
+export const ChatContextResourceKinds: ChatContextResourceKind[] = [
+	"instruction_file",
+	"skill",
+];
 
 // From codersdk/chats.go
 /**

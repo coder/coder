@@ -173,6 +173,10 @@ type ChatContext struct {
 	// populated only on the single-chat GET response; list and watch
 	// payloads leave it nil to stay lightweight.
 	Resources []ChatContextResource `json:"resources,omitempty"`
+	// Changes lists how the pinned context differs from the agent's latest
+	// snapshot, by source. It is populated only on the single-chat GET
+	// response and only while the chat is dirty; otherwise nil.
+	Changes []ChatContextResourceChange `json:"changes,omitempty"`
 }
 
 // ChatContextResourceKind classifies a pinned context resource the prompt
@@ -233,6 +237,37 @@ type ChatContextTool struct {
 	Name string `json:"name"`
 	// Description is the tool's human-readable summary; may be empty.
 	Description string `json:"description,omitempty"`
+}
+
+// ChatContextResourceChangeStatus classifies how a source differs between the
+// chat's pinned context and the agent's latest snapshot.
+type ChatContextResourceChangeStatus string
+
+const (
+	ChatContextResourceChangeStatusAdded    ChatContextResourceChangeStatus = "added"
+	ChatContextResourceChangeStatusRemoved  ChatContextResourceChangeStatus = "removed"
+	ChatContextResourceChangeStatusModified ChatContextResourceChangeStatus = "modified"
+)
+
+// ChatContextResourceChange is one source-level difference between the chat's
+// pinned context and the agent's latest snapshot. Reported only on the
+// single-chat GET response while the chat is dirty.
+type ChatContextResourceChange struct {
+	// Source is the resource locator that differs.
+	Source string                          `json:"source"`
+	Kind   ChatContextResourceKind         `json:"kind"`
+	Status ChatContextResourceChangeStatus `json:"status"`
+	// OldContent and NewContent carry the sanitized instruction-file bodies
+	// for the pinned and snapshot sides, capped for display. Removed changes
+	// fill OldContent only, added changes fill NewContent only, and modified
+	// changes fill both. Empty for skills.
+	OldContent string `json:"old_content,omitempty"`
+	NewContent string `json:"new_content,omitempty"`
+	// SkillName and SkillDescription identify a changed skill: the snapshot
+	// side for added/modified, the pinned side for removed. Empty for
+	// instruction files.
+	SkillName        string `json:"skill_name,omitempty"`
+	SkillDescription string `json:"skill_description,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file

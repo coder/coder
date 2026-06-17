@@ -2,6 +2,7 @@ import type {
 	Chat,
 	ChatContext,
 	ChatContextResource,
+	ChatContextResourceChange,
 	ChatMessage,
 	ChatMessagePart,
 	ChatQueuedMessage,
@@ -39,43 +40,37 @@ const MockChatContextResources: ChatContextResource[] = [
 		source: "/home/coder/AGENTS.md",
 		kind: "instruction_file",
 		size_bytes: 248,
-		status: "ok",
 	},
 	{
 		source: "/home/coder/.coder/skills/deploy",
 		kind: "skill",
 		size_bytes: 96,
-		status: "ok",
 		skill_name: "deploy",
 		skill_description: "Deploy the app to staging.",
 	},
+];
+
+// Per-source differences between the pinned context and the latest snapshot.
+const MockChatContextChanges: ChatContextResourceChange[] = [
 	{
-		source: "/home/coder/.mcp.json",
-		kind: "mcp_config",
-		size_bytes: 184,
-		status: "ok",
+		source: "/home/coder/AGENTS.md",
+		kind: "instruction_file",
+		status: "modified",
+		old_content: "# AGENTS\n\nBe concise.\n",
+		new_content: "# AGENTS\n\nBe concise and cite sources.\n",
 	},
 	{
-		source: "github",
-		kind: "mcp_server",
-		size_bytes: 512,
-		status: "ok",
-		tools: [
-			{
-				name: "search_issues",
-				description: "Search issues and pull requests.",
-			},
-			{ name: "create_issue", description: "Open a new issue." },
-		],
+		source: "/home/coder/docs/CONTEXT.md",
+		kind: "instruction_file",
+		status: "added",
+		new_content: "# Context\n\nProject overview.\n",
 	},
 	{
-		// An invalid skill the agent rejected: surfaced as an issue with its
-		// error rather than silently dropped.
-		source: "/home/coder/test/.agents/skills/moo",
+		source: "/home/coder/.coder/skills/deploy",
 		kind: "skill",
-		size_bytes: 356,
-		status: "invalid",
-		error: 'front-matter name "coder-review" does not match directory "moo"',
+		status: "modified",
+		skill_name: "deploy",
+		skill_description: "Deploy the app to production.",
 	},
 ];
 
@@ -88,14 +83,8 @@ export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
+	changes: MockChatContextChanges,
 };
-
-// Injected-context fallback whose only context-file marker has no path. The
-// agent emits this empty placeholder for skill-only additions; the context
-// indicator must skip it rather than render a nameless "Context files" row.
-export const MockLastInjectedContextEmptyFile: readonly ChatMessagePart[] = [
-	{ type: "context-file", context_file_path: "" },
-];
 
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",

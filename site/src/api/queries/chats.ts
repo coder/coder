@@ -329,8 +329,8 @@ export const mergeWatchedChatSummary = (
 	// Context drift is tracked outside chats.updated_at (it is driven by
 	// agent context pushes), so apply context_dirty payloads regardless of
 	// the summary timestamp. Merge rather than replace so the pinned
-	// resources a single-chat GET populated are preserved while the dirty
-	// flags update; the open chat refetches the full detail.
+	// resources/changes a single-chat GET populated are preserved while the
+	// dirty flags update; the open chat refetches the full detail.
 	const nextContext =
 		isContextDirtyEvent && watchedChat.context
 			? { ...cachedChat.context, ...watchedChat.context }

@@ -133,11 +133,18 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		return out
 	}
 
-	// Index the GET-only context resources by source.
+	// Index the GET-only context detail (resources + changes) by source.
 	resourcesBySource := func(resources []codersdk.ChatContextResource) map[string]codersdk.ChatContextResource {
 		out := make(map[string]codersdk.ChatContextResource, len(resources))
 		for _, r := range resources {
 			out[r.Source] = r
+		}
+		return out
+	}
+	changesBySource := func(changes []codersdk.ChatContextResourceChange) map[string]codersdk.ChatContextResourceChange {
+		out := make(map[string]codersdk.ChatContextResourceChange, len(changes))
+		for _, c := range changes {
+			out[c.Source] = c
 		}
 		return out
 	}
@@ -169,10 +176,12 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "initial hydration is clean")
 	require.Nil(t, got.Context.DirtySince)
 
-	// The single-chat GET surfaces the pinned resources.
+	// The single-chat GET surfaces the pinned resources; a clean chat carries
+	// no change set.
 	require.Len(t, got.Context.Resources, 1, "GET reports the pinned resources")
 	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
 	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, got.Context.Resources[0].Kind)
+	require.Empty(t, got.Context.Changes, "a clean chat has no changes")
 
 	// The initial push also copied the agent's resources onto the chat.
 	pinned := pinnedResources(chat.ID)
@@ -207,9 +216,23 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
-	// While dirty the GET still reports the pinned (hashA) resources.
+	// While dirty the GET still reports the pinned (hashA) resources, plus a
+	// change set computed against the agent's latest (hashB) snapshot: the
+	// instruction file is modified (with old/new bodies) and the skill is
+	// added.
 	require.Len(t, got.Context.Resources, 1, "resources stay pinned while dirty")
 	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
+	dirtyChanges := changesBySource(got.Context.Changes)
+	require.Len(t, dirtyChanges, 2, "GET reports the per-source change set while dirty")
+	agentsChange := dirtyChanges[agentsSource]
+	require.Equal(t, codersdk.ChatContextResourceChangeStatusModified, agentsChange.Status)
+	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, agentsChange.Kind)
+	require.Equal(t, "hello-v1", agentsChange.OldContent)
+	require.Equal(t, "hello-v2", agentsChange.NewContent)
+	skillChange := dirtyChanges[skillSource]
+	require.Equal(t, codersdk.ChatContextResourceChangeStatusAdded, skillChange.Status)
+	require.Equal(t, codersdk.ChatContextResourceKindSkill, skillChange.Kind)
+	require.Equal(t, "example", skillChange.SkillName)
 
 	// The dirty fan-out must NOT re-copy resources: the chat keeps the bodies
 	// from its pinned (hashA) snapshot until it is refreshed.
@@ -225,16 +248,6 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, refreshed.Context.Dirty, "refresh clears the dirty marker")
 	require.Equal(t, snapshotError, refreshed.Context.Error, "refresh re-pins the snapshot error")
 
-	// The refresh response itself must carry the freshly pinned resources, so
-	// the client reflects the refresh without a full reload. A regression here
-	// blanks the context indicator until the page is reloaded (which
-	// re-fetches via GET).
-	refreshRespResources := resourcesBySource(refreshed.Context.Resources)
-	require.Len(t, refreshRespResources, 2, "refresh response includes the re-pinned resources")
-	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, refreshRespResources[agentsSource].Kind)
-	require.Equal(t, codersdk.ChatContextResourceKindSkill, refreshRespResources[skillSource].Kind)
-	require.Equal(t, "example", refreshRespResources[skillSource].SkillName)
-
 	// Refresh re-pinned the agent's current resources (the hashB set).
 	pinned = pinnedResources(chat.ID)
 	require.Len(t, pinned, 2, "refresh re-pins the agent's current resources")
@@ -248,13 +261,13 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty)
 
 	// Refresh advanced the pin to hashB, so the GET now reports both pinned
-	// resources.
+	// resources and, being clean again, no changes.
 	refreshedResources := resourcesBySource(got.Context.Resources)
 	require.Len(t, refreshedResources, 2, "refresh re-pins both resources for the GET")
 	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, refreshedResources[agentsSource].Kind)
 	require.Equal(t, codersdk.ChatContextResourceKindSkill, refreshedResources[skillSource].Kind)
 	require.Equal(t, "example", refreshedResources[skillSource].SkillName)
-
+	require.Empty(t, got.Context.Changes, "a refreshed chat has no changes")
 	// Re-pushing the now-pinned hash proves the refresh advanced the pin to
 	// hashB: a matching hash must not re-dirty the chat.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{

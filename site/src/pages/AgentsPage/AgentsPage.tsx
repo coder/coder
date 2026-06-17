@@ -649,9 +649,9 @@ const AgentsPage: FC = () => {
 							// The watch payload carries only the lightweight
 							// context flags (the merge above applies them);
 							// refetch the open chat to pull the pinned
-							// resources the single-chat GET computes. Only the
-							// active chat has an observer, so other chats are
-							// merely marked stale.
+							// resources and the change set the single-chat GET
+							// computes. Only the active chat has an observer,
+							// so other chats are merely marked stale.
 							void queryClient.invalidateQueries({
 								queryKey: chatKey(updatedChat.id),
 								exact: true,

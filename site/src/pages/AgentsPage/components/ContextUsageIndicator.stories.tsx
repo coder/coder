@@ -3,7 +3,6 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	MockChatContextClean,
 	MockChatContextDirty,
-	MockLastInjectedContextEmptyFile,
 } from "#/testHelpers/chatEntities";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
@@ -40,28 +39,13 @@ export const Clean: Story = {
 		// The list is driven by the pinned resources.
 		expect(body.getByText("AGENTS.md")).toBeVisible();
 		expect(body.getByText("deploy")).toBeVisible();
-		// MCP configs are listed by file basename and servers by name.
-		expect(body.getByText("MCP")).toBeVisible();
-		expect(body.getByText(".mcp.json")).toBeVisible();
-		expect(body.getByText("github")).toBeVisible();
-		// MCP server tools are listed under their server.
-		expect(body.getByText("search_issues")).toBeVisible();
-		expect(body.getByText("create_issue")).toBeVisible();
-		// Invalid resources are surfaced as issues with their error, not
-		// silently dropped.
-		expect(body.getByText("Issues")).toBeVisible();
-		expect(
-			body.getByText(
-				'front-matter name "coder-review" does not match directory "moo"',
-			),
-		).toBeVisible();
 		// A clean pin offers no refresh affordance.
 		expect(body.queryByRole("button", { name: "Refresh context" })).toBeNull();
 	},
 };
 
-// Drifted pin: the ring announces a change, and the popover surfaces a refresh
-// affordance to re-pin the chat to the latest snapshot.
+// Drifted pin: the ring announces a change, and the popover surfaces refresh
+// and a way into the changes dialog.
 export const Dirty: Story = {
 	args: {
 		usage: {
@@ -87,35 +71,14 @@ export const Dirty: Story = {
 			body.getByRole("button", { name: "Refresh context" }),
 		);
 		expect(args.onRefreshContext).toHaveBeenCalledTimes(1);
-	},
-};
 
-// Regression: a dirty pin whose pinned resources have not loaded falls back to
-// the agent's injected context, which can carry an empty context-file marker.
-// The popover must skip it rather than render a nameless "Context files" row,
-// while still surfacing the drift affordances.
-export const DirtyEmptyInjectedContext: Story = {
-	args: {
-		usage: {
-			usedTokens: 12_000,
-			contextLimitTokens: 200_000,
-			lastInjectedContext: MockLastInjectedContextEmptyFile,
-			context: {
-				dirty: true,
-			},
-		},
-	},
-	play: async ({ canvasElement }) => {
-		const button = within(canvasElement).getByRole("button");
-		await userEvent.hover(button);
-		const body = within(document.body);
-		// The drift affordances still render.
+		// "View changes" opens the diff dialog.
+		await userEvent.click(body.getByRole("button", { name: "View changes" }));
 		await waitFor(() =>
-			expect(body.getByText("Context changed")).toBeVisible(),
+			expect(body.getByText("Context changes")).toBeVisible(),
 		);
-		expect(body.getByRole("button", { name: "Refresh context" })).toBeVisible();
-		// The empty injected marker must not produce a nameless file list.
-		expect(body.queryByText("Context files")).toBeNull();
+		// The modified skill is listed by name in the dialog.
+		expect(body.getByText("Deploy the app to production.")).toBeVisible();
 	},
 };
 

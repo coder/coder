@@ -15073,6 +15073,13 @@
 		"codersdk.ChatContext": {
 			"type": "object",
 			"properties": {
+				"changes": {
+					"description": "Changes lists how the pinned context differs from the agent's latest\nsnapshot, by source. It is populated only on the single-chat GET\nresponse and only while the chat is dirty; otherwise nil.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatContextResourceChange"
+					}
+				},
 				"dirty": {
 					"description": "Dirty is true when the agent's latest snapshot hash differs from the\nchat's pinned hash.",
 					"type": "boolean"
@@ -15098,10 +15105,6 @@
 		"codersdk.ChatContextResource": {
 			"type": "object",
 			"properties": {
-				"error": {
-					"description": "Error explains a non-ok Status; empty when healthy. May also carry a\nnon-fatal warning when Status is ok.",
-					"type": "string"
-				},
 				"kind": {
 					"$ref": "#/definitions/codersdk.ChatContextResourceKind"
 				},
@@ -15117,59 +15120,56 @@
 					"type": "string"
 				},
 				"source": {
-					"description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+					"description": "Source is the resource locator: the canonical file path for an\ninstruction file, or the skill directory for a skill.",
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.ChatContextResourceChange": {
+			"type": "object",
+			"properties": {
+				"kind": {
+					"$ref": "#/definitions/codersdk.ChatContextResourceKind"
+				},
+				"new_content": {
+					"type": "string"
+				},
+				"old_content": {
+					"description": "OldContent and NewContent carry the sanitized instruction-file bodies\nfor the pinned and snapshot sides, capped for display. Removed changes\nfill OldContent only, added changes fill NewContent only, and modified\nchanges fill both. Empty for skills.",
+					"type": "string"
+				},
+				"skill_description": {
+					"type": "string"
+				},
+				"skill_name": {
+					"description": "SkillName and SkillDescription identify a changed skill: the snapshot\nside for added/modified, the pinned side for removed. Empty for\ninstruction files.",
+					"type": "string"
+				},
+				"source": {
+					"description": "Source is the resource locator that differs.",
 					"type": "string"
 				},
 				"status": {
-					"description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty.",
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.ChatContextResourceStatus"
-						}
-					]
-				},
-				"tools": {
-					"description": "Tools lists the tools exposed by an MCP server. Populated only for the\nmcp_server kind; nil otherwise.",
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.ChatContextTool"
-					}
+					"$ref": "#/definitions/codersdk.ChatContextResourceChangeStatus"
 				}
 			}
+		},
+		"codersdk.ChatContextResourceChangeStatus": {
+			"type": "string",
+			"enum": ["added", "removed", "modified"],
+			"x-enum-varnames": [
+				"ChatContextResourceChangeStatusAdded",
+				"ChatContextResourceChangeStatusRemoved",
+				"ChatContextResourceChangeStatusModified"
+			]
 		},
 		"codersdk.ChatContextResourceKind": {
 			"type": "string",
-			"enum": ["instruction_file", "skill", "mcp_config", "mcp_server"],
+			"enum": ["instruction_file", "skill"],
 			"x-enum-varnames": [
 				"ChatContextResourceKindInstructionFile",
-				"ChatContextResourceKindSkill",
-				"ChatContextResourceKindMCPConfig",
-				"ChatContextResourceKindMCPServer"
+				"ChatContextResourceKindSkill"
 			]
-		},
-		"codersdk.ChatContextResourceStatus": {
-			"type": "string",
-			"enum": ["ok", "oversize", "unreadable", "invalid", "excluded"],
-			"x-enum-varnames": [
-				"ChatContextResourceStatusOK",
-				"ChatContextResourceStatusOversize",
-				"ChatContextResourceStatusUnreadable",
-				"ChatContextResourceStatusInvalid",
-				"ChatContextResourceStatusExcluded"
-			]
-		},
-		"codersdk.ChatContextTool": {
-			"type": "object",
-			"properties": {
-				"description": {
-					"description": "Description is the tool's human-readable summary; may be empty.",
-					"type": "string"
-				},
-				"name": {
-					"description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
-					"type": "string"
-				}
-			}
 		},
 		"codersdk.ChatDiffContents": {
 			"type": "object",

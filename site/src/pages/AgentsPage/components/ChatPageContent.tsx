@@ -210,7 +210,7 @@ interface ChatPageInputProps {
 	onMCPAuthComplete?: (serverId: string) => void;
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	// Pinned workspace-context state for the chat, surfaced by the
-	// context indicator (dirty marker and pinned resources).
+	// context indicator (dirty marker, pinned resources, and change set).
 	chatContext?: TypesGen.ChatContext;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;

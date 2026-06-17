@@ -2068,12 +2068,7 @@ describe("mergeWatchedChatSummary", () => {
 			context: {
 				dirty: false,
 				resources: [
-					{
-						source: "/AGENTS.md",
-						kind: "instruction_file",
-						size_bytes: 10,
-						status: "ok",
-					},
+					{ source: "/AGENTS.md", kind: "instruction_file", size_bytes: 10 },
 				],
 			},
 		});
@@ -2094,12 +2089,7 @@ describe("mergeWatchedChatSummary", () => {
 			// The lightweight watch payload omits resources; the merge keeps the
 			// pinned list a prior single-chat GET populated.
 			resources: [
-				{
-					source: "/AGENTS.md",
-					kind: "instruction_file",
-					size_bytes: 10,
-					status: "ok",
-				},
+				{ source: "/AGENTS.md", kind: "instruction_file", size_bytes: 10 },
 			],
 		});
 	});
