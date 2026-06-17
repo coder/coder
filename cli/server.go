@@ -792,7 +792,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Use NATS for pubsub if the experiment is enabled.
 			if experiments.Enabled(codersdk.ExperimentNATSPubsub) {
 				token := fmt.Sprintf("%x", sha256.Sum256([]byte(dbURL)))
-				natsps, err := nats.New(ctx, logger.Named("pubsub"), nats.Options{
+				natsps, err := nats.New(ctx, logger.Named("nats_pubsub"), nats.Options{
 					ClusterAuthToken: token,
 				})
 				if err != nil {

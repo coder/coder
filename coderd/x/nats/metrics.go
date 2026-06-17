@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 
@@ -12,22 +11,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// LatencyMeasureTimeout bounds the collect-time latency probe so a
-// shutdown race cannot block a Prometheus scrape indefinitely.
-const LatencyMeasureTimeout = time.Second * 10
-
-// We track messages as size "normal" and "colossal", mirroring the
-// PGPubsub metric labels for dashboard parity. The threshold matches
-// PGPubsub (95% of the postgres notify limit). NATS MaxPayload is far
-// larger, so for NATS "colossal" is informational, not a failure
-// predictor.
-const (
-	colossalThreshold   = 7600
-	messageSizeNormal   = "normal"
-	messageSizeColossal = "colossal"
-)
-
-// these are the metrics we compute implicitly from our existing data structures
+// Descriptors for metrics that are not backed by a stored collector:
+// current_subscribers and current_events are read from atomic counters,
+// and the latency metrics are measured during each scrape.
 var (
 	currentSubscribersDesc = prometheus.NewDesc(
 		"coder_nats_pubsub_current_subscribers",
@@ -39,26 +25,22 @@ var (
 		"The current number of pubsub event channels listened for",
 		nil, nil,
 	)
-)
-
-// additional metrics collected out-of-band
-var (
-	pubsubSendLatencyDesc = prometheus.NewDesc(
+	sendLatencyDesc = prometheus.NewDesc(
 		"coder_nats_pubsub_send_latency_seconds",
 		"The time taken to send a message into a pubsub event channel",
 		nil, nil,
 	)
-	pubsubRecvLatencyDesc = prometheus.NewDesc(
+	recvLatencyDesc = prometheus.NewDesc(
 		"coder_nats_pubsub_receive_latency_seconds",
 		"The time taken to receive a message from a pubsub event channel",
 		nil, nil,
 	)
-	pubsubLatencyMeasureCountDesc = prometheus.NewDesc(
+	latencyMeasureCountDesc = prometheus.NewDesc(
 		"coder_nats_pubsub_latency_measures_total",
 		"The number of pubsub latency measurements",
 		nil, nil,
 	)
-	pubsubLatencyMeasureErrDesc = prometheus.NewDesc(
+	latencyMeasureErrDesc = prometheus.NewDesc(
 		"coder_nats_pubsub_latency_measure_errs_total",
 		"The number of pubsub latency measurement failures",
 		nil, nil,
@@ -98,9 +80,8 @@ type metrics struct {
 	currentSubscribers atomic.Int64
 }
 
-// newMetrics constructs the explicit Prometheus metrics and latency
-// measurer. It is always called so that collaborators never observe
-// nil metric fields.
+// newMetrics builds all metric instruments up front so collaborators
+// never observe nil metric fields.
 func newMetrics(logger slog.Logger) *metrics {
 	return &metrics{
 		logger:          logger,
@@ -173,10 +154,12 @@ func (m *metrics) recordSubscribeFailure() {
 }
 
 // recordReceived records metrics for a single received NATS message.
+// Size is classified using the shared pubsub thresholds so the
+// messages_total "size" label matches PGPubsub.
 func (m *metrics) recordReceived(data []byte) {
-	sizeLabel := messageSizeNormal
-	if len(data) >= colossalThreshold {
-		sizeLabel = messageSizeColossal
+	sizeLabel := pubsub.MessageSizeNormal
+	if len(data) >= pubsub.ColossalThreshold {
+		sizeLabel = pubsub.MessageSizeColossal
 	}
 	m.messagesTotal.WithLabelValues(sizeLabel).Inc()
 	m.receivedBytesTotal.Add(float64(len(data)))
@@ -232,8 +215,8 @@ func (m *metrics) removeEvent()      { m.currentEvents.Add(-1) }
 func (m *metrics) addSubscriber()    { m.currentSubscribers.Add(1) }
 func (m *metrics) removeSubscriber() { m.currentSubscribers.Add(-1) }
 
-// describe sends every metric descriptor, implementing the descriptor
-// half of prometheus.Collector for the owning Pubsub.
+// describe sends every metric descriptor on behalf of the owning
+// Pubsub's prometheus.Collector implementation.
 func (m *metrics) describe(descs chan<- *prometheus.Desc) {
 	// explicit metrics
 	m.publishesTotal.Describe(descs)
@@ -249,10 +232,10 @@ func (m *metrics) describe(descs chan<- *prometheus.Desc) {
 	descs <- currentEventsDesc
 
 	// additional metrics
-	descs <- pubsubSendLatencyDesc
-	descs <- pubsubRecvLatencyDesc
-	descs <- pubsubLatencyMeasureCountDesc
-	descs <- pubsubLatencyMeasureErrDesc
+	descs <- sendLatencyDesc
+	descs <- recvLatencyDesc
+	descs <- latencyMeasureCountDesc
+	descs <- latencyMeasureErrDesc
 }
 
 // collect emits all metrics. p is the pubsub used for the out-of-band
@@ -274,16 +257,16 @@ func (m *metrics) collect(ch chan<- prometheus.Metric, p pubsub.Pubsub) {
 	ch <- prometheus.MustNewConstMetric(currentEventsDesc, prometheus.GaugeValue, float64(m.currentEvents.Load()))
 
 	// additional metrics
-	ctx, cancel := context.WithTimeout(context.Background(), LatencyMeasureTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), pubsub.LatencyMeasureTimeout)
 	defer cancel()
 	send, recv, err := m.latencyMeasurer.Measure(ctx, p)
 
-	ch <- prometheus.MustNewConstMetric(pubsubLatencyMeasureCountDesc, prometheus.CounterValue, float64(m.latencyMeasureCounter.Add(1)))
+	ch <- prometheus.MustNewConstMetric(latencyMeasureCountDesc, prometheus.CounterValue, float64(m.latencyMeasureCounter.Add(1)))
 	if err != nil {
 		m.logger.Warn(context.Background(), "failed to measure latency", slog.Error(err))
-		ch <- prometheus.MustNewConstMetric(pubsubLatencyMeasureErrDesc, prometheus.CounterValue, float64(m.latencyErrCounter.Add(1)))
+		ch <- prometheus.MustNewConstMetric(latencyMeasureErrDesc, prometheus.CounterValue, float64(m.latencyErrCounter.Add(1)))
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(pubsubSendLatencyDesc, prometheus.GaugeValue, send.Seconds())
-	ch <- prometheus.MustNewConstMetric(pubsubRecvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
+	ch <- prometheus.MustNewConstMetric(sendLatencyDesc, prometheus.GaugeValue, send.Seconds())
+	ch <- prometheus.MustNewConstMetric(recvLatencyDesc, prometheus.GaugeValue, recv.Seconds())
 }
