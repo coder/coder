@@ -26600,6 +26600,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "resource_address": {
+                    "type": "string"
+                },
                 "run_on_start": {
                     "type": "boolean"
                 },

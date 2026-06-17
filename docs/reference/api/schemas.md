@@ -9719,6 +9719,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -11071,6 +11072,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -14625,6 +14627,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -14910,6 +14913,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "log_path": "string",
       "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "resource_address": "string",
       "run_on_start": true,
       "run_on_stop": true,
       "script": "string",
@@ -15482,6 +15486,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "log_path": "string",
   "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+  "resource_address": "string",
   "run_on_start": true,
   "run_on_stop": true,
   "script": "string",
@@ -15501,6 +15506,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `id`                 | string                                                                     | false    |              |             |
 | `log_path`           | string                                                                     | false    |              |             |
 | `log_source_id`      | string                                                                     | false    |              |             |
+| `resource_address`   | string                                                                     | false    |              |             |
 | `run_on_start`       | boolean                                                                    | false    |              |             |
 | `run_on_stop`        | boolean                                                                    | false    |              |             |
 | `script`             | string                                                                     | false    |              |             |
@@ -15870,6 +15876,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",
@@ -16340,6 +16347,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "log_path": "string",
           "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+          "resource_address": "string",
           "run_on_start": true,
           "run_on_stop": true,
           "script": "string",
@@ -16690,6 +16698,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                     "log_path": "string",
                     "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                    "resource_address": "string",
                     "run_on_start": true,
                     "run_on_stop": true,
                     "script": "string",

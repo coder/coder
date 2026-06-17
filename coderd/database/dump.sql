@@ -3696,7 +3696,8 @@ CREATE TABLE workspace_agent_scripts (
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
     display_name text NOT NULL,
-    id uuid DEFAULT gen_random_uuid() NOT NULL
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    resource_address text DEFAULT ''::text NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq

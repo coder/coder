@@ -10224,6 +10224,7 @@ export interface WorkspaceAgentScript {
 	readonly start_blocks_login: boolean;
 	readonly timeout: number;
 	readonly display_name: string;
+	readonly resource_address: string;
 	readonly exit_code?: number;
 	readonly status?: WorkspaceAgentScriptStatus;
 }

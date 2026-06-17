@@ -206,6 +206,7 @@ type WorkspaceAgentScript struct {
 	StartBlocksLogin bool                        `json:"start_blocks_login"`
 	Timeout          time.Duration               `json:"timeout"`
 	DisplayName      string                      `json:"display_name"`
+	ResourceAddress  string                      `json:"resource_address"`
 	ExitCode         *int32                      `json:"exit_code,omitempty"`
 	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
 }

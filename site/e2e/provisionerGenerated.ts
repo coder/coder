@@ -306,6 +306,7 @@ export interface Script {
   runOnStop: boolean;
   timeoutSeconds: number;
   logPath: string;
+  resourceAddress: string;
 }
 
 export interface Devcontainer {
@@ -1090,6 +1091,9 @@ export const Script = {
     }
     if (message.logPath !== "") {
       writer.uint32(74).string(message.logPath);
+    }
+    if (message.resourceAddress !== "") {
+      writer.uint32(82).string(message.resourceAddress);
     }
     return writer;
   },

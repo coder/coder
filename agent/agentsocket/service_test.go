@@ -48,6 +48,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		server, err := agentsocket.NewServer(
 			slog.Make().Leveled(slog.LevelDebug),
+			unit.NewManager(),
 			agentsocket.WithPath(socketPath),
 		)
 		require.NoError(t, err)
@@ -68,6 +69,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -90,6 +92,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -120,6 +123,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -159,6 +163,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -189,6 +194,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -214,6 +220,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -249,6 +256,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -291,6 +299,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -310,6 +319,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -334,6 +344,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -375,6 +386,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -397,6 +409,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -436,6 +449,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)
@@ -465,6 +479,7 @@ func TestDRPCAgentSocketService(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			server, err := agentsocket.NewServer(
 				slog.Make().Leveled(slog.LevelDebug),
+				unit.NewManager(),
 				agentsocket.WithPath(socketPath),
 			)
 			require.NoError(t, err)

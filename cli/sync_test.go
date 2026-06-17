@@ -12,6 +12,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentsocket"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -35,6 +36,7 @@ func setupSocketServer(t *testing.T) (path string, cleanup func()) {
 
 	server, err := agentsocket.NewServer(
 		slog.Make().Leveled(slog.LevelDebug),
+		unit.NewManager(),
 		agentsocket.WithPath(socketPath),
 	)
 	require.NoError(t, err, "create socket server")

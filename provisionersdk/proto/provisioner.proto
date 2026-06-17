@@ -242,6 +242,7 @@ message Script {
   bool run_on_stop = 7;
   int32 timeout_seconds = 8;
   string log_path = 9;
+  string resource_address = 10;
 }
 
 message Devcontainer {

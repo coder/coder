@@ -762,6 +762,7 @@ func WorkspaceAgentScript(dbScript database.GetWorkspaceAgentScriptsByAgentIDsRo
 		StartBlocksLogin: dbScript.StartBlocksLogin,
 		Timeout:          time.Duration(dbScript.TimeoutSeconds) * time.Second,
 		DisplayName:      dbScript.DisplayName,
+		ResourceAddress:  dbScript.ResourceAddress,
 		ExitCode:         nullInt32Ptr(dbScript.ExitCode),
 	}
 	if dbScript.Status.Valid {

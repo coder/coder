@@ -658,6 +658,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			RunOnStart:       attrs.RunOnStart,
 			RunOnStop:        attrs.RunOnStop,
 			TimeoutSeconds:   attrs.TimeoutSeconds,
+			ResourceAddress:  resource.Address,
 		}
 
 	scriptAgentLoop:

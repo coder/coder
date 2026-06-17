@@ -186,6 +186,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",
@@ -429,6 +430,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",
@@ -790,6 +792,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
             "log_path": "string",
             "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+            "resource_address": "string",
             "run_on_start": true,
             "run_on_stop": true,
             "script": "string",
@@ -918,6 +921,7 @@ Status Code **200**
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» resource_address`          | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1144,6 +1148,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",
@@ -1498,6 +1503,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
                 "log_path": "string",
                 "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "resource_address": "string",
                 "run_on_start": true,
                 "run_on_stop": true,
                 "script": "string",
@@ -1689,6 +1695,7 @@ Status Code **200**
 | `»»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» log_path`                  | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» log_source_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» resource_address`          | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» run_on_start`              | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» run_on_stop`               | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» script`                    | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -1956,6 +1963,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
               "log_path": "string",
               "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "resource_address": "string",
               "run_on_start": true,
               "run_on_stop": true,
               "script": "string",

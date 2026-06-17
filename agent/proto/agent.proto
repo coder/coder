@@ -58,6 +58,7 @@ message WorkspaceAgentScript {
 	google.protobuf.Duration timeout = 8;
 	string display_name = 9;
 	bytes id = 10;
+	string resource_address = 11;
 }
 
 message WorkspaceAgentMetadata {

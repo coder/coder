@@ -3029,6 +3029,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				scriptsParams.ScriptStartBlocksLogin = append(scriptsParams.ScriptStartBlocksLogin, false)
 				scriptsParams.ScriptRunOnStart = append(scriptsParams.ScriptRunOnStart, false)
 				scriptsParams.ScriptRunOnStop = append(scriptsParams.ScriptRunOnStop, false)
+				scriptsParams.ScriptResourceAddresses = append(scriptsParams.ScriptResourceAddresses, "")
 			}
 
 			_, err = db.InsertWorkspaceAgentDevcontainers(ctx, database.InsertWorkspaceAgentDevcontainersParams{
@@ -3527,15 +3528,16 @@ type agentScriptsParams struct {
 	LogSourceDisplayNames []string
 	LogSourceIcons        []string
 
-	ScriptIDs              []uuid.UUID
-	ScriptDisplayNames     []string
-	ScriptLogPaths         []string
-	ScriptSources          []string
-	ScriptCron             []string
-	ScriptTimeout          []int32
-	ScriptStartBlocksLogin []bool
-	ScriptRunOnStart       []bool
-	ScriptRunOnStop        []bool
+	ScriptIDs               []uuid.UUID
+	ScriptDisplayNames      []string
+	ScriptLogPaths          []string
+	ScriptSources           []string
+	ScriptCron              []string
+	ScriptTimeout           []int32
+	ScriptStartBlocksLogin  []bool
+	ScriptRunOnStart        []bool
+	ScriptRunOnStop         []bool
+	ScriptResourceAddresses []string
 }
 
 // agentScriptsFromProto converts a slice of proto scripts into the
@@ -3546,15 +3548,16 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		LogSourceDisplayNames: make([]string, 0, len(scripts)),
 		LogSourceIcons:        make([]string, 0, len(scripts)),
 
-		ScriptIDs:              make([]uuid.UUID, 0, len(scripts)),
-		ScriptDisplayNames:     make([]string, 0, len(scripts)),
-		ScriptLogPaths:         make([]string, 0, len(scripts)),
-		ScriptSources:          make([]string, 0, len(scripts)),
-		ScriptCron:             make([]string, 0, len(scripts)),
-		ScriptTimeout:          make([]int32, 0, len(scripts)),
-		ScriptStartBlocksLogin: make([]bool, 0, len(scripts)),
-		ScriptRunOnStart:       make([]bool, 0, len(scripts)),
-		ScriptRunOnStop:        make([]bool, 0, len(scripts)),
+		ScriptIDs:               make([]uuid.UUID, 0, len(scripts)),
+		ScriptDisplayNames:      make([]string, 0, len(scripts)),
+		ScriptLogPaths:          make([]string, 0, len(scripts)),
+		ScriptSources:           make([]string, 0, len(scripts)),
+		ScriptCron:              make([]string, 0, len(scripts)),
+		ScriptTimeout:           make([]int32, 0, len(scripts)),
+		ScriptStartBlocksLogin:  make([]bool, 0, len(scripts)),
+		ScriptRunOnStart:        make([]bool, 0, len(scripts)),
+		ScriptRunOnStop:         make([]bool, 0, len(scripts)),
+		ScriptResourceAddresses: make([]string, 0, len(scripts)),
 	}
 
 	for _, script := range scripts {
@@ -3571,6 +3574,7 @@ func agentScriptsFromProto(scripts []*sdkproto.Script) agentScriptsParams {
 		params.ScriptStartBlocksLogin = append(params.ScriptStartBlocksLogin, script.GetStartBlocksLogin())
 		params.ScriptRunOnStart = append(params.ScriptRunOnStart, script.GetRunOnStart())
 		params.ScriptRunOnStop = append(params.ScriptRunOnStop, script.GetRunOnStop())
+		params.ScriptResourceAddresses = append(params.ScriptResourceAddresses, script.GetResourceAddress())
 	}
 
 	return params
@@ -3609,6 +3613,7 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 		RunOnStart:       params.ScriptRunOnStart,
 		RunOnStop:        params.ScriptRunOnStop,
 		DisplayName:      params.ScriptDisplayNames,
+		ResourceAddress:  params.ScriptResourceAddresses,
 	})
 	if err != nil {
 		return xerrors.Errorf("insert scripts: %w", err)

@@ -1034,6 +1034,7 @@ const MockWorkspaceAgentScript: TypesGen.WorkspaceAgentScript = {
 	start_blocks_login: false,
 	timeout: 0,
 	display_name: "Startup Script",
+	resource_address: "coder_script.startup",
 };
 
 export const MockWorkspaceAgent: TypesGen.WorkspaceAgent = {

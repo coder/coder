@@ -6282,6 +6282,7 @@ type WorkspaceAgentScript struct {
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
 	ID               uuid.UUID `db:"id" json:"id"`
+	ResourceAddress  string    `db:"resource_address" json:"resource_address"`
 }
 
 type WorkspaceAgentScriptTiming struct {

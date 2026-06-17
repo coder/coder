@@ -23,6 +23,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/agent/unit"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -56,6 +57,9 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+	// UnitManager, when set, causes the runner to register each script as a
+	// sync unit during Init and to update unit status as scripts execute.
+	UnitManager *unit.Manager
 }
 
 // New creates a runner for the provided scripts.
@@ -138,6 +142,29 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 		opt(r)
 	}
 	r.Logger.Info(r.cronCtx, "initializing agent scripts", slog.F("script_count", len(scripts)), slog.F("log_dir", r.LogDir))
+
+	// Register all scripts as sync units so they are immediately visible
+	// via "coder exp sync list". Registration happens before any script
+	// executes, giving observers a complete picture of pending work.
+	if r.UnitManager != nil {
+		for _, script := range scripts {
+			unitName := scriptUnitName(script)
+			if unitName == "" {
+				r.Logger.Warn(r.cronCtx, "skipping unit registration for script with no usable name",
+					slog.F("script_id", script.ID))
+				continue
+			}
+			if err := r.UnitManager.Register(unit.ID(unitName)); err != nil {
+				if errors.Is(err, unit.ErrUnitAlreadyRegistered) {
+					r.Logger.Warn(r.cronCtx, "duplicate unit name during script registration",
+						slog.F("unit_name", unitName),
+						slog.F("script_id", script.ID))
+					continue
+				}
+				return xerrors.Errorf("register script unit %q: %w", unitName, err)
+			}
+		}
+	}
 
 	err := r.Filesystem.MkdirAll(r.ScriptBinDir(), 0o700)
 	if err != nil {
@@ -335,6 +362,9 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	cmd.Stdout = io.MultiWriter(fileWriter, infoW)
 	cmd.Stderr = io.MultiWriter(fileWriter, errW)
 
+	// Mark the script's sync unit as started before execution begins.
+	r.setUnitStatus(ctx, script, unit.StatusStarted)
+
 	start := dbtime.Now()
 	defer func() {
 		end := dbtime.Now()
@@ -404,6 +434,10 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 		if err != nil {
 			logger.Warn(ctx, "reporting script completed: track command goroutine", slog.Error(err))
 		}
+
+		// Mark the script's sync unit as completed after execution finishes,
+		// regardless of whether the script succeeded or failed.
+		r.setUnitStatus(ctx, script, unit.StatusComplete)
 	}()
 
 	err = cmd.Start()
@@ -487,4 +521,32 @@ func (r *Runner) isClosed() bool {
 	default:
 		return false
 	}
+}
+
+// setUnitStatus updates the sync unit status for a script.
+// It is a no-op when no UnitManager is configured or when the script
+// has no usable unit name.
+func (r *Runner) setUnitStatus(ctx context.Context, script codersdk.WorkspaceAgentScript, status unit.Status) {
+	unitName := scriptUnitName(script)
+	if r.UnitManager == nil || unitName == "" {
+		return
+	}
+	if err := r.UnitManager.UpdateStatus(unit.ID(unitName), status); err != nil {
+		// Log but do not fail; unit tracking is best-effort relative
+		// to script execution.
+		r.Logger.Warn(ctx, "failed to update unit status",
+			slog.F("unit_name", unitName),
+			slog.F("status", string(status)),
+			slog.Error(err))
+	}
+}
+
+// scriptUnitName returns the unit name for a script. It prefers
+// ResourceAddress (the Terraform resource address, unique across
+// modules) and falls back to DisplayName.
+func scriptUnitName(script codersdk.WorkspaceAgentScript) string {
+	if script.ResourceAddress != "" {
+		return script.ResourceAddress
+	}
+	return script.DisplayName
 }
