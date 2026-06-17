@@ -562,14 +562,20 @@ describe("archiveChat optimistic update", () => {
 		expect(context?.previousChat).toBeUndefined();
 	});
 
-	it("invalidates queries on settled regardless of outcome", async () => {
+	it("invalidates on settled without returning pending promises", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		// Mock invalidateQueries to never resolve so a regression back to
+		// an awaited (async) onSettled surfaces as a pending promise return
+		// value, which is what keeps the mutation's loading state stuck.
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
 
 		const mutation = archiveChat(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
+		const result = mutation.onSettled(undefined, undefined, chatId);
 
+		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatsKey }),
 		);
@@ -577,6 +583,7 @@ describe("archiveChat optimistic update", () => {
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		invalidateSpy.mockRestore();
 	});
 });
 
@@ -672,14 +679,20 @@ describe("unarchiveChat optimistic update", () => {
 		).toBe(true);
 	});
 
-	it("invalidates queries on settled", async () => {
+	it("invalidates on settled without returning pending promises", () => {
 		const queryClient = createTestQueryClient();
 		const chatId = "chat-1";
-		const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+		// Mock invalidateQueries to never resolve so a regression back to
+		// an awaited (async) onSettled surfaces as a pending promise return
+		// value, which is what keeps the mutation's loading state stuck.
+		const invalidateSpy = vi
+			.spyOn(queryClient, "invalidateQueries")
+			.mockReturnValue(new Promise<void>(() => {}));
 
 		const mutation = unarchiveChat(queryClient);
-		await mutation.onSettled(undefined, undefined, chatId);
+		const result = mutation.onSettled(undefined, undefined, chatId);
 
+		expect(result).toBeUndefined();
 		expect(invalidateSpy).toHaveBeenCalledWith(
 			expect.objectContaining({ queryKey: chatsKey }),
 		);
@@ -687,6 +700,7 @@ describe("unarchiveChat optimistic update", () => {
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		invalidateSpy.mockRestore();
 	});
 });
 
@@ -1617,6 +1631,18 @@ describe("mutation invalidation scope", () => {
 			queryClient.getQueryState(chatsKey)?.isInvalidated,
 			"flat chats should NOT be invalidated",
 		).not.toBe(true);
+	});
+});
+
+describe("infiniteChatsKey shape", () => {
+	it("places the filter object one slot after the chatsKey prefix", () => {
+		// archivedFilterForChatListKey reads the archived filter from the
+		// slot immediately after the chatsKey prefix. If this layout ever
+		// changes, that helper silently stops removing chats from
+		// conflicting filtered lists, so keep the two in sync.
+		const key = infiniteChatsKey({ archived: true });
+		expect(key.length).toBe(chatsKey.length + 1);
+		expect(key[chatsKey.length]).toEqual({ archived: true });
 	});
 });
 

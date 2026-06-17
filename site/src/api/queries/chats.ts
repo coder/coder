@@ -235,13 +235,18 @@ export const removeChildFromParentInCache = (
 	return found;
 };
 
+// Inverse of infiniteChatsKey, which builds keys as [...chatsKey, filters?].
+// The optional filter object lives in the slot immediately after the
+// chatsKey prefix, so derive both the expected length and the filter index
+// from chatsKey. If infiniteChatsKey's shape changes, this must change with
+// it; the "infiniteChatsKey shape" test in chats.test.ts guards that contract.
 const archivedFilterForChatListKey = (
 	queryKey: readonly unknown[],
 ): boolean | undefined => {
-	if (queryKey.length !== 2) {
+	if (queryKey.length !== chatsKey.length + 1) {
 		return undefined;
 	}
-	const filters = queryKey[1];
+	const filters = queryKey[chatsKey.length];
 	if (!filters || typeof filters !== "object") {
 		return undefined;
 	}
@@ -270,7 +275,11 @@ const patchChatArchiveState = (
 	return { ...chat, archived, pin_order: pinOrder };
 };
 
-/** Applies an accepted archive state to loaded sidebar and detail caches. */
+/**
+ * Applies an accepted archive state to loaded sidebar and detail caches.
+ * Removes the chat from any filtered list whose archived filter conflicts
+ * with the new state, and resets pin_order to 0 when archiving.
+ */
 export const applyChatArchiveStateToCaches = (
 	queryClient: QueryClient,
 	chatId: string,
@@ -768,18 +777,20 @@ export const archiveChat = (queryClient: QueryClient) => ({
 		);
 		// Flip archived flag in the flat root list; strip the
 		// chat from any parent's embedded children (individual
-		// child archive).
+		// child archive). Reuse patchChatArchiveState so the
+		// optimistic snapshot matches the confirmed onSuccess state,
+		// including the pin_order reset for an archived chat.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, archived: true } : chat,
+				chat.id === chatId ? patchChatArchiveState(chat, true) : chat,
 			),
 		);
 		removeChildFromParentInCache(queryClient, chatId);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
-				...previousChat,
-				archived: true,
-			});
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				patchChatArchiveState(previousChat, true),
+			);
 		}
 		return { previousChat };
 	},
@@ -831,16 +842,18 @@ export const unarchiveChat = (queryClient: QueryClient) => ({
 		const previousChat = queryClient.getQueryData<TypesGen.Chat>(
 			chatKey(chatId),
 		);
+		// Reuse patchChatArchiveState so the optimistic snapshot
+		// matches the confirmed onSuccess state.
 		updateInfiniteChatsCache(queryClient, (chats) =>
 			chats.map((chat) =>
-				chat.id === chatId ? { ...chat, archived: false } : chat,
+				chat.id === chatId ? patchChatArchiveState(chat, false) : chat,
 			),
 		);
 		if (previousChat) {
-			queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), {
-				...previousChat,
-				archived: false,
-			});
+			queryClient.setQueryData<TypesGen.Chat>(
+				chatKey(chatId),
+				patchChatArchiveState(previousChat, false),
+			);
 		}
 		return { previousChat };
 	},
