@@ -684,8 +684,7 @@ func (*SyncListRequest) Descriptor() ([]byte, []int) {
 }
 
 // UnitInfo represents a single unit vertex in the dependency graph.
-// Unlike DependencyInfo, which represents a directed edge between two units,
-// UnitInfo captures the state of the unit itself.
+// Includes the state of the unit itself.
 type UnitInfo struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache

@@ -26,7 +26,7 @@ func (*RootCmd) syncList(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List all registered units and their statuses",
-		Long:  "List all units currently registered with the workspace agent. Shows each unit's name, status, and whether it is ready to start. Supports multiple output formats.",
+		Long:  "List all units currently registered with the workspace agent. Shows each unit's name, status, and whether it is ready to start.",
 		Handler: func(i *serpent.Invocation) error {
 			ctx := i.Context()
 
