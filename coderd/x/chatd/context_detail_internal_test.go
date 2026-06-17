@@ -157,16 +157,22 @@ func TestDiffContextResources(t *testing.T) {
 		}, changes[2])
 	})
 
-	t.Run("SkipsNonPromptKinds", func(t *testing.T) {
+	t.Run("IncludesMCPChanges", func(t *testing.T) {
 		t.Parallel()
 
 		pinned := []database.ChatContextResource{
-			{Source: ".mcp.json", BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig, ContentHash: contentHash("old")},
+			{Source: "/p/.mcp.json", BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig, ContentHash: contentHash("old")},
 		}
 		snapshot := []database.WorkspaceAgentContextResource{
-			{Source: ".mcp.json", BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig, ContentHash: contentHash("new")},
+			{Source: "/p/.mcp.json", BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig, ContentHash: contentHash("new")},
 		}
-		require.Empty(t, diffContextResources(pinned, snapshot))
+		changes := diffContextResources(pinned, snapshot)
+		// MCP changes carry only source, kind, and status (no body diff).
+		require.Equal(t, []codersdk.ChatContextResourceChange{{
+			Source: "/p/.mcp.json",
+			Kind:   codersdk.ChatContextResourceKindMCPConfig,
+			Status: codersdk.ChatContextResourceChangeStatusModified,
+		}}, changes)
 	})
 
 	t.Run("SanitizesAndCapsContent", func(t *testing.T) {

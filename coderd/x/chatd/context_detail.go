@@ -116,10 +116,10 @@ func diffContextResources(
 
 // buildResourceChange assembles a change entry for one source. The reported
 // kind comes from the side that exists now (snapshot for added/modified,
-// pinned for removed); ok is false when that side is not a prompt kind, so
-// unrelated resource kinds (e.g. MCP config) are skipped. Instruction-file
-// changes carry the sanitized, capped bodies of whichever sides are present;
-// skill changes carry the identifying name and description.
+// pinned for removed); ok is false only for kinds chatd does not track. An
+// instruction-file change carries the sanitized, capped bodies of whichever
+// sides are present; a skill change carries the identifying name and
+// description; MCP config/server changes carry only source, kind, and status.
 func buildResourceChange(
 	source string,
 	status codersdk.ChatContextResourceChangeStatus,
@@ -129,7 +129,7 @@ func buildResourceChange(
 	if current == nil {
 		current = pinned
 	}
-	kind, ok := promptResourceKind(current.kind)
+	kind, ok := contextResourceKind(current.kind)
 	if !ok {
 		return codersdk.ChatContextResourceChange{}, false
 	}
@@ -160,20 +160,6 @@ func buildResourceChange(
 		}
 	}
 	return change, true
-}
-
-// promptResourceKind maps a database body kind to the codersdk kind reported
-// on the chat, reporting ok=false for kinds that do not contribute to the
-// prompt (and so are not surfaced as context resources or changes).
-func promptResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
-	switch kind {
-	case database.WorkspaceAgentContextBodyKindInstructionFile:
-		return codersdk.ChatContextResourceKindInstructionFile, true
-	case database.WorkspaceAgentContextBodyKindSkill:
-		return codersdk.ChatContextResourceKindSkill, true
-	default:
-		return "", false
-	}
 }
 
 // cappedInstructionContent decodes, sanitizes, and length-caps an instruction

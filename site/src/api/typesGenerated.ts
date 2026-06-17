@@ -1785,10 +1785,16 @@ export const ChatContextResourceChangeStatuses: ChatContextResourceChangeStatus[
 	["added", "modified", "removed"];
 
 // From codersdk/chats.go
-export type ChatContextResourceKind = "instruction_file" | "skill";
+export type ChatContextResourceKind =
+	| "instruction_file"
+	| "mcp_config"
+	| "mcp_server"
+	| "skill";
 
 export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"instruction_file",
+	"mcp_config",
+	"mcp_server",
 	"skill",
 ];
 

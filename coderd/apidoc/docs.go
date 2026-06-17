@@ -16877,11 +16877,15 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "instruction_file",
-                "skill"
+                "skill",
+                "mcp_config",
+                "mcp_server"
             ],
             "x-enum-varnames": [
                 "ChatContextResourceKindInstructionFile",
-                "ChatContextResourceKindSkill"
+                "ChatContextResourceKindSkill",
+                "ChatContextResourceKindMCPConfig",
+                "ChatContextResourceKindMCPServer"
             ]
         },
         "codersdk.ChatDiffContents": {

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -62,6 +63,26 @@ func (r *RootCmd) chatContextCommand() *serpent.Command {
 			Value:       serpent.StringOf(&socketPath),
 		}},
 	}
+}
+
+// resolveContextSourcePath makes a user-supplied source path absolute so the
+// agent (which requires absolute, canonical paths) accepts it. A leading ~ is
+// preserved for the agent to expand against its own home directory; other
+// relative paths are resolved against the CLI's working directory, which shares
+// the workspace filesystem with the agent.
+func resolveContextSourcePath(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "", xerrors.New("path is empty")
+	}
+	if p == "~" || strings.HasPrefix(p, "~/") {
+		return p, nil
+	}
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return "", xerrors.Errorf("resolve path %q: %w", p, err)
+	}
+	return abs, nil
 }
 
 // dialAgentContextSocket connects to the workspace agent's local IPC socket.
@@ -141,7 +162,11 @@ func (*RootCmd) chatContextShowCommand(socketPath *string) *serpent.Command {
 			}
 			defer client.Close()
 
-			src, err := client.GetContextSource(ctx, inv.Args[0])
+			path, err := resolveContextSourcePath(inv.Args[0])
+			if err != nil {
+				return err
+			}
+			src, err := client.GetContextSource(ctx, path)
 			if err != nil {
 				return xerrors.Errorf("get context source: %w", err)
 			}
@@ -198,13 +223,17 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 			}
 
 			// Source registration (default).
+			path, err := resolveContextSourcePath(inv.Args[0])
+			if err != nil {
+				return err
+			}
 			client, err := dialAgentContextSocket(ctx, *socketPath)
 			if err != nil {
 				return err
 			}
 			defer client.Close()
 
-			src, err := client.AddContextSource(ctx, inv.Args[0])
+			src, err := client.AddContextSource(ctx, path)
 			if err != nil {
 				return xerrors.Errorf("add context source: %w", err)
 			}
@@ -283,10 +312,14 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 			}
 			defer client.Close()
 
-			if err := client.RemoveContextSource(ctx, inv.Args[0]); err != nil {
+			path, err := resolveContextSourcePath(inv.Args[0])
+			if err != nil {
+				return err
+			}
+			if err := client.RemoveContextSource(ctx, path); err != nil {
 				return xerrors.Errorf("remove context source: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Removed context source %s\n", inv.Args[0])
+			_, _ = fmt.Fprintf(inv.Stdout, "Removed context source %s\n", path)
 			return nil
 		},
 	}

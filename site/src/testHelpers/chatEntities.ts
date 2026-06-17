@@ -48,6 +48,16 @@ const MockChatContextResources: ChatContextResource[] = [
 		skill_name: "deploy",
 		skill_description: "Deploy the app to staging.",
 	},
+	{
+		source: "/home/coder/.mcp.json",
+		kind: "mcp_config",
+		size_bytes: 184,
+	},
+	{
+		source: "github",
+		kind: "mcp_server",
+		size_bytes: 512,
+	},
 ];
 
 // Per-source differences between the pinned context and the latest snapshot.

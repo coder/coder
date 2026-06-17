@@ -15165,10 +15165,12 @@
 		},
 		"codersdk.ChatContextResourceKind": {
 			"type": "string",
-			"enum": ["instruction_file", "skill"],
+			"enum": ["instruction_file", "skill", "mcp_config", "mcp_server"],
 			"x-enum-varnames": [
 				"ChatContextResourceKindInstructionFile",
-				"ChatContextResourceKindSkill"
+				"ChatContextResourceKindSkill",
+				"ChatContextResourceKindMCPConfig",
+				"ChatContextResourceKindMCPServer"
 			]
 		},
 		"codersdk.ChatDiffContents": {

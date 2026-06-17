@@ -1,4 +1,4 @@
-import { FileIcon, TriangleAlertIcon, ZapIcon } from "lucide-react";
+import { FileIcon, PlugIcon, TriangleAlertIcon, ZapIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type { ChatContext, ChatMessagePart } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -45,6 +45,10 @@ type ContextFileItem = { readonly path: string; readonly truncated?: boolean };
 type ContextSkillItem = {
 	readonly name: string;
 	readonly description?: string;
+};
+type ContextMcpItem = {
+	readonly name: string;
+	readonly source: string;
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -181,7 +185,30 @@ export const ContextUsageIndicator: FC<{
 		// Drop entries with no usable name so an empty skill marker never renders
 		// as a blank row.
 		.filter((skill) => skill.name.trim().length > 0);
-	const hasContextList = fileItems.length > 0 || skillItems.length > 0;
+	// MCP configs/servers are only ever surfaced from the chat's pinned
+	// resources; there is no injected-context fallback for them. An MCP server's
+	// source is its server name, while an MCP config's source is its file path.
+	const mcpItems: readonly ContextMcpItem[] = (
+		usePinned
+			? (pinnedResources ?? [])
+					.filter(
+						(resource) =>
+							resource.kind === "mcp_config" || resource.kind === "mcp_server",
+					)
+					.map((resource) => ({
+						name:
+							resource.kind === "mcp_server"
+								? resource.source
+								: getPathBasename(resource.source),
+						source: resource.source,
+					}))
+			: []
+	)
+		// Drop entries with no usable name so an empty MCP marker never renders as
+		// a blank row.
+		.filter((mcp) => mcp.name.trim().length > 0);
+	const hasContextList =
+		fileItems.length > 0 || skillItems.length > 0 || mcpItems.length > 0;
 
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
@@ -268,109 +295,14 @@ export const ContextUsageIndicator: FC<{
 					{mcpItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">MCP</span>
-							<TooltipProvider delayDuration={300}>
-								{mcpItems.map((mcp) => (
-									<div key={mcp.source} className="flex flex-col gap-0.5">
-										<div
-											className="flex items-center gap-1.5"
-											title={mcp.source}
-										>
-											<PlugIcon className="size-3 shrink-0" />
-											<span className="truncate">{mcp.name}</span>
-										</div>
-										{mcp.tools.length > 0 && (
-											<div className="ml-4 flex flex-col gap-0.5">
-												{mcp.tools.map((tool) => {
-													const row = (
-														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
-															<WrenchIcon className="size-3 shrink-0" />
-															<span className="truncate">{tool.name}</span>
-														</div>
-													);
-													if (!tool.description) {
-														return <div key={tool.name}>{row}</div>;
-													}
-													return (
-														<Tooltip key={tool.name}>
-															<TooltipTrigger asChild>
-																<div className="cursor-default">{row}</div>
-															</TooltipTrigger>
-															<TooltipContent
-																side="right"
-																sideOffset={4}
-																className="max-w-48 text-xs"
-															>
-																{tool.description}
-															</TooltipContent>
-														</Tooltip>
-													);
-												})}
-											</div>
-										)}
-									</div>
-								))}
-							</TooltipProvider>
-						</div>
-					)}
-					{issueItems.length > 0 && (
-						<div className="flex flex-col gap-1">
-							<span className="flex items-center gap-1.5 font-medium text-content-warning">
-								<TriangleAlertIcon className="size-3 shrink-0" />
-								Issues
-							</span>
-							{issueItems.map((issue) => (
-								<div
-									key={issue.source}
-									className="flex flex-col"
-									title={issue.source}
-								>
-									<span className="truncate">
-										{issue.name}{" "}
-										<span className="text-content-secondary">
-											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
-										</span>
+							{mcpItems.map((mcp) => (
+								<div key={mcp.source} className="flex items-center gap-1.5">
+									<PlugIcon className="size-3 shrink-0" />
+									<span className="truncate" title={mcp.source}>
+										{mcp.name}
 									</span>
-									{issue.error && (
-										<span className="text-content-secondary">
-											{issue.error}
-										</span>
-									)}
 								</div>
 							))}
-						</div>
-					)}
-				</div>
-			)}
-			{(isDirty || hasContextError) && (
-				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border-default pt-2">
-					{hasContextError ? (
-						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context error
-						</span>
-					) : (
-						<span className="flex items-center gap-1.5 font-medium text-content-warning">
-							<TriangleAlertIcon className="size-3 shrink-0" />
-							Context changed
-						</span>
-					)}
-					{hasContextError ? (
-						<span className="text-content-secondary">{contextError}</span>
-					) : (
-						<span className="text-content-secondary">
-							The workspace context changed since this chat was pinned.
-						</span>
-					)}
-					{onRefreshContext && (
-						<div className="flex flex-wrap gap-2">
-							<Button
-								size="sm"
-								disabled={isRefreshingContext}
-								onClick={() => onRefreshContext()}
-							>
-								<Spinner loading={isRefreshingContext} />
-								Refresh context
-							</Button>
 						</div>
 					)}
 				</div>

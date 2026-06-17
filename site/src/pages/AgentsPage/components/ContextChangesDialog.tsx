@@ -34,8 +34,8 @@ const CHANGE_LABELS: Record<
 /**
  * Renders the differences between a chat's pinned workspace context and the
  * agent's latest snapshot. Instruction-file edits are shown as a diff (reusing
- * the chat DiffViewer); skill changes are shown as a labeled list since they
- * carry only a name and description. A refresh action re-pins to the latest
+ * the chat DiffViewer); skill and MCP changes are shown as a labeled list since
+ * they carry only a name/source. A refresh action re-pins to the latest
  * snapshot.
  */
 export const ContextChangesDialog: FC<ContextChangesDialogProps> = ({
@@ -48,7 +48,11 @@ export const ContextChangesDialog: FC<ContextChangesDialogProps> = ({
 	const fileChanges = changes.filter(
 		(change) => change.kind === "instruction_file",
 	);
-	const skillChanges = changes.filter((change) => change.kind === "skill");
+	// Skills and MCP configs/servers have no textual body to diff, so they are
+	// listed by name/source rather than rendered through the DiffViewer.
+	const listChanges = changes.filter(
+		(change) => change.kind !== "instruction_file",
+	);
 
 	// Concatenate per-file patches into one diff string and let useParsedDiff
 	// perform the (memoized) parse, rather than parsing in render.
@@ -74,9 +78,9 @@ export const ContextChangesDialog: FC<ContextChangesDialogProps> = ({
 					</DialogDescription>
 				</DialogHeader>
 
-				{skillChanges.length > 0 && (
+				{listChanges.length > 0 && (
 					<ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm">
-						{skillChanges.map((change) => {
+						{listChanges.map((change) => {
 							const label = CHANGE_LABELS[change.status];
 							return (
 								<li

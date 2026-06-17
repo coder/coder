@@ -339,13 +339,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                                                     |
-|---------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                                                                  |
-| `kind`        | `auth`, `config`, `generic`, `instruction_file`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
-| `status`      | `added`, `completed`, `error`, `interrupting`, `modified`, `paused`, `pending`, `removed`, `requires_action`, `running`, `waiting`                                           |
-| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                                                                 |
-| `plan_mode`   | `plan`                                                                                                                                                                       |
+| Property      | Value(s)                                                                                                                                                                                                 |
+|---------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                                                                              |
+| `kind`        | `auth`, `config`, `generic`, `instruction_file`, `mcp_config`, `mcp_server`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `skill`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `status`      | `added`, `completed`, `error`, `interrupting`, `modified`, `paused`, `pending`, `removed`, `requires_action`, `running`, `waiting`                                                                       |
+| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                                                                                             |
+| `plan_mode`   | `plan`                                                                                                                                                                                                   |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

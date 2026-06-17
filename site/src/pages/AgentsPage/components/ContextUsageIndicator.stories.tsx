@@ -40,6 +40,10 @@ export const Clean: Story = {
 		// The list is driven by the pinned resources.
 		expect(body.getByText("AGENTS.md")).toBeVisible();
 		expect(body.getByText("deploy")).toBeVisible();
+		// MCP configs are listed by file basename and servers by name.
+		expect(body.getByText("MCP")).toBeVisible();
+		expect(body.getByText(".mcp.json")).toBeVisible();
+		expect(body.getByText("github")).toBeVisible();
 		// A clean pin offers no refresh affordance.
 		expect(body.queryByRole("button", { name: "Refresh context" })).toBeNull();
 	},
