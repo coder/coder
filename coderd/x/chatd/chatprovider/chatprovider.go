@@ -202,54 +202,63 @@ func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
 	return parsed, true
 }
 
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+// setRegion records a normalized, non-empty region for a provider. The
+// RegionByProvider map is allocated lazily so an unused set stays nil, which
+// keeps Empty() and value comparisons stable.
+func (k *ProviderAPIKeys) setRegion(provider, region string) {
+	if provider == "" {
+		return
+	}
+	if region = strings.TrimSpace(region); region == "" {
+		return
+	}
+	if k.RegionByProvider == nil {
+		k.RegionByProvider = map[string]string{}
+	}
+	k.RegionByProvider[provider] = region
+}
+
+// mergedFromFallback seeds a ProviderAPIKeys from a fallback set, normalizing
+// provider names and dropping blank values. ByProvider and BaseURLByProvider
+// are always non-nil; RegionByProvider stays nil until a region is set. The
+// legacy OpenAI/Anthropic keys are mirrored into ByProvider so callers can
+// look them up by provider name.
+func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
 		OpenAI:            strings.TrimSpace(fallback.OpenAI),
 		Anthropic:         strings.TrimSpace(fallback.Anthropic),
 		ByProvider:        map[string]string{},
 		BaseURLByProvider: map[string]string{},
 	}
-	setRegion := func(provider, region string) {
-		if region = strings.TrimSpace(region); region != "" {
-			if merged.RegionByProvider == nil {
-				merged.RegionByProvider = map[string]string{}
-			}
-			merged.RegionByProvider[provider] = region
-		}
-	}
 	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if key := strings.TrimSpace(apiKey); key != "" {
+				merged.ByProvider[normalized] = key
+			}
 		}
 	}
 	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if url := strings.TrimSpace(baseURL); url != "" {
+				merged.BaseURLByProvider[normalized] = url
+			}
 		}
 	}
 	for provider, region := range fallback.RegionByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		setRegion(normalizedProvider, region)
+		merged.setRegion(NormalizeProvider(provider), region)
 	}
-
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
 	}
 	if merged.Anthropic != "" {
 		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
+	return merged
+}
+
+// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
+func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+	merged := mergedFromFallback(fallback)
 
 	for _, provider := range providers {
 		normalizedProvider := NormalizeProvider(provider.Provider)
@@ -263,7 +272,7 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
-		setRegion(normalizedProvider, provider.Region)
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		switch normalizedProvider {
 		case fantasyopenai.Name:
@@ -289,51 +298,7 @@ func ResolveUserProviderKeys(
 	providers []ConfiguredProvider,
 	userKeys []UserProviderKey,
 ) (ProviderAPIKeys, map[string]ProviderAvailability) {
-	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
-	}
-	setRegion := func(provider, region string) {
-		if region = strings.TrimSpace(region); region != "" {
-			if merged.RegionByProvider == nil {
-				merged.RegionByProvider = map[string]string{}
-			}
-			merged.RegionByProvider[provider] = region
-		}
-	}
-	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-	}
-	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-	}
-	for provider, region := range fallback.RegionByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		setRegion(normalizedProvider, region)
-	}
-	if merged.OpenAI != "" {
-		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
-	}
-	if merged.Anthropic != "" {
-		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
-	}
+	merged := mergedFromFallback(fallback)
 
 	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
 	for _, userKey := range userKeys {
@@ -355,7 +320,7 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
-		setRegion(normalizedProvider, provider.Region)
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
