@@ -212,8 +212,11 @@ in Okta or Azure AD), you can skip manual share/remove commands entirely:
 Shared users can find workspaces shared with them:
 
 ```shell
-# List all workspaces shared with you
+# List all shared workspaces you can access, including your own
 coder list --search shared:true
+
+# List workspaces shared with you
+coder list --search shared_with_user:me
 
 # List workspaces shared with a specific user
 coder list --search shared_with_user:alice
