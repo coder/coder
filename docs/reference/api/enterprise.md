@@ -304,6 +304,26 @@ curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## AI Gateway serve
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/serve \
+  -H 'X-AI-Governance-Gateway-Key: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/serve`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples

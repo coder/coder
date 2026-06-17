@@ -594,13 +594,16 @@ externalAuthLoop:
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
-// caller's claim of identity and skips the key-secret check. This is safe only
-// because the DRPCServer is reachable solely via the in-process
-// [aibridged.MemTransportPipe]; the handler itself cannot tell whether it was
-// invoked over the in-memory pipe or a network socket. If this RPC is ever
-// exposed over a network boundary, any caller who knows a valid 10-char key ID
-// (which is not secret) could authenticate as the key's owner without the
-// secret. Do not bind this DRPCServer to a network listener.
+// caller's claim of identity and skips the key-secret check, because the caller
+// never holds the secret. This DRPCServer is reachable both in-process via
+// [aibridged.MemTransportPipe] and over the network via the
+// /api/v2/ai-gateway/serve endpoint. That endpoint admits only holders of an
+// operator-grade AI Gateway key, which are fully trusted: a standalone AI
+// Gateway authenticates its own users and acts on their behalf, much like a
+// provisioner daemon. A Gateway key holder can therefore act as any user
+// without that user's secret, so Gateway keys must be guarded as high-value
+// operator secrets. Per-user authorization on this surface is a known gap to
+// tighten later.
 //
 // NOTE: this should really be using the code from [httpmw.ExtractAPIKey]. That function not only validates the key
 // but handles many other cases like updating last used, expiry, etc. This code does not currently use it for
