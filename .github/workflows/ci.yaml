@@ -187,7 +187,7 @@ jobs:
       # runs populate a cache that other branches restore from (the
       # zizmor `cache-poisoning` concern). Only pushes to the default
       # branch may write the cache; PRs may only read it.
-      - name: Restore Vale styles and binary
+      - name: Restore Vale styles
         id: vale-cache
         if: steps.changed-md.outputs.any_changed == 'true'
         continue-on-error: true
@@ -195,11 +195,11 @@ jobs:
         with:
           # Negation excludes the hand-authored Coder rules from the cache;
           # the key also hashes them so a rule change always invalidates it.
+          # mise manages the Vale binary, so only the synced styles cache.
           path: |
             docs/.style/styles/*
             !docs/.style/styles/Coder
             docs/.style/.vale-synced
-            build/vale-*
           key: vale-${{ hashFiles('.vale.ini', 'mise.toml', 'docs/.style/styles/Coder/**') }}
           restore-keys: |
             vale-
@@ -207,6 +207,9 @@ jobs:
       - name: Prepare Vale styles
         if: steps.changed-md.outputs.any_changed == 'true'
         continue-on-error: true
+        env:
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
         run: make docs/.style/.vale-synced
 
       - name: Vale prose lint
@@ -214,24 +217,26 @@ jobs:
         continue-on-error: true
         env:
           ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
         run: |
+          # all_changed_files is ACMRD and so lists paths this PR deleted.
+          # Vale errors on a missing file (--no-exit only suppresses alert
+          # exits, not runtime errors), so keep only docs/ paths still on
+          # disk. See DOCS-40.
           files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
             | tr ',' '\n' \
-            | grep -E '^docs/' || true)
+            | grep -E '^docs/' \
+            | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done || true)
           if [ -z "$files" ]; then
-            echo "No changed Markdown files under docs/; skipping Vale."
-            exit 0
-          fi
-          vale=$(find build/ -maxdepth 1 -name 'vale-*' -type f -print -quit)
-          if [ -z "$vale" ]; then
-            echo "Vale binary not found (sync likely failed); skipping."
+            echo "No changed Markdown files under docs/ on disk; skipping Vale."
             exit 0
           fi
           echo "::add-matcher::.github/vale-problem-matcher.json"
-          printf '%s\n' "$files" | xargs -d '\n' "$vale" --no-exit --output=line
+          printf '%s\n' "$files" | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=line
           echo "::remove-matcher owner=vale::"
 
-      - name: Save Vale styles and binary
+      - name: Save Vale styles
         # Only the default branch is trusted to write the cache, so PR
         # runs cannot poison the cache that subsequent runs restore from.
         # Skip when the cache already had an exact key hit (no new content).
@@ -243,7 +248,6 @@ jobs:
             docs/.style/styles/*
             !docs/.style/styles/Coder
             docs/.style/.vale-synced
-            build/vale-*
           key: ${{ steps.vale-cache.outputs.cache-primary-key }}
 
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
