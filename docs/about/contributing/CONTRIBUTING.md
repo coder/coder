@@ -4,7 +4,7 @@
 
 <div class="tabs">
 
-To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/blob/main/flake.nix).
 Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix

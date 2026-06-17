@@ -29,6 +29,7 @@ ignorePatterns:
   - pattern: "claude.ai"
   - pattern: "splunk.com"
   - pattern: "stackoverflow.com/questions"
+  - pattern: "reflectoring.io"
   - pattern: "developer.hashicorp.com/terraform/language"
   - pattern: "platform.openai.com"
   - pattern: "api.openai.com"
