@@ -4618,16 +4618,20 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updatedWs.DormantAt)
 
-		// There should be an audit log for both the dormancy update and the start.
-		require.Len(t, auditor.AuditLogs(), 2)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionWrite,
-			ResourceType: database.ResourceTypeWorkspace,
-		}))
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionStart,
-			ResourceType: database.ResourceTypeWorkspaceBuild,
-		}))
+		// There should be an audit log for both the dormancy update and the
+		// start. Audit logs are written asynchronously to build completion,
+		// so poll until both appear.
+		require.Eventually(t, func() bool {
+			return len(auditor.AuditLogs()) == 2 &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionWrite,
+					ResourceType: database.ResourceTypeWorkspace,
+				}) &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionStart,
+					ResourceType: database.ResourceTypeWorkspaceBuild,
+				})
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 

@@ -291,7 +291,15 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer tracing.EndSpanErr(span, &outErr)
 
-	return svc.New(ctx, i.req.ChatCompletionNewParams, opts...)
+	requestOpts, overrideBody, err := i.chatCompletionRequestOptions(opts)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare request body: %w", err)
+	}
+	params := i.req.ChatCompletionNewParams
+	if overrideBody {
+		params = openai.ChatCompletionNewParams{}
+	}
+	return svc.New(ctx, params, requestOpts...)
 }
 
 // newChatCompletionWithKeyFailover walks the centralized key pool, trying each

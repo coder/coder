@@ -63,6 +63,7 @@ import { UserSidebarFooter } from "./UserSidebarFooter";
 
 const UNREAD_SECTION_KEY = "Unread";
 const READ_SECTION_KEY = "Read";
+const SHARED_WITH_YOU_SECTION_KEY = "Shared with you";
 
 interface ChatsPanelProps {
 	readonly chats: readonly Chat[];
@@ -98,6 +99,7 @@ interface ChatsPanelProps {
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
 	readonly location: Location;
+	readonly currentUserId: string;
 }
 
 export const ChatsPanel: FC<ChatsPanelProps> = ({
@@ -131,6 +133,7 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	isSettingsPanel,
 	isChatsActive,
 	location,
+	currentUserId,
 }) => {
 	const locationSearch = normalizeLocationSearch(location.search);
 	const [expandedById, setExpandedById] = useState<Record<string, boolean>>({});
@@ -156,6 +159,12 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 	const unpinnedChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined && chat.pin_order === 0);
+	const sharedWithYouChats = unpinnedChats.filter(
+		(chat) => chat.shared && chat.owner_id !== currentUserId,
+	);
+	const unpinnedOwnedChats = unpinnedChats.filter(
+		(chat) => !chat.shared || chat.owner_id === currentUserId,
+	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -312,18 +321,18 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 					{
 						key: UNREAD_SECTION_KEY,
 						label: UNREAD_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => chat.has_unread),
 					},
 					{
 						key: READ_SECTION_KEY,
 						label: READ_SECTION_KEY,
-						chats: unpinnedChats.filter((chat) => !chat.has_unread),
+						chats: unpinnedOwnedChats.filter((chat) => !chat.has_unread),
 					},
 				]
 			: TIME_GROUPS.map((group) => ({
 					key: group,
 					label: group,
-					chats: unpinnedChats.filter(
+					chats: unpinnedOwnedChats.filter(
 						(chat) => getTimeGroup(chat.updated_at) === group,
 					),
 				}))
@@ -447,6 +456,10 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 				<ScrollArea
 					className="min-h-0 flex-1 [&_[data-radix-scroll-area-viewport]>div]:!block"
 					scrollBarClassName="w-1.5"
+					// The default 24px hit-target extends ~18px left of this narrow
+					// scrollbar, onto the row controls (actions menu, timestamp,
+					// indicators). Disable it so those controls stay clickable.
+					scrollThumbClassName="before:hidden"
 					viewportClassName={cn(
 						"[mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
 						"[-webkit-mask-image:linear-gradient(to_bottom,transparent_0,black_20px,black_calc(100%-20px),transparent_100%)]",
@@ -553,6 +566,34 @@ export const ChatsPanel: FC<ChatsPanelProps> = ({
 																</SortableContext>
 															</DndContext>
 														))}
+												</div>
+											)}
+											{sharedWithYouChats.length > 0 && (
+												<div className="[&:not(:first-child)]:mt-3">
+													<ChatSectionHeader
+														label={SHARED_WITH_YOU_SECTION_KEY}
+														count={sharedWithYouChats.length}
+														expanded={
+															!collapsedSections[SHARED_WITH_YOU_SECTION_KEY]
+														}
+														onToggle={() =>
+															toggleSection(SHARED_WITH_YOU_SECTION_KEY)
+														}
+														testId={getSectionToggleTestId(
+															SHARED_WITH_YOU_SECTION_KEY,
+														)}
+													/>
+													{!collapsedSections[SHARED_WITH_YOU_SECTION_KEY] && (
+														<div className="flex flex-col gap-0.5">
+															{sharedWithYouChats.map((chat) => (
+																<ChatTreeNode
+																	key={chat.id}
+																	chat={chat}
+																	isChildNode={false}
+																/>
+															))}
+														</div>
+													)}
 												</div>
 											)}
 											{chatSections.map((section) => {

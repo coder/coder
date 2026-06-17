@@ -43,6 +43,7 @@ interface ChatsSidebarProps {
 	onCollapse?: () => void;
 	isPersonalModelOverridesEnabled?: boolean;
 	isAdmin?: boolean;
+	currentUserId: string;
 }
 
 export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
@@ -77,6 +78,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 		onCollapse,
 		isPersonalModelOverridesEnabled = false,
 		isAdmin = false,
+		currentUserId,
 	} = props;
 	const { agentId, chatId } = useParams<{
 		agentId?: string;
@@ -136,6 +138,7 @@ export const ChatsSidebar: FC<ChatsSidebarProps> = (props) => {
 				isSettingsPanel={isSettingsPanel}
 				isChatsActive={!activeChatId && sidebarView.panel === "chats"}
 				location={location}
+				currentUserId={currentUserId}
 			/>
 			<SettingsPanel
 				isSettingsPanel={isSettingsPanel}

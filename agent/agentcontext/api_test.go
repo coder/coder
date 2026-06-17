@@ -61,7 +61,7 @@ func TestAPI_ListSourcesEmpty(t *testing.T) {
 func TestAPI_AddAndListSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir:   func() string { return wd },
@@ -103,7 +103,7 @@ func TestAPI_AddSourceRejected(t *testing.T) {
 func TestAPI_GetAndDeleteSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 
 	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir:   func() string { return wd },
@@ -159,7 +159,6 @@ func TestAPI_Resync(t *testing.T) {
 
 	var snap agentcontext.SnapshotResponse
 	require.NoError(t, json.Unmarshal(body, &snap))
-	require.Equal(t, uint64(1), snap.SchemaVersion)
 	require.NotEmpty(t, snap.AggregateHash)
 	require.Len(t, snap.Resources, 1)
 	require.Equal(t, "instruction_file", snap.Resources[0].Kind)

@@ -107,6 +107,28 @@ func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 		assert.Equal(t, "Google", providers[1].DisplayName)
 		assert.Equal(t, "/icon/google.svg", providers[1].DisplayIcon)
 	})
+
+	// Regression test: when more than 10 providers are configured the
+	// previous lexicographic sort placed PROVIDER_10 between PROVIDER_1
+	// and PROVIDER_2 and the parser failed with "provider num skipped".
+	t.Run("MoreThan10Providers", func(t *testing.T) {
+		t.Parallel()
+		const count = 12
+		environ := make([]string, 0, count*2)
+		for i := 0; i < count; i++ {
+			environ = append(environ,
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_ID=id-%d", i, i),
+				fmt.Sprintf("CODER_EXTERNAL_AUTH_%d_TYPE=type-%d", i, i),
+			)
+		}
+		providers, err := cli.ReadExternalAuthProvidersFromEnv(environ)
+		require.NoError(t, err)
+		require.Len(t, providers, count)
+		for i := 0; i < count; i++ {
+			assert.Equal(t, fmt.Sprintf("id-%d", i), providers[i].ID)
+			assert.Equal(t, fmt.Sprintf("type-%d", i), providers[i].Type)
+		}
+	})
 }
 
 func TestReadExternalAuthProvidersFromEnv_APIBaseURL(t *testing.T) {
@@ -1821,6 +1843,56 @@ func TestServer(t *testing.T) {
 			w.RequireSuccess()
 		})
 	})
+}
+
+// TestServer_InvalidSSHDeploymentConfig checks that unsafe SSH config flags are
+// rejected at startup, before any database connection, so these invocations
+// fail fast.
+func TestServer_InvalidSSHDeploymentConfig(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		flag    string
+		wantErr string
+	}{
+		{
+			name:    "HostnameSuffixLeadingDot",
+			flag:    "--workspace-hostname-suffix=.coder",
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name:    "HostnameSuffixNewline",
+			flag:    "--workspace-hostname-suffix=coder\nHost *",
+			wantErr: "workspace hostname suffix",
+		},
+		{
+			name:    "HostnamePrefixNewline",
+			flag:    "--ssh-hostname-prefix=coder.\nHost *",
+			wantErr: "workspace hostname prefix",
+		},
+		{
+			name:    "SSHOptionUnparseable",
+			flag:    "--ssh-config-options=NoSeparatorOption",
+			wantErr: "parse ssh config options",
+		},
+		{
+			name:    "SSHOptionDisallowedKey",
+			flag:    "--ssh-config-options=ProxyCommand=ssh -W %h:%p bastion",
+			wantErr: `ssh config option "ProxyCommand" is not allowed`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			inv, _ := clitest.New(t, "server", tc.flag)
+			err := inv.WithContext(ctx).Run()
+			require.Error(t, err)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }
 
 //nolint:tparallel,paralleltest // This test sets environment variables.

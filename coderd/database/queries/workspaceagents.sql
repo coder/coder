@@ -514,14 +514,28 @@ WHERE
 	AND deleted = FALSE;
 
 -- name: DeleteWorkspaceSubAgentByID :exec
-UPDATE
-	workspace_agents
-SET
-	deleted = TRUE
-WHERE
-	id = $1
-	AND parent_id IS NOT NULL
-	AND deleted = FALSE;
+-- Soft-deletes a single sub-agent (a child agent such as a devcontainer
+-- agent). Called from the DeleteSubAgent RPC when a sub-agent is torn
+-- down, which can happen mid-build without a full workspace rebuild.
+--
+-- Agent context rows are hard-deleted for the same reason as in
+-- SoftDeletePriorWorkspaceAgents: they only describe live agents, the
+-- rebuild-time soft-delete queries skip already-deleted agents, and
+-- agents are never hard-deleted, so the rows would otherwise orphan
+-- forever.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id = @id
+        AND parent_id IS NOT NULL
+        AND deleted = FALSE
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);
 
 -- name: GetWorkspaceAgentsForMetrics :many
 SELECT
@@ -577,17 +591,30 @@ LIMIT 1;
 -- provisionerdserver when a workspace build completes, after the new
 -- build's agents have been inserted, so running agents are not
 -- deleted while a build is still queued or provisioning.
-UPDATE workspace_agents
-SET deleted = TRUE
-WHERE id IN (
-    SELECT wa.id
-    FROM workspace_agents wa
-    JOIN workspace_resources wr ON wr.id = wa.resource_id
-    JOIN workspace_builds wb ON wb.job_id = wr.job_id
-    WHERE wb.workspace_id = @workspace_id
-      AND wb.id <> @current_build_id
-      AND wa.deleted = FALSE
-);
+--
+-- Agent context rows (workspace_agent_context_snapshots and
+-- workspace_agent_context_resources) only describe live agents, and
+-- agents are never un-deleted, so they are hard-deleted here instead
+-- of accumulating alongside the soft-deleted agent rows.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id IN (
+        SELECT wa.id
+        FROM workspace_agents wa
+        JOIN workspace_resources wr ON wr.id = wa.resource_id
+        JOIN workspace_builds wb ON wb.job_id = wr.job_id
+        WHERE wb.workspace_id = @workspace_id
+          AND wb.id <> @current_build_id
+          AND wa.deleted = FALSE
+    )
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);
 
 -- name: SoftDeleteWorkspaceAgentsByWorkspaceID :exec
 -- Marks every non-deleted agent belonging to the given workspace as
@@ -595,13 +622,24 @@ WHERE id IN (
 -- itself is soft-deleted, so the agent instance-identity auth path
 -- (which filters on workspace_agents.deleted) doesn't keep seeing
 -- orphaned rows.
-UPDATE workspace_agents
-SET deleted = TRUE
-WHERE id IN (
-    SELECT wa.id
-    FROM workspace_agents wa
-    JOIN workspace_resources wr ON wr.id = wa.resource_id
-    JOIN workspace_builds wb ON wb.job_id = wr.job_id
-    WHERE wb.workspace_id = @workspace_id
-      AND wa.deleted = FALSE
-);
+--
+-- Agent context rows are hard-deleted for the same reason as in
+-- SoftDeletePriorWorkspaceAgents.
+WITH soft_deleted_agents AS (
+    UPDATE workspace_agents
+    SET deleted = TRUE
+    WHERE id IN (
+        SELECT wa.id
+        FROM workspace_agents wa
+        JOIN workspace_resources wr ON wr.id = wa.resource_id
+        JOIN workspace_builds wb ON wb.job_id = wr.job_id
+        WHERE wb.workspace_id = @workspace_id
+          AND wa.deleted = FALSE
+    )
+    RETURNING id
+), purged_context_resources AS (
+    DELETE FROM workspace_agent_context_resources
+    WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents)
+)
+DELETE FROM workspace_agent_context_snapshots
+WHERE workspace_agent_id IN (SELECT id FROM soft_deleted_agents);

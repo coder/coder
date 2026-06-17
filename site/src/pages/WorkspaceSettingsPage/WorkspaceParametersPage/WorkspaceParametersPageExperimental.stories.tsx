@@ -49,6 +49,9 @@ const meta = {
 		queries: workspaceQueries(MockWorkspace),
 		webSocket: [
 			{
+				event: "open",
+			},
+			{
 				event: "message",
 				data: JSON.stringify({
 					id: 0,
@@ -66,6 +69,9 @@ type Story = StoryObj<typeof WorkspaceParametersPageExperimental>;
 export const NoParameters: Story = {
 	parameters: {
 		webSocket: [
+			{
+				event: "open",
+			},
 			{
 				event: "message",
 				data: JSON.stringify({
@@ -200,6 +206,9 @@ function workspaceQueries(workspace: Workspace) {
 
 function filledWebSocketParams(): WebSocketEvent[] {
 	return [
+		{
+			event: "open",
+		},
 		{
 			event: "message",
 			data: JSON.stringify({

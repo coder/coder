@@ -17,6 +17,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
+	WorkspaceAgentListeningPortsResponse,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
@@ -495,6 +496,13 @@ export const agentLogs = (agentId: string) => {
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
 	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
+};
+
+export const agentListeningPorts = (agentId: string) => {
+	return {
+		queryKey: ["portForward", agentId],
+		queryFn: () => API.getAgentListeningPorts(agentId),
+	} satisfies UseQueryOptions<WorkspaceAgentListeningPortsResponse>;
 };
 
 // workspace usage options

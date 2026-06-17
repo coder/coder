@@ -294,7 +294,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getAIProviders: func(context.Context, database.GetAIProvidersParams) ([]database.AIProvider, error) {
 				return []database.AIProvider{{
 					ID:      providerID,
-					Type:    database.AiProviderTypeOpenai,
+					Type:    database.AIProviderTypeOpenai,
 					Enabled: true,
 				}}, nil
 			},
@@ -385,7 +385,7 @@ func TestResolveAdvisorModelOverride(t *testing.T) {
 			getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
 				return database.AIProvider{
 					ID:      providerID,
-					Type:    database.AiProviderTypeOpenai,
+					Type:    database.AIProviderTypeOpenai,
 					Enabled: true,
 				}, nil
 			},
@@ -434,7 +434,7 @@ func TestResolveAdvisorModelOverridePromotesAIBridgeErrors(t *testing.T) {
 			}, nil
 		},
 		getAIProviderByID: func(context.Context, uuid.UUID) (database.AIProvider, error) {
-			return database.AIProvider{ID: providerID, Type: database.AiProviderTypeOpenai, Name: "primary-openai", Enabled: true}, nil
+			return database.AIProvider{ID: providerID, Type: database.AIProviderTypeOpenai, Name: "primary-openai", Enabled: true}, nil
 		},
 		getAIProviderKeysByProviderID: func(context.Context, uuid.UUID) ([]database.AIProviderKey, error) {
 			return []database.AIProviderKey{{ProviderID: providerID, APIKey: "sk-selected"}}, nil

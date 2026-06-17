@@ -61,14 +61,13 @@ func TestManager_InitialSnapshotIsPopulated(t *testing.T) {
 
 	snap := m.Snapshot()
 	require.Equal(t, uint64(1), snap.Version)
-	require.Equal(t, agentcontext.CurrentSchemaVersion, snap.SchemaVersion)
 	require.Len(t, snap.Resources, 1)
 }
 
 func TestManager_AddSourceTriggersResolve(t *testing.T) {
 	t.Parallel()
-	wd := t.TempDir()
-	src := t.TempDir()
+	wd := testutil.TempDirResolved(t)
+	src := testutil.TempDirResolved(t)
 	mustWriteFile(t, filepath.Join(src, "AGENTS.md"), "from source")
 
 	m := newTestManager(t, agentcontext.ManagerOptions{
@@ -194,7 +193,7 @@ func TestManager_RemoveSource(t *testing.T) {
 func TestManager_HasSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 
 	m := newTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir:   func() string { return wd },
@@ -285,7 +284,7 @@ func TestManager_ResyncCanceledKeepsLiveSnapshot(t *testing.T) {
 func TestManager_InitialSourcesSeeded(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	src := t.TempDir()
+	src := testutil.TempDirResolved(t)
 	mustWriteFile(t, filepath.Join(src, "AGENTS.md"), "from initial")
 
 	m := newTestManager(t, agentcontext.ManagerOptions{
@@ -312,7 +311,7 @@ func TestManager_InitialSourcesSeeded(t *testing.T) {
 func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
-	late := t.TempDir()
+	late := testutil.TempDirResolved(t)
 	mustWriteFile(t, filepath.Join(late, "AGENTS.md"), "late binding")
 
 	// AllowedRoots intentionally omits `late` so AddSource

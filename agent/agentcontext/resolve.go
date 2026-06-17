@@ -368,7 +368,16 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 	if err != nil {
 		return "", nil, false, StatusUnreadable, fmt.Sprintf("symlink resolve: %v", err)
 	}
+	// Canonicalize scanRoot symmetrically with the target so the
+	// boundary check survives platform-level symlinks in the scan
+	// root prefix. macOS, for example, exposes /var as a symlink
+	// to /private/var; EvalSymlinks on the target produces a
+	// /private/var path while the caller's scanRoot may still be
+	// /var, which would incorrectly trip the prefix check.
 	rootClean := filepath.Clean(scanRoot)
+	if resolved, err := filepath.EvalSymlinks(rootClean); err == nil {
+		rootClean = resolved
+	}
 	if !pathHasPrefix(target, rootClean) {
 		return "", nil, false, StatusInvalid, fmt.Sprintf("symlink target %q escapes scan root %q", target, scanRoot)
 	}
@@ -927,9 +936,6 @@ type Snapshot struct {
 	// Version is monotonically increasing per Manager
 	// instance; resets when the agent process restarts.
 	Version uint64
-	// SchemaVersion is bumped if the resource shape on the
-	// wire changes.
-	SchemaVersion uint64
 	// AggregateHash is sha256 over a canonical encoding of
 	// (ID, Kind, Source, ContentHash, Status) for every
 	// resource. Identical inputs always produce identical

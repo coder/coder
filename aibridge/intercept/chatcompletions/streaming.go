@@ -193,7 +193,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		// We take control of request body here and pass it to the SDK as a raw byte slice.
 		// This is because the SDK's serialization applies hidden request options that result in
 		// unexpected, breaking behavior. See https://github.com/coder/aibridge/pull/164
-		body, err := json.Marshal(i.req.ChatCompletionNewParams)
+		// chatCompletionRequestBody also applies provider-specific
+		// compatibility patches to the exact body sent upstream.
+		body, err := i.chatCompletionRequestBody()
 		if err != nil {
 			return xerrors.Errorf("marshal request body: %w", err)
 		}

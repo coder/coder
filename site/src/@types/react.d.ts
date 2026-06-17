@@ -1,7 +1,5 @@
-declare module "react" {
-	interface CSSProperties {
-		[key: `--${string}`]: string | number | undefined;
+namespace React {
+	export interface CSSProperties {
+		[customProp: `--${string}`]: string | number | undefined;
 	}
 }
-
-export {};

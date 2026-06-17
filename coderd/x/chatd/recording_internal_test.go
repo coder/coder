@@ -1057,7 +1057,7 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 }
 
 // TestStopAndStoreRecording_MalformedContentType verifies that a
-// response with an unparseable Content-Type returns an empty result.
+// response with an unparsable Content-Type returns an empty result.
 func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
 	t.Parallel()
 

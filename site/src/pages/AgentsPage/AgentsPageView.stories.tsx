@@ -316,6 +316,7 @@ const agentsWithChatTopBarRouting = {
 const defaultArgs: ComponentProps<typeof AgentsPageView> = {
 	agentId: undefined,
 	chatList: [],
+	currentUserId: MockUserOwner.id,
 	catalogModelOptions: defaultModelOptions,
 	modelConfigs: defaultModelConfigs,
 	handleNewAgent: fn(),
