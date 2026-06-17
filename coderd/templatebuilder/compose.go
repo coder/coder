@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -103,9 +104,7 @@ func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, erro
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
-	for k, v := range baseVars {
-		renderCtx.Variables[k] = v
-	}
+	maps.Copy(renderCtx.Variables, baseVars)
 	mainTF, err := RenderBaseTemplate(baseTemplateID, "main.tf.tmpl", renderCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("render base template: %w", err)
