@@ -4378,8 +4378,8 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
-	| "agent-app-tabs"
 	| "ai-gateway-cost-control"
+	| "agent-app-tabs"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -4391,8 +4391,8 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
-	"agent-app-tabs",
 	"ai-gateway-cost-control",
+	"agent-app-tabs",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
