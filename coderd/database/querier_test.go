@@ -14958,6 +14958,79 @@ func TestAIGatewayKeysQueries(t *testing.T) {
 	requireAIGatewayKeysRow(t, keys[0], second, secondRow.CreatedAt)
 }
 
+func TestGetAIGatewayKeyIDByHashedSecret(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	first := aiGatewayKeyParams("lookup-first", "key_lookup1")
+	second := aiGatewayKeyParams("lookup-second", "key_lookup2")
+
+	_, err := db.InsertAIGatewayKey(ctx, first)
+	require.NoError(t, err)
+	_, err = db.InsertAIGatewayKey(ctx, second)
+	require.NoError(t, err)
+
+	id, err := db.GetAIGatewayKeyIDByHashedSecret(ctx, first.HashedSecret)
+	require.NoError(t, err)
+	require.Equal(t, first.ID, id)
+
+	id, err = db.GetAIGatewayKeyIDByHashedSecret(ctx, second.HashedSecret)
+	require.NoError(t, err)
+	require.Equal(t, second.ID, id)
+
+	// An unknown secret returns no rows
+	id, err = db.GetAIGatewayKeyIDByHashedSecret(ctx, []byte("does-not-exist"))
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	require.Empty(t, id)
+}
+
+func TestUpdateAIGatewayKeyLastUsedAt(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	params := aiGatewayKeyParams("liveness-key", "key_live___")
+	row, err := db.InsertAIGatewayKey(ctx, params)
+	require.NoError(t, err)
+
+	// last_used_at starts NULL until a session records liveness.
+	keys, err := db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.False(t, keys[0].LastUsedAt.Valid)
+
+	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
+	require.NoError(t, err)
+
+	keys, err = db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.True(t, keys[0].LastUsedAt.Valid)
+	// The database stamps the timestamp, so compare against the row's
+	// DB-generated CreatedAt to avoid client clock skew.
+	require.False(t, keys[0].LastUsedAt.Time.Before(row.CreatedAt))
+
+	// Updating a key that does not exist is a no-op, not an error.
+	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, uuid.New())
+	require.NoError(t, err)
+
+	// Set last_used_at to old time to confirm the update overwrites it with a fresh timestamp.
+	staleTime := row.CreatedAt.Add(-time.Hour)
+	_, err = sqlDB.ExecContext(ctx, "UPDATE ai_gateway_keys SET last_used_at = $1 WHERE id = $2", staleTime, params.ID)
+	require.NoError(t, err)
+
+	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
+	require.NoError(t, err)
+
+	keys, err = db.ListAIGatewayKeys(ctx)
+	require.NoError(t, err)
+	require.Len(t, keys, 1)
+	require.True(t, keys[0].LastUsedAt.Time.After(staleTime))
+}
+
 func aiGatewayKeyParams(name string, secretPrefix string) database.InsertAIGatewayKeyParams {
 	return database.InsertAIGatewayKeyParams{
 		ID:           uuid.New(),
