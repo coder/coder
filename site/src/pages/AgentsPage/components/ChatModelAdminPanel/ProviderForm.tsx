@@ -17,13 +17,11 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
-import type {
-	CreateProviderResult,
-	ProviderState,
-} from "./ChatModelAdminPanel";
+import type { CreateProviderResult } from "./ChatModelAdminPanel";
 import { getProviderBaseURLPlaceholder, readOptionalString } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
 

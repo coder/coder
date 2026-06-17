@@ -20,13 +20,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { SectionHeader } from "../SectionHeader";
-import type {
-	CreateProviderResult,
-	ProviderState,
-} from "./ChatModelAdminPanel";
+import type { CreateProviderResult } from "./ChatModelAdminPanel";
 import { getDefaultProviderBaseURL } from "./helpers";
 import { ProviderForm } from "./ProviderForm";
 import { ProviderIcon } from "./ProviderIcon";

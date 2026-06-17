@@ -29,11 +29,14 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	canManageProviderModels,
+	type ProviderState,
+} from "#/modules/aiModels/providerStates";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
-import type { ProviderState } from "./ChatModelAdminPanel";
 import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
@@ -123,10 +126,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const [showProviderConfig, setShowProviderConfig] = useState(false);
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-	const canManageModels = Boolean(
-		selectedProviderState?.providerConfig &&
-			(selectedProviderState.hasEffectiveAPIKey ||
-				selectedProviderState.providerConfig.allow_user_api_key),
+	const canManageModels = canManageProviderModels(
+		selectedProviderState ?? undefined,
 	);
 	const formTitle = isEditing
 		? "Edit model"

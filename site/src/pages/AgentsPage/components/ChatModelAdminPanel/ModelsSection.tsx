@@ -22,9 +22,12 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import {
+	canManageProviderModels,
+	type ProviderState,
+} from "#/modules/aiModels/providerStates";
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
-import type { ProviderState } from "./ChatModelAdminPanel";
 import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
@@ -65,14 +68,6 @@ const modelConfigProviderKey = (
 		return "";
 	}
 	return provider;
-};
-
-const canManageProviderModels = (providerState: ProviderState | undefined) => {
-	return Boolean(
-		providerState?.providerConfig &&
-			(providerState.hasEffectiveAPIKey ||
-				providerState.providerConfig.allow_user_api_key),
-	);
 };
 
 interface ModelsSectionProps {

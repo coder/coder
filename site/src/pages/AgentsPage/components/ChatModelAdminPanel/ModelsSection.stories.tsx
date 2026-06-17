@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
-import type { ProviderState } from "./ChatModelAdminPanel";
+import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { ModelsSection } from "./ModelsSection";
 
 const providerState: ProviderState = {
