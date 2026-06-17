@@ -20,8 +20,27 @@ func (api *API) RegisterInMemoryAIBridgeProxydHTTPHandler(srv http.Handler) {
 	api.aibridgeproxydHandler = srv
 }
 
-// aibridgeproxyHandler handles AI Bridge Proxy endpoints.
+// aibridgeproxyHandler returns the legacy /api/v2/aibridge/proxy route tree.
+// Kept for backward compatibility only.
+//
+// NOTE: new endpoints must be registered on the enterprise API
+// handler under /api/v2/ai-gateway, not in this shared route builder.
 func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiGatewayProxyRoutes(api, "/api/v2/aibridge/proxy", middlewares...)
+}
+
+// aiGatewayProxyHTTPHandler returns the /api/v2/ai-gateway/proxy route tree.
+// This shares the same route builder as /aibridge/proxy for endpoints that
+// existed before the rename.
+//
+// NOTE: new endpoints must be registered on the enterprise API
+// handler under /api/v2/ai-gateway, not in this shared route builder.
+func aiGatewayProxyHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiGatewayProxyRoutes(api, "/api/v2/ai-gateway/proxy", middlewares...)
+}
+
+// aiGatewayProxyRoutes builds the route tree for AI Gateway Proxy endpoints.
+func aiGatewayProxyRoutes(api *API, stripPrefix string, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
 	return func(r chi.Router) {
 		r.Use(api.RequireFeatureMW(codersdk.FeatureAIBridge))
 		r.Use(middlewares...)
@@ -30,7 +49,7 @@ func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handl
 			// Check if the proxy is enabled.
 			if !api.DeploymentValues.AI.BridgeProxyConfig.Enabled.Value() {
 				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
-					Message: "AI Bridge Proxy is not enabled.",
+					Message: "AI Gateway Proxy is not enabled.",
 				})
 				return
 			}
@@ -38,13 +57,13 @@ func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handl
 			// Check if the handler is registered.
 			if api.aibridgeproxydHandler == nil {
 				httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
-					Message: "AI Bridge Proxy handler not mounted.",
+					Message: "AI Gateway Proxy handler not mounted.",
 				})
 				return
 			}
 
 			// Strip the prefix and relay to the aibridgeproxyd handler.
-			http.StripPrefix("/api/v2/aibridge/proxy", api.aibridgeproxydHandler).ServeHTTP(rw, r)
+			http.StripPrefix(stripPrefix, api.aibridgeproxydHandler).ServeHTTP(rw, r)
 		})
 	}
 }

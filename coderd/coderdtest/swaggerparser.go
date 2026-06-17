@@ -168,6 +168,14 @@ func isExperimentalEndpoint(route string) bool {
 	return strings.HasPrefix(route, "/api/v2/workspaceagents/me/experimental/")
 }
 
+// isLegacyAIBridgeAlias returns true for /api/v2/aibridge routes that are
+// backward-compatibility aliases of /api/v2/ai-gateway. The swagger
+// annotations live on the canonical /ai-gateway paths, so the legacy
+// routes have no matching annotation and must be skipped.
+func isLegacyAIBridgeAlias(route string) bool {
+	return strings.HasPrefix(route, "/api/v2/aibridge/")
+}
+
 func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments []SwaggerComment, opts ...SwaggerOption) {
 	cfg := swaggerOptions{}
 	for _, opt := range opts {
@@ -204,6 +212,9 @@ func VerifySwaggerDefinitions(t *testing.T, router chi.Router, swaggerComments [
 				return
 			}
 			if isExperimentalEndpoint(route) {
+				return
+			}
+			if isLegacyAIBridgeAlias(route) {
 				return
 			}
 

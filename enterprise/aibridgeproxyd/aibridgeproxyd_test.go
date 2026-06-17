@@ -1284,7 +1284,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1294,7 +1294,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com:8443/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1304,7 +1304,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1314,7 +1314,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com:8443/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1852,7 +1852,7 @@ func TestUpstreamProxy(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) string {
 				return "https://api.anthropic.com:443/v1/messages"
 			},
-			expectedAIBridgePath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedAIBridgePath: "/api/v2/ai-gateway/anthropic/v1/messages",
 		},
 	}
 
@@ -2138,7 +2138,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 
 	// The proxy should route through the aibridge path using the custom
 	// provider name.
-	require.Equal(t, "/api/v2/aibridge/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
+	require.Equal(t, "/api/v2/ai-gateway/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
 	require.Equal(t, "coder-token", receivedBYOK)
 }
 

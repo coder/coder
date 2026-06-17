@@ -184,12 +184,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/aibridge/keys \
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /api/v2/aibridge/keys`
+`GET /api/v2/ai-gateway/keys`
 
 ### Example responses
 
@@ -234,13 +234,13 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X POST http://coder-server:8080/api/v2/aibridge/keys \
+curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
   -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /api/v2/aibridge/keys`
+`POST /api/v2/ai-gateway/keys`
 
 > Body parameter
 
@@ -284,11 +284,11 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X DELETE http://coder-server:8080/api/v2/aibridge/keys/{key} \
+curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /api/v2/aibridge/keys/{key}`
+`DELETE /api/v2/ai-gateway/keys/{key}`
 
 ### Parameters
 

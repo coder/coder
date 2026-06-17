@@ -19,13 +19,12 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
-// GetAIBridgedHandler returns the in-memory aibridge HTTP handler set by
-// [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon has not
-// been wired in. Used by the enterprise /api/v2/aibridge route (license-gated)
-// to forward requests into the same in-memory handler that chatd dispatches
-// to in-process.
-func (api *API) GetAIBridgedHandler() http.Handler {
-	return api.aibridgedHandler
+// GetAIGatewayHandler returns the in-memory AI Gateway HTTP handler
+// set by [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon
+// has not been wired in. Callers must apply their own [http.StripPrefix]
+// for the route prefix they are mounting under.
+func (api *API) GetAIGatewayHandler() http.Handler {
+	return api.aiGatewayHandler
 }
 
 // RegisterInMemoryAIBridgedHTTPHandler mounts [aibridged.Server]'s HTTP router onto
@@ -42,9 +41,9 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 		panic("aibridged cannot be nil")
 	}
 
-	api.aibridgedHandler = http.StripPrefix("/api/v2/aibridge", srv)
+	api.aiGatewayHandler = srv
 
-	factory := aibridged.NewTransportFactory(api.aibridgedHandler)
+	factory := aibridged.NewTransportFactory(http.StripPrefix("/api/v2/ai-gateway", srv))
 	var asInterface agplaibridge.TransportFactory = factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
