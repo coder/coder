@@ -1,8 +1,7 @@
 ---
 display_name: Docker (Envbuilder)
 description: Provision envbuilder containers as Coder workspaces
-icon: ../../../site/static/icon/docker.png
-maintainer_github: coder
+icon: ../../../site/static/icon/docker.svg
 verified: true
 tags: [container, docker, devcontainer, envbuilder]
 ---
