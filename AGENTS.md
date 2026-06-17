@@ -12,6 +12,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Docs prose: When editing anything under `docs/`, see the prose style guide at [`docs/.style/style-guide.md`](docs/.style/style-guide.md). It is currently a scaffold; until it is populated, use the **Writing Style** section in [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md). That file also covers structure, research, and content patterns.
 
 ## Foundational rules
 
