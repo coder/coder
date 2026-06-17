@@ -238,6 +238,15 @@ coderd_chatd_chats{state=""} 0
 # HELP coderd_chatd_compaction_total Total compaction outcomes (only recorded when compaction was triggered or failed).
 # TYPE coderd_chatd_compaction_total counter
 coderd_chatd_compaction_total{provider="",model="",result=""} 0
+# HELP coderd_chatd_list_templates_affinity_gap Affinity score gap between the top two candidates when affinity is the deciding signal, labeled by whether a recommendation was made.
+# TYPE coderd_chatd_list_templates_affinity_gap histogram
+coderd_chatd_list_templates_affinity_gap{recommended=""} 0
+# HELP coderd_chatd_list_templates_outcome_total Total list_templates calls by recommendation outcome (recommended, ask_user, no_matches, no_templates).
+# TYPE coderd_chatd_list_templates_outcome_total counter
+coderd_chatd_list_templates_outcome_total{outcome=""} 0
+# HELP coderd_chatd_list_templates_signals_failures_total Total list_templates calls where ranking signals failed to load, degrading the result toward asking the user.
+# TYPE coderd_chatd_list_templates_signals_failures_total counter
+coderd_chatd_list_templates_signals_failures_total 0
 # HELP coderd_chatd_message_count Number of messages in the prompt per LLM request.
 # TYPE coderd_chatd_message_count histogram
 coderd_chatd_message_count{provider="",model=""} 0
@@ -253,6 +262,9 @@ coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
 coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
+# HELP coderd_chatd_template_recommendation_followup_total Total create_workspace calls by how the chosen template related to the prior list_templates recommendation.
+# TYPE coderd_chatd_template_recommendation_followup_total counter
+coderd_chatd_template_recommendation_followup_total{outcome=""} 0
 # HELP coderd_chatd_tool_errors_total Total tool calls that returned an error result.
 # TYPE coderd_chatd_tool_errors_total counter
 coderd_chatd_tool_errors_total{provider="",model="",tool_name=""} 0
