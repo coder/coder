@@ -104,11 +104,11 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() {
-		if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+		defer func() {
 			centralized.Pool.RecordAttempts(totalKeyAttempts)
-		}
-	}()
+		}()
+	}
 
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)

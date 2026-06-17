@@ -104,11 +104,11 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() {
-		if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+		defer func() {
 			centralized.Pool.RecordAttempts(totalKeyAttempts)
-		}
-	}()
+		}()
+	}
 
 	for shouldLoop {
 		shouldLoop = false
