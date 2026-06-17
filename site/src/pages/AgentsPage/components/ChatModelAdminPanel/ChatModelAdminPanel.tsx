@@ -31,7 +31,7 @@ export type ProviderState = {
 	baseURL: string;
 };
 
-export type ChatModelAdminSection = "providers" | "models";
+type ChatModelAdminSection = "providers" | "models";
 
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 

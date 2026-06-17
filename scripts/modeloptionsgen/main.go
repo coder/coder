@@ -23,6 +23,9 @@ type SchemaField struct {
 	Enum        []string `json:"enum,omitempty"`
 	InputType   string   `json:"input_type"`
 	Hidden      bool     `json:"hidden,omitempty"`
+	// VisibleWhen names a sibling boolean field that gates this field's visibility.
+	VisibleWhen   string   `json:"visible_when,omitempty"`
+	ConflictsWith []string `json:"conflicts_with,omitempty"`
 }
 
 // FieldGroup holds the fields for a struct or provider.
@@ -138,6 +141,12 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		description := f.Tag.Get("description")
 		label := f.Tag.Get("label")
 		enumTag := f.Tag.Get("enum")
+		visibleWhen := f.Tag.Get("visible_when")
+
+		var conflictsWith []string
+		if conflictsTag := f.Tag.Get("conflicts_with"); conflictsTag != "" {
+			conflictsWith = strings.Split(conflictsTag, ",")
+		}
 
 		var enumValues []string
 		if enumTag != "" {
@@ -148,15 +157,17 @@ func extractFields(t reflect.Type, prefix string, skip map[string]bool) FieldGro
 		inputType := inferInputType(typeName, enumValues)
 
 		fields = append(fields, SchemaField{
-			JSONName:    fullJSONName,
-			GoName:      goFieldPath(prefix, f.Name, t, fullJSONName),
-			Type:        typeName,
-			Description: description,
-			Label:       label,
-			Required:    required,
-			Enum:        enumValues,
-			InputType:   inputType,
-			Hidden:      hidden,
+			JSONName:      fullJSONName,
+			GoName:        goFieldPath(prefix, f.Name, t, fullJSONName),
+			Type:          typeName,
+			Description:   description,
+			Label:         label,
+			Required:      required,
+			Enum:          enumValues,
+			InputType:     inputType,
+			Hidden:        hidden,
+			VisibleWhen:   visibleWhen,
+			ConflictsWith: conflictsWith,
 		})
 	}
 

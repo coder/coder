@@ -23,6 +23,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
+import { Switch } from "#/components/Switch/Switch";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
@@ -143,7 +144,7 @@ const FieldLabel: FC<{
 }> = ({ htmlFor, label, description }) => (
 	<Label
 		htmlFor={htmlFor}
-		className="inline-flex items-center gap-1 text-[13px] font-medium text-content-primary"
+		className="flex items-center gap-1 leading-6 text-content-primary"
 	>
 		{label}
 		{description && (
@@ -184,12 +185,10 @@ const InputField: FC<
 	const fieldProps = form.getFieldProps(fieldKey);
 
 	const inputEl = suffix ? (
-		<InputGroup
-			className={cn("h-9", fieldError && "border-border-destructive")}
-		>
+		<InputGroup className={cn(fieldError && "border-border-destructive")}>
 			<InputGroupInput
 				id={fieldKey}
-				className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+				className="min-w-0 placeholder:text-content-disabled"
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
@@ -204,7 +203,7 @@ const InputField: FC<
 		<Input
 			id={fieldKey}
 			className={cn(
-				"h-9 min-w-0 text-[13px] placeholder:text-content-disabled",
+				"min-w-0 placeholder:text-content-disabled",
 				fieldError && "border-content-destructive",
 			)}
 			placeholder={placeholder}
@@ -264,10 +263,7 @@ const SelectField: FC<
 			>
 				<SelectTrigger
 					id={fieldKey}
-					className={cn(
-						"h-9 min-w-0 text-[13px]",
-						fieldError && "border-content-destructive",
-					)}
+					className={cn("min-w-0", fieldError && "border-content-destructive")}
 					aria-invalid={Boolean(fieldError)}
 					aria-describedby={fieldError ? errorId : undefined}
 				>
@@ -277,7 +273,7 @@ const SelectField: FC<
 					<SelectItem value={unsetSelectValue}>Default</SelectItem>
 					{options.map((option) => (
 						<SelectItem key={option} value={option}>
-							{option}
+							{capitalize(option)}
 						</SelectItem>
 					))}
 				</SelectContent>
@@ -291,13 +287,12 @@ const SelectField: FC<
 	);
 };
 
-const SegmentedField: FC<
+const BooleanSwitchField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
 		label: string;
 		description?: string;
-		options: readonly { label: string; value: string }[];
 	}
 > = ({
 	form,
@@ -307,47 +302,28 @@ const SegmentedField: FC<
 	errorKey,
 	label,
 	description,
-	options,
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
+	const checked = currentValue === "true";
 
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
-			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
-			<div
-				role="radiogroup"
-				aria-label={label}
-				className={cn(
-					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
-					fieldError && "border-content-destructive",
-				)}
-			>
-				{options.map((opt) => {
-					const isActive = currentValue === opt.value;
-					return (
-						<button
-							key={opt.value}
-							type="button"
-							role="radio"
-							aria-checked={isActive}
-							disabled={disabled}
-							className={cn(
-								"h-8 flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
-								isActive
-									? "bg-surface-secondary text-content-primary"
-									: "bg-transparent text-content-secondary hover:text-content-primary",
-								disabled && "pointer-events-none opacity-60",
-							)}
-							onClick={() =>
-								void form.setFieldValue(fieldKey, isActive ? "" : opt.value)
-							}
-						>
-							{opt.label}
-						</button>
-					);
-				})}
+			<div className="flex items-center gap-2">
+				<Switch
+					id={fieldKey}
+					checked={checked}
+					onCheckedChange={(next) =>
+						void form.setFieldValue(fieldKey, next ? "true" : "false")
+					}
+					disabled={disabled}
+				/>
+				<FieldLabel
+					htmlFor={fieldKey}
+					label={label}
+					description={description}
+				/>
 			</div>
 			{fieldError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">
@@ -379,6 +355,10 @@ const JSONField: FC<
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const fieldProps = form.getFieldProps(fieldKey);
+	// Only surface the error once the field has been blurred, so a partially
+	// typed array like "[" doesn't complain mid-edit.
+	const showError =
+		Boolean(fieldError) && Boolean(getIn(form.touched, fieldKey));
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
 			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
@@ -387,15 +367,15 @@ const JSONField: FC<
 				rows={1}
 				className={cn(
 					"min-h-0 resize-y font-mono text-xs leading-tight placeholder:text-content-disabled",
-					fieldError && "border-content-destructive",
+					showError && "border-content-destructive",
 				)}
 				placeholder={placeholder}
 				{...fieldProps}
 				disabled={disabled}
-				aria-invalid={Boolean(fieldError)}
-				aria-describedby={fieldError ? errorId : undefined}
+				aria-invalid={showError}
+				aria-describedby={showError ? errorId : undefined}
 			/>
-			{fieldError && (
+			{showError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">
 					{fieldError}
 				</p>
@@ -445,33 +425,16 @@ const SchemaField: FC<SchemaFieldProps> = ({
 		case "select": {
 			if (field.type === "boolean") {
 				return (
-					<SegmentedField
+					<BooleanSwitchField
 						{...ctx}
 						fieldKey={fieldKey}
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
-						options={[
-							{ label: "On", value: "true" },
-							{ label: "Off", value: "false" },
-						]}
 					/>
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
-			const maxSegmented = 6;
-			if (options.length > 0 && options.length <= maxSegmented) {
-				return (
-					<SegmentedField
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={errorKey}
-						label={label}
-						description={field.description}
-						options={options.map((v) => ({ label: capitalize(v), value: v }))}
-					/>
-				);
-			}
 			return (
 				<SelectField
 					{...ctx}
@@ -503,18 +466,16 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, booleans, small enums ≤3)
- *   3 = full-width (4+ option enums, json textareas)
+ *   1 = default (inputs, enum dropdowns)
+ *   3 = full-width (boolean switches, json textareas)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
 	if (field.input_type === "json") {
 		return 3;
 	}
-	if (
-		field.input_type === "select" &&
-		field.type !== "boolean" &&
-		(field.enum?.length ?? 0) > 3
-	) {
+	// Boolean switches each take their own full-width row, stacked below the
+	// compact input/dropdown fields.
+	if (field.input_type === "select" && field.type === "boolean") {
 		return 3;
 	}
 	return 1;
@@ -523,6 +484,16 @@ function colSpan(field: FieldSchema): 1 | 3 {
 const colSpanClass: Record<1 | 3, string | undefined> = {
 	1: undefined,
 	3: "sm:col-span-full",
+};
+
+// A field counts as "set" when it holds a non-empty value. JSON array fields
+// serialize to "[]" when empty, so that is treated as unset too.
+const hasFieldValue = (raw: unknown): boolean => {
+	if (typeof raw !== "string") {
+		return false;
+	}
+	const trimmed = raw.trim();
+	return trimmed.length > 0 && trimmed !== "[]";
 };
 
 interface ModelConfigFieldsProps {
@@ -553,11 +524,28 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 		return null;
 	}
 
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fieldValueByName = (jsonName: string): unknown =>
+		getIn(form.values, `config.${toFormFieldKey(resolved, jsonName)}`);
+
+	// visible_when: keep the field hidden until its named sibling boolean is on.
+	const isFieldVisible = (field: FieldSchema): boolean =>
+		!field.visible_when || fieldValueByName(field.visible_when) === "true";
+
+	// conflicts_with: disable the field while a mutually exclusive sibling holds
+	// a value, unless this field also has one so a both-set state stays
+	// recoverable.
+	const isFieldConflictDisabled = (field: FieldSchema): boolean =>
+		Boolean(field.conflicts_with) &&
+		!hasFieldValue(fieldValueByName(field.json_name)) &&
+		(field.conflicts_with ?? []).some((sibling) =>
+			hasFieldValue(fieldValueByName(sibling)),
+		);
 
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.
-	const sorted = [...fields].sort((a, b) => colSpan(a) - colSpan(b));
+	const sorted = [...fields]
+		.filter(isFieldVisible)
+		.sort((a, b) => colSpan(a) - colSpan(b));
 
 	return (
 		<div className="grid min-w-0 gap-3 sm:grid-cols-3">
@@ -570,56 +558,14 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 							field={field}
 							fieldKey={fieldKey}
 							errorKey={errorKey}
-							{...ctx}
+							form={form}
+							fieldErrors={fieldErrors}
+							disabled={disabled || isFieldConflictDisabled(field)}
 						/>
 					</div>
 				);
 			})}
 		</div>
-	);
-};
-
-/**
- * Shared renderer for general model config fields backed by the
- * top-level ChatModelCallConfig schema.
- */
-const GeneralFieldsGroup: FC<
-	ModelConfigFieldsProps & {
-		fields: FieldSchema[];
-		suppressDescriptions?: boolean;
-	}
-> = ({ form, fieldErrors, disabled, fields, suppressDescriptions }) => {
-	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
-
-	return (
-		<>
-			{fields.map((field) => {
-				// General field keys support nested json_name values, such as
-				// cost.input_price_per_million_tokens.
-				const camelName = field.json_name
-					.split(".")
-					.map(snakeToCamel)
-					.join(".");
-				const fieldKey = `config.${camelName}`;
-				const label = snakeToPrettyLabel(field);
-
-				return (
-					<InputField
-						key={fieldKey}
-						{...ctx}
-						fieldKey={fieldKey}
-						errorKey={camelName}
-						label={label}
-						description={suppressDescriptions ? undefined : field.description}
-						placeholder={
-							placeholderOverrides[field.json_name] ??
-							placeholderForField(field)
-						}
-						suffix={fieldSuffix[field.json_name]}
-					/>
-				);
-			})}
-		</>
 	);
 };
 
@@ -653,12 +599,12 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
 					<div key={fieldKey} className="flex min-w-0 flex-col gap-1.5">
 						<FieldLabel htmlFor={fieldKey} label={label} />
 						<InputGroup
-							className={cn("h-9", fieldError && "border-border-destructive")}
+							className={cn(fieldError && "border-border-destructive")}
 						>
 							<InputGroupAddon align="inline-start">$</InputGroupAddon>
 							<InputGroupInput
 								id={fieldKey}
-								className="h-9 min-w-0 text-[13px] placeholder:text-content-disabled"
+								className="min-w-0 placeholder:text-content-disabled"
 								placeholder="0"
 								{...fieldProps}
 								disabled={disabled}
@@ -691,20 +637,43 @@ export const PricingModelConfigFields: FC<ModelConfigFieldsProps> = ({
  * `api/chatModelOptions`.
  */
 export const GeneralModelConfigFields: FC<ModelConfigFieldsProps> = ({
-	provider,
 	form,
 	fieldErrors,
 	disabled,
 }) => {
+	const ctx: FieldRenderContext = { form, fieldErrors, disabled };
+	const fields = getVisibleGeneralFields().filter(
+		({ json_name }) => !pricingFieldNames.has(json_name),
+	);
+
 	return (
-		<GeneralFieldsGroup
-			provider={provider}
-			form={form}
-			fieldErrors={fieldErrors}
-			disabled={disabled}
-			fields={getVisibleGeneralFields().filter(
-				({ json_name }) => !pricingFieldNames.has(json_name),
-			)}
-		/>
+		<>
+			{fields.map((field) => {
+				// General field keys support nested json_name values, such as
+				// cost.input_price_per_million_tokens.
+				const camelName = field.json_name
+					.split(".")
+					.map(snakeToCamel)
+					.join(".");
+				const fieldKey = `config.${camelName}`;
+				const label = snakeToPrettyLabel(field);
+
+				return (
+					<InputField
+						key={fieldKey}
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={camelName}
+						label={label}
+						description={field.description}
+						placeholder={
+							placeholderOverrides[field.json_name] ??
+							placeholderForField(field)
+						}
+						suffix={fieldSuffix[field.json_name]}
+					/>
+				);
+			})}
+		</>
 	);
 };
