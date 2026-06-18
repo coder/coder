@@ -213,10 +213,8 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Notify subscribers that this key was deleted so active sessions tear
-	// down promptly. Publishing is best effort, so log on failure but still
-	// report success. A missed notification does not leave the key usable: a
-	// daemon's next job acquisition rechecks that the key exists.
+	// Notify subscribers that this key was deleted so active sessions tear down.
+	// Publishing is best effort; a failure does not leave the key usable.
 	if err := api.Pubsub.Publish(pubsub.ProvisionerKeyDeletedChannel(provisionerKey.ID), nil); err != nil {
 		api.Logger.Warn(ctx, "failed to publish provisioner key deletion",
 			slog.F("provisioner_key_id", provisionerKey.ID), slog.Error(err))

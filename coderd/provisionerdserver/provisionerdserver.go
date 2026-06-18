@@ -83,9 +83,8 @@ type Options struct {
 	// value and reserved key IDs are not validated.
 	KeyID uuid.UUID
 
-	// SessionCancel, if set, terminates the daemon's session. It is called
-	// when the key the daemon authenticated with is found deleted during job
-	// acquisition.
+	// SessionCancel, if set, terminates the daemon's session. It is called when
+	// the key is found deleted during job acquisition.
 	SessionCancel context.CancelFunc
 
 	// Clock for testing
@@ -345,10 +344,9 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
-// keyDeleted reports whether the provisioner key the daemon authenticated
-// with no longer exists in the database. Reserved keys (built-in, user-auth,
-// PSK) and the zero value are never stored as deletable rows, so they always
-// report false.
+// keyDeleted reports whether the provisioner key the daemon authenticated with
+// no longer exists. Reserved keys and the zero value are not deletable, so they
+// always report false.
 func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	if s.KeyID == uuid.Nil || codersdk.IsReservedProvisionerKey(s.KeyID) {
 		return false, nil
@@ -366,10 +364,8 @@ func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// terminateOnDeletedKey cancels the session when the daemon's key has been
-// deleted. The pubsub subscription in the serve handler normally cancels the
-// session first; this also covers a missed notification, so the daemon does
-// not poll a deleted key indefinitely.
+// terminateOnDeletedKey cancels the session, when a cancel is configured, so
+// the daemon stops after its key is deleted.
 func (s *server) terminateOnDeletedKey() {
 	if s.sessionCancel != nil {
 		s.sessionCancel()

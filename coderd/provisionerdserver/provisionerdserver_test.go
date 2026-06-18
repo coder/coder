@@ -312,10 +312,9 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 
-			// setup inserts a deletable provisioner key with this ID and ties the
-			// daemon to it. sessionCancel records that the deleted-key path tore
-			// down the session. A short poll keeps the no-job acquire from
-			// blocking while the key still exists.
+			// setup ties the daemon to a deletable key with this ID; sessionCancel
+			// records the teardown. A short poll keeps the present-key acquire from
+			// blocking.
 			keyID := uuid.New()
 			sessionCanceled := make(chan struct{})
 			var once sync.Once
