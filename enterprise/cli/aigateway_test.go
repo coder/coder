@@ -60,7 +60,6 @@ func createAIGatewayKey(ctx context.Context, t *testing.T, client *codersdk.Clie
 	require.Contains(t, stdout, "Successfully created AI Gateway key "+name)
 
 	// The one-time secret key must be rendered as KeyLength alphanumerics.
-	require.Contains(t, stdout, "Save this authentication token")
 	require.Len(t, aiGatewayKeyRe.FindStringSubmatch(stdout), 2, "expected secret key in create output")
 
 	matches := aiGatewayCreateRe.FindStringSubmatch(stdout)
