@@ -99,6 +99,17 @@ const hasObjectKeys = (value: Record<string, unknown>): boolean =>
 	Object.keys(value).length > 0;
 
 /**
+ * Shared `visible_when` predicate used by both the rendering layer
+ * and the form → config builder so a field that is hidden in the UI
+ * is never serialized into the API payload.
+ */
+export const isVisibleWhenSatisfied = (
+	field: FieldSchema,
+	readSiblingValue: (jsonName: string) => unknown,
+): boolean =>
+	!field.visible_when || readSiblingValue(field.visible_when) === "true";
+
+/**
  * Convert a form string value to its API representation based on
  * the field schema type. Empty strings yield `undefined` so
  * callers can conditionally include fields.
@@ -507,7 +518,14 @@ export const buildModelConfigFromForm = (
 	if (providerFormState && typeof providerFormState === "object") {
 		const providerPayload: Record<string, unknown> = {};
 
+		const readProviderValue = (jsonName: string): unknown =>
+			deepGet(providerFormState, jsonName.split(".").map(snakeToCamel));
+
 		for (const field of getProviderFields(resolved)) {
+			// Skip fields hidden by an unsatisfied `visible_when` gate so
+			// stale values left in form state are not serialized.
+			if (!isVisibleWhenSatisfied(field, readProviderValue)) continue;
+
 			// Read the form value from the nested camelCase structure.
 			const camelSegments = field.json_name.split(".").map(snakeToCamel);
 			const formValue = deepGet(providerFormState, camelSegments);

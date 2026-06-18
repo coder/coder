@@ -696,6 +696,50 @@ describe("buildModelConfigFromForm", () => {
 		});
 	});
 
+	describe("visible_when gating", () => {
+		it("drops gated sub-fields when the gating field is off", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openai: {
+						webSearchEnabled: "false",
+						searchContextSize: "high",
+						allowedDomains: '["example.com"]',
+					},
+				}),
+			);
+			expect(result.fieldErrors).toEqual({});
+			const openai = result.modelConfig?.provider_options?.openai as Record<
+				string,
+				unknown
+			>;
+			expect(openai).not.toHaveProperty("search_context_size");
+			expect(openai).not.toHaveProperty("allowed_domains");
+			expect(openai.web_search_enabled).toBe(false);
+		});
+
+		it("keeps gated sub-fields when the gating field is on", () => {
+			const result = buildModelConfigFromForm(
+				"openai",
+				formWith({
+					openai: {
+						webSearchEnabled: "true",
+						searchContextSize: "high",
+						allowedDomains: '["example.com"]',
+					},
+				}),
+			);
+			expect(result.fieldErrors).toEqual({});
+			const openai = result.modelConfig?.provider_options?.openai as Record<
+				string,
+				unknown
+			>;
+			expect(openai.web_search_enabled).toBe(true);
+			expect(openai.search_context_size).toBe("high");
+			expect(openai.allowed_domains).toEqual(["example.com"]);
+		});
+	});
+
 	describe("Anthropic / Bedrock provider", () => {
 		it("builds Anthropic provider options with effort", () => {
 			const result = buildModelConfigFromForm(

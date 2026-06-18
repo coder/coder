@@ -32,9 +32,10 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { normalizeProvider } from "./helpers";
-import type {
-	ModelConfigFormBuildResult,
-	ModelFormValues,
+import {
+	isVisibleWhenSatisfied,
+	type ModelConfigFormBuildResult,
+	type ModelFormValues,
 } from "./modelConfigFormLogic";
 import {
 	getPricingPlaceholderForField,
@@ -529,7 +530,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 
 	// visible_when: keep the field hidden until its named sibling boolean is on.
 	const isFieldVisible = (field: FieldSchema): boolean =>
-		!field.visible_when || fieldValueByName(field.visible_when) === "true";
+		isVisibleWhenSatisfied(field, fieldValueByName);
 
 	// conflicts_with: disable the field while a mutually exclusive sibling holds
 	// a value, unless this field also has one so a both-set state stays
