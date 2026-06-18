@@ -464,7 +464,7 @@ func (s *MethodTestSuite) TestBoundaryLogs() {
 		ownerID := uuid.New()
 		arg := database.InsertBoundaryLogsParams{
 			SessionID: uuid.New(),
-			OwnerID:   ownerID,
+			OwnerID:   uuid.NullUUID{UUID: ownerID, Valid: true},
 			ID:        []uuid.UUID{uuid.New(), uuid.New()},
 		}
 		dbm.EXPECT().InsertBoundaryLogs(gomock.Any(), arg).Return([]database.BoundaryLog{}, nil).AnyTimes()
