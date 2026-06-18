@@ -19,9 +19,9 @@ const (
 	// recommendationFollowupOverrodeListed: a recommendation existed but the
 	// agent built a different template that was still on the shown page.
 	recommendationFollowupOverrodeListed = "overrode_with_listed_template"
-	// recommendationFollowupListedNoRec: no recommendation was made, and the
-	// agent built a template from the shown page.
-	recommendationFollowupListedNoRec = "created_listed_without_recommendation"
+	// recommendationFollowupListedNoRecommendation: no recommendation was made,
+	// and the agent built a template from the shown page.
+	recommendationFollowupListedNoRecommendation = "created_listed_without_recommendation"
 	// recommendationFollowupUnlisted: the agent built a template that was not
 	// on the shown page (e.g. user named it, or an older list result).
 	recommendationFollowupUnlisted = "created_unlisted_template"
@@ -85,22 +85,42 @@ func NewRecommendationTracker(clock quartz.Clock, ttl time.Duration, maxEntries 
 
 // Record stores the latest list_templates outcome for a chat. recommendedID may
 // be uuid.Nil when no template was recommended. listedIDs are the template IDs
-// shown on the returned page (what the agent actually saw). No-op when t is nil
-// or chatID is uuid.Nil.
-func (t *RecommendationTracker) Record(chatID, recommendedID uuid.UUID, listedIDs []uuid.UUID) {
+// shown on the returned page (what the agent actually saw). page is the 1-based
+// page number: page 1 starts a fresh record, while later pages of the same
+// result accumulate their listed IDs so a follow-up build from any shown page
+// still classifies as "listed" rather than "unlisted". No-op when t is nil or
+// chatID is uuid.Nil.
+func (t *RecommendationTracker) Record(chatID, recommendedID uuid.UUID, listedIDs []uuid.UUID, page int) {
 	if t == nil || chatID == uuid.Nil {
 		return
 	}
+	now := t.clock.Now()
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	// Later pages of the same result continue an existing record, so union
+	// their listed IDs instead of overwriting. Page 1, a missing entry, or a
+	// changed recommendation starts fresh.
+	if page > 1 {
+		if entry, ok := t.entries[chatID]; ok && entry.recommendedID == recommendedID {
+			for _, id := range listedIDs {
+				if id != uuid.Nil {
+					entry.listed[id] = struct{}{}
+				}
+			}
+			entry.recordedAt = now
+			t.entries[chatID] = entry
+			return
+		}
+	}
+
 	listed := make(map[uuid.UUID]struct{}, len(listedIDs))
 	for _, id := range listedIDs {
 		if id != uuid.Nil {
 			listed[id] = struct{}{}
 		}
 	}
-	now := t.clock.Now()
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 	t.evictLocked(now)
 	t.entries[chatID] = recommendationEntry{
 		recommendedID: recommendedID,
@@ -137,7 +157,7 @@ func (t *RecommendationTracker) Classify(chatID, chosenID uuid.UUID) string {
 	case listed && entry.recommendedID != uuid.Nil:
 		return recommendationFollowupOverrodeListed
 	case listed:
-		return recommendationFollowupListedNoRec
+		return recommendationFollowupListedNoRecommendation
 	default:
 		return recommendationFollowupUnlisted
 	}

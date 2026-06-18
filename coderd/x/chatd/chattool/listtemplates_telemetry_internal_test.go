@@ -110,6 +110,21 @@ func TestRecordListTemplatesTelemetry_Metrics(t *testing.T) {
 		require.Empty(t, m.gaps)
 	})
 
+	t.Run("GapSkippedWhenSignalsFailed", func(t *testing.T) {
+		t.Parallel()
+		m := &fakeListTemplatesMetrics{}
+		// Signals failed to load, so affinity scores are meaningless zero
+		// defaults; only the signals-failure counter should move.
+		recordListTemplatesTelemetry(context.Background(), ListTemplatesOptions{Metrics: m}, "tc", uuid.New(), listTemplatesTelemetry{
+			ranked:     []rankedTemplate{rankedWith(0, 0), rankedWith(0, 0)},
+			nextStep:   NextStepAskUser,
+			reason:     recommendationReasonSignalsUnavailable,
+			signalsErr: xerrors.New("boom"),
+		})
+		require.Empty(t, m.gaps)
+		require.Equal(t, 1, m.signalsFailures)
+	})
+
 	t.Run("NilMetricsDoesNotPanic", func(t *testing.T) {
 		t.Parallel()
 		recordListTemplatesTelemetry(context.Background(), ListTemplatesOptions{}, "tc", uuid.New(), listTemplatesTelemetry{
@@ -117,6 +132,17 @@ func TestRecordListTemplatesTelemetry_Metrics(t *testing.T) {
 			nextStep: NextStepAskUser,
 		})
 	})
+}
+
+func TestListTemplatesOutcome(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, listTemplatesOutcomeNoTemplates, listTemplatesOutcome(NextStepNoTemplates))
+	require.Equal(t, listTemplatesOutcomeNoMatches, listTemplatesOutcome(NextStepNoMatches))
+	require.Equal(t, listTemplatesOutcomeRecommended, listTemplatesOutcome(NextStepUseRecommended))
+	require.Equal(t, listTemplatesOutcomeAskUser, listTemplatesOutcome(NextStepAskUser))
+	// An unmapped next-step value falls into the defensive unknown bucket
+	// instead of silently reporting ask_user.
+	require.Equal(t, listTemplatesOutcomeUnknown, listTemplatesOutcome("some-future-next-step"))
 }
 
 func TestSelectTemplateRecommendation_Reasons(t *testing.T) {

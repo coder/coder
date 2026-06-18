@@ -17,7 +17,7 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		t.Parallel()
 		tr := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
 		chat, rec, other := uuid.New(), uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec, other})
+		tr.Record(chat, rec, []uuid.UUID{rec, other}, 1)
 		require.Equal(t, recommendationFollowupAccepted, tr.Classify(chat, rec))
 	})
 
@@ -25,8 +25,21 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		t.Parallel()
 		tr := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
 		chat, rec, other := uuid.New(), uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec, other})
+		tr.Record(chat, rec, []uuid.UUID{rec, other}, 1)
 		require.Equal(t, recommendationFollowupOverrodeListed, tr.Classify(chat, other))
+	})
+
+	t.Run("AccumulatesListedAcrossPages", func(t *testing.T) {
+		t.Parallel()
+		tr := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
+		chat, rec := uuid.New(), uuid.New()
+		page1, page2 := uuid.New(), uuid.New()
+		// Page 1 seeds the record; a later page of the same result accumulates
+		// its listed IDs instead of replacing page 1's, so a build of a
+		// page-1 template is still "listed" rather than "unlisted".
+		tr.Record(chat, rec, []uuid.UUID{rec, page1}, 1)
+		tr.Record(chat, rec, []uuid.UUID{page2}, 2)
+		require.Equal(t, recommendationFollowupOverrodeListed, tr.Classify(chat, page1))
 	})
 
 	t.Run("ListedWithoutRecommendation", func(t *testing.T) {
@@ -35,15 +48,15 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		chat, listed := uuid.New(), uuid.New()
 		// uuid.Nil recommendation: list_templates returned templates but
 		// recommended none.
-		tr.Record(chat, uuid.Nil, []uuid.UUID{listed})
-		require.Equal(t, recommendationFollowupListedNoRec, tr.Classify(chat, listed))
+		tr.Record(chat, uuid.Nil, []uuid.UUID{listed}, 1)
+		require.Equal(t, recommendationFollowupListedNoRecommendation, tr.Classify(chat, listed))
 	})
 
 	t.Run("UnlistedTemplate", func(t *testing.T) {
 		t.Parallel()
 		tr := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
 		chat, rec, unlisted := uuid.New(), uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec})
+		tr.Record(chat, rec, []uuid.UUID{rec}, 1)
 		require.Equal(t, recommendationFollowupUnlisted, tr.Classify(chat, unlisted))
 	})
 
@@ -57,7 +70,7 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		t.Parallel()
 		tr := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
 		chat, rec := uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec})
+		tr.Record(chat, rec, []uuid.UUID{rec}, 1)
 		require.Equal(t, recommendationFollowupAccepted, tr.Classify(chat, rec))
 		// A second classification finds nothing: the entry was consumed.
 		require.Equal(t, recommendationFollowupNoRecord, tr.Classify(chat, rec))
@@ -68,7 +81,7 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		clock := quartz.NewMock(t)
 		tr := NewRecommendationTracker(clock, time.Minute, 0)
 		chat, rec := uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec})
+		tr.Record(chat, rec, []uuid.UUID{rec}, 1)
 		clock.Advance(time.Minute + time.Second)
 		require.Equal(t, recommendationFollowupNoRecord, tr.Classify(chat, rec))
 	})
@@ -78,9 +91,9 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		var tr *RecommendationTracker
 		require.Equal(t, recommendationFollowupNoRecord, tr.Classify(uuid.New(), uuid.New()))
 		// Record on a nil tracker or with a nil chat ID must not panic.
-		tr.Record(uuid.New(), uuid.New(), nil)
+		tr.Record(uuid.New(), uuid.New(), nil, 1)
 		live := NewRecommendationTracker(quartz.NewMock(t), 0, 0)
-		live.Record(uuid.Nil, uuid.New(), nil)
+		live.Record(uuid.Nil, uuid.New(), nil, 1)
 		require.Equal(t, recommendationFollowupNoRecord, live.Classify(uuid.Nil, uuid.New()))
 	})
 }
@@ -96,15 +109,18 @@ func TestRecommendationTracker_EvictsOldestAtCapacity(t *testing.T) {
 	// newer, filling capacity beyond maxEntries.
 	oldest := uuid.New()
 	oldestRec := uuid.New()
-	tr.Record(oldest, oldestRec, []uuid.UUID{oldestRec})
+	tr.Record(oldest, oldestRec, []uuid.UUID{oldestRec}, 1)
 
-	for i := 0; i < maxEntries; i++ {
+	var survivor, survivorRec uuid.UUID
+	for range maxEntries {
 		clock.Advance(time.Second)
 		chat, rec := uuid.New(), uuid.New()
-		tr.Record(chat, rec, []uuid.UUID{rec})
+		tr.Record(chat, rec, []uuid.UUID{rec}, 1)
+		survivor, survivorRec = chat, rec
 	}
 
-	// The oldest entry was evicted to keep the map bounded; newer entries
-	// within TTL remain classifiable.
+	// The oldest entry was evicted to keep the map bounded, while a newer
+	// entry recorded within TTL remains classifiable.
 	require.Equal(t, recommendationFollowupNoRecord, tr.Classify(oldest, oldestRec))
+	require.Equal(t, recommendationFollowupAccepted, tr.Classify(survivor, survivorRec))
 }

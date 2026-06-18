@@ -88,6 +88,11 @@ const (
 	listTemplatesOutcomeAskUser     = "ask_user"
 	listTemplatesOutcomeNoMatches   = "no_matches"
 	listTemplatesOutcomeNoTemplates = "no_templates"
+	// listTemplatesOutcomeUnknown is a defensive bucket for a next-step value
+	// that listTemplatesOutcome does not map. It should never appear in
+	// practice; an increment signals a new NextStep* constant that was not
+	// wired into the outcome mapping.
+	listTemplatesOutcomeUnknown = "unknown"
 )
 
 // Recommendation reasons explain which branch produced the outcome. They are
@@ -255,7 +260,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 				reason:               reason,
 				signalsErr:           signalsErr,
 			})
-			options.Recommendations.Record(options.ChatID, recommendedID, pageTemplateIDs)
+			options.Recommendations.Record(options.ChatID, recommendedID, pageTemplateIDs, page)
 
 			result := map[string]any{
 				"templates":   items,
@@ -425,8 +430,10 @@ func listTemplatesOutcome(nextStep string) string {
 		return listTemplatesOutcomeNoMatches
 	case NextStepUseRecommended:
 		return listTemplatesOutcomeRecommended
-	default:
+	case NextStepAskUser:
 		return listTemplatesOutcomeAskUser
+	default:
+		return listTemplatesOutcomeUnknown
 	}
 }
 
@@ -445,11 +452,11 @@ type listTemplatesTelemetry struct {
 	signalsErr           error
 }
 
-// recordListTemplatesTelemetry records the aggregate ranking metrics (Tier 2)
-// and emits the structured decision log (Tier 1). The raw user query text is
-// never logged: only its presence and length are, to avoid leaking task
-// content. The affinity score itself stays internal; the log carries the
-// inputs (scores, gap, thresholds) so a decision is reconstructable.
+// recordListTemplatesTelemetry records the aggregate ranking metrics and emits
+// the structured decision log. The raw user query text is never logged: only
+// its presence and length are, to avoid leaking task content. The affinity
+// score itself stays internal; the log carries the inputs (scores, gap,
+// thresholds) so a decision is reconstructable.
 func recordListTemplatesTelemetry(
 	ctx context.Context,
 	options ListTemplatesOptions,
@@ -467,8 +474,11 @@ func recordListTemplatesTelemetry(
 		}
 		// The affinity gap is only meaningful when affinity is the deciding
 		// signal: no query, or the top two share the same query tier. In those
-		// cases the sort guarantees a non-negative gap.
-		if len(t.ranked) > 1 {
+		// cases the sort guarantees a non-negative gap. A failed signal load
+		// leaves every affinity score at its zero default and forces an
+		// ask_user outcome, so recording the gap then would only add
+		// meaningless zero samples; the signals-failure counter covers it.
+		if t.signalsErr == nil && len(t.ranked) > 1 {
 			top, runner := t.ranked[0], t.ranked[1]
 			if t.query == "" || top.QueryScore == runner.QueryScore {
 				options.Metrics.RecordListTemplatesAffinityGap(recommended, top.AffinityScore-runner.AffinityScore)

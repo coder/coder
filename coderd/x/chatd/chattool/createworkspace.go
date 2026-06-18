@@ -288,10 +288,8 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				options.OnChatUpdated(updatedChat)
 			}
 
-			// Tier 3 acceptance telemetry: classify how this freshly
-			// created workspace's template related to the prior
-			// list_templates recommendation. Only genuine creations reach
-			// here; the idempotent existing-workspace path returns earlier.
+			// Only genuine creations reach here; the idempotent
+			// existing-workspace path returns earlier.
 			recordRecommendationFollowup(ctx, options, chatID, workspace.ID, templateID)
 
 			// Wait for the build to complete and the agent to
@@ -395,6 +393,7 @@ func recordRecommendationFollowup(
 	}
 	options.Logger.Info(ctx, "create_workspace recommendation follow-up",
 		slog.F("chat_id", chatID),
+		slog.F("owner_id", options.OwnerID),
 		slog.F("workspace_id", workspaceID),
 		slog.F("template_id", templateID),
 		slog.F("recommendation_followup", followup),

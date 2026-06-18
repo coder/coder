@@ -2144,7 +2144,7 @@ func TestCreateWorkspace_RecordsRecommendationFollowup(t *testing.T) {
 
 	// Seed the tracker so the chat already has a recommendation for templateID.
 	tracker := NewRecommendationTracker(nil, 0, 0)
-	tracker.Record(chatID, templateID, []uuid.UUID{templateID})
+	tracker.Record(chatID, templateID, []uuid.UUID{templateID}, 1)
 	metrics := &fakeCreateWorkspaceMetrics{}
 
 	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{

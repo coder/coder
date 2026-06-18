@@ -204,9 +204,9 @@ type Server struct {
 	chatWorker        *chatWorker
 	messagePartBuffer *messagepartbuffer.Buffer
 	streamSyncPoller  *streamSyncPoller
-	// templateRecommendations correlates a list_templates recommendation with
-	// the template a later create_workspace builds, for acceptance telemetry.
-	// In-memory and best-effort (see chattool.RecommendationTracker).
+	// templateRecommendations tracks list_templates recommendations to classify
+	// the template a later create_workspace builds. In-memory and best-effort;
+	// see chattool.RecommendationTracker.
 	templateRecommendations *chattool.RecommendationTracker
 	recordingSem            chan struct{}
 

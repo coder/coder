@@ -262,7 +262,7 @@ coderd_chatd_stream_buffer_dropped_total 0
 # HELP coderd_chatd_stream_retries_total Total LLM stream retries.
 # TYPE coderd_chatd_stream_retries_total counter
 coderd_chatd_stream_retries_total{provider="",model="",kind="",chain_broken=""} 0
-# HELP coderd_chatd_template_recommendation_followup_total Total create_workspace calls by how the chosen template related to the prior list_templates recommendation.
+# HELP coderd_chatd_template_recommendation_followup_total Total create_workspace calls by how the chosen template related to the prior list_templates recommendation (accepted_recommendation, overrode_with_listed_template, created_listed_without_recommendation, created_unlisted_template, no_recent_list_templates).
 # TYPE coderd_chatd_template_recommendation_followup_total counter
 coderd_chatd_template_recommendation_followup_total{outcome=""} 0
 # HELP coderd_chatd_tool_errors_total Total tool calls that returned an error result.

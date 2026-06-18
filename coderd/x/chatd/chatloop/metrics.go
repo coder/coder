@@ -138,7 +138,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "template_recommendation_followup_total",
-			Help:      "Total create_workspace calls by how the chosen template related to the prior list_templates recommendation.",
+			Help:      "Total create_workspace calls by how the chosen template related to the prior list_templates recommendation (accepted_recommendation, overrode_with_listed_template, created_listed_without_recommendation, created_unlisted_template, no_recent_list_templates).",
 		}, []string{"outcome"}),
 	}
 }
