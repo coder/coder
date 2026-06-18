@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // Common response bodies for circuit breaker tests.
@@ -125,7 +126,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          testutil.IntervalSlow,
 				MaxRequests:      1,
 			}
 
@@ -282,7 +283,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          testutil.IntervalSlow,
 				MaxRequests:      1,
 			}
 
@@ -430,7 +431,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          50 * time.Millisecond,
+				Timeout:          testutil.IntervalSlow,
 				MaxRequests:      maxRequests, // Allow only 2 concurrent requests in half-open
 			}
 
