@@ -219,7 +219,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			t.Cleanup(upstream.Close)
 
 			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL,
-				withCustomProvider(provider.NewAnthropic(config.Anthropic{
+				withCustomProvider(mustNewAnthropic(config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
 				}, nil)),

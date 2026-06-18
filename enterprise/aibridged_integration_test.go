@@ -37,6 +37,17 @@ import (
 
 var testTracer = otel.Tracer("aibridged_inttest")
 
+// mustNewAnthropicProvider builds an Anthropic provider for tests, panicking if
+// credential resolution fails. Keeps call sites terse after NewAnthropicProvider
+// gained a context and error return.
+func mustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
+	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
+	if err != nil {
+		panic("build anthropic provider: " + err.Error())
+	}
+	return p
+}
+
 // TestIntegration is not an exhaustive test against the upstream AI providers' SDKs (see coder/aibridge for those).
 // This test validates that:
 //   - intercepted requests can be authenticated/authorized
@@ -493,7 +504,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 			BaseURL:        mockOpenAI.URL,
 			CircuitBreaker: cbConfig,
 		}),
-		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		mustNewAnthropicProvider(aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
 			Key:            "test-key",
 			CircuitBreaker: cbConfig,

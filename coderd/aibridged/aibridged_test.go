@@ -26,6 +26,17 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// mustNewAnthropicProvider builds an Anthropic provider for tests, panicking if
+// credential resolution fails. Keeps call sites terse after NewAnthropicProvider
+// gained a context and error return.
+func mustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
+	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
+	if err != nil {
+		panic("build anthropic provider: " + err.Error())
+	}
+	return p
+}
+
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
 
@@ -648,7 +659,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					BaseURL:          upstreamSrv.URL,
 					SendActorHeaders: true,
 				}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+				mustNewAnthropicProvider(aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
 					SendActorHeaders: true,
 				}, nil),
@@ -754,7 +765,7 @@ func TestRouting(t *testing.T) {
 
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
+				mustNewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)

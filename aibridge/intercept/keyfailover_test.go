@@ -102,9 +102,9 @@ var interceptorCases = []interceptorCase{
 
 			id, tracer := uuid.New(), otel.Tracer("keyfailover")
 			if streaming {
-				return messages.NewStreamingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+				return messages.NewStreamingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, nil, http.Header{}, "X-Api-Key", tracer, cred)
 			}
-			return messages.NewBlockingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, http.Header{}, "X-Api-Key", tracer, cred)
+			return messages.NewBlockingInterceptor(id, payload, config.ProviderAnthropic, cfg, nil, nil, http.Header{}, "X-Api-Key", tracer, cred)
 		},
 	},
 	{

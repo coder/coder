@@ -213,6 +213,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "base_url": "string",
             "bedrock_model": "string",
             "bedrock_region": "string",
+            "bedrock_role_arn": "string",
+            "bedrock_session_name": "string",
             "bedrock_small_fast_model": "string",
             "name": "string",
             "type": "string"

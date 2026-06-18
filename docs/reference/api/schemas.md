@@ -419,6 +419,8 @@
       "base_url": "string",
       "bedrock_model": "string",
       "bedrock_region": "string",
+      "bedrock_role_arn": "string",
+      "bedrock_session_name": "string",
       "bedrock_small_fast_model": "string",
       "name": "string",
       "type": "string"
@@ -952,6 +954,8 @@
         "base_url": "string",
         "bedrock_model": "string",
         "bedrock_region": "string",
+        "bedrock_role_arn": "string",
+        "bedrock_session_name": "string",
         "bedrock_small_fast_model": "string",
         "name": "string",
         "type": "string"
@@ -1044,6 +1048,8 @@
   "base_url": "string",
   "bedrock_model": "string",
   "bedrock_region": "string",
+  "bedrock_role_arn": "string",
+  "bedrock_session_name": "string",
   "bedrock_small_fast_model": "string",
   "name": "string",
   "type": "string"
@@ -1052,14 +1058,16 @@
 
 ### Properties
 
-| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
-|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
-| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
-| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
-| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
-| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
-| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
+| Name                       | Type   | Required | Restrictions | Description                                                                                                                                                                                                                                                                      |
+|----------------------------|--------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                                                                                                                                           |
+| `bedrock_model`            | string | false    |              |                                                                                                                                                                                                                                                                                  |
+| `bedrock_region`           | string | false    |              |                                                                                                                                                                                                                                                                                  |
+| `bedrock_role_arn`         | string | false    |              | Bedrock role arn when set, is the IAM role assumed via STS before calling Bedrock, enabling cross-account access. BedrockExternalID is the optional external ID sent on the AssumeRole call (write-only). BedrockSessionName is the STS session name, auto-generated when empty. |
+| `bedrock_session_name`     | string | false    |              |                                                                                                                                                                                                                                                                                  |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                                                                                                                                                  |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                                                                                                                                                       |
+| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot".                                                                                                                            |
 
 ## codersdk.AIProviderKey
 
@@ -5516,6 +5524,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "base_url": "string",
             "bedrock_model": "string",
             "bedrock_region": "string",
+            "bedrock_role_arn": "string",
+            "bedrock_session_name": "string",
             "bedrock_small_fast_model": "string",
             "name": "string",
             "type": "string"
@@ -6118,6 +6128,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "bedrock_model": "string",
           "bedrock_region": "string",
+          "bedrock_role_arn": "string",
+          "bedrock_session_name": "string",
           "bedrock_small_fast_model": "string",
           "name": "string",
           "type": "string"

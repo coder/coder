@@ -39,7 +39,7 @@ func TestAPIDump(t *testing.T) {
 			name:    "anthropic",
 			fixture: fixtures.AntSimple,
 			providerFunc: func(addr, dumpDir string) aibridge.Provider {
-				return provider.NewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
+				return mustNewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
 			},
 			path:              pathAnthropicMessages,
 			expectProviderDir: config.ProviderAnthropic,
@@ -219,7 +219,7 @@ func TestAPIDumpPassthrough(t *testing.T) {
 		{
 			name: "anthropic",
 			providerFunc: func(addr string, dumpDir string) aibridge.Provider {
-				return provider.NewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
+				return mustNewAnthropic(anthropicCfgWithAPIDump(addr, apiKey, dumpDir), nil)
 			},
 			requestPath:    "/anthropic/v1/models",
 			expectDumpName: "-v1-models-",

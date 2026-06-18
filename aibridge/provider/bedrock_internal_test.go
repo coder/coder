@@ -1,0 +1,235 @@
+package provider
+
+import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/aibridge/config"
+)
+
+// TestBuildBedrockCredentialsValidation covers the input validation that does
+// not require resolving credentials.
+func TestBuildBedrockCredentialsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      config.AWSBedrock
+		errorMsg string
+	}{
+		{
+			name:     "missing region and base url",
+			cfg:      config.AWSBedrock{},
+			errorMsg: "region or base url required",
+		},
+		{
+			name: "missing access key",
+			cfg: config.AWSBedrock{
+				Region:          "us-east-1",
+				AccessKeySecret: "test-secret",
+			},
+			errorMsg: "both access key and access key secret must be provided together",
+		},
+		{
+			name: "missing access key secret",
+			cfg: config.AWSBedrock{
+				Region:    "us-east-1",
+				AccessKey: "test-key",
+			},
+			errorMsg: "both access key and access key secret must be provided together",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := buildBedrockCredentials(context.Background(), tt.cfg)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errorMsg)
+		})
+	}
+}
+
+// TestBuildBedrockCredentialsStatic resolves static credentials with no network
+// access.
+func TestBuildBedrockCredentialsStatic(t *testing.T) {
+	t.Parallel()
+
+	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:          "us-east-1",
+		AccessKey:       "test-key",
+		AccessKeySecret: "test-secret",
+	})
+	require.NoError(t, err)
+
+	got, err := creds.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "test-key", got.AccessKeyID)
+	require.Equal(t, "test-secret", got.SecretAccessKey)
+}
+
+// TestBuildBedrockCredentialsDefaultChain covers resolution via the AWS SDK
+// default credential chain (here, environment variables) and the failure mode
+// when no credential source is configured.
+// NOTE: no t.Parallel() because the subtests use t.Setenv.
+func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
+	tests := []struct {
+		name        string
+		envVars     map[string]string
+		expectError bool
+	}{
+		{
+			name: "credentials via env",
+			envVars: map[string]string{
+				"AWS_ACCESS_KEY_ID":     "test-key",
+				"AWS_SECRET_ACCESS_KEY": "test-secret",
+			},
+		},
+		{
+			name: "credentials with session token via env",
+			envVars: map[string]string{
+				"AWS_ACCESS_KEY_ID":     "test-key",
+				"AWS_SECRET_ACCESS_KEY": "test-secret",
+				"AWS_SESSION_TOKEN":     "test-session-token",
+			},
+		},
+		{
+			name: "error when no credential source is configured",
+			envVars: map[string]string{
+				"AWS_ACCESS_KEY_ID":                      "",
+				"AWS_SECRET_ACCESS_KEY":                  "",
+				"AWS_SESSION_TOKEN":                      "",
+				"AWS_PROFILE":                            "",
+				"AWS_SHARED_CREDENTIALS_FILE":            "/dev/null",
+				"AWS_CONFIG_FILE":                        "/dev/null",
+				"AWS_WEB_IDENTITY_TOKEN_FILE":            "",
+				"AWS_ROLE_ARN":                           "",
+				"AWS_ROLE_SESSION_NAME":                  "",
+				"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "",
+				"AWS_CONTAINER_CREDENTIALS_FULL_URI":     "",
+				"AWS_CONTAINER_AUTHORIZATION_TOKEN":      "",
+				"AWS_EC2_METADATA_DISABLED":              "true",
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for key, val := range tt.envVars {
+				t.Setenv(key, val)
+			}
+
+			// buildBedrockCredentials wires up the provider chain without a
+			// network call, so it succeeds regardless of credential
+			// availability; resolution failures surface on Retrieve.
+			creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+				Region: "us-east-1",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, creds)
+
+			_, err = creds.Retrieve(context.Background())
+			if tt.expectError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestBuildBedrockCredentialsAssumeRole drives the STS AssumeRole path against a
+// mock endpoint, asserting that the configured role ARN, external ID, and
+// session name are sent and that the returned temporary credentials are used.
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
+	var gotRoleARN, gotExternalID, gotSessionName string
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		gotRoleARN = r.Form.Get("RoleArn")
+		gotExternalID = r.Form.Get("ExternalId")
+		gotSessionName = r.Form.Get("RoleSessionName")
+
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASIAASSUMED</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2999-01-01T00:00:00Z</Expiration>
+    </Credentials>
+    <AssumedRoleUser>
+      <Arn>arn:aws:sts::123456789012:assumed-role/target/coder</Arn>
+      <AssumedRoleId>AROAEXAMPLE:coder</AssumedRoleId>
+    </AssumedRoleUser>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`))
+	}))
+	defer sts.Close()
+
+	// Point the STS client at the mock and provide static base credentials so
+	// the base identity resolves without network access.
+	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
+
+	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:      "us-east-1",
+		RoleARN:     "arn:aws:iam::123456789012:role/target",
+		ExternalID:  "shared-secret",
+		SessionName: "coder",
+	})
+	require.NoError(t, err)
+
+	got, err := creds.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "ASIAASSUMED", got.AccessKeyID)
+	require.Equal(t, "assumed-secret", got.SecretAccessKey)
+	require.Equal(t, "assumed-token", got.SessionToken)
+
+	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
+	require.Equal(t, "shared-secret", gotExternalID)
+	require.Equal(t, "coder", gotSessionName)
+}
+
+// TestBuildBedrockCredentialsAssumeRoleDefaultSessionName verifies a session
+// name is sent even when the provider does not configure one.
+func TestBuildBedrockCredentialsAssumeRoleDefaultSessionName(t *testing.T) {
+	var gotSessionName string
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		gotSessionName = r.Form.Get("RoleSessionName")
+		w.Header().Set("Content-Type", "text/xml")
+		_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASIAASSUMED</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2999-01-01T00:00:00Z</Expiration>
+    </Credentials>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`))
+	}))
+	defer sts.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
+
+	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:  "us-east-1",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
+	})
+	require.NoError(t, err)
+	_, err = creds.Retrieve(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, defaultBedrockSessionName, gotSessionName)
+}

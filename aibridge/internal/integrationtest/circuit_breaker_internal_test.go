@@ -68,7 +68,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return mustNewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
 					Key:            "test-key",
 					CircuitBreaker: cbConfig,
@@ -235,7 +235,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return mustNewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
 					Key:            "test-key",
 					CircuitBreaker: cbConfig,
@@ -372,7 +372,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return mustNewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
 					Key:            "test-key",
 					CircuitBreaker: cbConfig,
@@ -553,7 +553,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 	}
 	ctx := t.Context()
 	bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
-		withCustomProvider(provider.NewAnthropic(config.Anthropic{
+		withCustomProvider(mustNewAnthropic(config.Anthropic{
 			BaseURL:        mockUpstream.URL,
 			Key:            "test-key",
 			CircuitBreaker: cbConfig,

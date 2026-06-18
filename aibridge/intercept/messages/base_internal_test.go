@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -140,29 +141,6 @@ func TestAWSBedrockValidation(t *testing.T) {
 			errorMsg:    "region or base url required",
 		},
 		{
-			name: "missing access key",
-			cfg: &config.AWSBedrock{
-				Region:          "us-east-1",
-				AccessKeySecret: "test-secret",
-				Model:           "test-model",
-				SmallFastModel:  "test-small-model",
-			},
-			expectError: true,
-			errorMsg:    "both access key and access key secret must be provided together",
-		},
-		{
-			name: "missing access key secret",
-			cfg: &config.AWSBedrock{
-				Region:          "us-east-1",
-				AccessKey:       "test-key",
-				AccessKeySecret: "",
-				Model:           "test-model",
-				SmallFastModel:  "test-small-model",
-			},
-			expectError: true,
-			errorMsg:    "both access key and access key secret must be provided together",
-		},
-		{
 			name: "missing model",
 			cfg: &config.AWSBedrock{
 				Region:          "us-east-1",
@@ -204,7 +182,12 @@ func TestAWSBedrockValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			base := &interceptionBase{}
+			// Credentials are resolved once per provider and supplied to the
+			// interceptor; the per-request path only assembles options around
+			// them. A static stub stands in for the resolved provider.
+			base := &interceptionBase{
+				bedrockCreds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+			}
 			opts, err := base.withAWSBedrockOptions(context.Background(), tt.cfg)
 
 			if tt.expectError {
@@ -218,87 +201,19 @@ func TestAWSBedrockValidation(t *testing.T) {
 	}
 }
 
-// TestAWSBedrockCredentialChain tests credential resolution via the AWS SDK default credential chain.
-// NOTE: Cannot use t.Parallel() here because subtests use t.Setenv which requires sequential execution.
-func TestAWSBedrockCredentialChain(t *testing.T) {
-	tests := []struct {
-		name        string
-		cfg         *config.AWSBedrock
-		envVars     map[string]string
-		expectError bool
-		errorMsg    string
-	}{
-		{
-			name: "temporary credentials via env",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "test-key",
-				"AWS_SECRET_ACCESS_KEY": "test-secret",
-			},
-		},
-		{
-			name: "temporary credentials with session token via env",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":     "test-key",
-				"AWS_SECRET_ACCESS_KEY": "test-secret",
-				"AWS_SESSION_TOKEN":     "test-session-token",
-			},
-		},
-		{
-			// When static credentials are not provided and no environment credentials are set,
-			// the SDK default credential chain fails to resolve credentials.
-			name: "error when no credential source is configured",
-			cfg: &config.AWSBedrock{
-				Region:         "us-east-1",
-				Model:          "test-model",
-				SmallFastModel: "test-small-model",
-			},
-			envVars: map[string]string{
-				"AWS_ACCESS_KEY_ID":                      "",
-				"AWS_SECRET_ACCESS_KEY":                  "",
-				"AWS_SESSION_TOKEN":                      "",
-				"AWS_PROFILE":                            "",
-				"AWS_SHARED_CREDENTIALS_FILE":            "/dev/null",
-				"AWS_CONFIG_FILE":                        "/dev/null",
-				"AWS_WEB_IDENTITY_TOKEN_FILE":            "",
-				"AWS_ROLE_ARN":                           "",
-				"AWS_ROLE_SESSION_NAME":                  "",
-				"AWS_CONTAINER_CREDENTIALS_RELATIVE_URI": "",
-				"AWS_CONTAINER_CREDENTIALS_FULL_URI":     "",
-				"AWS_CONTAINER_AUTHORIZATION_TOKEN":      "",
-				"AWS_EC2_METADATA_DISABLED":              "true",
-			},
-			expectError: true,
-			errorMsg:    "no AWS credentials found",
-		},
-	}
+// TestAWSBedrockOptionsRequireResolvedCredentials verifies that option assembly
+// fails when the per-provider credentials provider was not resolved.
+func TestAWSBedrockOptionsRequireResolvedCredentials(t *testing.T) {
+	t.Parallel()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			for key, val := range tt.envVars {
-				t.Setenv(key, val)
-			}
-			base := &interceptionBase{}
-			opts, err := base.withAWSBedrockOptions(context.Background(), tt.cfg)
-
-			if tt.expectError {
-				require.Error(t, err)
-				require.Contains(t, err.Error(), tt.errorMsg)
-			} else {
-				require.NotEmpty(t, opts)
-				require.NoError(t, err)
-			}
-		})
-	}
+	base := &interceptionBase{}
+	_, err := base.withAWSBedrockOptions(context.Background(), &config.AWSBedrock{
+		Region:         "us-east-1",
+		Model:          "test-model",
+		SmallFastModel: "test-small-model",
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "bedrock credentials not resolved")
 }
 
 func TestAccumulateUsage(t *testing.T) {

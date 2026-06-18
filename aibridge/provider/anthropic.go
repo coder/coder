@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -35,6 +37,11 @@ var _ Provider = &Anthropic{}
 type Anthropic struct {
 	cfg        config.Anthropic
 	bedrockCfg *config.AWSBedrock
+	// bedrockCreds is the AWS credentials provider (including any assumed
+	// role), resolved once at construction and shared across requests so
+	// per-request retrieval is served from its cache rather than re-resolved.
+	// nil when this provider is not Bedrock-backed.
+	bedrockCreds aws.CredentialsProvider
 }
 
 const routeMessages = "/v1/messages" // https://docs.anthropic.com/en/api/messages
@@ -51,7 +58,7 @@ var anthropicIsFailure = func(statusCode int) bool {
 	return circuitbreaker.DefaultIsFailure(statusCode)
 }
 
-func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) (*Anthropic, error) {
 	if cfg.Name == "" {
 		cfg.Name = config.ProviderAnthropic
 	}
@@ -81,10 +88,24 @@ func NewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropi
 		cfg.CircuitBreaker.OpenErrorResponse = anthropicOpenErrorResponse
 	}
 
-	return &Anthropic{
-		cfg:        cfg,
-		bedrockCfg: bedrockCfg,
+	// Resolve the AWS credentials provider once. This performs no network
+	// call (the base identity and any AssumeRole resolve lazily on first
+	// retrieval); it only wires up the provider chain, so it is cheap to run
+	// at construction and on every provider reload.
+	var bedrockCreds aws.CredentialsProvider
+	if bedrockCfg != nil {
+		var err error
+		bedrockCreds, err = buildBedrockCredentials(ctx, *bedrockCfg)
+		if err != nil {
+			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
+		}
 	}
+
+	return &Anthropic{
+		cfg:          cfg,
+		bedrockCfg:   bedrockCfg,
+		bedrockCreds: bedrockCreds,
+	}, nil
 }
 
 func (*Anthropic) Type() string {
@@ -176,11 +197,13 @@ func (p *Anthropic) CreateInterceptor(_ http.ResponseWriter, r *http.Request, tr
 	// end-of-interception.
 	cred := intercept.NewCredentialInfo(credKind, credSecret)
 
+	// bedrockCreds was resolved once at construction; it is a shared,
+	// rotating credentials cache. nil for non-Bedrock providers.
 	var interceptor intercept.Interceptor
 	if reqPayload.Stream() {
-		interceptor = messages.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, r.Header, authHeaderName, tracer, cred)
+		interceptor = messages.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, p.bedrockCreds, r.Header, authHeaderName, tracer, cred)
 	} else {
-		interceptor = messages.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, r.Header, authHeaderName, tracer, cred)
+		interceptor = messages.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, p.bedrockCfg, p.bedrockCreds, r.Header, authHeaderName, tracer, cred)
 	}
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil

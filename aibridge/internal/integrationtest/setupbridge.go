@@ -249,15 +249,26 @@ func setupInjectedToolTest(
 	return bridgeServer, mockMCP, resp
 }
 
+// mustNewAnthropic builds an Anthropic provider for tests, panicking if
+// credential resolution fails. NewAnthropic resolves Bedrock credentials at
+// construction, so this keeps the many test call sites terse.
+func mustNewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) aibridge.Provider {
+	p, err := provider.NewAnthropic(context.Background(), cfg, bedrockCfg)
+	if err != nil {
+		panic("build anthropic provider: " + err.Error())
+	}
+	return p
+}
+
 // newDefaultProvider creates a Provider with default test configuration.
 func newDefaultProvider(providerType string, addr string) aibridge.Provider {
 	switch providerType {
 	case config.ProviderAnthropic:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), nil)
+		return mustNewAnthropic(anthropicCfg(addr, apiKey), nil)
 	case config.ProviderOpenAI:
 		return provider.NewOpenAI(openAICfg(addr, apiKey))
 	case providerBedrock:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
+		return mustNewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
 	default:
 		panic("unknown provider type: " + providerType)
 	}

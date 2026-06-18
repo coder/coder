@@ -132,6 +132,31 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 		},
 		{
+			name: "BedrockAssumeRoleFields",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-unit-a",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_MODEL=anthropic.claude-3-sonnet",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_SMALL_FAST_MODEL=anthropic.claude-3-haiku",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ROLE_ARN=arn:aws:iam::123456789012:role/target",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_EXTERNAL_ID=shared-secret",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_SESSION_NAME=coder",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                  string(database.AIProviderTypeBedrock),
+					Name:                  "bedrock-unit-a",
+					BedrockRegion:         "us-east-1",
+					BedrockModel:          "anthropic.claude-3-sonnet",
+					BedrockSmallFastModel: "anthropic.claude-3-haiku",
+					BedrockRoleARN:        "arn:aws:iam::123456789012:role/target",
+					BedrockExternalID:     "shared-secret",
+					BedrockSessionName:    "coder",
+				},
+			},
+		},
+		{
 			name: "OutOfOrderIndices",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic",
@@ -741,7 +766,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := buildAIProviderFromRow(tt.row, nil, codersdk.AIBridgeConfig{
+			provider, err := buildAIProviderFromRow(t.Context(), tt.row, nil, codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
 			}, nil)
@@ -755,7 +780,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildAIProviderFromRow(database.AIProvider{
+	_, err := buildAIProviderFromRow(t.Context(), database.AIProvider{
 		Enabled: true,
 		Type:    database.AIProviderTypeBedrock,
 		Name:    "bedrock-no-settings",

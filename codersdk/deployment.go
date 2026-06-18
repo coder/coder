@@ -4870,6 +4870,13 @@ type AIProviderConfig struct {
 	BedrockAccessKeySecrets []string `json:"-"`
 	BedrockModel            string   `json:"bedrock_model,omitempty"`
 	BedrockSmallFastModel   string   `json:"bedrock_small_fast_model,omitempty"`
+	// BedrockRoleARN, when set, is the IAM role assumed via STS before
+	// calling Bedrock, enabling cross-account access. BedrockExternalID is
+	// the optional external ID sent on the AssumeRole call (write-only).
+	// BedrockSessionName is the STS session name, auto-generated when empty.
+	BedrockRoleARN     string `json:"bedrock_role_arn,omitempty"`
+	BedrockExternalID  string `json:"-"`
+	BedrockSessionName string `json:"bedrock_session_name,omitempty"`
 }
 
 type AIBridgeProxyConfig struct {

@@ -1501,4 +1501,109 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
 		require.Equal(t, "secret-new", *persisted.Bedrock.AccessKeySecret)
 	})
+
+	t.Run("MigrateStaticToRoleWithExternalID", func(t *testing.T) {
+		t.Parallel()
+		// An admin migrating from static AWS credentials to cross-account
+		// role assumption clears the keys and sets a role ARN and external
+		// ID in a single PATCH. The external ID is a write-only secret: it
+		// must persist but never be echoed back in API responses.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-role",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref(""),
+					AccessKeySecret: ptr.Ref(""),
+					RoleARN:         "arn:aws:iam::123456789012:role/target",
+					SessionName:     "coder",
+					ExternalID:      ptr.Ref("shared-secret"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// The API response must redact the write-only external ID while
+		// still echoing the non-secret role fields.
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Nil(t, updated.Settings.Bedrock.ExternalID)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", updated.Settings.Bedrock.RoleARN)
+		require.Equal(t, "coder", updated.Settings.Bedrock.SessionName)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", persisted.Bedrock.RoleARN)
+		require.Equal(t, "coder", persisted.Bedrock.SessionName)
+		require.NotNil(t, persisted.Bedrock.ExternalID)
+		require.Equal(t, "shared-secret", *persisted.Bedrock.ExternalID)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "", *persisted.Bedrock.AccessKey)
+	})
+
+	t.Run("OmittedExternalIDPreservesExisting", func(t *testing.T) {
+		t.Parallel()
+		// A PATCH that omits the external ID must keep the existing value,
+		// matching the write-only semantics of AccessKeySecret.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-role-omit",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:     "us-east-1",
+					RoleARN:    "arn:aws:iam::123456789012:role/target",
+					ExternalID: ptr.Ref("shared-secret"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:  "us-east-1",
+					RoleARN: "arn:aws:iam::123456789012:role/target",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.NotNil(t, persisted.Bedrock.ExternalID)
+		require.Equal(t, "shared-secret", *persisted.Bedrock.ExternalID)
+	})
 }

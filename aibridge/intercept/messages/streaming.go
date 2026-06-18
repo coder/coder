@@ -13,6 +13,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/tidwall/sjson"
@@ -42,6 +43,7 @@ func NewStreamingInterceptor(
 	providerName string,
 	cfg config.Anthropic,
 	bedrockCfg *config.AWSBedrock,
+	bedrockCreds aws.CredentialsProvider,
 	clientHeaders http.Header,
 	authHeaderName string,
 	tracer trace.Tracer,
@@ -53,6 +55,7 @@ func NewStreamingInterceptor(
 		reqPayload:     reqPayload,
 		cfg:            cfg,
 		bedrockCfg:     bedrockCfg,
+		bedrockCreds:   bedrockCreds,
 		clientHeaders:  clientHeaders,
 		authHeaderName: authHeaderName,
 		tracer:         tracer,

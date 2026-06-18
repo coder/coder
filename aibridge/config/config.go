@@ -48,6 +48,17 @@ type AWSBedrock struct {
 	// (https://bedrock-runtime.{region}.amazonaws.com).
 	// This is useful for routing requests through a proxy or for testing.
 	BaseURL string
+	// RoleARN, when set, is assumed via STS before calling Bedrock. The base
+	// identity (static keys or the AWS SDK default credential chain, e.g.
+	// IRSA / Pod Identity / instance profile) signs the AssumeRole call, and
+	// the resulting temporary credentials sign Bedrock requests. This enables
+	// cross-account access.
+	RoleARN string
+	// ExternalID is sent on the AssumeRole call for confused-deputy protection
+	// when assuming a role in an account this gateway does not own. Optional.
+	ExternalID string
+	// SessionName is the STS role session name. Auto-generated when empty.
+	SessionName string
 }
 
 // OpenAI carries configuration for an OpenAI provider.

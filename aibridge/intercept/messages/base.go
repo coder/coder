@@ -16,8 +16,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -72,6 +71,9 @@ type interceptionBase struct {
 
 	cfg        aibconfig.Anthropic
 	bedrockCfg *aibconfig.AWSBedrock
+	// bedrockCreds is the cached AWS credentials provider resolved once per
+	// provider (including any assumed role). nil when not Bedrock-backed.
+	bedrockCreds aws.CredentialsProvider
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders  http.Header
@@ -253,8 +255,6 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 	}
 
 	if i.bedrockCfg != nil {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
-		defer cancel()
 		bedrockOpts, err := i.withAWSBedrockOptions(ctx, i.bedrockCfg)
 		if err != nil {
 			return anthropic.MessageService{}, err
@@ -276,11 +276,14 @@ func (i *interceptionBase) withBody() option.RequestOption {
 
 // withAWSBedrockOptions returns request options for authenticating with AWS Bedrock.
 //
-// When both AccessKey and AccessKeySecret are set in the aibridge config, they are
-// used directly as static credentials. Otherwise, the AWS SDK default credential chain
-// resolves credentials (environment variables, shared config/credentials files, IAM
-// roles, IRSA, SSO, IMDS, etc.).
-func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconfig.AWSBedrock) ([]option.RequestOption, error) {
+// Credentials are resolved once per provider and supplied via i.bedrockCreds:
+// either static credentials, the AWS SDK default credential chain (environment
+// variables, shared config/credentials files, IAM roles, IRSA, SSO, IMDS, etc.),
+// or a role assumed via STS when a target role ARN is configured. i.bedrockCreds
+// is a shared, rotating credentials cache, so the per-request Retrieve below is
+// served from that cache (a cache hit) and does not re-resolve or re-assume on
+// every request; it only fails fast if credentials cannot be resolved.
+func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconfig.AWSBedrock) ([]option.RequestOption, error) {
 	if cfg == nil {
 		return nil, xerrors.New("nil config given")
 	}
@@ -293,39 +296,19 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 	if cfg.SmallFastModel == "" {
 		return nil, xerrors.New("small fast model required")
 	}
-
-	loadOpts := []func(*config.LoadOptions) error{
-		config.WithRegion(cfg.Region),
+	if i.bedrockCreds == nil {
+		return nil, xerrors.New("bedrock credentials not resolved")
 	}
 
-	// Use static credentials when explicitly provided, otherwise fall back to the SDK default credential chain.
-	switch {
-	// Both set: use static credentials directly.
-	case cfg.AccessKey != "" && cfg.AccessKeySecret != "":
-		loadOpts = append(loadOpts, config.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(
-				cfg.AccessKey,
-				cfg.AccessKeySecret,
-				"",
-			),
-		))
-	// Only one set: misconfiguration.
-	case cfg.AccessKey != "" || cfg.AccessKeySecret != "":
-		return nil, xerrors.New("both access key and access key secret must be provided together")
-	// Neither set: SDK default credential chain resolves credentials.
-	default:
-	}
-
-	awsCfg, err := config.LoadDefaultConfig(ctx, loadOpts...)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
-	}
-
-	// Fail fast: ensure credentials can be resolved before making any requests.
-	// awsCfg already carries the credentials provider, and the Bedrock middleware
-	// will call Retrieve on it when signing each request.
-	if _, err := awsCfg.Credentials.Retrieve(ctx); err != nil {
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache, so this does not re-assume the role on each request.
+	if _, err := i.bedrockCreds.Retrieve(ctx); err != nil {
 		return nil, xerrors.Errorf("no AWS credentials found: %w", err)
+	}
+
+	awsCfg := aws.Config{
+		Region:      cfg.Region,
+		Credentials: i.bedrockCreds,
 	}
 
 	var out []option.RequestOption

@@ -9,6 +9,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/tidwall/sjson"
@@ -37,6 +38,7 @@ func NewBlockingInterceptor(
 	providerName string,
 	cfg config.Anthropic,
 	bedrockCfg *config.AWSBedrock,
+	bedrockCreds aws.CredentialsProvider,
 	clientHeaders http.Header,
 	authHeaderName string,
 	tracer trace.Tracer,
@@ -48,6 +50,7 @@ func NewBlockingInterceptor(
 		reqPayload:     reqPayload,
 		cfg:            cfg,
 		bedrockCfg:     bedrockCfg,
+		bedrockCreds:   bedrockCreds,
 		clientHeaders:  clientHeaders,
 		authHeaderName: authHeaderName,
 		tracer:         tracer,

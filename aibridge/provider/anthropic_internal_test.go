@@ -2,6 +2,7 @@ package provider
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,6 +18,18 @@ import (
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/quartz"
 )
+
+// mustNewAnthropic builds an Anthropic provider for tests, panicking if
+// credential resolution fails (it cannot for the non-Bedrock configs used
+// here). Keeps the call sites terse after NewAnthropic gained a context and
+// error return.
+func mustNewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
+	if err != nil {
+		panic("build anthropic provider: " + err.Error())
+	}
+	return p
+}
 
 func TestAnthropic_TypeAndName(t *testing.T) {
 	t.Parallel()
@@ -45,7 +58,7 @@ func TestAnthropic_TypeAndName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := NewAnthropic(tc.cfg, nil)
+			p := mustNewAnthropic(tc.cfg, nil)
 			assert.Equal(t, tc.expectType, p.Type())
 			assert.Equal(t, tc.expectName, p.Name())
 		})
@@ -94,7 +107,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := NewAnthropic(tc.cfg, nil)
+			p := mustNewAnthropic(tc.cfg, nil)
 
 			if tc.expectedKeys == nil {
 				assert.Nil(t, p.cfg.KeyPool, "expected no KeyPool")
@@ -119,7 +132,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := NewAnthropic(config.Anthropic{Key: "test-key"}, nil)
+	provider := mustNewAnthropic(config.Anthropic{Key: "test-key"}, nil)
 
 	t.Run("Messages_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
 		t.Parallel()
@@ -177,7 +190,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		}))
 		t.Cleanup(mockUpstream.Close)
 
-		provider := NewAnthropic(config.Anthropic{
+		provider := mustNewAnthropic(config.Anthropic{
 			BaseURL: mockUpstream.URL,
 			Key:     "test-key",
 		}, nil)
@@ -287,7 +300,7 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			}))
 			t.Cleanup(mockUpstream.Close)
 
-			provider := NewAnthropic(config.Anthropic{
+			provider := mustNewAnthropic(config.Anthropic{
 				BaseURL: mockUpstream.URL,
 				Key:     "test-key",
 			}, nil)
@@ -326,7 +339,7 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
-	p := NewAnthropic(config.Anthropic{KeyPool: pool}, nil)
+	p := mustNewAnthropic(config.Anthropic{KeyPool: pool}, nil)
 
 	cfg := p.KeyFailoverConfig(slog.Make())
 
