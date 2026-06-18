@@ -7,6 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestTerminalGeneration(t *testing.T) {
@@ -36,92 +39,100 @@ func TestGenerationPhaseBackoff(t *testing.T) {
 func TestRetryGenerationPhase(t *testing.T) {
 	t.Parallel()
 
-	noopWait := func(context.Context, time.Duration) error { return nil }
-
 	t.Run("SuccessFirstTry", func(t *testing.T) {
 		t.Parallel()
+		starter := newGenerationPhaseTestStarter(t, quartz.NewMock(t).WithLogger(quartz.NoOpLogger))
 		calls := 0
-		waits := 0
-		wait := func(context.Context, time.Duration) error {
-			waits++
-			return nil
-		}
-		got, err := retryGenerationPhase(context.Background(), wait, func() (int, error) {
+		got, err := retryGenerationPhase(context.Background(), starter, "prepare", func() (int, error) {
 			calls++
 			return 42, nil
 		})
 		require.NoError(t, err)
 		require.Equal(t, 42, got)
 		require.Equal(t, 1, calls)
-		require.Equal(t, 0, waits)
 	})
 
 	t.Run("RetryThenSuccess", func(t *testing.T) {
 		t.Parallel()
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		timerTrap := clock.Trap().NewTimer("chatworker", "generation-phase-retry")
+		defer timerTrap.Close()
+		sink := testutil.NewFakeSink(t)
+		starter := newGenerationPhaseTestStarter(t, clock)
+		starter.opts.Logger = sink.Logger()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		calls := 0
-		waits := 0
-		var delays []time.Duration
-		wait := func(_ context.Context, d time.Duration) error {
-			waits++
-			delays = append(delays, d)
-			return nil
-		}
-		got, err := retryGenerationPhase(context.Background(), wait, func() (string, error) {
-			calls++
-			if calls < 2 {
-				return "", xerrors.New("transient")
-			}
-			return "ok", nil
-		})
-		require.NoError(t, err)
-		require.Equal(t, "ok", got)
+		done := make(chan phaseRetryResult[string], 1)
+		go func() {
+			got, err := retryGenerationPhase(ctx, starter, "prepare", func() (string, error) {
+				calls++
+				if calls < 2 {
+					return "", xerrors.New("transient")
+				}
+				return "ok", nil
+			})
+			done <- phaseRetryResult[string]{value: got, err: err}
+		}()
+
+		timerTrap.MustWait(ctx).MustRelease(ctx)
+		clock.Advance(generationPhaseBackoff(0)).MustWait(ctx)
+		result := <-done
+		require.NoError(t, result.err)
+		require.Equal(t, "ok", result.value)
 		require.Equal(t, 2, calls)
-		require.Equal(t, 1, waits)
-		require.Equal(t, []time.Duration{generationPhaseBackoff(0)}, delays)
+		entries := entriesWithMessage(sink, "chat generation phase retrying")
+		require.Len(t, entries, 1)
+		require.Equal(t, "prepare", sinkFieldValue(t, entries[0].Fields, "phase"))
+		require.Equal(t, "1", sinkFieldValue(t, entries[0].Fields, "attempt"))
+		require.Equal(t, generationPhaseBackoff(0).String(), sinkFieldValue(t, entries[0].Fields, "delay"))
 	})
 
 	t.Run("ExhaustsAndReturnsLastError", func(t *testing.T) {
 		t.Parallel()
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		timerTrap := clock.Trap().NewTimer("chatworker", "generation-phase-retry")
+		defer timerTrap.Close()
+		starter := newGenerationPhaseTestStarter(t, clock)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		calls := 0
-		waits := 0
-		wait := func(context.Context, time.Duration) error {
-			waits++
-			return nil
-		}
-		_, err := retryGenerationPhase(context.Background(), wait, func() (int, error) {
-			calls++
-			return 0, xerrors.Errorf("attempt %d", calls)
-		})
-		require.EqualError(t, err, "attempt 3")
+		done := make(chan error, 1)
+		go func() {
+			_, err := retryGenerationPhase(ctx, starter, "prepare", func() (int, error) {
+				calls++
+				return 0, xerrors.Errorf("attempt %d", calls)
+			})
+			done <- err
+		}()
+
+		timerTrap.MustWait(ctx).MustRelease(ctx)
+		clock.Advance(generationPhaseBackoff(0)).MustWait(ctx)
+		timerTrap.MustWait(ctx).MustRelease(ctx)
+		clock.Advance(generationPhaseBackoff(1)).MustWait(ctx)
+		require.EqualError(t, <-done, "attempt 3")
 		require.Equal(t, generationPhaseMaxAttempts, calls)
-		require.Equal(t, generationPhaseMaxAttempts-1, waits)
 	})
 
 	t.Run("TerminalShortCircuits", func(t *testing.T) {
 		t.Parallel()
+		starter := newGenerationPhaseTestStarter(t, quartz.NewMock(t).WithLogger(quartz.NoOpLogger))
 		calls := 0
-		waits := 0
-		wait := func(context.Context, time.Duration) error {
-			waits++
-			return nil
-		}
 		cause := xerrors.New("deterministic")
-		_, err := retryGenerationPhase(context.Background(), wait, func() (int, error) {
+		_, err := retryGenerationPhase(context.Background(), starter, "prepare", func() (int, error) {
 			calls++
 			return 0, terminalGeneration(cause)
 		})
 		require.ErrorIs(t, err, cause)
 		require.True(t, isTerminalGeneration(err))
 		require.Equal(t, 1, calls)
-		require.Equal(t, 0, waits)
 	})
 
 	t.Run("ContextCanceledExitsCleanly", func(t *testing.T) {
 		t.Parallel()
+		starter := newGenerationPhaseTestStarter(t, quartz.NewMock(t).WithLogger(quartz.NoOpLogger))
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		calls := 0
-		_, err := retryGenerationPhase(ctx, noopWait, func() (int, error) {
+		_, err := retryGenerationPhase(ctx, starter, "prepare", func() (int, error) {
 			calls++
 			return 0, xerrors.New("transient")
 		})
@@ -131,18 +142,40 @@ func TestRetryGenerationPhase(t *testing.T) {
 
 	t.Run("WaitCancellationExitsCleanly", func(t *testing.T) {
 		t.Parallel()
+		clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
+		timerTrap := clock.Trap().NewTimer("chatworker", "generation-phase-retry")
+		defer timerTrap.Close()
+		starter := newGenerationPhaseTestStarter(t, clock)
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
 		calls := 0
-		waits := 0
-		wait := func(context.Context, time.Duration) error {
-			waits++
-			return errTaskExpectedExit
-		}
-		_, err := retryGenerationPhase(context.Background(), wait, func() (int, error) {
-			calls++
-			return 0, xerrors.New("transient")
-		})
-		require.ErrorIs(t, err, errTaskExpectedExit)
+		done := make(chan error, 1)
+		go func() {
+			_, err := retryGenerationPhase(ctx, starter, "prepare", func() (int, error) {
+				calls++
+				return 0, xerrors.New("transient")
+			})
+			done <- err
+		}()
+
+		timerTrap.MustWait(ctx).MustRelease(ctx)
+		cancel()
+		require.ErrorIs(t, <-done, errTaskExpectedExit)
 		require.Equal(t, 1, calls)
-		require.Equal(t, 1, waits)
 	})
+}
+
+type phaseRetryResult[T any] struct {
+	value T
+	err   error
+}
+
+func newGenerationPhaseTestStarter(t *testing.T, clock quartz.Clock) *taskStarter {
+	t.Helper()
+	require.NotNil(t, clock)
+	return &taskStarter{opts: chatWorkerOptions{
+		Clock:                   clock,
+		Logger:                  testutil.NewFakeSink(t).Logger(),
+		TaskRetryInitialBackoff: time.Millisecond,
+		TaskRetryMaxBackoff:     time.Millisecond,
+	}}
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -34,9 +35,11 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	err := runTaskWithRetry(ctx, retryWrapperOptions{
 		clock:        quartz.NewMock(t),
+		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
 	}, taskKindInterrupt, func(context.Context) error {
@@ -45,6 +48,7 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, 1, calls)
+	require.Empty(t, entriesWithMessage(sink, "chatworker task retrying"))
 }
 
 func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
@@ -54,11 +58,13 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 	trap := clock.Trap().NewTimer("chatworker", "task-retry-requires_action_timeout")
 	defer trap.Close()
 	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	done := make(chan error, 1)
 	go func() {
 		done <- runTaskWithRetry(ctx, retryWrapperOptions{
 			clock:        clock,
+			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
 		}, taskKindRequiresActionTimeout, func(context.Context) error {
@@ -74,6 +80,11 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 	clock.Advance(time.Minute).MustWait(ctx)
 	require.NoError(t, <-done)
 	require.Equal(t, 2, calls)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Equal(t, string(taskKindRequiresActionTimeout), sinkFieldValue(t, entries[0].Fields, "task_kind"))
+	require.Equal(t, time.Minute.String(), sinkFieldValue(t, entries[0].Fields, "delay"))
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), "database unavailable")
 }
 
 func TestRetryWrapper_PanicsRetry(t *testing.T) {
@@ -83,11 +94,13 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 	trap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
 	defer trap.Close()
 	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
 	calls := 0
 	done := make(chan error, 1)
 	go func() {
 		done <- runTaskWithRetry(ctx, retryWrapperOptions{
 			clock:        clock,
+			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
 		}, taskKindGeneration, func(context.Context) error {
@@ -103,6 +116,118 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 	clock.Advance(time.Minute).MustWait(ctx)
 	require.NoError(t, <-done)
 	require.Equal(t, 2, calls)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), "chatworker task panic: database unavailable")
+}
+
+// database/sql returns ctx.Err() from ctxDriverQuery, not
+// context.Cause(ctx). This test checks that the retry logic
+// doesn't classify such an error as an expected exit when
+// task timeout is the cause of the cancellation.
+func TestRetryWrapper_TaskTimeoutDBQueryCancellationRetries(t *testing.T) {
+	t.Parallel()
+
+	f := newTaskTestFixture(t)
+	clock := quartz.NewMock(t)
+	timeoutTrap := clock.Trap().AfterFunc("chatworker", "task-timeout-generation")
+	retryTrap := clock.Trap().NewTimer("chatworker", "task-retry-generation")
+	defer retryTrap.Close()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	sink := testutil.NewFakeSink(t)
+	calls := 0
+	firstCallStarted := make(chan struct{})
+	var firstQueryErr error
+	var firstQueryCause error
+	done := make(chan error, 1)
+	go func() {
+		done <- runTaskWithRetry(ctx, retryWrapperOptions{
+			clock:        clock,
+			logger:       sink.Logger(),
+			initialDelay: time.Minute,
+			maxDelay:     time.Minute,
+		}, taskKindGeneration, func(ctx context.Context) error {
+			calls++
+			if calls == 1 {
+				close(firstCallStarted)
+				<-ctx.Done()
+				_, err := f.db.GetDatabaseNow(ctx)
+				firstQueryErr = err
+				firstQueryCause = context.Cause(ctx)
+				return normalizeTaskTransitionError(err, "db query")
+			}
+			return nil
+		})
+	}()
+
+	timeoutTrap.MustWait(ctx).MustRelease(ctx)
+	timeoutTrap.Close()
+	<-firstCallStarted
+	clock.Advance(defaultTaskTimeout).MustWait(ctx)
+	retryTrap.MustWait(ctx).MustRelease(ctx)
+	clock.Advance(time.Minute).MustWait(ctx)
+	require.NoError(t, <-done)
+	require.Equal(t, 2, calls)
+	require.ErrorIs(t, firstQueryErr, context.Canceled)
+	require.NotErrorIs(t, firstQueryErr, errTaskTimeout)
+	require.ErrorIs(t, firstQueryCause, errTaskTimeout)
+	entries := entriesWithMessage(sink, "chatworker task retrying")
+	require.Len(t, entries, 1)
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), errTaskTimeout.Error())
+	require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), context.Canceled.Error())
+}
+
+func TestRetryWrapper_ContextCancellationDoesNotRetryOrLog(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	cancel()
+	sink := testutil.NewFakeSink(t)
+	calls := 0
+	original := xerrors.New("database unavailable")
+	err := runTaskWithRetry(ctx, retryWrapperOptions{
+		clock:        quartz.NewMock(t),
+		logger:       sink.Logger(),
+		initialDelay: time.Second,
+		maxDelay:     time.Second,
+	}, taskKindGeneration, func(context.Context) error {
+		calls++
+		return original
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, calls)
+	require.Empty(t, entriesWithMessage(sink, "chatworker task retrying"))
+}
+
+func TestNormalizeTaskErrors_ContextCancellationIsExpectedExit(t *testing.T) {
+	t.Parallel()
+
+	err := normalizeTaskInfrastructureError(context.Canceled, "lock chat")
+	require.ErrorIs(t, err, errTaskExpectedExit)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, errTaskRetryable)
+	require.NotErrorIs(t, err, errTaskTimeout)
+
+	err = normalizeTaskTransitionError(context.Canceled, "commit chat")
+	require.ErrorIs(t, err, errTaskExpectedExit)
+	require.ErrorIs(t, err, context.Canceled)
+	require.NotErrorIs(t, err, errTaskRetryable)
+	require.NotErrorIs(t, err, errTaskTimeout)
+}
+
+func entriesWithMessage(sink *testutil.FakeSink, message string) []slog.SinkEntry {
+	return sink.Entries(func(e slog.SinkEntry) bool { return e.Message == message })
+}
+
+func sinkFieldValue(t *testing.T, fields slog.Map, name string) string {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			return fmt.Sprint(f.Value)
+		}
+	}
+	t.Fatalf("missing log field %q", name)
+	return ""
 }
 
 func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
@@ -113,7 +238,9 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	recorder := newTaskSideEffectRecorder()
+	starter := newTestTaskStarter(t, f, recorder)
+	buffer := starter.opts.MessagePartBuffer
 	key := messagepartbuffer.Key{
 		ChatID:            chat.ID,
 		HistoryVersion:    acquired.HistoryVersion,
@@ -123,8 +250,6 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageText("partial answer")))
 	interrupting := f.interruptChat(t, chat.ID)
 	require.Equal(t, database.ChatStatusInterrupting, interrupting.Status)
-	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, buffer, recorder)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -166,7 +291,7 @@ func TestInterruptTask_StaleFenceExits(t *testing.T) {
 	otherRunnerID := uuid.New()
 	f.acquireChat(t, chat.ID, otherWorkerID, otherRunnerID)
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -197,7 +322,7 @@ func TestInterruptTask_MissingEpisodePersistsNilPartials(t *testing.T) {
 	f.acquireChat(t, chat.ID, workerID, runnerID)
 	interrupting := f.forceExecutionState(t, chat.ID, database.ChatStatusInterrupting, false, sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -227,7 +352,9 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	recorder := newTaskSideEffectRecorder()
+	starter := newTestTaskStarter(t, f, recorder)
+	buffer := starter.opts.MessagePartBuffer
 	key := messagepartbuffer.Key{ChatID: chat.ID, HistoryVersion: acquired.HistoryVersion, GenerationAttempt: acquired.GenerationAttempt}
 	require.NoError(t, buffer.CreateEpisode(key))
 	callID := "call_" + uuid.NewString()
@@ -238,8 +365,6 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 		Args:       json.RawMessage(`{"value":1}`),
 	}))
 	interrupting := f.interruptChat(t, chat.ID)
-	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, buffer, recorder)
 
 	err := starter.StartInterrupt(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:            chat.ID,
@@ -276,7 +401,7 @@ func TestRequiresActionTimeout_ExpiredCancelsOnly(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	expired := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartRequiresActionTimeout(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:                   chat.ID,
@@ -306,7 +431,7 @@ func TestRequiresActionTimeout_NullDeadlineCancelsImmediately(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	nullDeadline := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartRequiresActionTimeout(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:                   chat.ID,
@@ -335,7 +460,7 @@ func TestRequiresActionTimeout_StaleFenceExitsAfterToolResult(t *testing.T) {
 	expired := f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
 	f.forceExecutionState(t, chat.ID, database.ChatStatusRunning, false, sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartRequiresActionTimeout(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:                   chat.ID,
@@ -363,7 +488,7 @@ func TestAbandonTask_AbandonOnly(t *testing.T) {
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartAbandon(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:         chat.ID,
@@ -395,7 +520,7 @@ func TestAbandonTask_OwnershipMismatchRequestsCleanup(t *testing.T) {
 	otherRunnerID := uuid.New()
 	latestOwner := f.acquireChat(t, chat.ID, otherWorkerID, otherRunnerID)
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartAbandon(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:         chat.ID,
@@ -423,7 +548,7 @@ func TestAbandonTask_StaleStatusFenceExits(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	f.forceExecutionState(t, chat.ID, database.ChatStatusInterrupting, false, sql.NullTime{})
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	err := starter.StartAbandon(testutil.Context(t, testutil.WaitLong), chatWorkerTaskStartInput{
 		ChatID:         chat.ID,
@@ -451,7 +576,7 @@ func TestGenerationTask_RecordRetryState(t *testing.T) {
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), recorder)
+	starter := newTestTaskStarter(t, f, recorder)
 
 	attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(
 		testutil.Context(t, testutil.WaitLong),
@@ -521,7 +646,7 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), newTaskSideEffectRecorder())
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 
 	for range 3 {
@@ -579,7 +704,7 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), newTaskSideEffectRecorder())
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 	input := chatWorkerTaskStartInput{
 		ChatID:         chat.ID,
@@ -628,7 +753,7 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	workerID := uuid.New()
 	runnerID := uuid.New()
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
-	starter := newTestTaskStarter(t, f, messagepartbuffer.New(messagepartbuffer.Options{}), newTaskSideEffectRecorder())
+	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 	attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(
 		testutil.Context(t, testutil.WaitLong),
@@ -678,7 +803,7 @@ func TestRunner_StartsRealInterruptTask(t *testing.T) {
 
 	f := newTaskTestFixture(t)
 	chat := f.createRunningChat(t)
-	worker := startRealTaskWorker(t, f, messagepartbuffer.New(messagepartbuffer.Options{}))
+	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
 
 	interrupting := f.interruptChat(t, chat.ID)
@@ -699,7 +824,7 @@ func TestRunner_StartsRealRequiresActionTimeoutTask(t *testing.T) {
 	f := newTaskTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	f.setRequiresActionDeadline(t, chat.ID, sql.NullTime{Time: time.Now().Add(-time.Minute), Valid: true})
-	worker := startRealTaskWorker(t, f, messagepartbuffer.New(messagepartbuffer.Options{}))
+	worker := startRealTaskWorker(t, f)
 
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
 		latest, err := f.db.GetChatByID(ctx, chat.ID)
@@ -716,7 +841,7 @@ func TestRunner_StartsRealAbandonTask(t *testing.T) {
 
 	f := newTaskTestFixture(t)
 	chat := f.createRunningChat(t)
-	worker := startRealTaskWorker(t, f, messagepartbuffer.New(messagepartbuffer.Options{}))
+	worker := startRealTaskWorker(t, f)
 	waitOwnedChat(t, f, chat.ID, worker.chatWorkerID())
 
 	updated := f.forceExecutionState(t, chat.ID, database.ChatStatusError, false, sql.NullTime{})
@@ -995,8 +1120,10 @@ func (p *taskRecordingPubsub) watchEvents(t *testing.T) []codersdk.ChatWatchEven
 	return out
 }
 
-func startRealTaskWorker(t *testing.T, f *taskTestFixture, buffer *messagepartbuffer.Buffer) *chatWorker {
+func startRealTaskWorker(t *testing.T, f *taskTestFixture) *chatWorker {
 	t.Helper()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	t.Cleanup(buffer.Close)
 	worker, err := newChatWorker(nil, chatWorkerOptions{
 		WorkerID:                   uuid.New(),
 		Store:                      f.db,
@@ -1115,8 +1242,10 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 	t.Fatalf("missing interruption outcome chat_id=%s status=%s outcomes=%v", chatID, status, r.interrupts)
 }
 
-func newTestTaskStarter(t *testing.T, f *taskTestFixture, buffer *messagepartbuffer.Buffer, recorder *taskSideEffectRecorder) *taskStarter {
+func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
 	t.Helper()
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
+	t.Cleanup(buffer.Close)
 	starter, err := newTaskStarter(nil, chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,

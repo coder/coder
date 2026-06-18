@@ -1249,6 +1249,27 @@ func TestAIBudgetConfigParsing(t *testing.T) {
 	})
 }
 
+func TestNewAIBudgetPolicyFromString(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		in   string
+		want codersdk.AIBudgetPolicy
+	}{
+		{name: "supported", in: "highest", want: codersdk.AIBudgetPolicyHighest},
+		{name: "empty falls back to highest", in: "", want: codersdk.AIBudgetPolicyHighest},
+		{name: "unknown falls back to highest", in: "unsupported", want: codersdk.AIBudgetPolicyHighest},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, codersdk.NewAIBudgetPolicyFromString(tt.in))
+		})
+	}
+}
+
 func TestComputeMaxIdleConns(t *testing.T) {
 	t.Parallel()
 

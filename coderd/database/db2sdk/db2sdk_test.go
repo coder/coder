@@ -731,6 +731,11 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
 			Valid:      true,
 		},
+		// Pinned-context columns drive codersdk.Chat.Context. Set all of
+		// them so the converted sub-struct's fields are non-zero too.
+		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
+		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
+		ContextError:         "context boom",
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus

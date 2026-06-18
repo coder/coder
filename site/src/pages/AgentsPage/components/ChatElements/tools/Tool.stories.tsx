@@ -36,13 +36,6 @@ const expectDiffText = async (element: HTMLElement, text: string) => {
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/Tool",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		name: "execute",
 		args: { command: executeCommand },

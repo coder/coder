@@ -6,6 +6,7 @@ import { cn } from "#/utils/cn";
 // See official model naming docs:
 // - Anthropic: https://docs.anthropic.com/en/docs/about-claude/models/all-models
 // - OpenAI: https://platform.openai.com/docs/models
+// - Google: https://ai.google.dev/gemini-api/docs/models
 function inferModelFamily(model: string): string {
 	const modelFamily = model.toLowerCase();
 	// Anthropic model families
@@ -27,6 +28,10 @@ function inferModelFamily(model: string): string {
 		modelFamily.includes("whisper")
 	) {
 		return "openai";
+	}
+	// Google model families (gemini-*, gemma-*)
+	if (modelFamily.includes("gemini") || modelFamily.includes("gemma")) {
+		return "gemini";
 	}
 	return "unknown";
 }
@@ -52,6 +57,13 @@ export const AIBridgeModelIcon = ({
 			return (
 				<ExternalImage
 					src="/icon/openai.svg"
+					className={cn(iconClassName, className)}
+				/>
+			);
+		case "gemini":
+			return (
+				<ExternalImage
+					src="/icon/gemini.svg"
 					className={cn(iconClassName, className)}
 				/>
 			);

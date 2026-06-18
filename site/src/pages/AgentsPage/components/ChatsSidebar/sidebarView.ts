@@ -10,7 +10,6 @@ const ADMIN_SETTINGS_SECTIONS = new Set([
 	"models",
 	"mcp-servers",
 	"spend",
-	"insights",
 	"instructions",
 	"experiments",
 	"lifecycle",

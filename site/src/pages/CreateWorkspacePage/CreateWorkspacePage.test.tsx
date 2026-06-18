@@ -8,7 +8,9 @@ import {
 	MockDynamicParametersResponse,
 	MockDynamicParametersResponseWithError,
 	MockPermissions,
-	MockPreviewParameter,
+	MockPreviewParameter1,
+	MockPreviewParameter2,
+	MockPreviewParameter7,
 	MockSliderParameter,
 	MockTemplate,
 	MockTemplateVersion,
@@ -18,6 +20,7 @@ import {
 	MockValidationParameter,
 	MockWorkspace,
 } from "#/testHelpers/entities";
+import { checkParameters, editParameters } from "#/testHelpers/parameters";
 import {
 	renderWithAuth,
 	waitForLoaderToBeRemoved,
@@ -253,11 +256,12 @@ describe("CreateWorkspacePage", () => {
 		it("does not clobber user values", async () => {
 			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
 				publisher.publishOpen(new Event("open"));
+				// The initial message always has the default values.
 				publisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: -1,
-							parameters: [MockPreviewParameter],
+							parameters: [MockPreviewParameter1, MockPreviewParameter7],
 							diagnostics: [],
 						}),
 					}),
@@ -267,26 +271,32 @@ describe("CreateWorkspacePage", () => {
 			renderCreateWorkspacePage();
 			await waitForLoaderToBeRemoved();
 
-			const form = screen.getByTestId("form");
-			const input = await within(form).findByRole("textbox", {
-				name: /parameter 1/i,
-			});
-			await userEvent.clear(input);
-			await userEvent.type(input, "hi there hello");
+			// Blank out one field and fill out another.
+			const editedParameters = [
+				// Put the blank one first to ensure we are preserving blank values and
+				// not just including it the first time due to the change handler.
+				{
+					name: MockPreviewParameter1.name,
+					value: "",
+				},
+				{
+					name: MockPreviewParameter7.name,
+					value: "not-blank",
+				},
+			];
+			editParameters(...editedParameters);
 
-			await waitFor(() => {
-				expect(
-					within(form).getByDisplayValue("hi there hello"),
-				).toBeInTheDocument();
-			});
-
-			// Simulate a stale response.
+			// Respond with different values.
 			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: 2,
-							parameters: [MockPreviewParameter, MockValidationParameter],
+							parameters: [
+								MockPreviewParameter1,
+								MockPreviewParameter2, // new field
+								MockPreviewParameter7,
+							],
 							diagnostics: [],
 						}),
 					}),
@@ -294,43 +304,53 @@ describe("CreateWorkspacePage", () => {
 			});
 
 			// Should have the new field, but keep the existing user-filled values.
-			await waitFor(() => {
-				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
-				expect(
-					within(form).getByDisplayValue("hi there hello"),
-				).toBeInTheDocument();
-			});
+			await checkParameters(...editedParameters, MockPreviewParameter2);
 		});
 
 		it("does not clobber auto-filled values", async () => {
 			const [, mockPublisher] = mockDynamicParameterWebSocket((publisher) => {
 				publisher.publishOpen(new Event("open"));
+				// The initial message always has the default values.
 				publisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: -1,
-							parameters: [MockPreviewParameter, MockSliderParameter],
+							parameters: [MockPreviewParameter1, MockPreviewParameter7],
 							diagnostics: [],
 						}),
 					}),
 				);
 			});
 
+			// Blank out one field and fill out another.
+			const editedParameters = [
+				{
+					name: MockPreviewParameter1.name,
+					value: "",
+				},
+				{
+					name: MockPreviewParameter7.name,
+					value: "not-blank",
+				},
+			];
+			const query = editedParameters
+				.map((param) => `param.${param.name}=${param.value}`)
+				.join("&");
 			renderCreateWorkspacePage(
-				`/templates/${MockTemplate.name}/workspace?param.cpu_count=44&param.parameter1=auto`,
+				`/templates/${MockTemplate.name}/workspace?${query}`,
 			);
 			await waitForLoaderToBeRemoved();
 
-			// Simulate a stale response.
+			// Respond with different values.
 			await act(async () => {
 				mockPublisher.publishMessage(
 					new MessageEvent("message", {
 						data: JSON.stringify({
 							id: 2,
 							parameters: [
-								MockPreviewParameter,
-								MockSliderParameter,
-								MockValidationParameter,
+								MockPreviewParameter1,
+								MockPreviewParameter2, // new field
+								MockPreviewParameter7,
 							],
 							diagnostics: [],
 						}),
@@ -339,12 +359,7 @@ describe("CreateWorkspacePage", () => {
 			});
 
 			// Should have the new field, but keep the existing auto-filled values.
-			const form = screen.getByTestId("form");
-			await waitFor(() => {
-				expect(within(form).getByDisplayValue("50")).toBeInTheDocument();
-				expect(within(form).getByDisplayValue("44")).toBeInTheDocument();
-				expect(within(form).getByDisplayValue("auto")).toBeInTheDocument();
-			});
+			await checkParameters(...editedParameters, MockPreviewParameter2);
 		});
 	});
 

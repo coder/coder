@@ -22,7 +22,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
 			<header className="mb-6">
-				<figure className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border mb-3">
+				<figure className="flex items-center justify-center p-1 rounded-md size-10 shrink-0 bg-surface-secondary border border-solid border-border m-0 mb-3">
 					{iconUrl ? (
 						<img
 							src={iconUrl}
@@ -34,8 +34,8 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					)}
 				</figure>
 				<div>
-					<h3 className="text-sm font-semibold text-content-primary">{name}</h3>
-					<p className="text-xs font-normal text-content-secondary inline">
+					<h3 className="text-md font-semibold text-content-primary">{name}</h3>
+					<p className="text-sm font-normal text-content-secondary inline">
 						{description}
 					</p>
 					{detailsUrl && (
@@ -44,7 +44,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 							target="_blank"
 							rel="noreferrer"
 							size="sm"
-							className="text-xs font-normal ml-1"
+							className="text-sm font-normal ml-1"
 						>
 							View details
 						</Link>

@@ -16,6 +16,7 @@ coder server [flags]
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
+| [<code>fix-oidc-links</code>](./server_fix-oidc-links.md)                 | Reset OIDC linked IDs that do not match the expected issuer, allowing users to re-authenticate.        |
 | [<code>dbcrypt</code>](./server_dbcrypt.md)                               | Manage database encryption.                                                                            |
 
 ## Options
@@ -1130,6 +1131,17 @@ Whether Coder only allows connections to workspaces via the browser.
 
 Enables SCIM and sets the authentication header for the built-in SCIM server. New users are automatically created with OIDC authentication.
 
+### --scim-use-legacy
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_SCIM_USE_LEGACY</code> |
+| YAML        | <code>scimUseLegacy</code>          |
+| Default     | <code>true</code>                   |
+
+Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.
+
 ### --external-token-encryption-keys
 
 |             |                                                    |
@@ -2088,6 +2100,17 @@ How long expired API keys are retained before being deleted. Keeping expired key
 | Default     | <code>7d</code>                                    |
 
 How long workspace agent logs are retained. Logs from non-latest builds are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained. Set to 0 to disable automatic deletion.
+
+### --boundary-log-retention
+
+|             |                                            |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_BOUNDARY_LOG_RETENTION</code> |
+| YAML        | <code>retention.boundary_logs</code>       |
+| Default     | <code>0</code>                             |
+
+How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.
 
 ### --disable-template-builder
 

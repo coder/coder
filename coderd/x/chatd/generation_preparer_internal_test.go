@@ -231,7 +231,7 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		})
 		// A disabled AI provider makes resolveChatModel fail, exercising the
 		// degraded path that still returns the re-derived text and IDs.
-		provider := insertInternalAIProvider(t, db, database.AiProviderTypeOpenai, "provider-api-key", false)
+		provider := insertInternalAIProvider(t, db, database.AIProviderTypeOpenai, "provider-api-key", false)
 		modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 			Provider:     "openai",
 			Model:        "gpt-4o-mini",

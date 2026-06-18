@@ -233,8 +233,9 @@ func TestAgentChatContext(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		baseDB, pubsub := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{
-			Database: baseDB,
-			Pubsub:   pubsub,
+			Database:           baseDB,
+			Pubsub:             pubsub,
+			ChatWorkerDisabled: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
 		workspace := dbfake.WorkspaceBuild(t, baseDB, database.WorkspaceTable{
@@ -1120,7 +1121,9 @@ func agentChatContextExpectedCachedParts(agent database.WorkspaceAgent, parts []
 func newAgentChatContextTestSetup(t *testing.T) agentChatContextTestSetup {
 	t.Helper()
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		ChatWorkerDisabled: true,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,

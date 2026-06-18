@@ -11,13 +11,6 @@ const stoppedWorkspaceError =
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
 	component: ExecuteTool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		status: "completed",
 		isError: false,

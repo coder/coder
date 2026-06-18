@@ -182,8 +182,8 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	providerID := uuid.New()
 
 	db.EXPECT().GetAIProviders(gomock.Any(), database.GetAIProvidersParams{}).Return([]database.AIProvider{
-		{ID: uuid.New(), Type: database.AiProviderTypeAnthropic, Enabled: true},
-		{ID: providerID, Type: database.AiProviderTypeOpenai, Enabled: true},
+		{ID: uuid.New(), Type: database.AIProviderTypeAnthropic, Enabled: true},
+		{ID: providerID, Type: database.AIProviderTypeOpenai, Enabled: true},
 	}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderID(gomock.Any(), providerID).Return([]database.AIProviderKey{{
 		ProviderID: providerID,
@@ -200,7 +200,7 @@ func TestResolveUserProviderAPIKeysAndProviderForProviderTypeProviderMatch(t *te
 	require.Equal(t, "test-key", keys.APIKey(chattool.ComputerUseProviderOpenAI))
 	require.NotNil(t, aiProvider)
 	require.Equal(t, providerID, aiProvider.ID)
-	require.Equal(t, database.AiProviderTypeOpenai, aiProvider.Type)
+	require.Equal(t, database.AIProviderTypeOpenai, aiProvider.Type)
 }
 
 func TestResolveModelRouteForProviderTypeAIGatewayRequiresProvider(t *testing.T) {
@@ -864,7 +864,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 		BaseUrl: serverURL,
 	}}, nil)
@@ -1030,7 +1030,7 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 		BaseUrl: serverURL,
 	}}, nil)
@@ -1181,7 +1181,7 @@ func TestResolveUserProviderAPIKeys_StripsDisabledFallbackKeys(t *testing.T) {
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeAnthropic,
+		Type:    database.AIProviderTypeAnthropic,
 		Enabled: true,
 	}}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return(nil, nil)
@@ -1219,7 +1219,7 @@ func TestResolveUserProviderAPIKeys_SelectedAIProviderDoesNotUseDeploymentFallba
 
 	db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(database.AIProvider{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "agents-openai",
 		Enabled: true,
 	}, nil)
@@ -1258,7 +1258,7 @@ func TestResolveUserProviderAPIKeys_SkipsUserKeyLookupWhenNoProviderAllowsUserKe
 	providerID := uuid.New()
 	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{{
 		ID:      providerID,
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Enabled: true,
 	}}, nil)
 	db.EXPECT().GetAIProviderKeysByProviderIDs(gomock.Any(), []uuid.UUID{providerID}).Return(nil, nil)
@@ -1814,12 +1814,27 @@ func TestTurnWorkspaceContext_NullBindingLazyBind(t *testing.T) {
 	require.Equal(t, workspaceAgent, gotAgent)
 }
 
+// expectBestEffortContextRepin lets persistBuildAgentBinding's best-effort
+// context re-pin run against a mock store. The re-pin fires whenever a turn
+// rebinds a chat to a different agent; these agent-switch tests set up no
+// context snapshot, so it takes the no-snapshot clear path. The re-pin
+// behavior itself is covered by TestPersistBuildAgentBindingRepinsContext.
+func expectBestEffortContextRepin(db *dbmock.MockStore) {
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) }).AnyTimes()
+	db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), gomock.Any()).
+		Return(database.WorkspaceAgentContextSnapshot{}, sql.ErrNoRows).AnyTimes()
+	db.EXPECT().SetChatContextSnapshot(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	db.EXPECT().DeleteChatContextResourcesByChatID(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+}
+
 func TestTurnWorkspaceContext_StaleBindingRepair(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
 	staleAgentID := uuid.New()
@@ -1875,6 +1890,7 @@ func TestTurnWorkspaceContextGetWorkspaceConnLazyValidationSwitchesWorkspaceAgen
 	ctx := context.Background()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
 	staleAgentID := uuid.New()
@@ -3023,6 +3039,7 @@ func TestGetWorkspaceConn_StaleAgentRecovery(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	expectBestEffortContextRepin(db)
 
 	workspaceID := uuid.New()
 	oldAgentID := uuid.New()

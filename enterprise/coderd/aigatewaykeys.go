@@ -87,14 +87,14 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 	switch {
 	case httpapi.IsUnauthorizedError(err):
 		httpapi.Forbidden(rw)
-	case database.IsCheckViolation(err, database.CheckAiGatewayKeysNameCheck):
+	case database.IsCheckViolation(err, database.CheckAIGatewayKeysNameCheck):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid key name.",
 			Validations: []codersdk.ValidationError{
 				{Field: "name", Detail: nameFormatDetail},
 			},
 		})
-	case database.IsUniqueViolation(err, database.UniqueAiGatewayKeysNameIndex):
+	case database.IsUniqueViolation(err, database.UniqueAIGatewayKeysNameIndex):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Key name must be unique.",
 			Validations: []codersdk.ValidationError{

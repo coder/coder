@@ -40,6 +40,8 @@ message SyncStatusRequest {
   string unit = 1;
 }
 
+// DependencyInfo represents a directed edge in the dependency graph from one unit
+// to a unit it depends on, along with the required and current status of the dependency.
 message DependencyInfo {
   string unit = 1;
   string depends_on = 2;
@@ -52,6 +54,20 @@ message SyncStatusResponse {
   string status = 1;
   bool is_ready = 2;
   repeated DependencyInfo dependencies = 3;
+}
+
+message SyncListRequest {}
+
+// UnitInfo represents a single unit vertex in the dependency graph.
+// Includes the state of the unit itself.
+message UnitInfo {
+  string unit = 1;
+  string status = 2;
+  bool is_ready = 3;
+}
+
+message SyncListResponse {
+  repeated UnitInfo units = 1;
 }
 
 // AgentSocket provides direct access to the agent over local IPC.
@@ -68,6 +84,8 @@ service AgentSocket {
   rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
   // Get the status of a unit and list its dependencies.
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  // List all registered units and their current statuses.
+  rpc SyncList(SyncListRequest) returns (SyncListResponse);
   // Update app status, forwarded to coderd.
   rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse);
 }

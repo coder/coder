@@ -11,6 +11,7 @@ import {
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
+import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
@@ -199,6 +200,9 @@ const StarterTemplatePage = lazy(
 );
 const CreateTemplatePage = lazy(
 	() => import("./pages/CreateTemplatePage/CreateTemplatePage"),
+);
+const TemplateBuilderPage = lazy(
+	() => import("./pages/TemplateBuilder/TemplateBuilderPage"),
 );
 const TemplateVariablesPage = lazy(
 	() =>
@@ -396,9 +400,6 @@ const AgentSettingsMCPServersPage = lazy(
 const AgentSettingsSpendPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
-const AgentSettingsInsightsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsInsightsPage"),
-);
 const AgentSettingsTemplatesPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsTemplatesPage"),
 );
@@ -446,6 +447,23 @@ const AISettingsAddProviderPage = lazy(
 			"./pages/AISettingsPage/ProvidersPage/AddProviderPage/AddProviderPage"
 		),
 );
+const AISettingsGatewayKeysPage = lazy(
+	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
+);
+
+const AISettingsIndexPage = () => {
+	const { permissions } = useAuthenticated();
+
+	if (permissions.viewAnyAIProvider) {
+		return <AISettingsProvidersPage />;
+	}
+
+	if (permissions.viewAIGatewayKeys) {
+		return <Navigate to="/ai/settings/gateway-keys" replace />;
+	}
+
+	return <AISettingsProvidersPage />;
+};
 
 const GlobalLayout = () => {
 	return (
@@ -542,7 +560,10 @@ export const router = createBrowserRouter(
 
 					<Route path="/templates">
 						<Route index element={<TemplatesPage />} />
-						<Route path="new" element={<CreateTemplatePage />} />
+						<Route path="new">
+							<Route index element={<CreateTemplatePage />} />
+							<Route path="builder" element={<TemplateBuilderPage />} />
+						</Route>
 						<Route path=":organization">{templateRouter()}</Route>
 						{templateRouter()}
 					</Route>
@@ -697,7 +718,11 @@ export const router = createBrowserRouter(
 						<Route element={<DeploymentConfigProvider />}>
 							<Route path="governance" element={<AIGovernanceSettingsPage />} />
 						</Route>
-						<Route index element={<AISettingsProvidersPage />} />
+						<Route
+							path="gateway-keys"
+							element={<AISettingsGatewayKeysPage />}
+						/>
+						<Route index element={<AISettingsIndexPage />} />
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
 							path=":providerId"
@@ -795,7 +820,6 @@ export const router = createBrowserRouter(
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />
 						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
-						<Route path="insights" element={<AgentSettingsInsightsPage />} />
 						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />

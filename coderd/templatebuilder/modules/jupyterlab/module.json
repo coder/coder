@@ -1,0 +1,45 @@
+{
+  "id": "jupyterlab",
+  "display_name": "JupyterLab",
+  "description": "A module that adds JupyterLab in your Coder template.",
+  "icon": "/icon/jupyter.svg",
+  "category": "Utility",
+  "tags": [
+    "jupyter",
+    "ide",
+    "web"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.2.2",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "config",
+      "type": "string",
+      "description": "A JSON string of JupyterLab server configuration settings. When set, writes ~/.jupyter/jupyter_server_config.json.",
+      "default": "{}",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port to run jupyterlab on.",
+      "default": 19999,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

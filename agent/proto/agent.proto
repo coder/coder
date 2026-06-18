@@ -643,8 +643,14 @@ message PushContextStateRequest {
 	bytes aggregate_hash = 2;
 	repeated ContextResource resources = 3;
 	bool initial = 4;
-	uint64 schema_version = 5;
 	string snapshot_error = 6;
+
+	// Reserved tags from the pre-release v2.10 schema. schema_version
+	// was removed before the first release that ships v2.10 because
+	// it duplicated the agent API minor version (tailnet/proto.
+	// CurrentMinor); the proto bump and the existing Unimplemented
+	// fallback cover every forward-compat case it tried to address.
+	reserved 5;
 }
 
 message PushContextStateResponse {

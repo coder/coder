@@ -13,6 +13,7 @@ USAGE:
 
 SUBCOMMANDS:
     complete    Mark a unit as complete
+    list        List all registered units and their statuses
     ping        Test agent socket connectivity and health
     start       Wait until all unit dependencies are satisfied
     status      Show unit status and dependency state

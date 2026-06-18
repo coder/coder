@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -22,11 +22,18 @@ import (
 	"github.com/coder/quartz"
 )
 
-const postCommitWatchPublishTimeout = 10 * time.Second
+const (
+	postCommitWatchPublishTimeout = 10 * time.Second
+	// defaultTaskTimeout must exceed chatloop's stream-silence guard so
+	// silent provider streams fail through chat-specific retry handling
+	// before the runner retries the whole task.
+	defaultTaskTimeout = 15 * time.Minute
+)
 
 var (
 	errTaskExpectedExit = xerrors.New("chatworker task expected exit")
 	errTaskRetryable    = xerrors.New("chatworker task retryable error")
+	errTaskTimeout      = xerrors.New("chatworker task timeout")
 )
 
 type taskRetryableError struct {
@@ -49,10 +56,15 @@ func (e taskRetryableError) Unwrap() error {
 
 type retryWrapperOptions struct {
 	clock        quartz.Clock
+	logger       slog.Logger
 	initialDelay time.Duration
 	maxDelay     time.Duration
 }
 
+// runTaskWithRetry ensures that a task doesn't exit until it completes
+// successfully or gets canceled. It retries the task in case of any ephemeral errors.
+// It's critical for the correct operation of the chat runner:
+// this function is THE place that ensures task liveness within the runner.
 func runTaskWithRetry(
 	ctx context.Context,
 	opts retryWrapperOptions,
@@ -71,19 +83,46 @@ func runTaskWithRetry(
 	if opts.maxDelay < opts.initialDelay {
 		opts.maxDelay = opts.initialDelay
 	}
-
 	delay := opts.initialDelay
 	for {
-		err := executeTaskSafely(ctx, fn)
-		switch {
-		case err == nil:
-			return nil
-		case errors.Is(err, errTaskExpectedExit):
-			return nil
-		case ctx.Err() != nil:
+		attemptCtx, cancelAttempt := taskAttemptContext(ctx, opts.clock, kind)
+		err := executeTaskSafely(attemptCtx, fn)
+		timedOut := errors.Is(context.Cause(attemptCtx), errTaskTimeout)
+		cancelAttempt()
+		if timedOut && err != nil {
+			if !errors.Is(err, errTaskExpectedExit) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded) ||
+				errors.Is(err, errTaskTimeout) {
+				err = taskRetryableError{err: errors.Join(errTaskTimeout, err)}
+			}
+		}
+		if err == nil {
+			// no log on success to avoid noise
 			return nil
 		}
 
+		exitReason := ""
+		switch {
+		case ctx.Err() != nil:
+			exitReason = "context_canceled"
+		case errors.Is(err, errTaskExpectedExit) && !errors.Is(err, errTaskRetryable):
+			exitReason = "expected_non_retryable_exit"
+		}
+		if exitReason != "" {
+			opts.logger.Debug(ctx, "chatworker task exited",
+				slog.F("task_kind", kind),
+				slog.F("reason", exitReason),
+				slogError(err),
+			)
+			return nil
+		}
+
+		opts.logger.Warn(ctx, "chatworker task retrying",
+			slog.F("task_kind", kind),
+			slog.F("delay", delay),
+			slogError(err),
+		)
 		timer := opts.clock.NewTimer(delay, "chatworker", "task-retry-"+string(kind))
 		select {
 		case <-timer.C:
@@ -98,6 +137,17 @@ func runTaskWithRetry(
 				delay = opts.maxDelay
 			}
 		}
+	}
+}
+
+func taskAttemptContext(ctx context.Context, clock quartz.Clock, kind taskKind) (context.Context, func()) {
+	attemptCtx, cancelCause := context.WithCancelCause(ctx)
+	timer := clock.AfterFunc(defaultTaskTimeout, func() {
+		cancelCause(errTaskTimeout)
+	}, "chatworker", "task-timeout-"+string(kind))
+	return attemptCtx, func() {
+		timer.Stop()
+		cancelCause(nil)
 	}
 }
 
@@ -168,6 +218,7 @@ func newTaskStarter(
 func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 	return retryWrapperOptions{
 		clock:        o.Clock,
+		logger:       o.Logger,
 		initialDelay: o.TaskRetryInitialBackoff,
 		maxDelay:     o.TaskRetryMaxBackoff,
 	}
@@ -201,7 +252,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
 		}
 		return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
 	}
@@ -212,7 +263,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 	}
 	if err != nil {
 		if ctx.Err() != nil {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("get message part episode: %w", err), ctx.Err())
 		}
 		return taskRetryableError{err: xerrors.Errorf("get message part episode: %w", err)}
 	}
@@ -363,7 +414,7 @@ func (s *taskStarter) waitUntil(ctx context.Context, deadline time.Time) error {
 	case <-timer.C:
 		return nil
 	case <-ctx.Done():
-		return errTaskExpectedExit
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("wait until: %w", ctx.Err()))
 	}
 }
 
@@ -492,14 +543,14 @@ func (s *taskStarter) publishWatchWithRetry(
 		if err := publishChatWatchEvent(s.opts.Pubsub, chat, kind); err == nil {
 			return nil
 		} else if ctx.Err() != nil {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("publishChatWatchEvent: %w", ctx.Err()))
 		}
 		timer := s.opts.Clock.NewTimer(delay, "chatworker", "watch-publish-retry")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
 			timer.Stop()
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("watch publish retry context done: %w", ctx.Err()))
 		}
 		timer.Stop()
 		if delay < s.opts.TaskRetryMaxBackoff {
@@ -514,7 +565,7 @@ func (s *taskStarter) publishWatchWithRetry(
 func publishChatWatchEvent(pubsub chatWorkerPubsub, chat database.Chat, kind codersdk.ChatWatchEventKind) error {
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: db2sdk.Chat(chat, nil, nil),
+		Chat: chatWatchEventSDKChat(chat, nil),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {
@@ -561,8 +612,11 @@ func normalizeTaskInfrastructureError(err error, action string) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, errTaskExpectedExit) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
-		return errTaskExpectedExit
+	if errors.Is(err, errTaskExpectedExit) {
+		return err
+	}
+	if errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("%s: %w", action, err))
 	}
 	return taskRetryableError{err: xerrors.Errorf("%s: %w", action, err)}
 }
@@ -571,8 +625,11 @@ func normalizeTaskTransitionError(err error, action string) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, errTaskExpectedExit) || errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
-		return errTaskExpectedExit
+	if errors.Is(err, errTaskExpectedExit) {
+		return err
+	}
+	if errors.Is(err, chatstate.ErrChatNotFound) || errors.Is(err, sql.ErrNoRows) || errors.Is(err, context.Canceled) {
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("%s: %w", action, err))
 	}
 	if errors.Is(err, chatstate.ErrTransitionNotAllowed) || errors.Is(err, chatstate.ErrInvalidState) {
 		return xerrors.Errorf("%s: %w", action, err)

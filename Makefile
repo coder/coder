@@ -1598,6 +1598,15 @@ test-postgres-docker:
 	done
 .PHONY: test-postgres-docker
 
+# test-postgres-docker-logs prints the PostgreSQL container's logs. The
+# postgres image logs to stderr (no logging_collector), which Docker captures,
+# so combined with log_statement=all in test-postgres-docker these logs include
+# every executed statement. Redirect to a file to save them, e.g.
+# `make test-postgres-docker-logs > postgres.log`.
+test-postgres-docker-logs:
+	docker logs test-postgres-docker-${POSTGRES_VERSION}
+.PHONY: test-postgres-docker-logs
+
 test-tailnet-integration:
 	env \
 		CODER_TAILNET_TESTS=true \

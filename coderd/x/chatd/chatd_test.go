@@ -1123,12 +1123,6 @@ func TestRootExploreChatExcludesWebSearchProviderToolAtRuntime(t *testing.T) {
 
 func TestExploreChatSendMessageCannotMutateMCPSnapshot(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -2107,12 +2101,6 @@ func TestCreateChatRejectsWhenUsageLimitReached(t *testing.T) {
 
 func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -2934,16 +2922,10 @@ func TestNewReplicaRecoversStaleChatFromDeadReplica(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return recovered.Status == database.ChatStatusRunning &&
-			recovered.WorkerID.Valid && recovered.WorkerID.UUID == newWorkerID &&
-			recovered.RunnerID.Valid && recovered.RunnerID.UUID != deadRunnerID
+		return recovered.Status == database.ChatStatusWaiting &&
+			!recovered.WorkerID.Valid &&
+			!recovered.RunnerID.Valid
 	}, testutil.WaitMedium, testutil.IntervalFast)
-
-	_, err = db.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
-		ChatID:   created.Chat.ID,
-		RunnerID: recovered.RunnerID.UUID,
-	})
-	require.NoError(t, err)
 }
 
 func TestWaitingChatsAreNotRecoveredAsStale(t *testing.T) {
@@ -5756,11 +5738,12 @@ func TestActiveServer_Compaction(t *testing.T) {
 		requireTextPart(t, messages[len(messages)-1], "done without compaction")
 	})
 
-	t.Run("fails when compaction leaves chat over limit", func(t *testing.T) {
+	t.Run("next message fails when compaction continuation stayed over limit", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db, ps := dbtestutil.NewDB(t)
+		logSink := testutil.NewFakeSink(t)
 		var streamCount atomic.Int32
 		anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
 			body := anthropicRequestBody(t, *req)
@@ -5789,7 +5772,10 @@ func TestActiveServer_Compaction(t *testing.T) {
 			Return(workspacesdk.ReadFileLinesResponse{Success: true, FileSize: 12, TotalLines: 1, LinesRead: 1, Content: "1	package main"}, nil).
 			Times(1)
 
+		reg := prometheus.NewRegistry()
 		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.Logger = logSink.Logger()
+			cfg.PrometheusRegistry = reg
 			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 				require.Equal(t, dbAgent.ID, agentID)
 				return mockConn, func() {}, nil
@@ -5801,15 +5787,52 @@ func TestActiveServer_Compaction(t *testing.T) {
 			APIKeyID:       testAPIKeyID(t, db, user.ID),
 			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
 			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-			Title:          "compaction-still-over-limit",
+			Title:          "compaction-next-message-over-limit",
 			ModelConfigID:  model.ID,
 			InitialUserContent: []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("read the file and stay too large"),
 			},
 		})
 		require.NoError(t, err)
+		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+		require.False(t, chat.LastError.Valid)
+		require.Equal(t, int32(2), streamCount.Load())
+		messages := chatMessages(ctx, t, db, chat.ID)
+		requireTextPart(t, messages[len(messages)-1], "still too large")
+
+		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+			ChatID:        chat.ID,
+			CreatedBy:     user.ID,
+			APIKeyID:      testAPIKeyID(t, db, user.ID),
+			ModelConfigID: model.ID,
+			Content: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("continue after the large compacted turn"),
+			},
+		})
+		require.NoError(t, err)
+
 		chat = waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
-		require.Contains(t, chatLastErrorMessage(chat.LastError), "The chat request failed unexpectedly.")
+		require.Equal(t,
+			"Conversation compaction could not reduce the history below the configured limit. Raise the compaction limit in settings, or start a new conversation.",
+			chatLastErrorMessage(chat.LastError),
+		)
+		require.Equal(t, int32(2), streamCount.Load(), "over-limit history should fail before another model stream")
+		requireChatdMetricCounter(t, reg, "coderd_chatd_compaction_total", 1, map[string]string{
+			"provider": "anthropic",
+			"model":    "claude-sonnet-4-20250514",
+			"result":   "error",
+		})
+
+		isCompactionFailureLog := func(e slog.SinkEntry) bool {
+			if e.Level != slog.LevelWarn || e.Message != "chat generation failed" {
+				return false
+			}
+			errValue, ok := sinkFieldValue(e.Fields, "error")
+			return ok && strings.Contains(fmt.Sprintf("%v", errValue), "compaction left the chat above the compaction limit")
+		}
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return len(logSink.Entries(isCompactionFailureLog)) > 0
+		}, testutil.IntervalFast)
 	})
 }
 
@@ -8239,6 +8262,80 @@ func newActiveTestServer(
 	return server
 }
 
+// sinkFieldValue returns the value of the named field from a captured log
+// entry.
+func sinkFieldValue(fields slog.Map, name string) (any, bool) {
+	for _, f := range fields {
+		if f.Name == name {
+			return f.Value, true
+		}
+	}
+	return nil, false
+}
+
+// TestActiveServer_GenerationErrorLogged drives a full chat worker against a
+// provider that returns a terminal error and asserts that chatd logs the
+// unsanitized failure so an administrator can later diagnose the underlying
+// reason, even though the user-facing message is sanitized.
+func TestActiveServer_GenerationErrorLogged(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	sink := testutil.NewFakeSink(t)
+
+	const providerErrMessage = "synthetic provider failure for logging test"
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+		// A 400 is non-retryable, so the worker fails the turn immediately
+		// instead of entering retry backoff.
+		return chattest.OpenAIErrorResponse(http.StatusBadRequest, "invalid_request_error", providerErrMessage)
+	})
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai", openAIURL)
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.Logger = sink.Logger()
+	})
+
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello")
+	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.True(t, failed.LastError.Valid)
+
+	isGenerationFailure := func(e slog.SinkEntry) bool {
+		return e.Level == slog.LevelWarn && e.Message == "chat generation failed"
+	}
+	var entry slog.SinkEntry
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		entries := sink.Entries(isGenerationFailure)
+		if len(entries) == 0 {
+			return false
+		}
+		entry = entries[0]
+		return true
+	}, testutil.IntervalFast)
+
+	chatID, ok := sinkFieldValue(entry.Fields, "chat_id")
+	require.True(t, ok, "chat_id field present")
+	require.Equal(t, chat.ID, chatID)
+
+	provider, ok := sinkFieldValue(entry.Fields, "provider")
+	require.True(t, ok, "provider field present")
+	require.Equal(t, "openai", provider)
+
+	statusCode, ok := sinkFieldValue(entry.Fields, "status_code")
+	require.True(t, ok, "status_code field present")
+	require.Equal(t, http.StatusBadRequest, statusCode)
+
+	// The unsanitized cause must be logged so administrators can see the
+	// underlying provider reason, even though the persisted user-facing
+	// message omits it.
+	errValue, ok := sinkFieldValue(entry.Fields, "error")
+	require.True(t, ok, "error field present")
+	require.Contains(t, fmt.Sprintf("%v", errValue), providerErrMessage)
+	require.NotContains(t, chatLastErrorMessage(failed.LastError), providerErrMessage)
+}
+
 func TestProposeChatTitle_DebugRun(t *testing.T) {
 	t.Parallel()
 
@@ -8601,7 +8698,7 @@ func setOpenAIProviderBaseURL(
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDisabled: true})
 	require.NoError(t, err)
 	for _, provider := range providers {
-		if provider.Type != database.AiProviderTypeOpenai {
+		if provider.Type != database.AIProviderTypeOpenai {
 			continue
 		}
 		_, err = db.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
@@ -9688,12 +9785,12 @@ func seedAIGatewayOpenAITestDependencies(
 		OrganizationID: org.ID,
 	})
 	provider := dbgen.AIProvider(t, db, database.AIProvider{
-		Type:    database.AiProviderTypeOpenai,
+		Type:    database.AIProviderTypeOpenai,
 		Name:    "primary-openai-" + uuid.NewString(),
 		BaseUrl: openAIURL,
 	})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
-		Provider:     string(database.AiProviderTypeOpenai),
+		Provider:     string(database.AIProviderTypeOpenai),
 		Model:        "gpt-4o-mini",
 		IsDefault:    true,
 		AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
@@ -10956,12 +11053,176 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		"create_workspace for blocked template should be rejected")
 }
 
-// TestSignalWakeImmediateAcquisition verifies that CreateChat triggers
-// immediate processing via signalWake without waiting for the polling
-// ticker to fire. The ticker interval is set to an hour so it never
-// fires during the test. Any processing must come from the wake
-// channel.
-func TestSignalWakeImmediateAcquisition(t *testing.T) {
+func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var tplCode, tplDocker database.Template
+	var callCount atomic.Int32
+	var sawSelectionRule atomic.Bool
+	var sawSelectionRequiredResult atomic.Bool
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		switch callCount.Add(1) {
+		case 1:
+			promptAndTools := string(req.RawBody)
+			for _, message := range req.Messages {
+				promptAndTools += "\n" + message.Content
+			}
+			if strings.Contains(promptAndTools, "follow its next_step") {
+				sawSelectionRule.Store(true)
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("list_templates", `{}`),
+			)
+		case 2:
+			if listTemplatesResultRequiresUserSelection(req.Messages) {
+				sawSelectionRequiredResult.Store(true)
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks(
+						"I found two templates, typescript-alpha and Docker Containers. Which template should I use?",
+					)...,
+				)
+			}
+
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace",
+					fmt.Sprintf(`{"template_id":%q}`, tplCode.ID.String())),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("Done.")...,
+			)
+		}
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	tplCode = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "code-2",
+		DisplayName:    "typescript-alpha",
+		Description:    "this is a long description",
+	})
+	tplDocker = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "docker",
+		DisplayName:    "Docker Containers",
+		Description:    "Provision Docker containers as Coder workspaces",
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.CreateWorkspace = func(
+			context.Context,
+			uuid.UUID,
+			codersdk.CreateWorkspaceRequest,
+		) (codersdk.Workspace, error) {
+			t.Error("create_workspace should not be called when list_templates requires user selection")
+			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "ask-template-selection-test",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Create a workspace."),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+
+	require.True(t, sawSelectionRule.Load(), "model request should include the next_step selection rule")
+	require.True(t, sawSelectionRequiredResult.Load(), "model should receive a list_templates result requiring user selection")
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var listTemplatesResult map[string]any
+	var assistantText string
+	var sawCreateWorkspaceResult bool
+	for _, message := range messages {
+		parts, parseErr := chatprompt.ParseContent(message)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			switch {
+			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "list_templates":
+				require.NoError(t, json.Unmarshal(part.Result, &listTemplatesResult))
+			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "create_workspace":
+				sawCreateWorkspaceResult = true
+			case message.Role == database.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeText:
+				assistantText += part.Text
+			}
+		}
+	}
+
+	require.NotNil(t, listTemplatesResult, "expected list_templates tool result")
+	require.Equal(t, chattool.NextStepAskUser, listTemplatesResult["next_step"])
+	require.NotContains(t, listTemplatesResult, "recommended_template_id")
+	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
+		"id":           tplCode.ID.String(),
+		"name":         "code-2",
+		"display_name": "typescript-alpha",
+		"description":  "this is a long description",
+	}))
+	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
+		"id":           tplDocker.ID.String(),
+		"name":         "docker",
+		"display_name": "Docker Containers",
+		"description":  "Provision Docker containers as Coder workspaces",
+	}))
+	require.False(t, sawCreateWorkspaceResult, "agent should ask instead of calling create_workspace")
+	require.Contains(t, assistantText, "Which template should I use?")
+}
+
+func listTemplatesResultRequiresUserSelection(messages []chattest.OpenAIMessage) bool {
+	for _, message := range messages {
+		if message.Role != "tool" || !json.Valid([]byte(message.Content)) {
+			continue
+		}
+
+		var result map[string]any
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		if result["next_step"] == chattool.NextStepAskUser {
+			return true
+		}
+	}
+	return false
+}
+
+// TestCreateChatImmediatelyProcessesNewChat verifies that CreateChat
+// starts processing a new chat without waiting for the acquire ticker
+// to fire. The ticker interval is set to an hour so it never fires
+// during the test.
+func TestCreateChatImmediatelyProcessesNewChat(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
@@ -10993,7 +11254,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat sets status=pending and calls signalWake().
+	// CreateChat should start the first turn without waiting for the
+	// acquire ticker.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -11006,8 +11268,8 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 
 	// The chat should be processed immediately. The LLM handler
 	// closes the `processed` channel when it receives a streaming
-	// request. Without signalWake this would hang forever because
-	// the 1-hour ticker never fires.
+	// request. If CreateChat only relied on the 1-hour ticker,
+	// this receive would time out.
 	testutil.TryReceive(ctx, t, processed)
 
 	chatd.WaitUntilIdleForTest(server)
@@ -11019,13 +11281,11 @@ func TestSignalWakeImmediateAcquisition(t *testing.T) {
 		"chat should be in waiting status after processing completes")
 }
 
-// TestSignalWakeSendMessage verifies that SendMessage on an idle chat
-// triggers immediate processing via signalWake.
-func TestSignalWakeSendMessage(t *testing.T) {
+// TestSendMessageImmediatelyProcessesWaitingChat verifies that sending
+// a follow-up message to a waiting chat starts the next turn without
+// waiting for the acquire ticker.
+func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this after the chatd notification
-	// flow can distinguish stale status notifications from interrupts.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -11060,7 +11320,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	user, org, model := seedChatDependencies(t, db)
 	setOpenAIProviderBaseURL(ctx, t, db, openAIURL)
 
-	// CreateChat triggers wake -> processes first turn.
+	// CreateChat processes the first turn immediately.
 	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
@@ -11078,7 +11338,7 @@ func TestSignalWakeSendMessage(t *testing.T) {
 	chatd.WaitUntilIdleForTest(server)
 
 	// Now send a follow-up message, which should also be
-	// processed immediately via signalWake.
+	// processed immediately without waiting for the acquire ticker.
 	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 		ChatID:   chat.ID,
 		APIKeyID: testAPIKeyID(t, db, user.ID),
@@ -12165,12 +12425,6 @@ func TestAdvisorGating_ExploreSubagent(t *testing.T) {
 // message, losing the context the outer model had been building on.
 func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 	t.Parallel()
-	// TODO(CODAGT-353): Re-enable this test after the chatd notification flow
-	// refactor gives workers enough causal information to distinguish stale
-	// control NOTIFY messages from real interrupts. The current design reuses
-	// the same status notification shape for wake-only and interrupt intents,
-	// so a stale NOTIFY can cancel a new processChat run.
-	t.Skip("skipped until chatd notification flow refactor handles stale control notifications")
 
 	db, ps := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitLong)
