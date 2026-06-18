@@ -36996,6 +36996,117 @@ func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]Ge
 	return items, nil
 }
 
+const getTemplateRankingSignalsByOwnerID = `-- name: GetTemplateRankingSignalsByOwnerID :many
+WITH org_usage AS (
+	-- Distinct developers with a non-deleted workspace; the prebuilds system
+	-- user is excluded so unclaimed prebuilds do not inflate popularity.
+	SELECT
+		w.template_id,
+		COUNT(DISTINCT w.owner_id) AS org_devs
+	FROM
+		workspaces w
+	WHERE
+		w.template_id = ANY($1 :: uuid[])
+		AND NOT w.deleted
+		AND w.owner_id != $2 :: uuid
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+),
+user_usage AS (
+	-- The owner's workspaces used within the lookback window, split into
+	-- active and recently-deleted counts.
+	SELECT
+		w.template_id,
+		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
+		COUNT(*) FILTER (WHERE w.deleted) AS deleted_recent_count,
+		MAX(w.last_used_at) :: timestamptz AS last_used_at
+	FROM
+		workspaces w
+	WHERE
+		w.owner_id = $4
+		AND w.template_id = ANY($1 :: uuid[])
+		AND w.last_used_at > $5 :: timestamptz
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+)
+SELECT
+	t.template_id :: uuid AS template_id,
+	COALESCE(u.active_count, 0) :: bigint AS active_count,
+	COALESCE(u.deleted_recent_count, 0) :: bigint AS deleted_recent_count,
+	u.last_used_at,
+	COALESCE(o.org_devs, 0) :: bigint AS org_devs
+FROM
+	unnest($1 :: uuid[]) AS t(template_id)
+LEFT JOIN user_usage u ON u.template_id = t.template_id
+LEFT JOIN org_usage o ON o.template_id = t.template_id
+`
+
+type GetTemplateRankingSignalsByOwnerIDParams struct {
+	TemplateIDs     []uuid.UUID `db:"template_ids" json:"template_ids"`
+	PrebuildsUserID uuid.UUID   `db:"prebuilds_user_id" json:"prebuilds_user_id"`
+	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID   `db:"owner_id" json:"owner_id"`
+	LookbackCutoff  time.Time   `db:"lookback_cutoff" json:"lookback_cutoff"`
+}
+
+type GetTemplateRankingSignalsByOwnerIDRow struct {
+	TemplateID         uuid.UUID    `db:"template_id" json:"template_id"`
+	ActiveCount        int64        `db:"active_count" json:"active_count"`
+	DeletedRecentCount int64        `db:"deleted_recent_count" json:"deleted_recent_count"`
+	LastUsedAt         sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	OrgDevs            int64        `db:"org_devs" json:"org_devs"`
+}
+
+// GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
+// one owner: in-window active and recently-deleted workspace counts, the last
+// in-window usage, and distinct active developers per template. The affinity
+// score is computed in Go (see listtemplates.go) so the ranking policy and
+// its confidence thresholds live in one place.
+func (q *sqlQuerier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateRankingSignalsByOwnerID,
+		pq.Array(arg.TemplateIDs),
+		arg.PrebuildsUserID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.LookbackCutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateRankingSignalsByOwnerIDRow
+	for rows.Next() {
+		var i GetTemplateRankingSignalsByOwnerIDRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.ActiveCount,
+			&i.DeletedRecentCount,
+			&i.LastUsedAt,
+			&i.OrgDevs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspaceACLByID = `-- name: GetWorkspaceACLByID :one
 SELECT
 	group_acl as groups,

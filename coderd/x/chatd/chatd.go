@@ -4199,6 +4199,8 @@ func (p *Server) appendRootChatTools(
 	tools = append(tools,
 		chattool.ListTemplates(p.db, opts.chat.OrganizationID, chattool.ListTemplatesOptions{
 			OwnerID:            opts.chat.OwnerID,
+			Logger:             p.logger,
+			Clock:              p.clock,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{

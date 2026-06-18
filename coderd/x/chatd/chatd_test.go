@@ -11053,6 +11053,171 @@ func TestChatTemplateAllowlistEnforcement(t *testing.T) {
 		"create_workspace for blocked template should be rejected")
 }
 
+func TestChatAsksUserWhenListTemplatesRequiresSelection(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+
+	var tplCode, tplDocker database.Template
+	var callCount atomic.Int32
+	var sawSelectionRule atomic.Bool
+	var sawSelectionRequiredResult atomic.Bool
+
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("title")
+		}
+
+		switch callCount.Add(1) {
+		case 1:
+			promptAndTools := string(req.RawBody)
+			for _, message := range req.Messages {
+				promptAndTools += "\n" + message.Content
+			}
+			if strings.Contains(promptAndTools, "follow its next_step") {
+				sawSelectionRule.Store(true)
+			}
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("list_templates", `{}`),
+			)
+		case 2:
+			if listTemplatesResultRequiresUserSelection(req.Messages) {
+				sawSelectionRequiredResult.Store(true)
+				return chattest.OpenAIStreamingResponse(
+					chattest.OpenAITextChunks(
+						"I found two templates, typescript-alpha and Docker Containers. Which template should I use?",
+					)...,
+				)
+			}
+
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAIToolCallChunk("create_workspace",
+					fmt.Sprintf(`{"template_id":%q}`, tplCode.ID.String())),
+			)
+		default:
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("Done.")...,
+			)
+		}
+	})
+
+	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+	tplCode = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "code-2",
+		DisplayName:    "typescript-alpha",
+		Description:    "this is a long description",
+	})
+	tplDocker = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "docker",
+		DisplayName:    "Docker Containers",
+		Description:    "Provision Docker containers as Coder workspaces",
+	})
+
+	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+		cfg.CreateWorkspace = func(
+			context.Context,
+			uuid.UUID,
+			codersdk.CreateWorkspaceRequest,
+		) (codersdk.Workspace, error) {
+			t.Error("create_workspace should not be called when list_templates requires user selection")
+			return codersdk.Workspace{}, xerrors.New("unexpected create_workspace call")
+		}
+	})
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		APIKeyID:       testAPIKeyID(t, db, user.ID),
+		Title:          "ask-template-selection-test",
+		ModelConfigID:  model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{
+			codersdk.ChatMessageText("Create a workspace."),
+		},
+	})
+	require.NoError(t, err)
+
+	var chatResult database.Chat
+	require.Eventually(t, func() bool {
+		got, getErr := db.GetChatByID(ctx, chat.ID)
+		if getErr != nil {
+			return false
+		}
+		chatResult = got
+		return got.Status == database.ChatStatusWaiting || got.Status == database.ChatStatusError
+	}, testutil.WaitLong, testutil.IntervalFast)
+
+	if chatResult.Status == database.ChatStatusError {
+		require.FailNowf(t, "chat run failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
+	}
+
+	require.True(t, sawSelectionRule.Load(), "model request should include the next_step selection rule")
+	require.True(t, sawSelectionRequiredResult.Load(), "model should receive a list_templates result requiring user selection")
+
+	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  chat.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+
+	var listTemplatesResult map[string]any
+	var assistantText string
+	var sawCreateWorkspaceResult bool
+	for _, message := range messages {
+		parts, parseErr := chatprompt.ParseContent(message)
+		require.NoError(t, parseErr)
+		for _, part := range parts {
+			switch {
+			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "list_templates":
+				require.NoError(t, json.Unmarshal(part.Result, &listTemplatesResult))
+			case part.Type == codersdk.ChatMessagePartTypeToolResult && part.ToolName == "create_workspace":
+				sawCreateWorkspaceResult = true
+			case message.Role == database.ChatMessageRoleAssistant && part.Type == codersdk.ChatMessagePartTypeText:
+				assistantText += part.Text
+			}
+		}
+	}
+
+	require.NotNil(t, listTemplatesResult, "expected list_templates tool result")
+	require.Equal(t, chattool.NextStepAskUser, listTemplatesResult["next_step"])
+	require.NotContains(t, listTemplatesResult, "recommended_template_id")
+	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
+		"id":           tplCode.ID.String(),
+		"name":         "code-2",
+		"display_name": "typescript-alpha",
+		"description":  "this is a long description",
+	}))
+	require.Contains(t, listTemplatesResult["templates"], any(map[string]any{
+		"id":           tplDocker.ID.String(),
+		"name":         "docker",
+		"display_name": "Docker Containers",
+		"description":  "Provision Docker containers as Coder workspaces",
+	}))
+	require.False(t, sawCreateWorkspaceResult, "agent should ask instead of calling create_workspace")
+	require.Contains(t, assistantText, "Which template should I use?")
+}
+
+func listTemplatesResultRequiresUserSelection(messages []chattest.OpenAIMessage) bool {
+	for _, message := range messages {
+		if message.Role != "tool" || !json.Valid([]byte(message.Content)) {
+			continue
+		}
+
+		var result map[string]any
+		if err := json.Unmarshal([]byte(message.Content), &result); err != nil {
+			continue
+		}
+		if result["next_step"] == chattool.NextStepAskUser {
+			return true
+		}
+	}
+	return false
+}
+
 // TestCreateChatImmediatelyProcessesNewChat verifies that CreateChat
 // starts processing a new chat without waiting for the acquire ticker
 // to fire. The ticker interval is set to an hour so it never fires
