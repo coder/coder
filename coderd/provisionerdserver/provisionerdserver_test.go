@@ -283,6 +283,75 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
+// TestAcquireJob_ProvisionerKeyDeleted verifies that the daemon stops acquiring
+// jobs once the provisioner key it authenticated with is deleted. This is the
+// defense-in-depth backstop for the pubsub-driven session teardown.
+func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		acquire func(context.Context, proto.DRPCProvisionerDaemonServer) error
+	}{
+		{name: "Deprecated", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			_, err := srv.AcquireJob(ctx, nil)
+			return err
+		}},
+		{name: "WithCancel", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
+			fs := newFakeStream(ctx)
+			return srv.AcquireJobWithCancel(fs)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// setup inserts a deletable provisioner key with this ID and ties the
+			// daemon to it. A short poll keeps the no-job acquire from blocking
+			// while the key still exists.
+			keyID := uuid.New()
+			srv, srvDB, _, _ := setup(t, false, &overrides{
+				keyID:                      keyID,
+				acquireJobLongPollDuration: time.Microsecond,
+			})
+
+			// While the key exists, the key check passes: the deprecated acquire
+			// returns an empty job after the short poll.
+			job, err := srv.AcquireJob(ctx, nil)
+			require.NoError(t, err)
+			require.Equal(t, &proto.AcquiredJob{}, job)
+
+			// Once the key is deleted, acquiring must fail rather than hand out work.
+			// The key check runs before the acquire blocks, so both variants return
+			// promptly.
+			err = srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+			require.NoError(t, err)
+
+			err = tc.acquire(ctx, srv)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "was deleted")
+		})
+	}
+}
+
+// TestAcquireJob_ReservedProvisionerKey verifies that daemons using a reserved
+// provisioner key (which is not a deletable row) are not blocked by the
+// key-existence check.
+func TestAcquireJob_ReservedProvisionerKey(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	//nolint:dogsled
+	srv, _, _, _ := setup(t, false, &overrides{
+		keyID:                      codersdk.ProvisionerKeyUUIDPSK,
+		acquireJobLongPollDuration: time.Microsecond,
+	})
+	job, err := srv.AcquireJob(ctx, nil)
+	require.NoError(t, err)
+	require.Equal(t, &proto.AcquiredJob{}, job)
+}
+
 func TestHeartbeat(t *testing.T) {
 	t.Parallel()
 
@@ -5172,6 +5241,7 @@ type overrides struct {
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 	provisionerdLogger          *slog.Logger
+	keyID                       uuid.UUID
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -5253,6 +5323,23 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		provisionerdLogger = *ov.provisionerdLogger
 	}
 
+	keyID := codersdk.ProvisionerKeyUUIDBuiltIn
+	if ov.keyID != uuid.Nil {
+		keyID = ov.keyID
+		// The daemon's key_id is a foreign key to provisioner_keys, so a
+		// non-reserved key must exist before the daemon is created.
+		switch keyID {
+		case codersdk.ProvisionerKeyUUIDBuiltIn,
+			codersdk.ProvisionerKeyUUIDUserAuth,
+			codersdk.ProvisionerKeyUUIDPSK:
+		default:
+			dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
+				ID:             keyID,
+				OrganizationID: defOrg.ID,
+			})
+		}
+	}
+
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
 		CreatedAt:      dbtime.Now(),
@@ -5262,7 +5349,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
+		KeyID:          keyID,
 	})
 	require.NoError(t, err)
 
@@ -5304,6 +5391,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
+			KeyID:                 keyID,
 		},
 		notifEnq,
 		&op,

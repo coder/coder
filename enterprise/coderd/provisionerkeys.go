@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -209,6 +211,16 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
+	}
+
+	// Notify any active daemon serve sessions authenticated with this key so
+	// they tear down their connection. Auth is only checked at connection
+	// establishment, so without this a deleted key keeps working until the
+	// daemon disconnects. A missed message is backstopped by the key-existence
+	// check on job acquisition, so log the error but still report success.
+	if err := api.Pubsub.Publish(pubsub.ProvisionerKeyDeletedChannel(provisionerKey.ID), nil); err != nil {
+		api.Logger.Warn(ctx, "failed to publish provisioner key deletion",
+			slog.F("provisioner_key_id", provisionerKey.ID), slog.Error(err))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)

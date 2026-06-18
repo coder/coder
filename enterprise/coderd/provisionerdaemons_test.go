@@ -171,6 +171,53 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		require.Contains(t, string(b), fmt.Sprintf("server is at version %s, behind requested major version %s", proto.CurrentVersion.String(), v.String()))
 	})
 
+	t.Run("KeyDeletionClosesSession", func(t *testing.T) {
+		t.Parallel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureExternalProvisionerDaemons: 1,
+				codersdk.FeatureMultipleOrganizations:      1,
+			},
+		}})
+		org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		res, err := orgAdmin.CreateProvisionerKey(ctx, org.ID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-key",
+		})
+		require.NoError(t, err)
+
+		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Name:         testutil.MustRandString(t, 63),
+			Organization: org.ID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags:           map[string]string{},
+			ProvisionerKey: res.Key,
+		})
+		require.NoError(t, err)
+		defer srv.DRPCConn().Close()
+
+		// The session is established and open.
+		select {
+		case <-srv.DRPCConn().Closed():
+			t.Fatal("connection closed before key deletion")
+		default:
+		}
+
+		// Deleting the key must tear down the active daemon session.
+		err = orgAdmin.DeleteProvisionerKey(ctx, org.ID, "my-key")
+		require.NoError(t, err)
+
+		select {
+		case <-srv.DRPCConn().Closed():
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for provisioner daemon session to close")
+		}
+	})
+
 	t.Run("NoLicense", func(t *testing.T) {
 		t.Parallel()
 		client, user := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})

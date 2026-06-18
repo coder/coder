@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -143,6 +144,21 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 		orgID: org.ID,
 		tags:  tags,
 	}, nil
+}
+
+// isDeletableProvisionerKey reports whether the given provisioner key ID refers
+// to a user-created key that can be deleted. The reserved keys (built-in,
+// user-auth, PSK) and the zero value are not deletable, so daemons using them
+// do not need to watch for key deletion.
+func isDeletableProvisionerKey(keyID uuid.UUID) bool {
+	switch keyID {
+	case uuid.Nil,
+		codersdk.ProvisionerKeyUUIDBuiltIn,
+		codersdk.ProvisionerKeyUUIDUserAuth,
+		codersdk.ProvisionerKeyUUIDPSK:
+		return false
+	}
+	return true
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
@@ -358,6 +374,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			OIDCConfig:          api.OIDCConfig,
 			AISeatTracker:       api.AGPL.AISeatTracker,
 			Clock:               api.Clock,
+			KeyID:               authRes.keyID,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,
@@ -391,7 +408,41 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		rl.WriteLog(ctx, http.StatusAccepted)
 	}
 
-	err = server.Serve(ctx, session)
+	// If the daemon authenticated with a deletable provisioner key, tear down
+	// the session when that key is deleted. Auth is only checked at connection
+	// establishment, so without this a deleted key keeps working until the
+	// daemon disconnects on its own.
+	if isDeletableProvisionerKey(authRes.keyID) {
+		closeSubscribe, err := api.Pubsub.Subscribe(
+			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
+			func(_ context.Context, _ []byte) {
+				logger.Info(ctx, "provisioner key deleted, canceling session")
+				srvCancel()
+			},
+		)
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("subscribe to provisioner key deletion: %s", err))
+			return
+		}
+		defer closeSubscribe()
+
+		// Re-check after subscribing to close the race where the key was deleted
+		// between auth and Subscribe. Postgres LISTEN/NOTIFY does not buffer for
+		// non-listeners, so a deletion that committed before our subscription
+		// registered would otherwise go unnoticed until the next job acquisition.
+		_, err = api.Database.GetProvisionerKeyByID(authCtx, authRes.keyID)
+		if xerrors.Is(err, sql.ErrNoRows) {
+			logger.Info(ctx, "provisioner key no longer exists, closing connection")
+			_ = conn.Close(websocket.StatusGoingAway, "provisioner key deleted")
+			return
+		}
+		if err != nil {
+			_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("check provisioner key: %s", err))
+			return
+		}
+	}
+
+	err = server.Serve(srvCtx, session)
 	srvCancel()
 	logger.Info(ctx, "provisioner daemon disconnected", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
