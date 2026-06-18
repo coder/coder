@@ -157,6 +157,7 @@ func TestWSWatcher(t *testing.T) {
 	t.Run("PingSucceeds", func(t *testing.T) {
 		t.Parallel()
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
 
 		sink := testutil.NewFakeSink(t)
 		logger := sink.Logger()
@@ -171,7 +172,6 @@ func TestWSWatcher(t *testing.T) {
 		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
 		watchCtx := w.Watch(ctx, logger, serverConn)
 		t.Cleanup(func() {
-			cancel()
 			<-watchCtx.Done()
 		})
 
@@ -218,12 +218,12 @@ func TestWSWatcher(t *testing.T) {
 		defer trap.Close()
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
 		serverConn := websocketPair(ctx, t)
 
 		w := &WSWatcher{rec: recorder, clk: mClock, interval: time.Second}
 		watchCtx := w.Watch(ctx, logger, serverConn)
 		t.Cleanup(func() {
-			cancel()
 			<-watchCtx.Done()
 		})
 
@@ -322,9 +322,9 @@ func TestWSWatcher(t *testing.T) {
 		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
 
 		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
 		watchCtx := w.Watch(ctx, logger, fConn)
 		t.Cleanup(func() {
-			cancel()
 			<-watchCtx.Done()
 		})
 
