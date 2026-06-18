@@ -334,8 +334,7 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			require.NoError(t, err)
 
 			err = tc.acquire(ctx, srv)
-			require.Error(t, err)
-			require.Contains(t, err.Error(), "was deleted")
+			require.ErrorIs(t, err, provisionerdserver.ErrProvisionerKeyDeleted)
 			testutil.TryReceive(ctx, t, sessionCanceled)
 		})
 	}

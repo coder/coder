@@ -153,6 +153,10 @@ type server struct {
 
 var ErrTagsContainNullByte = xerrors.New("tags cannot contain the null byte (0x00)")
 
+// ErrProvisionerKeyDeleted is returned from job acquisition when the
+// provisioner key the daemon authenticated with no longer exists.
+var ErrProvisionerKeyDeleted = xerrors.New("provisioner key was deleted")
+
 type Tags map[string]string
 
 func (t Tags) ToJSON() (json.RawMessage, error) {
@@ -382,7 +386,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 		return nil, err
 	} else if deleted {
 		s.terminateOnDeletedKey()
-		return nil, xerrors.Errorf("provisioner key %q was deleted", s.KeyID)
+		return nil, xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
 	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
@@ -421,7 +425,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		return err
 	} else if deleted {
 		s.terminateOnDeletedKey()
-		return xerrors.Errorf("provisioner key %q was deleted", s.KeyID)
+		return xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
 	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
