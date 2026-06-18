@@ -83,7 +83,10 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 		setStepIndex(nextIndex);
 	};
 
-	const handleDeselectModule = (moduleId: string) => {
+		// If the only module gets deselected, go back to module selection
+		if (state.modules.length === 1) {
+			setStepIndex(WIZARD_STEPS.findIndex((s) => s.id === "module-select"));
+		}
 		dispatch({
 			type: "SET_MODULES",
 			modules: state.modules.filter((m) => m.id !== moduleId),
