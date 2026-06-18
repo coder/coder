@@ -23,23 +23,30 @@ func TestHandleHTTPDebugLogsWithAfterCapsResponse(t *testing.T) {
 	activePath := filepath.Join(logDir, "coder-agent.log")
 	f, err := os.Create(activePath)
 	require.NoError(t, err)
-	_, err = f.WriteString("active log\n")
-	require.NoError(t, err)
+	// A huge active log must not starve the rotated logs.
 	require.NoError(t, f.Truncate(debugLogsCombinedMaxBytes+1))
 	require.NoError(t, f.Close())
+
+	rotatedPath := filepath.Join(logDir, "coder-agent-2026-05-17T20-00-00.000.log")
+	require.NoError(t, os.WriteFile(rotatedPath, []byte("rotated marker\n"), 0o600))
+	rotatedModTime := time.Now().Add(-time.Minute)
+	require.NoError(t, os.Chtimes(rotatedPath, rotatedModTime, rotatedModTime))
 
 	a := &agent{
 		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
 		logDir: logDir,
 	}
-	req := httptest.NewRequest(http.MethodGet, "/debug/logs?after="+time.Now().Add(-time.Minute).UTC().Format(time.RFC3339Nano), nil)
-	res := &countingResponseWriter{header: http.Header{}}
+	req := httptest.NewRequest(http.MethodGet, "/debug/logs?after="+time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano), nil)
+	res := httptest.NewRecorder()
 
 	a.HandleHTTPDebugLogs(res, req)
 
-	require.Equal(t, http.StatusOK, res.status)
-	require.Equal(t, int64(debugLogsCombinedMaxBytes), res.bytes)
-	require.Contains(t, string(res.prefix), "coder-agent.log")
+	require.Equal(t, http.StatusOK, res.Code)
+	body := res.Body.String()
+	// Active is capped at its own limit, so the rotated log still fits.
+	require.Less(t, int64(len(body)), int64(debugLogsCombinedMaxBytes))
+	require.Contains(t, body, "coder-agent.log")
+	require.Contains(t, body, "rotated marker")
 }
 
 func TestHandleHTTPDebugLogsWithAfterOpenFailure(t *testing.T) {
@@ -84,37 +91,13 @@ func TestRotatedAgentLogFilesReadsLogDirLiterally(t *testing.T) {
 	require.NoError(t, os.WriteFile(activePath, []byte("active log"), 0o600))
 	require.NoError(t, os.WriteFile(rotatedPath, []byte("rotated log"), 0o600))
 
-	files, err := rotatedAgentLogFiles(t.Context(), slogtest.Make(t, nil), logDir, time.Now().Add(-time.Minute))
+	dirRoot, err := os.OpenRoot(logDir)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = dirRoot.Close() })
+
+	files, err := rotatedAgentLogFiles(t.Context(), slogtest.Make(t, nil), dirRoot, time.Now().Add(-time.Minute))
 
 	require.NoError(t, err)
 	require.Len(t, files, 1)
-	require.Equal(t, "coder-agent-2026-05-18T00-00-00.000.log", filepath.Base(files[0].path))
-}
-
-type countingResponseWriter struct {
-	header http.Header
-	status int
-	bytes  int64
-	prefix []byte
-}
-
-func (w *countingResponseWriter) Header() http.Header {
-	return w.header
-}
-
-func (w *countingResponseWriter) WriteHeader(status int) {
-	w.status = status
-}
-
-func (w *countingResponseWriter) Write(p []byte) (int, error) {
-	if len(w.prefix) < 1024 {
-		remaining := 1024 - len(w.prefix)
-		w.prefix = append(w.prefix, p[:min(len(p), remaining)]...)
-	}
-	w.bytes += int64(len(p))
-	return len(p), nil
-}
-
-func (*countingResponseWriter) SetWriteDeadline(time.Time) error {
-	return nil
+	require.Equal(t, "coder-agent-2026-05-18T00-00-00.000.log", files[0].name)
 }

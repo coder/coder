@@ -130,33 +130,23 @@ func (mr *MockAgentConnMockRecorder) ContextConfig(ctx any) *gomock.Call {
 }
 
 // DebugLogs mocks base method.
-func (m *MockAgentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+func (m *MockAgentConn) DebugLogs(ctx context.Context, opts ...workspacesdk.DebugLogsOption) ([]byte, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DebugLogs", ctx)
+	varargs := []any{ctx}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DebugLogs", varargs...)
 	ret0, _ := ret[0].([]byte)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // DebugLogs indicates an expected call of DebugLogs.
-func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any) *gomock.Call {
+func (mr *MockAgentConnMockRecorder) DebugLogs(ctx any, opts ...any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), ctx)
-}
-
-// DebugLogsWithOptions mocks base method.
-func (m *MockAgentConn) DebugLogsWithOptions(ctx context.Context, opts workspacesdk.DebugLogsOptions) ([]byte, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DebugLogsWithOptions", ctx, opts)
-	ret0, _ := ret[0].([]byte)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DebugLogsWithOptions indicates an expected call of DebugLogsWithOptions.
-func (mr *MockAgentConnMockRecorder) DebugLogsWithOptions(ctx, opts any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogsWithOptions", reflect.TypeOf((*MockAgentConn)(nil).DebugLogsWithOptions), ctx, opts)
+	varargs := append([]any{ctx}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DebugLogs", reflect.TypeOf((*MockAgentConn)(nil).DebugLogs), varargs...)
 }
 
 // DebugMagicsock mocks base method.

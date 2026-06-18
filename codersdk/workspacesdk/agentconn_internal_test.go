@@ -53,7 +53,7 @@ func TestAgentAPIPath(t *testing.T) {
 	t.Run("debug logs zero after", func(t *testing.T) {
 		t.Parallel()
 
-		got := debugLogsPath(DebugLogsOptions{})
+		got := debugLogsPath(time.Time{})
 		require.Equal(t, "/debug/logs", got)
 	})
 
@@ -61,7 +61,7 @@ func TestAgentAPIPath(t *testing.T) {
 		t.Parallel()
 
 		after := time.Date(2026, 5, 18, 12, 34, 56, 789, time.FixedZone("test", -7*60*60))
-		got := debugLogsPath(DebugLogsOptions{After: after})
+		got := debugLogsPath(after)
 		parsed, err := neturl.Parse(got)
 		require.NoError(t, err)
 		require.Equal(t, "/debug/logs", parsed.Path)

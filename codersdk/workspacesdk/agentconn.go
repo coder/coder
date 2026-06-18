@@ -98,8 +98,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
-	DebugLogs(ctx context.Context) ([]byte, error)
-	DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, error)
+	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
@@ -444,24 +443,29 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogsOptions configures an agent debug log request.
-type DebugLogsOptions struct {
-	// After also includes rotated logs modified at or after it. The active
-	// log is always included.
-	After time.Time
+// DebugLogsOption configures a DebugLogs request.
+type DebugLogsOption func(*debugLogsConfig)
+
+type debugLogsConfig struct {
+	after time.Time
 }
 
-// DebugLogs returns up to 10 MiB of the active agent log.
-func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
-	return c.DebugLogsWithOptions(ctx, DebugLogsOptions{})
+// WithLogsAfter also returns rotated logs modified at or after t, separated by
+// boundary markers (100 MiB combined cap).
+func WithLogsAfter(t time.Time) DebugLogsOption {
+	return func(c *debugLogsConfig) { c.after = t }
 }
 
-// DebugLogsWithOptions returns the active agent log (10 MiB cap), plus rotated
-// logs when opts.After is set (100 MiB combined cap).
-func (c *agentConn) DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, error) {
+// DebugLogs returns up to 10 MiB of the active agent log. Pass WithLogsAfter to
+// also include rotated logs.
+func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error) {
+	var cfg debugLogsConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(opts), nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(cfg.after), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -476,10 +480,10 @@ func (c *agentConn) DebugLogsWithOptions(ctx context.Context, opts DebugLogsOpti
 	return bs, nil
 }
 
-func debugLogsPath(opts DebugLogsOptions) string {
+func debugLogsPath(after time.Time) string {
 	query := neturl.Values{}
-	if !opts.After.IsZero() {
-		query.Set("after", opts.After.UTC().Format(time.RFC3339Nano))
+	if !after.IsZero() {
+		query.Set("after", after.UTC().Format(time.RFC3339Nano))
 	}
 	return agentAPIPath("/debug/logs", query)
 }

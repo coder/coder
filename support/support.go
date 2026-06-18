@@ -667,7 +667,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
-		logBytes, err := conn.DebugLogsWithOptions(ctx, workspacesdk.DebugLogsOptions{After: time.Now().Add(-supportBundleAgentLogLookback)})
+		logBytes, err := conn.DebugLogs(ctx, workspacesdk.WithLogsAfter(time.Now().Add(-supportBundleAgentLogLookback)))
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
 		}
