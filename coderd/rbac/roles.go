@@ -420,7 +420,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Note: even without PrebuiltWorkspace permissions, access is still granted via Workspace permissions.
 				ResourcePrebuiltWorkspace.Type: {policy.ActionUpdate, policy.ActionDelete},
 				// Owners can read all boundary logs. Delete is reserved for
-				// DBPurge only. Create is site-scoped (inherited from member).
+				// DBPurge only. Create is user-scoped (inherited from member).
 				ResourceBoundaryLog.Type: {policy.ActionRead},
 			})...,
 		),
@@ -437,10 +437,6 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// All users can see OAuth2 provider applications.
 				ResourceOauth2App.Type:      {policy.ActionRead},
 				ResourceWorkspaceProxy.Type: {policy.ActionRead},
-				// Boundary log create is site-scoped. The agent API
-				// layer validates session ownership so the RBAC gate
-				// does not need to resolve log-to-session-to-owner.
-				ResourceBoundaryLog.Type: {policy.ActionCreate},
 			}),
 			denyPermissions...,
 		),
@@ -455,6 +451,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				// Members can create and update AI Bridge interceptions but
 				// cannot read them back.
 				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
+				// Workspace agents create boundary logs under their owner's
+				// identity. Create is user-scoped so agents can only write
+				// logs owned by their workspace owner.
+				// Read: owners and auditors. Delete: DBPurge only.
+				ResourceBoundaryLog.Type: {policy.ActionCreate},
 			})...,
 		),
 		ByOrgID: map[string]OrgPermissions{},

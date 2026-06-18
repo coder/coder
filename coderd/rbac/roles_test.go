@@ -1337,38 +1337,39 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			// Boundary logs: create is site-scoped via the member role.
-			// All subjects include the member role, so all can create.
+			// Boundary logs: members can create logs they own (user-scoped).
+			// memberMe and agentsAccessUser have ID == currentUser, so they
+			// match the resource owner. Other subjects have different IDs.
 			Name:     "BoundaryLogCreate",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceBoundaryLog.WithOwner(currentUser.String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {
-					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+				true: {orgWorkspaceAccessUser, memberMe, agentsAccessUser},
+				false: {
 					owner,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor, auditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
-				false: {},
 			},
 		},
 		{
-			// Site-scoped create means the resource owner is irrelevant.
+			// Cross-user isolation: no subject can create boundary logs
+			// owned by a different user. The resource owner is a random
+			// UUID that does not match any test subject's ID.
 			Name:     "BoundaryLogCreateOther",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceBoundaryLog.WithOwner(uuid.New().String()),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {
-					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
-					owner,
+				true: {},
+				false: {
+					orgWorkspaceAccessUser, owner, memberMe, agentsAccessUser,
 					orgAdmin, otherOrgAdmin,
 					orgAuditor, otherOrgAuditor, auditor,
 					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
 					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
-				false: {},
 			},
 		},
 		{
@@ -1649,8 +1650,8 @@ func TestChangeSet(t *testing.T) {
 }
 
 // TestWorkspaceAgentScopeBoundaryLog verifies that a real workspace agent
-// scope (not ScopeAll) can create boundary logs (site-scoped create)
-// but cannot read or delete them.
+// scope (not ScopeAll) can create boundary logs for its own owner but
+// cannot create them for other users, and cannot read or delete them.
 func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
 	t.Parallel()
 
@@ -1683,11 +1684,10 @@ func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
 		rbac.ResourceBoundaryLog.WithOwner(ownerID.String()))
 	require.NoError(t, err, "agent should create boundary logs for own owner")
 
-	// Create is site-scoped, so agents can also create logs for any owner
-	// at the RBAC level. The agent API layer enforces session ownership.
+	// Agent cannot create boundary logs for a different owner.
 	err = auth.Authorize(context.Background(), agent, policy.ActionCreate,
 		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
-	require.NoError(t, err, "site-scoped create allows any owner at RBAC level")
+	require.Error(t, err, "agent must not create boundary logs for other owner")
 
 	// Agent cannot read boundary logs (even its own owner's).
 	err = auth.Authorize(context.Background(), agent, policy.ActionRead,
@@ -1718,10 +1718,11 @@ func TestWorkspaceAgentScopeBoundaryLog(t *testing.T) {
 		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
 	require.NoError(t, err, "admin agent inherits site-level read via owner role")
 
-	// Admin-owned agent can also create for another owner (site-scoped create).
+	// Admin-owned agent still cannot create boundary logs for another owner
+	// because member-level create is user-scoped (subject.id must match owner).
 	err = auth.Authorize(context.Background(), adminAgent, policy.ActionCreate,
 		rbac.ResourceBoundaryLog.WithOwner(otherOwnerID.String()))
-	require.NoError(t, err, "site-scoped create allows any owner")
+	require.Error(t, err, "admin agent must not create boundary logs for other owner")
 }
 
 // TestDBPurgeBoundaryLogDelete verifies that the DBPurge system subject

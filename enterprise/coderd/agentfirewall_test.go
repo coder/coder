@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -151,8 +150,8 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 }
 
 // TestInsertBoundaryLogs_AgentAuth verifies that a workspace agent context
-// can insert boundary logs through the dbauthz layer. Create is site-scoped
-// in the member role, so the check does not require owner derivation.
+// can insert boundary logs through the dbauthz layer. Create is user-scoped
+// in the member role; the agent's owner ID must match the resource owner.
 func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 	t.Parallel()
 
@@ -226,11 +225,12 @@ func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 	}.WithCachedASTValue()
 	agentCtx := dbauthz.As(ctx, agentSubject)
 
-	// Insert boundary logs through dbauthz. The site-scoped create
-	// permission on the member role should allow this.
+	// Insert boundary logs through dbauthz with the correct owner.
+	// User-scoped create succeeds because the agent subject ID matches.
 	logID := uuid.New()
 	_, err = authzDB.InsertBoundaryLogs(agentCtx, database.InsertBoundaryLogsParams{
 		SessionID:      sessionID,
+		OwnerID:        user.ID,
 		ID:             []uuid.UUID{logID},
 		SequenceNumber: []int32{1},
 		CapturedAt:     []time.Time{now},
@@ -240,23 +240,26 @@ func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 		Detail:         []string{"example.com:443"},
 		MatchedRule:    []string{"allow-all"},
 	})
-	require.NoError(t, err, "agent should be able to insert boundary logs")
+	require.NoError(t, err, "agent should be able to insert boundary logs for own owner")
 
 	// Verify the logs were actually persisted.
 	got, err := rawDB.GetBoundaryLogByID(ctx, logID)
 	require.NoError(t, err)
 	require.Equal(t, sessionID, got.SessionID)
 
-	// Also verify that a member without agent scope cannot READ logs
-	// (read is owner/auditor only, not member).
-	memberSubject := rbac.Subject{
-		ID:    user.ID.String(),
-		Roles: rbac.Roles{memberRole},
-		Scope: rbac.ScopeAll,
-	}.WithCachedASTValue()
-	memberCtx := dbauthz.As(ctx, memberSubject)
-
-	err = authorizer.Authorize(memberCtx, memberSubject, policy.ActionRead,
-		rbac.ResourceBoundaryLog)
-	require.Error(t, err, "member should not be able to read boundary logs")
+	// Inserting with a different owner ID must fail (user-scoped create).
+	otherUser := dbgen.User(t, rawDB, database.User{})
+	_, err = authzDB.InsertBoundaryLogs(agentCtx, database.InsertBoundaryLogsParams{
+		SessionID:      sessionID,
+		OwnerID:        otherUser.ID,
+		ID:             []uuid.UUID{uuid.New()},
+		SequenceNumber: []int32{2},
+		CapturedAt:     []time.Time{now},
+		CreatedAt:      []time.Time{now},
+		Proto:          []string{"tcp"},
+		Method:         []string{"connect"},
+		Detail:         []string{"evil.com:443"},
+		MatchedRule:    []string{"allow-all"},
+	})
+	require.Error(t, err, "agent must not insert boundary logs for a different owner")
 }

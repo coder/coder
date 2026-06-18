@@ -66,8 +66,9 @@ func WorkspaceAgentScope(params WorkspaceAgentScopeParams) Scope {
 			{Type: ResourceTemplate.Type, ID: params.VersionID.String()},
 			{Type: ResourceUser.Type, ID: params.OwnerID.String()},
 			// No pre-existing ID for new records; wildcard is required.
-			// Create is site-scoped in the member role; the agent API
-			// layer validates session ownership.
+			// Owner-scoped create (user-level) limits agents to their own
+			// logs. Adding site-level actions to the member role would
+			// bypass this and grant deployment-wide access.
 			{Type: ResourceBoundaryLog.Type, ID: policy.WildcardSymbol},
 		}, extraAllowList...),
 	}

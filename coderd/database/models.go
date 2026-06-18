@@ -4720,6 +4720,8 @@ type BoundaryLog struct {
 	Detail string `db:"detail" json:"detail"`
 	// The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.
 	MatchedRule sql.NullString `db:"matched_rule" json:"matched_rule"`
+	// The ID of the user who owns the workspace. NULL for logs inserted before this column existed or if the user was deleted.
+	OwnerID uuid.NullUUID `db:"owner_id" json:"owner_id"`
 }
 
 // Boundary session metadata. Each row represents a single invocation of a Boundary process wrapping a confined agent.

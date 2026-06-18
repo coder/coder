@@ -1667,6 +1667,7 @@ CREATE TABLE boundary_logs (
     method text DEFAULT ''::text NOT NULL,
     detail text DEFAULT ''::text NOT NULL,
     matched_rule text,
+    owner_id uuid,
     CONSTRAINT boundary_logs_sequence_number_check CHECK ((sequence_number >= 0))
 );
 
@@ -1687,6 +1688,8 @@ COMMENT ON COLUMN boundary_logs.method IS 'The operation within the protocol. e.
 COMMENT ON COLUMN boundary_logs.detail IS 'Protocol-specific detail. e.g. the full URL for http, the hostname for dns, the path for fs.';
 
 COMMENT ON COLUMN boundary_logs.matched_rule IS 'The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.';
+
+COMMENT ON COLUMN boundary_logs.owner_id IS 'The ID of the user who owns the workspace. NULL for logs inserted before this column existed or if the user was deleted.';
 
 CREATE TABLE boundary_sessions (
     id uuid NOT NULL,
@@ -4888,6 +4891,9 @@ ALTER TABLE ONLY aibridge_interceptions
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY boundary_logs
+    ADD CONSTRAINT boundary_logs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
