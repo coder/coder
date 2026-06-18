@@ -54,6 +54,7 @@ func websocketPair(ctx context.Context, t *testing.T) *websocket.Conn {
 	}
 }
 
+// probeRecorder is a simple wrapper around a channel used to record probe results.
 type probeRecorder struct {
 	T testing.TB
 	C chan ProbeResult
@@ -194,7 +195,6 @@ func TestWSWatcher(t *testing.T) {
 
 	t.Run("RecordsPrometheusCounter", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
 
 		// Use a real prometheus registry to verify end-to-end metric recording.
 		registry := prometheus.NewRegistry()
@@ -217,10 +217,15 @@ func TestWSWatcher(t *testing.T) {
 		trap := mClock.Trap().NewTicker("WSWatcher")
 		defer trap.Close()
 
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
 		serverConn := websocketPair(ctx, t)
 
 		w := &WSWatcher{rec: recorder, clk: mClock, interval: time.Second}
 		watchCtx := w.Watch(ctx, logger, serverConn)
+		t.Cleanup(func() {
+			cancel()
+			<-watchCtx.Done()
+		})
 
 		trap.MustWait(ctx).MustRelease(ctx)
 		mClock.Advance(time.Second).MustWait(ctx)
@@ -251,13 +256,17 @@ func TestWSWatcher(t *testing.T) {
 		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 1)}
 
 		pingCh := make(chan struct{})
+		closeCodeCh := make(chan websocket.StatusCode, 1)
 		fConn := &fakePingCloser{
 			pingFn: func(context.Context) error {
 				t.Log("ping")
 				close(pingCh)
-				return context.DeadlineExceeded // Determinism tradeoff.
+				// Determinism tradeoff: by returning DeadlineExceeded directly
+				// we lose coverage of the WithTimeout path in probe().
+				return context.DeadlineExceeded
 			},
-			closeFn: func(websocket.StatusCode, string) error {
+			closeFn: func(code websocket.StatusCode, _ string) error {
+				closeCodeCh <- code
 				return nil
 			},
 		}
@@ -268,7 +277,7 @@ func TestWSWatcher(t *testing.T) {
 		trap.MustWait(ctx).MustRelease(ctx)
 		mClock.Advance(time.Second).MustWait(ctx)
 
-		<-pingCh // Ensure one ping attempt
+		_, _ = testutil.SoftTryReceive(ctx, t, pingCh)
 
 		select {
 		case <-watchCtx.Done():
@@ -278,6 +287,9 @@ func TestWSWatcher(t *testing.T) {
 
 		gotRes := testutil.RequireReceive(ctx, t, rec.C)
 		assert.Equal(t, ProbeTimeout, gotRes, "expected ProbeTimeout result")
+		gotCode := testutil.RequireReceive(ctx, t, closeCodeCh)
+		assert.Equal(t, websocket.StatusGoingAway, gotCode, "expected StatusGoingAway code")
+
 		// Timeout is an expected condition, should be Debug not Error.
 		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
 		assert.Empty(t, errorEntries,
@@ -322,7 +334,6 @@ func TestWSWatcher(t *testing.T) {
 		gotRes := testutil.RequireReceive(ctx, t, rec.C)
 		assert.Equal(t, ProbeError, gotRes, "expected ProbeError result")
 
-		// Connection should be closed with StatusGoingAway.
 		gotCode := testutil.RequireReceive(ctx, t, closeCodeCh)
 		assert.Equal(t, websocket.StatusGoingAway, gotCode)
 
