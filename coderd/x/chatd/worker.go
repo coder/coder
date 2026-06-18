@@ -15,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 )
 
+// waitIdlePollInterval is intentionally short because WaitIdle is used by
+// test hooks that block callers until runner cleanup has completed.
+const waitIdlePollInterval = 10 * time.Millisecond
+
 // chatWorker owns chat acquisition and runner lifecycle for one process.
 type chatWorker struct {
 	server *Server
@@ -46,15 +50,15 @@ func (w *chatWorker) chatWorkerID() uuid.UUID {
 }
 
 // Start starts the acquisition and runner manager loops.
-func (w *chatWorker) Start(ctx context.Context) error {
+func (w *chatWorker) Start(parentCtx context.Context) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.started {
 		return xerrors.New("chatworker: worker already started")
 	}
 	workerID := w.opts.WorkerID
-	workerCtx, cancel := context.WithCancel(ctx)
-	manager := newRunnerManager(workerCtx, w.server, w.opts)
+	ctx, cancel := context.WithCancel(parentCtx)
+	manager := newRunnerManager(ctx, w.server, w.opts)
 	if manager.opts.TaskStarter == nil {
 		starter, err := newTaskStarter(manager.server, manager.opts, manager.RouteStateHint, manager.requestCleanup)
 		if err != nil {
@@ -81,7 +85,7 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	}
 
 	w.started = true
-	w.ctx = workerCtx
+	w.ctx = ctx
 	w.cancel = cancel
 	w.manager = manager
 	w.unsubscribe = unsubscribe
@@ -89,10 +93,10 @@ func (w *chatWorker) Start(ctx context.Context) error {
 
 	manager.start()
 	w.wg.Go(func() {
-		w.acquisitionLoop(workerCtx, workerID, manager, wakeCh)
+		w.acquisitionLoop(ctx, workerID, manager, wakeCh)
 	})
 	w.wg.Go(func() {
-		w.archiveLoop(workerCtx)
+		w.archiveLoop(ctx)
 	})
 	wake(wakeCh)
 	return nil
@@ -117,7 +121,7 @@ func (w *chatWorker) WaitIdle(ctx context.Context) error {
 		if manager == nil || manager.idle() {
 			return nil
 		}
-		timer := w.opts.Clock.NewTimer(10*time.Millisecond, "chatworker", "wait-idle")
+		timer := w.opts.Clock.NewTimer(waitIdlePollInterval, "chatworker", "wait-idle")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
