@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
@@ -10,6 +11,7 @@ type TemplateConfigurationProps = {
 	iconUrl?: string;
 	detailsUrl?: string;
 	fields?: ConfigurationFieldDefinition[];
+	children?: ReactNode;
 };
 
 export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
@@ -18,6 +20,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	iconUrl,
 	detailsUrl,
 	fields,
+	children,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -59,6 +62,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					))}
 				</div>
 			)}
+			{children}
 		</section>
 	);
 };
