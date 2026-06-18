@@ -3586,6 +3586,49 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetTemplateRankingSignalsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateRankingSignalsByOwnerIDParams{
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			TemplateIDs:    []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetAuthorizedTemplates(gomock.Any(), database.GetTemplatesWithFilterParams{
+			Deleted:        false,
+			OrganizationID: arg.OrganizationID,
+			IDs:            arg.TemplateIDs,
+		}, gomock.Any()).Return([]database.Template{{ID: arg.TemplateIDs[0]}}, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateRankingSignalsByOwnerID(gomock.Any(), arg).Return([]database.GetTemplateRankingSignalsByOwnerIDRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead)
+	}))
+	s.Run("GetTemplateRankingSignalsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.GetTemplateRankingSignalsByOwnerIDParams{
+			OwnerID:     uuid.New(),
+			TemplateIDs: []uuid.UUID{uuid.New()},
+		}
+		dbm.EXPECT().GetAuthorizedTemplates(gomock.Any(), database.GetTemplatesWithFilterParams{
+			Deleted: false,
+			IDs:     arg.TemplateIDs,
+		}, gomock.Any()).Return([]database.Template{{ID: arg.TemplateIDs[0]}}, nil).AnyTimes()
+		dbm.EXPECT().GetTemplateRankingSignalsByOwnerID(gomock.Any(), arg).Return([]database.GetTemplateRankingSignalsByOwnerIDRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).AnyOrganization(), policy.ActionRead)
+	}))
+	s.Run("GetTemplateRankingSignalsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		// Deny path: an unauthorized template ID rejects the call before the
+		// query runs (no query expectation is registered).
+		arg := database.GetTemplateRankingSignalsByOwnerIDParams{
+			OwnerID:        uuid.New(),
+			OrganizationID: uuid.New(),
+			TemplateIDs:    []uuid.UUID{uuid.New(), uuid.New()},
+		}
+		dbm.EXPECT().GetAuthorizedTemplates(gomock.Any(), database.GetTemplatesWithFilterParams{
+			Deleted:        false,
+			OrganizationID: arg.OrganizationID,
+			IDs:            arg.TemplateIDs,
+		}, gomock.Any()).Return([]database.Template{{ID: arg.TemplateIDs[0]}}, nil).AnyTimes()
+		check.Args(arg).
+			Asserts(rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), policy.ActionRead).
+			Errors(dbauthz.NotAuthorizedError{Err: xerrors.Errorf("not authorized to read template %s", arg.TemplateIDs[1])})
+	}))
 	s.Run("GetWorkspaceACLByID", s.Mocked(func(dbM *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		ws := testutil.Fake(s.T(), faker, database.Workspace{})
 		dbM.EXPECT().GetWorkspaceByID(gomock.Any(), ws.ID).Return(ws, nil).AnyTimes()

@@ -2978,6 +2978,14 @@ func (m queryMetricsStore) GetTemplatePresetsWithPrebuilds(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg database.GetTemplateRankingSignalsByOwnerIDParams) ([]database.GetTemplateRankingSignalsByOwnerIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTemplateRankingSignalsByOwnerID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetTemplateRankingSignalsByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetTemplateRankingSignalsByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateUsageStats(ctx, arg)
