@@ -1673,6 +1673,36 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.get<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+
+		return response.data;
+	};
+
+	upsertUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+		data: TypesGen.UpsertUserAIBudgetOverrideRequest,
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.put<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			data,
+		);
+
+		return response.data;
+	};
+
+	deleteUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+	};
+
 	activateUser = async (
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.User> => {

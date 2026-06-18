@@ -39,9 +39,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { isEveryoneGroup } from "#/modules/groups";
 import { cn } from "#/utils/cn";
 import type { GroupPageOutletContext } from "./GroupPage";
+import { UserAIBudgetOverrideDialog } from "./UserAIBudgetOverrideDialog";
 
 const GroupMembersPage: FC = () => {
 	const {
@@ -58,6 +61,14 @@ const GroupMembersPage: FC = () => {
 		removeMember(queryClient, organization),
 	);
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
+	const [budgetUser, setBudgetUser] = useState<ReducedUser | null>(null);
+
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
 
 	return (
 		<div className="flex flex-col w-full gap-1 pb-8">
@@ -78,7 +89,7 @@ const GroupMembersPage: FC = () => {
 			</div>
 
 			<PaginationContainer query={membersQuery} paginationUnitLabel="members">
-				<Table>
+				<Table aria-label="Group members">
 					<TableHeader>
 						<TableRow>
 							<TableHead className="w-2/5">User</TableHead>
@@ -101,6 +112,8 @@ const GroupMembersPage: FC = () => {
 									group={groupData}
 									key={member.id}
 									canUpdate={canUpdateGroup}
+									aiBudgetVisible={aibridgeVisible}
+									onManageAIBudget={() => setBudgetUser(member)}
 									onRemove={async () => {
 										const mutation = removeMemberMutation.mutateAsync({
 											groupId: groupData.id,
@@ -121,6 +134,19 @@ const GroupMembersPage: FC = () => {
 					</TableBody>
 				</Table>
 			</PaginationContainer>
+
+			{aibridgeVisible && budgetUser && (
+				<UserAIBudgetOverrideDialog
+					open
+					onOpenChange={(open) => {
+						if (!open) {
+							setBudgetUser(null);
+						}
+					}}
+					user={budgetUser}
+					currentGroup={groupData}
+				/>
+			)}
 		</div>
 	);
 };
@@ -221,6 +247,8 @@ interface GroupMemberRowProps {
 	member: ReducedUser;
 	group: Group;
 	canUpdate: boolean;
+	aiBudgetVisible: boolean;
+	onManageAIBudget: () => void;
 	onRemove: () => void;
 }
 
@@ -228,6 +256,8 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,
+	aiBudgetVisible,
+	onManageAIBudget,
 	onRemove,
 }) => {
 	return (
@@ -258,7 +288,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<LastSeen at={member.last_seen_at} className="text-xs" />
 			</TableCell>
 			<TableCell width="1%">
-				{canUpdate && (
+				{(aiBudgetVisible || canUpdate) && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
@@ -267,13 +297,20 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem
-								className="text-content-destructive focus:text-content-destructive"
-								onClick={onRemove}
-								disabled={group.id === group.organization_id}
-							>
-								Remove
-							</DropdownMenuItem>
+							{aiBudgetVisible && (
+								<DropdownMenuItem onClick={onManageAIBudget}>
+									AI Budget
+								</DropdownMenuItem>
+							)}
+							{canUpdate && (
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onRemove}
+									disabled={group.id === group.organization_id}
+								>
+									Remove
+								</DropdownMenuItem>
+							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}

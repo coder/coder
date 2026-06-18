@@ -133,9 +133,15 @@ function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	return userIdMapper as GroupsByUserId;
 }
 
+export const getGroupsForUserQueryKey = (userId: string) => [
+	...groupsQueryKey,
+	"user",
+	userId,
+];
+
 export function groupsForUser(userId: string) {
 	return {
-		queryKey: groupsQueryKey,
+		queryKey: getGroupsForUserQueryKey(userId),
 		queryFn: () => API.getGroups({ userId }),
 	} as const satisfies UseQueryOptions<Group[]>;
 }
