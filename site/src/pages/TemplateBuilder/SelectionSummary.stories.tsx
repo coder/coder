@@ -97,6 +97,23 @@ export const WithModules: Story = {
 	},
 };
 
+export const WithLongNameModule: Story = {
+	args: {
+		currentStep: 2,
+		selectedTemplate: {
+			name: "Docker Containers",
+			iconUrl: "/icon/docker.svg",
+		},
+		selectedModules: [
+			{
+				id: "git-commit-signing",
+				name: "A module with a name long enough to cause the text inside the ModuleSelection component to wrap to the next line, showing that the icon on the left remains top-aligned with the first line of the module name",
+				iconUrl: "/icon/git.svg",
+			},
+		],
+	},
+};
+
 export const ManyModules: Story = {
 	args: {
 		currentStep: 2,
