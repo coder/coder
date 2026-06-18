@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"sync"
 	"time"
 
@@ -178,7 +179,15 @@ func (m *runnerManager) RouteStateHint(ctx context.Context, state runnerStateUpd
 		case <-m.ctx.Done():
 			return
 		default:
-			// stateCh is full; drop the hint for this runner.
+			// Each hint carries a snapshot version, and runners discard stale
+			// snapshots after reading them. If this channel is full, preserve
+			// the buffered older hints instead of evicting the head. Dropping
+			// the newest hint can delay processing, but it does not lose
+			// correctness because pubsub or database sync will provide a later
+			// snapshot, and runner-owned tasks verify durable state before
+			// committing. The default buffer of 64 absorbs ordinary bursts. A
+			// full channel means the runner is already behind, so blocking here
+			// would spread backpressure to pubsub and worker maintenance loops.
 		}
 	}
 }
@@ -289,18 +298,12 @@ func (m *runnerManager) handleCleanupRequest(key runnerKey) {
 func (m *runnerManager) registerCleanupWaiter(key runnerKey, rec *runnerRecord) {
 	m.wg.Go(func() {
 		<-rec.done
-		if m.ctx.Err() != nil {
-			m.mu.Lock()
-			delete(m.cleaning, key)
-			m.mu.Unlock()
-			return
-		}
 		select {
 		case m.cleanupDoneCh <- key:
 		case <-m.ctx.Done():
-			m.mu.Lock()
-			delete(m.cleaning, key)
-			m.mu.Unlock()
+			// During shutdown the manager is being discarded. Avoid touching
+			// m.cleaning here so callers waiting on m.wg do not depend on this
+			// goroutine acquiring m.mu before it can exit.
 		}
 	})
 }
@@ -409,7 +412,7 @@ func (m *runnerManager) databaseSyncLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.syncOnce(m.ctx); err != nil {
+			if err := m.syncOnce(m.ctx); shouldLogRunnerManagerLoopError(m.ctx, err) {
 				m.opts.Logger.Warn(m.ctx, "chatworker runner sync failed", slogError(err))
 			}
 		case <-m.ctx.Done():
@@ -454,7 +457,7 @@ func (m *runnerManager) heartbeatLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			if err := m.heartbeatOnce(m.ctx); err != nil {
+			if err := m.heartbeatOnce(m.ctx); shouldLogRunnerManagerLoopError(m.ctx, err) {
 				m.opts.Logger.Warn(m.ctx, "chatworker heartbeat failed", slogError(err))
 			}
 		case <-m.ctx.Done():
@@ -498,6 +501,16 @@ func (m *runnerManager) heartbeatCleanupLoop() {
 func (m *runnerManager) heartbeatCleanupOnce(ctx context.Context) error {
 	_, err := m.opts.Store.DeleteStaleChatHeartbeats(ctx, m.opts.HeartbeatStaleSeconds)
 	return err
+}
+
+func shouldLogRunnerManagerLoopError(ctx context.Context, err error) bool {
+	if err == nil {
+		return false
+	}
+	if ctx.Err() != nil {
+		return false
+	}
+	return !errors.Is(err, context.Canceled)
 }
 
 func stateUpdateFromChat(chat database.Chat) runnerStateUpdate {

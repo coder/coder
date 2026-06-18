@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
@@ -47,6 +49,8 @@ type runner struct {
 	rec  *runnerRecord
 	opts chatWorkerOptions
 
+	runStarted atomic.Bool
+
 	lastSnapshotVersion int64
 	hasAcceptedState    bool
 	latestState         runnerStateUpdate
@@ -73,6 +77,9 @@ func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts 
 }
 
 func (r *runner) run() {
+	if !r.beginRun() {
+		return
+	}
 	if !r.bootstrap() {
 		return
 	}
@@ -87,6 +94,18 @@ func (r *runner) run() {
 			return
 		}
 	}
+}
+
+func (r *runner) beginRun() bool {
+	if r.runStarted.CompareAndSwap(false, true) {
+		return true
+	}
+	r.opts.Logger.Error(r.ctx, "chatworker runner run called more than once",
+		slog.F("chat_id", r.rec.key.ChatID),
+		slog.F("runner_id", r.rec.key.RunnerID),
+	)
+	r.mgr.requestCleanup(r.ctx, r.rec.key)
+	return false
 }
 
 func (r *runner) bootstrap() bool {

@@ -1,5 +1,7 @@
 # Deferred Review Threads from PR #26109
 
+<!-- markdownlint-disable MD029 -->
+
 Source: https://github.com/coder/coder/pull/26109
 
 This file lists every review comment thread that hugodutka marked as deferred. It serves as a template for a plan to address these issues. Each entry describes what the thread was about, with a link to the original discussion.
@@ -74,17 +76,17 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 
 ### coderd/x/chatd/runner.go
 
-26. **Multiple calls should be an error state** (line 77) https://github.com/coder/coder/pull/26109#discussion_r3387720344 Allowing multiple calls feels like it should be an error state instead.
+26. [DONE] **Multiple calls should be an error state** (line 77) https://github.com/coder/coder/pull/26109#discussion_r3387720344 Allowing multiple calls feels like it should be an error state instead.
 
 ### coderd/x/chatd/runner_manager.go
 
-27. **Noise when ctx cancelled** (line 413) https://github.com/coder/coder/pull/26109#discussion_r3380581402 Skip logging this error when the context is cancelled.
+27. [DONE] **Noise when ctx cancelled** (line 413) https://github.com/coder/coder/pull/26109#discussion_r3380581402 Skip logging this error when the context is cancelled.
 
-28. **Potential wg.Wait/mu.Lock deadlock (concurrency)** (line 301) https://github.com/coder/coder/pull/26109#discussion_r3380592305 Caution about potential deadlocks between `m.wg.Wait` and `m.mu.Lock`. hugodutka: ensure this is corrected from a concurrency perspective.
+28. [DONE] **Potential wg.Wait/mu.Lock deadlock (concurrency)** (line 301) https://github.com/coder/coder/pull/26109#discussion_r3380592305 Caution about potential deadlocks between `m.wg.Wait` and `m.mu.Lock`. hugodutka: ensure this is corrected from a concurrency perspective.
 
-29. **Skip logging context canceled errors** (line 458) https://github.com/coder/coder/pull/26109#discussion_r3387355724 Same as thread 27, applied to another log site.
+29. [DONE] **Skip logging context canceled errors** (line 458) https://github.com/coder/coder/pull/26109#discussion_r3387355724 Same as thread 27, applied to another log site.
 
-30. **Document stateCh buffering semantics** (line 180) https://github.com/coder/coder/pull/26109#discussion_r3387788957 A target whose stateCh is full gets no state update and must process all previous states. Add comments explaining why this is fine: why a gap at the tail is preferred over the head, expectations around the default 64 buffer size, etc.
+30. [DONE] **Document stateCh buffering semantics** (line 180) https://github.com/coder/coder/pull/26109#discussion_r3387788957 A target whose stateCh is full gets no state update and must process all previous states. Add comments explaining why this is fine: why a gap at the tail is preferred over the head, expectations around the default 64 buffer size, etc.
 
 ### coderd/x/chatd/testhooks.go
 
@@ -137,11 +139,11 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 - [ ] 23. generation_preparer.go: move magic value to documented const (r3387640179)
 - [ ] 24. generation_preparer.go: reuse earlier err variable (r3387645148)
 - [ ] 25. generation_preparer.go: named err return + deferred cleanup on error (r3387675842)
-- [ ] 26. runner.go: treat multiple calls as an error state (r3387720344)
-- [ ] 27. runner_manager.go: skip logging on ctx cancellation, line 413 (r3380581402)
-- [ ] 28. runner_manager.go: fix wg.Wait/mu.Lock concurrency concern (r3380592305)
-- [ ] 29. runner_manager.go: skip logging context canceled errors, line 458 (r3387355724)
-- [ ] 30. runner_manager.go: document stateCh buffering semantics (r3387788957)
+- [x] 26. runner.go: treat multiple calls as an error state (r3387720344)
+- [x] 27. runner_manager.go: skip logging on ctx cancellation, line 413 (r3380581402)
+- [x] 28. runner_manager.go: fix wg.Wait/mu.Lock concurrency concern (r3380592305)
+- [x] 29. runner_manager.go: skip logging context canceled errors, line 458 (r3387355724)
+- [x] 30. runner_manager.go: document stateCh buffering semantics (r3387788957)
 - [ ] 31. testhooks.go: accept context.Context instead of hard-coded timeout (r3382365135)
 - [ ] 32. tasks.go: extract side-effecting deps to interface (r3382554277)
 - [ ] 33. tasks_test.go: use interface and gomock for taskStarter spy (r3382564035)
