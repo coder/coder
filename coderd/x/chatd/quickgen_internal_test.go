@@ -24,6 +24,26 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func TestNewDetachedQuickgenContext(t *testing.T) {
+	t.Parallel()
+
+	parent, cancelParent := context.WithCancelCause(t.Context())
+	ctx, cancel := newDetachedQuickgenContext(parent)
+	defer cancel()
+
+	cancelParent(context.Canceled)
+	require.NoError(t, ctx.Err())
+
+	deadline, ok := ctx.Deadline()
+	require.True(t, ok, "detached quickgen context should set a deadline")
+	require.WithinDuration(
+		t,
+		time.Now().Add(quickgenTimeout),
+		deadline,
+		2*time.Second,
+	)
+}
+
 func Test_extractManualTitleTurns(t *testing.T) {
 	t.Parallel()
 

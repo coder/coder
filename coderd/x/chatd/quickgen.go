@@ -37,6 +37,9 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 	"Sentence case. No quotes, emoji, markdown, or trailing punctuation."
 
 const (
+	// quickgenTimeout caps short-text generation and detached
+	// automatic title work.
+	quickgenTimeout = 30 * time.Second
 	// maxConversationContextRunes caps the conversation sample in manual
 	// title prompts to avoid exceeding model context windows.
 	maxConversationContextRunes = 6000
@@ -70,6 +73,10 @@ type shortTextCandidate struct {
 	model    string
 	route    resolvedModelRoute
 	lm       fantasy.LanguageModel
+}
+
+func newDetachedQuickgenContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), quickgenTimeout)
 }
 
 func (p *Server) preferredShortTextCandidates(
@@ -166,10 +173,13 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	if _, ok := titleInput(chat, messages); !ok {
 		return
 	}
-	// Detach from the request lifetime so title generation can finish
-	// even after the create response is written.
-	titleCtx := context.WithoutCancel(ctx)
 	if err := p.goInflight(func() {
+		// Detach from the request lifetime so title generation can finish
+		// even after the create response is written, while keeping an
+		// independent bound on the best-effort background work.
+		titleCtx, titleCancel := newDetachedQuickgenContext(ctx)
+		defer titleCancel()
+
 		modelOpts := modelBuildOptionsFromMessages(messages)
 		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
 		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
@@ -194,7 +204,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			p.existingDebugService(),
 		)
 	}); err != nil {
-		logger.Error(titleCtx, "failed to schedule automatic chat title generation",
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule automatic chat title generation",
 			slog.F("chat_id", chat.ID),
 			slog.F("owner_id", chat.OwnerID),
 			slog.Error(err),
@@ -229,7 +239,7 @@ func (p *Server) maybeGenerateChatTitle(
 	}
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
-	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	titleCtx, cancel := context.WithTimeout(ctx, quickgenTimeout)
 	defer cancel()
 
 	overrideConfig, overrideModel, _, overrideRoute, overrideSet, overrideErr := p.resolveTitleGenerationModelOverride(
@@ -435,11 +445,11 @@ func (p *Server) prepareQuickgenDebugCandidate(
 		return ctx, candidate.lm, finishDebugRun
 	}
 
-	// Debug instrumentation must not eat into the quickgen budget
-	// (30s titleCtx / summaryCtx on the caller). Detach and bound
-	// the insert so a slow DB can't delay title generation or push
-	// summaries, matching prepareManualTitleDebugRun,
-	// prepareChatTurnDebugRun, and startCompactionDebugRun.
+	// Debug instrumentation must not eat into the caller's
+	// quickgenTimeout budget. Detach and bound the insert so a slow
+	// DB can't delay title generation or push summaries, matching
+	// prepareManualTitleDebugRun, prepareChatTurnDebugRun, and
+	// startCompactionDebugRun.
 	createRunCtx, createRunCancel := context.WithTimeout(
 		context.WithoutCancel(ctx), debugCreateRunTimeout,
 	)
@@ -851,7 +861,7 @@ func generateManualTitle(
 		latestUserMsg,
 	)
 
-	titleCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	titleCtx, cancel := context.WithTimeout(ctx, quickgenTimeout)
 	defer cancel()
 
 	userInput := strings.TrimSpace(latestUserMsg)
@@ -904,7 +914,7 @@ func (p *Server) generateTurnStatusLabel(
 ) string {
 	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, chat.ID, chat.OwnerID)
 
-	labelCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	labelCtx, cancel := context.WithTimeout(ctx, quickgenTimeout)
 	defer cancel()
 
 	assistantText = truncateRunes(assistantText, maxConversationContextRunes)

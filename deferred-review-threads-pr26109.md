@@ -1,5 +1,7 @@
 # Deferred Review Threads from PR #26109
 
+<!-- markdownlint-disable MD029 -->
+
 Source: https://github.com/coder/coder/pull/26109
 
 This file lists every review comment thread that hugodutka marked as deferred. It serves as a template for a plan to address these issues. Each entry describes what the thread was about, with a link to the original discussion.
@@ -108,7 +110,7 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 
 ### coderd/x/chatd/quickgen.go
 
-38. **Separate timeout bound** (line 171) https://github.com/coder/coder/pull/26109#discussion_r3387365392 Question whether this operation should still be bounded by a separate timeout.
+38. [DONE] **Separate timeout bound** (line 171) https://github.com/coder/coder/pull/26109#discussion_r3387365392 Question whether this operation should still be bounded by a separate timeout.
 
 ## Todos
 
@@ -149,4 +151,4 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 - [ ] 35. tasks.go: enforce invariant in state machine, not each Update (r3387919402)
 - [ ] 36. worker.go: rename ctx to parentCtx (r3387954876)
 - [ ] 37. worker.go: replace magic number with documented const (r3387973304)
-- [ ] 38. quickgen.go: consider separate timeout bound (r3387365392)
+- [x] 38. quickgen.go: consider separate timeout bound (r3387365392)
