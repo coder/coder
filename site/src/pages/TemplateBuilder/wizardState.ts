@@ -142,6 +142,10 @@ export const toComposeRequest = (
 ): TemplateBuilderComposeRequest => {
 	return {
 		base_template_id: state.baseTemplateId ?? "",
+		base_variable_values:
+			Object.keys(state.baseVariableValues).length > 0
+				? state.baseVariableValues
+				: undefined,
 		modules: state.modules,
 	};
 };

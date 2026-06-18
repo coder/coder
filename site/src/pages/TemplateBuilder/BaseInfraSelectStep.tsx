@@ -18,7 +18,8 @@ function toSelectedBaseMeta(base: TemplateBuilderBase): SelectedBaseMeta {
 		name: base.name,
 		iconUrl: base.icon,
 		os: base.os,
-		hasParameters: false,
+		hasParameters:
+			base.variables.length > 0 && base.variables.some((v) => !v.sensitive),
 	};
 }
 
