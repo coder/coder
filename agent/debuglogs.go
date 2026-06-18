@@ -63,7 +63,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	remaining := int64(debugLogsCombinedMaxBytes)
-	remaining, err = writeAgentLogSection(w, active, activeInfo.ModTime(), false, remaining)
+	remaining, err = writeAgentLogSection(w, active, activeInfo.ModTime(), "", remaining)
 	_ = active.Close()
 	if err != nil {
 		a.logger.Error(r.Context(), "read agent log file", slog.Error(err), slog.F("path", activePath))
@@ -85,7 +85,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 			a.logger.Warn(r.Context(), "open rotated agent log file", slog.Error(err), slog.F("path", file.path))
 			continue
 		}
-		remaining, err = writeAgentLogSection(w, f, file.modTime, true, remaining)
+		remaining, err = writeAgentLogSection(w, f, file.modTime, "\n", remaining)
 		_ = f.Close()
 		if err != nil {
 			a.logger.Error(r.Context(), "read rotated agent log file", slog.Error(err), slog.F("path", file.path))
@@ -128,13 +128,10 @@ func (a *agent) writeActiveDebugLog(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// writeAgentLogSection streams f behind a header naming it, both charged to
-// the remaining byte budget, which it returns.
-func writeAgentLogSection(w io.Writer, f *os.File, modTime time.Time, leadingNewline bool, remaining int64) (int64, error) {
-	header := fmt.Sprintf("=== %s (mtime %s) ===\n", filepath.Base(f.Name()), modTime.UTC().Format(time.RFC3339))
-	if leadingNewline {
-		header = "\n" + header
-	}
+// writeAgentLogSection streams f behind separator and a header naming it, all
+// charged to the remaining byte budget, which it returns.
+func writeAgentLogSection(w io.Writer, f *os.File, modTime time.Time, separator string, remaining int64) (int64, error) {
+	header := separator + fmt.Sprintf("=== %s (mtime %s) ===\n", filepath.Base(f.Name()), modTime.UTC().Format(time.RFC3339))
 	if int64(len(header)) > remaining {
 		return 0, nil
 	}
