@@ -42,18 +42,21 @@ interface ModuleConflict {
 	moduleB: TemplateBuilderModule;
 }
 
+const ModuleName: FC<PropsWithChildren> = ({ children }) => {
+	return (
+		<code className="text-content-secondary bg-surface-tertiary mx-1 first:ml-0 px-1.5 py-1 rounded-sm">
+			{children}
+		</code>
+	);
+};
+
 const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	return (
 		<div>
-			<code className="text-content-secondary bg-surface-tertiary mr-1 px-1.5 py-1 rounded-sm">
-				{moduleA.display_name}
-			</code>{" "}
-			and{" "}
-			<code className="text-content-secondary bg-surface-tertiary mx-1 px-1.5 py-1 rounded-sm">
-				{moduleB.display_name}
-			</code>
-			are conflicting modules. You can still continue, but you need to remove
-			one of the conflicting modules before publishing the template.
+			<ModuleName>{moduleA.display_name}</ModuleName> and{" "}
+			<ModuleName>{moduleB.display_name}</ModuleName> are conflicting modules.
+			You can still continue, but you need to remove one of the conflicting
+			modules before publishing the template.
 		</div>
 	);
 };
@@ -155,7 +158,7 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 					<AlertDescription>
 						{conflicts.map(({ moduleA, moduleB }) => (
 							<ConflictWarning
-								key={moduleA.id + moduleB.id}
+								key={`${moduleA.id}+${moduleB.id}`}
 								moduleA={moduleA}
 								moduleB={moduleB}
 							/>
