@@ -47,6 +47,15 @@ var proxyHeaders = []string{
 	"Forwarded",
 }
 
+// agentFirewallHeaders carry Agent Firewall correlation data used by
+// AI Bridge for session correlation. They are stripped before
+// forwarding to upstream LLM providers as a safety net; the primary
+// strip happens in the interception processor.
+var agentFirewallHeaders = []string{
+	"X-Coder-Agent-Firewall-Session-Id",
+	"X-Coder-Agent-Firewall-Sequence-Number",
+}
+
 // PrepareClientHeaders returns a copy of the client headers with hop-by-hop,
 // transport, auth, and proxy headers removed.
 func PrepareClientHeaders(clientHeaders http.Header) http.Header {
@@ -61,6 +70,9 @@ func PrepareClientHeaders(clientHeaders http.Header) http.Header {
 		prepared.Del(h)
 	}
 	for _, h := range proxyHeaders {
+		prepared.Del(h)
+	}
+	for _, h := range agentFirewallHeaders {
 		prepared.Del(h)
 	}
 	return prepared
