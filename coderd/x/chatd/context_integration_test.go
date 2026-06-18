@@ -248,6 +248,17 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, refreshed.Context.Dirty, "refresh clears the dirty marker")
 	require.Equal(t, snapshotError, refreshed.Context.Error, "refresh re-pins the snapshot error")
 
+	// The refresh response itself must carry the freshly pinned resources
+	// (and no change set), so the client reflects the refresh without a
+	// full reload. A regression here blanks the context indicator until
+	// the page is reloaded (which re-fetches via GET).
+	refreshRespResources := resourcesBySource(refreshed.Context.Resources)
+	require.Len(t, refreshRespResources, 2, "refresh response includes the re-pinned resources")
+	require.Equal(t, codersdk.ChatContextResourceKindInstructionFile, refreshRespResources[agentsSource].Kind)
+	require.Equal(t, codersdk.ChatContextResourceKindSkill, refreshRespResources[skillSource].Kind)
+	require.Equal(t, "example", refreshRespResources[skillSource].SkillName)
+	require.Empty(t, refreshed.Context.Changes, "a freshly refreshed chat has no changes")
+
 	// Refresh re-pinned the agent's current resources (the hashB set).
 	pinned = pinnedResources(chat.ID)
 	require.Len(t, pinned, 2, "refresh re-pins the agent's current resources")
