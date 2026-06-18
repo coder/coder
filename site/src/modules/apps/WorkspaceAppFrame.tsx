@@ -2,6 +2,7 @@ import {
 	EllipsisVerticalIcon,
 	ExternalLinkIcon,
 	HouseIcon,
+	RefreshCwIcon,
 } from "lucide-react";
 import { type ComponentProps, type FC, useRef } from "react";
 import { Link as RouterLink } from "react-router";
@@ -43,8 +44,6 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 		app,
 		proxy.proxy?.preferredWildcardHostname,
 	);
-	// The "preview" app renders a navigation toolbar above its iframe.
-	const showToolbar = app.slug === "preview";
 
 	if (shouldDisplayWildcardWarning) {
 		return (
@@ -56,42 +55,52 @@ export const WorkspaceAppFrame: FC<WorkspaceAppFrameProps> = ({
 
 	return (
 		<div className={cn([active ? "flex" : "hidden", "w-full h-full flex-col"])}>
-			{showToolbar && (
-				<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
-					<Button
-						size="icon"
-						variant="subtle"
-						onClick={(e) => {
-							e.preventDefault();
-							if (frameRef.current?.contentWindow) {
-								frameRef.current.contentWindow.location.href = link.href;
-							}
-						}}
-					>
-						<HouseIcon />
-						<span className="sr-only">Home</span>
-					</Button>
+			<div className="bg-surface-tertiary flex items-center p-2 py-1 gap-1">
+				<Button
+					size="icon"
+					variant="subtle"
+					onClick={(e) => {
+						e.preventDefault();
+						if (frameRef.current?.contentWindow) {
+							frameRef.current.contentWindow.location.href = link.href;
+						}
+					}}
+				>
+					<HouseIcon />
+					<span className="sr-only">Home</span>
+				</Button>
 
-					<div className="w-full" />
+				<Button
+					size="icon"
+					variant="subtle"
+					onClick={(e) => {
+						e.preventDefault();
+						frameRef.current?.contentWindow?.location.reload();
+					}}
+				>
+					<RefreshCwIcon />
+					<span className="sr-only">Refresh</span>
+				</Button>
 
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon" variant="subtle" aria-label="More options">
-								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">More options</span>
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem asChild>
-								<RouterLink to={link.href} target="_blank" rel="noreferrer">
-									<ExternalLinkIcon />
-									Open app in new tab
-								</RouterLink>
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
-			)}
+				<div className="w-full" />
+
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button size="icon" variant="subtle" aria-label="More options">
+							<EllipsisVerticalIcon aria-hidden="true" />
+							<span className="sr-only">More options</span>
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem asChild>
+							<RouterLink to={link.href} target="_blank" rel="noreferrer">
+								<ExternalLinkIcon />
+								Open app in new tab
+							</RouterLink>
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			</div>
 
 			{app.health === "healthy" || app.health === "disabled" ? (
 				<WorkspaceIframe ref={frameRef} src={link.href} title={link.label} />
