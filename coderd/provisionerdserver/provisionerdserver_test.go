@@ -321,7 +321,7 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			var once sync.Once
 			srv, srvDB, _, _ := setup(t, false, &overrides{
 				keyID:                      keyID,
-				acquireJobLongPollDuration: time.Microsecond,
+				acquireJobLongPollDuration: testutil.IntervalFast,
 				sessionCancel:              func() { once.Do(func() { close(sessionCanceled) }) },
 			})
 
@@ -350,7 +350,7 @@ func TestAcquireJob_ReservedProvisionerKey(t *testing.T) {
 	//nolint:dogsled
 	srv, _, _, _ := setup(t, false, &overrides{
 		keyID:                      codersdk.ProvisionerKeyUUIDPSK,
-		acquireJobLongPollDuration: time.Microsecond,
+		acquireJobLongPollDuration: testutil.IntervalFast,
 	})
 	job, err := srv.AcquireJob(ctx, nil)
 	require.NoError(t, err)
