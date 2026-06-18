@@ -1216,7 +1216,7 @@ func (q *sqlQuerier) GetAIBridgeInterceptions(ctx context.Context) ([]AIBridgeIn
 
 const getAIBridgeTokenUsagesByInterceptionID = `-- name: GetAIBridgeTokenUsagesByInterceptionID :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
 FROM
 	aibridge_token_usages WHERE interception_id = $1::uuid
 ORDER BY
@@ -1243,6 +1243,12 @@ func (q *sqlQuerier) GetAIBridgeTokenUsagesByInterceptionID(ctx context.Context,
 			&i.CreatedAt,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.EffectiveGroupID,
+			&i.InputPriceMicros,
+			&i.OutputPriceMicros,
+			&i.CacheReadPriceMicros,
+			&i.CacheWritePriceMicros,
+			&i.CostMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -1452,11 +1458,13 @@ func (q *sqlQuerier) InsertAIBridgeModelThought(ctx context.Context, arg InsertA
 
 const insertAIBridgeTokenUsage = `-- name: InsertAIBridgeTokenUsage :one
 INSERT INTO aibridge_token_usages (
-  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at
+  id, interception_id, provider_response_id, input_tokens, output_tokens, cache_read_input_tokens, cache_write_input_tokens, metadata, created_at,
+  effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
 ) VALUES (
-  $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9
+  $1, $2, $3, $4, $5, $6, $7, COALESCE($8::jsonb, '{}'::jsonb), $9,
+  $10, $11, $12, $13, $14, $15
 )
-RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
+RETURNING id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
 `
 
 type InsertAIBridgeTokenUsageParams struct {
@@ -1469,6 +1477,12 @@ type InsertAIBridgeTokenUsageParams struct {
 	CacheWriteInputTokens int64           `db:"cache_write_input_tokens" json:"cache_write_input_tokens"`
 	Metadata              json.RawMessage `db:"metadata" json:"metadata"`
 	CreatedAt             time.Time       `db:"created_at" json:"created_at"`
+	EffectiveGroupID      uuid.NullUUID   `db:"effective_group_id" json:"effective_group_id"`
+	InputPriceMicros      sql.NullInt64   `db:"input_price_micros" json:"input_price_micros"`
+	OutputPriceMicros     sql.NullInt64   `db:"output_price_micros" json:"output_price_micros"`
+	CacheReadPriceMicros  sql.NullInt64   `db:"cache_read_price_micros" json:"cache_read_price_micros"`
+	CacheWritePriceMicros sql.NullInt64   `db:"cache_write_price_micros" json:"cache_write_price_micros"`
+	CostMicros            sql.NullInt64   `db:"cost_micros" json:"cost_micros"`
 }
 
 func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error) {
@@ -1482,6 +1496,12 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		arg.CacheWriteInputTokens,
 		arg.Metadata,
 		arg.CreatedAt,
+		arg.EffectiveGroupID,
+		arg.InputPriceMicros,
+		arg.OutputPriceMicros,
+		arg.CacheReadPriceMicros,
+		arg.CacheWritePriceMicros,
+		arg.CostMicros,
 	)
 	var i AIBridgeTokenUsage
 	err := row.Scan(
@@ -1494,6 +1514,12 @@ func (q *sqlQuerier) InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIB
 		&i.CreatedAt,
 		&i.CacheReadInputTokens,
 		&i.CacheWriteInputTokens,
+		&i.EffectiveGroupID,
+		&i.InputPriceMicros,
+		&i.OutputPriceMicros,
+		&i.CacheReadPriceMicros,
+		&i.CacheWritePriceMicros,
+		&i.CostMicros,
 	)
 	return i, err
 }
@@ -2162,7 +2188,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 
 const listAIBridgeTokenUsagesByInterceptionIDs = `-- name: ListAIBridgeTokenUsagesByInterceptionIDs :many
 SELECT
-	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens
+	id, interception_id, provider_response_id, input_tokens, output_tokens, metadata, created_at, cache_read_input_tokens, cache_write_input_tokens, effective_group_id, input_price_micros, output_price_micros, cache_read_price_micros, cache_write_price_micros, cost_micros
 FROM
 	aibridge_token_usages
 WHERE
@@ -2191,6 +2217,12 @@ func (q *sqlQuerier) ListAIBridgeTokenUsagesByInterceptionIDs(ctx context.Contex
 			&i.CreatedAt,
 			&i.CacheReadInputTokens,
 			&i.CacheWriteInputTokens,
+			&i.EffectiveGroupID,
+			&i.InputPriceMicros,
+			&i.OutputPriceMicros,
+			&i.CacheReadPriceMicros,
+			&i.CacheWritePriceMicros,
+			&i.CostMicros,
 		); err != nil {
 			return nil, err
 		}
@@ -4955,473 +4987,6 @@ func (q *sqlQuerier) InsertChatFile(ctx context.Context, arg InsertChatFileParam
 	return i, err
 }
 
-const getPRInsightsPerModel = `-- name: GetPRInsightsPerModel :many
-WITH pr_costs AS (
-    SELECT
-        prc.pr_key,
-        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
-    FROM (
-        SELECT DISTINCT
-            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-            related.id AS chat_id
-        FROM chat_diff_statuses cds
-        JOIN chats c ON c.id = cds.chat_id
-        JOIN chats related
-          ON related.id = c.id
-          OR (related.parent_chat_id = c.id
-              AND NOT EXISTS (
-                  SELECT 1 FROM chat_diff_statuses cds2
-                  WHERE cds2.chat_id = related.id
-                    AND cds2.pull_request_state IS NOT NULL
-              ))
-        WHERE cds.pull_request_state IS NOT NULL
-          AND c.created_at >= $1::timestamptz
-          AND c.created_at < $2::timestamptz
-          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ) prc
-    LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
-    ) cc ON TRUE
-    GROUP BY prc.pr_key
-),
-deduped AS (
-    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
-        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-        cds.pull_request_state,
-        cds.additions,
-        cds.deletions,
-        cmc.id AS model_config_id,
-        cmc.display_name,
-        cmc.model,
-        cmc.provider
-    FROM chat_diff_statuses cds
-    JOIN chats c ON c.id = cds.chat_id
-    LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
-    WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $1::timestamptz
-      AND c.created_at < $2::timestamptz
-      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
-)
-SELECT
-    d.model_config_id,
-    COALESCE(NULLIF(d.display_name, ''), NULLIF(d.model, ''), 'Unknown')::text AS display_name,
-    COALESCE(d.provider, 'unknown')::text AS provider,
-    COUNT(*)::bigint AS total_prs,
-    COUNT(*) FILTER (WHERE d.pull_request_state = 'merged')::bigint AS merged_prs,
-    COALESCE(SUM(d.additions), 0)::bigint AS total_additions,
-    COALESCE(SUM(d.deletions), 0)::bigint AS total_deletions,
-    COALESCE(SUM(pc.cost_micros), 0)::bigint AS total_cost_micros,
-    COALESCE(SUM(pc.cost_micros) FILTER (WHERE d.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
-FROM deduped d
-JOIN pr_costs pc ON pc.pr_key = d.pr_key
-GROUP BY d.model_config_id, d.display_name, d.model, d.provider
-ORDER BY total_prs DESC
-`
-
-type GetPRInsightsPerModelParams struct {
-	StartDate time.Time     `db:"start_date" json:"start_date"`
-	EndDate   time.Time     `db:"end_date" json:"end_date"`
-	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
-}
-
-type GetPRInsightsPerModelRow struct {
-	ModelConfigID    uuid.NullUUID `db:"model_config_id" json:"model_config_id"`
-	DisplayName      string        `db:"display_name" json:"display_name"`
-	Provider         string        `db:"provider" json:"provider"`
-	TotalPrs         int64         `db:"total_prs" json:"total_prs"`
-	MergedPrs        int64         `db:"merged_prs" json:"merged_prs"`
-	TotalAdditions   int64         `db:"total_additions" json:"total_additions"`
-	TotalDeletions   int64         `db:"total_deletions" json:"total_deletions"`
-	TotalCostMicros  int64         `db:"total_cost_micros" json:"total_cost_micros"`
-	MergedCostMicros int64         `db:"merged_cost_micros" json:"merged_cost_micros"`
-}
-
-// Returns PR metrics grouped by the model used for each chat.
-// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
-// direct children (that lack their own PR), and deduped picks one row
-// per PR for state/additions/deletions/model (model comes from the
-// most recent chat).
-func (q *sqlQuerier) GetPRInsightsPerModel(ctx context.Context, arg GetPRInsightsPerModelParams) ([]GetPRInsightsPerModelRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPRInsightsPerModel, arg.StartDate, arg.EndDate, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPRInsightsPerModelRow
-	for rows.Next() {
-		var i GetPRInsightsPerModelRow
-		if err := rows.Scan(
-			&i.ModelConfigID,
-			&i.DisplayName,
-			&i.Provider,
-			&i.TotalPrs,
-			&i.MergedPrs,
-			&i.TotalAdditions,
-			&i.TotalDeletions,
-			&i.TotalCostMicros,
-			&i.MergedCostMicros,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPRInsightsPullRequests = `-- name: GetPRInsightsPullRequests :many
-WITH pr_costs AS (
-    SELECT
-        prc.pr_key,
-        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
-    FROM (
-        SELECT DISTINCT
-            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-            related.id AS chat_id
-        FROM chat_diff_statuses cds
-        JOIN chats c ON c.id = cds.chat_id
-        JOIN chats related
-          ON related.id = c.id
-          OR (related.parent_chat_id = c.id
-              AND NOT EXISTS (
-                  SELECT 1 FROM chat_diff_statuses cds2
-                  WHERE cds2.chat_id = related.id
-                    AND cds2.pull_request_state IS NOT NULL
-              ))
-        WHERE cds.pull_request_state IS NOT NULL
-          AND c.created_at >= $1::timestamptz
-          AND c.created_at < $2::timestamptz
-          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ) prc
-    LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
-    ) cc ON TRUE
-    GROUP BY prc.pr_key
-),
-deduped AS (
-    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
-        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-        c.id AS chat_id,
-        cds.pull_request_title AS pr_title,
-        cds.url AS pr_url,
-        cds.pr_number,
-        cds.pull_request_state AS state,
-        cds.pull_request_draft AS draft,
-        cds.additions,
-        cds.deletions,
-        cds.changed_files,
-        cds.commits,
-        cds.approved,
-        cds.changes_requested,
-        cds.reviewer_count,
-        cds.author_login,
-        cds.author_avatar_url,
-        COALESCE(cds.base_branch, '')::text AS base_branch,
-        COALESCE(NULLIF(cmc.display_name, ''), NULLIF(cmc.model, ''), 'Unknown')::text AS model_display_name,
-        c.created_at
-    FROM chat_diff_statuses cds
-    JOIN chats c ON c.id = cds.chat_id
-    LEFT JOIN chat_model_configs cmc ON cmc.id = c.last_model_config_id
-    WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $1::timestamptz
-      AND c.created_at < $2::timestamptz
-      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
-)
-SELECT chat_id, pr_title, pr_url, pr_number, state, draft, additions, deletions, changed_files, commits, approved, changes_requested, reviewer_count, author_login, author_avatar_url, base_branch, model_display_name, cost_micros, created_at FROM (
-    SELECT
-        d.chat_id,
-        d.pr_title,
-        d.pr_url,
-        d.pr_number,
-        d.state,
-        d.draft,
-        d.additions,
-        d.deletions,
-        d.changed_files,
-        d.commits,
-        d.approved,
-        d.changes_requested,
-        d.reviewer_count,
-        d.author_login,
-        d.author_avatar_url,
-        d.base_branch,
-        d.model_display_name,
-        COALESCE(pc.cost_micros, 0)::bigint AS cost_micros,
-        d.created_at
-    FROM deduped d
-    JOIN pr_costs pc ON pc.pr_key = d.pr_key
-) sub
-ORDER BY sub.created_at DESC
-LIMIT 500
-`
-
-type GetPRInsightsPullRequestsParams struct {
-	StartDate time.Time     `db:"start_date" json:"start_date"`
-	EndDate   time.Time     `db:"end_date" json:"end_date"`
-	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
-}
-
-type GetPRInsightsPullRequestsRow struct {
-	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
-	PrTitle          string         `db:"pr_title" json:"pr_title"`
-	PrUrl            sql.NullString `db:"pr_url" json:"pr_url"`
-	PrNumber         sql.NullInt32  `db:"pr_number" json:"pr_number"`
-	State            sql.NullString `db:"state" json:"state"`
-	Draft            bool           `db:"draft" json:"draft"`
-	Additions        int32          `db:"additions" json:"additions"`
-	Deletions        int32          `db:"deletions" json:"deletions"`
-	ChangedFiles     int32          `db:"changed_files" json:"changed_files"`
-	Commits          sql.NullInt32  `db:"commits" json:"commits"`
-	Approved         sql.NullBool   `db:"approved" json:"approved"`
-	ChangesRequested bool           `db:"changes_requested" json:"changes_requested"`
-	ReviewerCount    sql.NullInt32  `db:"reviewer_count" json:"reviewer_count"`
-	AuthorLogin      sql.NullString `db:"author_login" json:"author_login"`
-	AuthorAvatarUrl  sql.NullString `db:"author_avatar_url" json:"author_avatar_url"`
-	BaseBranch       string         `db:"base_branch" json:"base_branch"`
-	ModelDisplayName string         `db:"model_display_name" json:"model_display_name"`
-	CostMicros       int64          `db:"cost_micros" json:"cost_micros"`
-	CreatedAt        time.Time      `db:"created_at" json:"created_at"`
-}
-
-// Returns all individual PR rows with cost for the selected time range.
-// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
-// direct children (that lack their own PR), and deduped picks one row
-// per PR for metadata. A safety-cap LIMIT guards against unexpectedly
-// large result sets from direct API callers.
-func (q *sqlQuerier) GetPRInsightsPullRequests(ctx context.Context, arg GetPRInsightsPullRequestsParams) ([]GetPRInsightsPullRequestsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPRInsightsPullRequests, arg.StartDate, arg.EndDate, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPRInsightsPullRequestsRow
-	for rows.Next() {
-		var i GetPRInsightsPullRequestsRow
-		if err := rows.Scan(
-			&i.ChatID,
-			&i.PrTitle,
-			&i.PrUrl,
-			&i.PrNumber,
-			&i.State,
-			&i.Draft,
-			&i.Additions,
-			&i.Deletions,
-			&i.ChangedFiles,
-			&i.Commits,
-			&i.Approved,
-			&i.ChangesRequested,
-			&i.ReviewerCount,
-			&i.AuthorLogin,
-			&i.AuthorAvatarUrl,
-			&i.BaseBranch,
-			&i.ModelDisplayName,
-			&i.CostMicros,
-			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPRInsightsSummary = `-- name: GetPRInsightsSummary :one
-
-WITH pr_costs AS (
-    SELECT
-        prc.pr_key,
-        COALESCE(SUM(cc.cost_micros), 0) AS cost_micros
-    FROM (
-        -- For each PR, include the chat that references it plus any
-        -- direct children (subagents) that do not have their own PR.
-        SELECT DISTINCT
-            COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-            related.id AS chat_id
-        FROM chat_diff_statuses cds
-        JOIN chats c ON c.id = cds.chat_id
-        JOIN chats related
-          ON related.id = c.id
-          OR (related.parent_chat_id = c.id
-              AND NOT EXISTS (
-                  SELECT 1 FROM chat_diff_statuses cds2
-                  WHERE cds2.chat_id = related.id
-                    AND cds2.pull_request_state IS NOT NULL
-              ))
-        WHERE cds.pull_request_state IS NOT NULL
-          AND c.created_at >= $1::timestamptz
-          AND c.created_at < $2::timestamptz
-          AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ) prc
-    LEFT JOIN LATERAL (
-        SELECT COALESCE(SUM(cm.total_cost_micros), 0) AS cost_micros
-        FROM chat_messages cm
-        WHERE cm.chat_id = prc.chat_id
-          AND cm.total_cost_micros IS NOT NULL
-    ) cc ON TRUE
-    GROUP BY prc.pr_key
-),
-deduped AS (
-    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
-        COALESCE(NULLIF(cds.url, ''), c.id::text) AS pr_key,
-        cds.pull_request_state,
-        cds.additions,
-        cds.deletions
-    FROM chat_diff_statuses cds
-    JOIN chats c ON c.id = cds.chat_id
-    WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $1::timestamptz
-      AND c.created_at < $2::timestamptz
-      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
-)
-SELECT
-    COUNT(*)::bigint AS total_prs_created,
-    COUNT(*) FILTER (WHERE d.pull_request_state = 'merged')::bigint AS total_prs_merged,
-    COUNT(*) FILTER (WHERE d.pull_request_state = 'closed')::bigint AS total_prs_closed,
-    COALESCE(SUM(d.additions), 0)::bigint AS total_additions,
-    COALESCE(SUM(d.deletions), 0)::bigint AS total_deletions,
-    COALESCE(SUM(pc.cost_micros), 0)::bigint AS total_cost_micros,
-    COALESCE(SUM(pc.cost_micros) FILTER (WHERE d.pull_request_state = 'merged'), 0)::bigint AS merged_cost_micros
-FROM deduped d
-JOIN pr_costs pc ON pc.pr_key = d.pr_key
-`
-
-type GetPRInsightsSummaryParams struct {
-	StartDate time.Time     `db:"start_date" json:"start_date"`
-	EndDate   time.Time     `db:"end_date" json:"end_date"`
-	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
-}
-
-type GetPRInsightsSummaryRow struct {
-	TotalPrsCreated  int64 `db:"total_prs_created" json:"total_prs_created"`
-	TotalPrsMerged   int64 `db:"total_prs_merged" json:"total_prs_merged"`
-	TotalPrsClosed   int64 `db:"total_prs_closed" json:"total_prs_closed"`
-	TotalAdditions   int64 `db:"total_additions" json:"total_additions"`
-	TotalDeletions   int64 `db:"total_deletions" json:"total_deletions"`
-	TotalCostMicros  int64 `db:"total_cost_micros" json:"total_cost_micros"`
-	MergedCostMicros int64 `db:"merged_cost_micros" json:"merged_cost_micros"`
-}
-
-// PR Insights queries for the /agents analytics dashboard.
-// These aggregate data from chat_diff_statuses (PR metadata) joined
-// with chats and chat_messages (cost) to power the PR Insights view.
-//
-// Cost is computed per PR by summing the PR-linked chat's own cost plus
-// the costs of any direct children (subagents) it spawned that do NOT
-// have their own PR association. If a child chat has its own
-// chat_diff_statuses entry (with a non-NULL pull_request_state), its
-// cost is attributed to that child's PR instead — preventing
-// double-counting when sibling chats create different PRs.
-// Subagent trees are at most 2 levels deep (enforced by the
-// application layer). PR metadata (state, additions, deletions)
-// comes from the most recent chat via DISTINCT ON so that each PR
-// is counted exactly once.
-// Returns aggregate PR metrics for the given date range.
-// The handler calls this twice (current + previous period) for trends.
-// Uses two CTEs: pr_costs sums cost for the PR-linked chat and its
-// direct children (that lack their own PR), and deduped picks one row
-// per PR for state/additions/deletions.
-func (q *sqlQuerier) GetPRInsightsSummary(ctx context.Context, arg GetPRInsightsSummaryParams) (GetPRInsightsSummaryRow, error) {
-	row := q.db.QueryRowContext(ctx, getPRInsightsSummary, arg.StartDate, arg.EndDate, arg.OwnerID)
-	var i GetPRInsightsSummaryRow
-	err := row.Scan(
-		&i.TotalPrsCreated,
-		&i.TotalPrsMerged,
-		&i.TotalPrsClosed,
-		&i.TotalAdditions,
-		&i.TotalDeletions,
-		&i.TotalCostMicros,
-		&i.MergedCostMicros,
-	)
-	return i, err
-}
-
-const getPRInsightsTimeSeries = `-- name: GetPRInsightsTimeSeries :many
-WITH deduped AS (
-    SELECT DISTINCT ON (COALESCE(NULLIF(cds.url, ''), c.id::text))
-        cds.pull_request_state,
-        c.created_at
-    FROM chat_diff_statuses cds
-    JOIN chats c ON c.id = cds.chat_id
-    WHERE cds.pull_request_state IS NOT NULL
-      AND c.created_at >= $1::timestamptz
-      AND c.created_at < $2::timestamptz
-      AND ($3::uuid IS NULL OR c.owner_id = $3::uuid)
-    ORDER BY COALESCE(NULLIF(cds.url, ''), c.id::text), c.created_at DESC, c.id DESC
-)
-SELECT
-    date_trunc('day', created_at)::timestamptz AS date,
-    COUNT(*)::bigint AS prs_created,
-    COUNT(*) FILTER (WHERE pull_request_state = 'merged')::bigint AS prs_merged,
-    COUNT(*) FILTER (WHERE pull_request_state = 'closed')::bigint AS prs_closed
-FROM deduped
-GROUP BY date_trunc('day', created_at)
-ORDER BY date_trunc('day', created_at)
-`
-
-type GetPRInsightsTimeSeriesParams struct {
-	StartDate time.Time     `db:"start_date" json:"start_date"`
-	EndDate   time.Time     `db:"end_date" json:"end_date"`
-	OwnerID   uuid.NullUUID `db:"owner_id" json:"owner_id"`
-}
-
-type GetPRInsightsTimeSeriesRow struct {
-	Date       time.Time `db:"date" json:"date"`
-	PrsCreated int64     `db:"prs_created" json:"prs_created"`
-	PrsMerged  int64     `db:"prs_merged" json:"prs_merged"`
-	PrsClosed  int64     `db:"prs_closed" json:"prs_closed"`
-}
-
-// Returns daily PR counts grouped by state for the chart.
-// Uses a CTE to deduplicate by PR URL so that multiple chats referencing
-// the same pull request are only counted once (keeping the most recent chat).
-func (q *sqlQuerier) GetPRInsightsTimeSeries(ctx context.Context, arg GetPRInsightsTimeSeriesParams) ([]GetPRInsightsTimeSeriesRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPRInsightsTimeSeries, arg.StartDate, arg.EndDate, arg.OwnerID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetPRInsightsTimeSeriesRow
-	for rows.Next() {
-		var i GetPRInsightsTimeSeriesRow
-		if err := rows.Scan(
-			&i.Date,
-			&i.PrsCreated,
-			&i.PrsMerged,
-			&i.PrsClosed,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const backfillChatModelConfigProvider = `-- name: BackfillChatModelConfigProvider :execresult
 UPDATE
     chat_model_configs
@@ -6627,6 +6192,19 @@ func (q *sqlQuerier) DeleteAllChatQueuedMessagesReturningCount(ctx context.Conte
 	return result.RowsAffected()
 }
 
+const deleteChatContextResourcesByChatID = `-- name: DeleteChatContextResourcesByChatID :exec
+DELETE FROM chat_context_resources
+WHERE chat_id = $1::uuid
+`
+
+// Clears a chat's pinned context resources. Used as the first half of a
+// clear-then-copy re-pin, and on its own when the chat's current agent
+// has no snapshot.
+func (q *sqlQuerier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteChatContextResourcesByChatID, chatID)
+	return err
+}
+
 const deleteChatQueuedMessage = `-- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = $1 AND chat_id = $2
 `
@@ -6702,8 +6280,7 @@ type DeleteOldChatsParams struct {
 
 // Deletes chats that have been archived for longer than the given
 // threshold. Active (non-archived) chats are never deleted.
-// Related chat_messages, chat_diff_statuses, and
-// chat_queued_messages are removed via ON DELETE CASCADE.
+// All chat-scoped child tables are removed via ON DELETE CASCADE.
 // Parent/root references on child chats are SET NULL.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
@@ -9788,27 +9365,54 @@ func (q *sqlQuerier) GetUserGroupSpendLimit(ctx context.Context, arg GetUserGrou
 }
 
 const hydrateAgentChatsContext = `-- name: HydrateAgentChatsContext :exec
-UPDATE chats
-SET
-    context_aggregate_hash = $1,
-    context_error = $2
-WHERE agent_id = $3::uuid
-    AND archived = false
-    AND context_aggregate_hash IS NULL
+WITH hydrated AS (
+    UPDATE chats
+    SET
+        context_aggregate_hash = $2,
+        context_error = $3
+    WHERE agent_id = $1::uuid
+        AND archived = false
+        AND context_aggregate_hash IS NULL
+    RETURNING id
+)
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM hydrated
+CROSS JOIN workspace_agent_context_resources r
+WHERE r.workspace_agent_id = $1::uuid
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body_kind = EXCLUDED.body_kind,
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
+    updated_at = now()
 `
 
 type HydrateAgentChatsContextParams struct {
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
 	ContextError  string    `db:"context_error" json:"context_error"`
-	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 }
 
 // Stamps the pinned hash and error on every not-yet-hydrated chat for
-// an agent (context_aggregate_hash IS NULL). Runs as a side effect of
-// an agent push so chats created before the agent was ready pick up the
-// snapshot without a dirty event. Does not bump updated_at.
+// an agent (context_aggregate_hash IS NULL) and copies the agent's
+// current context resources onto those chats in the same statement, so
+// a chat's pinned hash and pinned bodies are always written together.
+// Runs as a side effect of an agent push and of chat-create hydration,
+// so chats created before the agent was ready pick up the snapshot
+// without a dirty event. The ON CONFLICT upsert is defensive: a
+// not-yet-hydrated chat has no pinned rows, so it normally inserts.
+// Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+// sets chat_context_resources.updated_at on the rows it rewrites.
 func (q *sqlQuerier) HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error {
-	_, err := q.db.ExecContext(ctx, hydrateAgentChatsContext, arg.AggregateHash, arg.ContextError, arg.AgentID)
+	_, err := q.db.ExecContext(ctx, hydrateAgentChatsContext, arg.AgentID, arg.AggregateHash, arg.ContextError)
 	return err
 }
 
@@ -9825,6 +9429,31 @@ func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, id uuid
 	var generation_attempt int64
 	err := row.Scan(&generation_attempt)
 	return generation_attempt, err
+}
+
+const insertAgentContextResourcesIntoChat = `-- name: InsertAgentContextResourcesIntoChat :exec
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    $1::uuid, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM workspace_agent_context_resources r
+WHERE r.workspace_agent_id = $2::uuid
+`
+
+type InsertAgentContextResourcesIntoChatParams struct {
+	ChatID  uuid.UUID `db:"chat_id" json:"chat_id"`
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+// Copies an agent's current context resources onto a single chat. Pair
+// with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+// transaction) to re-pin a chat to its agent's latest snapshot from the
+// refresh endpoint and on agent rebinding.
+func (q *sqlQuerier) InsertAgentContextResourcesIntoChat(ctx context.Context, arg InsertAgentContextResourcesIntoChatParams) error {
+	_, err := q.db.ExecContext(ctx, insertAgentContextResourcesIntoChat, arg.ChatID, arg.AgentID)
+	return err
 }
 
 const insertChat = `-- name: InsertChat :one
@@ -10336,6 +9965,49 @@ func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams)
 	var rejected_new_files int32
 	err := row.Scan(&rejected_new_files)
 	return rejected_new_files, err
+}
+
+const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
+SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM chat_context_resources
+WHERE chat_id = $1::uuid
+ORDER BY source ASC
+`
+
+// Lists a chat's pinned context resources, ordered deterministically by
+// source.
+func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatContextResource, error) {
+	rows, err := q.db.QueryContext(ctx, listChatContextResourcesByChatID, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatContextResource
+	for rows.Next() {
+		var i ChatContextResource
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.Source,
+			&i.BodyKind,
+			&i.Body,
+			&i.ContentHash,
+			&i.SizeBytes,
+			&i.Status,
+			&i.Error,
+			&i.SourcePath,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listChatUsageLimitGroupOverrides = `-- name: ListChatUsageLimitGroupOverrides :many
@@ -28903,6 +28575,55 @@ func (q *sqlQuerier) UpsertUserAIProviderKey(ctx context.Context, arg UpsertUser
 	return i, err
 }
 
+const countOIDCLinkedIDsByIssuer = `-- name: CountOIDCLinkedIDsByIssuer :many
+SELECT
+	(CASE
+		WHEN user_links.linked_id = '' THEN ''
+		ELSE split_part(user_links.linked_id, '||', 1)
+	END)::text AS issuer_prefix,
+	COUNT(*)::int AS count
+FROM
+	user_links
+INNER JOIN
+	users ON user_links.user_id = users.id
+WHERE
+	user_links.login_type = 'oidc'
+	AND users.deleted = false
+GROUP BY issuer_prefix
+`
+
+type CountOIDCLinkedIDsByIssuerRow struct {
+	IssuerPrefix string `db:"issuer_prefix" json:"issuer_prefix"`
+	Count        int32  `db:"count" json:"count"`
+}
+
+// Groups OIDC user links by their issuer prefix (the part before "||" in
+// linked_id) and returns a count for each. Empty linked_ids are reported
+// with an empty issuer_prefix. Used for analysis before resetting
+// mismatched links.
+func (q *sqlQuerier) CountOIDCLinkedIDsByIssuer(ctx context.Context) ([]CountOIDCLinkedIDsByIssuerRow, error) {
+	rows, err := q.db.QueryContext(ctx, countOIDCLinkedIDsByIssuer)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []CountOIDCLinkedIDsByIssuerRow
+	for rows.Next() {
+		var i CountOIDCLinkedIDsByIssuerRow
+		if err := rows.Scan(&i.IssuerPrefix, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims
@@ -29159,6 +28880,28 @@ func (q *sqlQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const unlinkOIDCUsersByIssuerMismatch = `-- name: UnlinkOIDCUsersByIssuerMismatch :execrows
+UPDATE user_links
+SET linked_id = ''
+FROM users
+WHERE user_links.user_id = users.id
+	AND user_links.login_type = 'oidc'
+	AND user_links.linked_id != ''
+	AND NOT starts_with(user_links.linked_id, $1)
+	AND users.deleted = false
+`
+
+// Resets linked_id to ” for OIDC links where the linked_id is non-empty
+// and does not begin with the expected issuer prefix. This allows users to
+// re-authenticate under a new OIDC provider.
+func (q *sqlQuerier) UnlinkOIDCUsersByIssuerMismatch(ctx context.Context, expectedPrefix string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, unlinkOIDCUsersByIssuerMismatch, expectedPrefix)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateUserLink = `-- name: UpdateUserLink :one
@@ -37276,6 +37019,117 @@ func (q *sqlQuerier) GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]Ge
 			&i.PresetName,
 			&i.OrganizationName,
 			&i.CreatedCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTemplateRankingSignalsByOwnerID = `-- name: GetTemplateRankingSignalsByOwnerID :many
+WITH org_usage AS (
+	-- Distinct developers with a non-deleted workspace; the prebuilds system
+	-- user is excluded so unclaimed prebuilds do not inflate popularity.
+	SELECT
+		w.template_id,
+		COUNT(DISTINCT w.owner_id) AS org_devs
+	FROM
+		workspaces w
+	WHERE
+		w.template_id = ANY($1 :: uuid[])
+		AND NOT w.deleted
+		AND w.owner_id != $2 :: uuid
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+),
+user_usage AS (
+	-- The owner's workspaces used within the lookback window, split into
+	-- active and recently-deleted counts.
+	SELECT
+		w.template_id,
+		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
+		COUNT(*) FILTER (WHERE w.deleted) AS deleted_recent_count,
+		MAX(w.last_used_at) :: timestamptz AS last_used_at
+	FROM
+		workspaces w
+	WHERE
+		w.owner_id = $4
+		AND w.template_id = ANY($1 :: uuid[])
+		AND w.last_used_at > $5 :: timestamptz
+		AND CASE
+			WHEN $3 :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = $3
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+)
+SELECT
+	t.template_id :: uuid AS template_id,
+	COALESCE(u.active_count, 0) :: bigint AS active_count,
+	COALESCE(u.deleted_recent_count, 0) :: bigint AS deleted_recent_count,
+	u.last_used_at,
+	COALESCE(o.org_devs, 0) :: bigint AS org_devs
+FROM
+	unnest($1 :: uuid[]) AS t(template_id)
+LEFT JOIN user_usage u ON u.template_id = t.template_id
+LEFT JOIN org_usage o ON o.template_id = t.template_id
+`
+
+type GetTemplateRankingSignalsByOwnerIDParams struct {
+	TemplateIDs     []uuid.UUID `db:"template_ids" json:"template_ids"`
+	PrebuildsUserID uuid.UUID   `db:"prebuilds_user_id" json:"prebuilds_user_id"`
+	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
+	OwnerID         uuid.UUID   `db:"owner_id" json:"owner_id"`
+	LookbackCutoff  time.Time   `db:"lookback_cutoff" json:"lookback_cutoff"`
+}
+
+type GetTemplateRankingSignalsByOwnerIDRow struct {
+	TemplateID         uuid.UUID    `db:"template_id" json:"template_id"`
+	ActiveCount        int64        `db:"active_count" json:"active_count"`
+	DeletedRecentCount int64        `db:"deleted_recent_count" json:"deleted_recent_count"`
+	LastUsedAt         sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	OrgDevs            int64        `db:"org_devs" json:"org_devs"`
+}
+
+// GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
+// one owner: in-window active and recently-deleted workspace counts, the last
+// in-window usage, and distinct active developers per template. The affinity
+// score is computed in Go (see listtemplates.go) so the ranking policy and
+// its confidence thresholds live in one place.
+func (q *sqlQuerier) GetTemplateRankingSignalsByOwnerID(ctx context.Context, arg GetTemplateRankingSignalsByOwnerIDParams) ([]GetTemplateRankingSignalsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTemplateRankingSignalsByOwnerID,
+		pq.Array(arg.TemplateIDs),
+		arg.PrebuildsUserID,
+		arg.OrganizationID,
+		arg.OwnerID,
+		arg.LookbackCutoff,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTemplateRankingSignalsByOwnerIDRow
+	for rows.Next() {
+		var i GetTemplateRankingSignalsByOwnerIDRow
+		if err := rows.Scan(
+			&i.TemplateID,
+			&i.ActiveCount,
+			&i.DeletedRecentCount,
+			&i.LastUsedAt,
+			&i.OrgDevs,
 		); err != nil {
 			return nil, err
 		}

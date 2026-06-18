@@ -218,12 +218,13 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		displayName = sql.NullString{String: name, Valid: true}
 	}
 	params := database.InsertAIProviderParams{
-		ID:            id,
-		Type:          provType,
-		Name:          name,
-		DisplayName:   displayName,
-		Enabled:       takeFirst(seed.Enabled, true),
-		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
+		ID:          id,
+		Type:        provType,
+		Name:        name,
+		DisplayName: displayName,
+		Enabled:     takeFirst(seed.Enabled, true),
+		// Use an unsupported scheme so leaked test provider calls fail immediately without retries.
+		BaseUrl:       takeFirst(seed.BaseUrl, "invalid://test.invalid/"),
 		Settings:      seed.Settings,
 		SettingsKeyID: seed.SettingsKeyID,
 	}
@@ -2039,6 +2040,12 @@ func AIBridgeTokenUsage(t testing.TB, db database.Store, seed database.InsertAIB
 		CacheWriteInputTokens: seed.CacheWriteInputTokens,
 		Metadata:              takeFirstSlice(seed.Metadata, json.RawMessage("{}")),
 		CreatedAt:             takeFirst(seed.CreatedAt, dbtime.Now()),
+		EffectiveGroupID:      seed.EffectiveGroupID,
+		InputPriceMicros:      seed.InputPriceMicros,
+		OutputPriceMicros:     seed.OutputPriceMicros,
+		CacheReadPriceMicros:  seed.CacheReadPriceMicros,
+		CacheWritePriceMicros: seed.CacheWritePriceMicros,
+		CostMicros:            seed.CostMicros,
 	})
 	require.NoError(t, err, "insert aibridge token usage")
 	return usage

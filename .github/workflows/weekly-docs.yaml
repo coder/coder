@@ -117,18 +117,83 @@ jobs:
           # See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
           PUPPETEER_EXECUTABLE_PATH: ${{ needs.prepare-linkspector-browser.outputs.chrome-path }}
         with:
-          reporter: github-pr-review
+          # On PRs, use github-pr-review for inline comments. On schedule/dispatch,
+          # use local so reviewdog actually reports failures instead of silently
+          # exiting 0 (github-pr-review requires a PR context).
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'local' }}
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
-          filter_mode: "file"
+          filter_mode: ${{ github.event_name == 'pull_request' && 'file' || 'nofilter' }}
 
       - name: Send Slack notification
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name != 'pull_request'
         run: |
           curl \
             -X POST \
             -H 'Content-type: application/json' \
-            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+            -d '{"text":":warning: *Broken links found in the documentation.*\nPlease check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+          echo "Sent Slack notification"
+        env:
+          LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}
+
+  audit-docs-paths:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check for audit script
+        id: check-script
+        run: |
+          if [ ! -f site/scripts/audit-docs-paths.mjs ]; then
+            echo "::notice::Audit script not yet available (pending PR #25740). Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up mise tools
+        if: steps.check-script.outputs.skip != 'true'
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node"
+
+      - name: Fetch redirects.json
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          curl -sfL \
+            https://raw.githubusercontent.com/coder/coder.com/main/redirects.json \
+            -o /tmp/redirects.json
+
+      - name: Audit TS/TSX docs paths against redirects
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          node site/scripts/audit-docs-paths.mjs \
+            --redirects=/tmp/redirects.json \
+            --roots=site/src \
+            --out=/tmp/audit-report.md 2>&1 | tee /tmp/audit-output.txt
+
+          count=$(grep -oP 'Total findings: \K\d+' /tmp/audit-output.txt || echo "0")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::Found $count stale docs path(s) pointing at redirect sources"
+            cat /tmp/audit-report.md >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Send Slack notification
+        if: failure() && github.event_name != 'pull_request'
+        run: |
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":warning: *Stale docs paths found in site/src/.*\nTS/TSX files reference docs URLs that now redirect. Please check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

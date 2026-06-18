@@ -76,15 +76,7 @@ func (p *Server) scheduleDebugCleanup(
 		return
 	}
 
-	// Acquire inflightMu around the positive Add so Close() cannot
-	// call drainInflight concurrently when the counter is at zero.
-	// See drainInflight for the WaitGroup contract this preserves.
-	p.inflightMu.Lock()
-	p.inflight.Add(1)
-	p.inflightMu.Unlock()
-	go func() {
-		defer p.inflight.Done()
-
+	if err := p.goInflight(func() {
 		cleanupCtx := context.WithoutCancel(ctx)
 		for attempt := 0; attempt < debugCleanupAttempts; attempt++ {
 			if attempt > 0 {
@@ -106,7 +98,11 @@ func (p *Server) scheduleDebugCleanup(
 			logFields = append(logFields, slog.Error(err))
 			p.logger.Warn(cleanupCtx, logMessage, logFields...)
 		}
-	}()
+	}); err != nil {
+		logFields := append([]slog.Field{slog.F("cleanup", logMessage)}, fields...)
+		logFields = append(logFields, slog.Error(err))
+		p.logger.Error(context.WithoutCancel(ctx), "failed to schedule chat debug cleanup", logFields...)
+	}
 }
 
 func (p *Server) newDebugAwareModel(

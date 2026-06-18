@@ -69,73 +69,64 @@ func TestSubagentFallbackChatTitle(t *testing.T) {
 	}
 }
 
-// newInternalTestServer creates a Server for internal tests with
-// custom provider API keys. The server is automatically closed
-// when the test finishes.
+type internalTestServerConfig struct {
+	logger      slog.Logger
+	clock       quartz.Clock
+	startWorker bool
+}
+
+type internalTestServerOpt func(*internalTestServerConfig)
+
+func withInternalTestServerClock(clk quartz.Clock) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.clock = clk
+	}
+}
+
+func withInternalTestServerLogger(logger slog.Logger) internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.logger = logger
+	}
+}
+
+func withInternalTestServerWorker() internalTestServerOpt {
+	return func(cfg *internalTestServerConfig) {
+		cfg.startWorker = true
+	}
+}
+
+// newInternalTestServer creates a passive Server for internal tests with
+// custom provider API keys. Pass withInternalTestServerWorker to start the
+// background chat worker for tests that need real execution.
 func newInternalTestServer(
 	t *testing.T,
 	db database.Store,
 	ps pubsub.Pubsub,
 	keys chatprovider.ProviderAPIKeys,
-) *Server {
-	return newInternalTestServerWithLoggerAndClock(
-		t,
-		db,
-		ps,
-		keys,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		nil,
-	)
-}
-
-func newInternalTestServerWithClock(
-	t *testing.T,
-	db database.Store,
-	ps pubsub.Pubsub,
-	keys chatprovider.ProviderAPIKeys,
-	clk quartz.Clock,
-) *Server {
-	return newInternalTestServerWithLoggerAndClock(
-		t,
-		db,
-		ps,
-		keys,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		clk,
-	)
-}
-
-func newInternalTestServerWithLogger(
-	t *testing.T,
-	db database.Store,
-	ps pubsub.Pubsub,
-	keys chatprovider.ProviderAPIKeys,
-	logger slog.Logger,
-) *Server {
-	return newInternalTestServerWithLoggerAndClock(t, db, ps, keys, logger, nil)
-}
-
-func newInternalTestServerWithLoggerAndClock(
-	t *testing.T,
-	db database.Store,
-	ps pubsub.Pubsub,
-	keys chatprovider.ProviderAPIKeys,
-	logger slog.Logger,
-	clk quartz.Clock,
+	opts ...internalTestServerOpt,
 ) *Server {
 	t.Helper()
 
+	cfg := internalTestServerConfig{
+		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+	}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	server := New(ps, Config{
-		Logger:    logger,
+		Logger:    cfg.logger,
 		Database:  db,
 		ReplicaID: uuid.New(),
-		Clock:     clk,
+		Clock:     cfg.clock,
 		// Use a very long interval so the background loop
 		// does not interfere with test assertions.
 		PendingChatAcquireInterval: testutil.WaitLong,
 		ProviderAPIKeys:            keys,
 	})
-	server.Start()
+	if cfg.startWorker {
+		server.Start()
+	}
 	t.Cleanup(func() {
 		require.NoError(t, server.Close())
 	})
@@ -491,7 +482,8 @@ func TestResolveUserProviderAPIKeys_AIProvider(t *testing.T) {
 		keys, err := server.resolveUserProviderAPIKeys(ctx, user.ID, provider.ID)
 		require.NoError(t, err)
 		require.Equal(t, "user-api-key", keys.APIKey("openai"))
-		require.Equal(t, "https://api.example.com/", keys.BaseURL("openai"))
+		// The expected URL is dbgen's default AIProvider BaseUrl.
+		require.Equal(t, "invalid://test.invalid/", keys.BaseURL("openai"))
 	})
 
 	t.Run("ProviderKeyUsedWhenBYOKDisabled", func(t *testing.T) {
@@ -1305,7 +1297,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenCredentialsUnavailable(t 
 	db, ps := dbtestutil.NewDB(t)
 	logSink := &subagentTestLogSink{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
-	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerLogger(logger))
 
 	ctx := chatdTestContext(t)
 	user, org, model := seedInternalChatDeps(t, db)
@@ -1364,7 +1356,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 	db, ps := dbtestutil.NewDB(t)
 	logSink := &subagentTestLogSink{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
-	server := newInternalTestServerWithLogger(
+	server := newInternalTestServer(
 		t,
 		db,
 		ps,
@@ -1373,7 +1365,7 @@ func TestSpawnAgent_GeneralOverrideLogsAndFallsBackWhenProviderDisabled(t *testi
 				"openai-compat": "fallback-key",
 			},
 		},
-		logger,
+		withInternalTestServerLogger(logger),
 	)
 
 	ctx := chatdTestContext(t)
@@ -2446,7 +2438,7 @@ func TestSpawnAgent_ComputerUseRejectsInvalidConfiguredProviderWithStableReason(
 	require.NoError(t, db.UpsertChatComputerUseProvider(ctx, "bogus"))
 	logSink := &subagentTestLogSink{}
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
-	server := newInternalTestServerWithLogger(t, db, ps, chatprovider.ProviderAPIKeys{}, logger)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerLogger(logger))
 
 	user, org, model := seedInternalChatDeps(t, db)
 	parentChat := createInternalParentChat(
@@ -3323,7 +3315,7 @@ func TestWaitAgentDoesNotRelayRegularSubagentAttachments(t *testing.T) {
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
-	server.drainInflight()
+	WaitUntilIdleForTest(server)
 
 	insertedFile := insertLinkedChatFile(
 		ctx,
@@ -3370,8 +3362,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 	// Shared fixtures for subtests that use a real clock. Each
 	// subtest creates its own parent+child chats (unique IDs)
 	// so they don't collide. Mock-clock subtests need their own
-	// DB and server because the Server's background tickers
-	// also use the mock clock.
+	// DB and server so the wait loop's timers stay isolated.
 	db, ps := dbtestutil.NewDB(t)
 	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
 	user, org, model := seedInternalChatDeps(t, db)
@@ -3455,7 +3446,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
 		ps := subscribeFailingPubsub{Pubsub: pubsub.NewInMemory()}
-		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3504,7 +3495,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
-		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3512,7 +3503,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		// signalWake from CreateChat may trigger immediate processing.
 		// Wait for it to settle, then reset chats to the state we need.
-		server.drainInflight()
+		WaitUntilIdleForTest(server)
 		setChatStatus(ctx, t, db, parent.ID, database.ChatStatusRunning, "")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
 
@@ -3559,15 +3550,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		require.NoError(t, err)
 		defer cancelProbe()
 
-		// Insert the message BEFORE transitioning to Waiting.
-		// Stale PG LISTEN/NOTIFY notifications from the
-		// processor's earlier run can still be buffered in the
-		// pgListener after drainInflight returns. If such a
-		// notification is dispatched between setChatStatus and
-		// insertAssistantMessage, checkSubagentCompletion would
-		// see done=true (Waiting) with an empty report. By
-		// inserting the message first, the report is guaranteed
-		// to be committed before the status makes it visible.
+		// Insert the message before transitioning to Waiting so any
+		// notification observing the terminal status can also read the
+		// committed report.
 		insertAssistantMessage(t, db, child.ID, model.ID, "pubsub result")
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -3595,11 +3580,9 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		parent, child := createParentChildChats(ctx, t, server, user, org, model)
 
-		// signalWake from CreateChat may trigger immediate processing.
-		// Wait for it to settle, then set the terminal state we need.
 		// This case should return immediately, so use the shared
 		// real-clock server instead of a mock clock.
-		server.drainInflight()
+		WaitUntilIdleForTest(server)
 		setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
 
 		gotChat, report, err := server.awaitSubagentCompletion(
@@ -3615,7 +3598,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 
 		db, ps := dbtestutil.NewDB(t)
 		mClock := quartz.NewMock(t)
-		server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 		ctx := chatdTestContext(t)
 		user, org, model := seedInternalChatDeps(t, db)
 
@@ -3671,7 +3654,7 @@ func TestAwaitSubagentCompletion(t *testing.T) {
 		})
 
 		db, ps := dbtestutil.NewDB(t)
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerWorker())
 		ctx := chatdTestContext(t)
 		user, org, _ := seedInternalChatDeps(t, db)
 		provider := dbgen.ChatProvider(t, db, database.ChatProvider{

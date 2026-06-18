@@ -115,4 +115,9 @@ license.txt
 
 # Agent planning documents (local working files).
 docs/plans/
+
+# Local audit reports (e.g. site/scripts/audit-docs-paths.mjs output).
+# The file is for local inspection only.
+docs/.audit/
+
 /release-action

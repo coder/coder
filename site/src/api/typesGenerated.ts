@@ -1515,6 +1515,12 @@ export interface Chat {
 	 * attach or agent change.
 	 */
 	readonly last_injected_context?: readonly ChatMessagePart[];
+	/**
+	 * Context reports the chat's pinned workspace-context state and
+	 * whether it has drifted from the agent's latest pushed snapshot.
+	 * Nil when the chat has no pinned context yet.
+	 */
+	readonly context?: ChatContext;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -1597,6 +1603,29 @@ export interface ChatConfig {
 	readonly acquire_batch_size: number;
 	readonly debug_logging_enabled: boolean;
 	readonly ai_gateway_routing_enabled: boolean;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatContext reports a chat's pinned workspace context and whether it has
+ * drifted from the agent's latest pushed snapshot. The chat stays usable
+ * when dirty; refreshing re-pins it to the latest snapshot.
+ */
+export interface ChatContext {
+	/**
+	 * Dirty is true when the agent's latest snapshot hash differs from the
+	 * chat's pinned hash.
+	 */
+	readonly dirty: boolean;
+	/**
+	 * DirtySince is when drift was first detected; nil when not dirty.
+	 */
+	readonly dirty_since?: string;
+	/**
+	 * Error is the snapshot-level error copied from the pinned snapshot
+	 * (empty when healthy).
+	 */
+	readonly error?: string;
 }
 
 // From codersdk/chats.go
@@ -3049,6 +3078,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "context_dirty"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3058,6 +3088,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"context_dirty",
 	"created",
 	"deleted",
 	"diff_status_change",
@@ -4360,6 +4391,7 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 // From codersdk/deployment.go
 export type Experiment =
 	| "ai-gateway-cost-control"
+	| "agent-app-tabs"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
@@ -4372,6 +4404,7 @@ export type Experiment =
 
 export const Experiments: Experiment[] = [
 	"ai-gateway-cost-control",
+	"agent-app-tabs",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
@@ -6059,6 +6092,7 @@ export interface OIDCConfig {
 	 * domain.
 	 */
 	readonly redirect_url: string;
+	readonly auto_repair_links: boolean;
 }
 
 // From codersdk/parameters.go
@@ -6160,93 +6194,6 @@ export interface OrganizationSyncSettings {
 	 * for every user, regardless of their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsModelBreakdown contains PR metrics for a single model.
- */
-export interface PRInsightsModelBreakdown {
-	readonly model_config_id: string;
-	readonly display_name: string;
-	readonly provider: string;
-	readonly total_prs: number;
-	readonly merged_prs: number;
-	readonly merge_rate: number;
-	readonly total_additions: number;
-	readonly total_deletions: number;
-	readonly total_cost_micros: number;
-	readonly cost_per_merged_pr_micros: number;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsPullRequest represents a single PR in the recent PRs
- * table.
- */
-export interface PRInsightsPullRequest {
-	readonly chat_id: string;
-	readonly pr_title: string;
-	readonly pr_url?: string;
-	readonly pr_number?: number;
-	readonly state: string;
-	readonly draft: boolean;
-	readonly additions: number;
-	readonly deletions: number;
-	readonly changed_files: number;
-	readonly commits?: number;
-	readonly approved?: boolean;
-	readonly changes_requested: boolean;
-	readonly reviewer_count?: number;
-	readonly author_login?: string;
-	readonly author_avatar_url?: string;
-	readonly base_branch: string;
-	readonly model_display_name: string;
-	readonly cost_micros: number;
-	readonly created_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsResponse is the response from the PR insights endpoint.
- */
-export interface PRInsightsResponse {
-	readonly summary: PRInsightsSummary;
-	readonly time_series: readonly PRInsightsTimeSeriesEntry[];
-	readonly by_model: readonly PRInsightsModelBreakdown[];
-	readonly recent_prs: readonly PRInsightsPullRequest[];
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsSummary contains aggregate PR metrics for a time period,
- * plus the previous period's metrics for trend calculation.
- */
-export interface PRInsightsSummary {
-	readonly total_prs_created: number;
-	readonly total_prs_merged: number;
-	readonly merge_rate: number;
-	readonly total_additions: number;
-	readonly total_deletions: number;
-	readonly total_cost_micros: number;
-	readonly cost_per_merged_pr_micros: number;
-	readonly approval_rate: number;
-	readonly prev_total_prs_created: number;
-	readonly prev_total_prs_merged: number;
-	readonly prev_merge_rate: number;
-	readonly prev_cost_per_merged_pr_micros: number;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsTimeSeriesEntry is a single data point in the PR
- * activity time series chart.
- */
-export interface PRInsightsTimeSeriesEntry {
-	readonly date: string;
-	readonly prs_created: number;
-	readonly prs_merged: number;
-	readonly prs_closed: number;
 }
 
 // From codersdk/organizations.go
@@ -8184,6 +8131,7 @@ export interface TemplateBuilderBase {
 	readonly description: string;
 	readonly icon: string;
 	readonly os: string;
+	readonly variables: readonly TemplateBuilderModuleVariable[];
 }
 
 // From codersdk/templatebuilder.go
@@ -8211,6 +8159,7 @@ export interface TemplateBuilderComposeModule {
  */
 export interface TemplateBuilderComposeRequest {
 	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
 	readonly modules: readonly TemplateBuilderComposeModule[];
 }
 
@@ -8227,6 +8176,7 @@ export interface TemplateBuilderConfig {
  */
 export interface TemplateBuilderCreateTemplateRequest {
 	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
 	readonly modules: readonly TemplateBuilderComposeModule[];
 	readonly organization_id: string;
 	readonly name: string;

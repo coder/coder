@@ -124,14 +124,14 @@ const SelectField: FC<SelectFieldDefinition> = ({
 				{required && (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -172,14 +172,14 @@ const RadioField: FC<RadioFieldDefinition> = ({
 				{required && (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -257,7 +257,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 						{required && (
 							<>
 								{" "}
-								<span className="text-xs font-bold text-content-destructive">
+								<span className="text-sm font-bold text-content-destructive">
 									*
 								</span>
 							</>
@@ -270,7 +270,7 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 				describedBy={description ? descriptionId : undefined}
 			/>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}
@@ -294,14 +294,14 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 				{required && (
 					<>
 						{" "}
-						<span className="text-xs font-bold text-content-destructive">
+						<span className="text-sm font-bold text-content-destructive">
 							*
 						</span>
 					</>
 				)}
 			</Label>
 			{description && (
-				<div id={descriptionId} className="text-xs text-content-secondary">
+				<div id={descriptionId} className="text-sm text-content-secondary">
 					{description}
 				</div>
 			)}

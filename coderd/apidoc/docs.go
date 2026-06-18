@@ -295,50 +295,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/experimental/chats/insights/pull-requests": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Chats"
-                ],
-                "summary": "Get PR insights",
-                "operationId": "get-pr-insights",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Start date (RFC3339)",
-                        "name": "start_date",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "End date (RFC3339)",
-                        "name": "end_date",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.PRInsightsResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/experimental/chats/models": {
             "get": {
                 "description": "Experimental: this endpoint is subject to change.",
@@ -547,6 +503,42 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            }
+        },
+        "/api/experimental/chats/{chat}/context": {
+            "put": {
+                "description": "Experimental: this endpoint is subject to change.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Refresh chat context",
+                "operationId": "refresh-chat-context",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat ID",
+                        "name": "chat",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
             }
         },
         "/api/experimental/chats/{chat}/diff": {
@@ -16509,6 +16501,14 @@ const docTemplate = `{
                 "client_type": {
                     "$ref": "#/definitions/codersdk.ChatClientType"
                 },
+                "context": {
+                    "description": "Context reports the chat's pinned workspace-context state and\nwhether it has drifted from the agent's latest pushed snapshot.\nNil when the chat has no pinned context yet.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContext"
+                        }
+                    ]
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -16661,6 +16661,24 @@ const docTemplate = `{
                 },
                 "debug_logging_enabled": {
                     "type": "boolean"
+                }
+            }
+        },
+        "codersdk.ChatContext": {
+            "type": "object",
+            "properties": {
+                "dirty": {
+                    "description": "Dirty is true when the agent's latest snapshot hash differs from the\nchat's pinned hash.",
+                    "type": "boolean"
+                },
+                "dirty_since": {
+                    "description": "DirtySince is when drift was first detected; nil when not dirty.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "error": {
+                    "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
+                    "type": "string"
                 }
             }
         },
@@ -17603,7 +17621,8 @@ const docTemplate = `{
                 "created",
                 "deleted",
                 "diff_status_change",
-                "action_required"
+                "action_required",
+                "context_dirty"
             ],
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
@@ -17612,7 +17631,8 @@ const docTemplate = `{
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",
                 "ChatWatchEventKindDiffStatusChange",
-                "ChatWatchEventKindActionRequired"
+                "ChatWatchEventKindActionRequired",
+                "ChatWatchEventKindContextDirty"
             ]
         },
         "codersdk.ConnectionLatency": {
@@ -19339,10 +19359,12 @@ const docTemplate = `{
                 "workspace-build-updates",
                 "nats_pubsub",
                 "minimum-implicit-member",
-                "ai-gateway-cost-control"
+                "ai-gateway-cost-control",
+                "agent-app-tabs"
             ],
             "x-enum-comments": {
                 "ExperimentAIGatewayCostControl": "Enables AI Gateway cost control functionality.",
+                "ExperimentAgentAppTabs": "Enables workspace-app and port preview tabs in the Coder Agents right panel.",
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
                 "ExperimentExample": "This isn't used for anything.",
                 "ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
@@ -19363,7 +19385,8 @@ const docTemplate = `{
                 "Enables publishing workspace build updates to the all builds pubsub channel.",
                 "Enables embedded NATS pubsub.",
                 "Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.",
-                "Enables AI Gateway cost control functionality."
+                "Enables AI Gateway cost control functionality.",
+                "Enables workspace-app and port preview tabs in the Coder Agents right panel."
             ],
             "x-enum-varnames": [
                 "ExperimentExample",
@@ -19375,7 +19398,8 @@ const docTemplate = `{
                 "ExperimentWorkspaceBuildUpdates",
                 "ExperimentNATSPubsub",
                 "ExperimentMinimumImplicitMember",
-                "ExperimentAIGatewayCostControl"
+                "ExperimentAIGatewayCostControl",
+                "ExperimentAgentAppTabs"
             ]
         },
         "codersdk.ExternalAPIKeyScopes": {
@@ -21019,6 +21043,9 @@ const docTemplate = `{
                 "auth_url_params": {
                     "type": "object"
                 },
+                "auto_repair_links": {
+                    "type": "boolean"
+                },
                 "client_cert_file": {
                     "type": "string"
                 },
@@ -21313,191 +21340,6 @@ const docTemplate = `{
                 "organization_assign_default": {
                     "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
                     "type": "boolean"
-                }
-            }
-        },
-        "codersdk.PRInsightsModelBreakdown": {
-            "type": "object",
-            "properties": {
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "display_name": {
-                    "type": "string"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "merged_prs": {
-                    "type": "integer"
-                },
-                "model_config_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsPullRequest": {
-            "type": "object",
-            "properties": {
-                "additions": {
-                    "type": "integer"
-                },
-                "approved": {
-                    "type": "boolean"
-                },
-                "author_avatar_url": {
-                    "type": "string"
-                },
-                "author_login": {
-                    "type": "string"
-                },
-                "base_branch": {
-                    "type": "string"
-                },
-                "changed_files": {
-                    "type": "integer"
-                },
-                "changes_requested": {
-                    "type": "boolean"
-                },
-                "chat_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "commits": {
-                    "type": "integer"
-                },
-                "cost_micros": {
-                    "type": "integer"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "deletions": {
-                    "type": "integer"
-                },
-                "draft": {
-                    "type": "boolean"
-                },
-                "model_display_name": {
-                    "type": "string"
-                },
-                "pr_number": {
-                    "type": "integer"
-                },
-                "pr_title": {
-                    "type": "string"
-                },
-                "pr_url": {
-                    "type": "string"
-                },
-                "reviewer_count": {
-                    "type": "integer"
-                },
-                "state": {
-                    "type": "string"
-                }
-            }
-        },
-        "codersdk.PRInsightsResponse": {
-            "type": "object",
-            "properties": {
-                "by_model": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsModelBreakdown"
-                    }
-                },
-                "recent_prs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsPullRequest"
-                    }
-                },
-                "summary": {
-                    "$ref": "#/definitions/codersdk.PRInsightsSummary"
-                },
-                "time_series": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.PRInsightsTimeSeriesEntry"
-                    }
-                }
-            }
-        },
-        "codersdk.PRInsightsSummary": {
-            "type": "object",
-            "properties": {
-                "approval_rate": {
-                    "type": "number"
-                },
-                "cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "merge_rate": {
-                    "type": "number"
-                },
-                "prev_cost_per_merged_pr_micros": {
-                    "type": "integer"
-                },
-                "prev_merge_rate": {
-                    "type": "number"
-                },
-                "prev_total_prs_created": {
-                    "type": "integer"
-                },
-                "prev_total_prs_merged": {
-                    "type": "integer"
-                },
-                "total_additions": {
-                    "type": "integer"
-                },
-                "total_cost_micros": {
-                    "type": "integer"
-                },
-                "total_deletions": {
-                    "type": "integer"
-                },
-                "total_prs_created": {
-                    "type": "integer"
-                },
-                "total_prs_merged": {
-                    "type": "integer"
-                }
-            }
-        },
-        "codersdk.PRInsightsTimeSeriesEntry": {
-            "type": "object",
-            "properties": {
-                "date": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "prs_closed": {
-                    "type": "integer"
-                },
-                "prs_created": {
-                    "type": "integer"
-                },
-                "prs_merged": {
-                    "type": "integer"
                 }
             }
         },
@@ -23838,6 +23680,12 @@ const docTemplate = `{
                 },
                 "os": {
                     "type": "string"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.TemplateBuilderModuleVariable"
+                    }
                 }
             }
         },
@@ -23872,6 +23720,12 @@ const docTemplate = `{
                 "base_template_id": {
                     "type": "string"
                 },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
                 "modules": {
                     "type": "array",
                     "items": {
@@ -23900,6 +23754,12 @@ const docTemplate = `{
             "properties": {
                 "base_template_id": {
                     "type": "string"
+                },
+                "base_variable_values": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
                 },
                 "description": {
                     "type": "string"

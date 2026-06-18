@@ -52,11 +52,12 @@ type TemplateBuilderModulesResponse struct {
 // TemplateBuilderBase is the API response type for a base template
 // returned by GET /api/v2/templatebuilder/bases.
 type TemplateBuilderBase struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Icon        string `json:"icon"`
-	OS          string `json:"os"`
+	ID          string                          `json:"id"`
+	Name        string                          `json:"name"`
+	Description string                          `json:"description"`
+	Icon        string                          `json:"icon"`
+	OS          string                          `json:"os"`
+	Variables   []TemplateBuilderModuleVariable `json:"variables"`
 }
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.
@@ -102,8 +103,9 @@ func (c *Client) TemplateBuilderModules(ctx context.Context, base string) (Templ
 // TemplateBuilderComposeRequest is the request body for
 // POST /api/v2/templatebuilder/compose.
 type TemplateBuilderComposeRequest struct {
-	BaseTemplateID string                         `json:"base_template_id"`
-	Modules        []TemplateBuilderComposeModule `json:"modules"`
+	BaseTemplateID     string                         `json:"base_template_id"`
+	BaseVariableValues map[string]string              `json:"base_variable_values,omitempty"`
+	Modules            []TemplateBuilderComposeModule `json:"modules"`
 }
 
 // TemplateBuilderComposeModule identifies a module and its variable
@@ -130,14 +132,15 @@ func (c *Client) TemplateBuilderCompose(ctx context.Context, req TemplateBuilder
 // TemplateBuilderCreateTemplateRequest is the request body for
 // POST /api/v2/templatebuilder/compose/template.
 type TemplateBuilderCreateTemplateRequest struct {
-	BaseTemplateID  string                         `json:"base_template_id"`
-	Modules         []TemplateBuilderComposeModule `json:"modules"`
-	OrganizationID  uuid.UUID                      `json:"organization_id" format:"uuid" validate:"required"`
-	Name            string                         `json:"name" validate:"required,template_name"`
-	DisplayName     string                         `json:"display_name,omitempty" validate:"template_display_name"`
-	Description     string                         `json:"description,omitempty" validate:"lt=128"`
-	Icon            string                         `json:"icon,omitempty"`
-	ProvisionerTags map[string]string              `json:"provisioner_tags,omitempty"`
+	BaseTemplateID     string                         `json:"base_template_id"`
+	BaseVariableValues map[string]string              `json:"base_variable_values,omitempty"`
+	Modules            []TemplateBuilderComposeModule `json:"modules"`
+	OrganizationID     uuid.UUID                      `json:"organization_id" format:"uuid" validate:"required"`
+	Name               string                         `json:"name" validate:"required,template_name"`
+	DisplayName        string                         `json:"display_name,omitempty" validate:"template_display_name"`
+	Description        string                         `json:"description,omitempty" validate:"lt=128"`
+	Icon               string                         `json:"icon,omitempty"`
+	ProvisionerTags    map[string]string              `json:"provisioner_tags,omitempty"`
 }
 
 // TemplateBuilderCreateTemplateResponse is the response body for

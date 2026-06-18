@@ -80,7 +80,7 @@ type ContextDirtyMarker interface {
 	// already-pinned chats whose hash differs from aggregateHash. It
 	// returns a callback that publishes the resulting dirty watch events;
 	// the caller invokes it only after the transaction commits. The
-	// callback is nil when nothing transitioned to dirty.
+	// callback is a no-op when nothing transitioned to dirty.
 	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
 }
 
