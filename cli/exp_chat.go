@@ -327,6 +327,7 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 }
 
 func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command {
+	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
 		Use:   "refresh [<chat>]",
 		Short: "Refresh chat context to the agent's latest snapshot",
@@ -335,21 +336,24 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet), then refreshes every drifted chat.",
+			"has not seen yet), then refreshes every drifted chat. This path authenticates " +
+			"with the agent token, so it does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
-			client, err := r.InitClient(inv)
-			if err != nil {
-				return err
-			}
-			exp := codersdk.NewExperimentalClient(client)
 
+			// With a <chat> argument: refresh that specific chat through the
+			// user-facing API. Works from anywhere with a logged-in CLI.
 			if len(inv.Args) == 1 {
 				chatID, err := uuid.Parse(inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("invalid chat ID %q: %w", inv.Args[0], err)
 				}
+				client, err := r.InitClient(inv)
+				if err != nil {
+					return err
+				}
+				exp := codersdk.NewExperimentalClient(client)
 				chat, err := exp.RefreshChatContext(ctx, chatID)
 				if err != nil {
 					return xerrors.Errorf("refresh chat context: %w", err)
@@ -361,41 +365,38 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 				return nil
 			}
 
-			// No argument: re-resolve the agent's sources (in-workspace only),
-			// then fan out a refresh to every drifted chat.
-			if sock, serr := dialAgentContextSocket(ctx, *socketPath); serr == nil {
-				defer sock.Close()
-				snap, rerr := sock.ResyncContext(ctx)
-				if rerr != nil {
-					return xerrors.Errorf("re-resolve agent context: %w", rerr)
-				}
-				_, _ = fmt.Fprintf(inv.Stdout, "Re-resolved agent context (version %d, %d resources).\n", snap.Version, len(snap.Resources))
-				if snap.SnapshotError != "" {
-					_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", snap.SnapshotError)
-				}
-			} else {
-				_, _ = fmt.Fprintln(inv.Stderr, "Not inside a workspace; skipping agent re-resolve.")
+			// No argument: in-workspace. Re-resolve the agent's sources over
+			// the local context socket, then ask the agent (using its own
+			// token) to re-pin every drifted chat. Neither step needs a
+			// logged-in user session.
+			sock, err := dialAgentContextSocket(ctx, *socketPath)
+			if err != nil {
+				return xerrors.Errorf("connect to agent context socket "+
+					"(run inside the workspace, or pass a <chat> ID): %w", err)
+			}
+			defer sock.Close()
+			snap, err := sock.ResyncContext(ctx)
+			if err != nil {
+				return xerrors.Errorf("re-resolve agent context: %w", err)
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "Re-resolved agent context (version %d, %d resources).\n", snap.Version, len(snap.Resources))
+			if snap.SnapshotError != "" {
+				_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", snap.SnapshotError)
 			}
 
-			chats, err := exp.ListChats(ctx, nil)
+			agentClient, err := agentAuth.CreateClient()
 			if err != nil {
-				return xerrors.Errorf("list chats: %w", err)
+				return xerrors.Errorf("create agent client: %w", err)
 			}
-			refreshed := 0
-			for _, c := range chats {
-				if c.Context == nil || !c.Context.Dirty {
-					continue
-				}
-				if _, err := exp.RefreshChatContext(ctx, c.ID); err != nil {
-					_, _ = fmt.Fprintf(inv.Stderr, "Failed to refresh chat %s: %v\n", c.ID, err)
-					continue
-				}
-				refreshed++
+			resp, err := agentClient.RefreshChatContext(ctx)
+			if err != nil {
+				return xerrors.Errorf("refresh chat context: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Refreshed %d drifted chat(s).\n", refreshed)
+			_, _ = fmt.Fprintf(inv.Stdout, "Refreshed %d drifted chat(s).\n", resp.Refreshed)
 			return nil
 		},
 	}
+	agentAuth.AttachOptions(cmd, false)
 	return cmd
 }
 
