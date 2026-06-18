@@ -176,12 +176,14 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 					key={module.id}
 					className="group flex items-center justify-between p-1 mb-1 hover:bg-surface-secondary"
 				>
-					<div className="flex items-center">
-						<img
-							src={module.iconUrl}
-							alt={`${module.name} icon`}
-							className="w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
-						/>
+					<div className="flex items-start">
+						<div className="h-[1lh] content-center">
+							<img
+								src={module.iconUrl}
+								alt={`${module.name} icon`}
+								className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
+							/>
+						</div>
 						<span className="ml-2">{module.name}</span>
 					</div>
 					<Button
