@@ -125,6 +125,11 @@ const (
 	// It is intentionally generous relative to the advisor's concise
 	// guidance remit so short plans are not truncated mid-reasoning.
 	defaultAdvisorMaxOutputTokens = 16384
+
+	// defaultChatMaxOutputTokens caps a model response when the model config
+	// does not set a provider-specific output limit. This keeps unbounded
+	// requests from accidentally exhausting large-context models.
+	defaultChatMaxOutputTokens int64 = 32_000
 )
 
 var (

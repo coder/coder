@@ -29,7 +29,7 @@ import (
 func (server *Server) prepareGeneration(
 	ctx context.Context,
 	input generationPrepareInput,
-) (generationPrepared, error) {
+) (prepared generationPrepared, err error) {
 	chat := input.Chat
 	logger := server.logger.With(
 		slog.F("chat_id", chat.ID),
@@ -85,7 +85,6 @@ func (server *Server) prepareGeneration(
 	modelOpts = modelBuildOptionsFromMessages(promptRows)
 	ctx = withActiveTurnAPIKeyID(ctx, modelOpts)
 
-	var err error
 	model, modelConfig, providerKeys, modelRoute, debugEnabled, resolvedProvider, debugModel, err = server.resolveChatModel(ctx, chat, modelOpts)
 	if err != nil {
 		return generationPrepared{}, err
@@ -97,7 +96,7 @@ func (server *Server) prepareGeneration(
 	}
 
 	if callConfig.MaxOutputTokens == nil {
-		maxOutputTokens := int64(32_000)
+		maxOutputTokens := defaultChatMaxOutputTokens
 		callConfig.MaxOutputTokens = &maxOutputTokens
 	}
 
@@ -121,8 +120,7 @@ func (server *Server) prepareGeneration(
 
 	var advisorRuntime *chatadvisor.Runtime
 	if advisorCfg.Enabled && isRootChat && !isPlanModeTurn && !isExploreSubagent {
-		var advisorErr error
-		advisorRuntime, advisorErr = server.newAdvisorRuntime(
+		advisorRuntime, err = server.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
@@ -132,8 +130,8 @@ func (server *Server) prepareGeneration(
 			modelOpts,
 			logger,
 		)
-		if advisorErr != nil {
-			return generationPrepared{}, advisorErr
+		if err != nil {
+			return generationPrepared{}, err
 		}
 	}
 
@@ -157,9 +155,18 @@ func (server *Server) prepareGeneration(
 		currentChat:      &currentChat,
 		loadChatSnapshot: loadChatSnapshot,
 	}
+	var mcpCleanup func()
 	cleanup := func() {
+		if mcpCleanup != nil {
+			mcpCleanup()
+		}
 		workspaceCtx.close()
 	}
+	defer func() {
+		if err != nil {
+			cleanup()
+		}
+	}()
 
 	planPathFn := func(ctx context.Context) (string, string, error) {
 		conn, err := workspaceCtx.getWorkspaceConn(ctx)
@@ -208,7 +215,6 @@ func (server *Server) prepareGeneration(
 		prompt             []fantasy.Message
 		instruction        string
 		mcpTools           []fantasy.AgentTool
-		mcpCleanup         func()
 		workspaceMCPTools  []fantasy.AgentTool
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
@@ -273,16 +279,7 @@ func (server *Server) prepareGeneration(
 		})
 	}
 	if err := g2.Wait(); err != nil {
-		cleanup()
 		return generationPrepared{}, err
-	}
-
-	if mcpCleanup != nil {
-		previousCleanup := cleanup
-		cleanup = func() {
-			mcpCleanup()
-			previousCleanup()
-		}
 	}
 
 	prompt, sanitizeStats := chatsanitize.SanitizeAnthropicProviderToolHistory(model.Provider(), prompt)
@@ -427,7 +424,6 @@ func (server *Server) prepareGeneration(
 
 	tools, dynamicToolNames, err := appendDynamicTools(ctx, logger, tools, chat.DynamicTools, currentPlanMode, chat.Mode)
 	if err != nil {
-		cleanup()
 		return generationPrepared{}, err
 	}
 
@@ -449,12 +445,10 @@ func (server *Server) prepareGeneration(
 	if isComputerUse {
 		computerUseProvider, computerUseModelProvider, computerUseModelName, err := server.computerUseProviderAndModelFromConfig(ctx)
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider and model: %w", err)
 		}
 		computerUseRoute, keyErr := server.resolveModelRouteForProviderType(ctx, chat.OwnerID, computerUseModelProvider)
 		if keyErr != nil {
-			cleanup()
 			return generationPrepared{}, xerrors.Errorf("resolve computer use provider route: %w", keyErr)
 		}
 		modelRoute = computerUseRoute
@@ -469,7 +463,6 @@ func (server *Server) prepareGeneration(
 			modelOpts,
 		)
 		if cuErr != nil {
-			cleanup()
 			return generationPrepared{}, cuErr
 		}
 		model = cuModel
@@ -486,7 +479,6 @@ func (server *Server) prepareGeneration(
 			logger:           server.logger.Named("computer_use"),
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, xerrors.Errorf("register computer use provider tool for provider %q: %w", computerUseProvider, err)
 		}
 	} else {
@@ -495,7 +487,6 @@ func (server *Server) prepareGeneration(
 			isComputerUse:  false,
 		})
 		if err != nil {
-			cleanup()
 			return generationPrepared{}, err
 		}
 	}
@@ -529,7 +520,6 @@ func (server *Server) prepareGeneration(
 	var debug *generationDebug
 	if debugEnabled {
 		if debugSvc == nil {
-			cleanup()
 			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
 		}
 		debug = &generationDebug{
