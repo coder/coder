@@ -8120,6 +8120,7 @@ export interface TemplateBuilderBase {
 	readonly icon: string;
 	readonly os: string;
 	readonly variables: readonly TemplateBuilderModuleVariable[];
+	readonly prerequisites: string;
 }
 
 // From codersdk/templatebuilder.go

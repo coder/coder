@@ -23622,6 +23622,9 @@ const docTemplate = `{
                 "os": {
                     "type": "string"
                 },
+                "prerequisites": {
+                    "type": "string"
+                },
                 "variables": {
                     "type": "array",
                     "items": {

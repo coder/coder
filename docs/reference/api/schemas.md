@@ -11884,6 +11884,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "id": "string",
   "name": "string",
   "os": "string",
+  "prerequisites": "string",
   "variables": [
     {
       "default": [
@@ -11901,14 +11902,15 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                                      | Required | Restrictions | Description |
-|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `description` | string                                                                                    | false    |              |             |
-| `icon`        | string                                                                                    | false    |              |             |
-| `id`          | string                                                                                    | false    |              |             |
-| `name`        | string                                                                                    | false    |              |             |
-| `os`          | string                                                                                    | false    |              |             |
-| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| Name            | Type                                                                                      | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description`   | string                                                                                    | false    |              |             |
+| `icon`          | string                                                                                    | false    |              |             |
+| `id`            | string                                                                                    | false    |              |             |
+| `name`          | string                                                                                    | false    |              |             |
+| `os`            | string                                                                                    | false    |              |             |
+| `prerequisites` | string                                                                                    | false    |              |             |
+| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -11921,6 +11923,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "id": "string",
       "name": "string",
       "os": "string",
+      "prerequisites": "string",
       "variables": [
         {
           "default": [
