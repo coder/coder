@@ -20,7 +20,7 @@
       "initiator": "autobuild",
       "name": "bobby-workspace",
       "reason": "breached the template's threshold for inactivity",
-      "timeTilDormant": "24 hours"
+      "timeTilDelete": "24 hours"
     },
     "data": null,
     "targets": null
