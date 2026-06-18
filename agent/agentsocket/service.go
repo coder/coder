@@ -2,12 +2,14 @@ package agentsocket
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"sync"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentsocket/proto"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/unit"
@@ -16,14 +18,29 @@ import (
 var _ proto.DRPCAgentSocketServer = (*DRPCAgentSocketService)(nil)
 
 var (
-	ErrUnitManagerNotAvailable = xerrors.New("unit manager not available")
-	ErrAgentAPINotConnected    = xerrors.New("agent not connected to coderd")
+	ErrUnitManagerNotAvailable    = xerrors.New("unit manager not available")
+	ErrAgentAPINotConnected       = xerrors.New("agent not connected to coderd")
+	ErrContextManagerNotAvailable = xerrors.New("context manager not available")
+	ErrContextSourceNotFound      = xerrors.New("context source not found")
 )
+
+// ContextManager is the subset of *agentcontext.Manager the socket
+// service needs to serve workspace-context source CRUD. It is an
+// interface so tests can supply a fake.
+type ContextManager interface {
+	Sources() []agentcontext.Source
+	HasSource(path string) (canonical string, ok bool)
+	AddSource(s agentcontext.Source) (agentcontext.Source, error)
+	RemoveSource(path string) error
+	Snapshot() agentcontext.Snapshot
+	Resync(ctx context.Context) (agentcontext.Snapshot, error)
+}
 
 // DRPCAgentSocketService implements the DRPC agent socket service.
 type DRPCAgentSocketService struct {
-	unitManager *unit.Manager
-	logger      slog.Logger
+	unitManager    *unit.Manager
+	contextManager ContextManager
+	logger         slog.Logger
 
 	mu       sync.Mutex
 	agentAPI agentproto.DRPCAgentClient28
@@ -209,4 +226,108 @@ func (s *DRPCAgentSocketService) UpdateAppStatus(ctx context.Context, req *agent
 		return nil, ErrAgentAPINotConnected
 	}
 	return api.UpdateAppStatus(ctx, req)
+}
+
+// ContextSources lists the workspace-context sources registered on the agent.
+func (s *DRPCAgentSocketService) ContextSources(_ context.Context, _ *proto.ContextSourcesRequest) (*proto.ContextSourcesResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	sources := s.contextManager.Sources()
+	out := &proto.ContextSourcesResponse{Sources: make([]*proto.ContextSource, 0, len(sources))}
+	for _, src := range sources {
+		out.Sources = append(out.Sources, &proto.ContextSource{Path: src.Path})
+	}
+	return out, nil
+}
+
+// GetContextSource returns a single registered source, canonicalizing the
+// requested path before matching.
+func (s *DRPCAgentSocketService) GetContextSource(_ context.Context, req *proto.GetContextSourceRequest) (*proto.GetContextSourceResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	canonical, ok := s.contextManager.HasSource(req.Path)
+	if !ok {
+		return nil, xerrors.Errorf("%q: %w", req.Path, ErrContextSourceNotFound)
+	}
+	return &proto.GetContextSourceResponse{Source: &proto.ContextSource{Path: canonical}}, nil
+}
+
+// AddContextSource registers a new scan root and triggers a re-resolve.
+func (s *DRPCAgentSocketService) AddContextSource(_ context.Context, req *proto.AddContextSourceRequest) (*proto.AddContextSourceResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	src, err := s.contextManager.AddSource(agentcontext.Source{Path: req.Path})
+	if err != nil {
+		return nil, xerrors.Errorf("add context source: %w", err)
+	}
+	return &proto.AddContextSourceResponse{Source: &proto.ContextSource{Path: src.Path}}, nil
+}
+
+// RemoveContextSource removes a previously-registered scan root.
+func (s *DRPCAgentSocketService) RemoveContextSource(_ context.Context, req *proto.RemoveContextSourceRequest) (*proto.RemoveContextSourceResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	if err := s.contextManager.RemoveSource(req.Path); err != nil {
+		if errors.Is(err, agentcontext.ErrSourceNotFound) {
+			return nil, xerrors.Errorf("%q: %w", req.Path, ErrContextSourceNotFound)
+		}
+		return nil, xerrors.Errorf("remove context source: %w", err)
+	}
+	return &proto.RemoveContextSourceResponse{}, nil
+}
+
+// GetContextSnapshot returns the agent's current resolved snapshot without
+// forcing a re-walk.
+func (s *DRPCAgentSocketService) GetContextSnapshot(_ context.Context, _ *proto.ContextSnapshotRequest) (*proto.ContextSnapshotResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	return &proto.ContextSnapshotResponse{Snapshot: contextSnapshotToProto(s.contextManager.Snapshot())}, nil
+}
+
+// ResyncContext forces a re-walk and synchronous push, returning the
+// resulting snapshot. Callers use it as a barrier before fanning out a
+// refresh.
+func (s *DRPCAgentSocketService) ResyncContext(ctx context.Context, _ *proto.ResyncContextRequest) (*proto.ResyncContextResponse, error) {
+	if s.contextManager == nil {
+		return nil, ErrContextManagerNotAvailable
+	}
+	snap, err := s.contextManager.Resync(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("resync context: %w", err)
+	}
+	return &proto.ResyncContextResponse{Snapshot: contextSnapshotToProto(snap)}, nil
+}
+
+// contextSnapshotToProto converts an agentcontext.Snapshot to its on-wire
+// form. Payload bytes are intentionally omitted; they reach coderd via the
+// drpc PushContextState path. Keep the per-resource field mapping in sync
+// with snapshotResponse in agent/agentcontext/api.go.
+func contextSnapshotToProto(s agentcontext.Snapshot) *proto.ContextSnapshot {
+	out := &proto.ContextSnapshot{
+		Version:       s.Version,
+		AggregateHash: hex.EncodeToString(s.AggregateHash[:]),
+		Resources:     make([]*proto.ContextResource, 0, len(s.Resources)),
+		PayloadBytes:  s.PayloadBytes,
+		SnapshotError: s.SnapshotError,
+	}
+	for _, r := range s.Resources {
+		out.Resources = append(out.Resources, &proto.ContextResource{
+			Id:          r.ID,
+			Kind:        r.Kind.String(),
+			Source:      r.Source,
+			SourcePath:  r.SourcePath,
+			ContentHash: hex.EncodeToString(r.ContentHash[:]),
+			SizeBytes:   r.SizeBytes,
+			Status:      r.Status.String(),
+			Error:       r.Error,
+			Name:        r.Name,
+			Description: r.Description,
+		})
+	}
+	return out
 }
