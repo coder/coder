@@ -230,7 +230,7 @@ func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 	logID := uuid.New()
 	_, err = authzDB.InsertBoundaryLogs(agentCtx, database.InsertBoundaryLogsParams{
 		SessionID:      sessionID,
-		OwnerID:        uuid.NullUUID{UUID: user.ID, Valid: true},
+		OwnerID:        user.ID,
 		ID:             []uuid.UUID{logID},
 		SequenceNumber: []int32{1},
 		CapturedAt:     []time.Time{now},
@@ -251,7 +251,7 @@ func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 	otherUser := dbgen.User(t, rawDB, database.User{})
 	_, err = authzDB.InsertBoundaryLogs(agentCtx, database.InsertBoundaryLogsParams{
 		SessionID:      sessionID,
-		OwnerID:        uuid.NullUUID{UUID: otherUser.ID, Valid: true},
+		OwnerID:        otherUser.ID,
 		ID:             []uuid.UUID{uuid.New()},
 		SequenceNumber: []int32{2},
 		CapturedAt:     []time.Time{now},

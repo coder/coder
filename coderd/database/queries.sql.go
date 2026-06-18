@@ -3783,16 +3783,16 @@ RETURNING id, session_id, sequence_number, captured_at, created_at, proto, metho
 `
 
 type InsertBoundaryLogsParams struct {
-	ID             []uuid.UUID   `db:"id" json:"id"`
-	SessionID      uuid.UUID     `db:"session_id" json:"session_id"`
-	OwnerID        uuid.NullUUID `db:"owner_id" json:"owner_id"`
-	SequenceNumber []int32       `db:"sequence_number" json:"sequence_number"`
-	CapturedAt     []time.Time   `db:"captured_at" json:"captured_at"`
-	CreatedAt      []time.Time   `db:"created_at" json:"created_at"`
-	Proto          []string      `db:"proto" json:"proto"`
-	Method         []string      `db:"method" json:"method"`
-	Detail         []string      `db:"detail" json:"detail"`
-	MatchedRule    []string      `db:"matched_rule" json:"matched_rule"`
+	ID             []uuid.UUID `db:"id" json:"id"`
+	SessionID      uuid.UUID   `db:"session_id" json:"session_id"`
+	OwnerID        uuid.UUID   `db:"owner_id" json:"owner_id"`
+	SequenceNumber []int32     `db:"sequence_number" json:"sequence_number"`
+	CapturedAt     []time.Time `db:"captured_at" json:"captured_at"`
+	CreatedAt      []time.Time `db:"created_at" json:"created_at"`
+	Proto          []string    `db:"proto" json:"proto"`
+	Method         []string    `db:"method" json:"method"`
+	Detail         []string    `db:"detail" json:"detail"`
+	MatchedRule    []string    `db:"matched_rule" json:"matched_rule"`
 }
 
 func (q *sqlQuerier) InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error) {

@@ -96,7 +96,7 @@ func (a *BoundaryLogsAPI) ReportBoundaryLogs(ctx context.Context, req *agentprot
 	// Collect batch insert params while iterating.
 	batch := database.InsertBoundaryLogsParams{
 		SessionID:      sessionID,
-		OwnerID:        uuid.NullUUID{UUID: a.OwnerID, Valid: true},
+		OwnerID:        a.OwnerID,
 		ID:             nil,
 		SequenceNumber: nil,
 		CapturedAt:     nil,
