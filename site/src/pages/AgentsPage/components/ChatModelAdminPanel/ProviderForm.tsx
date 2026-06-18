@@ -17,12 +17,13 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { readOptionalString } from "#/modules/aiModels/helpers";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import type { CreateProviderResult } from "./ChatModelAdminPanel";
-import { getProviderBaseURLPlaceholder, readOptionalString } from "./helpers";
+import { getProviderBaseURLPlaceholder } from "./helpers";
 import { ProviderIcon } from "./ProviderIcon";
 
 // Sentinel value used to represent an existing API key that the

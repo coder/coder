@@ -25,10 +25,10 @@ import {
 import {
 	canManageProviderModels,
 	type ProviderState,
+	resolveModelProviderKey,
 } from "#/modules/aiModels/providerStates";
 import { cn } from "#/utils/cn";
 import { SectionHeader } from "../SectionHeader";
-import { normalizeProvider, readOptionalString } from "./helpers";
 import { ModelForm } from "./ModelForm";
 import { ProviderIcon } from "./ProviderIcon";
 import { hasCustomPricing } from "./pricingFields";
@@ -46,28 +46,6 @@ const clearModelViewParams = (params: URLSearchParams) => {
 	for (const param of MODEL_VIEW_PARAMS) {
 		params.delete(param);
 	}
-};
-
-const modelConfigProviderKey = (
-	modelConfig: TypesGen.ChatModelConfig,
-	providerStates: readonly ProviderState[],
-): string => {
-	const providerID = readOptionalString(modelConfig.ai_provider_id);
-	if (providerID) {
-		return providerID;
-	}
-
-	const provider = normalizeProvider(modelConfig.provider);
-	const providerMatches = providerStates.filter(
-		(providerState) => providerState.provider === provider,
-	);
-	if (providerMatches.length === 1) {
-		return providerMatches[0].key;
-	}
-	if (providerMatches.length > 1) {
-		return "";
-	}
-	return provider;
 };
 
 interface ModelsSectionProps {
@@ -195,9 +173,9 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 		const effectiveProvider =
 			selectedProviderOverride ??
 			(view.mode === "edit"
-				? modelConfigProviderKey(view.model, providerStates)
+				? resolveModelProviderKey(view.model, providerStates)
 				: view.mode === "duplicate"
-					? modelConfigProviderKey(view.sourceModel, providerStates)
+					? resolveModelProviderKey(view.sourceModel, providerStates)
 					: view.provider);
 		const effectiveProviderState =
 			providerStates.find((ps) => ps.key === effectiveProvider) ?? null;
@@ -329,7 +307,7 @@ export const ModelsSection: FC<ModelsSectionProps> = ({
 							isUpdating || modelConfig.is_default || !modelConfig.enabled;
 						const providerState = providerStates.find(
 							(ps) =>
-								ps.key === modelConfigProviderKey(modelConfig, providerStates),
+								ps.key === resolveModelProviderKey(modelConfig, providerStates),
 						);
 						const duplicateUnavailable = Boolean(
 							providerState && !canManageProviderModels(providerState),

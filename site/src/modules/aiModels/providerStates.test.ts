@@ -9,7 +9,23 @@ import {
 	canManageProviderModels,
 	deriveProviderStates,
 	type ProviderState,
+	resolveModelProviderKey,
 } from "./providerStates";
+
+const baseProviderState: ProviderState = {
+	key: "prov-openai",
+	provider: "openai",
+	label: "OpenAI",
+	providerConfig: MockChatProviderConfig,
+	modelConfigs: [],
+	catalogModelCount: 0,
+	hasManagedAPIKey: true,
+	hasCatalogAPIKey: false,
+	hasEffectiveAPIKey: true,
+	allowUserAPIKey: false,
+	isEnvPreset: false,
+	baseURL: "",
+};
 
 describe("deriveProviderStates", () => {
 	it("orders provider configs first, then catalog-only, then model-only providers", () => {
@@ -38,10 +54,11 @@ describe("deriveProviderStates", () => {
 			"google",
 			"vercel",
 		]);
-		// The config-backed provider keys on its config id, others on the name.
 		expect(states[0].key).toBe("prov-anthropic");
 		expect(states[1].key).toBe("google");
 		expect(states[2].key).toBe("vercel");
+		expect(states[0].hasEffectiveAPIKey).toBe(true);
+		expect(states[2].hasEffectiveAPIKey).toBe(false);
 	});
 
 	it("matches model configs to provider configs by ai_provider_id", () => {
@@ -65,6 +82,36 @@ describe("deriveProviderStates", () => {
 		expect(states).toHaveLength(1);
 		expect(states[0].key).toBe("prov-openai");
 		expect(states[0].modelConfigs.map((m) => m.id)).toEqual(["m1", "m2"]);
+	});
+
+	it("treats bedrock with central_api_key_enabled as having an effective key", () => {
+		const providerConfigs = [
+			{
+				...MockChatProviderConfig,
+				id: "prov-bedrock",
+				provider: "bedrock",
+				has_api_key: false,
+				central_api_key_enabled: true,
+			},
+		];
+
+		const states = deriveProviderStates([], providerConfigs, null);
+
+		expect(states[0].hasEffectiveAPIKey).toBe(true);
+	});
+
+	it("drops models without ai_provider_id when multiple configs exist for the same provider", () => {
+		const providerConfigs = [
+			{ ...MockChatProviderConfig, id: "prov-a", provider: "openai" },
+			{ ...MockChatProviderConfig, id: "prov-b", provider: "openai" },
+		];
+		const modelConfigs = [
+			{ ...MockChatModelConfig, id: "m1", provider: "openai" },
+		];
+
+		const states = deriveProviderStates(modelConfigs, providerConfigs, null);
+
+		expect(states.flatMap((s) => s.modelConfigs)).toHaveLength(0);
 	});
 
 	it("detects env-preset providers from the catalog when no config exists", () => {
@@ -95,24 +142,12 @@ describe("deriveProviderStates", () => {
 		const states = deriveProviderStates([], providerConfigs, null);
 
 		expect(states[0].isEnvPreset).toBe(true);
+		expect(states[0].providerConfig).toBeUndefined();
 	});
 });
 
 describe("canManageProviderModels", () => {
-	const baseState: ProviderState = {
-		key: "prov-openai",
-		provider: "openai",
-		label: "OpenAI",
-		providerConfig: MockChatProviderConfig,
-		modelConfigs: [],
-		catalogModelCount: 0,
-		hasManagedAPIKey: true,
-		hasCatalogAPIKey: false,
-		hasEffectiveAPIKey: true,
-		allowUserAPIKey: false,
-		isEnvPreset: false,
-		baseURL: "",
-	};
+	const baseState = baseProviderState;
 
 	it("returns false without a managed provider config", () => {
 		expect(
@@ -149,5 +184,40 @@ describe("canManageProviderModels", () => {
 
 	it("returns false for undefined provider state", () => {
 		expect(canManageProviderModels(undefined)).toBe(false);
+	});
+});
+
+describe("resolveModelProviderKey", () => {
+	const states: ProviderState[] = [
+		{ ...baseProviderState, key: "prov-a", provider: "openai" },
+		{ ...baseProviderState, key: "prov-b", provider: "openai" },
+		{ ...baseProviderState, key: "prov-anthropic", provider: "anthropic" },
+	];
+
+	it("prefers ai_provider_id when present", () => {
+		expect(
+			resolveModelProviderKey(
+				{ ...MockChatModelConfig, ai_provider_id: "prov-explicit" },
+				states,
+			),
+		).toBe("prov-explicit");
+	});
+
+	it("falls back to the single matching provider state key", () => {
+		expect(
+			resolveModelProviderKey(
+				{ ...MockChatModelConfig, provider: "anthropic" },
+				states,
+			),
+		).toBe("prov-anthropic");
+	});
+
+	it("returns an empty key when multiple states match the provider", () => {
+		expect(
+			resolveModelProviderKey(
+				{ ...MockChatModelConfig, provider: "openai" },
+				states,
+			),
+		).toBe("");
 	});
 });

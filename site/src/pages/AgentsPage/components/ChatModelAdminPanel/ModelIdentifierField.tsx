@@ -15,9 +15,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
 import type { FormHelpers } from "#/utils/formUtils";
-import { normalizeProvider } from "./helpers";
 import {
 	findKnownModelByCanonicalId,
 	findKnownModelByExactAlias,

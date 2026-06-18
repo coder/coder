@@ -29,8 +29,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
-import { normalizeProvider } from "./helpers";
 import {
 	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,

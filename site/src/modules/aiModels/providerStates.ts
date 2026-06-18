@@ -3,9 +3,10 @@ import {
 	getDefaultProviderBaseURL,
 	normalizeProvider,
 	readOptionalString,
-} from "#/pages/AgentsPage/components/ChatModelAdminPanel/helpers";
+} from "#/modules/aiModels/helpers";
 import { formatProviderLabel } from "#/utils/aiProviders";
 
+/** Derived per-provider state for the AI Models admin UI. */
 export type ProviderState = {
 	key: string;
 	provider: string;
@@ -13,9 +14,13 @@ export type ProviderState = {
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
+	/** Admin-configured key stored in the DB. */
 	hasManagedAPIKey: boolean;
+	/** Key available via the catalog (env/preset). */
 	hasCatalogAPIKey: boolean;
+	/** Managed-or-catalog union that gates model operations. */
 	hasEffectiveAPIKey: boolean;
+	/** Raw config flag (any source); not a manage gate — use canManageProviderModels. */
 	allowUserAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
@@ -79,10 +84,15 @@ type ProviderEntry = {
 	provider: string;
 };
 
+/**
+ * Derives per-provider state from model configs, provider configs, and the
+ * catalog. Ordering: configured providers, then catalog-only, then model-only.
+ * Empty inputs yield an empty array.
+ */
 export const deriveProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
-	providerConfigsData: TypesGen.ChatProviderConfig[] | null | undefined,
-	catalogData: TypesGen.ChatModelsResponse | null | undefined,
+	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,
+	catalog: TypesGen.ChatModelsResponse | null | undefined,
 ): readonly ProviderState[] => {
 	const orderedEntries: ProviderEntry[] = [];
 	const seenEntries = new Set<string>();
@@ -94,7 +104,7 @@ export const deriveProviderStates = (
 		orderedEntries.push({ key, provider });
 	};
 
-	const catalogProviders = getCatalogProviders(catalogData);
+	const catalogProviders = getCatalogProviders(catalog);
 	const catalogProvidersByProvider = new Map<string, CatalogProvider>();
 	for (const cp of catalogProviders) {
 		const provider = normalizeProvider(cp.provider);
@@ -104,7 +114,7 @@ export const deriveProviderStates = (
 
 	const providerConfigKeysByProvider = new Map<string, string[]>();
 	const providerTypesWithConfigs = new Set<string>();
-	for (const pc of providerConfigsData ?? []) {
+	for (const pc of providerConfigs ?? []) {
 		const provider = normalizeProvider(pc.provider);
 		if (!provider) continue;
 		const key = providerConfigStateKey(pc);
@@ -138,7 +148,7 @@ export const deriveProviderStates = (
 	}
 
 	const providerConfigsByKey = new Map<string, TypesGen.ChatProviderConfig>();
-	for (const pc of providerConfigsData ?? []) {
+	for (const pc of providerConfigs ?? []) {
 		const key = providerConfigStateKey(pc);
 		if (!key) continue;
 		providerConfigsByKey.set(key, pc);
@@ -202,6 +212,7 @@ export const deriveProviderStates = (
 	});
 };
 
+/** True when the provider has a DB config and either an effective key or user keys allowed. */
 export const canManageProviderModels = (
 	providerState: ProviderState | undefined,
 ): boolean => {
@@ -210,4 +221,24 @@ export const canManageProviderModels = (
 			(providerState.hasEffectiveAPIKey ||
 				providerState.providerConfig.allow_user_api_key),
 	);
+};
+
+/** Resolves a model config to its provider-state key (prefers ai_provider_id). */
+export const resolveModelProviderKey = (
+	modelConfig: TypesGen.ChatModelConfig,
+	providerStates: readonly ProviderState[],
+): string => {
+	const providerID = readOptionalString(modelConfig.ai_provider_id);
+	if (providerID) {
+		return providerID;
+	}
+	const provider = normalizeProvider(modelConfig.provider);
+	const matches = providerStates.filter((s) => s.provider === provider);
+	if (matches.length === 1) {
+		return matches[0].key;
+	}
+	if (matches.length > 1) {
+		return "";
+	}
+	return provider;
 };

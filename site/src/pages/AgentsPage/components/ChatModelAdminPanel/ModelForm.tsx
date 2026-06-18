@@ -29,6 +29,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { readOptionalString } from "#/modules/aiModels/helpers";
 import {
 	canManageProviderModels,
 	type ProviderState,
@@ -37,7 +38,6 @@ import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
 import { BackButton } from "../BackButton";
 import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
-import { readOptionalString } from "./helpers";
 import {
 	GeneralModelConfigFields,
 	ModelConfigFields,
