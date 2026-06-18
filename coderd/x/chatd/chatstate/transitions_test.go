@@ -1,8 +1,10 @@
 package chatstate_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -361,6 +363,75 @@ func TestTransitionInputValidation(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("CancelRequiresAction_invalid_deadline", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range cancelRequiresActionDeadlineRejectCases() {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				runCancelRequiresActionDeadlineRejectCase(t, tc)
+			})
+		}
+	})
+}
+
+type cancelRequiresActionDeadlineRejectCase struct {
+	name     string
+	deadline sql.NullTime
+	now      time.Time
+	want     string
+}
+
+func cancelRequiresActionDeadlineRejectCases() []cancelRequiresActionDeadlineRejectCase {
+	now := time.Now().UTC()
+	return []cancelRequiresActionDeadlineRejectCase{
+		{
+			name:     "not_expired",
+			deadline: sql.NullTime{Time: now.Add(time.Minute), Valid: true},
+			now:      now,
+			want:     "requires-action deadline has not expired",
+		},
+	}
+}
+
+func runCancelRequiresActionDeadlineRejectCase(t *testing.T, tc cancelRequiresActionDeadlineRejectCase) {
+	t.Helper()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	seeded := seedState(t, f, chatstate.StateA0)
+	require.Equal(t, chatstate.StateA0, f.classify(ctx, t, seeded.chatID))
+	require.NoError(t, f.DB.InTx(func(store database.Store) error {
+		chat, err := store.GetChatByID(ctx, seeded.chatID)
+		if err != nil {
+			return err
+		}
+		_, err = store.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{
+			ID:                       chat.ID,
+			Status:                   chat.Status,
+			Archived:                 chat.Archived,
+			WorkerID:                 chat.WorkerID,
+			RunnerID:                 chat.RunnerID,
+			LastError:                chat.LastError,
+			RequiresActionDeadlineAt: tc.deadline,
+		})
+		return err
+	}, nil))
+	base := captureBaseline(ctx, t, f, seeded)
+	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+
+	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		_, cancelErr := tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{Now: tc.now})
+		return cancelErr
+	})
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+	var te *chatstate.TransitionError
+	require.ErrorAs(t, err, &te)
+	require.Equal(t, chatstate.TransitionCancelRequiresAction, te.Transition)
+	require.Equal(t, chatstate.StateA0, te.From)
+	require.Contains(t, te.Reason, tc.want)
+	assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
 }
 
 // TestSendMessageQueueCapRejectsQueueAppend seeds a chat with the

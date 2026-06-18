@@ -166,52 +166,87 @@ type interruptionOutcome struct {
 	WatchEventKind codersdk.ChatWatchEventKind
 }
 
+type taskSideEffects interface {
+	RouteStateHint(context.Context, runnerStateUpdate)
+	RequestCleanup(context.Context, runnerKey)
+	AfterInterruptionOutcome(context.Context, interruptionOutcome) error
+}
+
+type runnerManagerTaskSideEffects struct {
+	manager *runnerManager
+	server  *Server
+}
+
+func (s runnerManagerTaskSideEffects) RouteStateHint(ctx context.Context, state runnerStateUpdate) {
+	s.manager.RouteStateHint(ctx, state)
+}
+
+func (s runnerManagerTaskSideEffects) RequestCleanup(ctx context.Context, key runnerKey) {
+	s.manager.requestCleanup(ctx, key)
+}
+
+func (s runnerManagerTaskSideEffects) AfterInterruptionOutcome(ctx context.Context, outcome interruptionOutcome) error {
+	if s.server == nil {
+		return nil
+	}
+	return s.server.afterInterruptionOutcome(ctx, outcome)
+}
+
+type taskStarterOptions struct {
+	logger                  slog.Logger
+	clock                   quartz.Clock
+	taskRetryInitialBackoff time.Duration
+	taskRetryMaxBackoff     time.Duration
+}
+
 type taskStarter struct {
-	server                   *Server
-	opts                     chatWorkerOptions
-	routeStateHint           func(context.Context, runnerStateUpdate)
-	requestCleanup           func(context.Context, runnerKey)
-	afterInterruptionOutcome func(context.Context, interruptionOutcome) error
+	server            *Server
+	store             database.Store
+	pubsub            chatWorkerPubsub
+	messagePartBuffer *messagepartbuffer.Buffer
+	sideEffects       taskSideEffects
+	opts              taskStarterOptions
 }
 
 func newTaskStarter(
 	server *Server,
-	opts chatWorkerOptions,
-	routeStateHint func(context.Context, runnerStateUpdate),
-	requestCleanup func(context.Context, runnerKey),
+	store database.Store,
+	pubsub chatWorkerPubsub,
+	messagePartBuffer *messagepartbuffer.Buffer,
+	sideEffects taskSideEffects,
+	opts taskStarterOptions,
 ) (*taskStarter, error) {
-	if opts.Store == nil {
+	if store == nil {
 		return nil, xerrors.New("chatworker: task store is required")
 	}
-	if opts.Pubsub == nil {
+	if pubsub == nil {
 		return nil, xerrors.New("chatworker: task pubsub is required")
 	}
-	if opts.MessagePartBuffer == nil {
+	if messagePartBuffer == nil {
 		return nil, xerrors.New("chatworker: message part buffer is required")
 	}
-	if opts.Clock == nil {
-		opts.Clock = quartz.NewReal()
+	if sideEffects == nil {
+		return nil, xerrors.New("chatworker: task side effects are required")
 	}
-	if opts.TaskRetryInitialBackoff <= 0 {
-		opts.TaskRetryInitialBackoff = defaultTaskRetryInitialBackoff
+	if opts.clock == nil {
+		opts.clock = quartz.NewReal()
 	}
-	if opts.TaskRetryMaxBackoff <= 0 {
-		opts.TaskRetryMaxBackoff = defaultTaskRetryMaxBackoff
+	if opts.taskRetryInitialBackoff <= 0 {
+		opts.taskRetryInitialBackoff = defaultTaskRetryInitialBackoff
 	}
-	if opts.TaskRetryMaxBackoff < opts.TaskRetryInitialBackoff {
-		opts.TaskRetryMaxBackoff = opts.TaskRetryInitialBackoff
+	if opts.taskRetryMaxBackoff <= 0 {
+		opts.taskRetryMaxBackoff = defaultTaskRetryMaxBackoff
 	}
-	if routeStateHint == nil {
-		return nil, xerrors.New("chatworker: route state hint callback is required")
-	}
-	if requestCleanup == nil {
-		return nil, xerrors.New("chatworker: cleanup callback is required")
+	if opts.taskRetryMaxBackoff < opts.taskRetryInitialBackoff {
+		opts.taskRetryMaxBackoff = opts.taskRetryInitialBackoff
 	}
 	return &taskStarter{
-		server:         server,
-		opts:           opts,
-		routeStateHint: routeStateHint,
-		requestCleanup: requestCleanup,
+		server:            server,
+		store:             store,
+		pubsub:            pubsub,
+		messagePartBuffer: messagePartBuffer,
+		sideEffects:       sideEffects,
+		opts:              opts,
 	}, nil
 }
 
@@ -224,8 +259,17 @@ func (o chatWorkerOptions) retryOptions() retryWrapperOptions {
 	}
 }
 
+func (o chatWorkerOptions) taskStarterOptions() taskStarterOptions {
+	return taskStarterOptions{
+		logger:                  o.Logger,
+		clock:                   o.Clock,
+		taskRetryInitialBackoff: o.TaskRetryInitialBackoff,
+		taskRetryMaxBackoff:     o.TaskRetryMaxBackoff,
+	}
+}
+
 func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.store, s.pubsub, input.ChatID)
 	var chat database.Chat
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
@@ -250,13 +294,13 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		HistoryVersion:    input.HistoryVersion,
 		GenerationAttempt: chat.GenerationAttempt,
 	}
-	if err := s.opts.MessagePartBuffer.CloseEpisode(key); err != nil {
+	if err := s.messagePartBuffer.CloseEpisode(key); err != nil {
 		if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("close message part episode: %w", err), ctx.Err())
 		}
 		return taskRetryableError{err: xerrors.Errorf("close message part episode: %w", err)}
 	}
-	parts, err := s.opts.MessagePartBuffer.GetParts(key)
+	parts, err := s.messagePartBuffer.GetParts(key)
 	if errors.Is(err, messagepartbuffer.ErrEpisodeNotFound) {
 		parts = nil
 		err = nil
@@ -271,8 +315,8 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 		parts:          parts,
 		modelConfigID:  chat.LastModelConfigID,
 		contentVersion: chatprompt.CurrentContentVersion,
-		logger:         s.opts.Logger,
-		interruptedAt:  s.opts.Clock.Now("chatworker", "interrupt"),
+		logger:         s.opts.logger,
+		interruptedAt:  s.opts.clock.Now("chatworker", "interrupt"),
 	})
 	if err != nil {
 		return xerrors.Errorf("convert buffered parts: %w", err)
@@ -291,7 +335,7 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 			return err
 		}
 		messages := partialMessages
-		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, locked, s.opts.Clock.Now("chatworker", "interrupt"))
+		committedCancels, err := committedPendingLocalToolCancellationMessages(ctx, store, locked, s.opts.clock.Now("chatworker", "interrupt"))
 		if err != nil {
 			return err
 		}
@@ -325,21 +369,14 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 }
 
 func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome interruptionOutcome) error {
-	afterOutcome := s.afterInterruptionOutcome
-	if afterOutcome == nil && s.server != nil {
-		afterOutcome = s.server.afterInterruptionOutcome
-	}
-	if afterOutcome == nil {
-		return nil
-	}
-	if err := afterOutcome(ctx, outcome); err != nil {
+	if err := s.sideEffects.AfterInterruptionOutcome(ctx, outcome); err != nil {
 		return taskRetryableError{err: xerrors.Errorf("interruption post-outcome side effects: %w", err)}
 	}
 	return nil
 }
 
 func (s *taskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.store, s.pubsub, input.ChatID)
 	for {
 		decision, err := decideRequiresActionTimeout(ctx, machine, input)
 		if err != nil {
@@ -404,11 +441,11 @@ func decideRequiresActionTimeout(
 }
 
 func (s *taskStarter) waitUntil(ctx context.Context, deadline time.Time) error {
-	now := s.opts.Clock.Now("chatworker", "requires-action-timeout")
+	now := s.opts.clock.Now("chatworker", "requires-action-timeout")
 	if !now.Before(deadline) {
 		return nil
 	}
-	timer := s.opts.Clock.NewTimer(deadline.Sub(now), "chatworker", "requires-action-timeout")
+	timer := s.opts.clock.NewTimer(deadline.Sub(now), "chatworker", "requires-action-timeout")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
@@ -436,15 +473,6 @@ func (s *taskStarter) cancelRequiresAction(
 		if err := verifyTaskFence(locked, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true}); err != nil {
 			return err
 		}
-		if locked.RequiresActionDeadlineAt.Valid {
-			now, err := store.GetDatabaseNow(ctx)
-			if err != nil {
-				return xerrors.Errorf("get database time: %w", err)
-			}
-			if now.Before(locked.RequiresActionDeadlineAt.Time) {
-				return errTaskExpectedExit
-			}
-		}
 		if _, err := tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{Reason: reason}); err != nil {
 			return err
 		}
@@ -464,7 +492,7 @@ func (s *taskStarter) cancelRequiresAction(
 }
 
 func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.store, s.pubsub, input.ChatID)
 	mismatch := false
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
@@ -489,12 +517,12 @@ func (s *taskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStar
 	})
 	if err != nil {
 		if errors.Is(err, errTaskExpectedExit) && mismatch {
-			s.requestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
+			s.sideEffects.RequestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
 			return nil
 		}
 		return normalizeTaskTransitionError(err, "abandon chat")
 	}
-	s.requestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
+	s.sideEffects.RequestCleanup(ctx, runnerKey{ChatID: input.ChatID, RunnerID: input.RunnerID})
 	return nil
 }
 
@@ -502,7 +530,7 @@ func (s *taskStarter) committedStateAfterUpdateError(ctx context.Context, commit
 	if committed.ID == uuid.Nil {
 		return database.Chat{}, false
 	}
-	current, err := s.opts.Store.GetChatByID(ctx, committed.ID)
+	current, err := s.store.GetChatByID(ctx, committed.ID)
 	if err != nil {
 		return database.Chat{}, false
 	}
@@ -529,7 +557,7 @@ func (s *taskStarter) publishWatchAndRoute(
 	if err := s.publishWatchWithRetry(watchCtx, chat, kind); err != nil {
 		return err
 	}
-	s.routeStateHint(ctx, stateUpdateFromChat(chat))
+	s.sideEffects.RouteStateHint(ctx, stateUpdateFromChat(chat))
 	return nil
 }
 
@@ -538,14 +566,14 @@ func (s *taskStarter) publishWatchWithRetry(
 	chat database.Chat,
 	kind codersdk.ChatWatchEventKind,
 ) error {
-	delay := s.opts.TaskRetryInitialBackoff
+	delay := s.opts.taskRetryInitialBackoff
 	for {
-		if err := publishChatWatchEvent(s.opts.Pubsub, chat, kind); err == nil {
+		if err := publishChatWatchEvent(s.pubsub, chat, kind); err == nil {
 			return nil
 		} else if ctx.Err() != nil {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("publishChatWatchEvent: %w", ctx.Err()))
 		}
-		timer := s.opts.Clock.NewTimer(delay, "chatworker", "watch-publish-retry")
+		timer := s.opts.clock.NewTimer(delay, "chatworker", "watch-publish-retry")
 		select {
 		case <-timer.C:
 		case <-ctx.Done():
@@ -553,10 +581,10 @@ func (s *taskStarter) publishWatchWithRetry(
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("watch publish retry context done: %w", ctx.Err()))
 		}
 		timer.Stop()
-		if delay < s.opts.TaskRetryMaxBackoff {
+		if delay < s.opts.taskRetryMaxBackoff {
 			delay *= 2
-			if delay > s.opts.TaskRetryMaxBackoff {
-				delay = s.opts.TaskRetryMaxBackoff
+			if delay > s.opts.taskRetryMaxBackoff {
+				delay = s.opts.taskRetryMaxBackoff
 			}
 		}
 	}

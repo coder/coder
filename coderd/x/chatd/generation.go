@@ -348,7 +348,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	if s.server == nil {
 		return xerrors.New("chatworker: server is required")
 	}
-	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
+	machine := chatstate.NewChatMachine(s.store, s.pubsub, input.ChatID)
 	chainModeDisabled := false
 	for {
 		locked, messages, err := loadGenerationState(ctx, machine, input)
@@ -439,7 +439,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				return err
 			}
 			if decision.retry {
-				s.opts.Logger.Warn(ctx, "chat generation retrying",
+				s.opts.logger.Warn(ctx, "chat generation retrying",
 					slog.F("chat_id", input.ChatID),
 					slog.F("worker_id", input.WorkerID),
 					slog.F("action", action),
@@ -556,7 +556,7 @@ func (*taskStarter) recordGenerationRetry(
 }
 
 func (s *taskStarter) waitGenerationRetry(ctx context.Context, delay time.Duration) error {
-	timer := s.opts.Clock.NewTimer(delay, "chatworker", "generation-retry")
+	timer := s.opts.clock.NewTimer(delay, "chatworker", "generation-retry")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
@@ -609,7 +609,7 @@ func retryGenerationPhase[T any](ctx context.Context, starter *taskStarter, phas
 		lastErr = err
 		if attempt < generationPhaseMaxAttempts-1 {
 			delay := generationPhaseBackoff(attempt)
-			starter.opts.Logger.Warn(ctx, "chat generation phase retrying",
+			starter.opts.logger.Warn(ctx, "chat generation phase retrying",
 				slog.F("phase", phase),
 				slog.F("attempt", attempt+1),
 				slog.F("max_attempts", generationPhaseMaxAttempts),
@@ -625,7 +625,7 @@ func retryGenerationPhase[T any](ctx context.Context, starter *taskStarter, phas
 }
 
 func (s *taskStarter) waitGenerationPhaseBackoff(ctx context.Context, delay time.Duration) error {
-	timer := s.opts.Clock.NewTimer(delay, "chatworker", "generation-phase-retry")
+	timer := s.opts.clock.NewTimer(delay, "chatworker", "generation-phase-retry")
 	defer timer.Stop()
 	select {
 	case <-timer.C:
@@ -658,8 +658,8 @@ func (s *taskStarter) generateAssistant(
 		ModelConfig:          prepared.ModelConfig,
 		ProviderOptions:      prepared.ProviderOptions,
 		PublishMessagePart:   publish,
-		Logger:               s.opts.Logger,
-		Clock:                s.opts.Clock,
+		Logger:               s.opts.logger,
+		Clock:                s.opts.clock,
 		Metrics:              s.server.metrics,
 	})
 	if err != nil {
@@ -673,7 +673,7 @@ func (s *taskStarter) generateAssistant(
 		modelCallConfig:    prepared.ModelConfig,
 		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
+		logger:             s.opts.logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
@@ -715,9 +715,9 @@ func (s *taskStarter) executeLocalTools(
 		ModelProvider:      provider,
 		ModelName:          modelName,
 		PublishMessagePart: publish,
-		Logger:             s.opts.Logger,
+		Logger:             s.opts.logger,
 		Metrics:            s.server.metrics,
-		Clock:              s.opts.Clock,
+		Clock:              s.opts.clock,
 	})
 	if err != nil {
 		return err
@@ -727,7 +727,7 @@ func (s *taskStarter) executeLocalTools(
 		modelCallConfig:    prepared.ModelConfig,
 		step:               stepDataFromPersisted(outcome.Step),
 		toolNameToConfigID: prepared.ToolNameToConfigID,
-		logger:             s.opts.Logger,
+		logger:             s.opts.logger,
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
@@ -812,7 +812,7 @@ func (s *taskStarter) persistWorkspaceContext(
 	if s.server == nil {
 		return errTaskExpectedExit
 	}
-	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+	messages, err := s.store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  input.ChatID,
 		AfterID: 0,
 	})
@@ -882,14 +882,14 @@ func (s *taskStarter) beginGenerationAttempt(
 		HistoryVersion:    committed.HistoryVersion,
 		GenerationAttempt: attempt,
 	}
-	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
+	if err := s.messagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
 		return 0, messagepartbuffer.Key{}, nil, nil, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
 	publish := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
-		_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
+		_ = s.messagePartBuffer.AddPart(key, role, part)
 	}
 	closeEpisode := func() {
-		_ = s.opts.MessagePartBuffer.CloseEpisode(key)
+		_ = s.messagePartBuffer.CloseEpisode(key)
 	}
 	return attempt, key, publish, closeEpisode, nil
 }
@@ -935,7 +935,7 @@ func (s *taskStarter) commitGenerationStep(
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
-	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	s.sideEffects.RouteStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:             committed,
 		Kind:             runnerActionKind(kind),
@@ -1040,7 +1040,7 @@ func (s *taskStarter) finishGenerationTurn(
 	}); err != nil {
 		return err
 	}
-	s.routeStateHint(ctx, stateUpdateFromChat(committed))
+	s.sideEffects.RouteStateHint(ctx, stateUpdateFromChat(committed))
 	return nil
 }
 
@@ -1056,7 +1056,7 @@ func (s *taskStarter) finishGenerationError(
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
 	// omits the underlying reason, and even if the persist below fails.
-	s.opts.Logger.Warn(ctx, "chat generation failed",
+	s.opts.logger.Warn(ctx, "chat generation failed",
 		slog.F("chat_id", input.ChatID),
 		slog.F("worker_id", input.WorkerID),
 		slog.F("generation_attempt", input.GenerationAttempt),

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -230,6 +231,37 @@ func sinkFieldValue(t *testing.T, fields slog.Map, name string) string {
 	return ""
 }
 
+func TestTaskStarterSideEffectsMock(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	sideEffects := NewMockTaskSideEffects(ctrl)
+	chatID := uuid.New()
+	runnerID := uuid.New()
+	state := runnerStateUpdate{
+		ChatID:          chatID,
+		SnapshotVersion: 7,
+		Status:          database.ChatStatusRunning,
+	}
+	cleanup := runnerKey{ChatID: chatID, RunnerID: runnerID}
+	outcome := interruptionOutcome{
+		Chat:           database.Chat{ID: chatID, Status: database.ChatStatusWaiting},
+		Kind:           runnerActionKindFinishInterruption,
+		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
+	}
+
+	gomock.InOrder(
+		sideEffects.EXPECT().RouteStateHint(gomock.Any(), state),
+		sideEffects.EXPECT().RequestCleanup(gomock.Any(), cleanup),
+		sideEffects.EXPECT().AfterInterruptionOutcome(gomock.Any(), outcome).Return(nil),
+	)
+
+	sideEffects.RouteStateHint(ctx, state)
+	sideEffects.RequestCleanup(ctx, cleanup)
+	require.NoError(t, sideEffects.AfterInterruptionOutcome(ctx, outcome))
+}
+
 func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	t.Parallel()
 
@@ -240,7 +272,7 @@ func TestInterruptTask_FinishInterruptionOnly(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
-	buffer := starter.opts.MessagePartBuffer
+	buffer := starter.messagePartBuffer
 	key := messagepartbuffer.Key{
 		ChatID:            chat.ID,
 		HistoryVersion:    acquired.HistoryVersion,
@@ -354,7 +386,7 @@ func TestInterruptTask_BufferedPartsBecomePartialMessages(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
-	buffer := starter.opts.MessagePartBuffer
+	buffer := starter.messagePartBuffer
 	key := messagepartbuffer.Key{ChatID: chat.ID, HistoryVersion: acquired.HistoryVersion, GenerationAttempt: acquired.GenerationAttempt}
 	require.NoError(t, buffer.CreateEpisode(key))
 	callID := "call_" + uuid.NewString()
@@ -1173,19 +1205,19 @@ func newTaskSideEffectRecorder() *taskSideEffectRecorder {
 	return &taskSideEffectRecorder{}
 }
 
-func (r *taskSideEffectRecorder) routeStateHint(_ context.Context, state runnerStateUpdate) {
+func (r *taskSideEffectRecorder) RouteStateHint(_ context.Context, state runnerStateUpdate) {
 	r.mu.Lock()
 	r.hints = append(r.hints, state)
 	r.mu.Unlock()
 }
 
-func (r *taskSideEffectRecorder) requestCleanup(_ context.Context, key runnerKey) {
+func (r *taskSideEffectRecorder) RequestCleanup(_ context.Context, key runnerKey) {
 	r.mu.Lock()
 	r.cleanups = append(r.cleanups, key)
 	r.mu.Unlock()
 }
 
-func (r *taskSideEffectRecorder) afterInterruptionOutcome(_ context.Context, outcome interruptionOutcome) error {
+func (r *taskSideEffectRecorder) AfterInterruptionOutcome(_ context.Context, outcome interruptionOutcome) error {
 	r.mu.Lock()
 	r.interrupts = append(r.interrupts, outcome)
 	r.mu.Unlock()
@@ -1246,16 +1278,19 @@ func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffe
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(nil, chatWorkerOptions{
-		Store:                   f.db,
-		Pubsub:                  f.pubsub,
-		Logger:                  slog.Make(),
-		Clock:                   quartz.NewReal(),
-		MessagePartBuffer:       buffer,
-		TaskRetryInitialBackoff: time.Millisecond,
-		TaskRetryMaxBackoff:     time.Millisecond,
-	}, recorder.routeStateHint, recorder.requestCleanup)
+	starter, err := newTaskStarter(
+		nil,
+		f.db,
+		f.pubsub,
+		buffer,
+		recorder,
+		taskStarterOptions{
+			logger:                  slog.Make(),
+			clock:                   quartz.NewReal(),
+			taskRetryInitialBackoff: time.Millisecond,
+			taskRetryMaxBackoff:     time.Millisecond,
+		},
+	)
 	require.NoError(t, err)
-	starter.afterInterruptionOutcome = recorder.afterInterruptionOutcome
 	return starter
 }

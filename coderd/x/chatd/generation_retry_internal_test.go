@@ -59,7 +59,7 @@ func TestRetryGenerationPhase(t *testing.T) {
 		defer timerTrap.Close()
 		sink := testutil.NewFakeSink(t)
 		starter := newGenerationPhaseTestStarter(t, clock)
-		starter.opts.Logger = sink.Logger()
+		starter.opts.logger = sink.Logger()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		calls := 0
 		done := make(chan phaseRetryResult[string], 1)
@@ -172,10 +172,10 @@ type phaseRetryResult[T any] struct {
 func newGenerationPhaseTestStarter(t *testing.T, clock quartz.Clock) *taskStarter {
 	t.Helper()
 	require.NotNil(t, clock)
-	return &taskStarter{opts: chatWorkerOptions{
-		Clock:                   clock,
-		Logger:                  testutil.NewFakeSink(t).Logger(),
-		TaskRetryInitialBackoff: time.Millisecond,
-		TaskRetryMaxBackoff:     time.Millisecond,
+	return &taskStarter{opts: taskStarterOptions{
+		clock:                   clock,
+		logger:                  testutil.NewFakeSink(t).Logger(),
+		taskRetryInitialBackoff: time.Millisecond,
+		taskRetryMaxBackoff:     time.Millisecond,
 	}}
 }

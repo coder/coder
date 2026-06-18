@@ -7,6 +7,7 @@ import (
 	"slices"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -256,11 +257,19 @@ func applyFinishError(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededCh
 	return err
 }
 
-func applyCancelRequiresAction(t *testing.T, _ *testFixture, tx *chatstate.Tx, _ seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
+func applyCancelRequiresAction(t *testing.T, _ *testFixture, tx *chatstate.Tx, seeded seededChat, _ chatstate.ExecutionState, result *transitionCaseResult) error {
 	t.Helper()
-	var err error
+	chat, err := tx.Store().GetChatByID(tx.Ctx(), seeded.chatID)
+	if err != nil {
+		return err
+	}
+	now := time.Time{}
+	if chat.RequiresActionDeadlineAt.Valid {
+		now = chat.RequiresActionDeadlineAt.Time.Add(time.Nanosecond)
+	}
 	result.cancelRequiresAction, err = tx.CancelRequiresAction(chatstate.CancelRequiresActionInput{
 		Reason: "cancel from test",
+		Now:    now,
 	})
 	return err
 }

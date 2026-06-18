@@ -1344,6 +1344,7 @@ func (tx *Tx) FinishError(input FinishErrorInput) (FinishErrorResult, error) {
 // CancelRequiresActionInput configures [Tx.CancelRequiresAction].
 type CancelRequiresActionInput struct {
 	Reason string
+	Now    time.Time
 }
 
 // CancelRequiresActionResult is returned by [Tx.CancelRequiresAction].
@@ -1357,6 +1358,21 @@ func (tx *Tx) CancelRequiresAction(input CancelRequiresActionInput) (CancelRequi
 	chat, from, err := tx.requireFromAllowed(TransitionCancelRequiresAction)
 	if err != nil {
 		return CancelRequiresActionResult{}, err
+	}
+	if chat.RequiresActionDeadlineAt.Valid {
+		now := input.Now
+		if now.IsZero() {
+			now, err = tx.store.GetDatabaseNow(tx.ctx)
+			if err != nil {
+				return CancelRequiresActionResult{}, xerrors.Errorf("get database time: %w", err)
+			}
+		}
+		if now.Before(chat.RequiresActionDeadlineAt.Time) {
+			return CancelRequiresActionResult{}, newTransitionError(
+				TransitionCancelRequiresAction, from,
+				"requires-action deadline has not expired",
+			)
+		}
 	}
 	reason := input.Reason
 	if reason == "" {

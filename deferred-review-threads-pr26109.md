@@ -1,5 +1,7 @@
 # Deferred Review Threads from PR #26109
 
+<!-- markdownlint-disable MD029 -->
+
 Source: https://github.com/coder/coder/pull/26109
 
 This file lists every review comment thread that hugodutka marked as deferred. It serves as a template for a plan to address these issues. Each entry describes what the thread was about, with a link to the original discussion.
@@ -143,10 +145,10 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 - [ ] 29. runner_manager.go: skip logging context canceled errors, line 458 (r3387355724)
 - [ ] 30. runner_manager.go: document stateCh buffering semantics (r3387788957)
 - [ ] 31. testhooks.go: accept context.Context instead of hard-coded timeout (r3382365135)
-- [ ] 32. tasks.go: extract side-effecting deps to interface (r3382554277)
-- [ ] 33. tasks_test.go: use interface and gomock for taskStarter spy (r3382564035)
-- [ ] 34. tasks.go: required options as newTaskStarter args (r3387867697)
-- [ ] 35. tasks.go: enforce invariant in state machine, not each Update (r3387919402)
+- [x] 32. tasks.go: extract side-effecting deps to interface (r3382554277)
+- [x] 33. tasks_test.go: use interface and gomock for taskStarter spy (r3382564035)
+- [x] 34. tasks.go: required options as newTaskStarter args (r3387867697)
+- [x] 35. tasks.go: enforce invariant in state machine, not each Update (r3387919402)
 - [ ] 36. worker.go: rename ctx to parentCtx (r3387954876)
 - [ ] 37. worker.go: replace magic number with documented const (r3387973304)
 - [ ] 38. quickgen.go: consider separate timeout bound (r3387365392)
