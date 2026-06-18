@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	debugLogsActiveLimitBytes      = 10 * 1024 * 1024
-	debugLogsWithRotatedLimitBytes = 100 * 1024 * 1024
+	debugLogsActiveMaxBytes   = 10 * 1024 * 1024
+	debugLogsCombinedMaxBytes = 100 * 1024 * 1024
 )
 
 var coderAgentRotatedLogPattern = regexp.MustCompile(`^coder-agent-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.\d{3}\.log$`)
@@ -30,12 +30,12 @@ type agentLogFile struct {
 }
 
 func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	after, ok, err := parseDebugLogsAfter(r)
+	after, hasAfter, err := parseDebugLogsAfter(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if !ok {
+	if !hasAfter {
 		a.writeActiveDebugLog(w, r)
 		return
 	}
@@ -43,68 +43,66 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 	if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 		a.logger.Warn(r.Context(), "disable debug log write deadline", slog.Error(err))
 	}
-	files, err := agentDebugLogFiles(r.Context(), a.logger, a.logDir, after)
+
+	// Open the required active log before the 200 so failures return 500.
+	activePath := filepath.Join(a.logDir, "coder-agent.log")
+	active, err := os.Open(activePath)
 	if err != nil {
-		a.logger.Error(r.Context(), "find agent log files", slog.Error(err), slog.F("log_dir", a.logDir))
+		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", activePath))
 		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not find log files: %s", err)
+		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
 		return
 	}
-	remaining := int64(debugLogsWithRotatedLimitBytes)
-	for i, file := range files {
+	activeInfo, err := active.Stat()
+	if err != nil {
+		_ = active.Close()
+		a.logger.Error(r.Context(), "stat agent log file", slog.Error(err), slog.F("path", activePath))
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = fmt.Fprintf(w, "could not stat log file: %s", err)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	remaining := int64(debugLogsCombinedMaxBytes)
+	remaining, err = writeAgentLogSection(w, active, activeInfo.ModTime(), false, remaining)
+	_ = active.Close()
+	if err != nil {
+		a.logger.Error(r.Context(), "read agent log file", slog.Error(err), slog.F("path", activePath))
+		return
+	}
+
+	// Then rotated logs after the cutoff, newest first.
+	rotated, err := rotatedAgentLogFiles(r.Context(), a.logger, a.logDir, after)
+	if err != nil {
+		a.logger.Error(r.Context(), "find rotated agent log files", slog.Error(err), slog.F("log_dir", a.logDir))
+		return
+	}
+	for _, file := range rotated {
 		if remaining <= 0 {
 			break
 		}
 		f, err := os.Open(file.path)
 		if err != nil {
-			// The active log is always first and must be readable.
-			if i == 0 {
-				a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", file.path))
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-				return
-			}
 			a.logger.Warn(r.Context(), "open rotated agent log file", slog.Error(err), slog.F("path", file.path))
 			continue
 		}
-		if i == 0 {
-			w.WriteHeader(http.StatusOK)
-		}
-		// Each file is prefixed with a header naming it. Headers count
-		// against the byte cap so the response never exceeds it.
-		header := fmt.Sprintf("=== %s (mtime %s) ===\n", filepath.Base(file.path), file.modTime.UTC().Format(time.RFC3339))
-		if i > 0 {
-			header = "\n" + header
-		}
-		if int64(len(header)) > remaining {
-			_ = f.Close()
-			break
-		}
-		if _, err := io.WriteString(w, header); err != nil {
-			_ = f.Close()
-			a.logger.Error(r.Context(), "write agent log header", slog.Error(err), slog.F("path", file.path))
-			return
-		}
-		remaining -= int64(len(header))
-		n, err := io.Copy(w, io.LimitReader(f, remaining))
-		remaining -= n
+		remaining, err = writeAgentLogSection(w, f, file.modTime, true, remaining)
 		_ = f.Close()
 		if err != nil {
-			a.logger.Error(r.Context(), "read agent log file", slog.Error(err), slog.F("path", file.path))
+			a.logger.Error(r.Context(), "read rotated agent log file", slog.Error(err), slog.F("path", file.path))
 			return
 		}
 	}
 	if remaining <= 0 {
-		a.logger.Warn(r.Context(), "agent debug logs response truncated", slog.F("limit_bytes", debugLogsWithRotatedLimitBytes))
+		a.logger.Warn(r.Context(), "agent debug logs response truncated", slog.F("limit_bytes", debugLogsCombinedMaxBytes))
 	}
 }
 
-func parseDebugLogsAfter(r *http.Request) (time.Time, bool, error) {
+func parseDebugLogsAfter(r *http.Request) (after time.Time, hasAfter bool, err error) {
 	raw := strings.TrimSpace(r.URL.Query().Get("after"))
 	if raw == "" {
 		return time.Time{}, false, nil
 	}
-	after, err := time.Parse(time.RFC3339Nano, raw)
+	after, err = time.Parse(time.RFC3339Nano, raw)
 	if err != nil {
 		return time.Time{}, false, xerrors.Errorf("after must be an RFC3339 timestamp: %w", err)
 	}
@@ -123,24 +121,34 @@ func (a *agent) writeActiveDebugLog(w http.ResponseWriter, r *http.Request) {
 	defer f.Close()
 
 	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, debugLogsActiveLimitBytes))
+	_, err = io.Copy(w, io.LimitReader(f, debugLogsActiveMaxBytes))
 	if err != nil {
 		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
 		return
 	}
 }
 
-func agentDebugLogFiles(ctx context.Context, logger slog.Logger, logDir string, after time.Time) ([]agentLogFile, error) {
-	activePath := filepath.Join(logDir, "coder-agent.log")
-	activeInfo, err := os.Stat(activePath)
-	if err != nil {
-		return nil, xerrors.Errorf("stat active log: %w", err)
+// writeAgentLogSection streams f behind a header naming it, both charged to
+// the remaining byte budget, which it returns.
+func writeAgentLogSection(w io.Writer, f *os.File, modTime time.Time, leadingNewline bool, remaining int64) (int64, error) {
+	header := fmt.Sprintf("=== %s (mtime %s) ===\n", filepath.Base(f.Name()), modTime.UTC().Format(time.RFC3339))
+	if leadingNewline {
+		header = "\n" + header
 	}
-	files := []agentLogFile{{
-		path:    activePath,
-		modTime: activeInfo.ModTime(),
-	}}
+	if int64(len(header)) > remaining {
+		return 0, nil
+	}
+	if _, err := io.WriteString(w, header); err != nil {
+		return remaining, err
+	}
+	remaining -= int64(len(header))
+	n, err := io.Copy(w, io.LimitReader(f, remaining))
+	return remaining - n, err
+}
 
+// rotatedAgentLogFiles returns rotated logs after the cutoff, newest first,
+// excluding the active log.
+func rotatedAgentLogFiles(ctx context.Context, logger slog.Logger, logDir string, after time.Time) ([]agentLogFile, error) {
 	entries, err := os.ReadDir(logDir)
 	if err != nil {
 		return nil, xerrors.Errorf("read log directory: %w", err)
@@ -168,6 +176,5 @@ func agentDebugLogFiles(ctx context.Context, logger slog.Logger, logDir string, 
 	slices.SortFunc(rotated, func(a, b agentLogFile) int {
 		return b.modTime.Compare(a.modTime)
 	})
-	files = append(files, rotated...)
-	return files, nil
+	return rotated, nil
 }

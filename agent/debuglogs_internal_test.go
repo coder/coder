@@ -25,7 +25,7 @@ func TestHandleHTTPDebugLogsWithAfterCapsResponse(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.WriteString("active log\n")
 	require.NoError(t, err)
-	require.NoError(t, f.Truncate(debugLogsWithRotatedLimitBytes+1))
+	require.NoError(t, f.Truncate(debugLogsCombinedMaxBytes+1))
 	require.NoError(t, f.Close())
 
 	a := &agent{
@@ -38,7 +38,7 @@ func TestHandleHTTPDebugLogsWithAfterCapsResponse(t *testing.T) {
 	a.HandleHTTPDebugLogs(res, req)
 
 	require.Equal(t, http.StatusOK, res.status)
-	require.Equal(t, int64(debugLogsWithRotatedLimitBytes), res.bytes)
+	require.Equal(t, int64(debugLogsCombinedMaxBytes), res.bytes)
 	require.Contains(t, string(res.prefix), "coder-agent.log")
 }
 
@@ -73,7 +73,7 @@ func TestHandleHTTPDebugLogsWithAfterOpenFailure(t *testing.T) {
 	require.Contains(t, res.Body.String(), "could not open log file")
 }
 
-func TestAgentDebugLogFilesReadsLogDirLiterally(t *testing.T) {
+func TestRotatedAgentLogFilesReadsLogDirLiterally(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
@@ -84,12 +84,11 @@ func TestAgentDebugLogFilesReadsLogDirLiterally(t *testing.T) {
 	require.NoError(t, os.WriteFile(activePath, []byte("active log"), 0o600))
 	require.NoError(t, os.WriteFile(rotatedPath, []byte("rotated log"), 0o600))
 
-	files, err := agentDebugLogFiles(t.Context(), slogtest.Make(t, nil), logDir, time.Now().Add(-time.Minute))
+	files, err := rotatedAgentLogFiles(t.Context(), slogtest.Make(t, nil), logDir, time.Now().Add(-time.Minute))
 
 	require.NoError(t, err)
-	require.Len(t, files, 2)
-	require.Equal(t, "coder-agent.log", filepath.Base(files[0].path))
-	require.Equal(t, "coder-agent-2026-05-18T00-00-00.000.log", filepath.Base(files[1].path))
+	require.Len(t, files, 1)
+	require.Equal(t, "coder-agent-2026-05-18T00-00-00.000.log", filepath.Base(files[0].path))
 }
 
 type countingResponseWriter struct {
