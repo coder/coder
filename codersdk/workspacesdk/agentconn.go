@@ -99,6 +99,7 @@ type AgentConn interface {
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
 	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
@@ -443,11 +444,25 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
+// DebugLogsOptions configures an agent debug log request.
+type DebugLogsOptions struct {
+	// After includes rotated log files modified at or after this timestamp.
+	// The active log is always included.
+	After time.Time
+}
+
+// DebugLogs returns up to 10 MiB of the active agent log.
 func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+	return c.DebugLogsWithOptions(ctx, DebugLogsOptions{})
+}
+
+// DebugLogsWithOptions returns agent debug logs. A zero After returns the
+// active log with a 10 MiB cap. A non-zero After also returns matching rotated
+// logs with a 100 MiB cap.
+func (c *agentConn) DebugLogsWithOptions(ctx context.Context, opts DebugLogsOptions) ([]byte, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(opts), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -460,6 +475,14 @@ func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 		return nil, xerrors.Errorf("read response body: %w", err)
 	}
 	return bs, nil
+}
+
+func debugLogsPath(opts DebugLogsOptions) string {
+	query := neturl.Values{}
+	if !opts.After.IsZero() {
+		query.Set("after", opts.After.UTC().Format(time.RFC3339Nano))
+	}
+	return agentAPIPath("/debug/logs", query)
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint
