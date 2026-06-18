@@ -2,11 +2,15 @@ package coderd_test
 
 import (
 	"net/http"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -14,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -145,41 +150,113 @@ func TestAgentFirewallSessionByID(t *testing.T) {
 	})
 }
 
-// TestAgentFirewallSessionByID_DBAuth verifies that the dbauthz layer
-// correctly gates access to GetBoundarySessionByID using
-// ResourceBoundaryLog with ActionRead.
-func TestAgentFirewallSessionByID_DBAuth(t *testing.T) {
+// TestInsertBoundaryLogs_AgentAuth verifies that a workspace agent context
+// can insert boundary logs through the dbauthz layer. Create is site-scoped
+// in the member role, so the check does not require owner derivation.
+func TestInsertBoundaryLogs_AgentAuth(t *testing.T) {
 	t.Parallel()
 
-	db, pubsub := dbtestutil.NewDB(t)
-	_, _, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-		Options: &coderdtest.Options{
-			Database: db,
-			Pubsub:   pubsub,
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureBoundary: 1,
-			},
-		},
-	})
+	rawDB, _ := dbtestutil.NewDB(t)
+	authorizer := rbac.NewStrictAuthorizer(prometheus.NewRegistry())
+	authzDB := dbauthz.New(rawDB, authorizer, slogtest.Make(t, nil), &atomic.Pointer[dbauthz.AccessControlStore]{})
+
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
-		OwnerID:        owner.UserID,
-		OrganizationID: owner.OrganizationID,
-	}).WithAgent().Do()
-
-	require.NotEmpty(t, resp.Agents, "expected at least one agent")
-
-	session := dbgen.BoundarySession(t, db, database.BoundarySession{
-		WorkspaceAgentID:    resp.Agents[0].ID,
-		OwnerID:             uuid.NullUUID{UUID: owner.UserID, Valid: true},
-		ConfinedProcessName: "codex",
+	// Seed a workspace with an agent.
+	user := dbgen.User(t, rawDB, database.User{})
+	org := dbgen.Organization(t, rawDB, database.Organization{})
+	_ = dbgen.OrganizationMember(t, rawDB, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+	tmpl := dbgen.Template(t, rawDB, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tmplVer := dbgen.TemplateVersion(t, rawDB, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{Valid: true, UUID: tmpl.ID},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	ws := dbgen.Workspace(t, rawDB, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     tmpl.ID,
+		OwnerID:        user.ID,
+	})
+	job := dbgen.ProvisionerJob(t, rawDB, nil, database.ProvisionerJob{
+		Type: database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, rawDB, database.WorkspaceBuild{
+		JobID:             job.ID,
+		WorkspaceID:       ws.ID,
+		TemplateVersionID: tmplVer.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, rawDB, database.WorkspaceResource{
+		JobID: build.JobID,
+	})
+	agent := dbgen.WorkspaceAgent(t, rawDB, database.WorkspaceAgent{
+		ResourceID: resource.ID,
 	})
 
-	// AsSystemRestricted should succeed (read permission).
-	got, err := db.GetBoundarySessionByID(dbauthz.AsSystemRestricted(ctx), session.ID)
+	// Insert a boundary session using the raw DB (no auth check).
+	now := time.Now().UTC()
+	sessionID := uuid.New()
+	_, err := rawDB.InsertBoundarySession(ctx, database.InsertBoundarySessionParams{
+		ID:                  sessionID,
+		WorkspaceAgentID:    agent.ID,
+		OwnerID:             uuid.NullUUID{UUID: user.ID, Valid: true},
+		ConfinedProcessName: "claude-code",
+		StartedAt:           now,
+		UpdatedAt:           now,
+	})
 	require.NoError(t, err)
-	require.Equal(t, session.ID, got.ID)
+
+	// Build a workspace agent RBAC subject.
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	require.NoError(t, err)
+	agentSubject := rbac.Subject{
+		ID:    user.ID.String(),
+		Roles: rbac.Roles{memberRole},
+		Scope: rbac.WorkspaceAgentScope(rbac.WorkspaceAgentScopeParams{
+			WorkspaceID: ws.ID,
+			OwnerID:     user.ID,
+			TemplateID:  tmpl.ID,
+			VersionID:   tmplVer.ID,
+		}),
+	}.WithCachedASTValue()
+	agentCtx := dbauthz.As(ctx, agentSubject)
+
+	// Insert boundary logs through dbauthz. The site-scoped create
+	// permission on the member role should allow this.
+	logID := uuid.New()
+	_, err = authzDB.InsertBoundaryLogs(agentCtx, database.InsertBoundaryLogsParams{
+		SessionID:      sessionID,
+		ID:             []uuid.UUID{logID},
+		SequenceNumber: []int32{1},
+		CapturedAt:     []time.Time{now},
+		CreatedAt:      []time.Time{now},
+		Proto:          []string{"tcp"},
+		Method:         []string{"connect"},
+		Detail:         []string{"example.com:443"},
+		MatchedRule:    []string{"allow-all"},
+	})
+	require.NoError(t, err, "agent should be able to insert boundary logs")
+
+	// Verify the logs were actually persisted.
+	got, err := rawDB.GetBoundaryLogByID(ctx, logID)
+	require.NoError(t, err)
+	require.Equal(t, sessionID, got.SessionID)
+
+	// Also verify that a member without agent scope cannot READ logs
+	// (read is owner/auditor only, not member).
+	memberSubject := rbac.Subject{
+		ID:    user.ID.String(),
+		Roles: rbac.Roles{memberRole},
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+	memberCtx := dbauthz.As(ctx, memberSubject)
+
+	err = authorizer.Authorize(memberCtx, memberSubject, policy.ActionRead,
+		rbac.ResourceBoundaryLog)
+	require.Error(t, err, "member should not be able to read boundary logs")
 }
