@@ -29,7 +29,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { readOptionalString } from "#/modules/aiModels/helpers";
 import {
 	canManageProviderModels,
 	type ProviderState,
@@ -178,7 +177,7 @@ export const ModelForm: FC<ModelFormProps> = ({
 				const req: TypesGen.UpdateChatModelConfigRequest = {
 					...(selectedProviderConfigID &&
 						selectedProviderConfigID !==
-							readOptionalString(editingModel.ai_provider_id) && {
+							(editingModel.ai_provider_id?.trim() || undefined) && {
 							provider: selectedProviderState.provider,
 							ai_provider_id: selectedProviderConfigID,
 						}),

@@ -58,6 +58,7 @@ describe("deriveProviderStates", () => {
 		expect(states[1].key).toBe("google");
 		expect(states[2].key).toBe("vercel");
 		expect(states[0].hasEffectiveAPIKey).toBe(true);
+		expect(states[1].hasEffectiveAPIKey).toBe(true);
 		expect(states[2].hasEffectiveAPIKey).toBe(false);
 	});
 
@@ -72,8 +73,6 @@ describe("deriveProviderStates", () => {
 				provider: "openai",
 				ai_provider_id: "prov-openai",
 			},
-			// A model without ai_provider_id falls back to the single matching
-			// provider config key.
 			{ ...MockChatModelConfig, id: "m2", provider: "openai" },
 		];
 
@@ -143,6 +142,57 @@ describe("deriveProviderStates", () => {
 
 		expect(states[0].isEnvPreset).toBe(true);
 		expect(states[0].providerConfig).toBeUndefined();
+	});
+
+	it("treats an unavailable catalog provider as having a key unless the api key is missing", () => {
+		const catalog: TypesGen.ChatModelsResponse = {
+			providers: [
+				{
+					...MockChatModelProvider,
+					provider: "openai",
+					available: false,
+					unavailable_reason: "fetch_failed",
+				},
+			],
+		};
+
+		const states = deriveProviderStates([], null, catalog);
+
+		expect(states[0].hasCatalogAPIKey).toBe(true);
+	});
+
+	it("derives label, catalogModelCount, and baseURL from the inputs", () => {
+		const providerConfigs = [
+			{
+				...MockChatProviderConfig,
+				id: "prov-openai",
+				provider: "openai",
+				display_name: "Custom OpenAI",
+				base_url: "https://custom.example.com/v1",
+			},
+		];
+		const catalog: TypesGen.ChatModelsResponse = {
+			providers: [
+				{
+					...MockChatModelProvider,
+					provider: "openai",
+					models: [
+						{
+							id: "gpt-x",
+							provider: "openai",
+							model: "gpt-x",
+							display_name: "GPT-X",
+						},
+					],
+				},
+			],
+		};
+
+		const states = deriveProviderStates([], providerConfigs, catalog);
+
+		expect(states[0].label).toBe("Custom OpenAI");
+		expect(states[0].catalogModelCount).toBe(1);
+		expect(states[0].baseURL).toBe("https://custom.example.com/v1");
 	});
 });
 
@@ -219,5 +269,14 @@ describe("resolveModelProviderKey", () => {
 				states,
 			),
 		).toBe("");
+	});
+
+	it("falls back to the provider name when no states match", () => {
+		expect(
+			resolveModelProviderKey(
+				{ ...MockChatModelConfig, provider: "google" },
+				states,
+			),
+		).toBe("google");
 	});
 });

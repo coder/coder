@@ -17,7 +17,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { readOptionalString } from "#/modules/aiModels/helpers";
 import type { ProviderState } from "#/modules/aiModels/providerStates";
 import { formatProviderLabel } from "../../utils/modelOptions";
 import { BackButton } from "../BackButton";
@@ -66,7 +65,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 	// Initial values are snapshotted when the provider config changes
 	// so we can detect dirty state.
 	const [initialValues] = useState(() => ({
-		displayName: readOptionalString(providerConfig?.display_name) ?? "",
+		displayName: providerConfig?.display_name?.trim() ?? "",
 		baseURL,
 	}));
 
@@ -157,8 +156,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 		const trimmedBaseURL = baseURLValue.trim();
 
 		if (providerConfig) {
-			const currentDisplayName =
-				readOptionalString(providerConfig.display_name) ?? "";
+			const currentDisplayName = providerConfig.display_name.trim();
 			const currentBaseURL = baseURL.trim();
 			const req: TypesGen.UpdateChatProviderConfigRequest = {
 				...(trimmedDisplayName !== currentDisplayName && {

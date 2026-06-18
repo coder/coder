@@ -3,6 +3,7 @@ import type {
 	ChatModelProvider,
 	ChatProviderConfig,
 } from "#/api/typesGenerated";
+
 const MOCK_TIMESTAMP = "2024-01-01T00:00:00Z";
 
 export const MockChatModelConfig: ChatModelConfig = {

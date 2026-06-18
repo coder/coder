@@ -2,11 +2,9 @@ import type * as TypesGen from "#/api/typesGenerated";
 import {
 	getDefaultProviderBaseURL,
 	normalizeProvider,
-	readOptionalString,
 } from "#/modules/aiModels/helpers";
 import { formatProviderLabel } from "#/utils/aiProviders";
 
-/** Derived per-provider state for the AI Models admin UI. */
 export type ProviderState = {
 	key: string;
 	provider: string;
@@ -14,13 +12,9 @@ export type ProviderState = {
 	providerConfig: TypesGen.ChatProviderConfig | undefined;
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
 	catalogModelCount: number;
-	/** Admin-configured key stored in the DB. */
 	hasManagedAPIKey: boolean;
-	/** Key available via the catalog (env/preset). */
 	hasCatalogAPIKey: boolean;
-	/** Managed-or-catalog union that gates model operations. */
 	hasEffectiveAPIKey: boolean;
-	/** Raw config flag (any source); not a manage gate — use canManageProviderModels. */
 	allowUserAPIKey: boolean;
 	isEnvPreset: boolean;
 	baseURL: string;
@@ -29,6 +23,12 @@ export type ProviderState = {
 type CatalogProvider = TypesGen.ChatModelsResponse["providers"][number];
 
 const envPresetProviders = new Set(["openai", "anthropic"]);
+
+const readOptionalString = (value: unknown): string | undefined => {
+	if (typeof value !== "string") return undefined;
+	const trimmed = value.trim();
+	return trimmed || undefined;
+};
 
 const isDatabaseProviderConfig = (
 	providerConfig: TypesGen.ChatProviderConfig | undefined,
@@ -84,11 +84,6 @@ type ProviderEntry = {
 	provider: string;
 };
 
-/**
- * Derives per-provider state from model configs, provider configs, and the
- * catalog. Ordering: configured providers, then catalog-only, then model-only.
- * Empty inputs yield an empty array.
- */
 export const deriveProviderStates = (
 	modelConfigs: readonly TypesGen.ChatModelConfig[],
 	providerConfigs: TypesGen.ChatProviderConfig[] | null | undefined,
@@ -212,7 +207,6 @@ export const deriveProviderStates = (
 	});
 };
 
-/** True when the provider has a DB config and either an effective key or user keys allowed. */
 export const canManageProviderModels = (
 	providerState: ProviderState | undefined,
 ): boolean => {
@@ -223,7 +217,6 @@ export const canManageProviderModels = (
 	);
 };
 
-/** Resolves a model config to its provider-state key (prefers ai_provider_id). */
 export const resolveModelProviderKey = (
 	modelConfig: TypesGen.ChatModelConfig,
 	providerStates: readonly ProviderState[],
