@@ -1,4 +1,4 @@
-import { type FC, useMemo } from "react";
+import { type FC, type PropsWithChildren, useMemo } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
