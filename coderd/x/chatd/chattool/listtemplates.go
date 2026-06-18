@@ -401,7 +401,11 @@ func selectTemplateRecommendation(
 		return uuid.Nil, NextStepAskUser, recommendationReasonSignalsUnavailable
 	}
 
-	// Query tie: break it with a clear affinity gap.
+	// Query tie: both candidates matched the query at the same relevance tier,
+	// so the query itself is the baseline confidence signal and affinity only
+	// breaks the tie. A clear affinity gap is enough here; unlike the no-query
+	// branch below, the top score need not clear minConfidentAffinityScore on
+	// its own.
 	if top.QueryScore > 0 {
 		if len(ranked) > 1 && affinityScoreAtLeast(top.AffinityScore-ranked[1].AffinityScore, minConfidentGap) {
 			return top.Template.ID, NextStepUseRecommended, recommendationReasonQueryTieConfident
@@ -455,8 +459,8 @@ type listTemplatesTelemetry struct {
 // recordListTemplatesTelemetry records the aggregate ranking metrics and emits
 // the structured decision log. The raw user query text is never logged: only
 // its presence and length are, to avoid leaking task content. The affinity
-// score itself stays internal; the log carries the inputs (scores, gap,
-// thresholds) so a decision is reconstructable.
+// score is not included in the tool result shown to the model; the log records
+// the inputs (scores, gap, thresholds) so a decision is reconstructable.
 func recordListTemplatesTelemetry(
 	ctx context.Context,
 	options ListTemplatesOptions,

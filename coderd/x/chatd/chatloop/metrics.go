@@ -39,7 +39,6 @@ type Metrics struct {
 	StreamRetriesTotal       *prometheus.CounterVec
 	StreamBufferDroppedTotal prometheus.Counter
 
-	// list_templates ranking telemetry.
 	ListTemplatesOutcomeTotal           *prometheus.CounterVec
 	ListTemplatesSignalsFailuresTotal   prometheus.Counter
 	ListTemplatesAffinityGap            *prometheus.HistogramVec
