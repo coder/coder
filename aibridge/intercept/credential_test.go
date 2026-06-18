@@ -13,7 +13,7 @@ import (
 )
 
 // TestCredential covers the public surface of the Credential interface and its
-// three implementations (BYOK, Centralized, CentralizedPool), plus the
+// three implementations (BYOK, Bedrock, CentralizedPool), plus the
 // AsBYOK/AsCentralizedPool helpers interceptors use to route. Only
 // CentralizedPool fails over, so AsCentralizedPool must be true only for it.
 func TestCredential(t *testing.T) {
@@ -56,7 +56,7 @@ func TestCredential(t *testing.T) {
 			// masked. AWS signs the request, so there is no auth header.
 			name: "centralized_bedrock_static",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.Centralized{Key: "AKIAIOSFODNN7EXAMPLE"}
+				return intercept.Bedrock{AccessKey: "AKIAIOSFODNN7EXAMPLE"}
 			},
 			expectKind:       intercept.CredentialKindCentralized,
 			expectAuthHeader: "",
@@ -68,11 +68,11 @@ func TestCredential(t *testing.T) {
 			// no static key to mask, so the hint is a descriptive placeholder.
 			name: "centralized_bedrock_dynamic",
 			newCred: func(*testing.T) intercept.Credential {
-				return intercept.Centralized{Key: ""}
+				return intercept.Bedrock{AccessKey: ""}
 			},
 			expectKind:       intercept.CredentialKindCentralized,
 			expectAuthHeader: "",
-			expectHint:       "<dynamic key>",
+			expectHint:       "<aws chain credentials>",
 			expectLength:     0,
 		},
 		{

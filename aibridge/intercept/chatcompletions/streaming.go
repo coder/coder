@@ -92,16 +92,13 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	// Allow us to interrupt watch via cancel.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	svc := i.newCompletionsService(ctx)
+	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
 	defer streamCancel(xerrors.New("deferred"))
-
-	credCtx := intercept.WithCredentialInfo(streamCtx, i.cred)
-
-	r = r.WithContext(streamCtx) // Rewire context for SSE cancellation.
-
-	svc := i.newCompletionsService(credCtx)
-	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	// events will either terminate when shutdown after interaction with upstream completes, or when streamCtx is done.
 	events := eventstream.NewEventStream(streamCtx, logger.Named("sse-sender"), nil, quartz.NewReal())
@@ -117,7 +114,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 	prompt, err := i.req.lastUserPrompt()
 	if err != nil {
-		logger.Warn(credCtx, "failed to retrieve last user prompt", slog.Error(err))
+		logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
 	}
 
 	var (
@@ -156,15 +153,17 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				if events.IsStreaming() {
 					payload, mErr := i.marshalErr(respErr)
 					if mErr != nil {
-						logger.Warn(credCtx, "failed to marshal exhaustion error", slog.Error(mErr))
+						logger.Warn(ctx, "failed to marshal exhaustion error", slog.Error(mErr))
 					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
-						logger.Warn(credCtx, "failed to relay exhaustion error", slog.Error(sErr))
+						logger.Warn(ctx, "failed to relay exhaustion error", slog.Error(sErr))
 					}
 				} else {
 					i.writeUpstreamError(w, respErr)
 				}
 				break
 			}
+
+			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 			currentPoolKey = key
 			opts = append(opts,
 				option.WithAPIKey(key.Value()),
@@ -173,9 +172,6 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 				option.WithMaxRetries(0),
 			)
 			totalKeyAttempts += walker.Attempts()
-			// Re-attribute this iteration's logs to the selected key.
-			credCtx = intercept.WithCredentialInfo(streamCtx, i.cred)
-			logger.Debug(credCtx, "using centralized api key")
 		}
 
 		// TODO(ssncferreira): inject actor headers directly in the client-header
@@ -196,8 +192,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		opts = append(opts, option.WithRequestBody("application/json", body))
 		opts = append(opts, option.WithJSONSet("stream", true))
 
-		stream = i.newStream(credCtx, svc, opts)
-		processor := newStreamProcessor(credCtx, i.logger.Named("stream-processor"), i.getInjectedToolByName)
+		stream = i.newStream(streamCtx, svc, opts)
+		processor := newStreamProcessor(streamCtx, i.logger.Named("stream-processor"), i.getInjectedToolByName)
 
 		var toolCall *openai.FinishedChatCompletionToolCall
 
@@ -227,12 +223,12 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Marshal and relay chunk to client.
 			payload, err := i.marshalChunk(&chunk, i.ID(), processor)
 			if err != nil {
-				logger.Warn(credCtx, "failed to marshal chunk", slog.Error(err), slog.F("chunk", chunk.RawJSON()))
+				logger.Warn(ctx, "failed to marshal chunk", slog.Error(err), slog.F("chunk", chunk.RawJSON()))
 				lastErr = xerrors.Errorf("marshal chunk: %w", err)
 				break
 			}
-			if err := events.Send(streamCtx, payload); err != nil {
-				logger.Warn(credCtx, "failed to relay chunk", slog.Error(err))
+			if err := events.Send(ctx, payload); err != nil {
+				logger.Warn(ctx, "failed to relay chunk", slog.Error(err))
 				lastErr = xerrors.Errorf("relay chunk: %w", err)
 				break
 			}
@@ -241,7 +237,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		if toolCall != nil {
 			// Builtin tools are not intercepted.
 			if i.getInjectedToolByName(toolCall.Name) == nil {
-				_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
+				_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
 					InterceptionID: i.ID().String(),
 					MsgID:          processor.getMsgID(),
 					ToolCallID:     toolCall.ID,
@@ -263,7 +259,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		}
 
 		if prompt != nil {
-			_ = i.recorder.RecordPromptUsage(credCtx, &recorder.PromptUsageRecord{
+			_ = i.recorder.RecordPromptUsage(streamCtx, &recorder.PromptUsageRecord{
 				InterceptionID: i.ID().String(),
 				MsgID:          processor.getMsgID(),
 				Prompt:         *prompt,
@@ -274,7 +270,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		if lastUsage := processor.getLastUsage(); lastUsage.CompletionTokens > 0 {
 			// If the usage information is set, track it.
 			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
-			_ = i.recorder.RecordTokenUsage(credCtx, &recorder.TokenUsageRecord{
+			_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
 				InterceptionID:       i.ID().String(),
 				MsgID:                processor.getMsgID(),
 				Input:                calculateActualInputTokenUsage(lastUsage),
@@ -295,13 +291,13 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// already streamed for this iteration, so the
 			// error is relayed as an SSE event.
 			streamErr := stream.Err()
-			if respErr := i.mapStreamError(credCtx, logger, streamErr, lastErr); respErr != nil {
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
 				interceptionErr = respErr
 				payload, err := i.marshalErr(respErr)
 				if err != nil {
-					logger.Warn(credCtx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", respErr)))
+					logger.Warn(ctx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", respErr)))
 				} else if err := events.Send(streamCtx, payload); err != nil {
-					logger.Warn(credCtx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
+					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
 				}
 			} else if streamErr != nil {
 				// Unrecoverable (e.g., broken pipe, context
@@ -313,14 +309,14 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentPoolKey != nil && i.markKeyOnError(credCtx, currentPoolKey, stream.Err()) {
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
 				continue
 			}
 			// Non-key error: relay it. Use mapStreamError so that
 			// unknown upstream errors (TCP reset, DNS failure, TLS
 			// error, deadline exceeded) are wrapped in a generic
 			// response instead of producing a silent HTTP 200.
-			respErr := i.mapStreamError(credCtx, logger, stream.Err(), lastErr)
+			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
 			if respErr != nil {
 				interceptionErr = respErr
 				if events.IsStreaming() {
@@ -328,9 +324,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 					// connection is open: inject as an SSE event.
 					payload, mErr := i.marshalErr(respErr)
 					if mErr != nil {
-						logger.Warn(credCtx, "failed to marshal error", slog.Error(mErr))
+						logger.Warn(ctx, "failed to marshal error", slog.Error(mErr))
 					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
-						logger.Warn(credCtx, "failed to relay error", slog.Error(sErr))
+						logger.Warn(ctx, "failed to relay error", slog.Error(sErr))
 					}
 				} else {
 					// No events streamed yet, write the response directly.
@@ -347,7 +343,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		tool := i.getInjectedToolByName(toolCall.Name)
 		if tool == nil {
 			// Not a known tool, don't do anything.
-			logger.Warn(credCtx, "pending tool call for non-injected tool, this is unexpected", slog.F("tool", toolCall.Name))
+			logger.Warn(streamCtx, "pending tool call for non-injected tool, this is unexpected", slog.F("tool", toolCall.Name))
 			break
 		}
 
@@ -363,8 +359,8 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		id := toolCall.ID
 		args := i.unmarshalArgs(toolCall.Arguments)
-		toolRes, toolErr := tool.Call(credCtx, args, i.tracer)
-		_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
+		toolRes, toolErr := tool.Call(streamCtx, args, i.tracer)
+		_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
 			InterceptionID:  i.ID().String(),
 			MsgID:           processor.getMsgID(),
 			ToolCallID:      id,
@@ -387,7 +383,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		var out strings.Builder
 		if err := json.NewEncoder(&out).Encode(toolRes); err != nil {
-			logger.Warn(credCtx, "failed to encode tool response", slog.Error(err))
+			logger.Warn(ctx, "failed to encode tool response", slog.Error(err))
 			// Always provide a tool_result even if encoding failed.
 			errorJSON, _ := json.Marshal(i.newErrorResponse(err))
 			i.req.Messages = append(i.req.Messages, openai.ToolMessage(string(errorJSON), id))
@@ -399,14 +395,14 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 	// Send termination marker.
 	if err := events.SendRaw(streamCtx, i.encodeForStream([]byte("[DONE]"))); err != nil {
-		logger.Debug(credCtx, "failed to send termination marker", slog.Error(err))
+		logger.Debug(ctx, "failed to send termination marker", slog.Error(err))
 	}
 
 	// Give the events stream 30 seconds (TODO: configurable) to gracefully shutdown.
 	shutdownCtx, shutdownCancel := context.WithTimeout(ctx, time.Second*30)
 	defer shutdownCancel()
 	if err = events.Shutdown(shutdownCtx); err != nil {
-		logger.Warn(credCtx, "event stream shutdown", slog.Error(err))
+		logger.Warn(ctx, "event stream shutdown", slog.Error(err))
 	}
 
 	if err != nil {

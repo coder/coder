@@ -66,8 +66,6 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		return err
 	}
 
-	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
-
 	i.injectTools()
 
 	var (
@@ -77,9 +75,9 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		firstResponseID string
 	)
 
-	prompt, promptFound, err := i.reqPayload.lastUserPrompt(credCtx, i.logger)
+	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
-		i.logger.Warn(credCtx, "failed to get user prompt", slog.Error(err))
+		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
 
@@ -93,7 +91,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	}
 
 	for shouldLoop {
-		srv := i.newResponsesService(credCtx)
+		srv := i.newResponsesService(ctx)
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)
@@ -108,7 +106,6 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		var keyAttempts int
 		response, keyAttempts, upstreamErr = i.newResponse(ctx, srv, opts)
 		totalKeyAttempts += keyAttempts
-		credCtx = intercept.WithCredentialInfo(ctx, i.cred)
 
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
@@ -128,26 +125,26 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 			firstResponseID = response.ID
 		}
 
-		i.recordTokenUsage(credCtx, response)
-		i.recordModelThoughts(credCtx, response)
+		i.recordTokenUsage(ctx, response)
+		i.recordModelThoughts(ctx, response)
 
 		// Check if there any injected tools to invoke.
 		pending := i.getPendingInjectedToolCalls(response)
-		shouldLoop, err = i.handleInnerAgenticLoop(credCtx, pending, response)
+		shouldLoop, err = i.handleInnerAgenticLoop(ctx, pending, response)
 		if err != nil {
-			i.sendCustomErr(credCtx, w, http.StatusInternalServerError, err)
+			i.sendCustomErr(ctx, w, http.StatusInternalServerError, err)
 			shouldLoop = false
 		}
 	}
 
 	if promptFound {
-		i.recordUserPrompt(credCtx, firstResponseID, prompt)
+		i.recordUserPrompt(ctx, firstResponseID, prompt)
 	}
-	i.recordNonInjectedToolUsage(credCtx, response)
+	i.recordNonInjectedToolUsage(ctx, response)
 
 	if upstreamErr != nil && !respCopy.responseReceived.Load() {
 		// no response received from upstream, return custom error
-		i.sendCustomErr(credCtx, w, http.StatusInternalServerError, upstreamErr)
+		i.sendCustomErr(ctx, w, http.StatusInternalServerError, upstreamErr)
 		return xerrors.Errorf("failed to connect to upstream: %w", upstreamErr)
 	}
 
@@ -189,9 +186,8 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 			return nil, walker.Attempts(), keyPoolErr
 		}
 
-		credCtx := intercept.WithCredentialInfo(ctx, i.cred)
-		i.logger.Debug(credCtx, "using centralized api key")
-
+		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
 			option.WithAPIKey(key.Value()),
@@ -199,9 +195,9 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		response, err := i.newResponseWithKey(credCtx, srv, requestOpts)
+		response, err := i.newResponseWithKey(ctx, srv, requestOpts)
 		// Key-specific failure: try the next key.
-		if i.markKeyOnError(credCtx, key, err) {
+		if i.markKeyOnError(ctx, key, err) {
 			continue
 		}
 		// Either success (response, nil) or a non-key error

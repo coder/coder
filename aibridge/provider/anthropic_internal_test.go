@@ -279,14 +279,14 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			wantXApiKey:        "test-key",
 		},
 		{
-			// Bedrock dynamic mode: no static secret, so the hint is the
-			// dynamic-key placeholder.
+			// Bedrock dynamic mode: no static access key, so the hint is the
+			// AWS-credential-chain placeholder.
 			name:               "bedrock_dynamic",
 			pool:               false,
 			bedrock:            true,
 			setHeaders:         map[string]string{},
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			wantCredentialHint: "<dynamic key>",
+			wantCredentialHint: "<aws chain credentials>",
 		},
 		{
 			// Bedrock static mode: the hint masks the access key ID.

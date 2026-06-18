@@ -99,11 +99,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	streamCtx, streamCancel := context.WithCancelCause(ctx)
-	defer streamCancel(xerrors.New("deferred"))
-
-	credCtx := intercept.WithCredentialInfo(streamCtx, i.cred)
-	r = r.WithContext(streamCtx) // Rewire context for SSE cancellation.
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	logger := i.logger.With(slog.F("model", i.Model()))
 
@@ -115,7 +111,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 	prompt, promptFound, err = i.reqPayload.lastUserPrompt()
 	if err != nil {
-		logger.Warn(credCtx, "failed to determine last user prompt", slog.Error(err))
+		logger.Warn(ctx, "failed to determine last user prompt", slog.Error(err))
 	}
 
 	// Claude Code uses a "small/fast model" for certain tasks.
@@ -124,14 +120,17 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		i.injectTools()
 	}
 
+	streamCtx, streamCancel := context.WithCancelCause(ctx)
+	defer streamCancel(xerrors.New("deferred"))
+
 	// TODO(ssncferreira): inject actor headers directly in the client-header
 	//   middleware instead of using SDK options.
 	var opts []option.RequestOption
-	if actor := aibcontext.ActorFromContext(credCtx); actor != nil && i.cfg.SendActorHeaders {
+	if actor := aibcontext.ActorFromContext(ctx); actor != nil && i.cfg.SendActorHeaders {
 		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
 	}
 
-	svc, err := i.newMessagesService(credCtx, opts...)
+	svc, err := i.newMessagesService(streamCtx, opts...)
 	if err != nil {
 		err = xerrors.Errorf("create anthropic client: %w", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -187,15 +186,17 @@ newStream:
 				if events.IsStreaming() {
 					payload, mErr := i.marshal(respErr)
 					if mErr != nil {
-						logger.Warn(credCtx, "failed to marshal exhaustion error", slog.Error(mErr))
+						logger.Warn(ctx, "failed to marshal exhaustion error", slog.Error(mErr))
 					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
-						logger.Warn(credCtx, "failed to relay exhaustion error", slog.Error(sErr))
+						logger.Warn(ctx, "failed to relay exhaustion error", slog.Error(sErr))
 					}
 				} else {
 					i.writeUpstreamError(w, respErr)
 				}
 				break
 			}
+
+			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 			currentPoolKey = key
 			streamOpts = append(streamOpts,
 				option.WithAPIKey(key.Value()),
@@ -204,12 +205,9 @@ newStream:
 				option.WithMaxRetries(0),
 			)
 			totalKeyAttempts += walker.Attempts()
-			// Re-attribute this iteration's logs to the selected key.
-			credCtx = intercept.WithCredentialInfo(streamCtx, i.cred)
-			logger.Debug(credCtx, "using centralized api key")
 		}
 
-		stream := i.newStream(credCtx, svc, streamOpts...)
+		stream := i.newStream(streamCtx, svc, streamOpts...)
 
 		var message anthropic.Message
 		var lastToolName string
@@ -229,7 +227,7 @@ newStream:
 			iterationStarted = true
 			event := stream.Current()
 			if err := message.Accumulate(event); err != nil {
-				logger.Warn(credCtx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
+				logger.Warn(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
 				lastErr = xerrors.Errorf("accumulate event: %w", err)
 				break
 			}
@@ -264,7 +262,7 @@ newStream:
 				start := event.AsMessageStart()
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
 
-				_ = i.recorder.RecordTokenUsage(credCtx, &recorder.TokenUsageRecord{
+				_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
 					InterceptionID:        i.ID().String(),
 					MsgID:                 message.ID,
 					Input:                 start.Message.Usage.InputTokens,
@@ -289,7 +287,7 @@ newStream:
 				accumulateUsage(&cumulativeUsage, delta.Usage)
 
 				// Only output tokens should change in message_delta.
-				_ = i.recorder.RecordTokenUsage(credCtx, &recorder.TokenUsageRecord{
+				_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
 					InterceptionID: i.ID().String(),
 					MsgID:          message.ID,
 					Output:         delta.Usage.OutputTokens,
@@ -327,7 +325,7 @@ newStream:
 
 				// Capture any thinking blocks that were returned.
 				for _, t := range i.extractModelThoughts(&message) {
-					_ = i.recorder.RecordModelThought(credCtx, &recorder.ModelThoughtRecord{
+					_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
 						InterceptionID: i.ID().String(),
 						Content:        t.Content,
 						Metadata:       t.Metadata,
@@ -352,7 +350,7 @@ newStream:
 
 						tool := i.mcpProxy.GetTool(name)
 						if tool == nil {
-							logger.Warn(credCtx, "tool not found in manager", slog.F("tool_name", name))
+							logger.Warn(ctx, "tool not found in manager", slog.F("tool_name", name))
 							continue
 						}
 
@@ -372,13 +370,13 @@ newStream:
 						}
 
 						if !foundTool {
-							logger.Warn(credCtx, "failed to find tool input", slog.F("tool_name", name), slog.F("found_tools", foundTools))
+							logger.Warn(ctx, "failed to find tool input", slog.F("tool_name", name), slog.F("found_tools", foundTools))
 							continue
 						}
 
-						res, err := tool.Call(credCtx, input, i.tracer)
+						res, err := tool.Call(streamCtx, input, i.tracer)
 
-						_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
+						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
 							InterceptionID:  i.ID().String(),
 							MsgID:           message.ID,
 							ToolCallID:      id,
@@ -436,7 +434,7 @@ newStream:
 									})
 									hasValidResult = true
 								default:
-									logger.Warn(credCtx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+									logger.Warn(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
 									toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 										OfText: &anthropic.TextBlockParam{
 											Text: "Error: unknown embedded resource type",
@@ -446,7 +444,7 @@ newStream:
 									hasValidResult = true
 								}
 							default:
-								logger.Warn(credCtx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)))
+								logger.Warn(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)))
 								toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 									OfText: &anthropic.TextBlockParam{
 										Text: "Error: unsupported tool result type",
@@ -459,7 +457,7 @@ newStream:
 
 						// If no content was processed, still add a tool_result
 						if !hasValidResult {
-							logger.Warn(credCtx, "no tool result added", slog.F("content_len", len(res.Content)), slog.F("is_error", res.IsError))
+							logger.Warn(ctx, "no tool result added", slog.F("content_len", len(res.Content)), slog.F("is_error", res.IsError))
 							toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 								OfText: &anthropic.TextBlockParam{
 									Text: "Error: no valid tool result content",
@@ -499,7 +497,7 @@ newStream:
 							continue
 						}
 
-						_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
+						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
@@ -514,23 +512,23 @@ newStream:
 			// Overwrite response identifier since proxy obscures injected tool call invocations.
 			payload, err := i.marshalEvent(event)
 			if err != nil {
-				logger.Warn(credCtx, "failed to marshal event", slog.Error(err), slog.F("event", event.RawJSON()))
+				logger.Warn(ctx, "failed to marshal event", slog.Error(err), slog.F("event", event.RawJSON()))
 				lastErr = xerrors.Errorf("marshal event: %w", err)
 				break
 			}
 			if err := events.Send(streamCtx, payload); err != nil {
 				if eventstream.IsUnrecoverableError(err) {
-					logger.Debug(credCtx, "processing terminated", slog.Error(err))
+					logger.Debug(ctx, "processing terminated", slog.Error(err))
 					break // Stop processing if client disconnected or context canceled.
 				}
-				logger.Warn(credCtx, "failed to relay event", slog.Error(err))
+				logger.Warn(ctx, "failed to relay event", slog.Error(err))
 				lastErr = xerrors.Errorf("relay event: %w", err)
 				break
 			}
 		}
 
 		if promptFound {
-			_ = i.recorder.RecordPromptUsage(credCtx, &recorder.PromptUsageRecord{
+			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
 				InterceptionID: i.ID().String(),
 				MsgID:          message.ID,
 				Prompt:         prompt,
@@ -544,13 +542,13 @@ newStream:
 			// already streamed for this iteration, so the
 			// error is relayed as an SSE event.
 			streamErr := stream.Err()
-			if respErr := i.mapStreamError(credCtx, logger, streamErr, lastErr); respErr != nil {
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
 				interceptionErr = respErr
 				payload, err := i.marshal(respErr)
 				if err != nil {
-					logger.Warn(credCtx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", respErr)))
+					logger.Warn(ctx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", respErr)))
 				} else if err := events.Send(streamCtx, payload); err != nil {
-					logger.Warn(credCtx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
+					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
 				}
 			} else if streamErr != nil {
 				// Unrecoverable (e.g., broken pipe, context
@@ -562,14 +560,14 @@ newStream:
 			// Pre-stream failure of this iteration. For
 			// centralized requests, mark the key and retry with
 			// the next one.
-			if currentPoolKey != nil && i.markKeyOnError(credCtx, currentPoolKey, stream.Err()) {
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
 				continue newStream
 			}
 			// Non-key error: relay it. Use mapStreamError so that
 			// unknown upstream errors (TCP reset, DNS failure, TLS
 			// error, deadline exceeded) are wrapped in a generic
 			// response instead of producing a silent HTTP 200.
-			respErr := i.mapStreamError(credCtx, logger, stream.Err(), lastErr)
+			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
 			if respErr != nil {
 				interceptionErr = respErr
 				if events.IsStreaming() {
@@ -577,9 +575,9 @@ newStream:
 					// connection is open: inject as an SSE event.
 					payload, mErr := i.marshal(respErr)
 					if mErr != nil {
-						logger.Warn(credCtx, "failed to marshal error", slog.Error(mErr))
+						logger.Warn(ctx, "failed to marshal error", slog.Error(mErr))
 					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
-						logger.Warn(credCtx, "failed to relay error", slog.Error(sErr))
+						logger.Warn(ctx, "failed to relay error", slog.Error(sErr))
 					}
 				} else {
 					// No events streamed yet, write the response directly.
@@ -591,7 +589,7 @@ newStream:
 		shutdownCtx, shutdownCancel := context.WithTimeout(ctx, time.Second*30)
 		// Give the events stream 30 seconds (TODO: configurable) to gracefully shutdown.
 		if err := events.Shutdown(shutdownCtx); err != nil {
-			logger.Warn(credCtx, "event stream shutdown", slog.Error(err))
+			logger.Warn(ctx, "event stream shutdown", slog.Error(err))
 		}
 		shutdownCancel()
 

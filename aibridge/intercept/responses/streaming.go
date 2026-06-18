@@ -73,11 +73,9 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
-
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	if err := i.validateRequest(credCtx, w); err != nil {
+	if err := i.validateRequest(ctx, w); err != nil {
 		return err
 	}
 
@@ -97,12 +95,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var innerLoopErr error
 	var streamErr error
 
-	prompt, promptFound, err := i.reqPayload.lastUserPrompt(credCtx, i.logger)
+	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
 	if err != nil {
-		i.logger.Warn(credCtx, "failed to get user prompt", slog.Error(err))
+		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
-	srv := i.newResponsesService(credCtx)
+	srv := i.newResponsesService(ctx)
 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
@@ -140,7 +138,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			}
 
 			var currentPoolKey *keypool.Key
-			if isPool {
+			if isPool && walker != nil {
 				key, keyPoolErr := cp.NextKey(walker)
 				if keyPoolErr != nil {
 					// Pool exhausted: write the error directly. In
@@ -151,6 +149,8 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
+
+				i.logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
 				currentPoolKey = key
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
@@ -158,17 +158,14 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					// loop handles retries via key rotation.
 					option.WithMaxRetries(0),
 				)
-				// Re-attribute this iteration's logs to the selected key.
-				credCtx = intercept.WithCredentialInfo(ctx, i.cred)
-				i.logger.Debug(credCtx, "using centralized api key")
 			}
 
-			stream = i.newStream(credCtx, srv, opts)
+			stream = i.newStream(ctx, srv, opts)
 			if upstreamErr := stream.Err(); upstreamErr != nil {
 				// Pre-stream failure of this attempt. For
 				// centralized requests, mark the key and
 				// retry with the next one.
-				if currentPoolKey != nil && i.markKeyOnError(credCtx, currentPoolKey, upstreamErr) {
+				if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, upstreamErr) {
 					stream.Close()
 					continue
 				}
@@ -192,13 +189,13 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			if startErr != nil {
 				// events stream should never be initialized
 				if events.IsStreaming() {
-					i.logger.Warn(credCtx, "event stream was initialized when no response was received from upstream")
+					i.logger.Warn(ctx, "event stream was initialized when no response was received from upstream")
 					return startErr
 				}
 
 				// no response received from upstream (eg. client/connection error), return custom error
 				if !respCopy.responseReceived.Load() {
-					i.sendCustomErr(credCtx, w, http.StatusInternalServerError, startErr)
+					i.sendCustomErr(ctx, w, http.StatusInternalServerError, startErr)
 					return startErr
 				}
 
@@ -246,23 +243,23 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 		if i.mcpProxy != nil && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
-			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(credCtx, pending, completedResponse)
+			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
 			if innerLoopErr != nil {
-				i.sendCustomErr(credCtx, w, http.StatusInternalServerError, innerLoopErr)
+				i.sendCustomErr(ctx, w, http.StatusInternalServerError, innerLoopErr)
 				shouldLoop = false
 			}
 
 			// Record token usage for each inner loop iteration
-			i.recordTokenUsage(credCtx, completedResponse)
+			i.recordTokenUsage(ctx, completedResponse)
 		}
 
-		i.recordModelThoughts(credCtx, completedResponse)
+		i.recordModelThoughts(ctx, completedResponse)
 	}
 
 	if promptFound {
-		i.recordUserPrompt(credCtx, firstResponseID, prompt)
+		i.recordUserPrompt(ctx, firstResponseID, prompt)
 	}
-	i.recordNonInjectedToolUsage(credCtx, completedResponse)
+	i.recordNonInjectedToolUsage(ctx, completedResponse)
 
 	// On innerLoop error custom error has been already sent,
 	// exit without emptying respCopy buffer.
