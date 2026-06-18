@@ -18,7 +18,7 @@ func TestRunner_IgnoresDuplicateStateNotifications(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	starter.waitCall(t, taskKindGeneration, chat.ID)
 	latest, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestRunner_CancelsActiveTaskWhenHistoryChanges(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	updated := commitAssistantStep(t, f, chat.ID, "first step")
@@ -49,7 +49,7 @@ func TestRunner_CancelsActiveTaskWhenStatusChanges(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	updated := interruptChat(t, f, chat.ID)
@@ -64,7 +64,7 @@ func TestRunner_CleansUpOnOwnershipTakeover(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	acquireChat(t, f, chat.ID, uuid.New(), uuid.New())
@@ -78,7 +78,7 @@ func TestRunner_SerializesReplacementTasksForSameHistoryAndStatus(t *testing.T) 
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(true)
 	defer starter.releaseAll()
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	forceExecutionStateAndPublish(t, f, chat.ID, database.ChatStatusInterrupting, false)
@@ -97,7 +97,7 @@ func TestRunner_AllowsReplacementForDifferentHistoryOrStatus(t *testing.T) {
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(true)
 	defer starter.releaseAll()
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	updated := commitAssistantStep(t, f, chat.ID, "different history")
@@ -117,7 +117,7 @@ func TestRunner_TaskTimeoutRetries(t *testing.T) {
 	opts.Clock = clock
 	opts.TaskRetryInitialBackoff = time.Minute
 	opts.TaskRetryMaxBackoff = time.Minute
-	startWorker(t, opts)
+	startWorker(t, f, opts)
 
 	timeoutTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
 	timeoutTrap.Close()
@@ -143,7 +143,7 @@ func TestWorker_RoutesDatabaseSyncStateToActiveRunner(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.Clock = clock
 	opts.RunnerSyncInterval = time.Minute
-	startWorker(t, opts)
+	startWorker(t, f, opts)
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	forceExecutionState(t, f, chat.ID, database.ChatStatusInterrupting, false)
@@ -157,7 +157,7 @@ func TestWorker_CleanupStopsRoutingAndCancelsTasks(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 	first := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	latest := acquireChat(t, f, chat.ID, uuid.New(), uuid.New())

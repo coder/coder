@@ -269,10 +269,31 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 	}
 }
 
-func startWorker(t *testing.T, opts chatWorkerOptions) *chatWorker {
+func testWorkerDeps(f *workerTestFixture, opts chatWorkerOptions) chatWorkerDependencies {
+	workerID := opts.WorkerID
+	if workerID == uuid.Nil {
+		workerID = uuid.New()
+	}
+	store := opts.Store
+	if store == nil {
+		store = f.db
+	}
+	pubsub := opts.Pubsub
+	if pubsub == nil {
+		pubsub = f.pubsub
+	}
+	return chatWorkerDependencies{
+		WorkerID:          workerID,
+		Store:             store,
+		Pubsub:            pubsub,
+		MessagePartBuffer: opts.MessagePartBuffer,
+	}
+}
+
+func startWorker(t *testing.T, f *workerTestFixture, opts chatWorkerOptions) *chatWorker {
 	t.Helper()
-	worker, err := newChatWorker(nil, opts)
-	require.NoError(t, err)
+	deps := testWorkerDeps(f, opts)
+	worker := newChatWorker(nil, deps.WorkerID, deps.Store, deps.Pubsub, deps.MessagePartBuffer, opts)
 	require.NoError(t, worker.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, worker.Close()) })
 	return worker

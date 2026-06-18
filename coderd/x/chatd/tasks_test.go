@@ -1124,25 +1124,27 @@ func startRealTaskWorker(t *testing.T, f *taskTestFixture) *chatWorker {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	worker, err := newChatWorker(nil, chatWorkerOptions{
-		WorkerID:                   uuid.New(),
-		Store:                      f.db,
-		Pubsub:                     f.pubsub,
-		Logger:                     slog.Make(),
-		MessagePartBuffer:          buffer,
-		AcquisitionInterval:        time.Hour,
-		AcquisitionBatchSize:       10,
-		RunnerSyncInterval:         time.Hour,
-		HeartbeatInterval:          time.Hour,
-		HeartbeatCleanupInterval:   time.Hour,
-		HeartbeatStaleSeconds:      30,
-		StateChannelSize:           16,
-		RunnerManagerChannelSize:   16,
-		AcquisitionWakeChannelSize: 1,
-		TaskRetryInitialBackoff:    time.Millisecond,
-		TaskRetryMaxBackoff:        time.Millisecond,
-	})
-	require.NoError(t, err)
+	worker := newChatWorker(
+		nil,
+		uuid.New(),
+		f.db,
+		f.pubsub,
+		buffer,
+		chatWorkerOptions{
+			Logger:                     slog.Make(),
+			AcquisitionInterval:        time.Hour,
+			AcquisitionBatchSize:       10,
+			RunnerSyncInterval:         time.Hour,
+			HeartbeatInterval:          time.Hour,
+			HeartbeatCleanupInterval:   time.Hour,
+			HeartbeatStaleSeconds:      30,
+			StateChannelSize:           16,
+			RunnerManagerChannelSize:   16,
+			AcquisitionWakeChannelSize: 1,
+			TaskRetryInitialBackoff:    time.Millisecond,
+			TaskRetryMaxBackoff:        time.Millisecond,
+		},
+	)
 	require.NoError(t, worker.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, worker.Close()) })
 	return worker

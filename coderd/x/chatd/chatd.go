@@ -2275,8 +2275,7 @@ type manualTitleGenerationError struct {
 // read; the title_change pubsub event it publishes remains the source of
 // truth for clients.
 type generatedChatTitle struct {
-	mu    sync.RWMutex
-	title string
+	title atomic.Value // string
 }
 
 func (t *generatedChatTitle) Store(title string) {
@@ -2284,9 +2283,7 @@ func (t *generatedChatTitle) Store(title string) {
 		return
 	}
 
-	t.mu.Lock()
-	t.title = title
-	t.mu.Unlock()
+	t.title.Store(title)
 }
 
 func (t *generatedChatTitle) Load() (string, bool) {
@@ -2294,12 +2291,11 @@ func (t *generatedChatTitle) Load() (string, bool) {
 		return "", false
 	}
 
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	if t.title == "" {
+	title, ok := t.title.Load().(string)
+	if !ok || title == "" {
 		return "", false
 	}
-	return t.title, true
+	return title, true
 }
 
 func (e *manualTitleGenerationError) Error() string {
@@ -3421,20 +3417,9 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		p.metrics = chatloop.NopMetrics()
 	}
 	p.messagePartBuffer = messagepartbuffer.New(messagepartbuffer.Options{Clock: clk})
-	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
-		Buffer: p.messagePartBuffer,
-		Logger: cfg.Logger,
-	})
-	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
-	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
-	p.streamSyncPoller.Start()
-	chatWorker, err := newChatWorker(p, chatWorkerOptions{
-		WorkerID:              workerID,
-		Store:                 cfg.Database,
-		Pubsub:                ps,
+	workerOpts := chatWorkerOptions{
 		Logger:                cfg.Logger.Named("chatworker"),
 		Clock:                 clk,
-		MessagePartBuffer:     p.messagePartBuffer,
 		AcquisitionInterval:   pendingChatAcquireInterval,
 		AcquisitionBatchSize:  maxChatsPerAcquire,
 		HeartbeatInterval:     chatHeartbeatInterval,
@@ -3442,11 +3427,22 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		NotificationsEnqueuer: notificationsEnqueuer,
 		Auditor:               cfg.Auditor,
 		AutoArchiveRecords:    chatAutoArchiveRecords,
-	})
-	if err != nil {
-		panic("chatd: create chat worker: " + err.Error())
 	}
-	p.chatWorker = chatWorker
+	localStreamPartsDialer := NewLocalStreamPartsDialer(LocalStreamPartsDialerConfig{
+		Buffer: p.messagePartBuffer,
+		Logger: cfg.Logger,
+	})
+	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
+	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
+	p.streamSyncPoller.Start()
+	p.chatWorker = newChatWorker(
+		p,
+		workerID,
+		cfg.Database,
+		ps,
+		p.messagePartBuffer,
+		workerOpts,
+	)
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
@@ -4134,7 +4130,7 @@ func (p *Server) loadPersonalSkillBody(
 	return parsed, nil
 }
 
-func (p *Server) appendRootChatTools(
+func (p *Server) appendRootChatToolsWithoutWorkspaceContextPersistence(
 	ctx context.Context,
 	tools []fantasy.AgentTool,
 	opts rootChatToolsOptions,
@@ -4145,14 +4141,11 @@ func (p *Server) appendRootChatTools(
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
 
-		// Note: we intentionally do not insert AGENTS.md / workspace
-		// context here. Local tool callbacks must not mutate chat
-		// history while a local-tool generation task is in flight,
-		// because that advances history_version before the tool
-		// result is committed and exits the local-tool commit as
-		// stale. Workspace context is persisted by the
-		// persist_workspace_context generation action in a later
-		// pass.
+		// Do not persist workspace context from this callback. Local
+		// tool callbacks run while a generation task is fenced by
+		// history_version; mutating chat history here would make that
+		// commit stale. The generation state machine runs
+		// persist_workspace_context after this tool result commits.
 
 		// Prime the workspace MCP tools cache while the create_workspace
 		// or start_workspace tool is still running. The AgentID guard

@@ -293,9 +293,7 @@ func (f *workerTestFixture) newArchiveWorkerWithOptions(t *testing.T, opts chatW
 	if opts.NotificationsEnqueuer == nil {
 		opts.NotificationsEnqueuer = notificationstest.NewFakeEnqueuer()
 	}
-	worker, err := newChatWorker(nil, opts)
-	require.NoError(t, err)
-	return worker
+	return newChatWorker(nil, opts.WorkerID, opts.Store, opts.Pubsub, opts.MessagePartBuffer, opts)
 }
 
 func mockAuditorPtr(auditor *audit.MockAuditor) *atomic.Pointer[audit.Auditor] {

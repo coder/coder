@@ -13,6 +13,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 )
 
 // chatWorker owns chat acquisition and runner lifecycle for one process.
@@ -32,12 +33,23 @@ type chatWorker struct {
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
 // called.
-func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) {
-	withDefaults, err := opts.withDefaults()
-	if err != nil {
-		return nil, err
+func newChatWorker(
+	server *Server,
+	workerID uuid.UUID,
+	store database.Store,
+	pubsub chatWorkerPubsub,
+	messagePartBuffer *messagepartbuffer.Buffer,
+	opts chatWorkerOptions,
+) *chatWorker {
+	return &chatWorker{
+		server: server,
+		opts: opts.withDefaults(chatWorkerDependencies{
+			WorkerID:          workerID,
+			Store:             store,
+			Pubsub:            pubsub,
+			MessagePartBuffer: messagePartBuffer,
+		}),
 	}
-	return &chatWorker{server: server, opts: withDefaults}, nil
 }
 
 // chatWorkerID returns this worker's configured worker ID.

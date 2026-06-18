@@ -352,7 +352,7 @@ func (server *Server) prepareGeneration(
 		tools = append(tools, chattool.NewAskUserQuestionTool())
 	}
 	if isRootChat {
-		tools = server.appendRootChatTools(ctx, tools, rootChatToolsOptions{
+		tools = server.appendRootChatToolsWithoutWorkspaceContextPersistence(ctx, tools, rootChatToolsOptions{
 			chat:            chat,
 			modelConfigID:   modelConfig.ID,
 			workspaceCtx:    &workspaceCtx,

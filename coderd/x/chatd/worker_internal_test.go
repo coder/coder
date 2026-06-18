@@ -15,30 +15,13 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestWorker_NewRequiresTaskStarterOrMessagePartBuffer(t *testing.T) {
-	t.Parallel()
-	f := newWorkerTestFixture(t)
-	_, err := newChatWorker(nil, chatWorkerOptions{WorkerID: uuid.New(), Store: f.db, Pubsub: f.pubsub})
-	require.ErrorContains(t, err, "task starter or message part buffer is required")
-}
-
-func TestWorker_NewRequiresWorkerID(t *testing.T) {
-	t.Parallel()
-	f := newWorkerTestFixture(t)
-	opts := testOptions(t, f, newRecordingTaskStarter())
-	opts.WorkerID = uuid.Nil
-	_, err := newChatWorker(nil, opts)
-	require.ErrorContains(t, err, "worker ID is required")
-}
-
 func TestWorker_UsesConfiguredWorkerID(t *testing.T) {
 	t.Parallel()
 	f := newWorkerTestFixture(t)
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	workerID := opts.WorkerID
-	worker, err := newChatWorker(nil, opts)
-	require.NoError(t, err)
+	worker := newChatWorker(nil, workerID, opts.Store, opts.Pubsub, opts.MessagePartBuffer, opts)
 	require.Equal(t, workerID, worker.chatWorkerID())
 	require.NoError(t, worker.Start(context.Background()))
 	require.Equal(t, workerID, worker.chatWorkerID())
@@ -50,7 +33,7 @@ func TestWorker_AcquiresRunnableChatFromOwnershipHint(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newRecordingTaskStarter()
-	worker := startWorker(t, testOptions(t, f, starter))
+	worker := startWorker(t, f, testOptions(t, f, starter))
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
@@ -73,7 +56,7 @@ func TestWorker_AcquiresRequiresActionChatFromOwnershipHint(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRequiresActionChat(t)
 	starter := newRecordingTaskStarter()
-	startWorker(t, testOptions(t, f, starter))
+	startWorker(t, f, testOptions(t, f, starter))
 
 	call := starter.waitCall(t, taskKindRequiresActionTimeout, chat.ID)
 	require.Equal(t, database.ChatStatusRequiresAction, call.input.Status)
@@ -88,7 +71,7 @@ func TestWorker_SkipsFreshlyOwnedChat(t *testing.T) {
 	otherRunner := uuid.New()
 	acquireChat(t, f, chat.ID, otherWorker, otherRunner)
 	starter := newRecordingTaskStarter()
-	worker := startWorker(t, testOptions(t, f, starter))
+	worker := startWorker(t, f, testOptions(t, f, starter))
 	worker.Wake()
 
 	starter.assertNoCall(t)
@@ -107,7 +90,7 @@ func TestWorker_ReacquiresStaleOwnedChat(t *testing.T) {
 	acquireChat(t, f, chat.ID, deadWorker, deadRunner)
 	makeHeartbeatStale(t, f, chat.ID, deadRunner)
 	starter := newBlockingTaskStarter(false)
-	worker := startWorker(t, testOptions(t, f, starter))
+	worker := startWorker(t, f, testOptions(t, f, starter))
 
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 	require.Equal(t, worker.chatWorkerID(), call.input.WorkerID)
@@ -133,8 +116,8 @@ func TestWorker_TwoWorkersRaceSingleOwner(t *testing.T) {
 	chat := f.createRunningChat(t)
 	firstStarter := newRecordingTaskStarter()
 	secondStarter := newRecordingTaskStarter()
-	first := startWorker(t, testOptions(t, f, firstStarter))
-	second := startWorker(t, testOptions(t, f, secondStarter))
+	first := startWorker(t, f, testOptions(t, f, firstStarter))
+	second := startWorker(t, f, testOptions(t, f, secondStarter))
 
 	call := waitAnyTaskCall(t, firstStarter, secondStarter, taskKindGeneration, chat.ID)
 	require.Contains(t, []uuid.UUID{first.chatWorkerID(), second.chatWorkerID()}, call.input.WorkerID)
@@ -158,7 +141,7 @@ func TestWorker_DrainsMultipleRunnableChatsOnWake(t *testing.T) {
 	starter := newRecordingTaskStarter()
 	opts := testOptions(t, f, starter)
 	opts.AcquisitionBatchSize = 1
-	startWorker(t, opts)
+	startWorker(t, f, opts)
 
 	want := map[uuid.UUID]bool{first.ID: true, second.ID: true, third.ID: true}
 	for range 3 {
@@ -178,7 +161,7 @@ func TestWorker_DoesNotAcquireIdleOrArchivedChats(t *testing.T) {
 	archived := f.createRunningChat(t)
 	forceExecutionStateAndPublish(t, f, archived.ID, database.ChatStatusRunning, true)
 	starter := newRecordingTaskStarter()
-	worker := startWorker(t, testOptions(t, f, starter))
+	worker := startWorker(t, f, testOptions(t, f, starter))
 	worker.Wake()
 
 	starter.assertNoCall(t)
@@ -195,7 +178,7 @@ func TestWorker_HeartbeatLoopRefreshesActiveRunnerHeartbeat(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.Clock = clock
 	opts.HeartbeatInterval = time.Minute
-	startWorker(t, opts)
+	startWorker(t, f, opts)
 	heartbeatTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 	oldHeartbeat := makeHeartbeatStale(t, f, chat.ID, call.input.RunnerID)
@@ -228,7 +211,7 @@ func TestWorker_HeartbeatCleanupDeletesStaleRows(t *testing.T) {
 	opts := testOptions(t, f, starter)
 	opts.Clock = clock
 	opts.HeartbeatCleanupInterval = time.Minute
-	startWorker(t, opts)
+	startWorker(t, f, opts)
 	cleanupTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
 
 	clock.Advance(time.Minute).MustWait(testutil.Context(t, testutil.WaitLong))
@@ -250,7 +233,7 @@ func TestWorker_CloseDeletesOwnedHeartbeatsAndPublishesOwnershipHints(t *testing
 	pubsub := newRecordingPubsub(f.pubsub)
 	opts := testOptions(t, f, starter)
 	opts.Pubsub = pubsub
-	worker := startWorker(t, opts)
+	worker := startWorker(t, f, opts)
 	callsByChat := make(map[uuid.UUID]taskCall)
 	for range 2 {
 		call := starter.waitCall(t, taskKindGeneration, uuid.Nil)
@@ -283,7 +266,7 @@ func TestWorker_CloseIsIdempotentAndDoesNotBlock(t *testing.T) {
 	f := newWorkerTestFixture(t)
 	chat := f.createRunningChat(t)
 	starter := newBlockingTaskStarter(false)
-	worker := startWorker(t, testOptions(t, f, starter))
+	worker := startWorker(t, f, testOptions(t, f, starter))
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
 
 	closed := make(chan error, 1)

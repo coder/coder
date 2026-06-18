@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -94,19 +93,18 @@ type chatWorkerOptions struct {
 	TaskRetryMaxBackoff        time.Duration
 }
 
-func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
-	if o.Store == nil {
-		return chatWorkerOptions{}, xerrors.New("chatworker: store is required")
-	}
-	if o.Pubsub == nil {
-		return chatWorkerOptions{}, xerrors.New("chatworker: pubsub is required")
-	}
-	if o.TaskStarter == nil && o.MessagePartBuffer == nil {
-		return chatWorkerOptions{}, xerrors.New("chatworker: task starter or message part buffer is required")
-	}
-	if o.WorkerID == uuid.Nil {
-		return chatWorkerOptions{}, xerrors.New("chatworker: worker ID is required")
-	}
+type chatWorkerDependencies struct {
+	WorkerID          uuid.UUID
+	Store             database.Store
+	Pubsub            chatWorkerPubsub
+	MessagePartBuffer *messagepartbuffer.Buffer
+}
+
+func (o chatWorkerOptions) withDefaults(deps chatWorkerDependencies) chatWorkerOptions {
+	o.WorkerID = deps.WorkerID
+	o.Store = deps.Store
+	o.Pubsub = deps.Pubsub
+	o.MessagePartBuffer = deps.MessagePartBuffer
 	if o.Clock == nil {
 		o.Clock = quartz.NewReal()
 	}
@@ -155,5 +153,5 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.TaskRetryMaxBackoff < o.TaskRetryInitialBackoff {
 		o.TaskRetryMaxBackoff = o.TaskRetryInitialBackoff
 	}
-	return o, nil
+	return o
 }
