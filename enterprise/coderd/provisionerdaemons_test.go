@@ -273,6 +273,9 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for re-check to close the session")
 		}
+		// Confirm the close was driven by the re-check's key lookup, not another
+		// path (no pubsub notification is published in this test).
+		require.True(t, store.deleted.Load())
 	})
 
 	t.Run("NoLicense", func(t *testing.T) {
@@ -1094,11 +1097,12 @@ func TestGetProvisionerDaemons(t *testing.T) {
 // deleteKeyOnReadStore deletes the provisioner key identified by keyID the
 // first time it is fetched by ID, simulating a key deleted during connection
 // setup. keyID is set after the key is created so earlier lookups are
-// unaffected.
+// unaffected. deleted records that the interception fired.
 type deleteKeyOnReadStore struct {
 	database.Store
-	keyID atomic.Pointer[uuid.UUID]
-	once  sync.Once
+	keyID   atomic.Pointer[uuid.UUID]
+	once    sync.Once
+	deleted atomic.Bool
 }
 
 func (s *deleteKeyOnReadStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
@@ -1106,6 +1110,7 @@ func (s *deleteKeyOnReadStore) GetProvisionerKeyByID(ctx context.Context, id uui
 		s.once.Do(func() {
 			//nolint:gocritic // The test deletes the key outside the request actor.
 			_ = s.Store.DeleteProvisionerKey(dbauthz.AsSystemRestricted(context.Background()), id)
+			s.deleted.Store(true)
 		})
 	}
 	return s.Store.GetProvisionerKeyByID(ctx, id)
