@@ -1,4 +1,6 @@
 import { type FC, useReducer, useState } from "react";
+import { useQuery } from "react-query";
+import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
@@ -9,6 +11,11 @@ import {
 	PageHeaderTitle,
 } from "#/components/PageHeader/PageHeader";
 import { docs } from "#/utils/docs";
+import { BaseInfraSelectStep } from "./BaseInfraSelectStep";
+import {
+	BaseTemplateParametersStep,
+	baseParametersComplete,
+} from "./BaseTemplateParametersStep";
 import { SelectionSummary } from "./SelectionSummary";
 import {
 	findNextVisibleIndex,
@@ -27,6 +34,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 }) => {
 	const [state, dispatch] = useReducer(wizardReducer, initialWizardState);
 	const [stepIndex, setStepIndex] = useState(0);
+	const basesQuery = useQuery(templateBuilderBases());
 
 	const currentIndex = nearestVisible(stepIndex, state);
 	const currentStep = WIZARD_STEPS[currentIndex];
@@ -34,6 +42,14 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	const prevIndex = findPrevVisibleIndex(currentIndex, state);
 	const isFirstStep = prevIndex === -1;
 	const isLastStep = nextIndex === -1;
+
+	const canContinue =
+		currentStep.id !== "base-parameters" ||
+		baseParametersComplete(
+			basesQuery.data,
+			state.selectedBase?.id ?? null,
+			state.baseVariableValues,
+		);
 
 	const handleBack = () => {
 		setStepIndex(prevIndex);
@@ -56,7 +72,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 	};
 
 	return (
-		<Margins>
+		<Margins className="pb-12">
 			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
 				<PageHeaderSubtitle>
@@ -72,11 +88,26 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
-						<p className="text-sm text-content-secondary">
-							Step: {currentStep.id}
-						</p>
-					</div>
+					{currentStep.id === "base-infra" ? (
+						<BaseInfraSelectStep
+							selectedBaseId={state.selectedBase?.id ?? null}
+							onSelectBase={(base) => dispatch({ type: "SET_BASE", base })}
+						/>
+					) : currentStep.id === "base-parameters" && state.selectedBase ? (
+						<BaseTemplateParametersStep
+							baseId={state.selectedBase.id}
+							values={state.baseVariableValues}
+							onChangeValues={(values) =>
+								dispatch({ type: "SET_BASE_VARIABLES", values })
+							}
+						/>
+					) : (
+						<div className="rounded-lg border border-solid border-border bg-surface-primary p-6 min-h-[400px]">
+							<p className="text-sm text-content-secondary">
+								Step: {currentStep.id}
+							</p>
+						</div>
+					)}
 
 					{/* Navigation controls */}
 					<div className="flex justify-end mt-6 gap-2">
@@ -87,7 +118,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 								Back
 							</Button>
 						)}
-						<Button onClick={handleNext}>
+						<Button onClick={handleNext} disabled={!canContinue}>
 							{isLastStep ? "Create Template" : "Continue"}
 						</Button>
 					</div>

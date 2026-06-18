@@ -2446,6 +2446,12 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateBuilderBases =
+		async (): Promise<TypesGen.TemplateBuilderBasesResponse> => {
+			const response = await this.axios.get("/api/v2/templatebuilder/bases");
+			return response.data;
+		};
+
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
 			headers: { "Content-Type": file.type },
@@ -3906,18 +3912,6 @@ class ExperimentalApiMethods {
 			params,
 		);
 		const response = await this.axios.get<TypesGen.ChatCostUsersResponse>(url);
-		return response.data;
-	};
-
-	getPRInsights = async (params?: {
-		start_date?: string;
-		end_date?: string;
-	}): Promise<TypesGen.PRInsightsResponse> => {
-		const url = getURLWithSearchParams(
-			"/api/experimental/chats/insights/pull-requests",
-			params,
-		);
-		const response = await this.axios.get<TypesGen.PRInsightsResponse>(url);
 		return response.data;
 	};
 

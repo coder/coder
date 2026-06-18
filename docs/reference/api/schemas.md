@@ -9076,219 +9076,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
-## codersdk.PRInsightsModelBreakdown
-
-```json
-{
-  "cost_per_merged_pr_micros": 0,
-  "display_name": "string",
-  "merge_rate": 0,
-  "merged_prs": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "provider": "string",
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs": 0
-}
-```
-
-### Properties
-
-| Name                        | Type    | Required | Restrictions | Description |
-|-----------------------------|---------|----------|--------------|-------------|
-| `cost_per_merged_pr_micros` | integer | false    |              |             |
-| `display_name`              | string  | false    |              |             |
-| `merge_rate`                | number  | false    |              |             |
-| `merged_prs`                | integer | false    |              |             |
-| `model_config_id`           | string  | false    |              |             |
-| `provider`                  | string  | false    |              |             |
-| `total_additions`           | integer | false    |              |             |
-| `total_cost_micros`         | integer | false    |              |             |
-| `total_deletions`           | integer | false    |              |             |
-| `total_prs`                 | integer | false    |              |             |
-
-## codersdk.PRInsightsPullRequest
-
-```json
-{
-  "additions": 0,
-  "approved": true,
-  "author_avatar_url": "string",
-  "author_login": "string",
-  "base_branch": "string",
-  "changed_files": 0,
-  "changes_requested": true,
-  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "commits": 0,
-  "cost_micros": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "deletions": 0,
-  "draft": true,
-  "model_display_name": "string",
-  "pr_number": 0,
-  "pr_title": "string",
-  "pr_url": "string",
-  "reviewer_count": 0,
-  "state": "string"
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `additions`          | integer | false    |              |             |
-| `approved`           | boolean | false    |              |             |
-| `author_avatar_url`  | string  | false    |              |             |
-| `author_login`       | string  | false    |              |             |
-| `base_branch`        | string  | false    |              |             |
-| `changed_files`      | integer | false    |              |             |
-| `changes_requested`  | boolean | false    |              |             |
-| `chat_id`            | string  | false    |              |             |
-| `commits`            | integer | false    |              |             |
-| `cost_micros`        | integer | false    |              |             |
-| `created_at`         | string  | false    |              |             |
-| `deletions`          | integer | false    |              |             |
-| `draft`              | boolean | false    |              |             |
-| `model_display_name` | string  | false    |              |             |
-| `pr_number`          | integer | false    |              |             |
-| `pr_title`           | string  | false    |              |             |
-| `pr_url`             | string  | false    |              |             |
-| `reviewer_count`     | integer | false    |              |             |
-| `state`              | string  | false    |              |             |
-
-## codersdk.PRInsightsResponse
-
-```json
-{
-  "by_model": [
-    {
-      "cost_per_merged_pr_micros": 0,
-      "display_name": "string",
-      "merge_rate": 0,
-      "merged_prs": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "provider": "string",
-      "total_additions": 0,
-      "total_cost_micros": 0,
-      "total_deletions": 0,
-      "total_prs": 0
-    }
-  ],
-  "recent_prs": [
-    {
-      "additions": 0,
-      "approved": true,
-      "author_avatar_url": "string",
-      "author_login": "string",
-      "base_branch": "string",
-      "changed_files": 0,
-      "changes_requested": true,
-      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-      "commits": 0,
-      "cost_micros": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "deletions": 0,
-      "draft": true,
-      "model_display_name": "string",
-      "pr_number": 0,
-      "pr_title": "string",
-      "pr_url": "string",
-      "reviewer_count": 0,
-      "state": "string"
-    }
-  ],
-  "summary": {
-    "approval_rate": 0,
-    "cost_per_merged_pr_micros": 0,
-    "merge_rate": 0,
-    "prev_cost_per_merged_pr_micros": 0,
-    "prev_merge_rate": 0,
-    "prev_total_prs_created": 0,
-    "prev_total_prs_merged": 0,
-    "total_additions": 0,
-    "total_cost_micros": 0,
-    "total_deletions": 0,
-    "total_prs_created": 0,
-    "total_prs_merged": 0
-  },
-  "time_series": [
-    {
-      "date": "2019-08-24T14:15:22Z",
-      "prs_closed": 0,
-      "prs_created": 0,
-      "prs_merged": 0
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name          | Type                                                                              | Required | Restrictions | Description |
-|---------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `by_model`    | array of [codersdk.PRInsightsModelBreakdown](#codersdkprinsightsmodelbreakdown)   | false    |              |             |
-| `recent_prs`  | array of [codersdk.PRInsightsPullRequest](#codersdkprinsightspullrequest)         | false    |              |             |
-| `summary`     | [codersdk.PRInsightsSummary](#codersdkprinsightssummary)                          | false    |              |             |
-| `time_series` | array of [codersdk.PRInsightsTimeSeriesEntry](#codersdkprinsightstimeseriesentry) | false    |              |             |
-
-## codersdk.PRInsightsSummary
-
-```json
-{
-  "approval_rate": 0,
-  "cost_per_merged_pr_micros": 0,
-  "merge_rate": 0,
-  "prev_cost_per_merged_pr_micros": 0,
-  "prev_merge_rate": 0,
-  "prev_total_prs_created": 0,
-  "prev_total_prs_merged": 0,
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs_created": 0,
-  "total_prs_merged": 0
-}
-```
-
-### Properties
-
-| Name                             | Type    | Required | Restrictions | Description |
-|----------------------------------|---------|----------|--------------|-------------|
-| `approval_rate`                  | number  | false    |              |             |
-| `cost_per_merged_pr_micros`      | integer | false    |              |             |
-| `merge_rate`                     | number  | false    |              |             |
-| `prev_cost_per_merged_pr_micros` | integer | false    |              |             |
-| `prev_merge_rate`                | number  | false    |              |             |
-| `prev_total_prs_created`         | integer | false    |              |             |
-| `prev_total_prs_merged`          | integer | false    |              |             |
-| `total_additions`                | integer | false    |              |             |
-| `total_cost_micros`              | integer | false    |              |             |
-| `total_deletions`                | integer | false    |              |             |
-| `total_prs_created`              | integer | false    |              |             |
-| `total_prs_merged`               | integer | false    |              |             |
-
-## codersdk.PRInsightsTimeSeriesEntry
-
-```json
-{
-  "date": "2019-08-24T14:15:22Z",
-  "prs_closed": 0,
-  "prs_created": 0,
-  "prs_merged": 0
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `date`        | string  | false    |              |             |
-| `prs_closed`  | integer | false    |              |             |
-| `prs_created` | integer | false    |              |             |
-| `prs_merged`  | integer | false    |              |             |
-
 ## codersdk.PaginatedMembersResponse
 
 ```json
@@ -12096,19 +11883,32 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "icon": "string",
   "id": "string",
   "name": "string",
-  "os": "string"
+  "os": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description |
-|---------------|--------|----------|--------------|-------------|
-| `description` | string | false    |              |             |
-| `icon`        | string | false    |              |             |
-| `id`          | string | false    |              |             |
-| `name`        | string | false    |              |             |
-| `os`          | string | false    |              |             |
+| Name          | Type                                                                                      | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                                                                    | false    |              |             |
+| `icon`        | string                                                                                    | false    |              |             |
+| `id`          | string                                                                                    | false    |              |             |
+| `name`        | string                                                                                    | false    |              |             |
+| `os`          | string                                                                                    | false    |              |             |
+| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -12120,7 +11920,19 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "icon": "string",
       "id": "string",
       "name": "string",
-      "os": "string"
+      "os": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
     }
   ]
 }
@@ -12157,6 +11969,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "modules": [
     {
       "id": "string",
@@ -12171,10 +11987,12 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                                                                    | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id` | string                                                                                  | false    |              |             |
-| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
 
 ## codersdk.TemplateBuilderConfig
 
@@ -12197,6 +12015,10 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -12220,17 +12042,19 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name               | Type                                                                                    | Required | Restrictions | Description |
-|--------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `base_template_id` | string                                                                                  | false    |              |             |
-| `description`      | string                                                                                  | false    |              |             |
-| `display_name`     | string                                                                                  | false    |              |             |
-| `icon`             | string                                                                                  | false    |              |             |
-| `modules`          | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
-| `name`             | string                                                                                  | true     |              |             |
-| `organization_id`  | string                                                                                  | true     |              |             |
-| `provisioner_tags` | object                                                                                  | false    |              |             |
-| » `[any property]` | string                                                                                  | false    |              |             |
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `description`          | string                                                                                  | false    |              |             |
+| `display_name`         | string                                                                                  | false    |              |             |
+| `icon`                 | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`                 | string                                                                                  | true     |              |             |
+| `organization_id`      | string                                                                                  | true     |              |             |
+| `provisioner_tags`     | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
 
 ## codersdk.TemplateBuilderCreateTemplateResponse
 

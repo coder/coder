@@ -90,6 +90,19 @@ func (r *runner) run() {
 }
 
 func (r *runner) bootstrap() bool {
+	// Pubsub can deliver chat:update messages that were already queued by
+	// Postgres before this runner subscribed. Hold those hints until the
+	// runner initializes its local state with the current database snapshot.
+	// Otherwise a stale chat:update that shows the chat has no owner could
+	// cause the runner to exit before it starts work.
+	bootstrapReady := make(chan struct{})
+	bootstrapReadyClosed := false
+	defer func() {
+		if !bootstrapReadyClosed {
+			close(bootstrapReady)
+		}
+	}()
+
 	channel := coderdpubsub.ChatStateUpdateChannel(r.rec.key.ChatID)
 	unsubscribe, err := r.opts.Pubsub.SubscribeWithErr(channel, coderdpubsub.HandleChatStateUpdate(
 		func(ctx context.Context, payload coderdpubsub.ChatStateUpdateMessage, err error) {
@@ -97,6 +110,7 @@ func (r *runner) bootstrap() bool {
 				r.opts.Logger.Warn(ctx, "chatworker state update decode failed", slogError(err))
 				return
 			}
+			<-bootstrapReady
 			r.mgr.RouteStateHint(ctx, stateUpdateFromPubsub(r.rec.key.ChatID, payload))
 		},
 	))
@@ -114,6 +128,8 @@ func (r *runner) bootstrap() bool {
 		return false
 	}
 	r.mgr.RouteStateHint(r.ctx, stateUpdateFromChat(chat))
+	close(bootstrapReady)
+	bootstrapReadyClosed = true
 	return true
 }
 

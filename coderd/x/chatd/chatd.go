@@ -140,6 +140,7 @@ var (
 			"The agent may still be reachable on the next attempt.",
 	)
 	errChatExternalAgentUnavailable = xerrors.New("external workspace agent unavailable")
+	errInflightClosed               = xerrors.New("chatd server inflight closed")
 )
 
 type chatExternalAgentUnavailableError struct {
@@ -162,11 +163,12 @@ func newChatExternalAgentUnavailableError(agent database.WorkspaceAgent) error {
 
 // Server handles background processing of pending chats.
 type Server struct {
-	cancel     context.CancelFunc
-	ctx        context.Context
-	wg         sync.WaitGroup
-	inflight   sync.WaitGroup
-	inflightMu sync.Mutex
+	cancel         context.CancelFunc
+	ctx            context.Context
+	wg             sync.WaitGroup
+	inflight       sync.WaitGroup
+	inflightMu     sync.Mutex
+	inflightClosed atomic.Bool
 
 	db       database.Store
 	workerID uuid.UUID
@@ -4186,9 +4188,16 @@ func (p *Server) appendRootChatTools(
 		// burns the full budget for nothing.
 		snapshot := opts.workspaceCtx.currentChatSnapshot()
 		if snapshot.WorkspaceID.Valid && snapshot.AgentID.Valid {
-			p.inflight.Go(func() {
+			if err := p.goInflight(func() {
 				p.primeWorkspaceMCPCache(opts.primerCtx, p.logger, snapshot.ID, opts.workspaceCtx)
-			})
+			}); err != nil {
+				p.logger.Error(context.WithoutCancel(ctx), "failed to schedule workspace MCP cache primer",
+					slog.F("chat_id", snapshot.ID),
+					slog.F("workspace_id", snapshot.WorkspaceID.UUID),
+					slog.F("agent_id", snapshot.AgentID.UUID),
+					slog.Error(err),
+				)
+			}
 		}
 	}
 
@@ -5140,10 +5149,7 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 	logger slog.Logger,
 	afterFinalize func(context.Context, string),
 ) {
-	// This helper runs during processChat cleanup, while processChat is
-	// still counted in p.inflight. Do not take inflightMu here because
-	// drainInflight holds it while waiting.
-	p.inflight.Go(func() {
+	if err := p.goInflight(func() {
 		finalizeCtx := context.WithoutCancel(ctx)
 		statusLabel := p.generateFinalTurnStatusLabel(finalizeCtx, chat, status, runResult, logger)
 		logger.Debug(finalizeCtx, "generated chat turn status label",
@@ -5155,7 +5161,13 @@ func (p *Server) finalizeSuccessfulTurnStatusLabelWithAfterFunc(
 		p.updateLastTurnSummary(finalizeCtx, chat, chat.HistoryVersion, statusLabel, logger)
 
 		afterFinalize(finalizeCtx, statusLabel)
-	})
+	}); err != nil {
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn status finalization",
+			slog.F("chat_id", chat.ID),
+			slog.F("status", status),
+			slog.Error(err),
+		)
+	}
 }
 
 func (p *Server) generateFinalTurnStatusLabel(
@@ -5237,12 +5249,16 @@ func (p *Server) setLastTurnSummaryAsync(
 	if chat.LastTurnSummary.Valid && strings.TrimSpace(chat.LastTurnSummary.String) == summary {
 		return
 	}
-	// This helper runs during processChat cleanup, while processChat is
-	// still counted in p.inflight. Do not take inflightMu here because
-	// drainInflight holds it while waiting.
-	p.inflight.Go(func() {
+	if err := p.goInflight(func() {
 		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.HistoryVersion, summary, logger)
-	})
+	}); err != nil {
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn summary update",
+			slog.F("chat_id", chat.ID),
+			slog.F("expected_history_version", chat.HistoryVersion),
+			slog.F("summary_length", len(summary)),
+			slog.Error(err),
+		)
+	}
 }
 
 func (p *Server) clearLastTurnSummaryAsync(
@@ -5250,12 +5266,15 @@ func (p *Server) clearLastTurnSummaryAsync(
 	chat database.Chat,
 	logger slog.Logger,
 ) {
-	// This helper runs during processChat cleanup, while processChat is
-	// still counted in p.inflight. Do not take inflightMu here because
-	// drainInflight holds it while waiting.
-	p.inflight.Go(func() {
+	if err := p.goInflight(func() {
 		p.updateLastTurnSummary(context.WithoutCancel(ctx), chat, chat.HistoryVersion, "", logger)
-	})
+	}); err != nil {
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat turn summary clear",
+			slog.F("chat_id", chat.ID),
+			slog.F("expected_history_version", chat.HistoryVersion),
+			slog.Error(err),
+		)
+	}
 }
 
 // updateLastTurnSummary writes the cached sidebar summary for a chat.
@@ -5337,6 +5356,7 @@ func (p *Server) dispatchPush(
 
 // Close stops the processor and waits for it to finish.
 func (p *Server) Close() error {
+	p.closeInflightAdmission()
 	if unsub := p.configCacheUnsubscribe; unsub != nil {
 		p.configCacheUnsubscribe = nil
 		unsub()
@@ -5358,10 +5378,30 @@ func (p *Server) Close() error {
 	return nil
 }
 
-// drainInflight waits for all in-flight operations to complete.
-// It acquires inflightMu to prevent processOnce from spawning
-// new goroutines (via inflight.Add) concurrently with Wait,
-// which would violate sync.WaitGroup's contract.
+func (p *Server) goInflight(f func()) error {
+	if p.inflightClosed.Load() {
+		return errInflightClosed
+	}
+
+	// Acquire inflightMu around the inflight.Go so Close() cannot
+	// call drainInflight concurrently when the counter is at zero.
+	// See drainInflight for the WaitGroup contract this preserves.
+	p.inflightMu.Lock()
+	defer p.inflightMu.Unlock()
+	if p.inflightClosed.Load() {
+		return errInflightClosed
+	}
+	p.inflight.Go(f)
+	return nil
+}
+
+func (p *Server) closeInflightAdmission() {
+	p.inflightClosed.Store(true)
+}
+
+// drainInflight waits for already-admitted in-flight operations to complete.
+// It acquires inflightMu so Wait cannot race with a positive Add from
+// goInflight when the WaitGroup counter is zero.
 //
 // https://pkg.go.dev/sync#WaitGroup.Add
 // > Note that calls with a positive delta that occur when the counter is zero must happen before a Wait.

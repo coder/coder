@@ -99,3 +99,21 @@ export const WithAdditionalImpliedRoles: Story = {
 		],
 	},
 };
+
+const mixedBuiltInAndCustomRoles = [
+	assignableRole(MockOrganizationAdminRole, true),
+	assignableRole(MockOrganizationUserAdminRole, true),
+	assignableRole(MockOrganizationTemplateAdminRole, true),
+	{ ...assignableRole(MockOrganizationAuditorRole, true), built_in: false },
+	{ ...assignableRole(MockAgentsAccessRole, true), built_in: false },
+];
+
+export const WithDisabledReason: Story = {
+	args: {
+		availableRoles: mixedBuiltInAndCustomRoles,
+		disabledReason: (role) =>
+			role.built_in
+				? undefined
+				: "Only built-in roles are supported as organization default roles",
+	},
+};

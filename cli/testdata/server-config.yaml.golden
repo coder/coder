@@ -519,6 +519,10 @@ sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
 # (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
 agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
+# Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is
+# provided for backward compatibility for existing users.
+# (default: true, type: bool)
+scimUseLegacy: true
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
