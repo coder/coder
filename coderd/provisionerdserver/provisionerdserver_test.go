@@ -283,9 +283,8 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
-// TestAcquireJob_ProvisionerKeyDeleted verifies that the daemon stops acquiring
-// jobs once the provisioner key it authenticated with is deleted. This is the
-// defense-in-depth backstop for the pubsub-driven session teardown.
+// TestAcquireJob_ProvisionerKeyDeleted verifies that acquiring a job fails once
+// the provisioner key the daemon authenticated with is deleted.
 func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 	t.Parallel()
 
@@ -322,9 +321,9 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, &proto.AcquiredJob{}, job)
 
-			// Once the key is deleted, acquiring must fail rather than hand out work.
-			// The key check runs before the acquire blocks, so both variants return
-			// promptly.
+			// Once the key is deleted, acquiring must fail rather than hand out
+			// work. The key check runs before the acquire blocks, so both variants
+			// return promptly.
 			err = srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
 			require.NoError(t, err)
 
@@ -336,8 +335,7 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 }
 
 // TestAcquireJob_ReservedProvisionerKey verifies that daemons using a reserved
-// provisioner key (which is not a deletable row) are not blocked by the
-// key-existence check.
+// provisioner key, which cannot be deleted, are not blocked by the key check.
 func TestAcquireJob_ReservedProvisionerKey(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

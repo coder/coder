@@ -146,10 +146,9 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 	}, nil
 }
 
-// isDeletableProvisionerKey reports whether the given provisioner key ID refers
-// to a user-created key that can be deleted. The reserved keys (built-in,
-// user-auth, PSK) and the zero value are not deletable, so daemons using them
-// do not need to watch for key deletion.
+// isDeletableProvisionerKey reports whether the given provisioner key ID can
+// be deleted. The reserved keys (built-in, user-auth, PSK) and the zero value
+// are not deletable.
 func isDeletableProvisionerKey(keyID uuid.UUID) bool {
 	switch keyID {
 	case uuid.Nil,
@@ -408,10 +407,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		rl.WriteLog(ctx, http.StatusAccepted)
 	}
 
-	// If the daemon authenticated with a deletable provisioner key, tear down
-	// the session when that key is deleted. Auth is only checked at connection
-	// establishment, so without this a deleted key keeps working until the
-	// daemon disconnects on its own.
+	// Cancel this session if the key it authenticated with is deleted.
 	if isDeletableProvisionerKey(authRes.keyID) {
 		closeSubscribe, err := api.Pubsub.Subscribe(
 			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
@@ -426,10 +422,10 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 		defer closeSubscribe()
 
-		// Re-check after subscribing to close the race where the key was deleted
-		// between auth and Subscribe. Postgres LISTEN/NOTIFY does not buffer for
-		// non-listeners, so a deletion that committed before our subscription
-		// registered would otherwise go unnoticed until the next job acquisition.
+		// Re-check that the key still exists after subscribing. Postgres
+		// LISTEN/NOTIFY does not deliver notifications published before the
+		// subscription registered, so a deletion during connection setup could
+		// be missed without this check.
 		_, err = api.Database.GetProvisionerKeyByID(authCtx, authRes.keyID)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			logger.Info(ctx, "provisioner key no longer exists, closing connection")

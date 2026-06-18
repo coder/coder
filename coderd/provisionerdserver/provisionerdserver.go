@@ -79,10 +79,10 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
-	// KeyID is the provisioner key the daemon authenticated with. It is used
-	// to verify the key still exists before acquiring a job, so a deleted key
-	// cannot keep running work. The zero value and reserved key IDs skip the
-	// check, since reserved keys are not deletable rows.
+	// KeyID is the provisioner key the daemon authenticated with. It is
+	// checked against the database before a job is acquired. The zero value
+	// and reserved key IDs skip the check, since reserved keys cannot be
+	// deleted.
 	KeyID uuid.UUID
 
 	// Clock for testing
@@ -336,11 +336,10 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
-// keyDeleted reports whether the provisioner key the daemon authenticated with
-// has been deleted. It is a defense-in-depth backstop for the pubsub-driven
-// session teardown: if a key-deletion notification is missed, this prevents the
-// daemon from acquiring further jobs. Reserved keys (built-in, user-auth, PSK)
-// and the zero value are not deletable rows, so they always report false.
+// keyDeleted reports whether the provisioner key the daemon authenticated
+// with no longer exists in the database. Reserved keys (built-in, user-auth,
+// PSK) and the zero value are never stored as deletable rows, so they always
+// report false.
 func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	switch s.KeyID {
 	case uuid.Nil,
@@ -351,7 +350,7 @@ func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	}
 	_, err := s.Database.GetProvisionerKeyByID(
 		//nolint:gocritic // The provisionerd actor cannot read provisioner keys,
-		// so use system restricted to verify the key still exists.
+		// so use system restricted to look up the key.
 		dbauthz.AsSystemRestricted(ctx), s.KeyID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return true, nil
