@@ -382,8 +382,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							Old: wsOld.WorkspaceTable(),
 							New: wsNew,
 						}
-						// To keep the `ws` accurate without doing a sql fetch
+						// To keep the `ws` accurate without doing a sql fetch.
+						// deleting_at is computed atomically inside the UPDATE from
+						// the workspace's template_id, so it reflects the auto-delete
+						// deadline the database persisted.
 						ws.DormantAt = wsNew.DormantAt
+						ws.DeletingAt = wsNew.DeletingAt
 
 						shouldNotifyDormancy = true
 
@@ -488,11 +492,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						"name":   ws.Name,
 						"reason": "inactivity exceeded the dormancy threshold",
 					}
-					// Auto-delete must be configured for the body to render a
-					// deletion timeline.
-					if tmpl.TimeTilDormantAutoDelete > 0 {
-						deleteTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormantAutoDelete))
-						labels["timeTilDelete"] = humanize.Time(deleteTime)
+					// DeletingAt is set by the UPDATE only when the template's
+					// time_til_dormant_autodelete is non-zero, so skip the label when
+					// auto-delete is disabled so the body omits the deletion
+					// timeline.
+					if ws.DeletingAt.Valid {
+						labels["timeTilDelete"] = humanize.Time(ws.DeletingAt.Time)
 					}
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,

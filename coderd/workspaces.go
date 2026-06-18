@@ -1448,27 +1448,17 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
+		if initiatorErr == nil {
 			labels := map[string]string{
 				"name":   newWorkspace.Name,
 				"reason": "a " + initiator.Username + " request",
 			}
-			// Auto-delete must be configured for the body to render a
-			// deletion timeline.
-			if tmpl.TimeTilDormantAutoDelete > 0 {
-				deleteTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormantAutoDelete))
-				labels["timeTilDelete"] = humanize.Time(deleteTime)
+			// DeletingAt is set by the UPDATE only when the template's
+			// time_til_dormant_autodelete is non-zero, so skip the label when
+			// auto-delete is disabled so the body omits the deletion
+			// timeline.
+			if newWorkspace.DeletingAt.Valid {
+				labels["timeTilDelete"] = humanize.Time(newWorkspace.DeletingAt.Time)
 			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
