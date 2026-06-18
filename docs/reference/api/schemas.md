@@ -2029,6 +2029,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "error": "string",
         "resources": [
           {
+            "error": "string",
             "kind": "instruction_file",
             "mcp_tools": [
               {
@@ -2039,7 +2040,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
-            "source": "string"
+            "source": "string",
+            "status": "ok"
           }
         ]
       },
@@ -2194,6 +2196,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "error": "string",
     "resources": [
       {
+        "error": "string",
         "kind": "instruction_file",
         "mcp_tools": [
           {
@@ -2204,7 +2207,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
-        "source": "string"
+        "source": "string",
+        "status": "ok"
       }
     ]
   },
@@ -2497,6 +2501,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "error": "string",
   "resources": [
     {
+      "error": "string",
       "kind": "instruction_file",
       "mcp_tools": [
         {
@@ -2507,7 +2512,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "size_bytes": 0,
       "skill_description": "string",
       "skill_name": "string",
-      "source": "string"
+      "source": "string",
+      "status": "ok"
     }
   ]
 }
@@ -2543,6 +2549,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "error": "string",
   "kind": "instruction_file",
   "mcp_tools": [
     {
@@ -2553,20 +2560,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "size_bytes": 0,
   "skill_description": "string",
   "skill_name": "string",
-  "source": "string"
+  "source": "string",
+  "status": "ok"
 }
 ```
 
 ### Properties
 
-| Name                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                              |
-|---------------------|----------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind) | false    |              |                                                                                                                                                                                          |
-| `mcp_tools`         | array of [codersdk.ChatContextMCPTool](#codersdkchatcontextmcptool)  | false    |              | Mcp tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                               |
-| `size_bytes`        | integer                                                              | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                        |
-| `skill_description` | string                                                               | false    |              |                                                                                                                                                                                          |
-| `skill_name`        | string                                                               | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                      |
-| `source`            | string                                                               | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server. |
+| Name                | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                    |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                      |
+| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                                |
+| `mcp_tools`         | array of [codersdk.ChatContextMCPTool](#codersdkchatcontextmcptool)      | false    |              | Mcp tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+| `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                              |
+| `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                                |
+| `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                            |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                       |
+| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, MCP tools) are empty. |
 
 ## codersdk.ChatContextResourceChange
 
@@ -2621,6 +2631,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                |
 |---------------------------------------------------------|
 | `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+
+## codersdk.ChatContextResourceStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                              |
+|-------------------------------------------------------|
+| `excluded`, `invalid`, `ok`, `oversize`, `unreadable` |
 
 ## codersdk.ChatDiffContents
 
@@ -4060,6 +4084,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "error": "string",
       "resources": [
         {
+          "error": "string",
           "kind": "instruction_file",
           "mcp_tools": [
             {
@@ -4070,7 +4095,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
-          "source": "string"
+          "source": "string",
+          "status": "ok"
         }
       ]
     },

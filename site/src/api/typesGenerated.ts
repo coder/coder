@@ -1769,6 +1769,18 @@ export interface ChatContextResource {
 	 * the mcp_server kind; nil otherwise.
 	 */
 	readonly mcp_tools?: readonly ChatContextMCPTool[];
+	/**
+	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
+	 * oversize, excluded) are still reported so the UI can surface why a
+	 * resource was dropped from the prompt instead of silently omitting it;
+	 * their body-specific fields (skill name, MCP tools) are empty.
+	 */
+	readonly status: ChatContextResourceStatus;
+	/**
+	 * Error explains a non-ok Status; empty when healthy. May also carry a
+	 * non-fatal warning when Status is ok.
+	 */
+	readonly error?: string;
 }
 
 // From codersdk/chats.go
@@ -1819,6 +1831,22 @@ export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"mcp_config",
 	"mcp_server",
 	"skill",
+];
+
+// From codersdk/chats.go
+export type ChatContextResourceStatus =
+	| "excluded"
+	| "invalid"
+	| "ok"
+	| "oversize"
+	| "unreadable";
+
+export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
+	"excluded",
+	"invalid",
+	"ok",
+	"oversize",
+	"unreadable",
 ];
 
 // From codersdk/chats.go

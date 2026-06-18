@@ -47,6 +47,14 @@ export const Clean: Story = {
 		// MCP server tools are listed under their server.
 		expect(body.getByText("search_issues")).toBeVisible();
 		expect(body.getByText("create_issue")).toBeVisible();
+		// Invalid resources are surfaced as issues with their error, not
+		// silently dropped.
+		expect(body.getByText("Issues")).toBeVisible();
+		expect(
+			body.getByText(
+				'front-matter name "coder-review" does not match directory "moo"',
+			),
+		).toBeVisible();
 		// A clean pin offers no refresh affordance.
 		expect(body.queryByRole("button", { name: "Refresh context" })).toBeNull();
 	},

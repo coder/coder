@@ -40,11 +40,13 @@ const MockChatContextResources: ChatContextResource[] = [
 		source: "/home/coder/AGENTS.md",
 		kind: "instruction_file",
 		size_bytes: 248,
+		status: "ok",
 	},
 	{
 		source: "/home/coder/.coder/skills/deploy",
 		kind: "skill",
 		size_bytes: 96,
+		status: "ok",
 		skill_name: "deploy",
 		skill_description: "Deploy the app to staging.",
 	},
@@ -52,11 +54,13 @@ const MockChatContextResources: ChatContextResource[] = [
 		source: "/home/coder/.mcp.json",
 		kind: "mcp_config",
 		size_bytes: 184,
+		status: "ok",
 	},
 	{
 		source: "github",
 		kind: "mcp_server",
 		size_bytes: 512,
+		status: "ok",
 		mcp_tools: [
 			{
 				name: "search_issues",
@@ -64,6 +68,15 @@ const MockChatContextResources: ChatContextResource[] = [
 			},
 			{ name: "create_issue", description: "Open a new issue." },
 		],
+	},
+	{
+		// An invalid skill the agent rejected: surfaced as an issue with its
+		// error rather than silently dropped.
+		source: "/home/coder/test/.agents/skills/moo",
+		kind: "skill",
+		size_bytes: 356,
+		status: "invalid",
+		error: 'front-matter name "coder-review" does not match directory "moo"',
 	},
 ];
 

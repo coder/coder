@@ -2068,7 +2068,12 @@ describe("mergeWatchedChatSummary", () => {
 			context: {
 				dirty: false,
 				resources: [
-					{ source: "/AGENTS.md", kind: "instruction_file", size_bytes: 10 },
+					{
+						source: "/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 10,
+						status: "ok",
+					},
 				],
 			},
 		});

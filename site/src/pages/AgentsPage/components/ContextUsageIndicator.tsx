@@ -9,6 +9,8 @@ import { type FC, useRef, useState } from "react";
 import type {
 	ChatContext,
 	ChatContextMCPTool,
+	ChatContextResourceKind,
+	ChatContextResourceStatus,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -60,6 +62,23 @@ type ContextMcpItem = {
 	readonly name: string;
 	readonly source: string;
 	readonly tools: readonly ChatContextMCPTool[];
+};
+// A pinned resource the agent could not use, surfaced with its error so the
+// failure is visible instead of silent.
+type ContextIssueItem = {
+	readonly name: string;
+	readonly kind: ChatContextResourceKind;
+	readonly status: ChatContextResourceStatus;
+	readonly error: string;
+	readonly source: string;
+};
+
+// Human-readable label per resource kind, used in the issues list.
+const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
+	instruction_file: "file",
+	skill: "skill",
+	mcp_config: "MCP config",
+	mcp_server: "MCP server",
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -165,7 +184,10 @@ export const ContextUsageIndicator: FC<{
 	const fileItems: readonly ContextFileItem[] = (
 		usePinned
 			? (pinnedResources ?? [])
-					.filter((resource) => resource.kind === "instruction_file")
+					.filter(
+						(resource) =>
+							resource.kind === "instruction_file" && resource.status === "ok",
+					)
 					.map((resource) => ({ path: resource.source }))
 			: (usage?.lastInjectedContext ?? [])
 					.filter((part) => part.type === "context-file")
@@ -181,7 +203,9 @@ export const ContextUsageIndicator: FC<{
 	const skillItems: readonly ContextSkillItem[] = (
 		usePinned
 			? (pinnedResources ?? [])
-					.filter((resource) => resource.kind === "skill")
+					.filter(
+						(resource) => resource.kind === "skill" && resource.status === "ok",
+					)
 					.map((resource) => ({
 						name: resource.skill_name || getPathBasename(resource.source),
 						description: resource.skill_description,
@@ -204,7 +228,9 @@ export const ContextUsageIndicator: FC<{
 			? (pinnedResources ?? [])
 					.filter(
 						(resource) =>
-							resource.kind === "mcp_config" || resource.kind === "mcp_server",
+							(resource.kind === "mcp_config" ||
+								resource.kind === "mcp_server") &&
+							resource.status === "ok",
 					)
 					.map((resource) => ({
 						name:
@@ -219,8 +245,30 @@ export const ContextUsageIndicator: FC<{
 		// Drop entries with no usable name so an empty MCP marker never renders as
 		// a blank row.
 		.filter((mcp) => mcp.name.trim().length > 0);
+	// Pinned resources the agent could not use (invalid skill, unreadable or
+	// oversize file) are surfaced as issues with their error so the failure is
+	// visible rather than a silent omission. Pinned-only; the injected-context
+	// fallback has no status.
+	const issueItems: readonly ContextIssueItem[] = (
+		usePinned ? (pinnedResources ?? []) : []
+	)
+		.filter((resource) => resource.status !== "ok")
+		.map((resource) => ({
+			name:
+				resource.skill_name ||
+				getPathBasename(resource.source) ||
+				resource.source,
+			kind: resource.kind,
+			status: resource.status,
+			error: resource.error ?? "",
+			source: resource.source,
+		}))
+		.filter((issue) => issue.name.trim().length > 0);
 	const hasContextList =
-		fileItems.length > 0 || skillItems.length > 0 || mcpItems.length > 0;
+		fileItems.length > 0 ||
+		skillItems.length > 0 ||
+		mcpItems.length > 0 ||
+		issueItems.length > 0;
 
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
@@ -349,6 +397,33 @@ export const ContextUsageIndicator: FC<{
 									</div>
 								))}
 							</TooltipProvider>
+						</div>
+					)}
+					{issueItems.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="flex items-center gap-1.5 font-medium text-content-warning">
+								<TriangleAlertIcon className="size-3 shrink-0" />
+								Issues
+							</span>
+							{issueItems.map((issue) => (
+								<div
+									key={issue.source}
+									className="flex flex-col"
+									title={issue.source}
+								>
+									<span className="truncate">
+										{issue.name}{" "}
+										<span className="text-content-secondary">
+											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+										</span>
+									</span>
+									{issue.error && (
+										<span className="text-content-secondary">
+											{issue.error}
+										</span>
+									)}
+								</div>
+							))}
 						</div>
 					)}
 				</div>
