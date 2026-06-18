@@ -15102,11 +15102,31 @@
 				}
 			}
 		},
+		"codersdk.ChatContextMCPTool": {
+			"type": "object",
+			"properties": {
+				"description": {
+					"description": "Description is the tool's human-readable summary; may be empty.",
+					"type": "string"
+				},
+				"name": {
+					"description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.ChatContextResource": {
 			"type": "object",
 			"properties": {
 				"kind": {
 					"$ref": "#/definitions/codersdk.ChatContextResourceKind"
+				},
+				"mcp_tools": {
+					"description": "McpTools lists the tools exposed by an MCP server. Populated only for\nthe mcp_server kind; nil otherwise.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatContextMCPTool"
+					}
 				},
 				"size_bytes": {
 					"description": "SizeBytes is the original payload size in bytes.",
@@ -15120,7 +15140,7 @@
 					"type": "string"
 				},
 				"source": {
-					"description": "Source is the resource locator: the canonical file path for an\ninstruction file, or the skill directory for a skill.",
+					"description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
 					"type": "string"
 				}
 			}

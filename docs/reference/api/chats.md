@@ -56,6 +56,12 @@ Experimental: this endpoint is subject to change.
       "resources": [
         {
           "kind": "instruction_file",
+          "mcp_tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ],
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
@@ -230,10 +236,13 @@ Status Code **200**
 | `»» error`                        | string                                                                                         | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                                                                                                                                                    |
 | `»» resources`                    | array                                                                                          | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                                                                                                                 |
 | `»»» kind`                        | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `»»» mcp_tools`                   | array                                                                                          | false    |              | Mcp tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                                                                                                                                                 |
+| `»»»» description`                | string                                                                                         | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» name`                       | string                                                                                         | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                                                                                                                                                          |
 | `»»» size_bytes`                  | integer                                                                                        | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_description`           | string                                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_name`                  | string                                                                                         | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                                                                                                                                                        |
-| `»»» source`                      | string                                                                                         | false    |              | Source is the resource locator: the canonical file path for an instruction file, or the skill directory for a skill.                                                                                                                                                                                                                                                                                       |
+| `»»» source`                      | string                                                                                         | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                                                                                                                                                   |
 | `» created_at`                    | string(date-time)                                                                              | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» additions`                    | integer                                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -445,6 +454,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -604,6 +619,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -914,6 +935,12 @@ Experimental: this endpoint is subject to change.
       "resources": [
         {
           "kind": "instruction_file",
+          "mcp_tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ],
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
@@ -1127,6 +1154,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -1286,6 +1319,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -1536,6 +1575,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -1695,6 +1740,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -1943,6 +1994,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -2102,6 +2159,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -2917,6 +2980,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -3076,6 +3145,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -3649,6 +3724,12 @@ Experimental: this endpoint is subject to change.
         "resources": [
           {
             "kind": "instruction_file",
+            "mcp_tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -3808,6 +3889,12 @@ Experimental: this endpoint is subject to change.
     "resources": [
       {
         "kind": "instruction_file",
+        "mcp_tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",

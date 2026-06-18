@@ -44,6 +44,9 @@ export const Clean: Story = {
 		expect(body.getByText("MCP")).toBeVisible();
 		expect(body.getByText(".mcp.json")).toBeVisible();
 		expect(body.getByText("github")).toBeVisible();
+		// MCP server tools are listed under their server.
+		expect(body.getByText("search_issues")).toBeVisible();
+		expect(body.getByText("create_issue")).toBeVisible();
 		// A clean pin offers no refresh affordance.
 		expect(body.queryByRole("button", { name: "Refresh context" })).toBeNull();
 	},

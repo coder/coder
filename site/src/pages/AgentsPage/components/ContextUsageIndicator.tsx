@@ -1,6 +1,16 @@
-import { FileIcon, PlugIcon, TriangleAlertIcon, ZapIcon } from "lucide-react";
+import {
+	FileIcon,
+	PlugIcon,
+	TriangleAlertIcon,
+	WrenchIcon,
+	ZapIcon,
+} from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import type { ChatContext, ChatMessagePart } from "#/api/typesGenerated";
+import type {
+	ChatContext,
+	ChatContextMCPTool,
+	ChatMessagePart,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Popover,
@@ -49,6 +59,7 @@ type ContextSkillItem = {
 type ContextMcpItem = {
 	readonly name: string;
 	readonly source: string;
+	readonly tools: readonly ChatContextMCPTool[];
 };
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
@@ -201,6 +212,7 @@ export const ContextUsageIndicator: FC<{
 								? resource.source
 								: getPathBasename(resource.source),
 						source: resource.source,
+						tools: resource.mcp_tools ?? [],
 					}))
 			: []
 	)
@@ -295,14 +307,48 @@ export const ContextUsageIndicator: FC<{
 					{mcpItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">MCP</span>
-							{mcpItems.map((mcp) => (
-								<div key={mcp.source} className="flex items-center gap-1.5">
-									<PlugIcon className="size-3 shrink-0" />
-									<span className="truncate" title={mcp.source}>
-										{mcp.name}
-									</span>
-								</div>
-							))}
+							<TooltipProvider delayDuration={300}>
+								{mcpItems.map((mcp) => (
+									<div key={mcp.source} className="flex flex-col gap-0.5">
+										<div
+											className="flex items-center gap-1.5"
+											title={mcp.source}
+										>
+											<PlugIcon className="size-3 shrink-0" />
+											<span className="truncate">{mcp.name}</span>
+										</div>
+										{mcp.tools.length > 0 && (
+											<div className="ml-4 flex flex-col gap-0.5">
+												{mcp.tools.map((tool) => {
+													const row = (
+														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
+															<WrenchIcon className="size-3 shrink-0" />
+															<span className="truncate">{tool.name}</span>
+														</div>
+													);
+													if (!tool.description) {
+														return <div key={tool.name}>{row}</div>;
+													}
+													return (
+														<Tooltip key={tool.name}>
+															<TooltipTrigger asChild>
+																<div className="cursor-default">{row}</div>
+															</TooltipTrigger>
+															<TooltipContent
+																side="right"
+																sideOffset={4}
+																className="max-w-48 text-xs"
+															>
+																{tool.description}
+															</TooltipContent>
+														</Tooltip>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								))}
+							</TooltipProvider>
 						</div>
 					)}
 				</div>

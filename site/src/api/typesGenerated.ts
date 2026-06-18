@@ -1726,6 +1726,23 @@ export interface ChatContextFilePart {
 
 // From codersdk/chats.go
 /**
+ * ChatContextMCPTool is one tool exposed by a pinned MCP server, reported on
+ * the single-chat GET response. Metadata only; the input schema is omitted.
+ */
+export interface ChatContextMCPTool {
+	/**
+	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * stripped, so it reads as the server exposes it.
+	 */
+	readonly name: string;
+	/**
+	 * Description is the tool's human-readable summary; may be empty.
+	 */
+	readonly description?: string;
+}
+
+// From codersdk/chats.go
+/**
  * ChatContextResource is one pinned workspace-context resource the chat's
  * prompt is built from. It is metadata only; bodies are omitted. Reported
  * only on the single-chat GET response.
@@ -1733,7 +1750,8 @@ export interface ChatContextFilePart {
 export interface ChatContextResource {
 	/**
 	 * Source is the resource locator: the canonical file path for an
-	 * instruction file, or the skill directory for a skill.
+	 * instruction file, the skill directory for a skill, the file path for
+	 * an MCP config, or the server name for an MCP server.
 	 */
 	readonly source: string;
 	readonly kind: ChatContextResourceKind;
@@ -1746,6 +1764,11 @@ export interface ChatContextResource {
 	 */
 	readonly skill_name?: string;
 	readonly skill_description?: string;
+	/**
+	 * McpTools lists the tools exposed by an MCP server. Populated only for
+	 * the mcp_server kind; nil otherwise.
+	 */
+	readonly mcp_tools?: readonly ChatContextMCPTool[];
 }
 
 // From codersdk/chats.go
