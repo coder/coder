@@ -323,6 +323,7 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 			_, err := db.InsertBoundaryLogs(sysCtx, database.InsertBoundaryLogsParams{
 				ID:             ids,
 				SessionID:      session.ID,
+				OwnerID:        ownerID,
 				SequenceNumber: seqNums,
 				CapturedAt:     capturedAts,
 				CreatedAt:      createdAts,
