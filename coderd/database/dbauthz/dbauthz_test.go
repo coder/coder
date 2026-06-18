@@ -7251,6 +7251,39 @@ func TestAuthorizeProvisionerJob_SystemFastPath(t *testing.T) {
 	})
 }
 
+func TestAsAPIKeyRevoker(t *testing.T) {
+	t.Parallel()
+
+	userID := uuid.New()
+	otherUserID := uuid.New()
+	ctx := dbauthz.AsAPIKeyRevoker(context.Background(), userID)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok, "actor must be present")
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	t.Run("OwnedAPIKeys", func(t *testing.T) {
+		t.Parallel()
+
+		resource := rbac.ResourceApiKey.WithOwner(userID.String())
+		for _, action := range rbac.ResourceApiKey.AvailableActions() {
+			err := auth.Authorize(ctx, actor, action, resource)
+			if action == policy.ActionDelete {
+				require.NoError(t, err, "owned api keys should allow %s", action)
+				continue
+			}
+			require.Error(t, err, "owned api keys should deny %s", action)
+		}
+	})
+
+	t.Run("OtherUsersAPIKeys", func(t *testing.T) {
+		t.Parallel()
+
+		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceApiKey.WithOwner(otherUserID.String()))
+		require.Error(t, err, "other users' api keys should not be deletable")
+	})
+}
+
 func TestAsChatd(t *testing.T) {
 	t.Parallel()
 
