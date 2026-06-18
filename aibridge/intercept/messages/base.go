@@ -87,7 +87,7 @@ func (i *interceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-// Credential returns the credential currently in use.
+// Credential returns the credential resolved for this interception.
 func (i *interceptionBase) Credential() intercept.Credential {
 	return i.cred
 }
@@ -204,12 +204,10 @@ func (i *interceptionBase) isSmallFastModel() bool {
 	return strings.Contains(i.reqPayload.model(), "haiku")
 }
 
-// newMessagesService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
+// newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
 	// Only BYOK sets its credential here. Centralized keys are injected
-	// per-attempt in the failover loop, and Bedrock signs via AWS below.
+	// per-attempt in the failover loop.
 	if byok, ok := intercept.AsBYOK(i.cred); ok {
 		i.logger.Debug(ctx, "using byok auth",
 			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
@@ -564,7 +562,7 @@ func accumulateUsage(dest, src any) {
 // its status code. Returns true if the status was a key-specific
 // failover trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	centralized, ok := intercept.AsCentralized(i.cred)
+	cp, ok := intercept.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}
@@ -572,7 +570,7 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return centralized.Pool.MarkKeyOnStatus(
+	return cp.Pool.MarkKeyOnStatus(
 		ctx, key, apiErr.Response, i.logger,
 	)
 }

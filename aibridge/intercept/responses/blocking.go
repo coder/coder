@@ -66,6 +66,8 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		return err
 	}
 
+	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+
 	i.injectTools()
 
 	var (
@@ -75,23 +77,23 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		firstResponseID string
 	)
 
-	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
+	prompt, promptFound, err := i.reqPayload.lastUserPrompt(credCtx, i.logger)
 	if err != nil {
-		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
+		i.logger.Warn(credCtx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
 		defer func() {
-			centralized.Pool.RecordAttempts(totalKeyAttempts)
+			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
 	}
 
 	for shouldLoop {
-		srv := i.newResponsesService(ctx)
+		srv := i.newResponsesService(credCtx)
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)
@@ -106,6 +108,7 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 		var keyAttempts int
 		response, keyAttempts, upstreamErr = i.newResponse(ctx, srv, opts)
 		totalKeyAttempts += keyAttempts
+		credCtx = intercept.WithCredentialInfo(ctx, i.cred)
 
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
@@ -125,26 +128,26 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 			firstResponseID = response.ID
 		}
 
-		i.recordTokenUsage(ctx, response)
-		i.recordModelThoughts(ctx, response)
+		i.recordTokenUsage(credCtx, response)
+		i.recordModelThoughts(credCtx, response)
 
 		// Check if there any injected tools to invoke.
 		pending := i.getPendingInjectedToolCalls(response)
-		shouldLoop, err = i.handleInnerAgenticLoop(ctx, pending, response)
+		shouldLoop, err = i.handleInnerAgenticLoop(credCtx, pending, response)
 		if err != nil {
-			i.sendCustomErr(ctx, w, http.StatusInternalServerError, err)
+			i.sendCustomErr(credCtx, w, http.StatusInternalServerError, err)
 			shouldLoop = false
 		}
 	}
 
 	if promptFound {
-		i.recordUserPrompt(ctx, firstResponseID, prompt)
+		i.recordUserPrompt(credCtx, firstResponseID, prompt)
 	}
-	i.recordNonInjectedToolUsage(ctx, response)
+	i.recordNonInjectedToolUsage(credCtx, response)
 
 	if upstreamErr != nil && !respCopy.responseReceived.Load() {
 		// no response received from upstream, return custom error
-		i.sendCustomErr(ctx, w, http.StatusInternalServerError, upstreamErr)
+		i.sendCustomErr(credCtx, w, http.StatusInternalServerError, upstreamErr)
 		return xerrors.Errorf("failed to connect to upstream: %w", upstreamErr)
 	}
 
@@ -152,20 +155,16 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-// newResponse routes by credential type, returning the upstream response,
-// the number of key attempts made for this call, and any error. Centralized
-// credentials fail over across the key pool, while BYOK makes a single
-// attempt.
+// newResponse routes by credential type, returning the upstream response, the
+// number of key attempts made for this call, and any error. A centralized key
+// pool fails over across keys, while BYOK authenticates with a single, fixed
+// credential baked into srv, so it makes one attempt.
 func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
-	switch i.cred.Kind() {
-	case intercept.CredentialKindCentralized:
-		return i.newResponseWithKeyFailover(ctx, srv, opts)
-	case intercept.CredentialKindBYOK:
-		response, err := i.newResponseWithKey(ctx, srv, opts)
-		return response, 0, err
-	default:
-		return nil, 0, xerrors.New("no credential configured")
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newResponseWithKeyFailover(ctx, srv, cp, opts)
 	}
+	response, err := i.newResponseWithKey(intercept.WithCredentialInfo(ctx, i.cred), srv, opts)
+	return response, 0, err
 }
 
 // newResponseWithKey performs a single upstream call.
@@ -182,20 +181,16 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 // 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream response,
 // the number of key attempts made for this call, and any error.
-func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
-	centralized, ok := intercept.AsCentralized(i.cred)
-	if !ok {
-		return nil, 0, xerrors.New("centralized credential has no key pool")
-	}
-	walker := centralized.Pool.Walker()
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*responses.Response, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, keyPoolErr := walker.Next()
+		key, keyPoolErr := cp.NextKey(walker)
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		centralized.SetKey(key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
+
+		credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(credCtx, "using centralized api key")
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
@@ -204,9 +199,9 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		response, err := i.newResponseWithKey(ctx, srv, requestOpts)
+		response, err := i.newResponseWithKey(credCtx, srv, requestOpts)
 		// Key-specific failure: try the next key.
-		if i.markKeyOnError(ctx, key, err) {
+		if i.markKeyOnError(credCtx, key, err) {
 			continue
 		}
 		// Either success (response, nil) or a non-key error

@@ -72,9 +72,12 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	if err := i.validateRequest(ctx, w); err != nil {
+	if err := i.validateRequest(credCtx, w); err != nil {
 		return err
 	}
 
@@ -94,33 +97,32 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 	var innerLoopErr error
 	var streamErr error
 
-	prompt, promptFound, err := i.reqPayload.lastUserPrompt(ctx, i.logger)
+	prompt, promptFound, err := i.reqPayload.lastUserPrompt(credCtx, i.logger)
 	if err != nil {
-		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
+		i.logger.Warn(credCtx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
-	srv := i.newResponsesService(ctx)
+	srv := i.newResponsesService(credCtx)
 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
 		defer func() {
-			centralized.Pool.RecordAttempts(totalKeyAttempts)
+			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
 	}
 
 	for shouldLoop {
 		shouldLoop = false
 
-		// Per-iteration walker. An iteration is either an agentic
-		// continuation (sending a tool result back in a new
-		// stream) or a failover retry (previous key marked, try
-		// the next one).
+		// A pool credential advances its failover walker. An iteration is an
+		// agentic continuation or a failover retry after the previous key was
+		// marked. BYOK has no pool and runs as a single attempt.
 		var walker *keypool.Walker
-		centralized, isCentralized := intercept.AsCentralized(i.cred)
-		if isCentralized {
-			walker = centralized.Pool.Walker()
+		cp, isPool := intercept.AsCentralizedPool(i.cred)
+		if isPool {
+			walker = cp.Pool.Walker()
 		}
 
 		// Failover sub-loop: try keys until a stream starts
@@ -138,8 +140,8 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			}
 
 			var currentPoolKey *keypool.Key
-			if walker != nil {
-				key, keyPoolErr := walker.Next()
+			if isPool {
+				key, keyPoolErr := cp.NextKey(walker)
 				if keyPoolErr != nil {
 					// Pool exhausted: write the error directly. In
 					// agentic mode the inner loop buffers events
@@ -150,24 +152,23 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
 				}
 				currentPoolKey = key
-				centralized.SetKey(key.Value())
-				i.logger.Debug(ctx, "using centralized api key",
-					slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
-
 				opts = append(opts,
 					option.WithAPIKey(key.Value()),
 					// Disable SDK retries because the failover
 					// loop handles retries via key rotation.
 					option.WithMaxRetries(0),
 				)
+				// Re-attribute this iteration's logs to the selected key.
+				credCtx = intercept.WithCredentialInfo(ctx, i.cred)
+				i.logger.Debug(credCtx, "using centralized api key")
 			}
 
-			stream = i.newStream(ctx, srv, opts)
+			stream = i.newStream(credCtx, srv, opts)
 			if upstreamErr := stream.Err(); upstreamErr != nil {
 				// Pre-stream failure of this attempt. For
 				// centralized requests, mark the key and
 				// retry with the next one.
-				if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, upstreamErr) {
+				if currentPoolKey != nil && i.markKeyOnError(credCtx, currentPoolKey, upstreamErr) {
 					stream.Close()
 					continue
 				}
@@ -180,7 +181,9 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			break
 		}
 
-		totalKeyAttempts += walker.Attempts()
+		if isPool {
+			totalKeyAttempts += walker.Attempts()
+		}
 
 		// func scope to defer steam.Close()
 		err := func() error {
@@ -189,13 +192,13 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 			if startErr != nil {
 				// events stream should never be initialized
 				if events.IsStreaming() {
-					i.logger.Warn(ctx, "event stream was initialized when no response was received from upstream")
+					i.logger.Warn(credCtx, "event stream was initialized when no response was received from upstream")
 					return startErr
 				}
 
 				// no response received from upstream (eg. client/connection error), return custom error
 				if !respCopy.responseReceived.Load() {
-					i.sendCustomErr(ctx, w, http.StatusInternalServerError, startErr)
+					i.sendCustomErr(credCtx, w, http.StatusInternalServerError, startErr)
 					return startErr
 				}
 
@@ -243,23 +246,23 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 		if i.mcpProxy != nil && completedResponse != nil {
 			pending := i.getPendingInjectedToolCalls(completedResponse)
-			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(ctx, pending, completedResponse)
+			shouldLoop, innerLoopErr = i.handleInnerAgenticLoop(credCtx, pending, completedResponse)
 			if innerLoopErr != nil {
-				i.sendCustomErr(ctx, w, http.StatusInternalServerError, innerLoopErr)
+				i.sendCustomErr(credCtx, w, http.StatusInternalServerError, innerLoopErr)
 				shouldLoop = false
 			}
 
 			// Record token usage for each inner loop iteration
-			i.recordTokenUsage(ctx, completedResponse)
+			i.recordTokenUsage(credCtx, completedResponse)
 		}
 
-		i.recordModelThoughts(ctx, completedResponse)
+		i.recordModelThoughts(credCtx, completedResponse)
 	}
 
 	if promptFound {
-		i.recordUserPrompt(ctx, firstResponseID, prompt)
+		i.recordUserPrompt(credCtx, firstResponseID, prompt)
 	}
-	i.recordNonInjectedToolUsage(ctx, completedResponse)
+	i.recordNonInjectedToolUsage(credCtx, completedResponse)
 
 	// On innerLoop error custom error has been already sent,
 	// exit without emptying respCopy buffer.

@@ -218,10 +218,13 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		pool       bool // provider has a centralized "test-key" pool
-		bedrock    bool // Bedrock-backed provider (authenticates via AWS signing)
-		setHeaders map[string]string
+		name    string
+		pool    bool // provider has a centralized "test-key" pool
+		bedrock bool // Bedrock-backed provider (authenticates via AWS signing)
+		// bedrockStatic, when bedrock is set, configures static AWS credentials.
+		// False means dynamic mode (AWS default credential chain).
+		bedrockStatic bool
+		setHeaders    map[string]string
 		// wantErr, when set, means CreateInterceptor must fail with it. The
 		// remaining expectations are then ignored.
 		wantErr            error
@@ -270,17 +273,30 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			pool:               true,
 			setHeaders:         map[string]string{},
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor. The key failover
-			// loop sets it during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the hint
+			// is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
 			wantXApiKey:        "test-key",
 		},
 		{
-			name:               "bedrock_without_pool",
+			// Bedrock dynamic mode: no static secret, so the hint is the
+			// dynamic-key placeholder.
+			name:               "bedrock_dynamic",
 			pool:               false,
 			bedrock:            true,
 			setHeaders:         map[string]string{},
 			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "<dynamic key>",
+		},
+		{
+			// Bedrock static mode: the hint masks the access key ID.
+			name:               "bedrock_static",
+			pool:               false,
+			bedrock:            true,
+			bedrockStatic:      true,
+			setHeaders:         map[string]string{},
+			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "AKIA...MPLE",
 		},
 		{
 			name:       "centralized_without_pool_errors",
@@ -310,6 +326,10 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			var bedrock *config.AWSBedrock
 			if tc.bedrock {
 				bedrock = &config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s"}
+				if tc.bedrockStatic {
+					bedrock.AccessKey = "AKIAIOSFODNN7EXAMPLE"
+					bedrock.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
+				}
 			}
 			provider := NewAnthropic(acfg, bedrock)
 
@@ -331,13 +351,13 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 
 			cred := interceptor.Credential()
 			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
+			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
-			// Bedrock authenticates via AWS signing during ProcessRequest,
-			// which is exercised by the integration tests, not here.
+			// Bedrock signs via AWS during ProcessRequest (needs real AWS
+			// credentials), covered by the integration tests.
 			if tc.bedrock {
 				return
 			}
-			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
 			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 			processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)

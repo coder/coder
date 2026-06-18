@@ -17,7 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
+	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -36,7 +36,7 @@ func NewBlockingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockCfg *config.AWSBedrock,
+	bedrockCfg *aibconfig.AWSBedrock,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *BlockingInterception {
@@ -71,12 +71,14 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	ctx, span := i.tracer.Start(r.Context(), "Intercept.ProcessRequest", trace.WithAttributes(tracing.InterceptionAttributesFromContext(r.Context())...))
 	defer tracing.EndSpanErr(span, &outErr)
 
+	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+
 	i.injectTools()
 
 	var prompt *string
 	promptText, promptFound, promptErr := i.reqPayload.lastUserPrompt()
 	if promptErr != nil {
-		i.logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(promptErr))
+		i.logger.Warn(credCtx, "failed to retrieve last user prompt", slog.Error(promptErr))
 	} else if promptFound {
 		prompt = &promptText
 	}
@@ -88,7 +90,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
 	}
 
-	svc, err := i.newMessagesService(ctx, opts...)
+	svc, err := i.newMessagesService(credCtx, opts...)
 	if err != nil {
 		err = xerrors.Errorf("create anthropic client: %w", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -104,9 +106,9 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
 		defer func() {
-			centralized.Pool.RecordAttempts(totalKeyAttempts)
+			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
 	}
 
@@ -115,6 +117,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		var keyAttempts int
 		resp, keyAttempts, err = i.newMessage(ctx, svc)
 		totalKeyAttempts += keyAttempts
+		credCtx = intercept.WithCredentialInfo(ctx, i.cred)
 		if err != nil {
 			if eventstream.IsConnError(err) {
 				// Can't write a response, just error out.
@@ -139,7 +142,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		}
 
 		if prompt != nil {
-			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+			_ = i.recorder.RecordPromptUsage(credCtx, &recorder.PromptUsageRecord{
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				Prompt:         *prompt,
@@ -147,7 +150,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			prompt = nil
 		}
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		_ = i.recorder.RecordTokenUsage(credCtx, &recorder.TokenUsageRecord{
 			InterceptionID:        i.ID().String(),
 			MsgID:                 resp.ID,
 			Input:                 resp.Usage.InputTokens,
@@ -165,7 +168,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		// Capture any thinking blocks that were returned.
 		for _, t := range i.extractModelThoughts(resp) {
-			_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+			_ = i.recorder.RecordModelThought(credCtx, &recorder.ModelThoughtRecord{
 				InterceptionID: i.ID().String(),
 				Content:        t.Content,
 				Metadata:       t.Metadata,
@@ -186,7 +189,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			}
 
 			// If tool is not injected, track it since the client will be handling it.
-			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+			_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				ToolCallID:     toolUse.ID,
@@ -212,7 +215,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			tool := i.mcpProxy.GetTool(tc.Name)
 			if tool == nil {
-				logger.Warn(ctx, "tool not found in manager", slog.F("tool", tc.Name))
+				logger.Warn(credCtx, "tool not found in manager", slog.F("tool", tc.Name))
 				// Continue to next tool call, but still append an error tool_result
 				loopMessages = append(loopMessages,
 					anthropic.NewUserMessage(anthropic.NewToolResultBlock(tc.ID, fmt.Sprintf("Error: tool %s not found", tc.Name), true)),
@@ -220,9 +223,9 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				continue
 			}
 
-			res, err := tool.Call(ctx, tc.Input, i.tracer)
+			res, err := tool.Call(credCtx, tc.Input, i.tracer)
 
-			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+			_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
 				InterceptionID:  i.ID().String(),
 				MsgID:           resp.ID,
 				ToolCallID:      tc.ID,
@@ -281,7 +284,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 						})
 						hasValidResult = true
 					default:
-						i.logger.Warn(ctx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
+						i.logger.Warn(credCtx, "unknown embedded resource type", slog.F("type", fmt.Sprintf("%T", resource)))
 						toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 							OfText: &anthropic.TextBlockParam{
 								Text: "Error: unknown embedded resource type",
@@ -291,7 +294,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 						hasValidResult = true
 					}
 				default:
-					i.logger.Warn(ctx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)))
+					i.logger.Warn(credCtx, "not handling non-text tool result", slog.F("type", fmt.Sprintf("%T", cb)))
 					toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 						OfText: &anthropic.TextBlockParam{
 							Text: "Error: unsupported tool result type",
@@ -304,7 +307,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			// If no content was processed, still add a tool_result
 			if !hasValidResult {
-				i.logger.Warn(ctx, "no tool result added", slog.F("content_len", len(res.Content)), slog.F("is_error", res.IsError))
+				i.logger.Warn(credCtx, "no tool result added", slog.F("content_len", len(res.Content)), slog.F("is_error", res.IsError))
 				toolResult.OfToolResult.Content = append(toolResult.OfToolResult.Content, anthropic.ToolResultBlockParamContentUnion{
 					OfText: &anthropic.TextBlockParam{
 						Text: "Error: no valid tool result content",
@@ -350,18 +353,15 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 }
 
 // newMessage routes by credential type, returning the upstream message, the
-// number of key attempts made for this call, and any error. Centralized
-// credentials fail over across the key pool, while BYOK makes a single attempt.
+// number of key attempts made for this call, and any error. A centralized key
+// pool fails over across keys, while BYOK and Bedrock authenticate with a
+// single, fixed credential baked into svc, so they make one attempt.
 func (i *BlockingInterception) newMessage(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
-	switch i.cred.Kind() {
-	case intercept.CredentialKindCentralized:
-		return i.newMessageWithKeyFailover(ctx, svc)
-	case intercept.CredentialKindBYOK:
-		msg, err := i.newMessageWithKey(ctx, svc)
-		return msg, 0, err
-	default:
-		return nil, 0, xerrors.New("no credential configured")
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newMessageWithKeyFailover(ctx, svc, cp)
 	}
+	msg, err := i.newMessageWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc)
+	return msg, 0, err
 }
 
 // newMessageWithKey performs a single upstream call.
@@ -378,32 +378,25 @@ func (i *BlockingInterception) newMessageWithKey(ctx context.Context, svc anthro
 // 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream message,
 // the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService) (*anthropic.Message, int, error) {
-	centralized, ok := intercept.AsCentralized(i.cred)
-	if !ok {
-		// Centralized but pool-less: Bedrock, which signs via AWS. A single
-		// attempt with no failover.
-		msg, err := i.newMessageWithKey(ctx, svc)
-		return msg, 0, err
-	}
-	walker := centralized.Pool.Walker()
+func (i *BlockingInterception) newMessageWithKeyFailover(ctx context.Context, svc anthropic.MessageService, cp *intercept.CentralizedPool) (*anthropic.Message, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, keyPoolErr := walker.Next()
+		key, keyPoolErr := cp.NextKey(walker)
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		centralized.SetKey(key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
 
-		msg, err := i.newMessageWithKey(ctx, svc,
+		credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(credCtx, "using centralized api key")
+
+		msg, err := i.newMessageWithKey(credCtx, svc,
 			option.WithAPIKey(key.Value()),
 			// Disable SDK retries because the failover loop
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
 		// Key-specific failure: try the next key.
-		if i.markKeyOnError(ctx, key, err) {
+		if i.markKeyOnError(credCtx, key, err) {
 			continue
 		}
 		// Either success (msg, nil) or a non-key error (nil, err):

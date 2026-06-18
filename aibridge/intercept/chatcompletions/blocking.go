@@ -67,7 +67,9 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 	ctx, span := i.tracer.Start(r.Context(), "Intercept.ProcessRequest", trace.WithAttributes(tracing.InterceptionAttributesFromContext(r.Context())...))
 	defer tracing.EndSpanErr(span, &outErr)
 
-	svc := i.newCompletionsService(ctx)
+	credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+
+	svc := i.newCompletionsService(credCtx)
 	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	var (
@@ -80,15 +82,15 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 	prompt, err := i.req.lastUserPrompt()
 	if err != nil {
-		logger.Warn(ctx, "failed to retrieve last user prompt", slog.Error(err))
+		logger.Warn(credCtx, "failed to retrieve last user prompt", slog.Error(err))
 	}
 
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	if centralized, ok := intercept.AsCentralized(i.cred); ok {
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
 		defer func() {
-			centralized.Pool.RecordAttempts(totalKeyAttempts)
+			cp.Pool.RecordAttempts(totalKeyAttempts)
 		}()
 	}
 
@@ -107,12 +109,13 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		var keyAttempts int
 		completion, keyAttempts, err = i.newChatCompletion(ctx, svc, opts)
 		totalKeyAttempts += keyAttempts
+		credCtx = intercept.WithCredentialInfo(ctx, i.cred)
 		if err != nil {
 			break
 		}
 
 		if prompt != nil {
-			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+			_ = i.recorder.RecordPromptUsage(credCtx, &recorder.PromptUsageRecord{
 				InterceptionID: i.ID().String(),
 				MsgID:          completion.ID,
 				Prompt:         *prompt,
@@ -123,7 +126,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		_ = i.recorder.RecordTokenUsage(credCtx, &recorder.TokenUsageRecord{
 			InterceptionID:       i.ID().String(),
 			MsgID:                completion.ID,
 			Input:                calculateActualInputTokenUsage(lastUsage),
@@ -145,7 +148,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 				if i.mcpProxy != nil && i.mcpProxy.GetTool(toolCall.Function.Name) != nil {
 					pendingToolCalls = append(pendingToolCalls, toolCall)
 				} else {
-					_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+					_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
 						InterceptionID: i.ID().String(),
 						MsgID:          completion.ID,
 						ToolCallID:     toolCall.ID,
@@ -171,7 +174,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			tool := i.mcpProxy.GetTool(tc.Function.Name)
 			if tool == nil {
 				// Not a known tool, don't do anything.
-				logger.Warn(ctx, "pending tool call for non-managed tool, skipping", slog.F("tool", tc.Function.Name))
+				logger.Warn(credCtx, "pending tool call for non-managed tool, skipping", slog.F("tool", tc.Function.Name))
 				continue
 			}
 			// Only do this once.
@@ -182,8 +185,8 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			}
 
 			args := i.unmarshalArgs(tc.Function.Arguments)
-			res, err := tool.Call(ctx, args, i.tracer)
-			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+			res, err := tool.Call(credCtx, args, i.tracer)
+			_ = i.recorder.RecordToolUsage(credCtx, &recorder.ToolUsageRecord{
 				InterceptionID:  i.ID().String(),
 				MsgID:           completion.ID,
 				ToolCallID:      tc.ID,
@@ -208,7 +211,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			var out strings.Builder
 			if err := json.NewEncoder(&out).Encode(res); err != nil {
-				logger.Warn(ctx, "failed to encode tool response", slog.Error(err))
+				logger.Warn(credCtx, "failed to encode tool response", slog.Error(err))
 				// Always provide a tool result even if encoding failed
 				errorResponse := map[string]interface{}{
 					// TODO: interception ID?
@@ -274,19 +277,15 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 }
 
 // newChatCompletion routes by credential type, returning the upstream
-// completion, the number of key attempts made for this call, and any error.
-// Centralized credentials fail over across the key pool, while BYOK makes a
-// single attempt.
+// completion, the number of key attempts made for this call, and any error. A
+// centralized key pool fails over across keys, while BYOK authenticates with a
+// single, fixed credential baked into svc, so it makes one attempt.
 func (i *BlockingInterception) newChatCompletion(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
-	switch i.cred.Kind() {
-	case intercept.CredentialKindCentralized:
-		return i.newChatCompletionWithKeyFailover(ctx, svc, opts)
-	case intercept.CredentialKindBYOK:
-		completion, err := i.newChatCompletionWithKey(ctx, svc, opts)
-		return completion, 0, err
-	default:
-		return nil, 0, xerrors.New("no credential configured")
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newChatCompletionWithKeyFailover(ctx, svc, cp, opts)
 	}
+	completion, err := i.newChatCompletionWithKey(intercept.WithCredentialInfo(ctx, i.cred), svc, opts)
+	return completion, 0, err
 }
 
 // newChatCompletionWithKey performs a single upstream call.
@@ -310,20 +309,16 @@ func (i *BlockingInterception) newChatCompletionWithKey(ctx context.Context, svc
 // on 429 and permanent on 401/403. Errors that aren't key-specific don't
 // trigger failover and are returned to the caller. It returns the upstream
 // completion, the number of key attempts made for this call, and any error.
-func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
-	centralized, ok := intercept.AsCentralized(i.cred)
-	if !ok {
-		return nil, 0, xerrors.New("centralized credential has no key pool")
-	}
-	walker := centralized.Pool.Walker()
+func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Context, svc openai.ChatCompletionService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*openai.ChatCompletion, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, keyPoolErr := walker.Next()
+		key, keyPoolErr := cp.NextKey(walker)
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		centralized.SetKey(key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.cred.Hint()), slog.F("credential_length", i.cred.Length()))
+
+		credCtx := intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(credCtx, "using centralized api key")
 
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
@@ -332,9 +327,9 @@ func (i *BlockingInterception) newChatCompletionWithKeyFailover(ctx context.Cont
 			// handles retries via key rotation.
 			option.WithMaxRetries(0),
 		)
-		completion, err := i.newChatCompletionWithKey(ctx, svc, requestOpts)
+		completion, err := i.newChatCompletionWithKey(credCtx, svc, requestOpts)
 		// Key-specific failure: try the next key.
-		if i.markKeyOnError(ctx, key, err) {
+		if i.markKeyOnError(credCtx, key, err) {
 			continue
 		}
 		// Either success (completion, nil) or a non-key error

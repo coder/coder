@@ -57,9 +57,7 @@ type responsesInterceptionBase struct {
 	mcpProxy mcp.ServerProxier
 }
 
-// newResponsesService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
+// newResponsesService builds the SDK service used for upstream calls.
 func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
 	var opts []option.RequestOption
 	// Only BYOK sets its credential here. Centralized keys are injected
@@ -167,7 +165,7 @@ func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oa
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	centralized, ok := intercept.AsCentralized(i.cred)
+	cp, ok := intercept.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}
@@ -175,7 +173,7 @@ func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *key
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return centralized.Pool.MarkKeyOnStatus(
+	return cp.Pool.MarkKeyOnStatus(
 		ctx, key, apiErr.Response, i.logger,
 	)
 }

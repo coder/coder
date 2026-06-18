@@ -1,6 +1,9 @@
 package intercept
 
 import (
+	"context"
+
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -9,7 +12,6 @@ import (
 // Keep in sync with the credential_kind enum in coderd's database.
 type CredentialKind string
 
-// Credential kind constants for interception recording.
 const (
 	CredentialKindCentralized CredentialKind = "centralized"
 	CredentialKindBYOK        CredentialKind = "byok"
@@ -22,32 +24,31 @@ const (
 	AuthHeaderAuthorization = "Authorization"
 )
 
-// Credential is the per-request upstream authentication for an interception.
-// It is one of:
-//   - Centralized: provider-managed keys with automatic failover.
-//   - BYOK: a single user-supplied secret, no failover.
-//
-// An interception authenticates with exactly one of these, never both: the
-// credential is a single value of one concrete type, resolved from the incoming
-// headers in the provider's CreateInterceptor.
+// Hint placeholders for credentials with no static key value to mask: a pool
+// before failover selects a key, and a key resolved dynamically at request time.
+const (
+	hintFailoverKey = "<failover key>"
+	hintDynamicKey  = "<dynamic key>"
+)
+
+// Credential is the per-request upstream authentication for an interception:
+//   - BYOK: a user-supplied secret.
+//   - Centralized: a single provider-managed key (AWS Bedrock).
+//   - CentralizedPool: a provider-managed key pool with failover.
 type Credential interface {
-	// Kind reports how the request authenticates.
 	Kind() CredentialKind
-	// AuthHeader is the upstream header that carries this request's credential
-	// (e.g. "X-Api-Key" or "Authorization"), so the client-header middleware
-	// preserves it when rebuilding the outgoing request.
+	// AuthHeader is the header carrying this request's credential, or empty when
+	// the credential is not carried in a header.
 	AuthHeader() string
-	// Hint is the masked view of the key currently in use, for recording.
+	// Hint is a masked, identifiable fragment of the credential.
 	Hint() string
-	// Length is the length of the key currently in use, for recording.
+	// Length is the length of the credential value.
 	Length() int
 }
 
-// BYOK authenticates with a single user-supplied secret and performs no
-// failover. Its key is immutable for the lifetime of the interception.
+// BYOK authenticates with a single user-supplied secret.
 type BYOK struct {
 	Secret string
-	// Header is the header the user authenticated with.
 	Header string
 }
 
@@ -56,28 +57,66 @@ func (b BYOK) AuthHeader() string { return b.Header }
 func (b BYOK) Hint() string       { return utils.MaskSecret(b.Secret) }
 func (b BYOK) Length() int        { return len(b.Secret) }
 
-// Centralized authenticates via a provider-managed key pool with automatic
-// failover across keys.
+// Centralized authenticates with a single provider-managed key. It is currently
+// used for AWS Bedrock, which has no centralized pool. Bedrock signs requests
+// (so there is no auth header) with either static credentials (when an access
+// key is set) or the AWS default credential chain.
 type Centralized struct {
-	Pool *keypool.Pool
-	// Header is the provider's canonical auth header.
-	Header string
-	// current is the pool key most recently selected by the failover loop.
-	current string
+	Key string
 }
 
-func (*Centralized) Kind() CredentialKind { return CredentialKindCentralized }
-func (c *Centralized) AuthHeader() string { return c.Header }
-func (c *Centralized) Hint() string       { return utils.MaskSecret(c.current) }
-func (c *Centralized) Length() int        { return len(c.current) }
+func (Centralized) Kind() CredentialKind { return CredentialKindCentralized }
+func (Centralized) AuthHeader() string   { return "" }
+func (c Centralized) Length() int        { return len(c.Key) }
 
-// SetKey records the centralized key currently in use, so the upstream request
-// and the recorded hint reflect the key the failover loop selected.
-func (c *Centralized) SetKey(value string) { c.current = value }
+func (c Centralized) Hint() string {
+	if c.Key == "" {
+		return hintDynamicKey
+	}
+	return utils.MaskSecret(c.Key)
+}
+
+// CentralizedPool authenticates with a provider-managed key pool and fails over
+// across keys.
+type CentralizedPool struct {
+	Pool   *keypool.Pool
+	Header string
+	// currentKey is the key most recently handed out by NextKey, nil until the first call.
+	currentKey *keypool.Key
+}
+
+func (*CentralizedPool) Kind() CredentialKind { return CredentialKindCentralized }
+func (c *CentralizedPool) AuthHeader() string { return c.Header }
+
+func (c *CentralizedPool) Hint() string {
+	if c.currentKey != nil {
+		return c.currentKey.Hint()
+	}
+	return hintFailoverKey
+}
+
+func (c *CentralizedPool) Length() int {
+	if c.currentKey != nil {
+		return c.currentKey.Length()
+	}
+	return 0
+}
+
+// NextKey advances the failover walker and records the selected key as the one
+// in use.
+func (c *CentralizedPool) NextKey(w *keypool.Walker) (*keypool.Key, *keypool.Error) {
+	key, err := w.Next()
+	if err != nil {
+		return nil, err
+	}
+	c.currentKey = key
+	return key, nil
+}
 
 var (
 	_ Credential = BYOK{}
-	_ Credential = &Centralized{}
+	_ Credential = Centralized{}
+	_ Credential = &CentralizedPool{}
 )
 
 // AsBYOK reports whether c is a BYOK credential and returns it if so.
@@ -86,14 +125,17 @@ func AsBYOK(c Credential) (BYOK, bool) {
 	return b, ok
 }
 
-// AsCentralized reports whether c is a centralized credential backed by a key
-// pool and returns it if so. It returns false for BYOK and for a pool-less
-// centralized credential, such as Bedrock, which signs with AWS. Only
-// pool-backed centralized requests fail over across keys.
-func AsCentralized(c Credential) (*Centralized, bool) {
-	centralized, ok := c.(*Centralized)
-	if !ok || centralized.Pool == nil {
-		return nil, false
-	}
-	return centralized, true
+// AsCentralizedPool reports whether c is a key-pool credential that fails over,
+// and returns it if so.
+func AsCentralizedPool(c Credential) (*CentralizedPool, bool) {
+	pool, ok := c.(*CentralizedPool)
+	return pool, ok
+}
+
+// WithCredentialInfo returns a context carrying the credential hint and length.
+func WithCredentialInfo(ctx context.Context, cred Credential) context.Context {
+	return slog.With(ctx,
+		slog.F("credential_hint", cred.Hint()),
+		slog.F("credential_length", cred.Length()),
+	)
 }

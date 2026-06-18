@@ -235,9 +235,9 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor, set
-			// by the key failover loop during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the
+			// hint is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
 		},
 		{
 			name:               "Responses_BYOK",
@@ -259,9 +259,9 @@ func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor, set
-			// by the key failover loop during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the
+			// hint is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
 		},
 		// X-Api-Key should not appear in production since clients use Authorization,
 		// but ensure it is stripped if it does arrive.

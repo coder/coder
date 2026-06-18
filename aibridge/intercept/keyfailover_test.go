@@ -88,8 +88,10 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: "event: error",
 		streamDoneEvent:         "event: message_stop",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "X-Api-Key"}
-			if pool == nil && byokKey != "" {
+			var cred intercept.Credential
+			if pool != nil {
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "X-Api-Key"}
+			} else {
 				cred = intercept.BYOK{Secret: byokKey, Header: "X-Api-Key"}
 			}
 			cfg := intercept.Config{
@@ -121,8 +123,10 @@ var interceptorCases = []interceptorCase{
 		agenticStreamErrorEvent: `data: {"error"`,
 		streamDoneEvent:         "data: [DONE]",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "Authorization"}
-			if pool == nil && byokKey != "" {
+			var cred intercept.Credential
+			if pool != nil {
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+			} else {
 				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
 			}
 			cfg := intercept.Config{
@@ -159,8 +163,10 @@ var interceptorCases = []interceptorCase{
 		},
 		streamDoneEvent: "event: response.completed",
 		newInterceptor: func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor {
-			var cred intercept.Credential = &intercept.Centralized{Pool: pool, Header: "Authorization"}
-			if pool == nil && byokKey != "" {
+			var cred intercept.Credential
+			if pool != nil {
+				cred = &intercept.CentralizedPool{Pool: pool, Header: "Authorization"}
+			} else {
 				cred = intercept.BYOK{Secret: byokKey, Header: "Authorization"}
 			}
 			cfg := intercept.Config{

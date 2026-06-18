@@ -12,95 +12,100 @@ import (
 	"github.com/coder/quartz"
 )
 
-// TestCredential covers the public surface of the Credential interface and
-// its two implementations (BYOK, Centralized), plus the AsBYOK/AsCentralized
-// helpers used by interceptors to branch on credential kind. The Bedrock-style
-// pool-less Centralized case is the most important: AsCentralized must return
-// false there so the failover loop does not try to walk a nil pool.
+// TestCredential covers the public surface of the Credential interface and its
+// three implementations (BYOK, Centralized, CentralizedPool), plus the
+// AsBYOK/AsCentralizedPool helpers interceptors use to route. Only
+// CentralizedPool fails over, so AsCentralizedPool must be true only for it.
 func TestCredential(t *testing.T) {
 	t.Parallel()
 
-	pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
-	require.NoError(t, err)
-
 	tests := []struct {
-		name                string
-		newCred             func() intercept.Credential
-		expectKind          intercept.CredentialKind
-		expectAuthHeader    string
-		expectHint          string
-		expectLength        int
-		expectAsBYOK        bool
-		expectAsCentralized bool
+		name                    string
+		newCred                 func(t *testing.T) intercept.Credential
+		expectKind              intercept.CredentialKind
+		expectAuthHeader        string
+		expectHint              string
+		expectLength            int
+		expectAsBYOK            bool
+		expectAsCentralizedPool bool
 	}{
 		{
 			name: "byok_authorization",
-			newCred: func() intercept.Credential {
+			newCred: func(*testing.T) intercept.Credential {
 				return intercept.BYOK{Secret: "user-bearer-token", Header: intercept.AuthHeaderAuthorization}
 			},
-			expectKind:          intercept.CredentialKindBYOK,
-			expectAuthHeader:    intercept.AuthHeaderAuthorization,
-			expectHint:          "us...en",
-			expectLength:        len("user-bearer-token"),
-			expectAsBYOK:        true,
-			expectAsCentralized: false,
+			expectKind:       intercept.CredentialKindBYOK,
+			expectAuthHeader: intercept.AuthHeaderAuthorization,
+			expectHint:       "us...en",
+			expectLength:     len("user-bearer-token"),
+			expectAsBYOK:     true,
 		},
 		{
 			name: "byok_xapikey",
-			newCred: func() intercept.Credential {
+			newCred: func(*testing.T) intercept.Credential {
 				return intercept.BYOK{Secret: "user-api-key", Header: intercept.AuthHeaderXAPIKey}
 			},
-			expectKind:          intercept.CredentialKindBYOK,
-			expectAuthHeader:    intercept.AuthHeaderXAPIKey,
-			expectHint:          "us...ey",
-			expectLength:        len("user-api-key"),
-			expectAsBYOK:        true,
-			expectAsCentralized: false,
+			expectKind:       intercept.CredentialKindBYOK,
+			expectAuthHeader: intercept.AuthHeaderXAPIKey,
+			expectHint:       "us...ey",
+			expectLength:     len("user-api-key"),
+			expectAsBYOK:     true,
 		},
 		{
-			// Centralized hint is empty until the failover loop calls
-			// SetKey: the credential is constructed before a key is
-			// chosen.
-			name: "centralized_with_pool_no_key_selected",
-			newCred: func() intercept.Credential {
-				return &intercept.Centralized{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
+			// Bedrock with static AWS credentials: the access key ID is
+			// masked. AWS signs the request, so there is no auth header.
+			name: "centralized_bedrock_static",
+			newCred: func(*testing.T) intercept.Credential {
+				return intercept.Centralized{Key: "AKIAIOSFODNN7EXAMPLE"}
 			},
-			expectKind:          intercept.CredentialKindCentralized,
-			expectAuthHeader:    intercept.AuthHeaderXAPIKey,
-			expectHint:          "",
-			expectLength:        0,
-			expectAsBYOK:        false,
-			expectAsCentralized: true,
+			expectKind:       intercept.CredentialKindCentralized,
+			expectAuthHeader: "",
+			expectHint:       "AKIA...MPLE",
+			expectLength:     len("AKIAIOSFODNN7EXAMPLE"),
 		},
 		{
-			name: "centralized_after_set_key",
-			newCred: func() intercept.Credential {
-				c := &intercept.Centralized{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
-				c.SetKey("k0-pool-key")
-				return c
+			// Bedrock with dynamic credentials (AWS default credential chain):
+			// no static key to mask, so the hint is a descriptive placeholder.
+			name: "centralized_bedrock_dynamic",
+			newCred: func(*testing.T) intercept.Credential {
+				return intercept.Centralized{Key: ""}
 			},
-			expectKind:          intercept.CredentialKindCentralized,
-			expectAuthHeader:    intercept.AuthHeaderXAPIKey,
-			expectHint:          "k0...ey",
-			expectLength:        len("k0-pool-key"),
-			expectAsBYOK:        false,
-			expectAsCentralized: true,
+			expectKind:       intercept.CredentialKindCentralized,
+			expectAuthHeader: "",
+			expectHint:       "<dynamic key>",
+			expectLength:     0,
 		},
 		{
-			// Bedrock-style: centralized but pool-less (AWS signs the
-			// request, no pool to walk). AsCentralized must return
-			// false so the failover loop short-circuits to a single
-			// attempt instead of walking a nil pool.
-			name: "centralized_pool_less_bedrock",
-			newCred: func() intercept.Credential {
-				return &intercept.Centralized{Pool: nil, Header: intercept.AuthHeaderXAPIKey}
+			// Pool before failover selects a key: the hint is a placeholder
+			// until NextKey hands one out.
+			name: "centralized_pool_before_key",
+			newCred: func(t *testing.T) intercept.Credential {
+				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
+				require.NoError(t, err)
+				return &intercept.CentralizedPool{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
 			},
-			expectKind:          intercept.CredentialKindCentralized,
-			expectAuthHeader:    intercept.AuthHeaderXAPIKey,
-			expectHint:          "",
-			expectLength:        0,
-			expectAsBYOK:        false,
-			expectAsCentralized: false,
+			expectKind:              intercept.CredentialKindCentralized,
+			expectAuthHeader:        intercept.AuthHeaderXAPIKey,
+			expectHint:              "<failover key>",
+			expectLength:            0,
+			expectAsCentralizedPool: true,
+		},
+		{
+			// Pool after NextKey: Hint/Length reflect the selected key.
+			name: "centralized_pool_after_next_key",
+			newCred: func(t *testing.T) intercept.Credential {
+				pool, err := keypool.New(config.ProviderAnthropic, []string{"k0-pool-key"}, quartz.NewMock(t), nil)
+				require.NoError(t, err)
+				cp := &intercept.CentralizedPool{Pool: pool, Header: intercept.AuthHeaderXAPIKey}
+				_, keyErr := cp.NextKey(cp.Pool.Walker())
+				require.Nil(t, keyErr)
+				return cp
+			},
+			expectKind:              intercept.CredentialKindCentralized,
+			expectAuthHeader:        intercept.AuthHeaderXAPIKey,
+			expectHint:              "k0...ey",
+			expectLength:            len("k0-pool-key"),
+			expectAsCentralizedPool: true,
 		},
 	}
 
@@ -108,25 +113,25 @@ func TestCredential(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cred := tc.newCred()
+			cred := tc.newCred(t)
 
 			assert.Equal(t, tc.expectKind, cred.Kind(), "Kind")
 			assert.Equal(t, tc.expectAuthHeader, cred.AuthHeader(), "AuthHeader")
 			assert.Equal(t, tc.expectHint, cred.Hint(), "Hint")
 			assert.Equal(t, tc.expectLength, cred.Length(), "Length")
 
-			byok, byokOK := intercept.AsBYOK(cred)
-			assert.Equal(t, tc.expectAsBYOK, byokOK, "AsBYOK ok")
+			credBYOK, credBYOKOK := intercept.AsBYOK(cred)
+			assert.Equal(t, tc.expectAsBYOK, credBYOKOK, "AsBYOK ok")
 			if tc.expectAsBYOK {
-				assert.Equal(t, cred, byok, "AsBYOK returns the credential")
+				assert.Equal(t, cred, credBYOK, "AsBYOK returns the credential")
 			}
 
-			centralized, centralizedOK := intercept.AsCentralized(cred)
-			assert.Equal(t, tc.expectAsCentralized, centralizedOK, "AsCentralized ok")
-			if tc.expectAsCentralized {
-				assert.Same(t, cred, centralized, "AsCentralized returns the same pointer")
+			credPool, credPoolOK := intercept.AsCentralizedPool(cred)
+			assert.Equal(t, tc.expectAsCentralizedPool, credPoolOK, "AsCentralizedPool ok")
+			if tc.expectAsCentralizedPool {
+				assert.Same(t, cred, credPool, "AsCentralizedPool returns the same pointer")
 			} else {
-				assert.Nil(t, centralized, "AsCentralized returns nil when not centralized")
+				assert.Nil(t, credPool, "AsCentralizedPool returns nil when not a pool")
 			}
 		})
 	}

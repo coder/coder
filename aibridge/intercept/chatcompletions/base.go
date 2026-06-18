@@ -44,9 +44,7 @@ type interceptionBase struct {
 	mcpProxy mcp.ServerProxier
 }
 
-// newCompletionsService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
+// newCompletionsService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.ChatCompletionService {
 	var opts []option.RequestOption
 	// Only BYOK sets its credential here. Centralized keys are injected
@@ -211,7 +209,7 @@ func (i *interceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *int
 // code. Returns true if the status was a key-specific failover
 // trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	centralized, ok := intercept.AsCentralized(i.cred)
+	cp, ok := intercept.AsCentralizedPool(i.cred)
 	if !ok {
 		return false
 	}
@@ -219,7 +217,7 @@ func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key,
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return centralized.Pool.MarkKeyOnStatus(
+	return cp.Pool.MarkKeyOnStatus(
 		ctx, key, apiErr.Response, i.logger,
 	)
 }

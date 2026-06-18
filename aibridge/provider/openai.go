@@ -164,7 +164,7 @@ func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error
 	if p.cfg.KeyPool == nil {
 		return nil, ErrNoCredential
 	}
-	return &intercept.Centralized{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 }
 
 func (p *OpenAI) BaseURL() string {

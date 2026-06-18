@@ -150,10 +150,13 @@ func (p *Anthropic) resolveCredential(r *http.Request) (intercept.Credential, er
 	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
 		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
 	}
-	if p.cfg.KeyPool == nil && p.bedrockCfg == nil {
-		return nil, ErrNoCredential
+	if p.cfg.KeyPool != nil {
+		return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
 	}
-	return &intercept.Centralized{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+	if p.bedrockCfg != nil {
+		return intercept.Centralized{Key: p.bedrockCfg.AccessKey}, nil
+	}
+	return nil, ErrNoCredential
 }
 
 func (p *Anthropic) BaseURL() string {
