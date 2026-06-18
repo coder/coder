@@ -12693,8 +12693,8 @@ func TestActiveServer_WorkspaceContextAndDynamicToolInjection(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 
 		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, contextFilePartsForAgent(parts, dbAgent.ID), 1)
-		contextPart := contextFilePartsForAgent(parts, dbAgent.ID)[0]
+		require.Len(t, allContextFilePartsForAgent(parts, dbAgent.ID), 1)
+		contextPart := allContextFilePartsForAgent(parts, dbAgent.ID)[0]
 		require.Equal(t, "/home/coder/project/AGENTS.md", contextPart.ContextFilePath)
 		require.Equal(t, contextText, contextPart.ContextFileContent)
 		require.Equal(t, "linux", contextPart.ContextFileOS)
@@ -12785,7 +12785,7 @@ func TestActiveServer_WorkspaceContextAndDynamicToolInjection(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, secondResult.Status)
 
 		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, contextFilePartsForAgent(parts, dbAgent.ID), 1)
+		require.Len(t, allContextFilePartsForAgent(parts, dbAgent.ID), 1)
 		require.Equal(t, int32(1), contextConfigCalls.Load())
 
 		requestsMu.Lock()
@@ -12794,6 +12794,72 @@ func TestActiveServer_WorkspaceContextAndDynamicToolInjection(t *testing.T) {
 		require.GreaterOrEqual(t, len(recorded), 2)
 		require.True(t, requestHasSystemSubstring(recorded[0], contextText))
 		require.True(t, requestHasSystemSubstring(recorded[len(recorded)-1], contextText))
+	})
+
+	t.Run("commits marker when selected agent is unreachable", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		var (
+			requestsMu sync.Mutex
+			requests   []recordedOpenAIRequest
+		)
+		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+			if !req.Stream {
+				return chattest.OpenAINonStreamingResponse("title")
+			}
+
+			requestsMu.Lock()
+			requests = append(requests, recordOpenAIRequest(req))
+			requestsMu.Unlock()
+
+			return chattest.OpenAIStreamingResponse(
+				chattest.OpenAITextChunks("done")...,
+			)
+		})
+
+		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+		require.NoError(t, db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, ws.ID))
+
+		var agentDialCalls atomic.Int32
+		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+			cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+				agentDialCalls.Add(1)
+				return nil, nil, xerrors.New("unexpected workspace agent dial")
+			}
+		})
+
+		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			APIKeyID:       testAPIKeyID(t, db, user.ID),
+			Title:          "workspace-context-agent-unreachable",
+			ModelConfigID:  model.ID,
+			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+			InitialUserContent: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("Continue without workspace context."),
+			},
+		})
+		require.NoError(t, err)
+
+		chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
+		require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
+
+		parts := persistedChatParts(ctx, t, db, chat.ID)
+		markers := contextFileMarkersForAgent(parts, dbAgent.ID)
+		require.Len(t, markers, 1)
+		require.Empty(t, markers[0].ContextFileContent)
+
+		requestsMu.Lock()
+		recorded := append([]recordedOpenAIRequest(nil), requests...)
+		requestsMu.Unlock()
+		require.Len(t, recorded, 1, "expected model call after marker commit")
+		require.False(t, requestHasSystemSubstring(recorded[0], "Source: "))
+		require.Zero(t, agentDialCalls.Load())
 	})
 
 	t.Run("repersists workspace context after agent changes", func(t *testing.T) {
@@ -12892,8 +12958,8 @@ func TestActiveServer_WorkspaceContextAndDynamicToolInjection(t *testing.T) {
 		require.Equal(t, database.ChatStatusWaiting, secondResult.Status)
 
 		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, contextFilePartsForAgent(parts, firstAgent.ID), 1)
-		require.Len(t, contextFilePartsForAgent(parts, secondAgent.ID), 1)
+		require.Len(t, allContextFilePartsForAgent(parts, firstAgent.ID), 1)
+		require.Len(t, allContextFilePartsForAgent(parts, secondAgent.ID), 1)
 
 		requestsMu.Lock()
 		recorded := append([]recordedOpenAIRequest(nil), requests...)
@@ -12979,7 +13045,7 @@ func persistedChatMessages(
 	return messages
 }
 
-func contextFilePartsForAgent(
+func allContextFilePartsForAgent(
 	parts []codersdk.ChatMessagePart,
 	agentID uuid.UUID,
 ) []codersdk.ChatMessagePart {
@@ -12989,6 +13055,22 @@ func contextFilePartsForAgent(
 			!part.ContextFileAgentID.Valid ||
 			part.ContextFileAgentID.UUID != agentID ||
 			part.ContextFileContent == "" {
+			continue
+		}
+		matched = append(matched, part)
+	}
+	return matched
+}
+
+func contextFileMarkersForAgent(
+	parts []codersdk.ChatMessagePart,
+	agentID uuid.UUID,
+) []codersdk.ChatMessagePart {
+	var matched []codersdk.ChatMessagePart
+	for _, part := range parts {
+		if part.Type != codersdk.ChatMessagePartTypeContextFile ||
+			!part.ContextFileAgentID.Valid ||
+			part.ContextFileAgentID.UUID != agentID {
 			continue
 		}
 		matched = append(matched, part)

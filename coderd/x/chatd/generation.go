@@ -800,9 +800,9 @@ func compactionModel(opts chatloop.GenerateCompactionOptions) string {
 // workspace context messages (e.g. AGENTS.md, workspace skills) into
 // chat history. It records a generation attempt, calls the injected
 // workspace context builder without holding the DB lock, then commits
-// the returned messages fenced to the attempt. If the builder returns
-// no messages, the action exits as expected and the next worker task
-// re-reads the chat.
+// the returned messages fenced to the attempt. If context cannot be
+// fetched, it commits a marker for the selected agent so the generation
+// loop can continue.
 func (s *taskStarter) persistWorkspaceContext(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -831,18 +831,43 @@ func (s *taskStarter) persistWorkspaceContext(
 		ActiveAPIKeyID: modelOpts.ActiveAPIKeyID,
 	})
 	if err != nil {
-		if errors.Is(err, errWorkspaceContextUnavailable) {
-			// Builder reported nothing durable to commit (workspace or
-			// agent missing, unreachable, etc.). Exit the action without
-			// committing so the next worker task can re-read the chat.
-			return errTaskExpectedExit
+		s.opts.Logger.Warn(ctx, "failed to build workspace context, committing marker",
+			slog.F("chat_id", input.ChatID),
+			slog.F("worker_id", input.WorkerID),
+			slogError(err),
+		)
+		marker, err := workspaceContextMarkerMessage(locked, modelOpts.ActiveAPIKeyID)
+		if err != nil {
+			return xerrors.Errorf("build workspace context marker: %w", err)
 		}
-		return err
+		result.Messages = []chatstate.Message{marker}
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionPersistWorkspaceContext, stepMessagesForCommit{
 		Messages:       result.Messages,
 		VisibleIndexes: visibleMessageIndexes(result.Messages),
 	})
+}
+
+// workspaceContextMarkerMessage builds an empty context-file sentinel
+// for the chat's selected agent. Committing this marker lets the
+// generation loop proceed when the agent is unreachable.
+func workspaceContextMarkerMessage(chat database.Chat, activeAPIKeyID string) (chatstate.Message, error) {
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
+		Type:               codersdk.ChatMessagePartTypeContextFile,
+		ContextFileAgentID: chat.AgentID,
+	}})
+	if err != nil {
+		return chatstate.Message{}, xerrors.Errorf("marshal workspace context marker: %w", err)
+	}
+	modelConfigID := chat.LastModelConfigID
+	return chatstate.Message{
+		Role:           database.ChatMessageRoleUser,
+		Content:        content,
+		Visibility:     database.ChatMessageVisibilityBoth,
+		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
+		ContentVersion: chatprompt.CurrentContentVersion,
+		APIKeyID:       sql.NullString{String: activeAPIKeyID, Valid: activeAPIKeyID != ""},
+	}, nil
 }
 
 func (s *taskStarter) beginGenerationAttempt(
