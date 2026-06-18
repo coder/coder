@@ -17,8 +17,7 @@ import (
 
 // chatWorker owns chat acquisition and runner lifecycle for one process.
 type chatWorker struct {
-	server *Server
-	opts   chatWorkerOptions
+	opts chatWorkerOptions
 
 	mu          sync.Mutex
 	started     bool
@@ -32,12 +31,12 @@ type chatWorker struct {
 
 // newChatWorker constructs a chat worker. The worker is idle until Start is
 // called.
-func newChatWorker(server *Server, opts chatWorkerOptions) (*chatWorker, error) {
+func newChatWorker(opts chatWorkerOptions) (*chatWorker, error) {
 	withDefaults, err := opts.withDefaults()
 	if err != nil {
 		return nil, err
 	}
-	return &chatWorker{server: server, opts: withDefaults}, nil
+	return &chatWorker{opts: withDefaults}, nil
 }
 
 // chatWorkerID returns this worker's configured worker ID.
@@ -54,12 +53,19 @@ func (w *chatWorker) Start(ctx context.Context) error {
 	}
 	workerID := w.opts.WorkerID
 	workerCtx, cancel := context.WithCancel(ctx)
-	manager := newRunnerManager(workerCtx, w.server, w.opts)
+	manager := newRunnerManager(workerCtx, w.opts)
 	if manager.opts.TaskStarter == nil {
-		starter, err := newTaskStarter(manager.server, manager.opts, manager.RouteStateHint, manager.requestCleanup)
+		generation := w.opts.Generation
+		if w.opts.Server != nil {
+			generation = w.opts.Server.generationTaskDeps()
+		}
+		starter, err := newTaskStarter(manager.opts, generation, manager.RouteStateHint, manager.requestCleanup)
 		if err != nil {
 			cancel()
 			return err
+		}
+		if w.opts.Server != nil {
+			starter.afterInterruptionOutcome = w.opts.Server.afterInterruptionOutcome
 		}
 		manager.opts.TaskStarter = starter
 	}

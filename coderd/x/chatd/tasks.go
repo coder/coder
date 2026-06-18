@@ -167,16 +167,16 @@ type interruptionOutcome struct {
 }
 
 type taskStarter struct {
-	server                   *Server
 	opts                     chatWorkerOptions
+	generation               generationTaskDeps
 	routeStateHint           func(context.Context, runnerStateUpdate)
 	requestCleanup           func(context.Context, runnerKey)
 	afterInterruptionOutcome func(context.Context, interruptionOutcome) error
 }
 
 func newTaskStarter(
-	server *Server,
 	opts chatWorkerOptions,
+	generation generationTaskDeps,
 	routeStateHint func(context.Context, runnerStateUpdate),
 	requestCleanup func(context.Context, runnerKey),
 ) (*taskStarter, error) {
@@ -201,6 +201,10 @@ func newTaskStarter(
 	if opts.TaskRetryMaxBackoff < opts.TaskRetryInitialBackoff {
 		opts.TaskRetryMaxBackoff = opts.TaskRetryInitialBackoff
 	}
+	withGeneration, err := generation.withDefaults()
+	if err != nil {
+		return nil, err
+	}
 	if routeStateHint == nil {
 		return nil, xerrors.New("chatworker: route state hint callback is required")
 	}
@@ -208,8 +212,8 @@ func newTaskStarter(
 		return nil, xerrors.New("chatworker: cleanup callback is required")
 	}
 	return &taskStarter{
-		server:         server,
 		opts:           opts,
+		generation:     withGeneration,
 		routeStateHint: routeStateHint,
 		requestCleanup: requestCleanup,
 	}, nil
@@ -325,14 +329,10 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 }
 
 func (s *taskStarter) runAfterInterruptionOutcome(ctx context.Context, outcome interruptionOutcome) error {
-	afterOutcome := s.afterInterruptionOutcome
-	if afterOutcome == nil && s.server != nil {
-		afterOutcome = s.server.afterInterruptionOutcome
-	}
-	if afterOutcome == nil {
+	if s.afterInterruptionOutcome == nil {
 		return nil
 	}
-	if err := afterOutcome(ctx, outcome); err != nil {
+	if err := s.afterInterruptionOutcome(ctx, outcome); err != nil {
 		return taskRetryableError{err: xerrors.Errorf("interruption post-outcome side effects: %w", err)}
 	}
 	return nil

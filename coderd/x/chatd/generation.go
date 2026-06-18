@@ -83,6 +83,38 @@ type generationCompaction struct {
 	Options  chatloop.GenerateCompactionOptions
 }
 
+type generationTaskDeps struct {
+	prepareGeneration     func(context.Context, generationPrepareInput) (generationPrepared, error)
+	buildWorkspaceContext func(context.Context, workspaceContextBuildInput) (workspaceContextBuildResult, error)
+	afterOutcome          func(context.Context, generationOutcome) error
+	metrics               *chatloop.Metrics
+}
+
+func (d generationTaskDeps) withDefaults() (generationTaskDeps, error) {
+	if d.prepareGeneration == nil {
+		return generationTaskDeps{}, xerrors.New("chatworker: generation prepare callback is required")
+	}
+	if d.buildWorkspaceContext == nil {
+		return generationTaskDeps{}, xerrors.New("chatworker: workspace context callback is required")
+	}
+	if d.afterOutcome == nil {
+		d.afterOutcome = func(context.Context, generationOutcome) error { return nil }
+	}
+	if d.metrics == nil {
+		d.metrics = chatloop.NopMetrics()
+	}
+	return d, nil
+}
+
+func (server *Server) generationTaskDeps() generationTaskDeps {
+	return generationTaskDeps{
+		prepareGeneration:     server.prepareGeneration,
+		buildWorkspaceContext: server.buildWorkspaceContext,
+		afterOutcome:          server.afterGenerationOutcome,
+		metrics:               server.metrics,
+	}
+}
+
 type generationDebug struct {
 	Enabled             bool
 	Service             *chatdebug.Service
@@ -345,23 +377,20 @@ func hasExclusiveToolCall(toolCalls []fantasy.ToolCallContent, exclusiveToolName
 }
 
 func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
-	if s.server == nil {
-		return xerrors.New("chatworker: server is required")
-	}
 	machine := chatstate.NewChatMachine(s.opts.Store, s.opts.Pubsub, input.ChatID)
 	chainModeDisabled := false
 	for {
-		locked, messages, err := loadGenerationState(ctx, machine, input)
+		chat, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
 			return err
 		}
 		prepareInput := generationPrepareInput{
-			Chat:              locked,
+			Chat:              chat,
 			Messages:          messages,
 			ChainModeDisabled: chainModeDisabled,
 		}
 		prepared, err := retryGenerationPhase(ctx, s, "prepare", func() (generationPrepared, error) {
-			return s.server.prepareGeneration(ctx, prepareInput)
+			return s.generation.prepareGeneration(ctx, prepareInput)
 		})
 		if err != nil {
 			if errors.Is(err, errTaskExpectedExit) || errors.Is(err, errTaskRetryable) {
@@ -391,7 +420,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				return xerrors.Errorf("decide generation: %w", err)
 			}
 			if errors.Is(err, errCompactionStillOverLimit) && prepared.Compaction != nil {
-				s.server.metrics.RecordCompaction(
+				s.generation.metrics.RecordCompaction(
 					compactionProvider(prepared.Compaction.Options),
 					compactionModel(prepared.Compaction.Options),
 					false,
@@ -469,35 +498,32 @@ func loadGenerationState(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-) (database.Chat, []database.ChatMessage, error) {
-	var locked database.Chat
-	var messages []database.ChatMessage
-	err := machine.ReadLock(ctx, func(store database.Store) error {
-		chat, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load locked chat: %w", err)
+) (chat database.Chat, messages []database.ChatMessage, err error) {
+	err = machine.ReadLock(ctx, func(store database.Store) error {
+		var loadErr error
+		chat, loadErr = store.GetChatByID(ctx, input.ChatID)
+		if loadErr != nil {
+			if errors.Is(loadErr, sql.ErrNoRows) {
+				return errTaskExpectedExit
+			}
+			return xerrors.Errorf("load locked chat: %w", loadErr)
 		}
 		if err := verifyTaskFence(chat, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
 			return err
 		}
-		loaded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		messages, loadErr = store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  input.ChatID,
 			AfterID: 0,
 		})
-		if err != nil {
-			return xerrors.Errorf("load chat messages: %w", err)
+		if loadErr != nil {
+			return xerrors.Errorf("load chat messages: %w", loadErr)
 		}
-		locked = chat
-		messages = loaded
 		return nil
 	})
 	if err != nil {
 		return database.Chat{}, nil, normalizeTaskInfrastructureError(err, "lock chat for generation")
 	}
-	return locked, messages, nil
+	return chat, messages, nil
 }
 
 func (*taskStarter) recordGenerationRetry(
@@ -641,11 +667,12 @@ func (s *taskStarter) generateAssistant(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 ) error {
-	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
+	episode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return err
 	}
-	defer closeEpisode()
+	defer episode.Close()
+	publish := episode.Publish
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
 	outcome, err := chatloop.GenerateAssistant(runCtx, chatloop.GenerateAssistantOptions{
 		Model:                prepared.Model,
@@ -660,13 +687,13 @@ func (s *taskStarter) generateAssistant(
 		PublishMessagePart:   publish,
 		Logger:               s.opts.Logger,
 		Clock:                s.opts.Clock,
-		Metrics:              s.server.metrics,
+		Metrics:              s.generation.metrics,
 	})
 	if err != nil {
 		return err
 	}
 	if len(outcome.Step.Content) == 0 {
-		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
+		return s.finishGenerationTurn(ctx, machine, input, episode.Attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
@@ -677,9 +704,9 @@ func (s *taskStarter) generateAssistant(
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+		return s.finishGenerationError(ctx, machine, input, episode.Attempt, err, generationAttemptRequired)
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionGenerateAssistant, messages)
+	return s.commitGenerationStep(ctx, machine, input, episode.Attempt, generationActionGenerateAssistant, messages)
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -689,11 +716,12 @@ func (s *taskStarter) executeLocalTools(
 	prepared generationPrepared,
 	decision generationDecision,
 ) error {
-	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
+	episode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return err
 	}
-	defer closeEpisode()
+	defer episode.Close()
+	publish := episode.Publish
 	provider := ""
 	modelName := ""
 	if prepared.Model != nil {
@@ -716,7 +744,7 @@ func (s *taskStarter) executeLocalTools(
 		ModelName:          modelName,
 		PublishMessagePart: publish,
 		Logger:             s.opts.Logger,
-		Metrics:            s.server.metrics,
+		Metrics:            s.generation.metrics,
 		Clock:              s.opts.Clock,
 	})
 	if err != nil {
@@ -731,9 +759,9 @@ func (s *taskStarter) executeLocalTools(
 		contentVersion:     chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
-		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+		return s.finishGenerationError(ctx, machine, input, episode.Attempt, err, generationAttemptRequired)
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionExecuteLocalTools, messages)
+	return s.commitGenerationStep(ctx, machine, input, episode.Attempt, generationActionExecuteLocalTools, messages)
 }
 
 func (s *taskStarter) generateCompaction(
@@ -742,25 +770,26 @@ func (s *taskStarter) generateCompaction(
 	input chatWorkerTaskStartInput,
 	prepared generationPrepared,
 ) error {
-	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
+	episode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return err
 	}
-	defer closeEpisode()
+	defer episode.Close()
+	publish := episode.Publish
 	if prepared.Compaction == nil {
-		return s.finishGenerationError(ctx, machine, input, attempt, xerrors.New("compaction action missing options"), generationAttemptRequired)
+		return s.finishGenerationError(ctx, machine, input, episode.Attempt, xerrors.New("compaction action missing options"), generationAttemptRequired)
 	}
 	compactionOpts := prepared.Compaction.Options
 	compactionOpts.PublishMessagePart = publish
 	outcome, err := chatloop.GenerateCompaction(ctx, compactionOpts)
 	if err != nil {
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		s.generation.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
 		return err
 	}
 	if strings.TrimSpace(outcome.SystemSummary) == "" || strings.TrimSpace(outcome.SummaryReport) == "" {
 		err := xerrors.New("compaction produced no summary")
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
-		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+		s.generation.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		return s.finishGenerationError(ctx, machine, input, episode.Attempt, err, generationAttemptRequired)
 	}
 	messages, err := buildCompactionMessages(buildCompactionMessagesInput{
 		modelConfigID:  prepared.ModelConfigID,
@@ -771,14 +800,14 @@ func (s *taskStarter) generateCompaction(
 		contentVersion: chatprompt.CurrentContentVersion,
 	})
 	if err != nil {
-		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
-		return s.finishGenerationError(ctx, machine, input, attempt, err, generationAttemptRequired)
+		s.generation.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
+		return s.finishGenerationError(ctx, machine, input, episode.Attempt, err, generationAttemptRequired)
 	}
-	err = s.commitGenerationStep(ctx, machine, input, attempt, generationActionCompact, stepMessagesForCommit{
+	err = s.commitGenerationStep(ctx, machine, input, episode.Attempt, generationActionCompact, stepMessagesForCommit{
 		Messages:       messages.Messages,
 		VisibleIndexes: visibleMessageIndexes(messages.Messages),
 	})
-	s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), err == nil, err)
+	s.generation.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), err == nil, err)
 	return err
 }
 
@@ -807,11 +836,8 @@ func (s *taskStarter) persistWorkspaceContext(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-	locked database.Chat,
+	chat database.Chat,
 ) error {
-	if s.server == nil {
-		return errTaskExpectedExit
-	}
 	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 		ChatID:  input.ChatID,
 		AfterID: 0,
@@ -819,14 +845,14 @@ func (s *taskStarter) persistWorkspaceContext(
 	if err != nil {
 		return taskRetryableError{err: xerrors.Errorf("load chat messages for workspace context: %w", err)}
 	}
-	attempt, _, _, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
+	episode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
 		return err
 	}
-	defer closeEpisode()
+	defer episode.Close()
 	modelOpts := modelBuildOptionsFromMessages(messages)
-	result, err := s.server.buildWorkspaceContext(ctx, workspaceContextBuildInput{
-		Chat:           locked,
+	result, err := s.generation.buildWorkspaceContext(ctx, workspaceContextBuildInput{
+		Chat:           chat,
 		Messages:       messages,
 		ActiveAPIKeyID: modelOpts.ActiveAPIKeyID,
 	})
@@ -839,28 +865,28 @@ func (s *taskStarter) persistWorkspaceContext(
 		}
 		return err
 	}
-	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionPersistWorkspaceContext, stepMessagesForCommit{
+	return s.commitGenerationStep(ctx, machine, input, episode.Attempt, generationActionPersistWorkspaceContext, stepMessagesForCommit{
 		Messages:       result.Messages,
 		VisibleIndexes: visibleMessageIndexes(result.Messages),
 	})
+}
+
+type generationAttemptEpisode struct {
+	Attempt int64
+	Key     messagepartbuffer.Key
+	Publish func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
+	Close   func()
 }
 
 func (s *taskStarter) beginGenerationAttempt(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
 	input chatWorkerTaskStartInput,
-) (int64, messagepartbuffer.Key, func(codersdk.ChatMessageRole, codersdk.ChatMessagePart), func(), error) {
+) (generationAttemptEpisode, error) {
 	var attempt int64
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+		if _, err := getChatForTask(ctx, store, input, database.ChatStatusRunning); err != nil {
 			return err
 		}
 		result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
@@ -868,14 +894,15 @@ func (s *taskStarter) beginGenerationAttempt(
 			return err
 		}
 		attempt = result.GenerationAttempt
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
+		committed = chat
 		return nil
 	})
 	if err != nil {
-		return 0, messagepartbuffer.Key{}, nil, nil, normalizeTaskTransitionError(err, "record generation attempt")
+		return generationAttemptEpisode{}, normalizeTaskTransitionError(err, "record generation attempt")
 	}
 	key := messagepartbuffer.Key{
 		ChatID:            input.ChatID,
@@ -883,15 +910,19 @@ func (s *taskStarter) beginGenerationAttempt(
 		GenerationAttempt: attempt,
 	}
 	if err := s.opts.MessagePartBuffer.CreateEpisode(key); err != nil && ctx.Err() == nil {
-		return 0, messagepartbuffer.Key{}, nil, nil, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
+		return generationAttemptEpisode{}, taskRetryableError{err: xerrors.Errorf("create message part episode: %w", err)}
 	}
-	publish := func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+	episode := generationAttemptEpisode{
+		Attempt: attempt,
+		Key:     key,
+	}
+	episode.Publish = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		_ = s.opts.MessagePartBuffer.AddPart(key, role, part)
 	}
-	closeEpisode := func() {
+	episode.Close = func() {
 		_ = s.opts.MessagePartBuffer.CloseEpisode(key)
 	}
-	return attempt, key, publish, closeEpisode, nil
+	return episode, nil
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -905,42 +936,39 @@ func (s *taskStarter) commitGenerationStep(
 	if len(messages.Messages) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
 	}
-	var committed database.Chat
-	insertedMessages := []runnerActionMessage{}
+	var outcome generationOutcome
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if err := verifyGenerationFence(locked, input, attempt); err != nil {
+		if _, err := getChatForGenerationAttempt(ctx, store, input, attempt); err != nil {
 			return err
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
 		if err != nil {
 			return err
 		}
-		insertedMessages = make([]runnerActionMessage, 0, len(commitResult.InsertedMessages))
-		for _, msg := range commitResult.InsertedMessages {
-			insertedMessages = append(insertedMessages, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
-		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
+		}
+		outcome = generationOutcome{
+			Chat:             chat,
+			Kind:             runnerActionKind(kind),
+			InsertedMessages: runnerActionMessages(commitResult.InsertedMessages),
 		}
 		return nil
 	})
 	if err != nil {
 		return normalizeTaskTransitionError(err, "commit generation step")
 	}
-	s.routeStateHint(ctx, stateUpdateFromChat(committed))
-	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:             committed,
-		Kind:             runnerActionKind(kind),
-		InsertedMessages: insertedMessages,
-	})
+	s.routeStateHint(ctx, stateUpdateFromChat(outcome.Chat))
+	return s.afterGenerationOutcome(ctx, outcome)
+}
+
+func runnerActionMessages(messages []database.ChatMessage) []runnerActionMessage {
+	out := make([]runnerActionMessage, 0, len(messages))
+	for _, msg := range messages {
+		out = append(out, runnerActionMessage{ID: msg.ID, Role: codersdk.ChatMessageRole(msg.Role)})
+	}
+	return out
 }
 
 func (s *taskStarter) enterRequiresAction(
@@ -950,23 +978,17 @@ func (s *taskStarter) enterRequiresAction(
 ) error {
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+		if _, err := getChatForTask(ctx, store, input, database.ChatStatusRunning); err != nil {
 			return err
 		}
 		if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
 			return err
 		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
+		committed = chat
 		return nil
 	})
 	if err != nil {
@@ -999,18 +1021,7 @@ func (s *taskStarter) finishGenerationTurn(
 ) error {
 	var committed database.Chat
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if attemptFence == generationAttemptRequired {
-			if err := verifyGenerationFence(locked, input, attempt); err != nil {
-				return err
-			}
-		} else if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+		if err := verifyGenerationTask(ctx, store, input, attempt, attemptFence); err != nil {
 			return err
 		}
 		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
@@ -1067,44 +1078,37 @@ func (s *taskStarter) finishGenerationError(
 		slog.Error(cause),
 	)
 	lastError, message := generationLastError(cause)
-	var committed database.Chat
+	outcome := generationOutcome{
+		Kind:           runnerActionKindFinishError,
+		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
+		LastError:      message,
+	}
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		locked, err := store.GetChatByID(ctx, input.ChatID)
-		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
-		}
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if attemptFence == generationAttemptRequired {
-			if err := verifyGenerationFence(locked, input, attempt); err != nil {
-				return err
-			}
-		} else if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
+		if err := verifyGenerationTask(ctx, store, input, attempt, attemptFence); err != nil {
 			return err
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
 			return err
 		}
-		committed, err = store.GetChatByID(ctx, input.ChatID)
+		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load committed chat: %w", err)
 		}
+		outcome.Chat = chat
 		return nil
 	})
 	if err != nil {
-		return normalizeTaskTransitionError(err, "finish generation error")
+		current, ok := s.committedStateAfterUpdateError(ctx, outcome.Chat)
+		if !ok {
+			return normalizeTaskTransitionError(err, "finish generation error")
+		}
+		outcome.Chat = current
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
-	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
+	if err := s.publishWatchAndRoute(ctx, outcome.Chat, outcome.WatchEventKind); err != nil {
 		return err
 	}
-	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat:           committed,
-		Kind:           runnerActionKindFinishError,
-		WatchEventKind: codersdk.ChatWatchEventKindStatusChange,
-		LastError:      message,
-	})
+	return s.runAfterGenerationOutcome(ctx, outcome)
 }
 
 func generationLastError(err error) (pqtype.NullRawMessage, string) {
@@ -1124,23 +1128,64 @@ func generationLastError(err error) (pqtype.NullRawMessage, string) {
 }
 
 func (s *taskStarter) afterGenerationOutcome(ctx context.Context, outcome generationOutcome) error {
-	if s.server == nil {
-		return nil
-	}
-	if err := s.server.afterGenerationOutcome(ctx, outcome); err != nil {
+	return s.runAfterGenerationOutcome(ctx, outcome)
+}
+
+func (s *taskStarter) runAfterGenerationOutcome(ctx context.Context, outcome generationOutcome) error {
+	if err := s.generation.afterOutcome(ctx, outcome); err != nil {
 		return taskRetryableError{err: xerrors.Errorf("generation post-outcome side effects: %w", err)}
 	}
 	return nil
 }
 
-func verifyGenerationFence(chat database.Chat, input chatWorkerTaskStartInput, attempt int64) error {
-	if err := verifyTaskFence(chat, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-		return err
+func getChatForTask(
+	ctx context.Context,
+	store database.Store,
+	input chatWorkerTaskStartInput,
+	status database.ChatStatus,
+) (database.Chat, error) {
+	chat, err := store.GetChatByID(ctx, input.ChatID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return database.Chat{}, errTaskExpectedExit
+		}
+		return database.Chat{}, xerrors.Errorf("load chat: %w", err)
+	}
+	if err := verifyTaskFence(chat, input, status, taskFenceOptions{requireHistory: true}); err != nil {
+		return database.Chat{}, err
+	}
+	return chat, nil
+}
+
+func getChatForGenerationAttempt(
+	ctx context.Context,
+	store database.Store,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+) (database.Chat, error) {
+	chat, err := getChatForTask(ctx, store, input, database.ChatStatusRunning)
+	if err != nil {
+		return database.Chat{}, err
 	}
 	if chat.GenerationAttempt != attempt {
-		return errTaskExpectedExit
+		return database.Chat{}, errTaskExpectedExit
 	}
-	return nil
+	return chat, nil
+}
+
+func verifyGenerationTask(
+	ctx context.Context,
+	store database.Store,
+	input chatWorkerTaskStartInput,
+	attempt int64,
+	attemptFence generationAttemptFence,
+) error {
+	if attemptFence == generationAttemptRequired {
+		_, err := getChatForGenerationAttempt(ctx, store, input, attempt)
+		return err
+	}
+	_, err := getChatForTask(ctx, store, input, database.ChatStatusRunning)
+	return err
 }
 
 func stepDataFromPersisted(step chatloop.PersistedStep) stepData {

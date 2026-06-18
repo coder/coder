@@ -163,8 +163,8 @@ func isExpectedAutoArchiveError(err error) bool {
 }
 
 func (w *chatWorker) publishArchiveWatchEvents(familyChats []database.Chat) {
-	if w.server != nil {
-		w.server.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindDeleted)
+	if w.opts.Server != nil {
+		w.opts.Server.publishChatPubsubEvents(familyChats, codersdk.ChatWatchEventKindDeleted)
 		return
 	}
 	for _, chat := range familyChats {
@@ -178,10 +178,10 @@ func (w *chatWorker) publishArchiveWatchEvents(familyChats []database.Chat) {
 }
 
 func (w *chatWorker) scheduleArchiveDebugCleanup(ctx context.Context, familyChats []database.Chat) {
-	if w.server == nil || len(familyChats) == 0 {
+	if w.opts.Server == nil || len(familyChats) == 0 {
 		return
 	}
-	w.server.scheduleArchiveDebugCleanup(ctx, familyChats)
+	w.opts.Server.scheduleArchiveDebugCleanup(ctx, familyChats)
 }
 
 func (p *Server) scheduleArchiveDebugCleanup(ctx context.Context, familyChats []database.Chat) {

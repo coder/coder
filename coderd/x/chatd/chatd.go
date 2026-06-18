@@ -3428,8 +3428,9 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 	p.streamPartsDialer = streamPartsDialerForServer(workerID, localStreamPartsDialer, cfg.StreamPartsDialer)
 	p.streamSyncPoller = newStreamSyncPoller(ctx, cfg.Database, clk, cfg.Logger.Named("chatstream"))
 	p.streamSyncPoller.Start()
-	chatWorker, err := newChatWorker(p, chatWorkerOptions{
+	chatWorker, err := newChatWorker(chatWorkerOptions{
 		WorkerID:              workerID,
+		Server:                p,
 		Store:                 cfg.Database,
 		Pubsub:                ps,
 		Logger:                cfg.Logger.Named("chatworker"),

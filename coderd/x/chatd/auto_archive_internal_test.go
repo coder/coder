@@ -293,7 +293,7 @@ func (f *workerTestFixture) newArchiveWorkerWithOptions(t *testing.T, opts chatW
 	if opts.NotificationsEnqueuer == nil {
 		opts.NotificationsEnqueuer = notificationstest.NewFakeEnqueuer()
 	}
-	worker, err := newChatWorker(nil, opts)
+	worker, err := newChatWorker(opts)
 	require.NoError(t, err)
 	return worker
 }

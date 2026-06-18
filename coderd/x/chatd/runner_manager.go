@@ -84,9 +84,8 @@ func (r *runnerRecord) startCleanup() {
 }
 
 type runnerManager struct {
-	server *Server
-	opts   chatWorkerOptions
-	ctx    context.Context
+	opts chatWorkerOptions
+	ctx  context.Context
 
 	closed  bool
 	spawnMu sync.Mutex
@@ -102,9 +101,8 @@ type runnerManager struct {
 	wg sync.WaitGroup
 }
 
-func newRunnerManager(ctx context.Context, server *Server, opts chatWorkerOptions) *runnerManager {
+func newRunnerManager(ctx context.Context, opts chatWorkerOptions) *runnerManager {
 	return &runnerManager{
-		server:        server,
 		opts:          opts,
 		ctx:           ctx,
 		spawnCh:       make(chan spawnRunnerRequest, opts.RunnerManagerChannelSize),

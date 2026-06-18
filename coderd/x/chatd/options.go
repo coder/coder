@@ -67,12 +67,14 @@ type chatWorkerTaskStartInput struct {
 // chatWorkerOptions configures a chatWorker.
 type chatWorkerOptions struct {
 	WorkerID uuid.UUID
+	Server   *Server
 
 	Store             database.Store
 	Pubsub            chatWorkerPubsub
 	Logger            slog.Logger
 	Clock             quartz.Clock
 	TaskStarter       chatWorkerTaskStarter
+	Generation        generationTaskDeps
 	MessagePartBuffer *messagepartbuffer.Buffer
 
 	NotificationsEnqueuer notifications.Enqueuer
@@ -101,8 +103,17 @@ func (o chatWorkerOptions) withDefaults() (chatWorkerOptions, error) {
 	if o.Pubsub == nil {
 		return chatWorkerOptions{}, xerrors.New("chatworker: pubsub is required")
 	}
-	if o.TaskStarter == nil && o.MessagePartBuffer == nil {
-		return chatWorkerOptions{}, xerrors.New("chatworker: task starter or message part buffer is required")
+	if o.TaskStarter == nil {
+		if o.MessagePartBuffer == nil {
+			return chatWorkerOptions{}, xerrors.New("chatworker: task starter or message part buffer is required")
+		}
+		if o.Server == nil {
+			withGeneration, err := o.Generation.withDefaults()
+			if err != nil {
+				return chatWorkerOptions{}, err
+			}
+			o.Generation = withGeneration
+		}
 	}
 	if o.WorkerID == uuid.Nil {
 		return chatWorkerOptions{}, xerrors.New("chatworker: worker ID is required")

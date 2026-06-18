@@ -271,7 +271,7 @@ func testOptions(t *testing.T, f *workerTestFixture, starter chatWorkerTaskStart
 
 func startWorker(t *testing.T, opts chatWorkerOptions) *chatWorker {
 	t.Helper()
-	worker, err := newChatWorker(nil, opts)
+	worker, err := newChatWorker(opts)
 	require.NoError(t, err)
 	require.NoError(t, worker.Start(context.Background()))
 	t.Cleanup(func() { require.NoError(t, worker.Close()) })

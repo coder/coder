@@ -578,7 +578,7 @@ func TestGenerationTask_RecordRetryState(t *testing.T) {
 	recorder := newTaskSideEffectRecorder()
 	starter := newTestTaskStarter(t, f, recorder)
 
-	attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(
+	episode, err := starter.beginGenerationAttempt(
 		testutil.Context(t, testutil.WaitLong),
 		chatstate.NewChatMachine(f.db, f.pubsub, chat.ID),
 		chatWorkerTaskStartInput{
@@ -590,8 +590,8 @@ func TestGenerationTask_RecordRetryState(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	closeEpisode()
-	require.Equal(t, int64(1), attempt)
+	episode.Close()
+	require.Equal(t, int64(1), episode.Attempt)
 	before, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
 	require.False(t, before.RetryState.Valid)
@@ -650,7 +650,7 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
 
 	for range 3 {
-		attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(
+		episode, err := starter.beginGenerationAttempt(
 			testutil.Context(t, testutil.WaitLong),
 			machine,
 			chatWorkerTaskStartInput{
@@ -662,8 +662,8 @@ func TestGenerationTask_RecordRetryStateUsesDurableGenerationAttempt(t *testing.
 			},
 		)
 		require.NoError(t, err)
-		closeEpisode()
-		require.Positive(t, attempt)
+		episode.Close()
+		require.Positive(t, episode.Attempt)
 	}
 
 	decision, err := starter.recordGenerationRetry(
@@ -714,10 +714,10 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 		Status:         database.ChatStatusRunning,
 	}
 
-	attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	episode, err := starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
 	require.NoError(t, err)
-	closeEpisode()
-	require.Equal(t, int64(1), attempt)
+	episode.Close()
+	require.Equal(t, int64(1), episode.Attempt)
 	_, err = starter.recordGenerationRetry(
 		testutil.Context(t, testutil.WaitLong),
 		machine,
@@ -734,10 +734,10 @@ func TestGenerationTask_RecordRetryStateClearedByNextAttempt(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, withRetry.RetryState.Valid)
 
-	attempt, _, _, closeEpisode, err = starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
+	episode, err = starter.beginGenerationAttempt(testutil.Context(t, testutil.WaitLong), machine, input)
 	require.NoError(t, err)
-	closeEpisode()
-	require.Equal(t, int64(2), attempt)
+	episode.Close()
+	require.Equal(t, int64(2), episode.Attempt)
 	after, err := f.db.GetChatByID(testutil.Context(t, testutil.WaitShort), chat.ID)
 	require.NoError(t, err)
 	require.False(t, after.RetryState.Valid)
@@ -755,7 +755,7 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 	acquired := f.acquireChat(t, chat.ID, workerID, runnerID)
 	starter := newTestTaskStarter(t, f, newTaskSideEffectRecorder())
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chat.ID)
-	attempt, _, _, closeEpisode, err := starter.beginGenerationAttempt(
+	episode, err := starter.beginGenerationAttempt(
 		testutil.Context(t, testutil.WaitLong),
 		machine,
 		chatWorkerTaskStartInput{
@@ -767,8 +767,8 @@ func TestGenerationTask_RecordRetryStateStaleFenceExits(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	closeEpisode()
-	require.Equal(t, int64(1), attempt)
+	episode.Close()
+	require.Equal(t, int64(1), episode.Attempt)
 
 	otherWorkerID := uuid.New()
 	otherRunnerID := uuid.New()
@@ -1124,8 +1124,9 @@ func startRealTaskWorker(t *testing.T, f *taskTestFixture) *chatWorker {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	worker, err := newChatWorker(nil, chatWorkerOptions{
+	worker, err := newChatWorker(chatWorkerOptions{
 		WorkerID:                   uuid.New(),
+		Generation:                 testGenerationTaskDeps(),
 		Store:                      f.db,
 		Pubsub:                     f.pubsub,
 		Logger:                     slog.Make(),
@@ -1242,11 +1243,22 @@ func (r *taskSideEffectRecorder) requireInterruptionOutcome(t *testing.T, chatID
 	t.Fatalf("missing interruption outcome chat_id=%s status=%s outcomes=%v", chatID, status, r.interrupts)
 }
 
+func testGenerationTaskDeps() generationTaskDeps {
+	return generationTaskDeps{
+		prepareGeneration: func(context.Context, generationPrepareInput) (generationPrepared, error) {
+			return generationPrepared{}, errTaskExpectedExit
+		},
+		buildWorkspaceContext: func(context.Context, workspaceContextBuildInput) (workspaceContextBuildResult, error) {
+			return workspaceContextBuildResult{}, xerrors.New("unexpected workspace context call")
+		},
+	}
+}
+
 func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffectRecorder) *taskStarter {
 	t.Helper()
 	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	t.Cleanup(buffer.Close)
-	starter, err := newTaskStarter(nil, chatWorkerOptions{
+	starter, err := newTaskStarter(chatWorkerOptions{
 		Store:                   f.db,
 		Pubsub:                  f.pubsub,
 		Logger:                  slog.Make(),
@@ -1254,7 +1266,7 @@ func newTestTaskStarter(t *testing.T, f *taskTestFixture, recorder *taskSideEffe
 		MessagePartBuffer:       buffer,
 		TaskRetryInitialBackoff: time.Millisecond,
 		TaskRetryMaxBackoff:     time.Millisecond,
-	}, recorder.routeStateHint, recorder.requestCleanup)
+	}, testGenerationTaskDeps(), recorder.routeStateHint, recorder.requestCleanup)
 	require.NoError(t, err)
 	starter.afterInterruptionOutcome = recorder.afterInterruptionOutcome
 	return starter
