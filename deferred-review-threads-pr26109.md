@@ -1,5 +1,7 @@
 # Deferred Review Threads from PR #26109
 
+<!-- markdownlint-disable MD029 -->
+
 Source: https://github.com/coder/coder/pull/26109
 
 This file lists every review comment thread that hugodutka marked as deferred. It serves as a template for a plan to address these issues. Each entry describes what the thread was about, with a link to the original discussion.
@@ -88,7 +90,7 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 
 ### coderd/x/chatd/testhooks.go
 
-31. **Hard-coded timeout** (line 19) https://github.com/coder/coder/pull/26109#discussion_r3382365135 Accept a `context.Context` parameter instead of a hard-coded timeout.
+31. [DONE] **Hard-coded timeout** (line 19) https://github.com/coder/coder/pull/26109#discussion_r3382365135 Accept a `context.Context` parameter instead of a hard-coded timeout.
 
 ### coderd/x/chatd/tasks.go and tasks_test.go
 
@@ -142,7 +144,7 @@ This file lists every review comment thread that hugodutka marked as deferred. I
 - [ ] 28. runner_manager.go: fix wg.Wait/mu.Lock concurrency concern (r3380592305)
 - [ ] 29. runner_manager.go: skip logging context canceled errors, line 458 (r3387355724)
 - [ ] 30. runner_manager.go: document stateCh buffering semantics (r3387788957)
-- [ ] 31. testhooks.go: accept context.Context instead of hard-coded timeout (r3382365135)
+- [x] 31. testhooks.go: accept context.Context instead of hard-coded timeout (r3382365135)
 - [ ] 32. tasks.go: extract side-effecting deps to interface (r3382554277)
 - [ ] 33. tasks_test.go: use interface and gomock for taskStarter spy (r3382564035)
 - [ ] 34. tasks.go: required options as newTaskStarter args (r3387867697)

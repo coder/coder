@@ -2206,7 +2206,7 @@ func TestAutoPromoteQueuedMessagesPreservesPerTurnModelOrder(t *testing.T) {
 	testutil.TryReceive(ctx, t, secondRunStarted)
 	testutil.TryReceive(ctx, t, thirdRunStarted)
 	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	queuedMessages, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -2397,7 +2397,7 @@ func TestInterruptAutoPromotionIgnoresLaterUsageLimitIncrease(t *testing.T) {
 	require.GreaterOrEqual(t, requestCount.Load(), int32(3))
 
 	close(allowThirdRequestFinish)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	queued, err := db.GetChatQueuedMessages(ctx, chat.ID)
 	require.NoError(t, err)
@@ -2646,7 +2646,7 @@ func TestEditMessageDebugCleanupDeletesPreEditRuns(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chatd.WaitUntilIdleForTest(replica)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, replica))
 
 	// ErrNoRows on staleRun proves the fast-retry path DELETED the
 	// row: FinalizeStale (the only other debug-row writer on the
@@ -2737,7 +2737,7 @@ func TestEditMessageDebugCleanupPreservesRecentRuns(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chatd.WaitUntilIdleForTest(replica)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, replica))
 
 	remaining, err := db.GetChatDebugRunByID(ctx, recentRun.ID)
 	require.NoError(t, err,
@@ -3323,7 +3323,7 @@ func TestRequiresActionChatPersistsWaitingStatusLabel(t *testing.T) {
 			got.LastTurnSummary.Valid &&
 			got.LastTurnSummary.String == "Waiting for user input"
 	}, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	require.Equal(t, database.ChatStatusRequiresAction, fromDB.Status,
 		"expected requires_action, got %s (last_error=%q)",
@@ -5329,7 +5329,7 @@ func waitForChatProcessed(
 		return c.Status != database.ChatStatusPending &&
 			c.Status != database.ChatStatusRunning
 	}, testutil.WaitShort, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 }
 
 // newTestServer creates a passive server that never calls
@@ -8194,7 +8194,7 @@ func TestPassiveServerDoesNotProcess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	// Re-read from DB to catch any unexpected processing.
 	stored, err := db.GetChatByID(ctx, chat.ID)
@@ -8806,7 +8806,7 @@ func TestInterruptChatDoesNotSendWebPushNotification(t *testing.T) {
 		}
 		return fromDB.Status == database.ChatStatusWaiting && !fromDB.WorkerID.Valid
 	}, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
@@ -9267,7 +9267,7 @@ func TestErroredChatClearsLastTurnSummaryAndSendsWebPush(t *testing.T) {
 			fromDB.Status == database.ChatStatusError &&
 			mockPush.dispatchCount.Load() >= 1
 	}, testutil.IntervalFast)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
@@ -11272,7 +11272,7 @@ func TestCreateChatImmediatelyProcessesNewChat(t *testing.T) {
 	// this receive would time out.
 	testutil.TryReceive(ctx, t, processed)
 
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	// Verify the chat was fully processed.
 	fromDB, err := db.GetChatByID(ctx, chat.ID)
@@ -11335,7 +11335,7 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	// wait for the processing goroutine to finish so the chat
 	// transitions to "waiting" status.
 	testutil.TryReceive(ctx, t, firstProcessed)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	// Now send a follow-up message, which should also be
 	// processed immediately without waiting for the acquire ticker.
@@ -11347,7 +11347,7 @@ func TestSendMessageImmediatelyProcessesWaitingChat(t *testing.T) {
 	require.NoError(t, err)
 
 	testutil.TryReceive(ctx, t, secondProcessed)
-	chatd.WaitUntilIdleForTest(server)
+	require.NoError(t, chatd.WaitUntilIdleForTest(ctx, server))
 
 	// Both turns processed. Verify the second request reached the LLM.
 	require.GreaterOrEqual(t, requestCount.Load(), int32(2),
