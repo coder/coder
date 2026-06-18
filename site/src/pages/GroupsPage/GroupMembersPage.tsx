@@ -288,7 +288,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 				<LastSeen at={member.last_seen_at} className="text-xs" />
 			</TableCell>
 			<TableCell width="1%">
-				{(aiBudgetVisible || canUpdate) && (
+				{canUpdate && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
@@ -302,15 +302,13 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 									AI Budget
 								</DropdownMenuItem>
 							)}
-							{canUpdate && (
-								<DropdownMenuItem
-									className="text-content-destructive focus:text-content-destructive"
-									onClick={onRemove}
-									disabled={group.id === group.organization_id}
-								>
-									Remove
-								</DropdownMenuItem>
-							)}
+							<DropdownMenuItem
+								className="text-content-destructive focus:text-content-destructive"
+								onClick={onRemove}
+								disabled={group.id === group.organization_id}
+							>
+								Remove
+							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}

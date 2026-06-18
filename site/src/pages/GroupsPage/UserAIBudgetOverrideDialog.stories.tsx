@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
 import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
 import type { GroupAIBudget, UserAIBudgetOverride } from "#/api/typesGenerated";
@@ -60,7 +61,7 @@ export const WithOverride: Story = {
 		await expect(body.getByText(/charged to/)).toBeInTheDocument();
 		await expect(body.getByRole("checkbox")).toBeChecked();
 		await expect(body.getByLabelText("Custom monthly budget")).toHaveValue(
-			"12,000",
+			12000,
 		);
 	},
 };
@@ -86,6 +87,24 @@ export const WithoutOverride: Story = {
 	},
 };
 
+export const Uncapped: Story = {
+	parameters: {
+		queries: [
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserMember.id), data: null },
+			{
+				key: groupsForUser(MockUserMember.id).queryKey,
+				data: [MockGroup, MockGroup2],
+			},
+			{ key: groupAIBudget(MockGroup.id).queryKey, data: null },
+		],
+	},
+	play: async () => {
+		const body = within(document.body);
+		await expect(await body.findByText("uncapped")).toBeInTheDocument();
+		await expect(body.getByRole("checkbox")).not.toBeChecked();
+	},
+};
+
 export const ZeroBudgetDisablesAI: Story = {
 	parameters: {
 		queries: [
@@ -98,7 +117,7 @@ export const ZeroBudgetDisablesAI: Story = {
 	},
 	play: async () => {
 		const body = within(document.body);
-		await expect(body.getByLabelText("Custom monthly budget")).toHaveValue("0");
+		await expect(body.getByLabelText("Custom monthly budget")).toHaveValue(0);
 		await expect(
 			await body.findByText("A $0 limit disables AI access for this member."),
 		).toBeInTheDocument();
@@ -145,5 +164,82 @@ export const SelectAssignedGroup: Story = {
 				await body.findByText("Front-End (default)"),
 			).toBeInTheDocument();
 		});
+	},
+};
+
+// Clearing the budget on an enabled override blocks submit: the admin must
+// enter a value or uncheck the override (to remove it) before saving.
+export const SubmitRequiresValueOrUncheck: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserMember.id),
+				data: mockOverride,
+			},
+			...groupQueries,
+		],
+	},
+	play: async ({ step }) => {
+		const body = within(document.body);
+		const budgetInput = await body.findByLabelText("Custom monthly budget");
+		const updateButton = body.getByRole("button", { name: "Update" });
+
+		await step("an existing override seeds a submittable value", async () => {
+			await expect(updateButton).toBeEnabled();
+		});
+
+		await step("clearing the budget blocks submit", async () => {
+			await userEvent.clear(budgetInput);
+			await expect(
+				await body.findByText("Enter a monthly budget of 0 or more."),
+			).toBeInTheDocument();
+			await expect(updateButton).toBeDisabled();
+		});
+
+		await step("entering a value unblocks submit", async () => {
+			await userEvent.type(budgetInput, "25");
+			await expect(updateButton).toBeEnabled();
+		});
+
+		await step(
+			"unchecking unblocks submit to remove the override",
+			async () => {
+				await userEvent.clear(budgetInput);
+				await expect(updateButton).toBeDisabled();
+				await userEvent.click(body.getByRole("checkbox"));
+				await expect(updateButton).toBeEnabled();
+			},
+		);
+	},
+};
+
+export const Loading: Story = {
+	beforeEach: () => {
+		spyOn(API, "getUserAIBudgetOverride").mockReturnValue(
+			// Stay pending so the loading state renders.
+			new Promise<UserAIBudgetOverride>(() => {}),
+		);
+	},
+	parameters: { queries: groupQueries },
+	play: async () => {
+		const body = within(document.body);
+		await expect(
+			await body.findByText("Loading AI budget..."),
+		).toBeInTheDocument();
+	},
+};
+
+export const LoadError: Story = {
+	beforeEach: () => {
+		spyOn(API, "getUserAIBudgetOverride").mockRejectedValue(
+			new Error("test budget error"),
+		);
+	},
+	parameters: { queries: groupQueries },
+	play: async () => {
+		const body = within(document.body);
+		await expect(
+			await body.findByText("test budget error"),
+		).toBeInTheDocument();
 	},
 };

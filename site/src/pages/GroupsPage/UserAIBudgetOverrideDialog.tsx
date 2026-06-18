@@ -1,7 +1,7 @@
 import {
 	type FC,
-	type FormEvent,
 	type ReactNode,
+	type SyntheticEvent,
 	useId,
 	useMemo,
 	useState,
@@ -24,13 +24,13 @@ import type {
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
 import {
 	Combobox,
+	ComboboxButton,
 	ComboboxContent,
 	ComboboxEmpty,
 	ComboboxInput,
@@ -53,21 +53,11 @@ import { Label } from "#/components/Label/Label";
 import { Separator } from "#/components/Separator/Separator";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
-import { MICROS_PER_DOLLAR, microsToDollars } from "#/utils/currency";
-
-// Drops the cents when the budget is a whole dollar (the common case),
-// matching the group budget display.
-const usdBudgetFormatter = new Intl.NumberFormat("en-US", {
-	style: "currency",
-	currency: "USD",
-	minimumFractionDigits: 0,
-	maximumFractionDigits: 2,
-});
-
-// Seeds the editable input with a plain (non-currency) dollar amount.
-const editableBudgetFormatter = new Intl.NumberFormat("en-US", {
-	maximumFractionDigits: 2,
-});
+import {
+	dollarsToMicros,
+	microsToDollars,
+	usdBudgetFormatter,
+} from "#/utils/currency";
 
 interface UserAIBudgetOverrideDialogProps {
 	open: boolean;
@@ -113,6 +103,7 @@ export const UserAIBudgetOverrideDialog: FC<
 		<Dialog
 			open={open}
 			onOpenChange={(nextOpen) => {
+				// Don't close while a mutation is in flight.
 				if (!isSubmitting) {
 					onOpenChange(nextOpen);
 				}
@@ -151,10 +142,8 @@ export const UserAIBudgetOverrideDialog: FC<
 						groupBudget={groupBudgetQuery.data ?? null}
 						userGroups={userGroupsQuery.data ?? []}
 						isSubmitting={isSubmitting}
-						onSave={(request) =>
-							saveMutation.mutateAsync(request).then(() => undefined)
-						}
-						onRemove={() => deleteMutation.mutateAsync()}
+						onSave={saveMutation.mutateAsync}
+						onRemove={deleteMutation.mutateAsync}
 						onClose={() => onOpenChange(false)}
 					/>
 				)}
@@ -170,13 +159,12 @@ interface OverrideFormProps {
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
 	isSubmitting: boolean;
-	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<void>;
-	onRemove: () => Promise<void>;
+	onSave: (request: UpsertUserAIBudgetOverrideRequest) => Promise<unknown>;
+	onRemove: () => Promise<unknown>;
 	onClose: () => void;
 }
 
-// Mounted only once the budget data has loaded so the form state can be seeded
-// directly from it, avoiding an effect that mirrors server state into state.
+/** Mounted only after budget data loads, so state seeds from it without a sync effect. */
 const OverrideForm: FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
@@ -193,73 +181,66 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const overrideId = useId();
 
 	const [overrideEnabled, setOverrideEnabled] = useState(override !== null);
-	// Seed the field with the override, falling back to the group budget, so it
-	// always holds a value and is never confusingly left empty.
+	// Seed from the override, falling back to the group budget, so it's never empty.
 	const [budgetDollars, setBudgetDollars] = useState(() =>
-		formatMicrosForInput((override ?? groupBudget)?.spend_limit_micros ?? 0),
+		String(microsToDollars((override ?? groupBudget)?.spend_limit_micros ?? 0)),
 	);
 	const [selectedGroupId, setSelectedGroupId] = useState(
 		override?.group_id ?? currentGroup.id,
 	);
 
+	// The current group may also be in the user's groups; dedupe by id.
 	const groupOptions = useMemo(() => {
-		const byId = new Map<string, Group>();
-		byId.set(currentGroup.id, currentGroup);
+		const byId = new Map<string, Group>([[currentGroup.id, currentGroup]]);
 		for (const group of userGroups) {
 			byId.set(group.id, group);
 		}
-
 		return [...byId.values()].sort((left, right) =>
-			getGroupDisplayName(left).localeCompare(getGroupDisplayName(right)),
+			groupDisplayName(left).localeCompare(groupDisplayName(right)),
 		);
 	}, [currentGroup, userGroups]);
 
-	const selectedGroup = groupOptions.find(
-		(group) => group.id === selectedGroupId,
-	);
-	const overrideGroup = override
-		? groupOptions.find((group) => group.id === override.group_id)
-		: undefined;
-	const parsedBudgetMicros = parseBudgetMicros(budgetDollars);
-	const budgetInvalid = overrideEnabled && parsedBudgetMicros === undefined;
-	const budgetDisablesAI = overrideEnabled && parsedBudgetMicros === 0;
-	// The footer only appears when there is something to save: an enabled
-	// override to write, or an existing override to remove.
+	const selectedGroup = groupOptions.find((g) => g.id === selectedGroupId);
+	const overrideGroup = groupOptions.find((g) => g.id === override?.group_id);
+
+	// A "0" budget is valid and disables AI; empty or negative is not.
+	const budgetAmount = Number(budgetDollars);
+	const budgetValid = budgetDollars.trim() !== "" && budgetAmount >= 0;
+	const budgetInvalid = overrideEnabled && !budgetValid;
+	const budgetDisablesAI = budgetValid && budgetAmount === 0;
+	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
+	// Submittable with a valid amount to write, or an existing override to remove.
 	const canSubmit =
-		!isSubmitting &&
-		(overrideEnabled
-			? selectedGroupId !== "" && parsedBudgetMicros !== undefined
-			: override !== null);
+		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 
 	const groupLabel = (group: Group) =>
-		`${getGroupDisplayName(group)}${
-			group.id === currentGroup.id ? " (default)" : ""
-		}`;
+		group.id === currentGroup.id
+			? `${groupDisplayName(group)} (default)`
+			: groupDisplayName(group);
 
-	const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
+	const handleSubmit = async (event: SyntheticEvent) => {
 		event.preventDefault();
 		if (!canSubmit) {
 			return;
 		}
 
-		let mutation: Promise<void>;
-		if (overrideEnabled) {
-			if (parsedBudgetMicros === undefined) {
-				return;
-			}
-			mutation = onSave({
-				group_id: selectedGroupId,
-				spend_limit_micros: parsedBudgetMicros,
-			});
-		} else {
-			mutation = onRemove();
-		}
+		const removing = !overrideEnabled;
+		const mutation = removing
+			? onRemove()
+			: onSave({
+					group_id: selectedGroupId,
+					spend_limit_micros: dollarsToMicros(budgetDollars),
+				});
 
-		toast.promise(
-			mutation,
-			budgetToastMessages(user.username, !overrideEnabled),
-		);
+		toast.promise(mutation, {
+			loading: `${removing ? "Removing" : "Updating"} AI budget override for "${user.username}"...`,
+			success: `AI budget override for "${user.username}" ${removing ? "removed" : "updated"} successfully.`,
+			error: (error) => ({
+				message: `Failed to ${removing ? "remove" : "update"} AI budget override for "${user.username}".`,
+				description: getErrorDetail(error),
+			}),
+		});
 		try {
 			await mutation;
 			onClose();
@@ -269,15 +250,28 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	};
 
 	return (
-		<form onSubmit={onSubmit} className="flex flex-col gap-5">
+		<form onSubmit={handleSubmit} className="flex flex-col gap-5">
 			<p className="m-0 text-sm text-content-secondary">
-				{getBudgetSummary({
-					override,
-					groupBudget,
-					currentGroup,
-					overrideGroup,
-					username: user.username,
-				})}
+				{override ? (
+					<>
+						{user.username}'s <Bold>custom</Bold> monthly limit is{" "}
+						<Bold>{formatUSD(override.spend_limit_micros)}</Bold>, charged to{" "}
+						<Bold>
+							{overrideGroup ? groupDisplayName(overrideGroup) : "their group"}
+						</Bold>{" "}
+						group.
+					</>
+				) : (
+					<>
+						{user.username}'s monthly limit is{" "}
+						<Bold>
+							{groupBudget
+								? formatUSD(groupBudget.spend_limit_micros)
+								: "uncapped"}
+						</Bold>
+						, charged to <Bold>{groupDisplayName(currentGroup)}</Bold> group.
+					</>
+				)}
 			</p>
 
 			<Separator />
@@ -313,7 +307,9 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								id={budgetId}
 								value={budgetDollars}
 								onChange={(event) => setBudgetDollars(event.target.value)}
-								inputMode="decimal"
+								type="number"
+								min="0"
+								step="1"
 								aria-invalid={budgetInvalid}
 								aria-describedby={
 									budgetInvalid ? `${budgetId}-error` : undefined
@@ -342,37 +338,29 @@ const OverrideForm: FC<OverrideFormProps> = ({
 						<Combobox
 							value={selectedGroupId}
 							onValueChange={(value) => {
-								// Selecting the same option clears it; keep the current
-								// group since an assignment is always required.
+								// Ignore clearing; a group assignment is always required.
 								if (value) {
 									setSelectedGroupId(value);
 								}
 							}}
 						>
 							<ComboboxTrigger asChild>
-								<button
-									type="button"
+								<ComboboxButton
 									id={groupId}
-									className="flex h-10 w-full items-center justify-between gap-2
-										rounded-md border border-border border-solid bg-transparent px-3
-										py-2 text-sm font-medium shadow-sm focus-visible:outline-none
-										focus-visible:ring-2 focus-visible:ring-content-link"
-								>
-									<span className="flex min-w-0 items-center gap-2">
-										{selectedGroup && (
-											<Avatar
-												src={selectedGroup.avatar_url}
-												fallback={getGroupDisplayName(selectedGroup)}
-											/>
-										)}
-										<span className="truncate text-content-primary">
-											{selectedGroup
-												? groupLabel(selectedGroup)
-												: "Select a group"}
-										</span>
-									</span>
-									<ChevronDownIcon className="size-icon-sm shrink-0 text-content-secondary" />
-								</button>
+									selectedOption={
+										selectedGroup && {
+											label: groupLabel(selectedGroup),
+											value: selectedGroup.id,
+											startIcon: (
+												<Avatar
+													src={selectedGroup.avatar_url}
+													fallback={groupDisplayName(selectedGroup)}
+												/>
+											),
+										}
+									}
+									placeholder="Select a group"
+								/>
 							</ComboboxTrigger>
 							<ComboboxContent
 								align="start"
@@ -384,12 +372,12 @@ const OverrideForm: FC<OverrideFormProps> = ({
 										<ComboboxItem
 											key={group.id}
 											value={group.id}
-											keywords={[getGroupDisplayName(group)]}
+											keywords={[groupDisplayName(group)]}
 										>
 											<span className="flex min-w-0 items-center gap-2">
 												<Avatar
 													src={group.avatar_url}
-													fallback={getGroupDisplayName(group)}
+													fallback={groupDisplayName(group)}
 												/>
 												<span className="truncate">{groupLabel(group)}</span>
 											</span>
@@ -418,85 +406,12 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	);
 };
 
-function getGroupDisplayName(group: Group): string {
-	return group.display_name || group.name;
-}
+const Bold: FC<{ children: ReactNode }> = ({ children }) => (
+	<span className="font-medium text-content-primary">{children}</span>
+);
 
-function budgetToastMessages(username: string, isRemoval: boolean) {
-	const gerund = isRemoval ? "Removing" : "Updating";
-	const past = isRemoval ? "removed" : "updated";
-	const base = isRemoval ? "remove" : "update";
-	return {
-		loading: `${gerund} AI budget override for "${username}"...`,
-		success: `AI budget override for "${username}" ${past} successfully.`,
-		error: (error: unknown) => ({
-			message: `Failed to ${base} AI budget override for "${username}".`,
-			description: getErrorDetail(error),
-		}),
-	};
-}
+const groupDisplayName = (group: Group): string =>
+	group.display_name || group.name;
 
-function getBudgetSummary({
-	override,
-	groupBudget,
-	currentGroup,
-	overrideGroup,
-	username,
-}: {
-	override: UserAIBudgetOverride | null;
-	groupBudget: GroupAIBudget | null;
-	currentGroup: Group;
-	overrideGroup: Group | undefined;
-	username: string;
-}): ReactNode {
-	const bold = (value: ReactNode) => (
-		<span className="font-medium text-content-primary">{value}</span>
-	);
-	const formatUSD = (micros: number) =>
-		`${usdBudgetFormatter.format(microsToDollars(micros))} USD`;
-
-	if (override) {
-		const groupName = overrideGroup
-			? getGroupDisplayName(overrideGroup)
-			: "their group";
-		return (
-			<>
-				{username}'s {bold("custom")} monthly limit is{" "}
-				{bold(formatUSD(override.spend_limit_micros))}, charged to{" "}
-				{bold(groupName)} group.
-			</>
-		);
-	}
-
-	return (
-		<>
-			{username}'s monthly limit is{" "}
-			{groupBudget
-				? bold(formatUSD(groupBudget.spend_limit_micros))
-				: bold("uncapped")}
-			, charged to {bold(getGroupDisplayName(currentGroup))} group.
-		</>
-	);
-}
-
-function formatMicrosForInput(micros: number): string {
-	return editableBudgetFormatter.format(microsToDollars(micros));
-}
-
-// Kept local rather than reusing dollarsToMicros: a $0 override is valid (it
-// disables AI), and an empty field must stay distinct from 0 so the form can
-// flag it instead of silently submitting zero.
-function parseBudgetMicros(value: string): number | undefined {
-	const normalized = value.replace(/,/g, "").trim();
-	if (normalized === "") {
-		return undefined;
-	}
-
-	const dollars = Number(normalized);
-	if (!Number.isFinite(dollars)) {
-		return undefined;
-	}
-
-	const micros = Math.round(dollars * MICROS_PER_DOLLAR);
-	return micros >= 0 ? micros : undefined;
-}
+const formatUSD = (micros: number): string =>
+	`${usdBudgetFormatter.format(microsToDollars(micros))} USD`;
