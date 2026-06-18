@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,8 +70,8 @@ func TestStripReadmeFrontmatter(t *testing.T) {
 			want:  "# Title\n\nBody.\n",
 		},
 		{
-			name:  "NoFenceUnchanged",
-			input: "# Title\n\nNo frontmatter here.\n",
+			name:  "NoFence",
+			input: "\n# Title\n\nNo frontmatter here.\n",
 			want:  "# Title\n\nNo frontmatter here.\n",
 		},
 		{
@@ -86,7 +87,7 @@ func TestStripReadmeFrontmatter(t *testing.T) {
 		{
 			name:  "CRLFFence",
 			input: "---\r\nkey: val\r\n---\r\n# Title\r\n",
-			want:  "# Title\r\n",
+			want:  "# Title\n",
 		},
 		{
 			name:  "BOMPrefix",
@@ -118,12 +119,86 @@ func TestStripReadmeFrontmatter(t *testing.T) {
 			input: "# Title\n\n---\n\nMore.\n",
 			want:  "# Title\n\n---\n\nMore.\n",
 		},
+		{
+			// Only the leading block is frontmatter. A "---" thematic break in
+			// the body must survive verbatim, not re-open a fence.
+			name:  "FrontmatterThenThematicBreakInBody",
+			input: "---\ntitle: Foo\n---\n# Heading\n\n---\n\nSecond section.\n",
+			want:  "# Heading\n\n---\n\nSecond section.\n",
+		},
+		{
+			// Multiple body breaks: every "---" after the closing fence is body
+			// content. An even count must not silently eat the sections between.
+			name:  "FrontmatterThenMultipleThematicBreaks",
+			input: "---\ntitle: Foo\n---\nIntro\n\n---\n\nMid\n\n---\n\nEnd\n",
+			want:  "Intro\n\n---\n\nMid\n\n---\n\nEnd\n",
+		},
+		{
+			// An indented "---" is not a YAML document separator (must be at
+			// column 0), so it stays inside the frontmatter block.
+			name:  "IndentedFenceInFrontmatterNotClosing",
+			input: "---\nkey: val\n  ---\nstill: fm\n---\nBody.\n",
+			want:  "Body.\n",
+		},
+		{
+			// Final body line without a trailing newline is still emitted and
+			// newline-terminated.
+			name:  "BodyWithoutTrailingNewline",
+			input: "---\nk: v\n---\nBody no newline",
+			want:  "Body no newline\n",
+		},
+		{
+			name:  "WhitespaceOnlyReturnsEmpty",
+			input: "   \n\t\n",
+			want:  "",
+		},
+		{
+			name:  "EmptyReturnsEmpty",
+			input: "",
+			want:  "",
+		},
+		{
+			// Leading indentation marks a Markdown code block. It must survive
+			// verbatim; per-line trimming would turn the block into a paragraph.
+			name:  "IndentedCodeBlockPreserved",
+			input: "---\ntitle: Foo\n---\n# Heading\n\n    indented := code\n    more := code\n",
+			want:  "# Heading\n\n    indented := code\n    more := code\n",
+		},
+		{
+			// Tabs and spaces inside a fenced code block are content, not
+			// stray whitespace, and must not be stripped.
+			name:  "FencedCodeBlockPreservesIndentation",
+			input: "---\ntitle: Foo\n---\n```go\nfunc main() {\n\tprintln(\"hi\")\n}\n```\n",
+			want:  "```go\nfunc main() {\n\tprintln(\"hi\")\n}\n```\n",
+		},
+		{
+			// A "---" inside a body code block is literal content, not a fence,
+			// once the leading frontmatter block has closed.
+			name:  "ThematicBreakInsideBodyCodeBlock",
+			input: "---\ntitle: Foo\n---\n```\n---\n```\nAfter.\n",
+			want:  "```\n---\n```\nAfter.\n",
+		},
+		{
+			// Table pipes and the dashed alignment row pass through unchanged;
+			// the alignment row is not a frontmatter fence.
+			name:  "TablePreserved",
+			input: "---\ntitle: Foo\n---\n| Col A | Col B |\n| ----- | ----- |\n| 1     | 2     |\n",
+			want:  "| Col A | Col B |\n| ----- | ----- |\n| 1     | 2     |\n",
+		},
+		{
+			name:  "Oversized",
+			input: strings.Repeat("x", readmeInputMaxBytes+2),
+			want:  strings.Repeat("x", readmeInputMaxBytes+2),
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			require.Equal(t, tc.want, stripReadmeFrontmatter(tc.input))
+			got := stripReadmeFrontmatter(tc.input)
+			if diff := cmp.Diff(tc.want, got); diff != "" {
+				t.Errorf("unexpected diff: %s", diff)
+			}
 		})
 	}
 }

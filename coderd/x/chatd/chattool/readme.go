@@ -1,7 +1,9 @@
 package chattool
 
 import (
+	"bufio"
 	"strings"
+	"unicode"
 
 	"github.com/coder/coder/v2/coderd/render"
 	coderstrings "github.com/coder/coder/v2/coderd/util/strings"
@@ -25,36 +27,56 @@ func readmeText(readme string, maxRunes int) string {
 	return coderstrings.Truncate(text, maxRunes, coderstrings.TruncateWithEllipsis)
 }
 
-// stripReadmeFrontmatter removes a single leading "---" YAML frontmatter block
-// so routing prose, not metadata, fills the budget. Without a leading or closing
-// fence, only a leading BOM is stripped. A "---" inside a quoted YAML scalar can
-// be misread as the closing fence; accepted to avoid a full YAML parser.
+// stripReadmeFrontmatter strips a leading frontmatter block from the README if it
+// exists. An unterminated frontmatter block is treated as a regular body section.
+// UTF-8 BOMs are stripped if present, and CRLF is normalized to LF. Leading
+// whitespace is also stripped.
 func stripReadmeFrontmatter(readme string) string {
-	// Strip a leading UTF-8 BOM so the first-line fence matches and the BOM
-	// never leaks downstream.
-	s := strings.TrimPrefix(readme, "\ufeff")
-	lines := strings.Split(s, "\n")
+	trimmed := strings.TrimLeftFunc(readme, func(r rune) bool {
+		return unicode.IsSpace(r) || r == '\ufeff'
+	})
 
-	// Skip leading blank lines; the fence must be the first content.
-	i := 0
-	for i < len(lines) && strings.TrimSpace(lines[i]) == "" {
-		i++
-	}
-	if i >= len(lines) || !isFenceLine(lines[i]) {
-		return s
-	}
+	var out strings.Builder
+	scn := bufio.NewScanner(strings.NewReader(trimmed))
+	scn.Buffer(nil, readmeInputMaxBytes+1) // headroom
+	var lineNumber int
+	var fences int
+	for scn.Scan() {
+		line := scn.Text()
+		lineNumber++
 
-	// Find the closing fence. Without one, there is no frontmatter to strip.
-	for j := i + 1; j < len(lines); j++ {
-		if isFenceLine(lines[j]) {
-			return strings.Join(lines[j+1:], "\n")
+		// Only handle fences if we haven't already found an
+		// opening and closing fence.
+		if fences < 2 {
+			isFence := strings.TrimRight(line, " \t\r") == "---"
+			if isFence {
+				fences++
+				continue
+			} else if lineNumber == 1 {
+				// No leading fence -> no frontmatter. Return the entire document.
+				return trimmed
+			}
+			// We are still in the frontmatter block. Skip writing this line.
+			continue
 		}
+		out.WriteString(line)
+		out.WriteString("\n")
 	}
-	return s
-}
 
-// isFenceLine reports whether a line is a "---" frontmatter fence, tolerating
-// trailing whitespace and a carriage return from CRLF readmes.
-func isFenceLine(line string) bool {
-	return strings.TrimRight(line, " \t\r") == "---"
+	// Can err if input is too big. Shouldn't happen normally.
+	if scn.Err() != nil {
+		return trimmed
+	}
+
+	// Scanner did not scan any lines. No frontmatter to strip.
+	if lineNumber == 0 {
+		return trimmed
+	}
+
+	// If we are still fenced but we reached the end of the document
+	// we have an unterminated fence.
+	if fences == 1 {
+		return trimmed
+	}
+	return out.String()
 }
