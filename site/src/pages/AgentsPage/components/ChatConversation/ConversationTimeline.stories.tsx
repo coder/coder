@@ -396,13 +396,6 @@ const defaultArgs: Omit<
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();

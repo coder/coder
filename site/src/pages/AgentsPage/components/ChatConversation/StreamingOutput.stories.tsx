@@ -6,7 +6,7 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 } from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent
@@ -15,20 +15,7 @@ import {
 const meta: Meta<typeof StreamingOutput> = {
 	title: "pages/AgentsPage/ChatConversation/StreamingOutput",
 	component: StreamingOutput,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof StreamingOutput>;

@@ -354,5 +354,19 @@ describe("toComposeRequest", () => {
 		const request = toComposeRequest(initialWizardState);
 		expect(request.base_template_id).toBe("");
 		expect(request.modules).toEqual([]);
+		expect(request.base_variable_values).toBeUndefined();
+	});
+
+	it("includes base_variable_values when set", () => {
+		const state: TemplateBuilderWizardState = {
+			...initialWizardState,
+			baseTemplateId: "kubernetes",
+			baseVariableValues: { namespace: "default", use_kubeconfig: "false" },
+		};
+		const request = toComposeRequest(state);
+		expect(request.base_variable_values).toEqual({
+			namespace: "default",
+			use_kubeconfig: "false",
+		});
 	});
 });

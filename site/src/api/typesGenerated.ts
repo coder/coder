@@ -8119,6 +8119,7 @@ export interface TemplateBuilderBase {
 	readonly description: string;
 	readonly icon: string;
 	readonly os: string;
+	readonly variables: readonly TemplateBuilderModuleVariable[];
 }
 
 // From codersdk/templatebuilder.go
@@ -8146,6 +8147,7 @@ export interface TemplateBuilderComposeModule {
  */
 export interface TemplateBuilderComposeRequest {
 	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
 	readonly modules: readonly TemplateBuilderComposeModule[];
 }
 
@@ -8162,6 +8164,7 @@ export interface TemplateBuilderConfig {
  */
 export interface TemplateBuilderCreateTemplateRequest {
 	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
 	readonly modules: readonly TemplateBuilderComposeModule[];
 	readonly organization_id: string;
 	readonly name: string;

@@ -214,6 +214,9 @@ func (s *streamPartsTransportSession) Close() error {
 	s.closeOnce.Do(func() {
 		s.cancel()
 		s.closeErr = s.transport.Close()
+		if streamPartsExpectedTransportClose(s.closeErr) {
+			s.closeErr = nil
+		}
 	})
 	return s.closeErr
 }

@@ -10,7 +10,7 @@ export const AIBridgeSetupAlert: FC = () => {
 				AI Gateway is included in your license, but not set up yet.
 			</AlertTitle>
 			<AlertDescription>
-				You have access to AI Governance, but it still needs to be setup. Check
+				You have access to AI Governance, but it still needs to be set up. Check
 				out the{" "}
 				<Link href={docs("/ai-coder/ai-gateway")} target="_blank">
 					AI Gateway

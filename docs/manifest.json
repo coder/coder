@@ -1025,6 +1025,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls/index.md",
