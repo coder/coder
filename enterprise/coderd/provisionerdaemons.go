@@ -150,14 +150,7 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 // be deleted. The reserved keys (built-in, user-auth, PSK) and the zero value
 // are not deletable.
 func isDeletableProvisionerKey(keyID uuid.UUID) bool {
-	switch keyID {
-	case uuid.Nil,
-		codersdk.ProvisionerKeyUUIDBuiltIn,
-		codersdk.ProvisionerKeyUUIDUserAuth,
-		codersdk.ProvisionerKeyUUIDPSK:
-		return false
-	}
-	return true
+	return keyID != uuid.Nil && !codersdk.IsReservedProvisionerKey(keyID)
 }
 
 // Serves the provisioner daemon protobuf API over a WebSocket.
@@ -374,6 +367,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 			AISeatTracker:       api.AGPL.AISeatTracker,
 			Clock:               api.Clock,
 			KeyID:               authRes.keyID,
+			SessionCancel:       srvCancel,
 		},
 		api.NotificationsEnqueuer,
 		&api.AGPL.PrebuildsReconciler,

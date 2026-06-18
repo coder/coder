@@ -283,8 +283,9 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 	require.Equal(t, "", job.JobId)
 }
 
-// TestAcquireJob_ProvisionerKeyDeleted verifies that acquiring a job fails once
-// the provisioner key the daemon authenticated with is deleted.
+// TestAcquireJob_ProvisionerKeyDeleted verifies that acquiring a job fails and
+// the session is canceled once the provisioner key the daemon authenticated
+// with is deleted.
 func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 	t.Parallel()
 
@@ -298,7 +299,12 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 		}},
 		{name: "WithCancel", acquire: func(ctx context.Context, srv proto.DRPCProvisionerDaemonServer) error {
 			fs := newFakeStream(ctx)
-			return srv.AcquireJobWithCancel(fs)
+			errCh := make(chan error, 1)
+			go func() { errCh <- srv.AcquireJobWithCancel(fs) }()
+			// Cancel so the present-key acquire returns an empty job promptly; on
+			// the deleted-key path the key check returns before this is read.
+			fs.cancel()
+			return <-errCh
 		}},
 	}
 	for _, tc := range cases {
@@ -307,29 +313,30 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			// setup inserts a deletable provisioner key with this ID and ties the
-			// daemon to it. A short poll keeps the no-job acquire from blocking
-			// while the key still exists.
+			// daemon to it. sessionCancel records that the deleted-key path tore
+			// down the session. A short poll keeps the no-job acquire from
+			// blocking while the key still exists.
 			keyID := uuid.New()
+			sessionCanceled := make(chan struct{})
+			var once sync.Once
 			srv, srvDB, _, _ := setup(t, false, &overrides{
 				keyID:                      keyID,
 				acquireJobLongPollDuration: time.Microsecond,
+				sessionCancel:              func() { once.Do(func() { close(sessionCanceled) }) },
 			})
 
-			// While the key exists, the key check passes: the deprecated acquire
-			// returns an empty job after the short poll.
-			job, err := srv.AcquireJob(ctx, nil)
-			require.NoError(t, err)
-			require.Equal(t, &proto.AcquiredJob{}, job)
+			// While the key exists, acquiring returns without error.
+			require.NoError(t, tc.acquire(ctx, srv))
 
-			// Once the key is deleted, acquiring must fail rather than hand out
-			// work. The key check runs before the acquire blocks, so both variants
-			// return promptly.
-			err = srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
+			// Once the key is deleted, acquiring must fail and the session must be
+			// canceled rather than left polling a deleted key.
+			err := srvDB.DeleteProvisionerKey(dbauthz.AsProvisionerd(ctx), keyID)
 			require.NoError(t, err)
 
 			err = tc.acquire(ctx, srv)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), "was deleted")
+			testutil.TryReceive(ctx, t, sessionCanceled)
 		})
 	}
 }
@@ -5240,6 +5247,7 @@ type overrides struct {
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
 	provisionerdLogger          *slog.Logger
 	keyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -5326,11 +5334,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		keyID = ov.keyID
 		// The daemon's key_id is a foreign key to provisioner_keys, so a
 		// non-reserved key must exist before the daemon is created.
-		switch keyID {
-		case codersdk.ProvisionerKeyUUIDBuiltIn,
-			codersdk.ProvisionerKeyUUIDUserAuth,
-			codersdk.ProvisionerKeyUUIDPSK:
-		default:
+		if !codersdk.IsReservedProvisionerKey(keyID) {
 			dbgen.ProvisionerKey(t, db, database.ProvisionerKey{
 				ID:             keyID,
 				OrganizationID: defOrg.ID,
@@ -5390,6 +5394,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			HeartbeatInterval:     ov.heartbeatInterval,
 			HeartbeatFn:           ov.heartbeatFn,
 			KeyID:                 keyID,
+			SessionCancel:         ov.sessionCancel,
 		},
 		notifEnq,
 		&op,

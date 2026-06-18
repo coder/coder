@@ -79,11 +79,14 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
-	// KeyID is the provisioner key the daemon authenticated with. It is
-	// checked against the database before a job is acquired. The zero value
-	// and reserved key IDs skip the check, since reserved keys cannot be
-	// deleted.
+	// KeyID is the provisioner key the daemon authenticated with. The zero
+	// value and reserved key IDs are not validated.
 	KeyID uuid.UUID
+
+	// SessionCancel, if set, terminates the daemon's session. It is called
+	// when the key the daemon authenticated with is found deleted during job
+	// acquisition.
+	SessionCancel context.CancelFunc
 
 	// Clock for testing
 	Clock quartz.Clock
@@ -111,6 +114,7 @@ type server struct {
 	AccessURL                   *url.URL
 	ID                          uuid.UUID
 	KeyID                       uuid.UUID
+	sessionCancel               context.CancelFunc
 	OrganizationID              uuid.UUID
 	Logger                      slog.Logger
 	Provisioners                []database.ProvisionerType
@@ -244,6 +248,7 @@ func NewServer(
 		AccessURL:                   accessURL,
 		ID:                          id,
 		KeyID:                       options.KeyID,
+		sessionCancel:               options.SessionCancel,
 		OrganizationID:              organizationID,
 		Logger:                      logger,
 		Provisioners:                provisioners,
@@ -341,11 +346,7 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 // PSK) and the zero value are never stored as deletable rows, so they always
 // report false.
 func (s *server) keyDeleted(ctx context.Context) (bool, error) {
-	switch s.KeyID {
-	case uuid.Nil,
-		codersdk.ProvisionerKeyUUIDBuiltIn,
-		codersdk.ProvisionerKeyUUIDUserAuth,
-		codersdk.ProvisionerKeyUUIDPSK:
+	if s.KeyID == uuid.Nil || codersdk.IsReservedProvisionerKey(s.KeyID) {
 		return false, nil
 	}
 	_, err := s.Database.GetProvisionerKeyByID(
@@ -361,6 +362,16 @@ func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+// terminateOnDeletedKey cancels the session when the daemon's key has been
+// deleted. The pubsub subscription in the serve handler normally cancels the
+// session first; this also covers a missed notification, so the daemon does
+// not poll a deleted key indefinitely.
+func (s *server) terminateOnDeletedKey() {
+	if s.sessionCancel != nil {
+		s.sessionCancel()
+	}
+}
+
 // AcquireJob queries the database to lock a job.
 //
 // Deprecated: This method is only available for back-level provisioner daemons.
@@ -368,8 +379,9 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	if deleted, err := s.keyDeleted(ctx); err != nil {
-		return nil, xerrors.Errorf("check provisioner key: %w", err)
+		return nil, err
 	} else if deleted {
+		s.terminateOnDeletedKey()
 		return nil, xerrors.Errorf("provisioner key %q was deleted", s.KeyID)
 	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
@@ -406,8 +418,9 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		}
 	}()
 	if deleted, err := s.keyDeleted(streamCtx); err != nil {
-		return xerrors.Errorf("check provisioner key: %w", err)
+		return err
 	} else if deleted {
+		s.terminateOnDeletedKey()
 		return xerrors.Errorf("provisioner key %q was deleted", s.KeyID)
 	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)

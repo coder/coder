@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -21,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -215,6 +218,60 @@ func TestProvisionerDaemonServe(t *testing.T) {
 		case <-srv.DRPCConn().Closed():
 		case <-ctx.Done():
 			t.Fatal("timed out waiting for provisioner daemon session to close")
+		}
+	})
+
+	t.Run("KeyDeletedDuringSetupClosesSession", func(t *testing.T) {
+		t.Parallel()
+		// Provisioner key auth fetches the key by name, so the only
+		// GetProvisionerKeyByID in the serve path is the post-subscribe
+		// re-check. Deleting the key on that read reproduces a key deleted
+		// between authentication and subscription, which the re-check must
+		// catch even though no pubsub notification is delivered.
+		db, ps := dbtestutil.NewDB(t)
+		store := &deleteKeyOnReadStore{Store: db}
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Database: store,
+				Pubsub:   ps,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+		org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgAdmin(org.ID))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		res, err := orgAdmin.CreateProvisionerKey(ctx, org.ID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-key",
+		})
+		require.NoError(t, err)
+		keys, err := orgAdmin.ListProvisionerKeys(ctx, org.ID)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		keyID := keys[0].ID
+		store.keyID.Store(&keyID)
+
+		srv, err := orgAdmin.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
+			Name:         testutil.MustRandString(t, 63),
+			Organization: org.ID,
+			Provisioners: []codersdk.ProvisionerType{
+				codersdk.ProvisionerTypeEcho,
+			},
+			Tags:           map[string]string{},
+			ProvisionerKey: res.Key,
+		})
+		require.NoError(t, err)
+		defer srv.DRPCConn().Close()
+
+		select {
+		case <-srv.DRPCConn().Closed():
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for re-check to close the session")
 		}
 	})
 
@@ -1032,4 +1089,24 @@ func TestGetProvisionerDaemons(t *testing.T) {
 			})
 		}
 	})
+}
+
+// deleteKeyOnReadStore deletes the provisioner key identified by keyID the
+// first time it is fetched by ID, simulating a key deleted during connection
+// setup. keyID is set after the key is created so earlier lookups are
+// unaffected.
+type deleteKeyOnReadStore struct {
+	database.Store
+	keyID atomic.Pointer[uuid.UUID]
+	once  sync.Once
+}
+
+func (s *deleteKeyOnReadStore) GetProvisionerKeyByID(ctx context.Context, id uuid.UUID) (database.ProvisionerKey, error) {
+	if target := s.keyID.Load(); target != nil && *target == id {
+		s.once.Do(func() {
+			//nolint:gocritic // The test deletes the key outside the request actor.
+			_ = s.Store.DeleteProvisionerKey(dbauthz.AsSystemRestricted(context.Background()), id)
+		})
+	}
+	return s.Store.GetProvisionerKeyByID(ctx, id)
 }

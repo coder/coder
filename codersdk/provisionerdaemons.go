@@ -411,6 +411,18 @@ func ReservedProvisionerKeyNames() []string {
 	}
 }
 
+// IsReservedProvisionerKey reports whether the given ID is one of the reserved
+// provisioner keys (built-in, user-auth, PSK). Reserved keys are created by the
+// system and cannot be deleted.
+func IsReservedProvisionerKey(id uuid.UUID) bool {
+	switch id {
+	case ProvisionerKeyUUIDBuiltIn, ProvisionerKeyUUIDUserAuth, ProvisionerKeyUUIDPSK:
+		return true
+	default:
+		return false
+	}
+}
+
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`
