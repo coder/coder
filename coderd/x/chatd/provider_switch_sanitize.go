@@ -135,6 +135,13 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 		}
 		_, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, id.UUID)
 		if rErr != nil {
+			// Unresolvable origin (e.g. a since-disabled or deleted config) is
+			// treated as foreign so we fail closed rather than replay blocks the
+			// target may reject.
+			logger.Debug(ctx, "provider-switch sanitization: origin provider unresolved, treating as foreign",
+				slog.F("model_config_id", id.UUID),
+				slog.Error(rErr),
+			)
 			provider = ""
 		}
 		cache[id.UUID] = provider

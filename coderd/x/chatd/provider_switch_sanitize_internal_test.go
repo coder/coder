@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -165,5 +166,18 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		require.Len(t, got, 1)
 		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[0]))
 		require.Equal(t, providerSwitchStripStats{RemovedToolResults: 1}, stats)
+	})
+
+	t.Run("unparsable foreign row kept unchanged", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{{
+			Role:           database.ChatMessageRoleAssistant,
+			ModelConfigID:  uuid.NullUUID{UUID: anthropicCfg, Valid: true},
+			Content:        pqtype.NullRawMessage{RawMessage: []byte("{not json"), Valid: true},
+			ContentVersion: chatprompt.ContentVersionV1,
+		}}
+		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
+		require.Equal(t, rows, got)
+		require.Zero(t, stats)
 	})
 }
