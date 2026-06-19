@@ -262,6 +262,7 @@ func TestNormalizationFieldCoverage(t *testing.T) {
 				"ClientMetadata":   "skipped: client execution metadata not needed for debug panel",
 				"ProviderExecuted": "skipped: provider vs client distinction not needed for debug panel",
 				"ProviderMetadata": "skipped: opaque provider-specific metadata",
+				"StopTurn":         "skipped: control-flow flag is not rendered in the debug panel",
 			},
 		},
 

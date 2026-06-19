@@ -16,7 +16,8 @@ import (
 type Option func(*options)
 
 type options struct {
-	path string
+	path           string
+	contextManager ContextManager
 }
 
 // WithPath sets the socket path. If not provided or empty, the client will
@@ -27,6 +28,14 @@ func WithPath(path string) Option {
 			return
 		}
 		opts.path = path
+	}
+}
+
+// WithContextManager supplies the workspace-context Manager the server uses to
+// serve context source CRUD. Server-only; ignored by the client.
+func WithContextManager(cm ContextManager) Option {
+	return func(opts *options) {
+		opts.contextManager = cm
 	}
 }
 
@@ -157,6 +166,92 @@ func (c *Client) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateAppS
 	return c.client.UpdateAppStatus(ctx, req)
 }
 
+// ContextSources lists the workspace-context sources registered on the agent.
+func (c *Client) ContextSources(ctx context.Context) ([]ContextSource, error) {
+	resp, err := c.client.ContextSources(ctx, &proto.ContextSourcesRequest{})
+	if err != nil {
+		return nil, err
+	}
+	sources := make([]ContextSource, 0, len(resp.Sources))
+	for _, s := range resp.Sources {
+		sources = append(sources, ContextSource{Path: s.GetPath()})
+	}
+	return sources, nil
+}
+
+// GetContextSource returns a single registered source. The path is
+// canonicalized by the agent before matching.
+func (c *Client) GetContextSource(ctx context.Context, path string) (ContextSource, error) {
+	resp, err := c.client.GetContextSource(ctx, &proto.GetContextSourceRequest{Path: path})
+	if err != nil {
+		return ContextSource{}, err
+	}
+	return ContextSource{Path: resp.GetSource().GetPath()}, nil
+}
+
+// AddContextSource registers a new scan root on the agent.
+func (c *Client) AddContextSource(ctx context.Context, path string) (ContextSource, error) {
+	resp, err := c.client.AddContextSource(ctx, &proto.AddContextSourceRequest{Path: path})
+	if err != nil {
+		return ContextSource{}, err
+	}
+	return ContextSource{Path: resp.GetSource().GetPath()}, nil
+}
+
+// RemoveContextSource removes a previously-registered scan root.
+func (c *Client) RemoveContextSource(ctx context.Context, path string) error {
+	_, err := c.client.RemoveContextSource(ctx, &proto.RemoveContextSourceRequest{Path: path})
+	return err
+}
+
+// GetContextSnapshot returns the agent's current resolved snapshot without
+// forcing a re-walk.
+func (c *Client) GetContextSnapshot(ctx context.Context) (ContextSnapshot, error) {
+	resp, err := c.client.GetContextSnapshot(ctx, &proto.ContextSnapshotRequest{})
+	if err != nil {
+		return ContextSnapshot{}, err
+	}
+	return contextSnapshotFromProto(resp.GetSnapshot()), nil
+}
+
+// ResyncContext forces a re-walk and synchronous push, returning the resulting
+// snapshot. Use it as a barrier before fanning out a refresh.
+func (c *Client) ResyncContext(ctx context.Context) (ContextSnapshot, error) {
+	resp, err := c.client.ResyncContext(ctx, &proto.ResyncContextRequest{})
+	if err != nil {
+		return ContextSnapshot{}, err
+	}
+	return contextSnapshotFromProto(resp.GetSnapshot()), nil
+}
+
+func contextSnapshotFromProto(s *proto.ContextSnapshot) ContextSnapshot {
+	if s == nil {
+		return ContextSnapshot{}
+	}
+	out := ContextSnapshot{
+		Version:       s.GetVersion(),
+		AggregateHash: s.GetAggregateHash(),
+		Resources:     make([]ContextResource, 0, len(s.GetResources())),
+		PayloadBytes:  s.GetPayloadBytes(),
+		SnapshotError: s.GetSnapshotError(),
+	}
+	for _, r := range s.GetResources() {
+		out.Resources = append(out.Resources, ContextResource{
+			ID:          r.GetId(),
+			Kind:        r.GetKind(),
+			Source:      r.GetSource(),
+			SourcePath:  r.GetSourcePath(),
+			ContentHash: r.GetContentHash(),
+			SizeBytes:   r.GetSizeBytes(),
+			Status:      r.GetStatus(),
+			Error:       r.GetError(),
+			Name:        r.GetName(),
+			Description: r.GetDescription(),
+		})
+	}
+	return out
+}
+
 // SyncStatusResponse contains the status information for a unit.
 type SyncStatusResponse struct {
 	UnitName     unit.ID          `table:"unit,default_sort" json:"unit_name"`
@@ -178,4 +273,33 @@ type DependencyInfo struct {
 	RequiredStatus unit.Status `table:"required status" json:"required_status"`
 	CurrentStatus  unit.Status `table:"current status" json:"current_status"`
 	IsSatisfied    bool        `table:"satisfied" json:"is_satisfied"`
+}
+
+// ContextSource is a registered workspace-context scan root.
+type ContextSource struct {
+	Path string `table:"path,default_sort" json:"path"`
+}
+
+// ContextResource is a resolved workspace-context resource. Payload bytes are
+// never carried over the socket.
+type ContextResource struct {
+	Kind        string `table:"kind,default_sort" json:"kind"`
+	Name        string `table:"name" json:"name"`
+	Source      string `table:"source" json:"source"`
+	SourcePath  string `table:"source path" json:"source_path"`
+	Status      string `table:"status" json:"status"`
+	SizeBytes   uint64 `table:"size bytes" json:"size_bytes"`
+	Error       string `table:"error" json:"error"`
+	Description string `table:"-" json:"description"`
+	ID          string `table:"-" json:"id"`
+	ContentHash string `table:"-" json:"content_hash"`
+}
+
+// ContextSnapshot is the agent's resolved workspace-context state.
+type ContextSnapshot struct {
+	Version       uint64            `json:"version"`
+	AggregateHash string            `json:"aggregate_hash"`
+	Resources     []ContextResource `json:"resources"`
+	PayloadBytes  uint64            `json:"payload_bytes"`
+	SnapshotError string            `json:"snapshot_error"`
 }

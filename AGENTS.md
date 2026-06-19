@@ -85,6 +85,10 @@ instructions focused on guardrails that agents should see immediately.
   [OAuth2 Development Guide](.claude/docs/OAUTH2.md). OAuth2 endpoints must
   use RFC-compliant errors such as `writeOAuth2Error(...)`, and public
   endpoints that need system access should use `dbauthz.AsSystemRestricted`.
+- **Chatd**: consult [Chatd Architecture](coderd/x/chatd/ARCHITECTURE.md) to
+  understand the architecture of the chatd subsystem. If you update the
+  chatd subsystem in ways that affect the architecture, you must update the
+  architecture document.
 - **API design**: Follow the API guardrails in
   [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md),
   including swagger annotations for new public HTTP endpoints.

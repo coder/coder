@@ -1804,7 +1804,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -3719,6 +3719,16 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
 		authenticated: true,
 		display_icon: "/icon/github.svg",
 		display_name: "GitHub",
+	};
+
+export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExternalAuth =
+	{
+		id: "azure",
+		type: "azure",
+		authenticate_url: "https://example.com/external-auth/azure",
+		authenticated: false,
+		display_icon: "/icon/azure.svg",
+		display_name: "Azure",
 	};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
