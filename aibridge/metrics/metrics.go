@@ -1,10 +1,9 @@
 package metrics
 
 import (
-	"golang.org/x/xerrors"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"golang.org/x/xerrors"
 )
 
 var baseLabels = []string{"provider", "model"}

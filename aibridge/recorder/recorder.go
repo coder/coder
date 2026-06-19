@@ -2,8 +2,8 @@ package recorder
 
 import (
 	"context"
+	"flag"
 	"sync"
-	"testing"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -254,7 +254,7 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 						slog.F("value", v),
 						slog.Error(err),
 					}
-					if testing.Testing() {
+					if flag.Lookup("test.v") != nil {
 						a.logger.Error(timedCtx, "dropped negative token count from metric", fields...)
 					} else {
 						a.logger.Warn(timedCtx, "dropped negative token count from metric", fields...)
