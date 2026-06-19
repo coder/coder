@@ -215,6 +215,13 @@ func (server *Server) prepareGeneration(
 		resolvedUserPrompt string
 	)
 
+	// Drop provider-executed tool history produced by a different provider
+	// before building the prompt. A provider that shares another's wire format
+	// (e.g. Bedrock and Anthropic) can still reject the other's
+	// provider-executed blocks, so a mid-chat provider switch must not replay
+	// them.
+	promptRows = server.sanitizeForeignProviderToolRows(ctx, logger, promptRows, modelConfig.ID)
+
 	persistedSkills := skillsFromParts(promptRows)
 	hasContextFiles := false
 	if chat.WorkspaceID.Valid {
