@@ -59,8 +59,8 @@ func stripReadmeFrontmatter(readme string) string {
 			// We are still in the frontmatter block. Skip writing this line.
 			continue
 		}
-		out.WriteString(line)
-		out.WriteString("\n")
+		_, _ = out.WriteString(line)
+		_, _ = out.WriteString("\n")
 	}
 
 	// Can err if input is too big. Shouldn't happen normally.
