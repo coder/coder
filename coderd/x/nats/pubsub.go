@@ -274,6 +274,17 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
 func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error) {
+	// Persist the default cluster port onto opts so it is the same value the
+	// listener (buildServerOptions) binds and the value parsePeerAddresses
+	// compares against. parsePeerAddresses overwrites each peer's parsed port
+	// with defaultClusterPort, but only when opts.ClusterPort already equals
+	// defaultClusterPort. Callers like the cli leave ClusterPort at 0, so
+	// without this that branch is skipped and peers are dialed on the relay
+	// URL's port (e.g. 8080) instead of the NATS route port (6222).
+	if opts.ClusterPort == 0 {
+		opts.ClusterPort = defaultClusterPort
+	}
+
 	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
