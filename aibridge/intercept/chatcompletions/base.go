@@ -226,6 +226,25 @@ func (i *interceptionBase) hasInjectableTools() bool {
 	return i.mcpProxy != nil && len(i.mcpProxy.ListTools()) > 0
 }
 
+// recordTokenUsage records the token usage for a single completion, accounting
+// for cached tokens included in the prompt token count.
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage) {
+	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		InterceptionID:       i.ID().String(),
+		MsgID:                msgID,
+		Input:                calculateActualInputTokenUsage(usage),
+		Output:               usage.CompletionTokens,
+		CacheReadInputTokens: usage.PromptTokensDetails.CachedTokens,
+		ExtraTokenTypes: map[string]int64{
+			"prompt_audio":                   usage.PromptTokensDetails.AudioTokens,
+			"completion_accepted_prediction": usage.CompletionTokensDetails.AcceptedPredictionTokens,
+			"completion_rejected_prediction": usage.CompletionTokensDetails.RejectedPredictionTokens,
+			"completion_audio":               usage.CompletionTokensDetails.AudioTokens,
+			"completion_reasoning":           usage.CompletionTokensDetails.ReasoningTokens,
+		},
+	})
+}
+
 func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
 	return openai.CompletionUsage{
 		CompletionTokens: ref.CompletionTokens + in.CompletionTokens,
