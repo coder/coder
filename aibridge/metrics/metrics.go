@@ -24,6 +24,7 @@ type Metrics struct {
 	PromptCount *prometheus.CounterVec
 
 	// Token-related metrics.
+	// Use AddTokenCount to increment; direct Add panics on negative values.
 	TokenUseCount *prometheus.CounterVec
 
 	// Tool-related metrics.
@@ -168,10 +169,10 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 // AddTokenCount rejects negatives to avoid a Counter.Add panic; the caller
 // must log the returned error so an upstream provider contract violation
 // stays observable.
-func (m *Metrics) AddTokenCount(provider, model, typ, initiatorID, client string, v int64) error {
-	if v < 0 {
-		return xerrors.Errorf("negative token count for type %q: %d", typ, v)
+func (m *Metrics) AddTokenCount(provider, model, typ, initiatorID, client string, count int64) error {
+	if count < 0 {
+		return xerrors.Errorf("negative token count for type %q: %d", typ, count)
 	}
-	m.TokenUseCount.WithLabelValues(provider, model, typ, initiatorID, client).Add(float64(v))
+	m.TokenUseCount.WithLabelValues(provider, model, typ, initiatorID, client).Add(float64(count))
 	return nil
 }

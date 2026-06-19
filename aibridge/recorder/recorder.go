@@ -239,19 +239,17 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 		}
 
 		if a.metrics != nil {
-			// AddTokenCount rejects negatives; without it a provider
-			// violating its own usage invariant would panic the counter.
-			// Fail loudly in tests, warn in prod to avoid paging on a
-			// non-actionable upstream bug.
-			addTokenCount := func(typ string, v int64) {
-				if err := a.metrics.AddTokenCount(a.provider, a.model, typ, a.initiatorID, a.client, v); err != nil {
+			// Warn rather than error in production: the operator cannot
+			// act on an upstream provider bug.
+			addTokenCount := func(typ string, count int64) {
+				if err := a.metrics.AddTokenCount(a.provider, a.model, typ, a.initiatorID, a.client, count); err != nil {
 					fields := []slog.Field{
 						slog.F("interception_id", req.InterceptionID),
 						slog.F("msg_id", req.MsgID),
 						slog.F("provider", a.provider),
 						slog.F("model", a.model),
 						slog.F("type", typ),
-						slog.F("value", v),
+						slog.F("value", count),
 						slog.Error(err),
 					}
 					if flag.Lookup("test.v") != nil {
@@ -265,8 +263,8 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 			addTokenCount("output", req.Output)
 			addTokenCount("cache_read_input_tokens", req.CacheReadInputTokens)
 			addTokenCount("cache_write_input_tokens", req.CacheWriteInputTokens)
-			for k, v := range req.ExtraTokenTypes {
-				addTokenCount(k, v)
+			for k, count := range req.ExtraTokenTypes {
+				addTokenCount(k, count)
 			}
 		}
 	}()
