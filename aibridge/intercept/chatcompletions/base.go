@@ -249,6 +249,6 @@ func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
 	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
 	// The original value can be reconstructed by adding CachedTokens back to Input.
 	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
-	return in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
-		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */
+	return max(0, in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
+		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */)
 }

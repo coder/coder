@@ -20,6 +20,67 @@ import (
 	"github.com/coder/quartz"
 )
 
+func TestCalculateActualInputTokenUsage(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		usage    openai.CompletionUsage
+		expected int64
+	}{
+		{
+			name: "no cached tokens",
+			usage: openai.CompletionUsage{
+				PromptTokens: 100,
+			},
+			expected: 100,
+		},
+		{
+			name: "subtracts cached tokens",
+			usage: openai.CompletionUsage{
+				PromptTokens: 100,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 40,
+				},
+			},
+			expected: 60,
+		},
+		{
+			name: "all tokens cached",
+			usage: openai.CompletionUsage{
+				PromptTokens: 100,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 100,
+				},
+			},
+			expected: 0,
+		},
+		{
+			// Upstream violates the invariant that PromptTokens includes
+			// CachedTokens. The result must be clamped to 0 so it never
+			// panics a Prometheus counter when used as an increment.
+			name: "cached tokens exceed prompt tokens clamps to zero",
+			usage: openai.CompletionUsage{
+				PromptTokens: 40,
+				PromptTokensDetails: openai.CompletionUsagePromptTokensDetails{
+					CachedTokens: 100,
+				},
+			},
+			expected: 0,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := calculateActualInputTokenUsage(tc.usage)
+			require.Equal(t, tc.expected, got)
+			require.GreaterOrEqual(t, got, int64(0), "must never be negative")
+		})
+	}
+}
+
 func TestScanForCorrelatingToolCallID(t *testing.T) {
 	t.Parallel()
 
