@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, within } from "storybook/test";
 import { SelectionSummary } from "./SelectionSummary";
 
 const meta: Meta<typeof SelectionSummary> = {
@@ -111,6 +111,15 @@ export const WithLongNameModule: Story = {
 				iconUrl: "/icon/git.svg",
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		const deselectModuleButton = await canvas.findByRole("button", {
+			name: "Deselect module",
+		});
+		deselectModuleButton.focus();
+		await expect(deselectModuleButton).toBeVisible();
 	},
 };
 

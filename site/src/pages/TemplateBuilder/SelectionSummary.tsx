@@ -190,6 +190,7 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 							variant="subtle"
 							className="flex opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
 							onClick={() => onDeselectModule(module.id)}
+							aria-label="Deselect module"
 						>
 							<XIcon className="w-4 h-4" />
 						</Button>
