@@ -220,7 +220,7 @@ func (server *Server) prepareGeneration(
 	// (e.g. Bedrock and Anthropic) can still reject the other's
 	// provider-executed blocks, so a mid-chat provider switch must not replay
 	// them.
-	promptRows = server.sanitizeForeignProviderToolRows(ctx, logger, promptRows, modelConfig.ID)
+	promptRows = server.sanitizeForeignProviderExecutedToolRows(ctx, logger, promptRows, modelConfig.ID)
 
 	persistedSkills := skillsFromParts(promptRows)
 	hasContextFiles := false

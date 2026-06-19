@@ -64,12 +64,12 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 
 	// origin maps a model config ID to its normalized provider. unknownCfg is
 	// intentionally absent so the resolver reports an unknown origin.
-	origin := func(cfgByProvider map[uuid.UUID]string) func(uuid.NullUUID) (string, bool) {
+	origin := func(providerByConfig map[uuid.UUID]string) func(uuid.NullUUID) (string, bool) {
 		return func(id uuid.NullUUID) (string, bool) {
 			if !id.Valid {
 				return "", false
 			}
-			provider, ok := cfgByProvider[id.UUID]
+			provider, ok := providerByConfig[id.UUID]
 			return provider, ok
 		}
 	}

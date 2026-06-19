@@ -48,7 +48,9 @@ func stripForeignProviderExecutedToolRows(
 
 	out := make([]database.ChatMessage, 0, len(rows))
 	for _, row := range rows {
-		// Provider-executed tool blocks only appear on assistant rows.
+		// Provider-executed blocks that must be replayed live on assistant rows.
+		// Provider-executed results orphaned onto tool rows are dropped during
+		// prompt conversion, so they never reach the provider.
 		if row.Role != database.ChatMessageRoleAssistant {
 			out = append(out, row)
 			continue
@@ -103,11 +105,11 @@ func stripForeignProviderExecutedToolRows(
 	return out, stats
 }
 
-// sanitizeForeignProviderToolRows strips provider-executed tool history produced
-// by a provider other than the one targeted by modelConfigID. It resolves each
-// row's provider via the model config cache and logs a single summary when
-// anything is removed.
-func (server *Server) sanitizeForeignProviderToolRows(
+// sanitizeForeignProviderExecutedToolRows strips provider-executed tool history
+// produced by a provider other than the one targeted by modelConfigID. It
+// resolves each row's provider via the model config cache and logs a single
+// summary when anything is removed.
+func (server *Server) sanitizeForeignProviderExecutedToolRows(
 	ctx context.Context,
 	logger slog.Logger,
 	rows []database.ChatMessage,
@@ -116,6 +118,10 @@ func (server *Server) sanitizeForeignProviderToolRows(
 	_, target, err := server.resolveModelConfigAndNormalizedProvider(ctx, modelConfigID)
 	if err != nil || target == "" {
 		// Without a known target provider we cannot classify history; leave it.
+		logger.Debug(ctx, "skipping provider-switch sanitization: target provider unresolved",
+			slog.F("model_config_id", modelConfigID),
+			slog.Error(err),
+		)
 		return rows
 	}
 
