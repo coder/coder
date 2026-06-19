@@ -60,7 +60,7 @@ func stripForeignProviderExecutedToolRows(
 
 		parts, err := chatprompt.ParseContent(row)
 		if err != nil {
-			// Leave unparseable rows untouched; the converter handles them.
+			// Leave unparsable rows untouched; the converter handles them.
 			out = append(out, row)
 			continue
 		}
