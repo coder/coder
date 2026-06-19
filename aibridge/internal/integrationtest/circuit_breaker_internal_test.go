@@ -126,7 +126,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          testutil.IntervalSlow,
+				Timeout:          testutil.IntervalMedium,
 				MaxRequests:      1,
 			}
 
@@ -283,7 +283,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          testutil.IntervalSlow,
+				Timeout:          testutil.IntervalMedium,
 				MaxRequests:      1,
 			}
 
@@ -431,7 +431,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			cbConfig := &config.CircuitBreaker{
 				FailureThreshold: 2,
 				Interval:         time.Minute,
-				Timeout:          testutil.IntervalSlow,
+				Timeout:          testutil.IntervalMedium,
 				MaxRequests:      maxRequests, // Allow only 2 concurrent requests in half-open
 			}
 
