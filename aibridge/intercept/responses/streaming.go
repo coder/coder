@@ -16,7 +16,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -130,12 +129,6 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		for {
 			respCopy = responseCopier{}
 			opts := i.requestOptions(&respCopy)
-
-			// TODO(ssncferreira): inject actor headers directly in the client-header
-			//   middleware instead of using SDK options.
-			if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
-			}
 
 			var currentPoolKey *keypool.Key
 			if isPool && walker != nil {

@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	aibconfig "github.com/coder/coder/v2/aibridge/config"
-	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -81,12 +80,9 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		prompt = &promptText
 	}
 
-	// TODO(ssncferreira): inject actor headers directly in the client-header
-	//   middleware instead of using SDK options.
+	// Actor headers are injected by the client-header middleware in
+	// newMessagesService.
 	opts := []option.RequestOption{option.WithRequestTimeout(time.Second * 600)}
-	if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-		opts = append(opts, intercept.ActorHeadersAsAnthropicOpts(actor)...)
-	}
 
 	svc, err := i.newMessagesService(ctx, opts...)
 	if err != nil {

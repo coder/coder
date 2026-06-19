@@ -162,7 +162,7 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		assert.Equal(t, "prompt-caching-2024-07-31", result.Get("Anthropic-Beta"))
 	})
 
-	t.Run("preserves actor headers from SDK", func(t *testing.T) {
+	t.Run("does not preserve actor headers from SDK", func(t *testing.T) {
 		t.Parallel()
 
 		sdkHeader := http.Header{
@@ -178,8 +178,8 @@ func TestBuildUpstreamHeaders(t *testing.T) {
 		result := intercept.BuildUpstreamHeaders(sdkHeader, clientHeaders, "Authorization")
 
 		assert.Equal(t, "Bearer sk-key", result.Get("Authorization"))
-		assert.Equal(t, "user-123", result.Get("X-Ai-Bridge-Actor-Id"))
-		assert.Equal(t, "alice", result.Get("X-Ai-Bridge-Actor-Metadata-Name"))
+		assert.Empty(t, result.Get("X-Ai-Bridge-Actor-Id"))
+		assert.Empty(t, result.Get("X-Ai-Bridge-Actor-Metadata-Name"))
 		assert.Equal(t, "claude-code/1.0", result.Get("User-Agent"))
 	})
 

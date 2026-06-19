@@ -2,6 +2,7 @@ package intercept
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	ant_option "github.com/anthropics/anthropic-sdk-go/option"
@@ -58,6 +59,15 @@ func ActorHeadersAsAnthropicOpts(actor *context.Actor) []ant_option.RequestOptio
 	}
 
 	return opts
+}
+
+// SetActorHeaders injects actor identity headers directly into an
+// http.Header. This is used by the client-header middleware to add
+// actor headers to the outgoing upstream request.
+func SetActorHeaders(headers http.Header, actor *context.Actor) {
+	for k, v := range headersFromActor(actor) {
+		headers.Set(k, v)
+	}
 }
 
 // headersFromActor produces a map of headers from a given [context.Actor].

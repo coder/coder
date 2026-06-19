@@ -76,6 +76,11 @@ func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) res
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
 			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
+			if i.cfg.SendActorHeaders {
+				if actor := aibcontext.ActorFromContext(req.Context()); actor != nil {
+					intercept.SetActorHeaders(req.Header, actor)
+				}
+			}
 			return next(req)
 		}))
 	}

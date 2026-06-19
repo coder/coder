@@ -77,12 +77,5 @@ func BuildUpstreamHeaders(sdkHeader http.Header, clientHeaders http.Header, auth
 		headers.Set(authHeaderName, v)
 	}
 
-	// Preserve actor headers injected by aibridge as per-request SDK options.
-	for name, values := range sdkHeader {
-		if IsActorHeader(name) {
-			headers[name] = values
-		}
-	}
-
 	return headers
 }
