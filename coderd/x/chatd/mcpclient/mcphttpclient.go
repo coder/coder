@@ -13,7 +13,7 @@ import (
 // is a *http.Transport it is cloned; otherwise a minimal
 // transport with ProxyFromEnvironment is created as a fallback.
 func mcpHTTPClient() *http.Client {
-	if flag.Lookup("testing.v") == nil {
+	if flag.Lookup("test.v") == nil {
 		return nil
 	}
 	if dt, ok := http.DefaultTransport.(*http.Transport); ok {

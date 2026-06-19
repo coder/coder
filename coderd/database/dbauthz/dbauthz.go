@@ -2611,7 +2611,7 @@ func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
-	if flag.Lookup("testing.v") == nil {
+	if flag.Lookup("test.v") == nil {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
 	}
 	return q.db.DisableForeignKeysAndTriggers(ctx)
