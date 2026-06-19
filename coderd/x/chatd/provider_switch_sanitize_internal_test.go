@@ -38,7 +38,7 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 	localCall := func(id string) codersdk.ChatMessagePart {
 		return codersdk.ChatMessageToolCall(id, "read_file", json.RawMessage(`{}`))
 	}
-	text := func(s string) codersdk.ChatMessagePart { return codersdk.ChatMessageText(s) }
+	text := codersdk.ChatMessageText
 
 	assistantRow := func(t *testing.T, cfg uuid.UUID, parts ...codersdk.ChatMessagePart) database.ChatMessage {
 		t.Helper()
