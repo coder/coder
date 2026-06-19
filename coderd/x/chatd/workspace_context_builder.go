@@ -19,7 +19,7 @@ import (
 // errWorkspaceContextUnavailable is returned by buildWorkspaceContext
 // when there is nothing safe to persist for the current committed
 // metadata, e.g. the chat has no bound workspace agent or the agent is
-// no longer resolvable. Callers treat it as an expected exit.
+// no longer resolvable.
 var errWorkspaceContextUnavailable = xerrors.New("workspace context unavailable")
 
 // buildWorkspaceContext fetches workspace context for the chat's
@@ -54,8 +54,7 @@ func (server *Server) buildWorkspaceContext(
 	defer wsCtx.close()
 
 	parts, expectedAgentID := server.fetchContextForBuild(ctx, chat, &wsCtx, logger)
-	// If the workspace or agent is gone, fall back to no-op so the
-	// generation action exits without committing stale context.
+	// If the workspace or agent is gone, report unavailable.
 	if expectedAgentID == uuid.Nil {
 		return workspaceContextBuildResult{}, errWorkspaceContextUnavailable
 	}

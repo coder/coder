@@ -14,6 +14,11 @@ import (
 
 var ErrUnknownRoute = xerrors.New("unknown route")
 
+// ErrNoCredential is returned when a request resolves to centralized
+// authentication but the provider has no centralized keys configured (and the
+// request is not BYOK), so it cannot be authenticated.
+var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
+
 // Provider defines routes (bridged and passed through) for given provider.
 // Bridged routes are processed by dedicated interceptors.
 //
