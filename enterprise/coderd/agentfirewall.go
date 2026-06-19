@@ -63,7 +63,6 @@ func (api *API) agentFirewallSessionLogs(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceBoundaryLog) {
-		// Return 404 to avoid leaking existence information.
 		httpapi.ResourceNotFound(rw)
 		return
 	}

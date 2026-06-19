@@ -16,8 +16,6 @@ INSERT INTO boundary_sessions (
 ) RETURNING *;
 
 -- name: GetBoundarySessionByID :one
--- Resolves workspace_id and workspace_owner_id by joining through the
--- workspace agent -> resource -> build -> workspace chain.
 SELECT
     bs.*,
     w.id AS workspace_id,
