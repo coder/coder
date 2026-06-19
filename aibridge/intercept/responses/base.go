@@ -303,7 +303,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	// Keeping logic consistent with chat completions
 	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := usage.InputTokens - usage.InputTokensDetails.CachedTokens
+	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:       i.ID().String(),

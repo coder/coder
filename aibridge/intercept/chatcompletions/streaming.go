@@ -270,20 +270,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		if lastUsage := processor.getLastUsage(); lastUsage.CompletionTokens > 0 {
 			// If the usage information is set, track it.
 			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
-			_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
-				InterceptionID:       i.ID().String(),
-				MsgID:                processor.getMsgID(),
-				Input:                calculateActualInputTokenUsage(lastUsage),
-				Output:               lastUsage.CompletionTokens,
-				CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
-				ExtraTokenTypes: map[string]int64{
-					"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-					"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-					"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
-					"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
-					"completion_reasoning":           lastUsage.CompletionTokensDetails.ReasoningTokens,
-				},
-			})
+			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
 		}
 
 		if iterationStarted {
