@@ -85,6 +85,23 @@ describe("resolvePendingAttachments", () => {
 		expect(attachments).toEqual([{ fileId: "f4", mediaType: "image/png" }]);
 	});
 
+	it("sends restored zero-byte text files as file parts", async () => {
+		// Restored attachments are reconstructed as empty File objects; their
+		// bytes live only on the server, so they must not be inlined.
+		const file = new File([], "restored.json", { type: "application/json" });
+		const uploadStates = new Map<File, UploadState>([[file, uploaded("f6")]]);
+
+		const { attachments } = await resolvePendingAttachments(
+			[file],
+			uploadStates,
+			new Map(),
+		);
+
+		expect(attachments).toEqual([
+			{ fileId: "f6", mediaType: "application/json" },
+		]);
+	});
+
 	it("counts upload failures and skips non-uploaded files", async () => {
 		const failed = new File(["x"], "fail.png", { type: "image/png" });
 		const pending = new File(["x"], "pending.png", { type: "image/png" });
