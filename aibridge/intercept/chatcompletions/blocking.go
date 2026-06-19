@@ -126,7 +126,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 			InterceptionID:       i.ID().String(),
 			MsgID:                completion.ID,
-			Input:                calculateActualInputTokenUsage(lastUsage),
+			Input:                i.calculateActualInputTokenUsage(ctx, lastUsage),
 			Output:               lastUsage.CompletionTokens,
 			CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
 			ExtraTokenTypes: map[string]int64{

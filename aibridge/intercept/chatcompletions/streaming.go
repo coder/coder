@@ -273,7 +273,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 			_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
 				InterceptionID:       i.ID().String(),
 				MsgID:                processor.getMsgID(),
-				Input:                calculateActualInputTokenUsage(lastUsage),
+				Input:                i.calculateActualInputTokenUsage(streamCtx, lastUsage),
 				Output:               lastUsage.CompletionTokens,
 				CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
 				ExtraTokenTypes: map[string]int64{

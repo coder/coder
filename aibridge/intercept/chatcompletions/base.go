@@ -245,10 +245,10 @@ func sumUsage(ref, in openai.CompletionUsage) openai.CompletionUsage {
 }
 
 // calculateActualInputTokenUsage accounts for cached tokens which are included in [openai.CompletionUsage].PromptTokens.
-func calculateActualInputTokenUsage(in openai.CompletionUsage) int64 {
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	// The original value can be reconstructed by adding CachedTokens back to Input.
-	// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
-	return in.PromptTokens /* The aggregated number of text input tokens used, including cached tokens. */ -
-		in.PromptTokensDetails.CachedTokens /* The aggregated number of text input tokens that has been cached from previous requests. */
+// Input *includes* the cached tokens, so they are subtracted to reflect actual input token usage; the original value can
+// be reconstructed by adding CachedTokens back. The result is clamped to zero.
+// See https://platform.openai.com/docs/api-reference/usage/completions_object#usage/completions_object-input_tokens.
+func (i *interceptionBase) calculateActualInputTokenUsage(ctx context.Context, in openai.CompletionUsage) int64 {
+	return intercept.NonNegativeInputTokens(ctx, i.logger, i.cfg.ProviderName, "/v1/chat/completions",
+		in.PromptTokens, in.PromptTokensDetails.CachedTokens)
 }

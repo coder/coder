@@ -301,9 +301,10 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	usage := response.Usage
 
-	// Keeping logic consistent with chat completions
-	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := usage.InputTokens - usage.InputTokensDetails.CachedTokens
+	// Keeping logic consistent with chat completions: input *includes* the cached tokens, so they are
+	// subtracted to reflect actual input token usage.
+	inputNonCacheTokens := intercept.NonNegativeInputTokens(ctx, i.logger, i.cfg.ProviderName, "/v1/responses",
+		usage.InputTokens, usage.InputTokensDetails.CachedTokens)
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:       i.ID().String(),
