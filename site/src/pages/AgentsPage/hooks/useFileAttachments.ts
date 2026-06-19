@@ -12,12 +12,12 @@ import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
 	isInlinableTextAttachment,
-	readTextFileContent,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
 	formatAgentAttachmentTooLargeError,
 	formatAgentAttachmentUploadError,
+	readAgentAttachmentText,
 } from "../utils/fileAttachmentLimits";
 import {
 	imageBudgetForProvider,
@@ -416,7 +416,7 @@ export function useFileAttachments(
 				isInlinableTextAttachment(file) &&
 				file.size <= MaxChatFileSizeBytes
 			) {
-				void readTextFileContent(file)
+				void readAgentAttachmentText(file)
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);

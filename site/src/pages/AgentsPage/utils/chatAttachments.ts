@@ -102,29 +102,18 @@ export const isChatAttachmentFile = (file: File): boolean => {
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
 };
 
-// Text-family attachment media types whose contents are sent to the model
-// inline as a text part rather than as a provider file part. Providers only
-// accept a small set of file media types (images and PDFs), so a text-family
-// file part is silently dropped by at least one provider. Inlining the bytes
-// as text keeps the content visible to every provider. Derived from the
-// generated allowlist so it stays in sync: the text subtypes plus JSON.
+// Text-family attachment media types whose contents are inlined into the
+// message as a text part. Providers silently drop text-family file parts, so
+// inlining keeps the content visible to every provider. Derived from the
+// generated allowlist by filtering for text/* subtypes and application/json.
+// If a new application/* text type is added to the server allowlist, add it to
+// the filter predicate here too.
 const inlinableTextAttachmentMediaTypes: ReadonlySet<string> = new Set(
 	ChatAttachmentMediaTypes.filter(
 		(mediaType) =>
 			mediaType.startsWith("text/") || mediaType === "application/json",
 	),
 );
-
-// Extension fallback for files the browser could not classify (empty type or
-// application/octet-stream). Mirrors chatAttachmentExtraExtensions; the server
-// remains the authority on the stored media type.
-const inlinableTextAttachmentExtensions = [
-	".json",
-	".csv",
-	".md",
-	".markdown",
-	".txt",
-] as const;
 
 /**
  * Returns true when an attachment should be inlined into the message as text
@@ -138,17 +127,8 @@ export const isInlinableTextAttachment = (file: File): boolean => {
 		return inlinableTextAttachmentMediaTypes.has(file.type);
 	}
 	const lowerName = file.name.toLowerCase();
-	return inlinableTextAttachmentExtensions.some((ext) =>
-		lowerName.endsWith(ext),
-	);
+	return chatAttachmentExtraExtensions.some((ext) => lowerName.endsWith(ext));
 };
-
-/**
- * Reads a File's contents as text. Uses File.prototype.text when available
- * and falls back to Response for environments (some tests) that lack it.
- */
-export const readTextFileContent = (file: File): Promise<string> =>
-	typeof file.text === "function" ? file.text() : new Response(file).text();
 
 /**
  * Wraps an inlined text attachment's content with a filename label so the
@@ -160,6 +140,17 @@ export const formatInlinedAttachmentText = (
 	name: string,
 	content: string,
 ): string => `Attached file: ${name}\n\n${content}`;
+
+/**
+ * Metadata for an uploaded attachment resolved at send time. When
+ * `textContent` is set, the attachment is sent to the model as an inline text
+ * part instead of a provider file part.
+ */
+export type PendingAttachment = {
+	fileId: string;
+	mediaType: string;
+	textContent?: string;
+};
 
 /**
  * Converts a resolved attachment into the chat input part sent to the server.

@@ -10,12 +10,11 @@ import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
 import {
-	formatInlinedAttachmentText,
 	getChatFileURL,
-	isInlinableTextAttachment,
-	readTextFileContent,
+	type PendingAttachment,
 } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
+import { resolvePendingAttachments } from "../utils/resolvePendingAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -151,15 +150,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 };
 
-export type PendingAttachment = {
-	fileId: string;
-	mediaType: string;
-	// When set, the attachment's contents are sent to the model as an inline
-	// text part instead of a provider file part. Text-family uploads (JSON,
-	// CSV, Markdown, plain text) are dropped by some providers when sent as
-	// file parts, so we inline them to keep them visible to every provider.
-	textContent?: string;
-};
+export type { PendingAttachment } from "../utils/chatAttachments";
 
 interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
@@ -420,49 +411,14 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
 					}
-					// Collect uploaded attachment metadata for the optimistic
-					// transcript builder while keeping the server payload
-					// shape unchanged downstream.
-					const pendingAttachments: PendingAttachment[] = [];
-					let skippedErrors = 0;
-					for (const file of attachments) {
-						const state = uploadStates.get(file);
-						if (state?.status === "error") {
-							skippedErrors++;
-							continue;
-						}
-						if (state?.status === "uploaded" && state.fileId) {
-							const attachment: PendingAttachment = {
-								fileId: state.fileId,
-								mediaType: file.type || "application/octet-stream",
-							};
-							// Inline text-family uploads as text so providers that
-							// reject the media type as a file part still see the
-							// content. Prefer the content already read at attach
-							// time; read on demand if that read has not landed.
-							// Restored attachments carry no bytes (size 0), so they
-							// fall back to the file part.
-							if (isInlinableTextAttachment(file)) {
-								let content = textContents.get(file);
-								if (!content && file.size > 0) {
-									try {
-										content = await readTextFileContent(file);
-									} catch {
-										// Fall back to the file part if the on-demand
-										// read fails so the message still sends. The
-										// attach-time read handles its own failures.
-									}
-								}
-								if (content) {
-									attachment.textContent = formatInlinedAttachmentText(
-										file.name,
-										content,
-									);
-								}
-							}
-							pendingAttachments.push(attachment);
-						}
-					}
+					// Resolve uploaded attachments into the send payload,
+					// inlining text-family files as text parts.
+					const { attachments: pendingAttachments, skippedErrors } =
+						await resolvePendingAttachments(
+							attachments,
+							uploadStates,
+							textContents,
+						);
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,

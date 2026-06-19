@@ -13,6 +13,7 @@ import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { docs } from "#/utils/docs";
 import { useFileAttachments } from "../hooks/useFileAttachments";
+import type { PendingAttachment } from "../utils/chatAttachments";
 import { parseStoredDraft } from "../utils/draftStorage";
 import {
 	getModelSelectorPlaceholder,
@@ -20,6 +21,7 @@ import {
 	hasConfiguredModelsInCatalog,
 	hasUserFixableProviders,
 } from "../utils/modelOptions";
+import { resolvePendingAttachments } from "../utils/resolvePendingAttachments";
 import {
 	formatUsageLimitMessage,
 	isChatUsageLimitExceededResponse,
@@ -44,7 +46,7 @@ type ChatModelOption = ModelSelectorOption;
 
 export type CreateChatOptions = {
 	message: string;
-	fileIDs?: string[];
+	attachments?: readonly PendingAttachment[];
 	workspaceId?: string;
 	model?: string;
 	mcpServerIds?: string[];
@@ -356,11 +358,14 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 			? selectedWorkspaceId
 			: null;
 
-	const handleSend = async (message: string, fileIDs?: string[]) => {
+	const handleSend = async (
+		message: string,
+		attachments?: readonly PendingAttachment[],
+	) => {
 		submitDraft();
 		await onCreateChat({
 			message,
-			fileIDs,
+			attachments,
 			workspaceId: effectiveWorkspaceId ?? undefined,
 			model: submittedModel,
 			organizationId,
@@ -389,26 +394,16 @@ export const AgentCreateForm: FC<AgentCreateFormProps> = ({
 	});
 
 	const handleSendWithAttachments = async (message: string) => {
-		const fileIds: string[] = [];
-		let skippedErrors = 0;
-		for (const file of attachments) {
-			const state = uploadStates.get(file);
-			if (state?.status === "error") {
-				skippedErrors++;
-				continue;
-			}
-			if (state?.status === "uploaded" && state.fileId) {
-				fileIds.push(state.fileId);
-			}
-		}
+		const { attachments: resolved, skippedErrors } =
+			await resolvePendingAttachments(attachments, uploadStates, textContents);
 		if (skippedErrors > 0) {
 			toast.warning(
 				`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,
 			);
 		}
-		const fileArg = fileIds.length > 0 ? fileIds : undefined;
+		const attachmentArg = resolved.length > 0 ? resolved : undefined;
 		try {
-			await handleSend(message, fileArg);
+			await handleSend(message, attachmentArg);
 			resetAttachments();
 		} catch {
 			// Attachments preserved for retry on failure.
