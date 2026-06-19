@@ -233,7 +233,11 @@ const SecretFields: FC<SecretFieldsProps> = ({
 	return (
 		<>
 			<FormField
-				field={getFieldHelpers("name")}
+				field={getFieldHelpers("name", {
+					helperText: disableName
+						? "The name cannot be changed after creation. Delete and recreate the secret to rename it."
+						: undefined,
+				})}
 				label={
 					showRequiredLabels ? (
 						<RequiredFieldLabel>Name</RequiredFieldLabel>
