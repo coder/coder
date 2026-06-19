@@ -174,26 +174,26 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 			{modules.map((module) => (
 				<div
 					key={module.id}
-					className="group flex items-center justify-between p-1 mb-1 hover:bg-surface-secondary"
+					className="group flex items-start justify-between p-1 mb-1 hover:bg-surface-secondary"
 				>
-					<div className="flex items-start">
-						<div className="h-[1lh] content-center">
-							<img
-								src={module.iconUrl}
-								alt={`${module.name} icon`}
-								className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
-							/>
-						</div>
-						<span className="ml-2">{module.name}</span>
+					<div className="h-[1lh] content-center">
+						<img
+							src={module.iconUrl}
+							alt={`${module.name} icon`}
+							className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
+						/>
 					</div>
-					<Button
-						size="xs"
-						variant="subtle"
-						className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-						onClick={() => onDeselectModule(module.id)}
-					>
-						<XIcon className="w-4 h-4" />
-					</Button>
+					<span className="ml-2">{module.name}</span>
+					<div className="h-[1lh] content-center">
+						<Button
+							size="xs"
+							variant="subtle"
+							className="flex opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+							onClick={() => onDeselectModule(module.id)}
+						>
+							<XIcon className="w-4 h-4" />
+						</Button>
+					</div>
 				</div>
 			))}
 		</StepDivider>
