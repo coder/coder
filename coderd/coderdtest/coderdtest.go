@@ -156,7 +156,10 @@ type Options struct {
 	ChatProviderAPIKeys           *chatprovider.ProviderAPIKeys
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker. Used in tests.
-	ChatWorkerDisabled          bool
+	ChatWorkerDisabled bool
+	// ChatDebugProxy injects a custom proxy for the debug snapshot endpoint.
+	// Used in tests to simulate multi-replica forwarding without a real second replica.
+	ChatDebugProxy              func(rw http.ResponseWriter, r *http.Request, replicaID uuid.UUID)
 	ProvisionerDaemonVersion    string
 	ProvisionerDaemonTags       map[string]string
 	MetricsCacheRefreshInterval time.Duration
@@ -598,6 +601,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			ChatdInstructionLookupTimeout:  options.ChatdInstructionLookupTimeout,
 			ChatProviderAPIKeys:            options.ChatProviderAPIKeys,
 			ChatWorkerDisabled:             options.ChatWorkerDisabled,
+			ChatDebugProxy:                 options.ChatDebugProxy,
 			AccessURL:                      accessURL,
 			AppHostname:                    options.AppHostname,
 			AppHostnameRegex:               appHostnameRegex,

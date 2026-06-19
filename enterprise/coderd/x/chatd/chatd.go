@@ -82,7 +82,7 @@ func dialRelayParts(
 		return nil, &RelayDialError{Err: xerrors.New("dial relay stream parts: replica ID is nil")}
 	}
 	headers := make(http.Header, 2)
-	headers.Set(codersdk.SessionTokenHeader, extractSessionToken(input.RequestHeader))
+	headers.Set(codersdk.SessionTokenHeader, ExtractSessionToken(input.RequestHeader))
 	headers.Set(RelaySourceHeader, replicaID.String())
 
 	conn, resp, dialErr := websocket.Dial(ctx, wsURL, &websocket.DialOptions{
@@ -128,10 +128,10 @@ func buildRelayURL(address string, chatID uuid.UUID) (string, error) {
 	return u.String(), nil
 }
 
-// extractSessionToken returns the session token carried by the given request
-// headers. It mirrors the priority order used by apiKeyMiddleware: cookie,
+// ExtractSessionToken returns the session token carried by the given request
+// headers, mirroring the priority order used by apiKeyMiddleware: cookie,
 // then Coder-Session-Token header, then Authorization: Bearer header.
-func extractSessionToken(header http.Header) string {
+func ExtractSessionToken(header http.Header) string {
 	if header == nil {
 		return ""
 	}

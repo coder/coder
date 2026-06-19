@@ -12,13 +12,14 @@ import (
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 )
 
-type taskKind string
+// TaskKind identifies the type of background task a runner is executing.
+type TaskKind string
 
 const (
-	taskKindGeneration            taskKind = "generation"
-	taskKindInterrupt             taskKind = "interrupt"
-	taskKindRequiresActionTimeout taskKind = "requires_action_timeout"
-	taskKindAbandon               taskKind = "abandon"
+	TaskKindGeneration            TaskKind = "generation"
+	TaskKindInterrupt             TaskKind = "interrupt"
+	TaskKindRequiresActionTimeout TaskKind = "requires_action_timeout"
+	TaskKindAbandon               TaskKind = "abandon"
 )
 
 type taskInstanceID uuid.UUID
@@ -29,13 +30,13 @@ type localWorkKey struct {
 }
 
 type taskIndexKey struct {
-	kind taskKind
+	kind TaskKind
 	key  localWorkKey
 }
 
 type taskRecord struct {
 	id       taskInstanceID
-	kind     taskKind
+	kind     TaskKind
 	localKey localWorkKey
 	cancel   context.CancelFunc
 	done     <-chan struct{}
@@ -184,24 +185,24 @@ func (r *runner) acceptState(state runnerStateUpdate) {
 
 func (r *runner) spawnForState(state runnerStateUpdate) {
 	if state.Archived {
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTaskIfNeeded(TaskKindAbandon, state)
 		return
 	}
 	switch state.Status {
 	case database.ChatStatusRunning:
-		r.spawnTaskIfNeeded(taskKindGeneration, state)
+		r.spawnTaskIfNeeded(TaskKindGeneration, state)
 	case database.ChatStatusInterrupting:
-		r.spawnTaskIfNeeded(taskKindInterrupt, state)
+		r.spawnTaskIfNeeded(TaskKindInterrupt, state)
 	case database.ChatStatusRequiresAction:
-		r.spawnTaskIfNeeded(taskKindRequiresActionTimeout, state)
+		r.spawnTaskIfNeeded(TaskKindRequiresActionTimeout, state)
 	case database.ChatStatusWaiting, database.ChatStatusError:
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTaskIfNeeded(TaskKindAbandon, state)
 	default:
-		r.spawnTaskIfNeeded(taskKindAbandon, state)
+		r.spawnTaskIfNeeded(TaskKindAbandon, state)
 	}
 }
 
-func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
+func (r *runner) spawnTaskIfNeeded(kind TaskKind, state runnerStateUpdate) {
 	key := localWorkKey{historyVersion: state.HistoryVersion, status: state.Status}
 	idx := taskIndexKey{kind: kind, key: key}
 	if r.activeTaskSet && r.tasksByIndex[idx] == r.activeTaskID {
@@ -222,6 +223,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 	r.tasksByIndex[idx] = id
 	r.activeTaskID = id
 	r.activeTaskSet = true
+	r.rec.setActiveTaskKind(&kind)
 
 	input := chatWorkerTaskStartInput{
 		TaskID:                   uuid.UUID(id),
@@ -239,7 +241,7 @@ func (r *runner) spawnTaskIfNeeded(kind taskKind, state runnerStateUpdate) {
 
 func (r *runner) runTask(
 	ctx context.Context,
-	kind taskKind,
+	kind TaskKind,
 	key localWorkKey,
 	input chatWorkerTaskStartInput,
 	done chan<- struct{},
@@ -261,13 +263,13 @@ func (r *runner) runTask(
 		}
 
 		switch kind {
-		case taskKindGeneration:
+		case TaskKindGeneration:
 			return r.opts.TaskStarter.StartGeneration(ctx, input)
-		case taskKindInterrupt:
+		case TaskKindInterrupt:
 			return r.opts.TaskStarter.StartInterrupt(ctx, input)
-		case taskKindRequiresActionTimeout:
+		case TaskKindRequiresActionTimeout:
 			return r.opts.TaskStarter.StartRequiresActionTimeout(ctx, input)
-		case taskKindAbandon:
+		case TaskKindAbandon:
 			return r.opts.TaskStarter.StartAbandon(ctx, input)
 		default:
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("unknown task kind %q", kind))
@@ -284,6 +286,8 @@ func (r *runner) cancelActiveTask() {
 	}
 	id := r.activeTaskID
 	r.activeTaskSet = false
+	r.rec.setActiveTaskKind(nil)
+
 	if record := r.tasks[id]; record != nil {
 		record.cancel()
 	}
@@ -315,7 +319,9 @@ func (r *runner) removeFinishedTasks() {
 			}
 			if r.activeTaskSet && r.activeTaskID == id {
 				r.activeTaskSet = false
+				r.rec.setActiveTaskKind(nil)
 			}
+
 		default:
 		}
 	}

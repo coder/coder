@@ -7887,3 +7887,210 @@ func (api *API) streamChatParts(rw http.ResponseWriter, r *http.Request) {
 		api.Logger.Named("chat_stream_parts").Debug(ctx, "chat stream parts closed", slog.Error(err))
 	}
 }
+
+// chatDebugSnapshot is the response type for GET /api/experimental/chats/{chat}/debug/snapshot.
+// Types are defined locally so the shape can evolve freely without SDK compatibility concerns.
+type chatDebugSnapshot struct {
+	ExecutionState chatstate.ExecutionState `json:"execution_state"`
+	Database       chatDebugDatabase        `json:"database"`
+	Runtime        chatDebugRuntime         `json:"runtime"`
+}
+
+type chatDebugDatabase struct {
+	Status                   string                `json:"status"`
+	Archived                 bool                  `json:"archived"`
+	GenerationAttempt        int64                 `json:"generation_attempt"`
+	SnapshotVersion          int64                 `json:"snapshot_version"`
+	HistoryVersion           int64                 `json:"history_version"`
+	WorkerID                 *uuid.UUID            `json:"worker_id"`
+	RunnerID                 *uuid.UUID            `json:"runner_id"`
+	LastError                json.RawMessage       `json:"last_error"`
+	RetryState               json.RawMessage       `json:"retry_state"`
+	RequiresActionDeadlineAt *time.Time            `json:"requires_action_deadline_at"`
+	CreatedAt                time.Time             `json:"created_at"`
+	UpdatedAt                time.Time             `json:"updated_at"`
+	QueueDepth               int64                 `json:"queue_depth"`
+	Heartbeat                *chatDebugHeartbeat   `json:"heartbeat"`
+	MessageStats             chatDebugMessageStats `json:"message_stats"`
+}
+
+type chatDebugHeartbeat struct {
+	RunnerID    uuid.UUID `json:"runner_id"`
+	HeartbeatAt time.Time `json:"heartbeat_at"`
+	AgeSeconds  float64   `json:"age_seconds"`
+	// IsStale is true when age exceeds chatstate.HeartbeatStaleSeconds.
+	IsStale bool `json:"is_stale"`
+	// Error is set when the heartbeat row could not be read (other than
+	// sql.ErrNoRows). When set, IsStale and AgeSeconds are meaningless and
+	// the omission of a heartbeat should not be interpreted as "no heartbeat
+	// row exists."
+	Error string `json:"error,omitempty"`
+}
+
+type chatDebugMessageStats struct {
+	Total   int64            `json:"total"`
+	Deleted int64            `json:"deleted"`
+	ByRole  map[string]int64 `json:"by_role"`
+}
+
+type chatDebugRuntime struct {
+	LocalWorkerID        uuid.UUID                `json:"local_worker_id"`
+	WorkerIDMatchesLocal bool                     `json:"worker_id_matches_local"`
+	Runners              []chatd.RunnerSnapshot   `json:"runners"`
+	MessageBuffers       []chatDebugBufferEpisode `json:"message_buffers"`
+}
+
+type chatDebugBufferEpisode struct {
+	HistoryVersion    int64 `json:"history_version"`
+	GenerationAttempt int64 `json:"generation_attempt"`
+	PartsBuffered     int   `json:"parts_buffered"`
+	BytesBuffered     int64 `json:"bytes_buffered"`
+	SubscriberCount   int   `json:"subscriber_count"`
+	IsClosed          bool  `json:"is_closed"`
+}
+
+// ChatDebugForwardedHeader marks a debug snapshot request that has already
+// been forwarded once by another replica. It prevents a forwarding loop if
+// chat ownership transfers between the two replicas' database reads: the
+// receiving replica serves the request locally instead of forwarding it
+// again.
+const ChatDebugForwardedHeader = "X-Coder-Debug-Forwarded"
+
+// getChatDebugSnapshot returns a combined database + runtime snapshot for a
+// single chat. It is intended for developer troubleshooting.
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
+func (api *API) getChatDebugSnapshot(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	// If the chat is owned by a different replica and we have a proxy configured,
+	// forward the entire request there and return its response verbatim. Skip
+	// forwarding if this request was already forwarded once, to avoid bouncing
+	// indefinitely if ownership changes between the two replicas' reads.
+	alreadyForwarded := r.Header.Get(ChatDebugForwardedHeader) != ""
+	if !alreadyForwarded && chat.WorkerID.Valid && chat.WorkerID.UUID != api.chatDaemon.WorkerID() && api.chatDebugProxy != nil {
+		api.chatDebugProxy(rw, r, chat.WorkerID.UUID)
+		return
+	}
+
+	// Queue depth.
+	queueDepth, err := api.Database.CountChatQueuedMessages(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching queue depth.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Heartbeat. Only available when the chat has an assigned runner.
+	var hb *chatDebugHeartbeat
+	if chat.RunnerID.Valid {
+		row, hbErr := api.Database.GetChatHeartbeat(ctx, database.GetChatHeartbeatParams{
+			ChatID:   chat.ID,
+			RunnerID: chat.RunnerID.UUID,
+		})
+		switch {
+		case hbErr == nil:
+			age := api.Clock.Since(row.HeartbeatAt).Seconds()
+			hb = &chatDebugHeartbeat{
+				RunnerID:    row.RunnerID,
+				HeartbeatAt: row.HeartbeatAt,
+				AgeSeconds:  age,
+				IsStale:     age > float64(chatstate.HeartbeatStaleSeconds),
+			}
+		case errors.Is(hbErr, sql.ErrNoRows):
+			// No heartbeat yet; hb stays nil.
+		default:
+			api.Logger.Warn(ctx, "failed to fetch chat heartbeat for debug snapshot",
+				slog.F("chat_id", chat.ID),
+				slog.Error(hbErr),
+			)
+			hb = &chatDebugHeartbeat{Error: hbErr.Error()}
+		}
+	}
+
+	// Message stats. Use the aggregate query so we include deleted and
+	// model-visibility messages without fetching full message content.
+	msgStats, err := api.Database.GetChatMessageStatsByChatID(ctx, chat.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching message stats.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	stats := chatDebugMessageStats{
+		Total:   msgStats.Total,
+		Deleted: msgStats.Deleted,
+		ByRole: map[string]int64{
+			"system":    msgStats.SystemCount,
+			"user":      msgStats.UserCount,
+			"assistant": msgStats.AssistantCount,
+			"tool":      msgStats.ToolCount,
+		},
+	}
+
+	// Classify execution state from the chat row. This is best-effort: the
+	// chat row is loaded in middleware and queueDepth is read in a separate
+	// query, not within the same transaction, so an intervening state
+	// transition can produce a stale or StateInvalid classification. That
+	// tradeoff is acceptable for a debug-only endpoint.
+	execState := chatstate.ClassifyExecutionState(chat, queueDepth > 0, true)
+
+	// Build database section.
+	dbSection := chatDebugDatabase{
+		Status:            string(chat.Status),
+		Archived:          chat.Archived,
+		GenerationAttempt: chat.GenerationAttempt,
+		SnapshotVersion:   chat.SnapshotVersion,
+		HistoryVersion:    chat.HistoryVersion,
+		LastError:         chat.LastError.RawMessage,
+		RetryState:        chat.RetryState.RawMessage,
+		CreatedAt:         chat.CreatedAt,
+		UpdatedAt:         chat.UpdatedAt,
+		QueueDepth:        queueDepth,
+		Heartbeat:         hb,
+		MessageStats:      stats,
+	}
+	if chat.WorkerID.Valid {
+		dbSection.WorkerID = &chat.WorkerID.UUID
+	}
+	if chat.RunnerID.Valid {
+		dbSection.RunnerID = &chat.RunnerID.UUID
+	}
+	if chat.RequiresActionDeadlineAt.Valid {
+		dbSection.RequiresActionDeadlineAt = &chat.RequiresActionDeadlineAt.Time
+	}
+
+	// Read runtime state from local in-memory state. The proxy check above
+	// ensures we only reach this point when we are the owning replica (or
+	// the chat is unowned, or no proxy is configured).
+	rtSnap := api.chatDaemon.SnapshotRuntime(chat.ID)
+	rtSection := chatDebugRuntime{
+		LocalWorkerID:        rtSnap.LocalWorkerID,
+		WorkerIDMatchesLocal: chat.WorkerID.Valid && chat.WorkerID.UUID == rtSnap.LocalWorkerID,
+		Runners:              rtSnap.Runners,
+		MessageBuffers:       make([]chatDebugBufferEpisode, 0, len(rtSnap.Episodes)),
+	}
+	for _, ep := range rtSnap.Episodes {
+		rtSection.MessageBuffers = append(rtSection.MessageBuffers, chatDebugBufferEpisode{
+			HistoryVersion:    ep.HistoryVersion,
+			GenerationAttempt: ep.GenerationAttempt,
+			PartsBuffered:     ep.PartsCount,
+			BytesBuffered:     ep.Bytes,
+			SubscriberCount:   ep.SubscriberCount,
+			IsClosed:          ep.IsClosed,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, chatDebugSnapshot{
+		ExecutionState: execState,
+		Database:       dbSection,
+		Runtime:        rtSection,
+	})
+}

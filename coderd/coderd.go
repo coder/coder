@@ -261,6 +261,9 @@ type Options struct {
 	// ChatWorkerDisabled skips starting the chat daemon's background
 	// worker.
 	ChatWorkerDisabled bool
+	// ChatDebugProxy forwards a debug snapshot request to the owning replica.
+	// When nil (OSS), the snapshot is always served from local state.
+	ChatDebugProxy func(rw http.ResponseWriter, r *http.Request, replicaID uuid.UUID)
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -859,6 +862,7 @@ func New(options *Options) *API {
 				api.chatDaemon.Start()
 			}
 		}
+		api.chatDebugProxy = options.ChatDebugProxy
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -1383,6 +1387,7 @@ func New(options *Options) *API {
 				r.Route("/debug", func(r chi.Router) {
 					r.Get("/runs", api.getChatDebugRuns)
 					r.Get("/runs/{debugRun}", api.getChatDebugRun)
+					r.Get("/snapshot", api.getChatDebugSnapshot)
 				})
 			})
 		})
@@ -2298,6 +2303,9 @@ type API struct {
 	dbRolluper *dbrollup.Rolluper
 	// chatDaemon handles background processing of pending chats.
 	chatDaemon *chatd.Server
+	// chatDebugProxy forwards debug snapshot requests to the owning replica.
+	// Nil on single-node OSS; set by enterprise via Options.ChatDebugProxy.
+	chatDebugProxy func(rw http.ResponseWriter, r *http.Request, replicaID uuid.UUID)
 	// gitSyncWorker refreshes stale chat diff statuses in the background.
 	gitSyncWorker *gitsync.Worker
 	// AISeatTracker records AI seat usage.

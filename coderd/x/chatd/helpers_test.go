@@ -278,7 +278,7 @@ func startWorker(t *testing.T, opts chatWorkerOptions) *chatWorker {
 }
 
 type taskCall struct {
-	kind  taskKind
+	kind  TaskKind
 	input chatWorkerTaskStartInput
 	ctx   context.Context
 }
@@ -310,22 +310,22 @@ func newBlockingTaskStarter(ignoreCancel bool) *recordingTaskStarter {
 }
 
 func (s *recordingTaskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskStartInput) error {
-	return s.start(ctx, taskKindGeneration, input)
+	return s.start(ctx, TaskKindGeneration, input)
 }
 
 func (s *recordingTaskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskStartInput) error {
-	return s.start(ctx, taskKindInterrupt, input)
+	return s.start(ctx, TaskKindInterrupt, input)
 }
 
 func (s *recordingTaskStarter) StartRequiresActionTimeout(ctx context.Context, input chatWorkerTaskStartInput) error {
-	return s.start(ctx, taskKindRequiresActionTimeout, input)
+	return s.start(ctx, TaskKindRequiresActionTimeout, input)
 }
 
 func (s *recordingTaskStarter) StartAbandon(ctx context.Context, input chatWorkerTaskStartInput) error {
-	return s.start(ctx, taskKindAbandon, input)
+	return s.start(ctx, TaskKindAbandon, input)
 }
 
-func (s *recordingTaskStarter) start(ctx context.Context, kind taskKind, input chatWorkerTaskStartInput) error {
+func (s *recordingTaskStarter) start(ctx context.Context, kind TaskKind, input chatWorkerTaskStartInput) error {
 	call := taskCall{kind: kind, input: input, ctx: ctx}
 	var gate *releaseGate
 	s.mu.Lock()
@@ -351,7 +351,7 @@ func (s *recordingTaskStarter) start(ctx context.Context, kind taskKind, input c
 	}
 }
 
-func (s *recordingTaskStarter) waitCall(t *testing.T, kind taskKind, chatID uuid.UUID) taskCall {
+func (s *recordingTaskStarter) waitCall(t *testing.T, kind TaskKind, chatID uuid.UUID) taskCall {
 	t.Helper()
 	deadline := time.After(testutil.WaitLong)
 	for {
