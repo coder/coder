@@ -3,6 +3,7 @@ package recorder
 import (
 	"context"
 	"sync"
+	"testing"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -238,12 +239,34 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 		}
 
 		if a.metrics != nil {
-			a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, "input", a.initiatorID, a.client).Add(float64(req.Input))
-			a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, "output", a.initiatorID, a.client).Add(float64(req.Output))
-			a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, "cache_read_input_tokens", a.initiatorID, a.client).Add(float64(req.CacheReadInputTokens))
-			a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, "cache_write_input_tokens", a.initiatorID, a.client).Add(float64(req.CacheWriteInputTokens))
+			// AddTokenCount rejects negatives; without it a provider
+			// violating its own usage invariant would panic the counter.
+			// Fail loudly in tests, warn in prod to avoid paging on a
+			// non-actionable upstream bug.
+			addTokenCount := func(typ string, v int64) {
+				if err := a.metrics.AddTokenCount(a.provider, a.model, typ, a.initiatorID, a.client, v); err != nil {
+					fields := []slog.Field{
+						slog.F("interception_id", req.InterceptionID),
+						slog.F("msg_id", req.MsgID),
+						slog.F("provider", a.provider),
+						slog.F("model", a.model),
+						slog.F("type", typ),
+						slog.F("value", v),
+						slog.Error(err),
+					}
+					if testing.Testing() {
+						a.logger.Error(timedCtx, "dropped negative token count from metric", fields...)
+					} else {
+						a.logger.Warn(timedCtx, "dropped negative token count from metric", fields...)
+					}
+				}
+			}
+			addTokenCount("input", req.Input)
+			addTokenCount("output", req.Output)
+			addTokenCount("cache_read_input_tokens", req.CacheReadInputTokens)
+			addTokenCount("cache_write_input_tokens", req.CacheWriteInputTokens)
 			for k, v := range req.ExtraTokenTypes {
-				a.metrics.TokenUseCount.WithLabelValues(a.provider, a.model, k, a.initiatorID, a.client).Add(float64(v))
+				addTokenCount(k, v)
 			}
 		}
 	}()

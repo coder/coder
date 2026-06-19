@@ -1,6 +1,8 @@
 package metrics
 
 import (
+	"golang.org/x/xerrors"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -162,4 +164,15 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Buckets: []float64{1, 2, 3, 4, 5, 10, 25},
 		}, []string{"provider"}),
 	}
+}
+
+// AddTokenCount rejects negatives to avoid a Counter.Add panic; the caller
+// must log the returned error so an upstream provider contract violation
+// stays observable.
+func (m *Metrics) AddTokenCount(provider, model, typ, initiatorID, client string, v int64) error {
+	if v < 0 {
+		return xerrors.Errorf("negative token count for type %q: %d", typ, v)
+	}
+	m.TokenUseCount.WithLabelValues(provider, model, typ, initiatorID, client).Add(float64(v))
+	return nil
 }
