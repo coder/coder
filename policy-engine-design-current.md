@@ -84,7 +84,9 @@ A **kind** is a single-effect Rego stage. Four kinds exist:
   matching its `annotations` entrypoint rule) → annotations only, threaded
   downstream by the host.
 - **route** → within-provider model override (cross-provider routing is
-  deferred).
+  deferred). Multiple routes may run in a hook; they apply in stage order and
+  **the last non-empty override wins**, so a later, more specific route can
+  supersede an earlier default.
 
 A **guardrail** is a multi-effect networked stage pinned to the head-of-hook
 slot. It is deliberately *not* a kind: it differs in substrate (network
@@ -143,6 +145,11 @@ registration and defensively at load via constrained pipeline constructors, so
 a smuggled route/transform cannot mutate anything.
 
 **Per-hook ordering:** `guardrails → annotate → route → decide → transform`.
+A hook may hold **many stages of every kind**; the kind-group order above is a
+fixed invariant, and **within each group stages run in explicit `position`
+order** (§9, unique per hook so the order is total), the same mechanism
+guardrails use. All stages run sequentially, so there is never a concurrent merge
+to define.
 
 - **Guardrails run first as a security invariant**, not a scheduling default:
   a masking guardrail must precede every Rego stage that reads the body,
@@ -150,10 +157,13 @@ a smuggled route/transform cannot mutate anything.
   thence into audit/telemetry. Placement is not operator-choosable.
 - **Annotate before the other policy stages** so its annotations are visible to
   later stages and later hooks. This is how policies compose while staying
-  hermetic.
-- **Decides run sequentially** (ordered by name) and reduce with a BLOCK
+  hermetic. Multiple annotates each write under their own namespace (§5), so they
+  never collide.
+- **Routes** apply in position order, last non-empty override winning (§3).
+- **Decides run sequentially** (position order) and reduce with a BLOCK
   short-circuit; per-policy attribution after a block is best-effort.
-- **Transform runs last**, validate-after-mutate.
+- **Transforms run last**, each applying its edits and re-validating in turn, so
+  multiple transforms compose like a masking chain rather than clobbering.
 
 ## 5. Envelope and annotations
 
@@ -308,9 +318,11 @@ the write transaction, and only valid rows ever persist:
   and the output conforms to the kind's contract on standard smoke inputs.
   Closes the "wrong-kind / typo'd rule silently no-ops" hole.
 - **Per-kind smoke tests** via OPA's `tester` package.
-- **Pipeline structure in Go:** kind-cardinality per hook, kind-validity by
-  hook, referenced versions exist; the loader re-checks defensively so a
-  direct DB write cannot smuggle an invalid posture into the runtime.
+- **Pipeline structure in Go:** kind-validity by hook (decision-only hooks
+  reject mutating kinds), referenced versions exist; the loader re-checks
+  defensively so a direct DB write cannot smuggle an invalid posture into the
+  runtime. There is no per-hook kind-cardinality cap: every kind may appear any
+  number of times, ordered by `position`.
 - **Guardrail config** validates by parsing through the concrete adapter
   constructor (structural validation by construction, not a schema registry).
 - *(Designed, not built:)* cross-table member-name collision rejection, and
@@ -335,25 +347,34 @@ are rare, reviewed, and caught by LOG-first rollout.
 ## 9. Persistence and versioning
 
 Postgres, deployment-global (no `organization_id`; the attach target
-`ai_providers` is global). Three first-class versioned entities, all on the
-`templates`/`template_versions` pattern: a parent row with an
-`active_version_id` pointer plus immutable version rows
-(`UNIQUE(parent_id, version_number)`; edits insert, never mutate; composite
-FKs guarantee a parent can only activate its *own* versions):
+`ai_providers` is global). Three first-class versioned entities, all a parent
+row plus immutable version rows (`UNIQUE(parent_id, version_number)`; edits
+insert, never mutate). **Only the pipeline carries an `active_version_id`** (the
+`templates`/`template_versions` pattern, with a composite FK guaranteeing a
+pipeline can only activate its *own* versions). Policies and guardrails
+deliberately have **no `active_version_id`**: a reusable definition has no
+standalone "live" version, because what actually runs is the exact
+`policy_version_id`/`guardrail_version_id` pinned by each pipeline's active
+version. A policy's effective version is therefore a function of its pipeline
+memberships, not a property of the policy.
 
 - **Policies** (`ai_gateway_policies` / `_versions`): reusable library
-  content; versions store **raw Rego text** (prepared queries are not
-  serializable; `aibridged` recompiles on load). `kind` is intrinsic and
-  immutable: a kind is a semantic role, so a kind change is a new policy.
+  content (no `active_version_id`); versions store **raw Rego text** (prepared
+  queries are not serializable; `aibridged` recompiles on load). `kind` is
+  intrinsic and immutable: a kind is a semantic role, so a kind change is a new
+  policy.
 - **Pipelines** (`ai_gateway_pipelines` / `_versions`): one per provider; the
   atomic whole-posture swap unit. Membership rows pin exact
   `policy_version_id`s (composition history is exact; rollback is possible)
-  and carry per-membership `hook`, `fail_mode`, and `enabled`, since one
-  reusable policy can run differently in different pipelines. Per-hook
-  cardinality (one annotate/route/transform, many decides) is enforced by
-  partial unique indexes over a denormalized `kind` column.
-- **Guardrails** (`ai_gateway_guardrails` / `_versions`): same pattern but
-  storing adapter config, not Rego. The credential column is the **one
+  and carry per-membership `hook`, `fail_mode`, `enabled`, and `position`, since
+  one reusable policy can run differently in different pipelines. Any number of
+  each kind may run in a hook; the denormalized `kind` column drives the fixed
+  kind-group ordering and `position` orders stages within a group (§4), set from
+  membership order at create and preserved across version mints, exactly as for
+  guardrails.
+- **Guardrails** (`ai_gateway_guardrails` / `_versions`): same library shape
+  (also no `active_version_id`) but storing adapter config, not Rego. The
+  credential column is the **one
   dbcrypt-encrypted field** in the system; Rego itself is code, meant to be
   readable, diffable, and decision-logged, so policies are never encrypted
   and embedded secrets are documented-unsupported. Guardrails join pipeline
@@ -372,9 +393,159 @@ and audit depend on them). Deleting a policy is blocked while an active
 pipeline version references it.
 
 **RBAC and audit:** one owner-only `ai_gateway_policy` RBAC resource covers
-everything. Policies, pipelines, and guardrails are audited; the
-`active_version_id` repoint is the most security-relevant action, and pipeline
-audit diffs render the full member posture that went live.
+everything. Policies, pipelines, and guardrails are audited; the pipeline
+`active_version_id` repoint (promotion) is the most security-relevant action,
+and pipeline audit diffs render the full member posture that went live.
+
+### Schema (as built)
+
+Three enums plus three parent/version pairs and two membership tables back the
+model above. `adapter_type` and verdict are deliberately *not* enums:
+`adapter_type` is free `text` (the adapter registry §6 is the source of truth,
+not the DB) and verdicts exist only at runtime.
+
+```sql
+CREATE TYPE ai_gateway_policy_kind AS ENUM ('annotate', 'route', 'decide', 'transform');
+CREATE TYPE ai_gateway_hook       AS ENUM ('pre_auth', 'pre_req', 'pre_tool');
+CREATE TYPE ai_gateway_fail_mode  AS ENUM ('fail_open', 'fail_closed');
+```
+
+**Policies** (reusable Rego library content). No `enabled` column: a reusable
+definition has no standalone on/off meaning. `kind` is intrinsic and immutable.
+
+```sql
+CREATE TABLE ai_gateway_policies (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         text NOT NULL CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    display_name text,
+    kind         ai_gateway_policy_kind NOT NULL,
+    deleted      boolean NOT NULL DEFAULT FALSE,
+    created_at   timestamptz NOT NULL DEFAULT NOW(),
+    updated_at   timestamptz NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX ai_gateway_policies_name_unique
+    ON ai_gateway_policies (name) WHERE deleted = FALSE;
+
+-- No active_version_id / composite FK: a policy has no standalone live version.
+CREATE TABLE ai_gateway_policy_versions (
+    id                    uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    policy_id             uuid NOT NULL REFERENCES ai_gateway_policies (id) ON DELETE CASCADE,
+    version_number        integer NOT NULL,
+    rego                  text NOT NULL,
+    input_schema_version  integer NOT NULL,
+    output_schema_version integer NOT NULL,
+    description           text,
+    created_at            timestamptz NOT NULL DEFAULT NOW(),
+    created_by            uuid REFERENCES users (id) ON DELETE SET NULL,
+    UNIQUE (policy_id, version_number)
+);
+```
+
+**Pipelines** (one per provider; the atomic swap unit). Pipeline versions are
+bare envelopes; composition lives entirely in the membership tables.
+
+```sql
+CREATE TABLE ai_gateway_pipelines (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    provider_id       uuid NOT NULL REFERENCES ai_providers (id) ON DELETE CASCADE,
+    active_version_id uuid,
+    enabled           boolean NOT NULL DEFAULT TRUE,
+    deleted           boolean NOT NULL DEFAULT FALSE,
+    created_at        timestamptz NOT NULL DEFAULT NOW(),
+    updated_at        timestamptz NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX ai_gateway_pipelines_provider_unique
+    ON ai_gateway_pipelines (provider_id) WHERE deleted = FALSE;
+
+CREATE TABLE ai_gateway_pipeline_versions (
+    id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    pipeline_id    uuid NOT NULL REFERENCES ai_gateway_pipelines (id) ON DELETE CASCADE,
+    version_number integer NOT NULL,
+    created_at     timestamptz NOT NULL DEFAULT NOW(),
+    created_by     uuid REFERENCES users (id) ON DELETE SET NULL,
+    UNIQUE (pipeline_id, version_number),
+    UNIQUE (pipeline_id, id)
+);
+ALTER TABLE ai_gateway_pipelines
+    ADD CONSTRAINT ai_gateway_pipelines_active_version_id_fkey
+    FOREIGN KEY (id, active_version_id)
+    REFERENCES ai_gateway_pipeline_versions (pipeline_id, id);
+```
+
+**Guardrails** (same parent/version pattern, storing adapter config not Rego).
+`credential` is the one dbcrypt-encrypted column in the system; `credential_key_id`
+names the encryption key (NULL = no secret, or plaintext when encryption is
+unconfigured). Rego is never encrypted; it is code, meant to be readable,
+diffable, and decision-logged.
+
+```sql
+CREATE TABLE ai_gateway_guardrails (
+    id           uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    name         text NOT NULL CHECK (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+    display_name text,
+    adapter_type text NOT NULL,                       -- e.g. 'presidio', 'generic_api'
+    enabled      boolean NOT NULL DEFAULT TRUE,
+    deleted      boolean NOT NULL DEFAULT FALSE,
+    created_at   timestamptz NOT NULL DEFAULT NOW(),
+    updated_at   timestamptz NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX ai_gateway_guardrails_name_unique
+    ON ai_gateway_guardrails (name) WHERE deleted = FALSE;
+
+-- No active_version_id / composite FK, same as policies.
+CREATE TABLE ai_gateway_guardrail_versions (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    guardrail_id      uuid NOT NULL REFERENCES ai_gateway_guardrails (id) ON DELETE CASCADE,
+    version_number    integer NOT NULL,
+    config            jsonb NOT NULL,
+    credential        text NOT NULL DEFAULT '',      -- dbcrypt-encrypted secret
+    credential_key_id text,                          -- NULL = plaintext / no secret
+    description       text,
+    created_at        timestamptz NOT NULL DEFAULT NOW(),
+    created_by        uuid REFERENCES users (id) ON DELETE SET NULL,
+    UNIQUE (guardrail_id, version_number)
+);
+```
+
+**Membership (join) tables.** Policy membership keeps the denormalized immutable
+`kind` (it drives the fixed kind-group ordering and binds the entrypoint/effect),
+but there is no cardinality cap: any number of each kind may run in a hook.
+`position` is **unique per `(pipeline_version_id, hook)`**, so ordering is fully
+deterministic with no ties; the kind-group order is the primary sort and
+`position` orders stages within each group. Guardrail membership has no `kind`;
+its `position` (unique per hook the same way) orders the sequential masking chain
+and `network_timeout_ms` is per-membership.
+
+```sql
+CREATE TABLE ai_gateway_pipeline_version_policies (
+    id                  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    pipeline_version_id uuid NOT NULL REFERENCES ai_gateway_pipeline_versions (id) ON DELETE CASCADE,
+    policy_version_id   uuid NOT NULL REFERENCES ai_gateway_policy_versions (id),
+    hook                ai_gateway_hook NOT NULL,
+    kind                ai_gateway_policy_kind NOT NULL,            -- denormalized from policy
+    fail_mode           ai_gateway_fail_mode NOT NULL,
+    enabled             boolean NOT NULL DEFAULT TRUE,
+    position            integer NOT NULL DEFAULT 0,
+    UNIQUE (pipeline_version_id, policy_version_id, hook),
+    UNIQUE (pipeline_version_id, hook, position)                    -- deterministic order
+);
+
+CREATE TABLE ai_gateway_pipeline_version_guardrails (
+    id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    pipeline_version_id  uuid NOT NULL REFERENCES ai_gateway_pipeline_versions (id) ON DELETE CASCADE,
+    guardrail_version_id uuid NOT NULL REFERENCES ai_gateway_guardrail_versions (id),
+    hook                 ai_gateway_hook NOT NULL,
+    fail_mode            ai_gateway_fail_mode NOT NULL,
+    network_timeout_ms   integer NOT NULL DEFAULT 10000,
+    enabled              boolean NOT NULL DEFAULT TRUE,
+    position             integer NOT NULL DEFAULT 0,
+    UNIQUE (pipeline_version_id, guardrail_version_id, hook),
+    UNIQUE (pipeline_version_id, hook, position)                  -- deterministic order
+);
+```
+
+Audit `resource_type` gains `ai_gateway_policy`, `ai_gateway_pipeline`, and
+`ai_gateway_guardrail`.
 
 ### Rollout: mint, then promote
 
@@ -382,18 +553,23 @@ Changing what runs is explicitly two-stage *(designed, not built; current code
 auto-activates)*:
 
 - **Version creation defaults to `activate=false`**: it mints an immutable
-  version and changes nothing anywhere.
-- **Activating a policy version** re-pins every referencing pipeline by
-  minting a new pipeline version on each pipeline's **tip** (so staged changes
-  accumulate as one linear draft lineage), but does **not** promote. Every
-  activation returns a **propagation report** so "editing didn't change what
-  runs" is loud, not surprising.
-- **Promotion** (repointing `active_version_id`, same path as revert) is the
-  only action that changes live posture. An opt-in `promote: true` collapses
-  mint+promote for urgent hole-patches. The promote-time live-vs-candidate
-  diff is the safety net showing everything that would go live.
-- The drift gauge (pipeline pins ≠ policy's active version) is the
-  "unpromoted changes exist" workqueue indicator.
+  policy/guardrail version and changes nothing anywhere (no pipeline pins it
+  yet, and there is no policy-level pointer to repoint).
+- **Activating a version** is a fan-out action, not a stored-pointer repoint:
+  it takes the version explicitly and re-pins it into every pipeline that
+  currently uses that policy/guardrail, minting a new pipeline version on each
+  pipeline's **tip** (so staged changes accumulate as one linear draft lineage),
+  but does **not** promote. Every activation returns a **propagation report** so
+  "editing didn't change what runs" is loud, not surprising.
+- **Promotion** (repointing the pipeline's `active_version_id`, same path as
+  revert) is the only action that changes live posture. An opt-in
+  `promote: true` collapses mint+promote for urgent hole-patches. The
+  promote-time live-vs-candidate diff is the safety net showing everything that
+  would go live.
+- The drift gauge is a **per-pipeline** signal: a pipeline whose tip version is
+  ahead of its `active_version_id` has staged-but-unpromoted changes. This needs
+  no policy-level state, and it captures every kind of unpromoted edit (re-pin,
+  membership toggle, reorder), not just a version bump.
 
 ### Version-targeted evaluation
 
@@ -444,19 +620,64 @@ built)*: CI checks the artifact pre-merge; the header rehearses it pre-promote.
   ingest/compile/store path as the UI.
 - **UI:** `/ai/settings/policies`: policy list with a Monaco Rego editor and
   version-history revert; pipeline list with membership management (policies
-  and guardrails, per-membership mode/fail-mode/enable); guardrail management
-  with write-only credentials. Membership edits mint unpromoted drafts; an
+  and guardrails, per-membership fail-mode/enable and drag-to-reorder `position`
+  within each hook); guardrail management with write-only credentials. Membership edits mint unpromoted drafts; an
   "Unpromoted vN" badge and a prominent "Promote vN" button make promotion
   volitional.
 - **Authoring tiers:** canned registry policies (taxonomy-tagged to OWASP LLM
   Top 10 / NIST AI RMF) → form builder → raw Rego → LLM-assisted.
-- **Observability:** reload result/duration, per-provider live-version gauge,
-  drift gauge, eval-duration histogram aligned to the 1s timeout, pre-tool
-  verdict/hold metrics, and `pipeline_version` stamped on every decision log
-  line so audits can reconstruct exactly what evaluated a past request.
-  Execution records carry the evaluating `pipeline_version_id` and member
-  `policy_version_id`s plus actor attribution. All-hook verdict/block-rate
-  counters and guardrail metrics are designed, not built.
+- **Observability.** Prometheus metrics are exported under the
+  `coder_aibridged_policy_` prefix; `pipeline_version` is stamped on every
+  decision log line, and execution records carry the evaluating
+  `pipeline_version_id` and member `policy_version_id`s plus actor attribution,
+  so audits can reconstruct exactly what evaluated a past request.
+
+  *Built* (the four core counters/histograms, all labelled `provider`):
+  - `policy_verdicts_total{provider, model, hook, verdict}` — every decide-bearing
+    hook's verdict; the all-hook block rate is `verdict="BLOCK"` over the total,
+    sliced by hook and model.
+  - `policy_eval_duration_seconds{provider, hook}` — pipeline evaluation latency,
+    bucketed so the top bucket is the 1s per-stage eval timeout, making
+    saturation against the timeout directly visible.
+  - `policy_tool_verdicts_total{provider, tool, verdict}` — pre-tool gating
+    verdicts attributed per tool name (cardinality bounded by the deployment's
+    tool surface).
+  - `policy_tool_hold_duration_seconds{provider}` — how long a client-bound tool
+    block is held for gating (includes upstream argument-generation time;
+    bucketed to 5s, below the 5 min hold deadline).
+
+  *Designed, not built* — the rest of the surface operators need to see the
+  mechanics §3, §6, §9, and §10 describe, rather than infer them from verdict
+  counts:
+  - **Reload / snapshot health:** reload result counter (success vs compile
+    error) and duration histogram; a last-good-snapshot-retained signal so the
+    near-impossible "reload compile error, kept old snapshot" path (§10) is
+    alertable rather than silent; periodic-safety-reload counter.
+  - **Live posture:** per-provider active `pipeline_version` gauge, and the drift
+    gauge (pipelines whose tip version is ahead of their `active_version_id`)
+    that is the "unpromoted changes exist" workqueue indicator (§9).
+  - **Guardrail mechanics:** per-guardrail call counter labelled by
+    `adapter_type`, hook, and outcome (`none` / `intervened` / `blocked`); a
+    network-duration histogram separating vendor latency from Rego eval; a
+    failure counter split by `fail_mode` and error class; and an edits-applied
+    counter, so a masking guardrail that is silently doing nothing (§8's dead-DLP
+    case) is visible.
+  - **Stage-failure projection:** a counter over the `Failure` projector (§3)
+    labelled by stage kind/name, `fail_mode`, and error class (eval-error,
+    eval-timeout, network, decode). Without it a `fail_open → LOG` outage is
+    intentionally non-blocking and would otherwise be invisible, defeating the
+    "fail-open must be visible, not silent" invariant.
+  - **Mutation:** edits-applied counter (transform + guardrail) and a
+    post-mutation re-validation failure counter (body rejected against the
+    provider schema after rewrite, §3).
+  - **Pre-tool bound breaches:** a counter for byte-cap (4 MiB), wall-clock
+    (5 min), and eval-timeout breaches, labelled by which bound tripped and the
+    resulting aggregate fail-mode outcome, so a terminated live agent turn (§7)
+    is attributable.
+  - **Host-side guards & rehearsal:** large-body size-gate rejection counter
+    (§10 bounds); and a version-targeted evaluation counter plus its 403
+    rejections (§9) so header-driven rehearsal traffic is distinguishable from
+    production.
 
 ## 12. Known limitations (accepted)
 
