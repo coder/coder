@@ -14,7 +14,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
@@ -30,23 +29,19 @@ type BlockingResponsesInterceptor struct {
 func NewBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *BlockingResponsesInterceptor {
 	return &BlockingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
-			id:             id,
-			providerName:   providerName,
-			reqPayload:     reqPayload,
-			cfg:            cfg,
-			clientHeaders:  clientHeaders,
-			authHeaderName: authHeaderName,
-			tracer:         tracer,
-			credential:     cred,
+			id:            id,
+			reqPayload:    reqPayload,
+			cfg:           cfg,
+			cred:          cred,
+			clientHeaders: clientHeaders,
+			tracer:        tracer,
 		},
 	}
 }
@@ -89,10 +84,14 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	// Sum the key attempts across all iterations and record once when the
 	// interception completes.
 	var totalKeyAttempts int
-	defer func() { i.cfg.KeyPool.RecordAttempts(totalKeyAttempts) }()
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	for shouldLoop {
-		srv := i.newResponsesService()
+		srv := i.newResponsesService(ctx)
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)
@@ -153,16 +152,16 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-// newResponse routes between BYOK (single attempt) and centralized failover,
-// returning the upstream response, the number of key attempts made for this
-// call, and any error.
+// newResponse routes by credential type, returning the upstream response, the
+// number of key attempts made for this call, and any error. A centralized key
+// pool fails over across keys, while BYOK authenticates with a single, fixed
+// credential baked into srv, so it makes one attempt.
 func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
-	// BYOK: single attempt, no failover.
-	if i.cfg.KeyPool == nil {
-		response, err := i.newResponseWithKey(ctx, srv, opts)
-		return response, 0, err
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newResponseWithKeyFailover(ctx, srv, cp, opts)
 	}
-	return i.newResponseWithKeyFailover(ctx, srv, opts)
+	response, err := i.newResponseWithKey(intercept.WithCredentialInfo(ctx, i.cred), srv, opts)
+	return response, 0, err
 }
 
 // newResponseWithKey performs a single upstream call.
@@ -179,18 +178,16 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 // 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
 // failover and are returned to the caller. It returns the upstream response,
 // the number of key attempts made for this call, and any error.
-func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
-	walker := i.cfg.KeyPool.Walker()
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*responses.Response, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, keyPoolErr := walker.Next()
+		key, keyPoolErr := cp.NextKey(walker)
 		if keyPoolErr != nil {
 			return nil, walker.Attempts(), keyPoolErr
 		}
-		// Record the key in use so the hint reflects the last attempted key.
-		i.credential = intercept.NewCredentialInfo(intercept.CredentialKindCentralized, key.Value())
-		i.logger.Debug(ctx, "using centralized api key",
-			slog.F("credential_hint", i.Credential().Hint), slog.F("credential_length", i.Credential().Length))
 
+		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
 			option.WithAPIKey(key.Value()),

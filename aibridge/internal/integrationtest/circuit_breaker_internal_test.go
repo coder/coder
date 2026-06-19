@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 )
@@ -70,7 +71,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -88,7 +89,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -237,7 +238,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -254,7 +255,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -374,7 +375,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewAnthropic(config.Anthropic{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
 				}, nil)
 			},
@@ -392,7 +393,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{
 					BaseURL:        baseURL,
-					Key:            "test-key",
+					KeyPool:        testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 					CircuitBreaker: cbConfig,
 				})
 			},
@@ -555,7 +556,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 	bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 		withCustomProvider(provider.NewAnthropic(config.Anthropic{
 			BaseURL:        mockUpstream.URL,
-			Key:            "test-key",
+			KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
 		}, nil)),
 		withMetrics(m),
