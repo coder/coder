@@ -443,9 +443,16 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							// Restored attachments carry no bytes (size 0), so they
 							// fall back to the file part.
 							if (isInlinableTextAttachment(file)) {
-								const content =
-									textContents.get(file) ??
-									(file.size > 0 ? await readTextFileContent(file) : undefined);
+								let content = textContents.get(file);
+								if (!content && file.size > 0) {
+									try {
+										content = await readTextFileContent(file);
+									} catch {
+										// Fall back to the file part if the on-demand
+										// read fails so the message still sends. The
+										// attach-time read handles its own failures.
+									}
+								}
 								if (content) {
 									attachment.textContent = formatInlinedAttachmentText(
 										file.name,
