@@ -41,7 +41,7 @@ type AgentFirewallLog struct {
 	SessionID      uuid.UUID  `json:"session_id" format:"uuid"`
 	SequenceNumber int32      `json:"sequence_number"`
 	Allowed        bool       `json:"allowed"`
-	Time           time.Time  `json:"time" format:"date-time"`
+	CreatedAt      time.Time  `json:"created_at" format:"date-time"`
 	Proto          string     `json:"proto"`
 	Method         string     `json:"method"`
 	Detail         string     `json:"detail"`

@@ -1033,7 +1033,7 @@ export interface AgentFirewallLog {
 	readonly session_id: string;
 	readonly sequence_number: number;
 	readonly allowed: boolean;
-	readonly time: string;
+	readonly created_at: string;
 	readonly proto: string;
 	readonly method: string;
 	readonly detail: string;

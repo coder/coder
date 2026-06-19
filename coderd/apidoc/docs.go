@@ -16006,6 +16006,10 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "detail": {
                     "type": "string"
                 },
@@ -16028,10 +16032,6 @@ const docTemplate = `{
                 "session_id": {
                     "type": "string",
                     "format": "uuid"
-                },
-                "time": {
-                    "type": "string",
-                    "format": "date-time"
                 }
             }
         },

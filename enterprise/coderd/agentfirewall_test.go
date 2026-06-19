@@ -389,6 +389,13 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 		require.Equal(t, "POST", resp.Results[1].Method)
 		require.Equal(t, "https://evil.com/exfil", resp.Results[1].Detail)
 		require.Nil(t, resp.Results[1].MatchedRule)
+
+		// Second allowed request.
+		require.True(t, resp.Results[2].Allowed)
+		require.Equal(t, "POST", resp.Results[2].Method)
+		require.Equal(t, "https://api.anthropic.com/v1/messages", resp.Results[2].Detail)
+		require.NotNil(t, resp.Results[2].MatchedRule)
+		require.Equal(t, "domain=api.anthropic.com", *resp.Results[2].MatchedRule)
 	})
 
 	// Table-driven tests for sequence number filtering and limit.
@@ -398,22 +405,22 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 		wantSeqs []int32
 	}{
 		{
-			name:     "SeqAfter",
+			name:     "SeqAfterExcludesBound",
 			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0))},
 			wantSeqs: []int32{1, 2},
 		},
 		{
-			name:     "SeqBefore",
+			name:     "SeqBeforeExcludesBound",
 			params:   codersdk.AgentFirewallSessionLogsParams{SeqBefore: ptr.Ref(int64(2))},
 			wantSeqs: []int32{0, 1},
 		},
 		{
-			name:     "BetweenBounds",
+			name:     "BetweenBoundsExclusive",
 			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0)), SeqBefore: ptr.Ref(int64(2))},
 			wantSeqs: []int32{1},
 		},
 		{
-			name:     "Limit",
+			name:     "LimitCapsResults",
 			params:   codersdk.AgentFirewallSessionLogsParams{Limit: ptr.Ref(int32(2))},
 			wantSeqs: []int32{0, 1},
 		},

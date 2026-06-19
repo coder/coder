@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -100,7 +99,7 @@ func (api *API) agentFirewallSessionLogs(rw http.ResponseWriter, r *http.Request
 	}
 
 	dbLogs, err := api.Database.ListBoundaryLogsBySessionID(ctx, params)
-	if dbauthz.IsNotAuthorizedError(err) {
+	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -124,7 +123,7 @@ func agentFirewallLogsFromDB(dbLogs []database.BoundaryLog) []codersdk.AgentFire
 			SessionID:      l.SessionID,
 			SequenceNumber: l.SequenceNumber,
 			Allowed:        l.MatchedRule.Valid,
-			Time:           l.CreatedAt,
+			CreatedAt:      l.CreatedAt,
 			Proto:          l.Proto,
 			Method:         l.Method,
 			Detail:         l.Detail,
