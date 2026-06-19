@@ -249,7 +249,7 @@ func (a *AsyncRecorder) RecordTokenUsage(ctx context.Context, req *TokenUsageRec
 						slog.F("provider", a.provider),
 						slog.F("model", a.model),
 						slog.F("type", typ),
-						slog.F("value", count),
+						slog.F("count", count),
 						slog.Error(err),
 					}
 					if flag.Lookup("test.v") != nil {
