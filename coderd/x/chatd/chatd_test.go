@@ -6789,6 +6789,68 @@ func TestActiveServer_ChatTurnDebugRunRecordsStreamStep(t *testing.T) {
 	require.EqualValues(t, 150, summary["total_cache_read_tokens"])
 }
 
+// TestActiveServer_ChatTurnDebugRunCapturesGenericErrorWhenLoggingOff is the
+// happy path for the errors-only default: with debug logging disabled, an
+// unexpected (generic) model failure still produces a minimal error run that
+// the debug-runs API surfaces.
+func TestActiveServer_ChatTurnDebugRunCapturesGenericErrorWhenLoggingOff(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, ps := dbtestutil.NewDB(t)
+	anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+		if !req.Stream {
+			// Title generation succeeds; only the chat turn (stream) fails.
+			return chattest.AnthropicNonStreamingResponse(`{"label":"Debug error"}`)
+		}
+		// A 400 with an unrecognized body classifies as a generic,
+		// non-retryable error: the chat turn fails fast and is captured.
+		return chattest.AnthropicErrorResponse(http.StatusBadRequest, "api_error", "unexpected internal failure")
+	})
+	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+
+	// Note: AlwaysEnableDebugLogs is intentionally left unset, so the server
+	// runs in the errors-only default level.
+	server := newActiveTestServer(t, db, ps)
+	chat := createChatThroughServer(ctx, t, db, server, org.ID, user.ID, model.ID, "hello error")
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+	require.NoError(t, server.Close())
+	debugCtx := testutil.Context(t, testutil.WaitLong)
+
+	var errorRun database.ChatDebugRun
+	testutil.Eventually(debugCtx, t, func(ctx context.Context) bool {
+		runs, err := db.GetChatDebugRunsByChatID(ctx, database.GetChatDebugRunsByChatIDParams{
+			ChatID:   chat.ID,
+			LimitVal: 100,
+		})
+		if err != nil {
+			return false
+		}
+		for _, run := range runs {
+			if run.Kind == string(codersdk.ChatDebugRunKindChatTurn) && run.FinishedAt.Valid {
+				errorRun = run
+				return true
+			}
+		}
+		return false
+	}, testutil.IntervalFast)
+
+	require.Equal(t, string(codersdk.ChatDebugStatusError), errorRun.Status)
+
+	steps, err := db.GetChatDebugStepsByRunID(debugCtx, errorRun.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, steps)
+	step := steps[0]
+	require.Equal(t, string(codersdk.ChatDebugStatusError), step.Status)
+	require.True(t, step.Error.Valid)
+	// Errors-only capture is minimal: no request/response/usage/attempt data.
+	var normalizedRequest map[string]any
+	require.NoError(t, json.Unmarshal(step.NormalizedRequest, &normalizedRequest))
+	require.Empty(t, normalizedRequest)
+	require.False(t, step.NormalizedResponse.Valid)
+	require.False(t, step.Usage.Valid)
+}
+
 func TestActiveServer_ChatTurnDebugRunRecordsMultipleStreamSteps(t *testing.T) {
 	t.Parallel()
 

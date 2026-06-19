@@ -274,6 +274,13 @@ func startCompactionDebugRun(
 		return ctx, func(error) {}
 	}
 
+	// TODO(chatd-debug): support the errors-only default here so a generic
+	// compaction StatusError is captured with KindCompaction even when full
+	// logging is off. Today this only records when a parent (full) run
+	// exists; in the errors-only default a failing compaction is still
+	// captured under the chat_turn run's error ensurer, just not labeled
+	// KindCompaction. This is follow-up trace-taxonomy work.
+
 	parentRun, ok := chatdebug.RunFromContext(ctx)
 	if !ok {
 		return ctx, func(error) {}

@@ -12,7 +12,7 @@ func TestBeginStep_SkipsNilRunID(t *testing.T) {
 	t.Parallel()
 
 	ctx := ContextWithRun(context.Background(), &RunContext{ChatID: uuid.New()})
-	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{ChatID: uuid.New()}, OperationGenerate, nil)
+	handle, enriched := beginStep(ctx, &Service{}, RecorderOptions{ChatID: uuid.New(), FullRecording: true}, OperationGenerate, nil)
 	require.Nil(t, handle)
 	require.Equal(t, ctx, enriched)
 }

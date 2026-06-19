@@ -17,6 +17,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
+	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type debugModel struct {
@@ -26,6 +28,46 @@ type debugModel struct {
 }
 
 var _ fantasy.LanguageModel = (*debugModel)(nil)
+
+// recordTarget describes how a model call should be recorded.
+type recordTarget int
+
+const (
+	// targetNone skips recording entirely.
+	targetNone recordTarget = iota
+	// targetFull eagerly records the step with full payloads.
+	targetFull
+	// targetDeferred records only a minimal step if a qualifying error
+	// occurs, lazily materializing the run.
+	targetDeferred
+)
+
+// target reports how the current call should be recorded based on the
+// recording level and the debug context present in ctx.
+func (d *debugModel) target(ctx context.Context) recordTarget {
+	if d.svc == nil {
+		return targetNone
+	}
+	if d.opts.FullRecording {
+		if _, ok := RunFromContext(ctx); ok {
+			return targetFull
+		}
+		return targetNone
+	}
+	if hasErrorRunEnsurer(ctx) {
+		return targetDeferred
+	}
+	return targetNone
+}
+
+// shouldCaptureError reports whether an error qualifies for default
+// (errors-only) capture: only unclassified/unexpected errors
+// (ChatErrorKindGeneric) are persisted. Expected operational conditions
+// (auth, config, usage_limit, rate_limit, etc.) carry no debugging value
+// and are skipped.
+func shouldCaptureError(err error) bool {
+	return chaterror.Classify(err).Kind == codersdk.ChatErrorKindGeneric
+}
 
 // ErrNilModelResult is returned when the underlying language model
 // returns a nil response or stream. Callers can match with
@@ -203,11 +245,21 @@ func (d *debugModel) Generate(
 	ctx context.Context,
 	call fantasy.Call,
 ) (*fantasy.Response, error) {
-	if d.svc == nil {
+	switch d.target(ctx) {
+	case targetNone:
 		return d.inner.Generate(ctx, call)
-	}
-	if _, ok := RunFromContext(ctx); !ok {
-		return d.inner.Generate(ctx, call)
+	case targetDeferred:
+		resp, err := d.inner.Generate(ctx, call)
+		if err != nil {
+			d.captureDeferred(ctx, OperationGenerate, err, nil)
+			return nil, err
+		}
+		if resp == nil {
+			err = xerrors.Errorf("Generate: %w", ErrNilModelResult)
+			d.captureDeferred(ctx, OperationGenerate, err, nil)
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
@@ -241,27 +293,28 @@ func (d *debugModel) Stream(
 	ctx context.Context,
 	call fantasy.Call,
 ) (fantasy.StreamResponse, error) {
-	if d.svc == nil {
-		return d.inner.Stream(ctx, call)
-	}
-	if _, ok := RunFromContext(ctx); !ok {
+	tgt := d.target(ctx)
+	if tgt == targetNone {
 		return d.inner.Stream(ctx, call)
 	}
 
-	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
-		normalizeCall(call))
+	var normReq any
+	if tgt == targetFull {
+		normReq = normalizeCall(call)
+	}
+	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream, normReq)
 	if handle == nil {
 		return d.inner.Stream(ctx, call)
 	}
 
 	seq, err := d.inner.Stream(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err), nil)
+		handle.finishTerminalError(ctx, OperationStream, stepStatusForError(err), err, nil)
 		return nil, err
 	}
 	if seq == nil {
 		err = xerrors.Errorf("Stream: %w", ErrNilModelResult)
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err), nil)
+		handle.finishTerminalError(ctx, OperationStream, StatusError, err, nil)
 		return nil, err
 	}
 
@@ -272,11 +325,22 @@ func (d *debugModel) GenerateObject(
 	ctx context.Context,
 	call fantasy.ObjectCall,
 ) (*fantasy.ObjectResponse, error) {
-	if d.svc == nil {
+	objectMeta := map[string]any{"structured_output": true}
+	switch d.target(ctx) {
+	case targetNone:
 		return d.inner.GenerateObject(ctx, call)
-	}
-	if _, ok := RunFromContext(ctx); !ok {
-		return d.inner.GenerateObject(ctx, call)
+	case targetDeferred:
+		resp, err := d.inner.GenerateObject(ctx, call)
+		if err != nil {
+			d.captureDeferred(ctx, OperationGenerate, err, objectMeta)
+			return nil, err
+		}
+		if resp == nil {
+			err = xerrors.Errorf("GenerateObject: %w", ErrNilModelResult)
+			d.captureDeferred(ctx, OperationGenerate, err, objectMeta)
+			return nil, err
+		}
+		return resp, nil
 	}
 
 	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationGenerate,
@@ -294,18 +358,18 @@ func (d *debugModel) GenerateObject(
 	close(heartbeatDone)
 	if err != nil {
 		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
-			map[string]any{"structured_output": true})
+			objectMeta)
 		return nil, err
 	}
 	if resp == nil {
 		err = xerrors.Errorf("GenerateObject: %w", ErrNilModelResult)
 		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err),
-			map[string]any{"structured_output": true})
+			objectMeta)
 		return nil, err
 	}
 
 	handle.finish(ctx, StatusCompleted, normalizeObjectResponse(resp), &resp.Usage,
-		nil, map[string]any{"structured_output": true})
+		nil, objectMeta)
 	return resp, nil
 }
 
@@ -313,33 +377,44 @@ func (d *debugModel) StreamObject(
 	ctx context.Context,
 	call fantasy.ObjectCall,
 ) (fantasy.ObjectStreamResponse, error) {
-	if d.svc == nil {
+	tgt := d.target(ctx)
+	if tgt == targetNone {
 		return d.inner.StreamObject(ctx, call)
 	}
-	if _, ok := RunFromContext(ctx); !ok {
-		return d.inner.StreamObject(ctx, call)
-	}
+	objectMeta := map[string]any{"structured_output": true}
 
-	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream,
-		normalizeObjectCall(call))
+	var normReq any
+	if tgt == targetFull {
+		normReq = normalizeObjectCall(call)
+	}
+	handle, enrichedCtx := beginStep(ctx, d.svc, d.opts, OperationStream, normReq)
 	if handle == nil {
 		return d.inner.StreamObject(ctx, call)
 	}
 
 	seq, err := d.inner.StreamObject(enrichedCtx, call)
 	if err != nil {
-		handle.finish(ctx, stepStatusForError(err), nil, nil, normalizeError(ctx, err),
-			map[string]any{"structured_output": true})
+		handle.finishTerminalError(ctx, OperationStream, stepStatusForError(err), err, objectMeta)
 		return nil, err
 	}
 	if seq == nil {
 		err = xerrors.Errorf("StreamObject: %w", ErrNilModelResult)
-		handle.finish(ctx, StatusError, nil, nil, normalizeError(ctx, err),
-			map[string]any{"structured_output": true})
+		handle.finishTerminalError(ctx, OperationStream, StatusError, err, objectMeta)
 		return nil, err
 	}
 
 	return wrapObjectStreamSeq(ctx, handle, seq), nil
+}
+
+// captureDeferred persists a minimal error step for the errors-only
+// default level when err is a genuine error (not a cancellation or
+// timeout) that qualifies for capture.
+func (d *debugModel) captureDeferred(ctx context.Context, op Operation, err error, metadata any) {
+	if stepStatusForError(err) != StatusError || !shouldCaptureError(err) {
+		return
+	}
+	(&stepHandle{deferred: true, svc: d.svc, opts: d.opts}).
+		captureDeferredError(ctx, op, err, metadata)
 }
 
 func (d *debugModel) Provider() string {
@@ -448,6 +523,9 @@ func wrapStreamSeq(
 	// prevents leaked goroutines when the iterator is dropped without
 	// being iterated.
 	startHeartbeat := sync.OnceFunc(func() {
+		if handle.deferred {
+			return
+		}
 		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
 	})
 
@@ -463,6 +541,7 @@ func wrapStreamSeq(
 			warnings         []normalizedWarning
 			streamDebugBytes int
 			streamError      any
+			lastErr          error
 			streamStatus     = StatusCompleted
 		)
 
@@ -478,6 +557,13 @@ func wrapStreamSeq(
 			}
 			finalized = true
 			close(heartbeatDone)
+
+			if handle.deferred {
+				if status == StatusError && shouldCaptureError(lastErr) {
+					handle.captureDeferredError(ctx, OperationStream, lastErr, nil)
+				}
+				return
+			}
 
 			summary.FinishReason = string(finishReason)
 
@@ -535,6 +621,7 @@ func wrapStreamSeq(
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
 						streamError = normalizeError(ctx, part.Error)
+						lastErr = part.Error
 					} else {
 						summary.LastError = "stream error part with nil error"
 						streamError = map[string]string{"error": "stream error part with nil error"}
@@ -605,6 +692,9 @@ func wrapObjectStreamSeq(
 	// Deferred heartbeat: start the heartbeat goroutine only when the
 	// caller begins consuming the stream.
 	startHeartbeat := sync.OnceFunc(func() {
+		if handle.deferred {
+			return
+		}
 		launchHeartbeat(ctx, handle.svc, handle.stepCtx.StepID, handle.stepCtx.RunID, handle.stepCtx.ChatID, heartbeatDone)
 	})
 
@@ -619,6 +709,7 @@ func wrapObjectStreamSeq(
 			rawTextLength int
 			warnings      []normalizedWarning
 			streamError   any
+			lastErr       error
 			streamStatus  = StatusCompleted
 		)
 
@@ -633,6 +724,14 @@ func wrapObjectStreamSeq(
 			}
 			finalized = true
 			close(heartbeatDone)
+
+			if handle.deferred {
+				if status == StatusError && shouldCaptureError(lastErr) {
+					handle.captureDeferredError(ctx, OperationStream, lastErr,
+						map[string]any{"structured_output": true})
+				}
+				return
+			}
 
 			summary.FinishReason = string(finishReason)
 
@@ -683,6 +782,7 @@ func wrapObjectStreamSeq(
 					if part.Error != nil {
 						summary.LastError = part.Error.Error()
 						streamError = normalizeError(ctx, part.Error)
+						lastErr = part.Error
 					} else {
 						summary.LastError = "stream error part with nil error"
 						streamError = map[string]string{"error": "stream error part with nil error"}

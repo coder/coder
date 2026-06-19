@@ -40,7 +40,7 @@ func TestBeginStepReuseStep(t *testing.T) {
 		svc := NewService(db, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 		ctx = ReuseStep(ctx)
-		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
+		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true}
 
 		firstHandle, firstEnriched := beginStep(ctx, svc, opts, OperationStream, nil)
 		secondHandle, secondEnriched := beginStep(ctx, svc, opts, OperationStream, nil)
@@ -97,7 +97,7 @@ func TestBeginStepReuseStep(t *testing.T) {
 
 		svc := NewService(db, testutil.Logger(t), nil)
 		ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID}
+		opts := RecorderOptions{ChatID: chatID, OwnerID: ownerID, FullRecording: true}
 
 		firstHandle, _ := beginStep(ctx, svc, opts, OperationStream, nil)
 		secondHandle, _ := beginStep(ctx, svc, opts, OperationStream, nil)

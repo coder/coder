@@ -19,6 +19,7 @@ import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
+	chatDebugRuns,
 	chatDesktopEnabled,
 	chatKey,
 	chatMessagesForInfiniteScroll,
@@ -776,6 +777,14 @@ const AgentChatPage: FC = () => {
 	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
+	// Fetch debug runs independent of the Debug tab so the tab can appear
+	// whenever a chat has captured runs (errors are captured even when debug
+	// logging is off). The Debug panel shares this query key, so react-query
+	// dedupes the two consumers.
+	const chatDebugRunsQuery = useQuery({
+		...chatDebugRuns(agentId ?? ""),
+		enabled: Boolean(agentId),
+	});
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
@@ -786,6 +795,7 @@ const AgentChatPage: FC = () => {
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
+	const hasDebugRuns = (chatDebugRunsQuery.data?.length ?? 0) > 0;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1645,6 +1655,7 @@ const AgentChatPage: FC = () => {
 			prNumber={prNumber}
 			diffStatusData={chatQuery.data?.diff_status}
 			debugLoggingEnabled={debugLoggingEnabled}
+			hasDebugRuns={hasDebugRuns}
 			gitWatcher={gitWatcher}
 			sshCommand={sshCommand}
 			handleCommit={handleCommit}

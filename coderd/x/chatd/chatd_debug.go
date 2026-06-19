@@ -123,21 +123,25 @@ func (p *Server) newDebugAwareModel(
 	req.ModelName = resolvedModel
 
 	debugSvc := p.debugService()
-	debugEnabled := debugSvc != nil && debugSvc.IsEnabled(ctx, req.Chat.ID, req.Chat.OwnerID)
-	opts.RecordHTTP = debugEnabled
+	fullRecording := debugSvc != nil && debugSvc.IsEnabled(ctx, req.Chat.ID, req.Chat.OwnerID)
+	opts.RecordHTTP = fullRecording
 
 	model, err := p.newModel(ctx, req, route, opts)
 	if err != nil {
-		return nil, debugEnabled, err
+		return nil, fullRecording, err
 	}
-	if !debugEnabled {
+	// Wrap whenever a debug service exists. With full recording off the
+	// wrapper runs in the errors-only default, persisting only minimal
+	// error data via the context error-run ensurer.
+	if debugSvc == nil {
 		return model, false, nil
 	}
 
 	return chatdebug.WrapModel(model, debugSvc, chatdebug.RecorderOptions{
-		ChatID:   req.Chat.ID,
-		OwnerID:  req.Chat.OwnerID,
-		Provider: provider,
-		Model:    resolvedModel,
-	}), true, nil
+		ChatID:        req.Chat.ID,
+		OwnerID:       req.Chat.OwnerID,
+		Provider:      provider,
+		Model:         resolvedModel,
+		FullRecording: fullRecording,
+	}), fullRecording, nil
 }

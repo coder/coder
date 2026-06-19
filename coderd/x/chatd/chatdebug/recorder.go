@@ -18,6 +18,11 @@ type RecorderOptions struct {
 	OwnerID  uuid.UUID
 	Provider string
 	Model    string
+	// FullRecording enables eager run/step creation and full payload
+	// capture. When false, the recorder runs in the errors-only default:
+	// it persists a minimal run+step only when a qualifying error occurs,
+	// lazily materializing the run via the context error-run ensurer.
+	FullRecording bool
 }
 
 // WrapModel returns model unchanged when debug recording is disabled, or a
@@ -196,6 +201,11 @@ type stepHandle struct {
 	usage    any
 	err      any
 	metadata any
+	// deferred marks an errors-only handle that has not created a step.
+	// A deferred handle persists nothing unless captureDeferredError is
+	// called with a qualifying error, which lazily materializes the run
+	// and the failing step.
+	deferred bool
 	// hadError tracks whether a prior finalization wrote an error
 	// payload. Used to decide whether a successful retry needs to
 	// explicitly clear the error field via jsonClear.
@@ -214,6 +224,17 @@ func beginStep(
 ) (*stepHandle, context.Context) {
 	if svc == nil {
 		return nil, ctx
+	}
+
+	// Errors-only default: do not create a step up front. Return a
+	// deferred handle that persists a minimal run+step only if a
+	// qualifying error is later reported via captureDeferredError. A
+	// run ensurer must be present to own the lazily-created run.
+	if !opts.FullRecording {
+		if !hasErrorRunEnsurer(ctx) {
+			return nil, ctx
+		}
+		return &stepHandle{deferred: true, svc: svc, opts: opts, sink: &attemptSink{}}, ctx
 	}
 
 	rc, ok := RunFromContext(ctx)
@@ -361,6 +382,91 @@ func (h *stepHandle) finish(
 			slog.F("step_id", h.stepCtx.StepID),
 			slog.F("chat_id", h.stepCtx.ChatID),
 			slog.F("status", status),
+		)
+	}
+}
+
+// finishTerminalError finalizes a step that ended in a terminal error
+// before any stream wrapping. For full handles it records the error
+// payload; for deferred handles it lazily persists a minimal error step
+// only when the error qualifies for capture.
+func (h *stepHandle) finishTerminalError(
+	ctx context.Context,
+	op Operation,
+	status Status,
+	rawErr error,
+	metadata any,
+) {
+	if h == nil {
+		return
+	}
+	if h.deferred {
+		if status == StatusError && shouldCaptureError(rawErr) {
+			h.captureDeferredError(ctx, op, rawErr, metadata)
+		}
+		return
+	}
+	h.finish(ctx, status, nil, nil, normalizeError(ctx, rawErr), metadata)
+}
+
+// captureDeferredError lazily materializes the error run and persists a
+// single minimal error step. It is the only persistence path for the
+// errors-only default level. Callers must invoke it only for terminal
+// errors that qualify for capture; non-qualifying outcomes persist
+// nothing. metadata is optional and carries small structured hints
+// (e.g. structured_output) without storing request/response payloads.
+func (h *stepHandle) captureDeferredError(
+	ctx context.Context,
+	op Operation,
+	rawErr error,
+	metadata any,
+) {
+	if h == nil || h.svc == nil {
+		return
+	}
+
+	rc, ok := ensureErrorRun(ctx)
+	if !ok || rc == nil || rc.RunID == uuid.Nil {
+		return
+	}
+
+	chatID := rc.ChatID
+	if chatID == uuid.Nil {
+		chatID = h.opts.ChatID
+	}
+
+	stepNum := nextStepNumber(rc.RunID)
+	step, err := h.svc.CreateStep(ctx, CreateStepParams{
+		RunID:               rc.RunID,
+		ChatID:              chatID,
+		StepNumber:          stepNum,
+		Operation:           op,
+		Status:              StatusInProgress,
+		HistoryTipMessageID: rc.HistoryTipMessageID,
+	})
+	if err != nil {
+		h.svc.log.Warn(ctx, "failed to create chat debug error step",
+			slog.Error(err),
+			slog.F("chat_id", chatID),
+			slog.F("run_id", rc.RunID),
+			slog.F("operation", op),
+		)
+		return
+	}
+	syncStepCounter(rc.RunID, step.StepNumber)
+
+	if _, updateErr := h.svc.UpdateStep(ctx, UpdateStepParams{
+		ID:         step.ID,
+		ChatID:     chatID,
+		Status:     StatusError,
+		Error:      normalizeError(ctx, rawErr),
+		Metadata:   metadata,
+		FinishedAt: h.svc.clock.Now(),
+	}); updateErr != nil {
+		h.svc.log.Warn(ctx, "failed to finalize chat debug error step",
+			slog.Error(updateErr),
+			slog.F("step_id", step.ID),
+			slog.F("chat_id", chatID),
 		)
 	}
 }

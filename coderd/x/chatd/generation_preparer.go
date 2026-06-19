@@ -527,13 +527,12 @@ func (server *Server) prepareGeneration(
 	triggerMessageID, historyTipMessageID, triggerLabel := deriveChatDebugSeed(promptRows)
 	debugSvc := server.existingDebugService()
 	var debug *generationDebug
-	if debugEnabled {
-		if debugSvc == nil {
-			cleanup()
-			return generationPrepared{}, xerrors.New("chat debug service missing after enablement check")
-		}
+	if debugSvc != nil {
+		// Always attach the debug service so the errors-only default can
+		// lazily capture unexpected failures. FullRecording gates eager
+		// run/step creation and full payload capture.
 		debug = &generationDebug{
-			Enabled:             true,
+			FullRecording:       debugEnabled,
 			Service:             debugSvc,
 			Provider:            resolvedProvider,
 			Model:               debugModel,

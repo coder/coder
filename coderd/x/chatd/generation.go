@@ -84,7 +84,11 @@ type generationCompaction struct {
 }
 
 type generationDebug struct {
-	Enabled             bool
+	// FullRecording enables eager run/step creation and full payload
+	// capture. When false, the debug service is still present and the
+	// errors-only default applies: a run is lazily created only when a
+	// qualifying error occurs.
+	FullRecording       bool
 	Service             *chatdebug.Service
 	Provider            string
 	Model               string
