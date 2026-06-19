@@ -168,11 +168,13 @@ newStream:
 			break
 		}
 
-		// Per-iteration: a pool credential advances its failover walker. An
-		// iteration is either an agentic continuation or a failover retry after
-		// the previous key was marked. BYOK and Bedrock have no pool and run as
-		// a single attempt.
-		var streamOpts []option.RequestOption
+		// Per-iteration walker. An iteration is either an agentic
+		// continuation (sending a tool result back in a new
+		// stream) or a failover retry (previous key marked, try
+		// the next one). A pool-less credential (BYOK, or pool-less
+		// centralized such as Bedrock) has no walker and runs as a
+		// single attempt.
+		streamOpts := []option.RequestOption{i.withBody()}
 		var currentPoolKey *keypool.Key
 		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
 			walker := cp.Pool.Walker()
@@ -686,10 +688,9 @@ func (*StreamingInterception) encodeForStream(payload []byte, typ string) []byte
 }
 
 // newStream traces svc.NewStreaming() call.
-func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService, extraOpts ...option.RequestOption) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
+func (i *StreamingInterception) newStream(ctx context.Context, svc anthropic.MessageService, opts ...option.RequestOption) *ssestream.Stream[anthropic.MessageStreamEventUnion] {
 	_, span := i.tracer.Start(ctx, "Intercept.ProcessRequest.Upstream", trace.WithAttributes(tracing.InterceptionAttributesFromContext(ctx)...))
 	defer span.End()
 
-	opts := append([]option.RequestOption{i.withBody()}, extraOpts...)
 	return svc.NewStreaming(ctx, anthropic.MessageNewParams{}, opts...)
 }

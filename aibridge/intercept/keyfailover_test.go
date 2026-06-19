@@ -62,15 +62,6 @@ type interceptorCase struct {
 	newInterceptor func(t *testing.T, streaming bool, upstreamURL string, reqBody []byte, pool *keypool.Pool, byokKey string) intercept.Interceptor
 }
 
-// keyFromHeader reads the API key an upstream request carried in the named auth
-// header.
-func keyFromHeader(name string, h http.Header) string {
-	if name == "Authorization" {
-		return utils.ExtractBearerToken(h.Get(name))
-	}
-	return h.Get(name)
-}
-
 // interceptorCases is the set of interceptors the failover tests run against,
 // one entry per supported API.
 var interceptorCases = []interceptorCase{
@@ -371,7 +362,7 @@ func TestInterception_KeyFailover(t *testing.T) {
 
 					var seenKeys []string
 					for _, r := range upstream.ReceivedRequests() {
-						seenKeys = append(seenKeys, keyFromHeader(ic.authHeader, r.Header))
+						seenKeys = append(seenKeys, testutil.KeyFromHeader(ic.authHeader, r.Header))
 					}
 					assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
 
@@ -546,7 +537,7 @@ func TestInterception_AgenticLoopFailover(t *testing.T) {
 
 					var seenKeys []string
 					for _, r := range upstream.ReceivedRequests() {
-						seenKeys = append(seenKeys, keyFromHeader(ic.authHeader, r.Header))
+						seenKeys = append(seenKeys, testutil.KeyFromHeader(ic.authHeader, r.Header))
 					}
 					assert.Equal(t, tc.expectedSeenKeys, seenKeys, "seen keys")
 
