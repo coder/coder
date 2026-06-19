@@ -53,6 +53,14 @@ type Watcher struct {
 	maxDepth int
 	onChange func()
 
+	// syncMu serializes Sync calls so the diff-then-apply
+	// sequence is atomic with respect to other Sync callers.
+	// It is never held when calling into fsnotify or any other
+	// Watcher method, so it cannot participate in a deadlock
+	// cycle with the fsnotify reader. Lock ordering when both
+	// are held: syncMu first, then mu.
+	syncMu sync.Mutex
+
 	mu        sync.Mutex
 	watcher   *fsnotify.Watcher
 	watched   map[string]struct{}
@@ -142,11 +150,20 @@ func (w *Watcher) Degraded() string {
 // basename. Files that are themselves scan roots are handled by
 // watching their parent.
 //
-// Sync is idempotent and safe to call repeatedly. The lock is
-// released around the recursive directory walk so concurrent
-// Close, schedule, and the run goroutine are not blocked by a
-// slow filesystem.
+// Sync is idempotent and safe to call repeatedly. syncMu
+// serializes concurrent Sync callers so the diff-then-apply
+// sequence is atomic. mu is released around the recursive
+// directory walk and around the fsnotify Add/Remove calls so a
+// slow filesystem, or a fsnotify reader that is currently
+// delivering an event, cannot block Close, schedule, or the
+// run goroutine. Holding mu across fsnotify.Add on Windows
+// would deadlock: fsnotify's Windows backend routes Add through
+// the reader goroutine, which itself needs run to drain
+// w.watcher.Events, which needs mu via schedule.
 func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
+	w.syncMu.Lock()
+	defer w.syncMu.Unlock()
+
 	w.mu.Lock()
 	if w.closed {
 		w.mu.Unlock()
@@ -174,45 +191,83 @@ func (w *Watcher) Sync(ctx context.Context, roots []ScanRoot) {
 	// Close, or schedule.
 	desired := w.collectDirs(roots)
 
+	// Snapshot the current watch set under mu and compute the
+	// diff. Capture the fsnotify watcher reference so a
+	// concurrent Close that nils w.watcher does not race with
+	// the apply step; fsnotify.Watcher is safe to call after
+	// Close (Add returns ErrClosed).
 	w.mu.Lock()
-	defer w.mu.Unlock()
 	if w.closed {
+		w.mu.Unlock()
 		return
 	}
-
-	// Remove directories no longer wanted.
+	fsw := w.watcher
+	var toRemove []string
 	for path := range w.watched {
-		if _, ok := desired[path]; ok {
-			continue
+		if _, ok := desired[path]; !ok {
+			toRemove = append(toRemove, path)
 		}
-		_ = w.watcher.Remove(path)
-		delete(w.watched, path)
 	}
-	// Track whether every Add in this pass succeeded so a
-	// recovered ENOSPC clears the degraded marker.
-	addedAll := true
-	// Add directories that are new.
+	toAdd := make([]string, 0, len(desired))
 	for path := range desired {
-		if _, ok := w.watched[path]; ok {
-			continue
+		if _, ok := w.watched[path]; !ok {
+			toAdd = append(toAdd, path)
 		}
-		if err := w.watcher.Add(path); err != nil {
+	}
+	w.mu.Unlock()
+
+	// Apply the diff to fsnotify with mu released. On Windows
+	// fsnotify.Add and Remove block on the reader goroutine,
+	// which must be able to deliver pending events to
+	// w.watcher.Events; the consumer is run, which needs mu
+	// via schedule. Holding mu here would close the cycle.
+	for _, path := range toRemove {
+		_ = fsw.Remove(path)
+	}
+	var (
+		addedAll  = true
+		addedOK   = make([]string, 0, len(toAdd))
+		enospcDir string
+		hitENOSPC bool
+	)
+	for _, path := range toAdd {
+		if err := fsw.Add(path); err != nil {
 			// ENOSPC means the kernel's per-user inotify
 			// watch budget is exhausted. Mark the watcher
 			// degraded; subsequent Sync calls still fire
 			// the change callback so resync still works.
 			if errors.Is(err, syscall.ENOSPC) {
-				w.degraded = "inotify watch limit exceeded (ENOSPC)"
+				hitENOSPC = true
+				enospcDir = path
 				addedAll = false
-				w.logger.Warn(ctx, "context watcher degraded: inotify watch limit exceeded",
-					slog.F("dir", path))
 				break
 			}
 			w.logger.Debug(ctx, "context watcher could not add dir",
 				slog.F("dir", path), slog.Error(err))
 			continue
 		}
+		addedOK = append(addedOK, path)
+	}
+
+	// Reconcile the in-memory watch set under mu. If Close
+	// fired while we were applying, fsnotify already released
+	// the watches so the state mutation here is dropped.
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.closed {
+		return
+	}
+	for _, path := range toRemove {
+		delete(w.watched, path)
+	}
+	for _, path := range addedOK {
 		w.watched[path] = struct{}{}
+	}
+	if hitENOSPC {
+		w.degraded = "inotify watch limit exceeded (ENOSPC)"
+		w.logger.Warn(ctx, "context watcher degraded: inotify watch limit exceeded",
+			slog.F("dir", enospcDir))
+		return
 	}
 	// Clear a previously-set ENOSPC mark when every Add in this
 	// pass succeeded. A user who bumps the kernel's inotify
