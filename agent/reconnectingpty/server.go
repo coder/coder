@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"io"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -151,7 +152,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 	// This cannot use a JSON decoder, since that can
 	// buffer additional data that is required for the PTY.
 	rawLen := make([]byte, 2)
-	_, err := conn.Read(rawLen)
+	_, err := io.ReadFull(conn, rawLen)
 	if err != nil {
 		// logging at info since a single incident isn't too worrying (the client could just have
 		// hung up), but if we get a lot of these we'd want to investigate.
@@ -160,7 +161,7 @@ func (s *Server) handleConn(ctx context.Context, logger slog.Logger, conn net.Co
 	}
 	length := binary.LittleEndian.Uint16(rawLen)
 	data := make([]byte, length)
-	_, err = conn.Read(data)
+	_, err = io.ReadFull(conn, data)
 	if err != nil {
 		// logging at info since a single incident isn't too worrying (the client could just have
 		// hung up), but if we get a lot of these we'd want to investigate.
