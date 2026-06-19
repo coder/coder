@@ -11,6 +11,8 @@ import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
 import {
 	getChatFileURL,
+	isInlinableTextAttachment,
+	readTextFileContent,
 	renameChatFileForUpload,
 } from "../utils/chatAttachments";
 import {
@@ -410,13 +412,11 @@ export function useFileAttachments(
 		});
 
 		for (const { file } of items) {
-			if (file.type === "text/plain" && file.size <= MaxChatFileSizeBytes) {
-				// Some test environments lack File.prototype.text.
-				const readText =
-					typeof file.text === "function"
-						? file.text()
-						: new Response(file).text();
-				void readText
+			if (
+				isInlinableTextAttachment(file) &&
+				file.size <= MaxChatFileSizeBytes
+			) {
+				void readTextFileContent(file)
 					.then((content) => {
 						setTextContents((prev) => {
 							const next = new Map(prev);

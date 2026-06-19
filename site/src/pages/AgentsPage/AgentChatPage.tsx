@@ -85,6 +85,7 @@ import {
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
+import { attachmentToContentPart } from "./utils/chatAttachments";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -303,12 +304,17 @@ export const getWorkspaceOptionsWithLinkedWorkspace = (
 const buildAttachmentMediaTypes = (
 	attachments?: readonly PendingAttachment[],
 ): ReadonlyMap<string, string> | undefined => {
-	if (!attachments?.length) {
+	// Inlined text attachments are sent as text parts, not file parts, so
+	// they must not render as file chips in the optimistic message.
+	const fileAttachments = attachments?.filter(
+		({ textContent }) => textContent === undefined,
+	);
+	if (!fileAttachments?.length) {
 		return undefined;
 	}
 
 	return new Map(
-		attachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
+		fileAttachments.map(({ fileId, mediaType }) => [fileId, mediaType]),
 	);
 };
 
@@ -1363,8 +1369,8 @@ const AgentChatPage: FC = () => {
 		}
 
 		if (attachments && attachments.length > 0) {
-			for (const { fileId } of attachments) {
-				content.push({ type: "file", file_id: fileId });
+			for (const attachment of attachments) {
+				content.push(attachmentToContentPart(attachment));
 			}
 		}
 

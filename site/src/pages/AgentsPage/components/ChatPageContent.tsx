@@ -9,7 +9,12 @@ import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	formatInlinedAttachmentText,
+	getChatFileURL,
+	isInlinableTextAttachment,
+	readTextFileContent,
+} from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
@@ -149,6 +154,11 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 export type PendingAttachment = {
 	fileId: string;
 	mediaType: string;
+	// When set, the attachment's contents are sent to the model as an inline
+	// text part instead of a provider file part. Text-family uploads (JSON,
+	// CSV, Markdown, plain text) are dropped by some providers when sent as
+	// file parts, so we inline them to keep them visible to every provider.
+	textContent?: string;
 };
 
 interface ChatPageInputProps {
@@ -422,10 +432,28 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 							continue;
 						}
 						if (state?.status === "uploaded" && state.fileId) {
-							pendingAttachments.push({
+							const attachment: PendingAttachment = {
 								fileId: state.fileId,
 								mediaType: file.type || "application/octet-stream",
-							});
+							};
+							// Inline text-family uploads as text so providers that
+							// reject the media type as a file part still see the
+							// content. Prefer the content already read at attach
+							// time; read on demand if that read has not landed.
+							// Restored attachments carry no bytes (size 0), so they
+							// fall back to the file part.
+							if (isInlinableTextAttachment(file)) {
+								const content =
+									textContents.get(file) ??
+									(file.size > 0 ? await readTextFileContent(file) : undefined);
+								if (content) {
+									attachment.textContent = formatInlinedAttachmentText(
+										file.name,
+										content,
+									);
+								}
+							}
+							pendingAttachments.push(attachment);
 						}
 					}
 					if (skippedErrors > 0) {
