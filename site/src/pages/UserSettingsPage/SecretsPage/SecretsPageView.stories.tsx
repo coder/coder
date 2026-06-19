@@ -299,9 +299,7 @@ export const EditDialogOpened: Story = {
 		await expect(dialogView.getByLabelText("Name")).toHaveValue(secret.name);
 		await expect(dialogView.getByLabelText("Name")).toBeDisabled();
 		await expect(
-			dialogView.getByText(
-				"The name cannot be changed after creation. Delete and recreate the secret to rename it.",
-			),
+			dialogView.getByText("Unique identifier (can’t be changed)."),
 		).toBeInTheDocument();
 		await expect(dialogView.getByLabelText("Description")).toHaveValue(
 			secret.description,
