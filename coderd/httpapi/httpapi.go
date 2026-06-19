@@ -6,11 +6,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"net/http"
 	"reflect"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -190,7 +190,7 @@ func RouteNotFound(rw http.ResponseWriter) {
 // spot routes that need to be paginated.
 func Write(ctx context.Context, rw http.ResponseWriter, status int, response interface{}) {
 	// Pretty up JSON when testing.
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		WriteIndent(ctx, rw, status, response)
 		return
 	}

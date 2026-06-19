@@ -10,10 +10,10 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
-	"flag"
 	"io"
 	insecurerand "math/rand"
 	"strings"
+	"testing"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -33,7 +33,7 @@ const (
 )
 
 func entropy() io.Reader {
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		// This helps speed along our tests, esp. in CI where entropy is
 		// sparse.
 		//nolint:gosec

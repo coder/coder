@@ -1,9 +1,9 @@
 package cliui
 
 import (
-	"flag"
 	"os"
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/muesli/termenv"
@@ -53,7 +53,7 @@ func Color(s string) termenv.Color {
 	colorOnce.Do(func() {
 		color = termenv.NewOutput(os.Stdout).EnvColorProfile()
 
-		if flag.Lookup("test.v") != nil {
+		if testing.Testing() {
 			// Use a consistent colorless profile in tests so that results
 			// are deterministic.
 			color = termenv.Ascii

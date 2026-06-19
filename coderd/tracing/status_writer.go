@@ -2,13 +2,13 @@ package tracing
 
 import (
 	"bufio"
-	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"runtime"
 	"strings"
+	"testing"
 
 	"golang.org/x/xerrors"
 
@@ -41,7 +41,7 @@ func StatusWriterMiddleware(next http.Handler) http.Handler {
 }
 
 func (w *StatusWriter) WriteHeader(status int) {
-	if buildinfo.IsDev() || flag.Lookup("test.v") != nil {
+	if buildinfo.IsDev() || testing.Testing() {
 		if w.wroteHeader {
 			stack := getStackString(2)
 			wroteHeaderStack := w.wroteHeaderStack

@@ -1,13 +1,13 @@
 package cliui
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"slices"
 	"strings"
 	"syscall"
+	"testing"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -107,7 +107,7 @@ func Select(inv *serpent.Invocation, opts SelectOptions) (string, error) {
 	// this library to add a dummy fallback, that simply reads/writes
 	// to the IO provided. See:
 	// https://github.com/AlecAivazis/survey/blob/master/terminal/runereader_windows.go#L94
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		return opts.Options[0], nil
 	}
 
@@ -383,7 +383,7 @@ type MultiSelectOptions struct {
 
 func MultiSelect(inv *serpent.Invocation, opts MultiSelectOptions) ([]string, error) {
 	// Similar hack is applied to Select()
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		return opts.Defaults, nil
 	}
 

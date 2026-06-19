@@ -12,7 +12,6 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -1170,7 +1169,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Coder may be ran as users that don't have permission to write in the homedir,
 			// such as via the systemd service.
 			err = config.URL().Write(localURL.String())
-			if err != nil && flag.Lookup("test.v") != nil {
+			if err != nil && testing.Testing() {
 				return xerrors.Errorf("write config url: %w", err)
 			}
 
@@ -1554,7 +1553,7 @@ func WriteConfigMW(cfg *codersdk.DeploymentValues) serpent.MiddlewareFunc {
 func IsLocalURL(ctx context.Context, u *url.URL) (bool, error) {
 	// In tests, we commonly use "example.com" or "google.com", which
 	// are not loopback, so avoid the DNS lookup to avoid flakes.
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		if u.Hostname() == "example.com" || u.Hostname() == "google.com" {
 			return false, nil
 		}

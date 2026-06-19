@@ -3,8 +3,8 @@ package rbac
 import (
 	"context"
 	"errors"
-	"flag"
 	"fmt"
+	"testing"
 
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/open-policy-agent/opa/v1/rego"
@@ -76,7 +76,7 @@ func (e *UnauthorizedError) longError() string {
 
 // Error implements the error interface.
 func (e UnauthorizedError) Error() string {
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		return e.longError()
 	}
 	return errUnauthorized

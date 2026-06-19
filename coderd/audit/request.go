@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"net/http"
 	"strconv"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -409,7 +409,7 @@ func requireOrgID[T Auditable](ctx context.Context, id uuid.UUID, log slog.Logge
 	if ResourceRequiresOrgID[T]() && id == uuid.Nil {
 		var tgt T
 		resourceName := fmt.Sprintf("%T", tgt)
-		if flag.Lookup("test.v") != nil {
+		if testing.Testing() {
 			// In unit tests we panic to fail the tests
 			panic(fmt.Sprintf("missing required organization ID for resource %q", resourceName))
 		}

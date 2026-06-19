@@ -2370,7 +2370,7 @@ func (api *API) Close() error {
 
 func compressHandler(h http.Handler) http.Handler {
 	level := 5
-	if flag.Lookup("test.v") != nil {
+	if testing.Testing() {
 		level = 1
 	}
 
@@ -2448,7 +2448,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 
 	apiVersion := proto.CurrentVersion.String()
-	if options.versionOverride != "" && flag.Lookup("test.v") != nil {
+	if options.versionOverride != "" && testing.Testing() {
 		// This should only be usable for unit testing. To fake a different provisioner version
 		apiVersion = options.versionOverride
 	}
