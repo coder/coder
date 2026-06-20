@@ -1052,6 +1052,18 @@ export const AgentDisplayModes: AgentDisplayMode[] = [
 	"auto",
 ];
 
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSession represents a firewall session for a workspace agent.
+ */
+export interface AgentFirewallSession {
+	readonly id: string;
+	readonly workspace_id: string;
+	readonly owner_id: string;
+	readonly confined_process: string;
+	readonly started_at: string;
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;

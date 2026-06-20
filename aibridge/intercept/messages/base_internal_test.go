@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
@@ -956,6 +957,10 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 		expectedRetryAfter time.Duration
 	}{
 		{
+			name:       "nil_returns_nil",
+			keyPoolErr: nil,
+		},
+		{
 			// Rate-limited with no cooldown: 429, no Retry-After.
 			name:               "rate_limited_zero_retry_after",
 			keyPoolErr:         &keypool.Error{Kind: keypool.ErrorKindRateLimited},
@@ -981,6 +986,10 @@ func TestResponseErrorFromKeyPool(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := ResponseErrorFromKeyPool(tc.keyPoolErr)
+			if tc.keyPoolErr == nil {
+				assert.Nil(t, got)
+				return
+			}
 			require.NotNil(t, got)
 			assert.Equal(t, tc.expectedStatus, got.StatusCode)
 			assert.Equal(t, tc.expectedRetryAfter, got.RetryAfter)
@@ -1042,7 +1051,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &interceptionBase{cfg: config.Anthropic{KeyPool: pool}, logger: slog.Make()}
+			base := &interceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)

@@ -77,28 +77,15 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 		expectedKeys []string
 	}{
 		{
-			// Legacy single-key path: NewAnthropic builds a
-			// pool containing just that key.
-			name:         "key_creates_keypool",
-			cfg:          config.Anthropic{Key: "legacy-key"},
-			expectedKeys: []string{"legacy-key"},
-		},
-		{
 			// Caller supplies the pool directly.
 			name:         "keypool_passed_directly",
 			cfg:          config.Anthropic{KeyPool: pool},
 			expectedKeys: []string{"pool-key-0", "pool-key-1"},
 		},
 		{
-			// Both set: KeyPool wins, Key is ignored.
-			name:         "keypool_takes_precedence_over_key",
-			cfg:          config.Anthropic{Key: "legacy-key", KeyPool: pool},
-			expectedKeys: []string{"pool-key-0", "pool-key-1"},
-		},
-		{
-			// Neither set: no centralized auth available. BYOK
-			// auth is set per-request in CreateInterceptor.
-			name:         "neither_set_no_centralized_auth",
+			// No pool: no centralized auth available. BYOK auth is
+			// resolved per-request in CreateInterceptor.
+			name:         "no_keypool_no_centralized_auth",
 			cfg:          config.Anthropic{},
 			expectedKeys: nil,
 		},
@@ -132,7 +119,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := mustNewAnthropic(config.Anthropic{Key: "test-key"}, nil)
+	provider := mustNewAnthropic(config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
 
 	t.Run("Messages_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
 		t.Parallel()
@@ -192,7 +179,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 
 		provider := mustNewAnthropic(config.Anthropic{
 			BaseURL: mockUpstream.URL,
-			Key:     "test-key",
+			KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 		}, nil)
 
 		// Use a realistic multi-beta value as sent by Claude Code clients.
@@ -240,49 +227,95 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 	})
 }
 
-func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
+func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		setHeaders         map[string]string
-		wantXApiKey        string
-		wantAuthorization  string
+		name    string
+		pool    bool // provider has a centralized "test-key" pool
+		bedrock bool // Bedrock-backed provider (authenticates via AWS signing)
+		// bedrockStatic, when bedrock is set, configures static AWS credentials.
+		// False means dynamic mode (AWS default credential chain).
+		bedrockStatic bool
+		setHeaders    map[string]string
+		// wantErr, when set, means CreateInterceptor must fail with it. The
+		// remaining expectations are then ignored.
+		wantErr            error
 		wantCredentialKind intercept.CredentialKind
 		wantCredentialHint string
+		// Upstream expectations after ProcessRequest. Not checked for Bedrock,
+		// which signs via AWS rather than forwarding a key header.
+		wantXApiKey       string
+		wantAuthorization string
 	}{
 		{
-			name:               "Messages_BYOK_BearerToken",
+			name:               "byok_bearer_token",
+			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-access-token"},
-			wantAuthorization:  "Bearer user-access-token",
 			wantCredentialKind: intercept.CredentialKindBYOK,
 			wantCredentialHint: "us...en",
+			wantAuthorization:  "Bearer user-access-token",
 		},
 		{
-			name:               "Messages_BYOK_APIKey",
+			name:               "byok_api_key",
+			pool:               true,
 			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
-			wantXApiKey:        "user-api-key",
 			wantCredentialKind: intercept.CredentialKindBYOK,
 			wantCredentialHint: "us...ey",
+			wantXApiKey:        "user-api-key",
 		},
 		{
-			name:               "Messages_Centralized",
+			name:       "byok_bearer_and_api_key",
+			pool:       true,
+			setHeaders: map[string]string{"Authorization": "Bearer user-access-token", "X-Api-Key": "user-api-key"},
+			// X-Api-Key takes priority over Authorization.
+			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialHint: "us...ey",
+			wantXApiKey:        "user-api-key",
+		},
+		{
+			name:               "byok_without_pool",
+			pool:               false,
+			setHeaders:         map[string]string{"X-Api-Key": "user-api-key"},
+			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialHint: "us...ey",
+			wantXApiKey:        "user-api-key",
+		},
+		{
+			name:               "centralized",
+			pool:               true,
 			setHeaders:         map[string]string{},
-			wantXApiKey:        "test-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor; set
-			// by the key failover loop during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the hint
+			// is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
+			wantXApiKey:        "test-key",
 		},
 		{
-			name: "Messages_BYOK_BearerToken_And_APIKey",
-			setHeaders: map[string]string{
-				"Authorization": "Bearer user-access-token",
-				"X-Api-Key":     "user-api-key",
-			},
-			wantXApiKey:        "user-api-key",
-			wantCredentialKind: intercept.CredentialKindBYOK,
-			wantCredentialHint: "us...ey",
+			// Bedrock dynamic mode: no static access key, so the hint is the
+			// AWS-credential-chain placeholder.
+			name:               "bedrock_dynamic",
+			pool:               false,
+			bedrock:            true,
+			setHeaders:         map[string]string{},
+			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "<aws chain credentials>",
+		},
+		{
+			// Bedrock static mode: the hint masks the access key ID.
+			name:               "bedrock_static",
+			pool:               false,
+			bedrock:            true,
+			bedrockStatic:      true,
+			setHeaders:         map[string]string{},
+			wantCredentialKind: intercept.CredentialKindCentralized,
+			wantCredentialHint: "AKIA...MPLE",
+		},
+		{
+			name:       "centralized_without_pool_errors",
+			pool:       false,
+			setHeaders: map[string]string{},
+			wantErr:    ErrNoCredential,
 		},
 	}
 
@@ -291,7 +324,6 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			t.Parallel()
 
 			var receivedHeaders http.Header
-
 			mockUpstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				receivedHeaders = r.Header.Clone()
 				w.Header().Set("Content-Type", "application/json")
@@ -300,10 +332,19 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			}))
 			t.Cleanup(mockUpstream.Close)
 
-			provider := mustNewAnthropic(config.Anthropic{
-				BaseURL: mockUpstream.URL,
-				Key:     "test-key",
-			}, nil)
+			acfg := config.Anthropic{BaseURL: mockUpstream.URL}
+			if tc.pool {
+				acfg.KeyPool = testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")
+			}
+			var bedrock *config.AWSBedrock
+			if tc.bedrock {
+				bedrock = &config.AWSBedrock{Region: "us-west-2", Model: "m", SmallFastModel: "s"}
+				if tc.bedrockStatic {
+					bedrock.AccessKey = "AKIAIOSFODNN7EXAMPLE"
+					bedrock.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
+				}
+			}
+			provider := mustNewAnthropic(acfg, bedrock)
 
 			body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
 			req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
@@ -313,19 +354,27 @@ func TestAnthropic_CreateInterceptor_BYOK(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.Nil(t, interceptor)
+				return
+			}
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 
 			cred := interceptor.Credential()
-			assert.Equal(t, tc.wantCredentialKind, cred.Kind, "credential kind mismatch")
-			assert.Equal(t, tc.wantCredentialHint, cred.Hint, "credential hint mismatch")
+			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
+			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
-			logger := slog.Make()
-			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+			// Bedrock signs via AWS during ProcessRequest (needs real AWS
+			// credentials), covered by the integration tests.
+			if tc.bedrock {
+				return
+			}
 
+			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 			processReq := httptest.NewRequest(http.MethodPost, routeMessages, nil)
-			err = interceptor.ProcessRequest(w, processReq)
-			require.NoError(t, err)
+			require.NoError(t, interceptor.ProcessRequest(w, processReq))
 
 			assert.Equal(t, tc.wantXApiKey, receivedHeaders.Get("X-Api-Key"))
 			assert.Equal(t, tc.wantAuthorization, receivedHeaders.Get("Authorization"))
@@ -465,51 +514,6 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestExtractAnthropicHeaders(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		headers  map[string]string
-		expected map[string]string
-	}{
-		{
-			name:     "no headers",
-			headers:  map[string]string{},
-			expected: map[string]string{},
-		},
-		{
-			name:     "single beta",
-			headers:  map[string]string{"Anthropic-Beta": "claude-code-20250219"},
-			expected: map[string]string{"Anthropic-Beta": "claude-code-20250219"},
-		},
-		{
-			name:     "multiple betas in single header",
-			headers:  map[string]string{"Anthropic-Beta": "claude-code-20250219,adaptive-thinking-2026-01-28,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"},
-			expected: map[string]string{"Anthropic-Beta": "claude-code-20250219,adaptive-thinking-2026-01-28,context-management-2025-06-27,prompt-caching-scope-2026-01-05,effort-2025-11-24"},
-		},
-		{
-			name:     "ignores other headers",
-			headers:  map[string]string{"Anthropic-Beta": "claude-code-20250219,context-management-2025-06-27", "X-Api-Key": "secret"},
-			expected: map[string]string{"Anthropic-Beta": "claude-code-20250219,context-management-2025-06-27"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			req := httptest.NewRequest(http.MethodPost, "/", nil)
-			for header, value := range tc.headers {
-				req.Header.Set(header, value)
-			}
-
-			result := extractAnthropicHeaders(req)
-			assert.Equal(t, tc.expected, result)
-		})
-	}
 }
 
 func Test_anthropicIsFailure(t *testing.T) {

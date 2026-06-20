@@ -1143,6 +1143,37 @@
 				}
 			}
 		},
+		"/api/v2/agent-firewall/sessions/{id}": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Enterprise"],
+				"summary": "Get agent firewall session by ID",
+				"operationId": "get-agent-firewall-session-by-id",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Agent firewall session ID",
+						"name": "id",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.AgentFirewallSession"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				]
+			}
+		},
 		"/api/v2/ai/providers": {
 			"get": {
 				"produces": ["application/json"],
@@ -14253,6 +14284,30 @@
 				"AgentDisplayModeAlwaysExpanded",
 				"AgentDisplayModeAlwaysCollapsed"
 			]
+		},
+		"codersdk.AgentFirewallSession": {
+			"type": "object",
+			"properties": {
+				"confined_process": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
 		},
 		"codersdk.AgentScriptTiming": {
 			"type": "object",

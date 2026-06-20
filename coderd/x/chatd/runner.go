@@ -245,7 +245,12 @@ func (r *runner) runTask(
 	done chan<- struct{},
 ) {
 	defer close(done)
-	err := runTaskWithRetry(ctx, r.opts.retryOptions(), kind, func(ctx context.Context) error {
+	taskInfo := retryWrapperTaskInfo{
+		ChatID:   input.ChatID,
+		WorkerID: input.WorkerID,
+		RunnerID: input.RunnerID,
+	}
+	err := runTaskWithRetry(ctx, r.opts.retryOptions(), kind, taskInfo, func(ctx context.Context) error {
 		unlock, ok := r.localLocks.acquire(ctx, key)
 		if !ok {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("runTask acquire local lock: %w", ctx.Err()))

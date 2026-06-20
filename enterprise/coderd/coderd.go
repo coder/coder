@@ -329,6 +329,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			)
 			r.Get("/", api.connectionLogs)
 		})
+		r.Route("/agent-firewall", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureBoundary),
+			)
+			r.Route("/sessions/{id}", func(r chi.Router) {
+				r.Get("/", api.agentFirewallSessionByID)
+			})
+		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 			r.Post("/refresh-entitlements", api.postRefreshEntitlements)

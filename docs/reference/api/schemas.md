@@ -1271,6 +1271,28 @@ None
 |-----------------------------------------------|
 | `always_collapsed`, `always_expanded`, `auto` |
 
+## codersdk.AgentFirewallSession
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `confined_process` | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `owner_id`         | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `workspace_id`     | string | false    |              |             |
+
 ## codersdk.AgentScriptTiming
 
 ```json

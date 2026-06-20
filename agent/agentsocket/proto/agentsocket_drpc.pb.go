@@ -47,6 +47,12 @@ type DRPCAgentSocketClient interface {
 	SyncStatus(ctx context.Context, in *SyncStatusRequest) (*SyncStatusResponse, error)
 	SyncList(ctx context.Context, in *SyncListRequest) (*SyncListResponse, error)
 	UpdateAppStatus(ctx context.Context, in *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error)
+	ContextSources(ctx context.Context, in *ContextSourcesRequest) (*ContextSourcesResponse, error)
+	GetContextSource(ctx context.Context, in *GetContextSourceRequest) (*GetContextSourceResponse, error)
+	AddContextSource(ctx context.Context, in *AddContextSourceRequest) (*AddContextSourceResponse, error)
+	RemoveContextSource(ctx context.Context, in *RemoveContextSourceRequest) (*RemoveContextSourceResponse, error)
+	GetContextSnapshot(ctx context.Context, in *ContextSnapshotRequest) (*ContextSnapshotResponse, error)
+	ResyncContext(ctx context.Context, in *ResyncContextRequest) (*ResyncContextResponse, error)
 }
 
 type drpcAgentSocketClient struct {
@@ -131,6 +137,60 @@ func (c *drpcAgentSocketClient) UpdateAppStatus(ctx context.Context, in *proto1.
 	return out, nil
 }
 
+func (c *drpcAgentSocketClient) ContextSources(ctx context.Context, in *ContextSourcesRequest) (*ContextSourcesResponse, error) {
+	out := new(ContextSourcesResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/ContextSources", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) GetContextSource(ctx context.Context, in *GetContextSourceRequest) (*GetContextSourceResponse, error) {
+	out := new(GetContextSourceResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/GetContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) AddContextSource(ctx context.Context, in *AddContextSourceRequest) (*AddContextSourceResponse, error) {
+	out := new(AddContextSourceResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/AddContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) RemoveContextSource(ctx context.Context, in *RemoveContextSourceRequest) (*RemoveContextSourceResponse, error) {
+	out := new(RemoveContextSourceResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/RemoveContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) GetContextSnapshot(ctx context.Context, in *ContextSnapshotRequest) (*ContextSnapshotResponse, error) {
+	out := new(ContextSnapshotResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/GetContextSnapshot", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *drpcAgentSocketClient) ResyncContext(ctx context.Context, in *ResyncContextRequest) (*ResyncContextResponse, error) {
+	out := new(ResyncContextResponse)
+	err := c.cc.Invoke(ctx, "/coder.agentsocket.v1.AgentSocket/ResyncContext", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentSocketServer interface {
 	Ping(context.Context, *PingRequest) (*PingResponse, error)
 	SyncStart(context.Context, *SyncStartRequest) (*SyncStartResponse, error)
@@ -140,6 +200,12 @@ type DRPCAgentSocketServer interface {
 	SyncStatus(context.Context, *SyncStatusRequest) (*SyncStatusResponse, error)
 	SyncList(context.Context, *SyncListRequest) (*SyncListResponse, error)
 	UpdateAppStatus(context.Context, *proto1.UpdateAppStatusRequest) (*proto1.UpdateAppStatusResponse, error)
+	ContextSources(context.Context, *ContextSourcesRequest) (*ContextSourcesResponse, error)
+	GetContextSource(context.Context, *GetContextSourceRequest) (*GetContextSourceResponse, error)
+	AddContextSource(context.Context, *AddContextSourceRequest) (*AddContextSourceResponse, error)
+	RemoveContextSource(context.Context, *RemoveContextSourceRequest) (*RemoveContextSourceResponse, error)
+	GetContextSnapshot(context.Context, *ContextSnapshotRequest) (*ContextSnapshotResponse, error)
+	ResyncContext(context.Context, *ResyncContextRequest) (*ResyncContextResponse, error)
 }
 
 type DRPCAgentSocketUnimplementedServer struct{}
@@ -176,9 +242,33 @@ func (s *DRPCAgentSocketUnimplementedServer) UpdateAppStatus(context.Context, *p
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentSocketUnimplementedServer) ContextSources(context.Context, *ContextSourcesRequest) (*ContextSourcesResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) GetContextSource(context.Context, *GetContextSourceRequest) (*GetContextSourceResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) AddContextSource(context.Context, *AddContextSourceRequest) (*AddContextSourceResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) RemoveContextSource(context.Context, *RemoveContextSourceRequest) (*RemoveContextSourceResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) GetContextSnapshot(context.Context, *ContextSnapshotRequest) (*ContextSnapshotResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
+func (s *DRPCAgentSocketUnimplementedServer) ResyncContext(context.Context, *ResyncContextRequest) (*ResyncContextResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentSocketDescription struct{}
 
-func (DRPCAgentSocketDescription) NumMethods() int { return 8 }
+func (DRPCAgentSocketDescription) NumMethods() int { return 14 }
 
 func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -254,6 +344,60 @@ func (DRPCAgentSocketDescription) Method(n int) (string, drpc.Encoding, drpc.Rec
 						in1.(*proto1.UpdateAppStatusRequest),
 					)
 			}, DRPCAgentSocketServer.UpdateAppStatus, true
+	case 8:
+		return "/coder.agentsocket.v1.AgentSocket/ContextSources", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					ContextSources(
+						ctx,
+						in1.(*ContextSourcesRequest),
+					)
+			}, DRPCAgentSocketServer.ContextSources, true
+	case 9:
+		return "/coder.agentsocket.v1.AgentSocket/GetContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					GetContextSource(
+						ctx,
+						in1.(*GetContextSourceRequest),
+					)
+			}, DRPCAgentSocketServer.GetContextSource, true
+	case 10:
+		return "/coder.agentsocket.v1.AgentSocket/AddContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					AddContextSource(
+						ctx,
+						in1.(*AddContextSourceRequest),
+					)
+			}, DRPCAgentSocketServer.AddContextSource, true
+	case 11:
+		return "/coder.agentsocket.v1.AgentSocket/RemoveContextSource", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					RemoveContextSource(
+						ctx,
+						in1.(*RemoveContextSourceRequest),
+					)
+			}, DRPCAgentSocketServer.RemoveContextSource, true
+	case 12:
+		return "/coder.agentsocket.v1.AgentSocket/GetContextSnapshot", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					GetContextSnapshot(
+						ctx,
+						in1.(*ContextSnapshotRequest),
+					)
+			}, DRPCAgentSocketServer.GetContextSnapshot, true
+	case 13:
+		return "/coder.agentsocket.v1.AgentSocket/ResyncContext", drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentSocketServer).
+					ResyncContext(
+						ctx,
+						in1.(*ResyncContextRequest),
+					)
+			}, DRPCAgentSocketServer.ResyncContext, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -385,6 +529,102 @@ type drpcAgentSocket_UpdateAppStatusStream struct {
 }
 
 func (x *drpcAgentSocket_UpdateAppStatusStream) SendAndClose(m *proto1.UpdateAppStatusResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_ContextSourcesStream interface {
+	drpc.Stream
+	SendAndClose(*ContextSourcesResponse) error
+}
+
+type drpcAgentSocket_ContextSourcesStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_ContextSourcesStream) SendAndClose(m *ContextSourcesResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_GetContextSourceStream interface {
+	drpc.Stream
+	SendAndClose(*GetContextSourceResponse) error
+}
+
+type drpcAgentSocket_GetContextSourceStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_GetContextSourceStream) SendAndClose(m *GetContextSourceResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_AddContextSourceStream interface {
+	drpc.Stream
+	SendAndClose(*AddContextSourceResponse) error
+}
+
+type drpcAgentSocket_AddContextSourceStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_AddContextSourceStream) SendAndClose(m *AddContextSourceResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_RemoveContextSourceStream interface {
+	drpc.Stream
+	SendAndClose(*RemoveContextSourceResponse) error
+}
+
+type drpcAgentSocket_RemoveContextSourceStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_RemoveContextSourceStream) SendAndClose(m *RemoveContextSourceResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_GetContextSnapshotStream interface {
+	drpc.Stream
+	SendAndClose(*ContextSnapshotResponse) error
+}
+
+type drpcAgentSocket_GetContextSnapshotStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_GetContextSnapshotStream) SendAndClose(m *ContextSnapshotResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgentSocket_ResyncContextStream interface {
+	drpc.Stream
+	SendAndClose(*ResyncContextResponse) error
+}
+
+type drpcAgentSocket_ResyncContextStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgentSocket_ResyncContextStream) SendAndClose(m *ResyncContextResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_agentsocket_proto_agentsocket_proto{}); err != nil {
 		return err
 	}
