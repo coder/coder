@@ -132,31 +132,6 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 		},
 		{
-			name: "BedrockAssumeRoleFields",
-			env: []string{
-				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
-				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-unit-a",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_MODEL=anthropic.claude-3-sonnet",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_SMALL_FAST_MODEL=anthropic.claude-3-haiku",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ROLE_ARN=arn:aws:iam::123456789012:role/target",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_EXTERNAL_ID=shared-secret",
-				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_SESSION_NAME=coder",
-			},
-			expected: []codersdk.AIProviderConfig{
-				{
-					Type:                  string(database.AIProviderTypeBedrock),
-					Name:                  "bedrock-unit-a",
-					BedrockRegion:         "us-east-1",
-					BedrockModel:          "anthropic.claude-3-sonnet",
-					BedrockSmallFastModel: "anthropic.claude-3-haiku",
-					BedrockRoleARN:        "arn:aws:iam::123456789012:role/target",
-					BedrockExternalID:     "shared-secret",
-					BedrockSessionName:    "coder",
-				},
-			},
-		},
-		{
 			name: "OutOfOrderIndices",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_1_TYPE=anthropic",

@@ -47,9 +47,6 @@ func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
 
 var testTracer = otel.Tracer("aibridged_inttest")
 
-// mustNewAnthropicProvider builds an Anthropic provider for tests, panicking if
-// credential resolution fails. Keeps call sites terse after NewAnthropicProvider
-// gained a context and error return.
 func mustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
 	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
 	if err != nil {

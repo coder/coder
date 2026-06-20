@@ -72,7 +72,7 @@ func TestCredential(t *testing.T) {
 			},
 			expectKind:       intercept.CredentialKindCentralized,
 			expectAuthHeader: "",
-			expectHint:       "<aws chain credentials>",
+			expectHint:       "<aws chain>",
 			expectLength:     0,
 		},
 		{

@@ -19,10 +19,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// mustNewAnthropic builds an Anthropic provider for tests, panicking if
-// credential resolution fails (it cannot for the non-Bedrock configs used
-// here). Keeps the call sites terse after NewAnthropic gained a context and
-// error return.
 func mustNewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
 	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
 	if err != nil {
@@ -299,7 +295,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 			bedrock:            true,
 			setHeaders:         map[string]string{},
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			wantCredentialHint: "<aws chain credentials>",
+			wantCredentialHint: "<aws chain>",
 		},
 		{
 			// Bedrock static mode: the hint masks the access key ID.

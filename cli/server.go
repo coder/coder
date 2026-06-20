@@ -3131,12 +3131,6 @@ func ReadAIProvidersFromEnv(logger slog.Logger, environ []string) ([]codersdk.AI
 			p.BedrockRegion, bedrockKey, bedrockSecret,
 			p.BedrockModel, p.BedrockSmallFastModel,
 		)
-		settings.RoleARN = p.BedrockRoleARN
-		settings.SessionName = p.BedrockSessionName
-		if p.BedrockExternalID != "" {
-			externalID := p.BedrockExternalID
-			settings.ExternalID = &externalID
-		}
 		isBedrock := codersdk.IsBedrockConfigured(p.BedrockBaseURL, settings)
 
 		// BEDROCK_* fields are accepted on anthropic (mutually exclusive
@@ -3299,12 +3293,6 @@ func readAIProvidersForPrefix(logger slog.Logger, environ []string, prefix strin
 			provider.BedrockModel = v.Value
 		case "BEDROCK_SMALL_FAST_MODEL":
 			provider.BedrockSmallFastModel = v.Value
-		case "BEDROCK_ROLE_ARN":
-			provider.BedrockRoleARN = v.Value
-		case "BEDROCK_EXTERNAL_ID":
-			provider.BedrockExternalID = v.Value
-		case "BEDROCK_SESSION_NAME":
-			provider.BedrockSessionName = v.Value
 		default:
 			logger.Warn(context.Background(), "ignoring unknown AI provider field (check for typos)",
 				slog.F("env", fullName),

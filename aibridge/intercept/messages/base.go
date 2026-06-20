@@ -64,16 +64,21 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-examples-2025-10-29": true,
 }
 
+// BedrockRuntime carries everything a Bedrock-backed interception needs: the
+// static Bedrock config plus the AWS credentials provider.
+type BedrockRuntime struct {
+	Cfg   aibconfig.AWSBedrock
+	Creds aws.CredentialsProvider
+}
+
 type interceptionBase struct {
 	id         uuid.UUID
 	reqPayload RequestPayload
 
-	cfg        intercept.Config
-	cred       intercept.Credential
-	bedrockCfg *aibconfig.AWSBedrock
-	// bedrockCreds is the cached AWS credentials provider resolved once per
-	// provider (including any assumed role). nil when not Bedrock-backed.
-	bedrockCreds aws.CredentialsProvider
+	cfg  intercept.Config
+	cred intercept.Credential
+	// bedrock is nil for non-Bedrock providers.
+	bedrock *BedrockRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
 	clientHeaders http.Header
@@ -109,10 +114,10 @@ func (i *interceptionBase) Model() string {
 		return "coder-aibridge-unknown"
 	}
 
-	if i.bedrockCfg != nil {
-		model := i.bedrockCfg.Model
+	if i.bedrock != nil {
+		model := i.bedrock.Cfg.Model
 		if i.isSmallFastModel() {
-			model = i.bedrockCfg.SmallFastModel
+			model = i.bedrock.Cfg.SmallFastModel
 		}
 		return model
 	}
@@ -128,7 +133,7 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
-		attribute.Bool(tracing.IsBedrock, i.bedrockCfg != nil),
+		attribute.Bool(tracing.IsBedrock, i.bedrock != nil),
 	}
 }
 
@@ -240,8 +245,10 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
-	if i.bedrockCfg != nil {
-		bedrockOpts, err := i.withAWSBedrockOptions(ctx, i.bedrockCfg)
+	if i.bedrock != nil {
+		ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+		defer cancel()
+		bedrockOpts, err := i.withAWSBedrockOptions(ctx)
 		if err != nil {
 			return anthropic.MessageService{}, err
 		}
@@ -262,17 +269,13 @@ func (i *interceptionBase) withBody() option.RequestOption {
 
 // withAWSBedrockOptions returns request options for authenticating with AWS Bedrock.
 //
-// Credentials are resolved once per provider and supplied via i.bedrockCreds:
-// either static credentials, the AWS SDK default credential chain (environment
-// variables, shared config/credentials files, IAM roles, IRSA, SSO, IMDS, etc.),
-// or a role assumed via STS when a target role ARN is configured. i.bedrockCreds
-// is a shared, rotating credentials cache, so the per-request Retrieve below is
-// served from that cache (a cache hit) and does not re-resolve or re-assume on
-// every request; it only fails fast if credentials cannot be resolved.
-func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconfig.AWSBedrock) ([]option.RequestOption, error) {
-	if cfg == nil {
-		return nil, xerrors.New("nil config given")
+// Credentials come from i.bedrock.Creds, it is a shared credentials cache, so the per-request
+// Retrieve below is served from that cache and does not re-resolve or re-assume on every request.
+func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.RequestOption, error) {
+	if i.bedrock == nil {
+		return nil, xerrors.New("nil bedrock runtime")
 	}
+	cfg := i.bedrock.Cfg
 	if cfg.Region == "" && cfg.BaseURL == "" {
 		return nil, xerrors.New("region or base url required")
 	}
@@ -282,19 +285,17 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibco
 	if cfg.SmallFastModel == "" {
 		return nil, xerrors.New("small fast model required")
 	}
-	if i.bedrockCreds == nil {
-		return nil, xerrors.New("bedrock credentials not resolved")
-	}
 
 	// Fail fast: ensure credentials can be resolved before signing. Served from
-	// the shared cache, so this does not re-assume the role on each request.
-	if _, err := i.bedrockCreds.Retrieve(ctx); err != nil {
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
 		return nil, xerrors.Errorf("no AWS credentials found: %w", err)
 	}
 
 	awsCfg := aws.Config{
 		Region:      cfg.Region,
-		Credentials: i.bedrockCreds,
+		Credentials: i.bedrock.Creds,
 	}
 
 	var out []option.RequestOption
@@ -319,7 +320,7 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibco
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
 func (i *interceptionBase) augmentRequestForBedrock() {
-	if i.bedrockCfg == nil {
+	if i.bedrock == nil {
 		return
 	}
 

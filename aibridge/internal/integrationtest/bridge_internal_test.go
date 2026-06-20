@@ -316,19 +316,8 @@ func TestAWSBedrockIntegration(t *testing.T) {
 			SmallFastModel:  "test-haiku",
 		}
 
-		bridgeServer := newBridgeTestServer(ctx, t, "http://unused",
-			withCustomProvider(mustNewAnthropic(anthropicCfg("http://unused", apiKey), bedrockCfg)),
-		)
-
-		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fixtures.Request(t, fixtures.AntSingleBuiltinTool))
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		require.Contains(t, string(body), "create anthropic client")
-		require.Contains(t, string(body), "region or base url required")
+		_, err := provider.NewAnthropic(ctx, anthropicCfg("http://unused", apiKey), bedrockCfg)
+		require.ErrorContains(t, err, "region or base url required")
 	})
 
 	t.Run("/v1/messages", func(t *testing.T) {

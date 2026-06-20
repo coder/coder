@@ -55,8 +55,7 @@ func TestBuildBedrockCredentialsValidation(t *testing.T) {
 	}
 }
 
-// TestBuildBedrockCredentialsStatic resolves static credentials with no network
-// access.
+// TestBuildBedrockCredentialsStatic resolves static credentials.
 func TestBuildBedrockCredentialsStatic(t *testing.T) {
 	t.Parallel()
 
@@ -74,14 +73,16 @@ func TestBuildBedrockCredentialsStatic(t *testing.T) {
 }
 
 // TestBuildBedrockCredentialsDefaultChain covers resolution via the AWS SDK
-// default credential chain (here, environment variables) and the failure mode
-// when no credential source is configured.
+// default credential chain.
 // NOTE: no t.Parallel() because the subtests use t.Setenv.
 func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 	tests := []struct {
 		name        string
 		envVars     map[string]string
 		expectError bool
+		wantKey     string
+		wantSecret  string
+		wantToken   string
 	}{
 		{
 			name: "credentials via env",
@@ -89,6 +90,8 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 				"AWS_ACCESS_KEY_ID":     "test-key",
 				"AWS_SECRET_ACCESS_KEY": "test-secret",
 			},
+			wantKey:    "test-key",
+			wantSecret: "test-secret",
 		},
 		{
 			name: "credentials with session token via env",
@@ -97,6 +100,9 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 				"AWS_SECRET_ACCESS_KEY": "test-secret",
 				"AWS_SESSION_TOKEN":     "test-session-token",
 			},
+			wantKey:    "test-key",
+			wantSecret: "test-secret",
+			wantToken:  "test-session-token",
 		},
 		{
 			name: "error when no credential source is configured",
@@ -125,35 +131,37 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 				t.Setenv(key, val)
 			}
 
-			// buildBedrockCredentials wires up the provider chain without a
-			// network call, so it succeeds regardless of credential
-			// availability; resolution failures surface on Retrieve.
+			// buildBedrockCredentials only wires up the provider chain; it
+			// does not resolve credentials, so it succeeds regardless of
+			// credential availability. Resolution failures surface on Retrieve.
 			creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 				Region: "us-east-1",
 			})
 			require.NoError(t, err)
 			require.NotNil(t, creds)
 
-			_, err = creds.Retrieve(context.Background())
+			got, err := creds.Retrieve(context.Background())
 			if tt.expectError {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
+			require.Equal(t, tt.wantKey, got.AccessKeyID)
+			require.Equal(t, tt.wantSecret, got.SecretAccessKey)
+			require.Equal(t, tt.wantToken, got.SessionToken)
 		})
 	}
 }
 
 // TestBuildBedrockCredentialsAssumeRole drives the STS AssumeRole path against a
-// mock endpoint, asserting that the configured role ARN, external ID, and
-// session name are sent and that the returned temporary credentials are used.
+// mock endpoint, asserting that the configured role ARN and the stable session
+// name are sent and that the returned temporary credentials are used.
 // NOTE: no t.Parallel() because it uses t.Setenv.
 func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
-	var gotRoleARN, gotExternalID, gotSessionName string
+	var gotRoleARN, gotSessionName string
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
 		gotRoleARN = r.Form.Get("RoleArn")
-		gotExternalID = r.Form.Get("ExternalId")
 		gotSessionName = r.Form.Get("RoleSessionName")
 
 		w.Header().Set("Content-Type", "text/xml")
@@ -175,16 +183,14 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	defer sts.Close()
 
 	// Point the STS client at the mock and provide static base credentials so
-	// the base identity resolves without network access.
+	// the base identity resolves without additional network calls.
 	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
 	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
 
 	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
-		Region:      "us-east-1",
-		RoleARN:     "arn:aws:iam::123456789012:role/target",
-		ExternalID:  "shared-secret",
-		SessionName: "coder",
+		Region:  "us-east-1",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
 	})
 	require.NoError(t, err)
 
@@ -195,41 +201,5 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, "assumed-token", got.SessionToken)
 
 	require.Equal(t, "arn:aws:iam::123456789012:role/target", gotRoleARN)
-	require.Equal(t, "shared-secret", gotExternalID)
-	require.Equal(t, "coder", gotSessionName)
-}
-
-// TestBuildBedrockCredentialsAssumeRoleDefaultSessionName verifies a session
-// name is sent even when the provider does not configure one.
-func TestBuildBedrockCredentialsAssumeRoleDefaultSessionName(t *testing.T) {
-	var gotSessionName string
-	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm())
-		gotSessionName = r.Form.Get("RoleSessionName")
-		w.Header().Set("Content-Type", "text/xml")
-		_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
-  <AssumeRoleResult>
-    <Credentials>
-      <AccessKeyId>ASIAASSUMED</AccessKeyId>
-      <SecretAccessKey>assumed-secret</SecretAccessKey>
-      <SessionToken>assumed-token</SessionToken>
-      <Expiration>2999-01-01T00:00:00Z</Expiration>
-    </Credentials>
-  </AssumeRoleResult>
-</AssumeRoleResponse>`))
-	}))
-	defer sts.Close()
-
-	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
-	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
-	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
-
-	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
-		Region:  "us-east-1",
-		RoleARN: "arn:aws:iam::123456789012:role/target",
-	})
-	require.NoError(t, err)
-	_, err = creds.Retrieve(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, defaultBedrockSessionName, gotSessionName)
+	require.Equal(t, bedrockSessionName, gotSessionName)
 }

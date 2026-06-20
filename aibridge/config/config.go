@@ -35,15 +35,9 @@ type AWSBedrock struct {
 	BaseURL string
 	// RoleARN, when set, is assumed via STS before calling Bedrock. The base
 	// identity (static keys or the AWS SDK default credential chain, e.g.
-	// IRSA / Pod Identity / instance profile) signs the AssumeRole call, and
-	// the resulting temporary credentials sign Bedrock requests. This enables
-	// cross-account access.
+	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string
-	// ExternalID is sent on the AssumeRole call for confused-deputy protection
-	// when assuming a role in an account this gateway does not own. Optional.
-	ExternalID string
-	// SessionName is the STS role session name. Auto-generated when empty.
-	SessionName string
 }
 
 // OpenAI carries configuration for an OpenAI provider.

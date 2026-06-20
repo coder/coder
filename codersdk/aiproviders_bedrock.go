@@ -32,18 +32,9 @@ type AIProviderBedrockSettings struct {
 	AccessKeySecret *string `json:"access_key_secret,omitempty"`
 	// RoleARN, when set, is the IAM role assumed via STS before calling
 	// Bedrock. The base identity (static keys or the AWS environment, e.g.
-	// IRSA / instance profile) signs the AssumeRole call, and the resulting
-	// temporary credentials sign Bedrock requests. Enables cross-account
-	// access so usage bills to the target account. Non-secret.
+	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	// call, and the resulting temporary credentials sign Bedrock requests.
 	RoleARN string `json:"role_arn,omitempty"`
-	// SessionName is the STS role session name used when assuming RoleARN.
-	// Auto-generated when empty. Non-secret.
-	SessionName string `json:"session_name,omitempty"`
-	// ExternalID is sent on the AssumeRole call for confused-deputy
-	// protection when assuming a role in an account the deployment does not
-	// own. Write-only (servers strip it from GET and list responses); a
-	// pointer for the same PATCH-omit semantics as AccessKeySecret.
-	ExternalID *string `json:"external_id,omitempty"`
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,

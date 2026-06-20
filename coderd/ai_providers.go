@@ -754,11 +754,11 @@ func encodeAIProviderSettings(s codersdk.AIProviderSettings) (sql.NullString, er
 }
 
 // mergeAIProviderSettings overlays a patch onto an existing settings
-// value. Write-only fields (Bedrock AccessKey, AccessKeySecret, and
-// ExternalID) use pointers so the patch can distinguish "omitted, keep
-// existing" (nil) from "explicitly clear" (pointer to empty string) -
-// e.g. when an admin migrates from static AWS credentials to IAM
-// role-based auth in a single PATCH.
+// value. Write-only fields (Bedrock AccessKey and AccessKeySecret) use
+// pointers so the patch can distinguish "omitted, keep existing" (nil)
+// from "explicitly clear" (pointer to empty string) - e.g. when an
+// admin migrates from static AWS credentials to IAM role-based auth
+// in a single PATCH.
 func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) codersdk.AIProviderSettings {
 	if patch.Bedrock == nil {
 		// Patch carries no type-specific data; treat as a clear.
@@ -771,9 +771,6 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 		}
 		if merged.AccessKeySecret == nil {
 			merged.AccessKeySecret = existing.Bedrock.AccessKeySecret
-		}
-		if merged.ExternalID == nil {
-			merged.ExternalID = existing.Bedrock.ExternalID
 		}
 	}
 	return codersdk.AIProviderSettings{Bedrock: &merged}

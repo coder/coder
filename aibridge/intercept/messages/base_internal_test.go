@@ -88,14 +88,14 @@ func TestAWSBedrockValidation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cfg         *config.AWSBedrock
+		cfg         config.AWSBedrock
 		expectError bool
 		errorMsg    string
 	}{
 		// Valid cases: static credentials.
 		{
 			name: "static credentials with region",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -105,7 +105,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name: "static credentials with base url",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				BaseURL:         "http://bedrock.internal",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -120,7 +120,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 			//
 			// See TestAWSBedrockIntegration which validates this.
 			name: "static credentials with base url & region",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -131,7 +131,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		// Invalid cases.
 		{
 			name: "missing region & base url",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -143,7 +143,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name: "missing model",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -155,7 +155,7 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name: "missing small fast model",
-			cfg: &config.AWSBedrock{
+			cfg: config.AWSBedrock{
 				Region:          "us-east-1",
 				AccessKey:       "test-key",
 				AccessKeySecret: "test-secret",
@@ -167,15 +167,9 @@ func TestAWSBedrockValidation(t *testing.T) {
 		},
 		{
 			name:        "all fields empty",
-			cfg:         &config.AWSBedrock{},
+			cfg:         config.AWSBedrock{},
 			expectError: true,
 			errorMsg:    "region or base url required",
-		},
-		{
-			name:        "nil config",
-			cfg:         nil,
-			expectError: true,
-			errorMsg:    "nil config given",
 		},
 	}
 
@@ -183,13 +177,13 @@ func TestAWSBedrockValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			// Credentials are resolved once per provider and supplied to the
-			// interceptor; the per-request path only assembles options around
-			// them. A static stub stands in for the resolved provider.
 			base := &interceptionBase{
-				bedrockCreds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				bedrock: &BedrockRuntime{
+					Cfg:   tt.cfg,
+					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				},
 			}
-			opts, err := base.withAWSBedrockOptions(context.Background(), tt.cfg)
+			opts, err := base.withAWSBedrockOptions(context.Background())
 
 			if tt.expectError {
 				require.Error(t, err)
@@ -202,19 +196,16 @@ func TestAWSBedrockValidation(t *testing.T) {
 	}
 }
 
-// TestAWSBedrockOptionsRequireResolvedCredentials verifies that option assembly
-// fails when the per-provider credentials provider was not resolved.
-func TestAWSBedrockOptionsRequireResolvedCredentials(t *testing.T) {
+// TestAWSBedrockOptionsRequireRuntime verifies that option assembly fails when
+// the Bedrock runtime was not set. This should never happen in practice, since
+// withAWSBedrockOptions is only called when i.bedrock != nil.
+func TestAWSBedrockOptionsRequireRuntime(t *testing.T) {
 	t.Parallel()
 
 	base := &interceptionBase{}
-	_, err := base.withAWSBedrockOptions(context.Background(), &config.AWSBedrock{
-		Region:         "us-east-1",
-		Model:          "test-model",
-		SmallFastModel: "test-small-model",
-	})
+	_, err := base.withAWSBedrockOptions(context.Background())
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "bedrock credentials not resolved")
+	require.Contains(t, err.Error(), "nil bedrock runtime")
 }
 
 func TestAccumulateUsage(t *testing.T) {
@@ -793,9 +784,11 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 
 			i := &interceptionBase{
 				reqPayload: mustMessagesPayload(t, tc.requestBody),
-				bedrockCfg: &config.AWSBedrock{
-					Model:          tc.bedrockModel,
-					SmallFastModel: "anthropic.claude-haiku-3-5",
+				bedrock: &BedrockRuntime{
+					Cfg: config.AWSBedrock{
+						Model:          tc.bedrockModel,
+						SmallFastModel: "anthropic.claude-haiku-3-5",
+					},
 				},
 				clientHeaders: clientHeaders,
 				logger:        slog.Make(),

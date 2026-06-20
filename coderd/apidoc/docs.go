@@ -15253,13 +15253,6 @@ const docTemplate = `{
                 "bedrock_region": {
                     "type": "string"
                 },
-                "bedrock_role_arn": {
-                    "description": "BedrockRoleARN, when set, is the IAM role assumed via STS before\ncalling Bedrock, enabling cross-account access. BedrockExternalID is\nthe optional external ID sent on the AssumeRole call (write-only).\nBedrockSessionName is the STS session name, auto-generated when empty.",
-                    "type": "string"
-                },
-                "bedrock_session_name": {
-                    "type": "string"
-                },
                 "bedrock_small_fast_model": {
                     "type": "string"
                 },

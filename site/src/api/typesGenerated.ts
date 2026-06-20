@@ -312,23 +312,10 @@ export interface AIProviderBedrockSettings {
 	/**
 	 * RoleARN, when set, is the IAM role assumed via STS before calling
 	 * Bedrock. The base identity (static keys or the AWS environment, e.g.
-	 * IRSA / instance profile) signs the AssumeRole call, and the resulting
-	 * temporary credentials sign Bedrock requests. Enables cross-account
-	 * access so usage bills to the target account. Non-secret.
+	 * IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	 * call, and the resulting temporary credentials sign Bedrock requests.
 	 */
 	readonly role_arn?: string;
-	/**
-	 * SessionName is the STS role session name used when assuming RoleARN.
-	 * Auto-generated when empty. Non-secret.
-	 */
-	readonly session_name?: string;
-	/**
-	 * ExternalID is sent on the AssumeRole call for confused-deputy
-	 * protection when assuming a role in an account the deployment does not
-	 * own. Write-only (servers strip it from GET and list responses); a
-	 * pointer for the same PATCH-omit semantics as AccessKeySecret.
-	 */
-	readonly external_id?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go
@@ -364,14 +351,6 @@ export interface AIProviderConfig {
 	readonly bedrock_region?: string;
 	readonly bedrock_model?: string;
 	readonly bedrock_small_fast_model?: string;
-	/**
-	 * BedrockRoleARN, when set, is the IAM role assumed via STS before
-	 * calling Bedrock, enabling cross-account access. BedrockExternalID is
-	 * the optional external ID sent on the AssumeRole call (write-only).
-	 * BedrockSessionName is the STS session name, auto-generated when empty.
-	 */
-	readonly bedrock_role_arn?: string;
-	readonly bedrock_session_name?: string;
 }
 
 // From codersdk/aiproviders.go

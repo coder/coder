@@ -13,7 +13,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	mcplib "github.com/mark3labs/mcp-go/mcp"
 	"github.com/tidwall/sjson"
@@ -22,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -42,8 +40,7 @@ func NewStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockCfg *aibconfig.AWSBedrock,
-	bedrockCreds aws.CredentialsProvider,
+	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
@@ -52,8 +49,7 @@ func NewStreamingInterceptor(
 		reqPayload:    reqPayload,
 		cfg:           cfg,
 		cred:          cred,
-		bedrockCfg:    bedrockCfg,
-		bedrockCreds:  bedrockCreds,
+		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}

@@ -112,7 +112,6 @@ func redactAIProviderSettings(s codersdk.AIProviderSettings) codersdk.AIProvider
 		b := *out.Bedrock
 		b.AccessKey = nil
 		b.AccessKeySecret = nil
-		b.ExternalID = nil
 		out.Bedrock = &b
 	}
 	return out

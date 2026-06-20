@@ -23,9 +23,6 @@ import (
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
 
-// mustNewAnthropicProvider builds an Anthropic provider for tests, panicking if
-// credential resolution fails. Keeps call sites terse after NewAnthropicProvider
-// gained a context and error return.
 func mustNewAnthropicProvider(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) aibridge.Provider {
 	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
 	if err != nil {

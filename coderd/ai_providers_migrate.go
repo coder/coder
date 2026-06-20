@@ -404,12 +404,6 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 				p.BedrockModel,
 				p.BedrockSmallFastModel,
 			)
-			bedrock.RoleARN = p.BedrockRoleARN
-			bedrock.SessionName = p.BedrockSessionName
-			if p.BedrockExternalID != "" {
-				externalID := p.BedrockExternalID
-				bedrock.ExternalID = &externalID
-			}
 			isBedrock = codersdk.IsBedrockConfigured(p.BedrockBaseURL, bedrock)
 			if isBedrock {
 				dp.Bedrock = &bedrock
