@@ -177,6 +177,64 @@ func TestDeferred_NoEnsurerPersistsNothing(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestDeferred_CapturesUnderCanceledParentContext guards that the
+// errors-only step writes run on a context detached from the request
+// context. A generic provider error often coincides with the request
+// context being canceled (e.g. the client disconnects); the capture
+// must still persist instead of failing on a canceled context.
+func TestDeferred_CapturesUnderCanceledParentContext(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	runID := uuid.New()
+	stepID := uuid.New()
+
+	db.EXPECT().
+		InsertChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{})).
+		DoAndReturn(func(ctx context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
+			require.NoError(t, ctx.Err(),
+				"CreateStep must run on a context detached from the canceled parent")
+			return database.ChatDebugStep{
+				ID:         stepID,
+				RunID:      runID,
+				ChatID:     chatID,
+				StepNumber: params.StepNumber,
+				Operation:  params.Operation,
+				Status:     params.Status,
+			}, nil
+		})
+	db.EXPECT().
+		UpdateChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.UpdateChatDebugStepParams{})).
+		DoAndReturn(func(ctx context.Context, params database.UpdateChatDebugStepParams) (database.ChatDebugStep, error) {
+			require.NoError(t, ctx.Err(),
+				"UpdateStep must run on a context detached from the canceled parent")
+			require.Equal(t, string(StatusError), params.Status.String)
+			require.True(t, params.Error.Valid)
+			return database.ChatDebugStep{ID: stepID, RunID: runID, ChatID: chatID}, nil
+		})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	inner := &chattest.FakeModel{
+		GenerateFn: func(context.Context, fantasy.Call) (*fantasy.Response, error) {
+			// Cancel the request context at the moment the provider
+			// returns a generic error, mirroring a client disconnect.
+			cancel()
+			return nil, xerrors.New("boom: unexpected failure")
+		},
+	}
+	svc := NewService(db, testutil.Logger(t), nil)
+	model := &debugModel{inner: inner, svc: svc, opts: RecorderOptions{ChatID: chatID, FullRecording: false}}
+	ctx = WithErrorRunEnsurer(ctx, func() (*RunContext, bool) {
+		return &RunContext{RunID: runID, ChatID: chatID, Kind: KindChatTurn}, true
+	})
+
+	_, err := model.Generate(ctx, fantasy.Call{})
+	require.Error(t, err)
+}
+
 func TestDeferred_RunCreatedAtMostOnce(t *testing.T) {
 	t.Parallel()
 

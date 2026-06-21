@@ -435,8 +435,16 @@ func (h *stepHandle) captureDeferredError(
 		chatID = h.opts.ChatID
 	}
 
+	// Detach from the request context with a bounded timeout so the
+	// capture survives parent cancellation. A qualifying generic error
+	// frequently coincides with the request context being canceled
+	// (e.g. the client disconnects), and the minimal error step must
+	// still persist. This mirrors finish's use of stepFinalizeContext.
+	stepCtx, cancel := stepFinalizeContext(ctx)
+	defer cancel()
+
 	stepNum := nextStepNumber(rc.RunID)
-	step, err := h.svc.CreateStep(ctx, CreateStepParams{
+	step, err := h.svc.CreateStep(stepCtx, CreateStepParams{
 		RunID:               rc.RunID,
 		ChatID:              chatID,
 		StepNumber:          stepNum,
@@ -455,7 +463,7 @@ func (h *stepHandle) captureDeferredError(
 	}
 	syncStepCounter(rc.RunID, step.StepNumber)
 
-	if _, updateErr := h.svc.UpdateStep(ctx, UpdateStepParams{
+	if _, updateErr := h.svc.UpdateStep(stepCtx, UpdateStepParams{
 		ID:         step.ID,
 		ChatID:     chatID,
 		Status:     StatusError,
