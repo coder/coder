@@ -513,6 +513,14 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// The manager runs its own self-contained MCP runner: it
+		// connects to the .mcp.json servers it discovers, lists
+		// their tools, and pushes them to coderd as KindMCPServer
+		// resources. This is independent of a.mcpManager, which
+		// serves the agent's MCP HTTP API; the two MCP paths share
+		// no state during the rollout.
+		MCPExecer:    a.execer,
+		MCPUpdateEnv: a.updateCommandEnv,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
