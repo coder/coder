@@ -94,8 +94,7 @@ Alternatively, you can authenticate with remote clusters with ServiceAccount
 tokens. Coder can store these secrets on your behalf with
 [managed Terraform variables](../templates/extending-templates/variables.md).
 
-Alternatively, these could also be fetched from Kubernetes secrets or even
-[HashiCorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
+Alternatively, these could also be fetched from Kubernetes secrets or even [HashiCorp Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/generic_secret).
 
 This guide assumes you have a `coder-workspaces` namespace on your remote
 cluster. Change the namespace accordingly.
