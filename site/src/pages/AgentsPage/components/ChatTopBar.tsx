@@ -161,7 +161,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 				</Button>
 			)}
 			{/* Title area */}
-			<div className="flex min-w-0 flex-1 items-center">
+			<div className="flex min-w-0 flex-1 items-center gap-1.5">
 				{chatTitle && (
 					<div
 						role="status"
@@ -212,54 +212,21 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 						)}
 					</div>
 				)}
-			</div>
-			{/* PR link — mobile: icon + number; desktop: icon + title.
-			   Hidden on desktop when the sidebar panel is open
-			   (which already shows PR info). */}
-			{prUrl && hasPR && (
-				<a
-					href={prUrl}
-					target="_blank"
-					rel="noreferrer"
-					className={cn(
-						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-						panel.showSidebarPanel && "lg:hidden",
-					)}
-				>
-					<PrStateIcon
-						state={prState}
-						draft={prDraft}
-						className="!size-3.5 shrink-0"
-					/>
-					<span className="truncate max-w-[120px] hidden sm:inline">
-						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
-					</span>
-					<span className="sm:hidden">
-						{prNumberMatch ? prNumberMatch : "PR"}
-					</span>
-				</a>
-			)}
-			{/* Actions area */}
-			<div className="flex items-center gap-2">
-				{!isEmbedded && renderChatSharingContent && (
-					<ChatSharingTopBarButton
-						renderChatSharingContent={renderChatSharingContent}
-					/>
-				)}
+				{/* Actions menu sits inline with the title so it tracks the title's right edge. */}
 				{!isEmbedded && (
 					<DropdownMenu>
 						<DropdownMenuTrigger asChild>
 							<Button
 								size="icon"
 								variant="subtle"
-								className="size-7 text-content-secondary hover:text-content-primary"
+								className="size-7 shrink-0 text-content-secondary hover:text-content-primary"
 								aria-label="Open agent actions"
 							>
 								<EllipsisVerticalIcon className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
-							align="end"
+							align="start"
 							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
 							{!isArchived && !isChildChat && (onPinAgent || onUnpinAgent) && (
@@ -313,6 +280,40 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							)}
 						</DropdownMenuContent>
 					</DropdownMenu>
+				)}
+			</div>
+			{/* PR link. On mobile: icon + number; on desktop: icon + title.
+			   Hidden on desktop when the sidebar panel is open
+			   (which already shows PR info). */}
+			{prUrl && hasPR && (
+				<a
+					href={prUrl}
+					target="_blank"
+					rel="noreferrer"
+					className={cn(
+						"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border-default px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+						panel.showSidebarPanel && "lg:hidden",
+					)}
+				>
+					<PrStateIcon
+						state={prState}
+						draft={prDraft}
+						className="!size-3.5 shrink-0"
+					/>
+					<span className="truncate max-w-[120px] hidden sm:inline">
+						{prTitle || (prNumberMatch ? `#${prNumberMatch}` : "PR")}
+					</span>
+					<span className="sm:hidden">
+						{prNumberMatch ? prNumberMatch : "PR"}
+					</span>
+				</a>
+			)}
+			{/* Actions area */}
+			<div className="flex items-center gap-2">
+				{!isEmbedded && renderChatSharingContent && (
+					<ChatSharingTopBarButton
+						renderChatSharingContent={renderChatSharingContent}
+					/>
 				)}
 				{!isEmbedded && (
 					<Button
