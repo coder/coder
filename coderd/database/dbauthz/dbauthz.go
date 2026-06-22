@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"flag"
 	"slices"
 	"strings"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -2611,7 +2611,7 @@ func (q *querier) DeleteWorkspaceSubAgentByID(ctx context.Context, id uuid.UUID)
 }
 
 func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
-	if !testing.Testing() {
+	if flag.Lookup("test.v") == nil {
 		return xerrors.Errorf("DisableForeignKeysAndTriggers is only allowed in tests")
 	}
 	return q.db.DisableForeignKeysAndTriggers(ctx)
@@ -2963,9 +2963,9 @@ func (q *querier) GetBoundaryLogByID(ctx context.Context, id uuid.UUID) (databas
 	return q.db.GetBoundaryLogByID(ctx, id)
 }
 
-func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+func (q *querier) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.GetBoundarySessionByIDRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceBoundaryLog); err != nil {
-		return database.BoundarySession{}, err
+		return database.GetBoundarySessionByIDRow{}, err
 	}
 	return q.db.GetBoundarySessionByID(ctx, id)
 }
@@ -5810,7 +5810,8 @@ func (q *querier) InsertAuditLog(ctx context.Context, arg database.InsertAuditLo
 }
 
 func (q *querier) InsertBoundaryLogs(ctx context.Context, arg database.InsertBoundaryLogsParams) ([]database.BoundaryLog, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceBoundaryLog); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate,
+		rbac.ResourceBoundaryLog.WithOwner(arg.OwnerID.String())); err != nil {
 		return nil, err
 	}
 	return q.db.InsertBoundaryLogs(ctx, arg)

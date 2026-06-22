@@ -169,7 +169,7 @@ jobs:
         if: steps.check-script.outputs.skip != 'true'
         run: |
           curl -sfL \
-            https://raw.githubusercontent.com/coder/coder.com/main/redirects.json \
+            https://raw.githubusercontent.com/coder/coder.com/refs/heads/main/redirects.json \
             -o /tmp/redirects.json
 
       - name: Audit TS/TSX docs paths against redirects

@@ -4416,6 +4416,11 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 	if !provider.Enabled {
 		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("AI provider %s is disabled", provider.ID)
 	}
+	settings, err := db2sdk.AIProviderSettings(provider.Settings)
+	if err != nil {
+		return chatprovider.ConfiguredProvider{}, xerrors.Errorf("decode AI provider settings: %w", err)
+	}
+
 	apiKey := ""
 	// GetAIProviderKeysByProviderID orders keys oldest first. chatd consumes
 	// one provider-scoped key because runtime provider config has one API key slot.
@@ -4425,11 +4430,16 @@ func (p *Server) aiProviderConfigFromKeys(provider database.AIProvider, keys []d
 			break
 		}
 	}
+	region := ""
+	if settings.Bedrock != nil {
+		region = strings.TrimSpace(settings.Bedrock.Region)
+	}
 	return chatprovider.ConfiguredProvider{
 		ProviderID:                 provider.ID,
 		Provider:                   string(provider.Type),
 		APIKey:                     apiKey,
 		BaseURL:                    provider.BaseUrl,
+		Region:                     region,
 		CentralAPIKeyEnabled:       true,
 		AllowUserAPIKey:            p.allowBYOK,
 		AllowCentralAPIKeyFallback: true,
