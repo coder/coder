@@ -183,7 +183,9 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 							className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
 						/>
 					</div>
-					<span className="ml-2 text-content-secondary">{module.name}</span>
+					<span className="flex-1 ml-2 text-content-secondary">
+						{module.name}
+					</span>
 					<div className="h-[1lh] content-center">
 						<Button
 							size="xs"

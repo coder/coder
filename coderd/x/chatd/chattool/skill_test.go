@@ -353,6 +353,78 @@ func TestReadSkillTool(t *testing.T) {
 		assert.Contains(t, resp.Content, "Do the thing.")
 	})
 
+	t.Run("PinnedBodyFromMeta", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		conn := agentconnmock.NewMockAgentConn(ctrl)
+
+		// Meta carries the pushed SKILL.md, so the body is served from the
+		// pin: the conn must never be asked to ReadFile the SKILL.md. The
+		// supporting-file list is still a live, best-effort LS.
+		skills := []chattool.SkillMeta{{
+			Name:        "my-skill",
+			Description: "test",
+			Dir:         "/work/.agents/skills/my-skill",
+			Meta:        []byte(validSkillMD("my-skill", "test")),
+		}}
+
+		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
+			workspacesdk.LSResponse{
+				Contents: []workspacesdk.LSFile{
+					{Name: "SKILL.md"},
+					{Name: "helper.md"},
+				},
+			}, nil,
+		)
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return conn, nil
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"my-skill"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Contains(t, resp.Content, "helper.md")
+	})
+
+	t.Run("PinnedBodyServedWhenWorkspaceUnreachable", func(t *testing.T) {
+		t.Parallel()
+
+		// With the body pinned, an unreachable workspace must not block
+		// read_skill: the body is returned and the file list degrades to empty.
+		skills := []chattool.SkillMeta{{
+			Name: "my-skill",
+			Dir:  "/work/.agents/skills/my-skill",
+			Meta: []byte(validSkillMD("my-skill", "test")),
+		}}
+
+		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
+			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
+				return nil, xerrors.New("workspace is stopped")
+			},
+			GetSkills: func() []chattool.SkillMeta { return skills },
+		})
+
+		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_skill",
+			Input: `{"name":"my-skill"}`,
+		})
+		require.NoError(t, err)
+		assert.False(t, resp.IsError)
+		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Contains(t, resp.Content, `"files":[]`)
+	})
+
 	t.Run("PersonalSkill", func(t *testing.T) {
 		t.Parallel()
 

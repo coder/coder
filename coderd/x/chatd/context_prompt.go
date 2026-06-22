@@ -7,12 +7,14 @@ import (
 
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 // contextBodyUnmarshalOptions reads the protojson resource bodies written by
@@ -41,6 +43,13 @@ func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool)
 	return &decoded, true
 }
 
+// mcpToolNameSeparator joins a server name and a tool name into the
+// flattened "<server>__<tool>" form. The agent reports MCP tool names
+// unprefixed alongside the server name; the workspace agent's MCP proxy
+// expects this flattened form to route a call back to the owning server
+// (see agent/x/agentmcp ToolNameSep).
+const mcpToolNameSeparator = "__"
+
 // mcpToolsFromServerBody decodes a stored mcp_server resource body and returns
 // its tool list for the chat response. The agent prefixes each tool name with
 // "<server>__"; that prefix is stripped so the name reads as the server
@@ -54,7 +63,7 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	if len(tools) == 0 {
 		return nil
 	}
-	prefix := server + "__"
+	prefix := server + mcpToolNameSeparator
 	out := make([]codersdk.ChatContextTool, 0, len(tools))
 	for _, t := range tools {
 		name := strings.TrimPrefix(t.GetName(), prefix)
@@ -70,6 +79,68 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 		return nil
 	}
 	return out
+}
+
+// workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
+// resources into execution-ready tool infos. Only OK mcp_server rows
+// contribute. The agent reports tool names unprefixed alongside the server
+// name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
+// and proxy-routable form the live discovery path also produces. The pushed
+// input schema is a full JSON Schema object; its "properties" and "required"
+// are split out to match the shape the workspace agent's live tool list
+// produces (see agent/x/agentmcp). Tools with an empty name are skipped.
+func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
+	var out []workspacesdk.MCPToolInfo
+	for _, r := range resources {
+		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
+			r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			continue
+		}
+		var decoded agentproto.MCPServerBody
+		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
+			continue
+		}
+		server := decoded.GetServerName()
+		if server == "" {
+			server = r.Source
+		}
+		for _, t := range decoded.GetTools() {
+			name := t.GetName()
+			if name == "" {
+				continue
+			}
+			properties, required := splitMCPInputSchema(t.GetInputSchema())
+			out = append(out, workspacesdk.MCPToolInfo{
+				ServerName:  server,
+				Name:        server + mcpToolNameSeparator + name,
+				Description: t.GetDescription(),
+				Schema:      properties,
+				Required:    required,
+			})
+		}
+	}
+	return out
+}
+
+// splitMCPInputSchema splits a pushed JSON Schema object into the properties
+// map and required list the workspace MCP tool wrapper expects. A nil schema,
+// or one missing these keys, yields nil for the absent part.
+func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, required []string) {
+	if schema == nil {
+		return nil, nil
+	}
+	m := schema.AsMap()
+	if props, ok := m["properties"].(map[string]any); ok {
+		properties = props
+	}
+	if raw, ok := m["required"].([]any); ok {
+		for _, v := range raw {
+			if s, ok := v.(string); ok {
+				required = append(required, s)
+			}
+		}
+	}
+	return properties, required
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and
@@ -221,23 +292,26 @@ func contextResourcesToPrompt(
 				ContextFileContent: content,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
-			name, description, decoded := decodeSkillIdentity(r.Body)
-			if !decoded {
+			decodedBody, ok := decodeSkillMetaBody(r.Body)
+			if !ok {
 				malformed++
 				continue
 			}
-			if name == "" {
+			if decodedBody.GetName() == "" {
 				continue
 			}
 			// source is the skill directory. MetaFile is left empty so
 			// chattool falls back to DefaultSkillMetaFile ("SKILL.md").
 			// SkillMetaBody carries no meta file name, so a non-default
 			// CODER_AGENT_EXP_SKILL_META_FILE is not preserved on this
-			// path, unlike the per-turn discovery path.
+			// path, unlike the per-turn discovery path. Meta carries the
+			// verbatim SKILL.md so read_skill serves the body from the
+			// pin instead of dialing the workspace.
 			skills = append(skills, chattool.SkillMeta{
-				Name:        name,
-				Description: description,
+				Name:        decodedBody.GetName(),
+				Description: decodedBody.GetDescription(),
 				Dir:         r.Source,
+				Meta:        decodedBody.GetMeta(),
 			})
 		}
 	}

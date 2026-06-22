@@ -267,7 +267,7 @@ func (server *Server) prepareGeneration(
 	}
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
-			workspaceMCPTools = server.discoverWorkspaceMCPTools(ctx, logger, chat.ID, &workspaceCtx)
+			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
 			return nil
 		})
 	}
