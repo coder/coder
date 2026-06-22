@@ -1,17 +1,11 @@
 import {
-	ArchiveIcon,
-	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
-	PinIcon,
-	PinOffIcon,
 	Share2Icon,
-	SquarePenIcon,
-	Trash2Icon,
 	UsersIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
@@ -30,6 +24,7 @@ import { Popover, PopoverTrigger } from "#/components/Popover/Popover";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../utils/pullRequest";
+import { ChatActionsMenuItems } from "./ChatActionsMenuItems";
 import { useEmbedContext } from "./EmbedContext";
 import { PrStateIcon } from "./GitPanel/GitPanel";
 
@@ -108,10 +103,10 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	onUnpinAgent,
 	onOpenRenameDialog,
 	isRegeneratingTitle,
-	hasWorkspace,
-	isArchived,
-	isChildChat,
-	isPinned,
+	hasWorkspace = false,
+	isArchived = false,
+	isChildChat = false,
+	isPinned = false,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
@@ -229,55 +224,20 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 							align="start"
 							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
-							{!isArchived && !isChildChat && (onPinAgent || onUnpinAgent) && (
-								<DropdownMenuItem
-									onSelect={isPinned ? onUnpinAgent : onPinAgent}
-								>
-									{isPinned ? (
-										<>
-											<PinOffIcon className="size-3.5" />
-											Unpin agent
-										</>
-									) : (
-										<>
-											<PinIcon className="size-3.5" />
-											Pin agent
-										</>
-									)}
-								</DropdownMenuItem>
-							)}
-							{isArchived ? (
-								<DropdownMenuItem onSelect={onUnarchiveAgent}>
-									<ArchiveRestoreIcon className="size-3.5" />
-									Unarchive agent
-								</DropdownMenuItem>
-							) : (
-								<>
-									{onOpenRenameDialog && (
-										<DropdownMenuItem onSelect={onOpenRenameDialog}>
-											<SquarePenIcon className="size-3.5" />
-											Rename chat
-										</DropdownMenuItem>
-									)}
-									<DropdownMenuSeparator />
-									<DropdownMenuItem
-										className="text-content-destructive focus:text-content-destructive"
-										onSelect={onArchiveAgent}
-									>
-										<ArchiveIcon className="size-3.5" />
-										Archive agent
-									</DropdownMenuItem>
-									{hasWorkspace && (
-										<DropdownMenuItem
-											className="text-content-destructive focus:text-content-destructive"
-											onSelect={onArchiveAndDeleteWorkspace}
-										>
-											<Trash2Icon className="size-3.5" />
-											Archive & delete workspace
-										</DropdownMenuItem>
-									)}
-								</>
-							)}
+							<ChatActionsMenuItems
+								isArchived={isArchived}
+								isPinned={isPinned}
+								isChildChat={isChildChat}
+								hasWorkspace={hasWorkspace}
+								onPinAgent={onPinAgent}
+								onUnpinAgent={onUnpinAgent}
+								onArchiveAgent={onArchiveAgent}
+								onUnarchiveAgent={onUnarchiveAgent}
+								onArchiveAndDeleteWorkspace={onArchiveAndDeleteWorkspace}
+								onOpenRenameDialog={onOpenRenameDialog}
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+							/>
 						</DropdownMenuContent>
 					</DropdownMenu>
 				)}
