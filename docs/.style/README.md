@@ -18,8 +18,8 @@ elsewhere (blog, changelog, Support KB, etc.).
 
 See [`style-guide.md`](style-guide.md) for the prose style guide. The
 `styles/Coder/` directory holds the custom Vale rules that enforce parts
-of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` (added in
-a follow-up PR) points at `docs/.style/styles/`.
+of the guide; Vale's `StylesPath` in the repo-root `.vale.ini` points at
+`docs/.style/styles/`.
 
 ## Why a hidden directory
 
@@ -56,8 +56,9 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale, once `.vale.ini` lands in a follow-up PR, lints the entire
-  `docs/**/*.md` set including `docs/.style/style-guide.md`.
+- Vale lints the entire `docs/**/*.md` set, including
+  `docs/.style/style-guide.md`. See the repo-root `.vale.ini` for the
+  active configuration; run `make lint/prose` locally to reproduce.
 
 ## What does not run against this directory
 
