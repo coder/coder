@@ -25,7 +25,6 @@ export type ProviderFormValues = {
 	smallFastModel: string;
 	accessKey: string;
 	accessKeySecret: string;
-	roleArn: string;
 	apiKey: string;
 	enabled: boolean;
 };
@@ -67,7 +66,6 @@ const defaultInitialValues: ProviderFormValues = {
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
-	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -527,17 +525,6 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							>
 								View docs
 							</DocsLink>
-						</p>
-						<FormField
-							field={getFieldHelpers("roleArn")}
-							label="Role ARN"
-							className="w-full"
-							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
-						/>
-						<p className="text-xs text-content-secondary m-0">
-							Optional. When a role ARN is set, the gateway assumes that role
-							(using the base identity above) before calling Bedrock, enabling
-							cross-account access.
 						</p>
 					</>
 				)}

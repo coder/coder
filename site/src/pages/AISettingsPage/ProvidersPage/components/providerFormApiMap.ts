@@ -109,7 +109,6 @@ const buildBedrockSettings = (
 	smallFastModel: string,
 	accessKey: string,
 	accessKeySecret: string,
-	roleArn: string,
 ): BedrockSettingsWire => ({
 	_type: BEDROCK_SETTINGS_TYPE,
 	_version: BEDROCK_SETTINGS_VERSION,
@@ -118,7 +117,6 @@ const buildBedrockSettings = (
 	small_fast_model: smallFastModel,
 	...(accessKey ? { access_key: accessKey } : {}),
 	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
-	...(roleArn ? { role_arn: roleArn } : {}),
 });
 
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
@@ -143,7 +141,6 @@ export const providerFormValuesToCreate = (
 			values.smallFastModel.trim(),
 			sanitizeCredential(values.accessKey),
 			sanitizeCredential(values.accessKeySecret),
-			values.roleArn.trim(),
 		);
 		return {
 			type: "anthropic",
@@ -218,7 +215,6 @@ export const providerFormValuesToUpdate = (
 		values.smallFastModel.trim(),
 		credentialsChanged ? newAccessKey : "",
 		credentialsChanged ? newAccessKeySecret : "",
-		values.roleArn.trim(),
 	);
 
 	return { ...base, settings: settings as AIProviderSettings };
@@ -242,7 +238,6 @@ export const aiProviderToFormValues = (
 			smallFastModel: s.small_fast_model ?? "",
 			accessKey: "",
 			accessKeySecret: "",
-			roleArn: s.role_arn ?? "",
 			enabled: provider.enabled,
 		};
 	}
