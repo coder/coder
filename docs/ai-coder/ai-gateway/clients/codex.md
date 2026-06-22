@@ -172,4 +172,4 @@ supports_websockets = false
 
 This forces the HTTPS transport directly and removes the fallback delay.
 
-**References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-advanced)
+**References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-reference)
