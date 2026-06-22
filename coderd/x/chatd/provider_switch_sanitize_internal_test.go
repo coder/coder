@@ -26,6 +26,14 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 	openAICfg := uuid.New()
 	unknownCfg := uuid.New()
 
+	// Two distinct openai-compat provider instances (same type, different
+	// AIProvider rows). Their identities are the provider UUIDs, not the
+	// shared "openai-compat" type.
+	vllmProviderID := uuid.New()
+	togetherProviderID := uuid.New()
+	vllmCfg := uuid.New()
+	togetherCfg := uuid.New()
+
 	peCall := func(id string) codersdk.ChatMessagePart {
 		p := codersdk.ChatMessageToolCall(id, "web_search", json.RawMessage(`{"query":"x"}`))
 		p.ProviderExecuted = true
@@ -77,6 +85,8 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 	resolver := origin(map[uuid.UUID]string{
 		anthropicCfg: anthropic,
 		openAICfg:    openai,
+		vllmCfg:      vllmProviderID.String(),
+		togetherCfg:  togetherProviderID.String(),
 	})
 
 	// partsOf parses a row's content back into SDK parts for comparison.
@@ -179,5 +189,69 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		got, stats := stripForeignProviderExecutedToolRows(rows, bedrock, resolver)
 		require.Equal(t, rows, got)
 		require.Zero(t, stats)
+	})
+
+	t.Run("same type different instance drops provider blocks", func(t *testing.T) {
+		t.Parallel()
+		// vLLM and Together are both openai-compat but different provider
+		// instances. Switching from vLLM to Together must strip vLLM's PE blocks.
+		rows := []database.ChatMessage{
+			userRow(t, "hi"),
+			assistantRow(t, vllmCfg, peCall("ws"), peResult("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderExecutedToolRows(rows, togetherProviderID.String(), resolver)
+		require.Len(t, got, 2)
+		require.Equal(t, []codersdk.ChatMessagePart{text("done")}, partsOf(t, got[1]))
+		require.Equal(t, providerSwitchStripStats{RemovedToolCalls: 1, RemovedToolResults: 1}, stats)
+	})
+
+	t.Run("same instance keeps provider blocks", func(t *testing.T) {
+		t.Parallel()
+		rows := []database.ChatMessage{
+			userRow(t, "hi"),
+			assistantRow(t, vllmCfg, peCall("ws"), peResult("ws"), text("done")),
+		}
+		got, stats := stripForeignProviderExecutedToolRows(rows, vllmProviderID.String(), resolver)
+		require.Equal(t, rows, got)
+		require.Zero(t, stats)
+	})
+}
+
+func TestModelConfigProviderIdentity(t *testing.T) {
+	t.Parallel()
+
+	providerID := uuid.New()
+
+	t.Run("AIProviderID valid returns provider UUID", func(t *testing.T) {
+		t.Parallel()
+		cfg := database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}
+		got := modelConfigProviderIdentity(cfg, "openai-compat")
+		require.Equal(t, providerID.String(), got)
+	})
+
+	t.Run("AIProviderID invalid falls back to normalized type", func(t *testing.T) {
+		t.Parallel()
+		cfg := database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{},
+		}
+		got := modelConfigProviderIdentity(cfg, "anthropic")
+		require.Equal(t, "anthropic", got)
+	})
+
+	t.Run("same type different provider IDs are distinguished", func(t *testing.T) {
+		t.Parallel()
+		otherProviderID := uuid.New()
+		cfgA := database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: providerID, Valid: true},
+		}
+		cfgB := database.ChatModelConfig{
+			AIProviderID: uuid.NullUUID{UUID: otherProviderID, Valid: true},
+		}
+		require.NotEqual(t,
+			modelConfigProviderIdentity(cfgA, "openai-compat"),
+			modelConfigProviderIdentity(cfgB, "openai-compat"),
+		)
 	})
 }
