@@ -2094,7 +2094,12 @@ describe("mergeWatchedChatSummary", () => {
 			// The lightweight watch payload omits resources; the merge keeps the
 			// pinned list a prior single-chat GET populated.
 			resources: [
-				{ source: "/AGENTS.md", kind: "instruction_file", size_bytes: 10 },
+				{
+					source: "/AGENTS.md",
+					kind: "instruction_file",
+					size_bytes: 10,
+					status: "ok",
+				},
 			],
 		});
 	});
