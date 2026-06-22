@@ -49,7 +49,6 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 							<Link
 								href={detailsUrl}
 								target="_blank"
-								rel="noreferrer"
 								size="sm"
 								className="text-xs font-normal ml-1"
 							>
