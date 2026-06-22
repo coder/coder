@@ -24,7 +24,6 @@ import { AgentPageHeader } from "./components/AgentPageHeader";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
 import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
-import { attachmentToContentPart } from "./utils/chatAttachments";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
@@ -76,7 +75,7 @@ const AgentCreatePage: FC = () => {
 
 	const handleCreateChat = async ({
 		message,
-		attachments,
+		fileIDs,
 		workspaceId,
 		model,
 		mcpServerIds,
@@ -87,9 +86,9 @@ const AgentCreatePage: FC = () => {
 		if (message.trim()) {
 			content.push({ type: "text", text: message });
 		}
-		if (attachments) {
-			for (const attachment of attachments) {
-				content.push(attachmentToContentPart(attachment));
+		if (fileIDs) {
+			for (const fileID of fileIDs) {
+				content.push({ type: "file", file_id: fileID });
 			}
 		}
 		const createRequest: TypesGen.CreateChatRequest = {

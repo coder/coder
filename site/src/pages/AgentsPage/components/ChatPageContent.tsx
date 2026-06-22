@@ -9,12 +9,8 @@ import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useFileAttachments } from "../hooks/useFileAttachments";
-import {
-	getChatFileURL,
-	type PendingAttachment,
-} from "../utils/chatAttachments";
+import { getChatFileURL } from "../utils/chatAttachments";
 import { getProviderForModelOption } from "../utils/modelOptions";
-import { resolvePendingAttachments } from "../utils/resolvePendingAttachments";
 import type { ChatDetailError } from "../utils/usageLimitMessage";
 import {
 	AgentChatInput,
@@ -150,7 +146,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	);
 };
 
-export type { PendingAttachment } from "../utils/chatAttachments";
+export type PendingAttachment = {
+	fileId: string;
+	mediaType: string;
+};
 
 interface ChatPageInputProps {
 	// Organization that owns this chat. Used to scope file uploads.
@@ -411,14 +410,24 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 						toast.warning("Wait for file uploads to finish before sending.");
 						return;
 					}
-					// Resolve uploaded attachments into the send payload,
-					// inlining text-family files as text parts.
-					const { attachments: pendingAttachments, skippedErrors } =
-						await resolvePendingAttachments(
-							attachments,
-							uploadStates,
-							textContents,
-						);
+					// Collect uploaded attachment metadata for the optimistic
+					// transcript builder while keeping the server payload
+					// shape unchanged downstream.
+					const pendingAttachments: PendingAttachment[] = [];
+					let skippedErrors = 0;
+					for (const file of attachments) {
+						const state = uploadStates.get(file);
+						if (state?.status === "error") {
+							skippedErrors++;
+							continue;
+						}
+						if (state?.status === "uploaded" && state.fileId) {
+							pendingAttachments.push({
+								fileId: state.fileId,
+								mediaType: file.type || "application/octet-stream",
+							});
+						}
+					}
 					if (skippedErrors > 0) {
 						toast.warning(
 							`${skippedErrors} attachment${skippedErrors > 1 ? "s" : ""} could not be sent (upload failed)`,

@@ -1,8 +1,5 @@
 import { isApiErrorResponse } from "#/api/errors";
-import {
-	ChatAttachmentMediaTypes,
-	type ChatInputPart,
-} from "#/api/typesGenerated";
+import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
 
@@ -101,69 +98,6 @@ export const isChatAttachmentFile = (file: File): boolean => {
 	}
 	return ChatAttachmentMediaTypes.some((mediaType) => mediaType === file.type);
 };
-
-// Text-family attachment media types whose contents are inlined into the
-// message as a text part. Providers silently drop text-family file parts, so
-// inlining keeps the content visible to every provider. Derived from the
-// generated allowlist by filtering for text/* subtypes and application/json.
-// If a new application/* text type is added to the server allowlist, add it to
-// the filter predicate here too.
-const inlinableTextAttachmentMediaTypes: ReadonlySet<string> = new Set(
-	ChatAttachmentMediaTypes.filter(
-		(mediaType) =>
-			mediaType.startsWith("text/") || mediaType === "application/json",
-	),
-);
-
-/**
- * Returns true when an attachment should be inlined into the message as text
- * rather than sent as a provider file part. Classification uses the browser's
- * declared `File.type`; when that is unknown, it falls back to the filename
- * extension. The decision only affects inline-vs-file-part, never security:
- * the server independently sniffs and stores the authoritative media type.
- */
-export const isInlinableTextAttachment = (file: File): boolean => {
-	if (file.type && file.type !== "application/octet-stream") {
-		return inlinableTextAttachmentMediaTypes.has(file.type);
-	}
-	const lowerName = file.name.toLowerCase();
-	return chatAttachmentExtraExtensions.some((ext) => lowerName.endsWith(ext));
-};
-
-/**
- * Wraps an inlined text attachment's content with a filename label so the
- * model knows the text came from an uploaded file. Files larger than the
- * server cap are rejected before reaching this point, so no truncation is
- * applied here.
- */
-export const formatInlinedAttachmentText = (
-	name: string,
-	content: string,
-): string => `Attached file: ${name}\n\n${content}`;
-
-/**
- * Metadata for an uploaded attachment resolved at send time. When
- * `textContent` is set, the attachment is sent to the model as an inline text
- * part instead of a provider file part.
- */
-export type PendingAttachment = {
-	fileId: string;
-	mediaType: string;
-	textContent?: string;
-};
-
-/**
- * Converts a resolved attachment into the chat input part sent to the server.
- * Attachments carrying inlined text become a text part; everything else is a
- * provider file part referenced by id.
- */
-export const attachmentToContentPart = (attachment: {
-	fileId: string;
-	textContent?: string;
-}): ChatInputPart =>
-	attachment.textContent !== undefined
-		? { type: "text", text: attachment.textContent }
-		: { type: "file", file_id: attachment.fileId };
 
 // Matches characters that commonly cause trouble downstream: bracketing
 // punctuation, quotes, shell or URL or path metacharacters, path

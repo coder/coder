@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-	attachmentToContentPart,
-	formatInlinedAttachmentText,
 	isChatAttachmentFile,
-	isInlinableTextAttachment,
 	renameChatFileForUpload,
 	sanitizeChatFileName,
 } from "./chatAttachments";
@@ -35,62 +32,6 @@ describe("isChatAttachmentFile", () => {
 		});
 
 		expect(isChatAttachmentFile(file)).toBe(false);
-	});
-});
-
-describe("isInlinableTextAttachment", () => {
-	it.each([
-		["application/json", "data.json", true],
-		["text/plain", "notes.txt", true],
-		["text/markdown", "readme.md", true],
-		["text/csv", "rows.csv", true],
-		["image/png", "image.png", false],
-		["application/pdf", "doc.pdf", false],
-	])("classifies %s by declared type", (type, name, expected) => {
-		const file = new File(["x"], name, { type });
-
-		expect(isInlinableTextAttachment(file)).toBe(expected);
-	});
-
-	it.each([
-		["data.json", true],
-		["rows.csv", true],
-		["readme.md", true],
-		["readme.markdown", true],
-		["notes.txt", true],
-		["image.png", false],
-		["archive.zip", false],
-	])("falls back to the extension when type is unknown: %s", (name, expected) => {
-		const emptyType = new File(["x"], name);
-		const octetStream = new File(["x"], name, {
-			type: "application/octet-stream",
-		});
-
-		expect(isInlinableTextAttachment(emptyType)).toBe(expected);
-		expect(isInlinableTextAttachment(octetStream)).toBe(expected);
-	});
-});
-
-describe("formatInlinedAttachmentText", () => {
-	it("labels the content with the filename", () => {
-		expect(formatInlinedAttachmentText("data.json", '{"a":1}')).toBe(
-			'Attached file: data.json\n\n{"a":1}',
-		);
-	});
-});
-
-describe("attachmentToContentPart", () => {
-	it("emits a text part when inlined content is present", () => {
-		expect(
-			attachmentToContentPart({ fileId: "f1", textContent: "hello" }),
-		).toEqual({ type: "text", text: "hello" });
-	});
-
-	it("emits a file part when no inlined content is present", () => {
-		expect(attachmentToContentPart({ fileId: "f1" })).toEqual({
-			type: "file",
-			file_id: "f1",
-		});
 	});
 });
 
