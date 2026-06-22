@@ -72,6 +72,32 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	return out
 }
 
+// decodeInstructionContent decodes an instruction-file resource body and
+// returns its sanitized content. decoded is false when the body cannot be
+// decoded, letting the prompt path count it as malformed; content is empty
+// when the file sanitizes to nothing, in which case callers skip it. Shared by
+// the prompt builder and the API resource listing so both interpret an
+// instruction file the same way.
+func decodeInstructionContent(body json.RawMessage) (content string, decoded bool) {
+	decodedBody, ok := decodeInstructionFileBody(body)
+	if !ok {
+		return "", false
+	}
+	return SanitizePromptText(string(decodedBody.GetContent())), true
+}
+
+// decodeSkillIdentity decodes a skill resource body and returns its name and
+// description. decoded is false when the body cannot be decoded, letting the
+// prompt path count it as malformed; callers skip a skill with an empty name.
+// Shared by the prompt builder and the API resource listing.
+func decodeSkillIdentity(body json.RawMessage) (name, description string, decoded bool) {
+	decodedBody, ok := decodeSkillMetaBody(body)
+	if !ok {
+		return "", "", false
+	}
+	return decodedBody.GetName(), decodedBody.GetDescription(), true
+}
+
 // pinnedWorkspaceContext builds the system-prompt instruction block and
 // workspace skills from the chat's pinned context resources
 // (chat_context_resources), populated at hydrate and refresh time.
@@ -181,12 +207,11 @@ func contextResourcesToPrompt(
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			body, decoded := decodeInstructionFileBody(r.Body)
+			content, decoded := decodeInstructionContent(r.Body)
 			if !decoded {
 				malformed++
 				continue
 			}
-			content := SanitizePromptText(string(body.GetContent()))
 			if content == "" {
 				continue
 			}
@@ -196,12 +221,12 @@ func contextResourcesToPrompt(
 				ContextFileContent: content,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
-			body, decoded := decodeSkillMetaBody(r.Body)
+			name, description, decoded := decodeSkillIdentity(r.Body)
 			if !decoded {
 				malformed++
 				continue
 			}
-			if body.GetName() == "" {
+			if name == "" {
 				continue
 			}
 			// source is the skill directory. MetaFile is left empty so
@@ -210,8 +235,8 @@ func contextResourcesToPrompt(
 			// CODER_AGENT_EXP_SKILL_META_FILE is not preserved on this
 			// path, unlike the per-turn discovery path.
 			skills = append(skills, chattool.SkillMeta{
-				Name:        body.GetName(),
-				Description: body.GetDescription(),
+				Name:        name,
+				Description: description,
 				Dir:         r.Source,
 			})
 		}
@@ -221,4 +246,128 @@ func contextResourcesToPrompt(
 		return "", skills, malformed
 	}
 	return formatSystemInstructions(operatingSystem, directory, contextFileParts), skills, malformed
+}
+
+// ContextResources returns the chat's pinned context resource list (metadata
+// only). It is read-only and intended for the single-chat GET handler; list
+// and watch payloads omit this detail to stay lightweight.
+//
+// The returned list is the chat's full pinned inventory (instruction files,
+// skills, and MCP configs/servers), each stamped with its per-resource status
+// so the UI can explain why a resource was dropped from the prompt instead of
+// silently omitting it.
+func (server *Server) ContextResources(
+	ctx context.Context,
+	chat database.Chat,
+) ([]codersdk.ChatContextResource, error) {
+	pinned, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("list chat context resources: %w", err)
+	}
+	resources := pinnedContextResources(pinned)
+	server.logger.Debug(ctx, "computed chat context resources",
+		slog.F("chat_id", chat.ID),
+		slog.F("resource_count", len(resources)),
+	)
+	return resources, nil
+}
+
+// pinnedContextResources converts a chat's pinned context rows into the
+// metadata-only resource list reported on the chat. It is the reporting
+// counterpart to contextResourcesToPrompt: both walk the same rows and share
+// the body decoders, but where the prompt builder keeps only OK instruction
+// files and skills (and ignores everything else), this surfaces the full
+// inventory the user can act on, each stamped with its Status:
+//
+//   - OK instruction files with non-empty (sanitized) content, OK skills with
+//     a name, and OK MCP configs/servers (mcp_server carries its tools).
+//   - Non-OK rows (invalid, unreadable, oversize, excluded) of a tracked kind,
+//     carrying Status and Error so the UI can explain why the resource was
+//     dropped from the prompt instead of silently omitting it. Their
+//     body-specific fields are empty.
+//
+// OK-but-empty instruction files, OK skills with no name, and untracked kinds
+// (reserved plugin/hook/subagent/command) are skipped. Input order (source ASC
+// from the query) is preserved.
+func pinnedContextResources(resources []database.ChatContextResource) []codersdk.ChatContextResource {
+	var out []codersdk.ChatContextResource
+	for _, r := range resources {
+		kind, ok := contextResourceKind(r.BodyKind)
+		if !ok {
+			continue
+		}
+		if r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			// Surface the failure (with its reason) rather than dropping it
+			// silently; the body is empty for non-OK rows.
+			out = append(out, codersdk.ChatContextResource{
+				Source:    r.Source,
+				Kind:      kind,
+				SizeBytes: r.SizeBytes,
+				Status:    codersdk.ChatContextResourceStatus(r.Status),
+				Error:     r.Error,
+			})
+			continue
+		}
+		switch r.BodyKind {
+		case database.WorkspaceAgentContextBodyKindInstructionFile:
+			content, decoded := decodeInstructionContent(r.Body)
+			if !decoded || content == "" {
+				continue
+			}
+			out = append(out, codersdk.ChatContextResource{
+				Source:    r.Source,
+				Kind:      kind,
+				SizeBytes: r.SizeBytes,
+				Status:    codersdk.ChatContextResourceStatusOK,
+			})
+		case database.WorkspaceAgentContextBodyKindSkill:
+			name, description, decoded := decodeSkillIdentity(r.Body)
+			if !decoded || name == "" {
+				continue
+			}
+			out = append(out, codersdk.ChatContextResource{
+				Source:           r.Source,
+				Kind:             kind,
+				SizeBytes:        r.SizeBytes,
+				Status:           codersdk.ChatContextResourceStatusOK,
+				SkillName:        name,
+				SkillDescription: description,
+			})
+		case database.WorkspaceAgentContextBodyKindMcpConfig:
+			out = append(out, codersdk.ChatContextResource{
+				Source:    r.Source,
+				Kind:      kind,
+				SizeBytes: r.SizeBytes,
+				Status:    codersdk.ChatContextResourceStatusOK,
+			})
+		case database.WorkspaceAgentContextBodyKindMcpServer:
+			out = append(out, codersdk.ChatContextResource{
+				Source:    r.Source,
+				Kind:      kind,
+				SizeBytes: r.SizeBytes,
+				Status:    codersdk.ChatContextResourceStatusOK,
+				McpTools:  mcpToolsFromServerBody(r.Source, r.Body),
+			})
+		}
+	}
+	return out
+}
+
+// contextResourceKind maps a database body kind to the codersdk kind reported
+// on the chat. ok is false only for kinds chatd does not track yet (the
+// reserved plugin/hook/subagent/command kinds), which are omitted from the
+// resource list.
+func contextResourceKind(kind database.WorkspaceAgentContextBodyKind) (codersdk.ChatContextResourceKind, bool) {
+	switch kind {
+	case database.WorkspaceAgentContextBodyKindInstructionFile:
+		return codersdk.ChatContextResourceKindInstructionFile, true
+	case database.WorkspaceAgentContextBodyKindSkill:
+		return codersdk.ChatContextResourceKindSkill, true
+	case database.WorkspaceAgentContextBodyKindMcpConfig:
+		return codersdk.ChatContextResourceKindMCPConfig, true
+	case database.WorkspaceAgentContextBodyKindMcpServer:
+		return codersdk.ChatContextResourceKindMCPServer, true
+	default:
+		return "", false
+	}
 }
