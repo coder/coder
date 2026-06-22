@@ -106,6 +106,33 @@ AI Gateway resolves AWS credentials one of two ways:
 - **Static credentials.** Provide an access key and secret for an IAM
   user with the same Bedrock permissions.
 
+#### Obtaining static Bedrock credentials
+
+When you cannot use the default credential chain, create a dedicated IAM
+user and generate a static access key:
+
+1. **Choose a region** where you want to use Bedrock.
+
+2. **Generate API keys** in the [AWS Bedrock console](https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/api-keys/long-term/create) (replace `us-east-1` in the URL with your chosen region):
+   - Choose an expiry period for the key.
+   - Click **Generate**.
+   - This creates an IAM user with strictly-scoped permissions for Bedrock access.
+
+3. **Create an access key** for the IAM user:
+   - After generating the API key, click **"You can directly modify permissions for the IAM user associated"**.
+   - In the IAM user page, navigate to the **Security credentials** tab.
+   - Under **Access keys**, click **Create access key**.
+   - Select **"Application running outside AWS"** as the use case.
+   - Click **Next**.
+   - Add a description like "Coder AI Gateway token".
+   - Click **Create access key**.
+   - Save both the access key ID and secret access key securely.
+
+4. **Enter the access key ID and secret access key** when you add or edit
+   the Bedrock provider from the dashboard or the
+   [AI Providers API](../../reference/api/aiproviders.md), along with the
+   region (or base URL) and model identifiers.
+
 ### GitHub Copilot
 
 GitHub Copilot offers three plans: Individual, Business, and Enterprise,
