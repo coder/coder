@@ -123,20 +123,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 		lastUsage := completion.Usage
 		cumulativeUsage = sumUsage(cumulativeUsage, completion.Usage)
 
-		_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
-			InterceptionID:       i.ID().String(),
-			MsgID:                completion.ID,
-			Input:                calculateActualInputTokenUsage(lastUsage),
-			Output:               lastUsage.CompletionTokens,
-			CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
-			ExtraTokenTypes: map[string]int64{
-				"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-				"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-				"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
-				"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
-				"completion_reasoning":           lastUsage.CompletionTokensDetails.ReasoningTokens,
-			},
-		})
+		i.recordTokenUsage(ctx, completion.ID, lastUsage)
 
 		// Check if we have tool calls to process.
 		var pendingToolCalls []openai.ChatCompletionMessageToolCallUnion
