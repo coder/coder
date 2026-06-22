@@ -1796,6 +1796,7 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context", api.workspaceAgentAddChatContext)
 					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
