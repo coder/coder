@@ -98,7 +98,7 @@ type AgentConn interface {
 	CallMCPTool(ctx context.Context, req CallMCPToolRequest) (CallMCPToolResponse, error)
 	Close() error
 	ContextConfig(ctx context.Context) (ContextConfigResponse, error)
-	DebugLogs(ctx context.Context) ([]byte, error)
+	DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error)
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
@@ -443,11 +443,29 @@ func (c *agentConn) DebugManifest(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
-// DebugLogs returns up to the last 10MB of `/tmp/coder-agent.log`
-func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
+// DebugLogsOption configures a DebugLogs request.
+type DebugLogsOption func(*debugLogsConfig)
+
+type debugLogsConfig struct {
+	after time.Time
+}
+
+// WithLogsAfter also returns rotated logs modified at or after t, separated by
+// boundary markers (100 MiB combined cap).
+func WithLogsAfter(t time.Time) DebugLogsOption {
+	return func(c *debugLogsConfig) { c.after = t }
+}
+
+// DebugLogs returns up to 10 MiB of the active agent log. Pass WithLogsAfter to
+// also include rotated logs.
+func (c *agentConn) DebugLogs(ctx context.Context, opts ...DebugLogsOption) ([]byte, error) {
+	var cfg debugLogsConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/debug/logs", nil)
+	res, err := c.apiRequest(ctx, http.MethodGet, debugLogsPath(cfg.after), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("do request: %w", err)
 	}
@@ -460,6 +478,14 @@ func (c *agentConn) DebugLogs(ctx context.Context) ([]byte, error) {
 		return nil, xerrors.Errorf("read response body: %w", err)
 	}
 	return bs, nil
+}
+
+func debugLogsPath(after time.Time) string {
+	query := neturl.Values{}
+	if !after.IsZero() {
+		query.Set("after", after.UTC().Format(time.RFC3339Nano))
+	}
+	return agentAPIPath("/debug/logs", query)
 }
 
 // PrometheusMetrics returns a response from the agent's prometheus metrics endpoint

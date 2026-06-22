@@ -513,6 +513,14 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// The manager runs its own self-contained MCP runner: it
+		// connects to the .mcp.json servers it discovers, lists
+		// their tools, and pushes them to coderd as KindMCPServer
+		// resources. This is independent of a.mcpManager, which
+		// serves the agent's MCP HTTP API; the two MCP paths share
+		// no state during the rollout.
+		MCPExecer:    a.execer,
+		MCPUpdateEnv: a.updateCommandEnv,
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
@@ -2278,26 +2286,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
-	}
-}
-
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	logPath := filepath.Join(a.logDir, "coder-agent.log")
-	f, err := os.Open(logPath)
-	if err != nil {
-		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-		return
-	}
-	defer f.Close()
-
-	// Limit to 10MiB.
-	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
-	if err != nil && !errors.Is(err, io.EOF) {
-		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		return
 	}
 }
 
