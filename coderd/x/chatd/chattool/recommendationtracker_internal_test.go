@@ -35,11 +35,27 @@ func TestRecommendationTracker_Classify(t *testing.T) {
 		chat, rec := uuid.New(), uuid.New()
 		page1, page2 := uuid.New(), uuid.New()
 		// Page 1 seeds the record; a later page of the same result accumulates
-		// its listed IDs instead of replacing page 1's, so a build of a
-		// page-1 template is still "listed" rather than "unlisted".
+		// its listed IDs into the existing set. Classify with the page-2 ID:
+		// it is "listed" only if the page-2 Record added it, which proves the
+		// union (not just that page-1 IDs survived).
 		tr.Record(chat, rec, []uuid.UUID{rec, page1}, 1)
 		tr.Record(chat, rec, []uuid.UUID{page2}, 2)
-		require.Equal(t, recommendationFollowupOverrodeListed, tr.Classify(chat, page1))
+		require.Equal(t, recommendationFollowupOverrodeListed, tr.Classify(chat, page2))
+	})
+
+	t.Run("ExpiredEntryNotRevivedByLaterPage", func(t *testing.T) {
+		t.Parallel()
+		clock := quartz.NewMock(t)
+		tr := NewRecommendationTracker(clock, time.Minute, 0)
+		chat, rec := uuid.New(), uuid.New()
+		page1, page2 := uuid.New(), uuid.New()
+		// Page 1 expires before page 2 arrives. The later page must start a
+		// fresh record rather than revive the stale page-1 listed set, so a
+		// page-1 template now classifies as unlisted, not "listed".
+		tr.Record(chat, rec, []uuid.UUID{rec, page1}, 1)
+		clock.Advance(time.Minute + time.Second)
+		tr.Record(chat, rec, []uuid.UUID{page2}, 2)
+		require.Equal(t, recommendationFollowupUnlisted, tr.Classify(chat, page1))
 	})
 
 	t.Run("ListedWithoutRecommendation", func(t *testing.T) {

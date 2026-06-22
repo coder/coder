@@ -99,11 +99,14 @@ func (t *RecommendationTracker) Record(chatID, recommendedID uuid.UUID, listedID
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	// Later pages of the same result continue an existing record, so union
-	// their listed IDs instead of overwriting. Page 1, a missing entry, or a
-	// changed recommendation starts fresh.
+	// Later pages of the same result continue an existing, unexpired record,
+	// so union their listed IDs instead of overwriting. Page 1, a missing or
+	// already-expired entry, or a changed recommendation starts fresh, so a
+	// stale result past its TTL is never revived.
 	if page > 1 {
-		if entry, ok := t.entries[chatID]; ok && entry.recommendedID == recommendedID {
+		if entry, ok := t.entries[chatID]; ok &&
+			entry.recommendedID == recommendedID &&
+			now.Sub(entry.recordedAt) <= t.ttl {
 			for _, id := range listedIDs {
 				if id != uuid.Nil {
 					entry.listed[id] = struct{}{}
