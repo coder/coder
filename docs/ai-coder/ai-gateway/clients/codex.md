@@ -147,15 +147,15 @@ the ChatGPT login.
 
 Recent Codex CLI versions default to the WebSocket runtime for the
 Responses API. AI Gateway does not support WebSocket transport, so each
-request attempts a WebSocket connection, fails, and falls back to HTTPS.
-When this happens you will see:
+request attempts a WebSocket connection and retries up to 5 times before
+falling back to HTTPS. When this happens you will see:
 
 ```text
 Falling back from WebSockets to HTTPS transport.
 ```
 
-The requests still succeed over HTTPS, but every turn wastes time on the
-failed WebSocket attempts.
+The requests still succeed over HTTPS, but every turn waits through the
+five failed WebSocket attempts first.
 
 To stop Codex from attempting WebSockets, set `supports_websockets = false`
 in your AI Gateway provider block in `~/.codex/config.toml`:
