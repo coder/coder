@@ -634,48 +634,32 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		//nolint:gocritic // Owner role is the audience for this endpoint.
 		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeAnthropic,
-			Name:    "bedrock-region-derived",
-			Enabled: true,
-			BaseURL: "https://bedrock-runtime.US-EAST-1.amazonaws.com/",
-			Settings: codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Model:          "anthropic.claude-3-5-sonnet",
-					SmallFastModel: "anthropic.claude-3-5-haiku",
-				},
-			},
+			Type:     codersdk.AIProviderTypeAnthropic,
+			Name:     "bedrock-region-derived",
+			Enabled:  true,
+			BaseURL:  "https://bedrock-runtime.US-EAST-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{}},
 		})
 		require.NoError(t, err)
 		require.NotNil(t, created.Settings.Bedrock)
 		require.Equal(t, "us-east-1", created.Settings.Bedrock.Region)
 
-		newURL := "https://bedrock-runtime.us-west-2.amazonaws.com"
 		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			BaseURL: &newURL,
+			BaseURL: ptr.Ref("https://bedrock-runtime.us-west-2.amazonaws.com"),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Settings.Bedrock)
 		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
 
-		explicitRegion := "us-gov-west-1"
 		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			BaseURL: ptr.Ref("https://bedrock-runtime.us-east-2.amazonaws.com"),
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: explicitRegion},
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-gov-west-1"},
 			},
 		})
 		require.NoError(t, err)
 		require.NotNil(t, updated.Settings.Bedrock)
-		require.Equal(t, explicitRegion, updated.Settings.Bedrock.Region)
-
-		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Model: "anthropic.claude-3-5-haiku"},
-			},
-		})
-		require.NoError(t, err)
-		require.NotNil(t, updated.Settings.Bedrock)
-		require.Equal(t, explicitRegion, updated.Settings.Bedrock.Region)
+		require.Equal(t, "us-gov-west-1", updated.Settings.Bedrock.Region)
 	})
 
 	t.Run("BedrockTypeDerivesRegionWithoutSettings", func(t *testing.T) {
@@ -1428,11 +1412,11 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 func TestAIProviderSettingsMerge(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OmittedSecretsPreserveExisting", func(t *testing.T) {
+	t.Run("OmittedRegionAndSecretsPreserveExisting", func(t *testing.T) {
 		t.Parallel()
-		// A PATCH that only rotates non-secret fields must keep the
-		// existing AccessKey and AccessKeySecret intact so the provider
-		// keeps authenticating after the update.
+		// A PATCH that omits Region, AccessKey, and AccessKeySecret must
+		// keep the existing values so the provider keeps authenticating
+		// after the update.
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -1456,10 +1440,7 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 
 		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
 			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{
-					Region: "us-west-2",
-					Model:  "anthropic.claude-3-5-haiku",
-				},
+				Bedrock: &codersdk.AIProviderBedrockSettings{Model: "anthropic.claude-3-5-haiku"},
 			},
 		})
 		require.NoError(t, err)
@@ -1470,7 +1451,7 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		persisted, err := db2sdk.AIProviderSettings(row.Settings)
 		require.NoError(t, err)
 		require.NotNil(t, persisted.Bedrock)
-		require.Equal(t, "us-west-2", persisted.Bedrock.Region)
+		require.Equal(t, "us-east-1", persisted.Bedrock.Region)
 		require.Equal(t, "anthropic.claude-3-5-haiku", persisted.Bedrock.Model)
 		require.NotNil(t, persisted.Bedrock.AccessKey)
 		require.Equal(t, "AKIA-old", *persisted.Bedrock.AccessKey)
