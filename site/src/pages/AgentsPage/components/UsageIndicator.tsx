@@ -26,10 +26,13 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
+import {
+	getSeverity,
+	severityTextClassName,
+	type UsageSeverity,
+} from "#/utils/usage";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 import { SvgRingProgress } from "./SvgRingProgress";
-
-type UsageSeverity = "normal" | "warning" | "exceeded";
 
 type UsageSectionData = {
 	id: string;
@@ -232,7 +235,7 @@ const UsageRingProgress: FC<{
 				aria-hidden="true"
 				className={cn(
 					"absolute inset-0 flex items-center justify-center",
-					getTextClassName(severity),
+					severityTextClassName(severity),
 				)}
 			>
 				{icon}
@@ -251,7 +254,10 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 					{section.title}
 				</span>
 				<span
-					className={cn("shrink-0 text-xs", getTextClassName(section.severity))}
+					className={cn(
+						"shrink-0 text-xs",
+						severityTextClassName(section.severity),
+					)}
 				>
 					{roundedPercent}%
 				</span>
@@ -355,19 +361,6 @@ function clampPercent(percent: number): number {
 	return Math.min(Math.max(percent, 0), 100);
 }
 
-function getSeverity(used: number, budget: number): UsageSeverity {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
-		return "normal";
-	}
-	if (budget === 0) {
-		return used > 0 ? "exceeded" : "normal";
-	}
-	if (used >= budget) {
-		return "exceeded";
-	}
-	return used / budget >= 0.85 ? "warning" : "normal";
-}
-
 function getProgressClassName(severity: UsageSeverity): string {
 	switch (severity) {
 		case "exceeded":
@@ -387,17 +380,6 @@ function getRingStrokeClassName(severity: UsageSeverity): string {
 			return "stroke-content-warning";
 		case "normal":
 			return "stroke-content-secondary";
-	}
-}
-
-function getTextClassName(severity: UsageSeverity = "normal"): string {
-	switch (severity) {
-		case "exceeded":
-			return "text-content-destructive";
-		case "warning":
-			return "text-content-warning";
-		case "normal":
-			return "text-content-secondary";
 	}
 }
 
