@@ -180,7 +180,13 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.Settings = normalizeAIProviderSettings(req.Type, req.BaseURL, req.Settings)
+	bedrockRegionBaseURL := ""
+	if req.Type == codersdk.AIProviderTypeBedrock && req.Settings.Bedrock == nil {
+		bedrockRegionBaseURL = req.BaseURL
+	} else if req.Settings.Bedrock != nil && req.Settings.Bedrock.Region == "" {
+		bedrockRegionBaseURL = req.BaseURL
+	}
+	req.Settings = normalizeAIProviderSettings(req.Type, req.Settings, bedrockRegionBaseURL)
 	// Any provider carrying Bedrock settings must resolve to usable config.
 	// The UI submits Bedrock as type=anthropic with a bedrock discriminator,
 	// so gate on the settings blob rather than the provider type; otherwise
@@ -339,12 +345,14 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
 		baseURL := ptr.NilToDefault(req.BaseURL, old.BaseUrl)
-		if req.BaseURL != nil && existing.Bedrock != nil {
-			if req.Settings == nil || req.Settings.Bedrock == nil || req.Settings.Bedrock.Region == "" {
-				existing.Bedrock.Region = ""
-			}
+		bedrockRegionBaseURL := ""
+		if codersdk.AIProviderType(old.Type) == codersdk.AIProviderTypeBedrock && existing.Bedrock == nil {
+			bedrockRegionBaseURL = baseURL
+		} else if req.BaseURL != nil && existing.Bedrock != nil &&
+			(req.Settings == nil || req.Settings.Bedrock == nil || req.Settings.Bedrock.Region == "") {
+			bedrockRegionBaseURL = baseURL
 		}
-		existing = normalizeAIProviderSettings(codersdk.AIProviderType(old.Type), baseURL, existing)
+		existing = normalizeAIProviderSettings(codersdk.AIProviderType(old.Type), existing, bedrockRegionBaseURL)
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
 		// misconfiguration from sitting silently in the encrypted
@@ -781,14 +789,14 @@ var errAIProviderKeyUnknown = xerrors.New("api_keys references an unknown id for
 
 var canonicalBedrockBaseURLRegex = regexp.MustCompile(`(?i)^https://bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com/?$`)
 
-func normalizeAIProviderSettings(providerType codersdk.AIProviderType, baseURL string, settings codersdk.AIProviderSettings) codersdk.AIProviderSettings {
+func normalizeAIProviderSettings(providerType codersdk.AIProviderType, settings codersdk.AIProviderSettings, bedrockRegionBaseURL string) codersdk.AIProviderSettings {
 	if providerType == codersdk.AIProviderTypeBedrock && settings.Bedrock == nil {
 		settings.Bedrock = &codersdk.AIProviderBedrockSettings{}
 	}
-	if settings.Bedrock == nil || settings.Bedrock.Region != "" {
+	if settings.Bedrock == nil || bedrockRegionBaseURL == "" {
 		return settings
 	}
-	if match := canonicalBedrockBaseURLRegex.FindStringSubmatch(strings.TrimSpace(baseURL)); len(match) == 2 {
+	if match := canonicalBedrockBaseURLRegex.FindStringSubmatch(strings.TrimSpace(bedrockRegionBaseURL)); len(match) == 2 {
 		bedrock := *settings.Bedrock
 		bedrock.Region = strings.ToLower(match[1])
 		settings.Bedrock = &bedrock

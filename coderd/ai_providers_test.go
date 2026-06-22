@@ -632,114 +632,148 @@ func TestAIProvidersCRUD(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:     codersdk.AIProviderTypeAnthropic,
-			Name:     "bedrock-region-derived",
-			Enabled:  true,
-			BaseURL:  "https://bedrock-runtime.US-EAST-1.amazonaws.com/",
-			Settings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{}},
-		})
-		require.NoError(t, err)
-		require.NotNil(t, created.Settings.Bedrock)
-		require.Equal(t, "us-east-1", created.Settings.Bedrock.Region)
-
-		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://bedrock-runtime.us-west-2.amazonaws.com"),
-		})
-		require.NoError(t, err)
-		require.NotNil(t, updated.Settings.Bedrock)
-		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
-
-		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-			BaseURL: ptr.Ref("https://bedrock-runtime.us-east-2.amazonaws.com"),
-			Settings: &codersdk.AIProviderSettings{
-				Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-gov-west-1"},
-			},
-		})
-		require.NoError(t, err)
-		require.NotNil(t, updated.Settings.Bedrock)
-		require.Equal(t, "us-gov-west-1", updated.Settings.Bedrock.Region)
-	})
-
-	t.Run("BedrockTypeDerivesRegionWithoutSettings", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is the audience for this endpoint.
-		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-			Type:    codersdk.AIProviderTypeBedrock,
-			Name:    "bedrock-type-region",
-			Enabled: true,
-			BaseURL: "https://bedrock-runtime.us-east-2.amazonaws.com",
-		})
-		require.NoError(t, err)
-		require.Equal(t, codersdk.AIProviderTypeBedrock, created.Type)
-		require.NotNil(t, created.Settings.Bedrock)
-		require.Equal(t, "us-east-2", created.Settings.Bedrock.Region)
-	})
-
-	t.Run("BedrockRejectsCustomBaseURLWithoutRegion", func(t *testing.T) {
-		t.Parallel()
-		client := coderdtest.New(t, nil)
-		_ = coderdtest.CreateFirstUser(t, client)
-		ctx := testutil.Context(t, testutil.WaitLong)
-		const required = "Bedrock settings require a region or credentials"
-
-		// A provider that can't resolve a region (custom endpoint, no region,
-		// no credentials) must be rejected, otherwise aibridge silently drops
-		// it at runtime. The native form sends type=bedrock while the UI sends
-		// type=anthropic with a bedrock settings discriminator, so both shapes
-		// must be guarded.
+		// Two request shapes resolve to Bedrock: the native type=bedrock
+		// form sends no settings, while the UI sends type=anthropic with a
+		// bedrock settings discriminator. Region derivation must behave
+		// identically for both.
 		cases := []struct {
-			name         string
-			providerType codersdk.AIProviderType
-			settings     codersdk.AIProviderSettings
+			name           string
+			providerType   codersdk.AIProviderType
+			createSettings codersdk.AIProviderSettings
 		}{
 			{
 				name:         "bedrock-type",
 				providerType: codersdk.AIProviderTypeBedrock,
 			},
 			{
-				name:         "anthropic-type",
-				providerType: codersdk.AIProviderTypeAnthropic,
-				settings:     codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{}},
+				name:           "anthropic-type",
+				providerType:   codersdk.AIProviderTypeAnthropic,
+				createSettings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{}},
 			},
 		}
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				// A custom endpoint can't derive a region, so create is rejected.
+				// A canonical endpoint derives and lower-cases the region
+				// server-side without an explicit region.
+				//nolint:gocritic // Owner role is the audience for this endpoint.
+				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:     tc.providerType,
+					Name:     tc.name + "-derived",
+					Enabled:  true,
+					BaseURL:  "https://bedrock-runtime.US-EAST-1.amazonaws.com/",
+					Settings: tc.createSettings,
+				})
+				require.NoError(t, err)
+				require.Equal(t, tc.providerType, created.Type)
+				require.NotNil(t, created.Settings.Bedrock)
+				require.Equal(t, "us-east-1", created.Settings.Bedrock.Region)
+
+				// A new canonical base URL re-derives the region.
+				updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+					BaseURL: ptr.Ref("https://bedrock-runtime.us-west-2.amazonaws.com"),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, updated.Settings.Bedrock)
+				require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
+
+				// An explicit region wins over derivation.
+				updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+					BaseURL: ptr.Ref("https://bedrock-runtime.us-east-2.amazonaws.com"),
+					Settings: &codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-gov-west-1"},
+					},
+				})
+				require.NoError(t, err)
+				require.NotNil(t, updated.Settings.Bedrock)
+				require.Equal(t, "us-gov-west-1", updated.Settings.Bedrock.Region)
+
+				// Switching to a custom endpoint keeps the stored region
+				// rather than clearing it. A custom URL has nothing to
+				// re-derive from, so clearing it would lock the operator out
+				// of an existing provider.
+				updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+					BaseURL: ptr.Ref("https://bedrock.internal.example.com"),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, updated.Settings.Bedrock)
+				require.Equal(t, "us-gov-west-1", updated.Settings.Bedrock.Region)
+			})
+		}
+	})
+
+	t.Run("BedrockRejectsUnresolvableRegion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		const required = "Bedrock settings require a region or credentials"
+
+		// A provider that can't resolve a region (custom endpoint, no
+		// region, no credentials) must be rejected, otherwise aibridge
+		// silently drops it at runtime. Both request shapes must be
+		// guarded: the native type=bedrock form sends no settings, while
+		// the UI sends type=anthropic with a bedrock settings
+		// discriminator.
+		cases := []struct {
+			name           string
+			providerType   codersdk.AIProviderType
+			createSettings codersdk.AIProviderSettings
+		}{
+			{
+				name:         "bedrock-type",
+				providerType: codersdk.AIProviderTypeBedrock,
+			},
+			{
+				name:           "anthropic-type",
+				providerType:   codersdk.AIProviderTypeAnthropic,
+				createSettings: codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{}},
+			},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				// Create against a custom endpoint with no region or
+				// credentials is rejected.
 				//nolint:gocritic // Owner role is the audience for this endpoint.
 				_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 					Type:     tc.providerType,
 					Name:     tc.name + "-custom",
 					Enabled:  true,
 					BaseURL:  "https://bedrock.internal.example.com",
-					Settings: tc.settings,
+					Settings: tc.createSettings,
 				})
 				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
 				require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "settings", Detail: required})
 
-				// A canonical endpoint derives the region server-side, so the
-				// same shape succeeds without an explicit region.
+				// Credentials alone make a custom endpoint usable (SigV4
+				// authenticates with static credentials), so create succeeds.
 				//nolint:gocritic // Owner role is the audience for this endpoint.
-				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
-					Type:     tc.providerType,
-					Name:     tc.name + "-canonical",
-					Enabled:  true,
-					BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
-					Settings: tc.settings,
+				withCreds, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    tc.providerType,
+					Name:    tc.name + "-creds",
+					Enabled: true,
+					BaseURL: "https://bedrock.internal.example.com",
+					Settings: codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							AccessKey:       ptr.Ref("AKIA-fixture"),   //nolint:gosec // test fixture, not a real credential
+							AccessKeySecret: ptr.Ref("secret-fixture"), //nolint:gosec // test fixture, not a real credential
+						},
+					},
 				})
 				require.NoError(t, err)
 
-				// Swapping back to a custom endpoint clears the derived region,
-				// so the update is rejected rather than storing a no-region row.
-				_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
-					BaseURL: ptr.Ref("https://bedrock.internal.example.com"),
+				// Clearing those credentials leaves no region and no
+				// credentials behind a custom endpoint, so the update is
+				// rejected rather than persisting an unresolvable provider.
+				_, err = client.UpdateAIProvider(ctx, withCreds.Name, codersdk.UpdateAIProviderRequest{
+					Settings: &codersdk.AIProviderSettings{
+						Bedrock: &codersdk.AIProviderBedrockSettings{
+							AccessKey:       ptr.Ref(""),
+							AccessKeySecret: ptr.Ref(""),
+						},
+					},
 				})
 				sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 				require.Equal(t, required, sdkErr.Message)
