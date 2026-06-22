@@ -379,7 +379,7 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	//nolint:gocritic // Provisionerd has specific authz rules.
 	ctx = dbauthz.AsProvisionerd(ctx)
 	if deleted, err := s.keyDeleted(ctx); err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("acquire job: check provisioner key: %w", err)
 	} else if deleted {
 		s.terminateOnDeletedKey()
 		return nil, xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
@@ -418,7 +418,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		}
 	}()
 	if deleted, err := s.keyDeleted(streamCtx); err != nil {
-		return err
+		return xerrors.Errorf("acquire job: check provisioner key: %w", err)
 	} else if deleted {
 		s.terminateOnDeletedKey()
 		return xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
