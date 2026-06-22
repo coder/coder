@@ -2425,10 +2425,16 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "You cannot change your own workspace sharing role.",
-		})
-		return
+		// Block changing your own sharing role unless you can share any
+		// workspace in the organization. This keeps a user whose only access is
+		// this share from destructively demoting themselves, while letting org
+		// and deployment admins manage their own access.
+		if !api.Authorize(r, policy.ActionShare, rbac.ResourceWorkspace.InOrg(workspace.OrganizationID)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You cannot change your own workspace sharing role.",
+			})
+			return
+		}
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))
