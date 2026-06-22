@@ -6,11 +6,7 @@ import {
 	MockAIProviderCopilot,
 	MockAIProviderOpenAI,
 } from "#/testHelpers/entities";
-import {
-	type ProviderFormValues,
-	parseBedrockRegionFromBaseUrl,
-	SAVED_CREDENTIAL_MASK,
-} from "./ProviderForm";
+import { type ProviderFormValues, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
 import {
 	aiProviderToFormValues,
 	getProviderDisplayType,
@@ -64,76 +60,6 @@ const baseCopilotFormValues: ProviderFormValues = {
 // discriminator keys flattened in alongside the variant fields.
 const settings = (raw: Record<string, unknown>): AIProvider["settings"] =>
 	raw as unknown as AIProvider["settings"];
-
-describe("parseBedrockRegionFromBaseUrl", () => {
-	it("extracts the region from a canonical AWS Bedrock URL", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"https://bedrock-runtime.us-east-1.amazonaws.com",
-			),
-		).toBe("us-east-1");
-	});
-
-	it("accepts a trailing slash", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"https://bedrock-runtime.us-west-2.amazonaws.com/",
-			),
-		).toBe("us-west-2");
-	});
-
-	it("lowercases the region", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"https://bedrock-runtime.US-EAST-1.amazonaws.com",
-			),
-		).toBe("us-east-1");
-	});
-
-	it("trims surrounding whitespace before matching", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"  https://bedrock-runtime.us-east-1.amazonaws.com  ",
-			),
-		).toBe("us-east-1");
-	});
-
-	it("returns undefined for a non-AWS URL", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl("https://bedrock.internal.example.com"),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for an empty string", () => {
-		expect(parseBedrockRegionFromBaseUrl("")).toBeUndefined();
-	});
-
-	it("returns undefined for an http (non-https) URL", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"http://bedrock-runtime.us-east-1.amazonaws.com",
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for a URL with a path", () => {
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"https://bedrock-runtime.us-east-1.amazonaws.com/v1/something",
-			),
-		).toBeUndefined();
-	});
-
-	it("returns undefined for the China partition (different TLD)", () => {
-		// AWS China uses *.amazonaws.com.cn, which the canonical regex does
-		// not match by design; cn-* users get the explicit Region input.
-		expect(
-			parseBedrockRegionFromBaseUrl(
-				"https://bedrock-runtime.cn-north-1.amazonaws.com.cn",
-			),
-		).toBeUndefined();
-	});
-});
 
 describe("isBedrockProvider", () => {
 	it("recognises a discriminated bedrock provider", () => {
@@ -334,22 +260,10 @@ describe("providerFormValuesToCreate", () => {
 			expect(req.type).toBe("anthropic");
 		});
 
-		it("derives the region from a canonical AWS URL", () => {
+		it("leaves region derivation to the backend", () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
 			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s._type).toBe("bedrock");
-			expect(s.region).toBe("us-east-1");
-		});
-
-		it("omits the region when the URL is non-canonical", () => {
-			// The form schema blocks non-canonical endpoints before submit; the
-			// helper itself stays strict, returning an undefined region rather
-			// than inventing a value.
-			const req = providerFormValuesToCreate({
-				...baseBedrockFormValues,
-				baseUrl: "https://bedrock.internal.example.com",
-			});
-			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s.region).toBeUndefined();
 		});
 
@@ -371,18 +285,14 @@ describe("providerFormValuesToCreate", () => {
 			expect(s.access_key_secret).toBeUndefined();
 		});
 
-		it("keeps the region so the backend recognises the Bedrock provider when access keys are omitted", () => {
-			// The backend treats Region as a configuration signal
-			// (codersdk.AIProviderBedrockSettings.IsConfigured), so omitting
-			// the keys must not also strip the region; otherwise the request
-			// would fail with "type=bedrock requires bedrock settings".
+		it("omits the region when access keys are omitted", () => {
 			const req = providerFormValuesToCreate({
 				...baseBedrockFormValues,
 				accessKey: "",
 				accessKeySecret: "",
 			});
 			const s = req.settings as unknown as Record<string, unknown>;
-			expect(s.region).toBe("us-east-1");
+			expect(s.region).toBeUndefined();
 			expect(s._type).toBe("bedrock");
 		});
 
@@ -484,28 +394,11 @@ describe("providerFormValuesToUpdate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it("derives the region from the canonical URL", () => {
+		it("leaves region derivation to the backend", () => {
 			const req = providerFormValuesToUpdate(
 				{
 					...baseBedrockFormValues,
 					baseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com",
-					accessKey: SAVED_CREDENTIAL_MASK,
-					accessKeySecret: SAVED_CREDENTIAL_MASK,
-				},
-				MockAIProviderBedrock,
-			);
-			const s = req.settings as unknown as Record<string, unknown>;
-			expect(s.region).toBe("us-west-2");
-		});
-
-		it("omits the region when the URL is non-canonical", () => {
-			// The form schema blocks non-canonical endpoints before submit; the
-			// helper itself stays strict, returning an undefined region rather
-			// than inventing a value.
-			const req = providerFormValuesToUpdate(
-				{
-					...baseBedrockFormValues,
-					baseUrl: "https://bedrock.internal.example.com",
 					accessKey: SAVED_CREDENTIAL_MASK,
 					accessKeySecret: SAVED_CREDENTIAL_MASK,
 				},

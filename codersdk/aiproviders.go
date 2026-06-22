@@ -234,11 +234,17 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "bedrock settings are only valid for type=anthropic or type=bedrock",
 		})
 	}
-	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
-		validations = append(validations, ValidationError{
-			Field:  "settings",
-			Detail: "type=bedrock requires bedrock settings",
-		})
+	if req.Type == AIProviderTypeBedrock {
+		bedrock := AIProviderBedrockSettings{}
+		if req.Settings.Bedrock != nil {
+			bedrock = *req.Settings.Bedrock
+		}
+		if !IsBedrockConfigured(req.BaseURL, bedrock) {
+			validations = append(validations, ValidationError{
+				Field:  "settings",
+				Detail: "type=bedrock requires bedrock settings",
+			})
+		}
 	}
 	if req.Type == AIProviderTypeBedrock && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{

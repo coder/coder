@@ -30,18 +30,9 @@ export type ProviderFormValues = {
 };
 
 const HTTP_SCHEME_REGEX = /^https?:\/\//i;
-const BEDROCK_CANONICAL_URL_REGEX =
-	/^https:\/\/bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com\/?$/i;
 const PROVIDER_NAME_REGEX = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export const SAVED_CREDENTIAL_MASK = "********";
-
-export const parseBedrockRegionFromBaseUrl = (
-	baseUrl: string,
-): string | undefined => {
-	const match = BEDROCK_CANONICAL_URL_REGEX.exec(baseUrl.trim());
-	return match?.[1]?.toLowerCase();
-};
 
 const makeNameSchema = (editing: boolean) =>
 	editing
@@ -160,10 +151,7 @@ const makeBedrockSchema = (editing: boolean) =>
 		displayName: makeDisplayNameSchema(editing),
 		baseUrl: Yup.string()
 			.url("Endpoint must be a valid URL")
-			.matches(
-				BEDROCK_CANONICAL_URL_REGEX,
-				"Endpoint must be a standard AWS Bedrock URL.",
-			)
+			.matches(HTTP_SCHEME_REGEX, "Endpoint must use http or https.")
 			.required("Endpoint is required"),
 		apiKey: Yup.string(),
 		model: Yup.string().required("Model is required"),
@@ -461,7 +449,7 @@ export const ProviderForm: FC<ProviderFormProps> = ({
 							label="Endpoint"
 							description={
 								<>
-									In the format of{" "}
+									For standard AWS endpoints, use{" "}
 									<code>
 										{"https://bedrock-runtime.{region}.amazonaws.com"}
 									</code>

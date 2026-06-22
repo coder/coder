@@ -7,11 +7,7 @@ import type {
 	CreateAIProviderRequest,
 	UpdateAIProviderRequest,
 } from "#/api/typesGenerated";
-import {
-	type ProviderFormValues,
-	parseBedrockRegionFromBaseUrl,
-	SAVED_CREDENTIAL_MASK,
-} from "./ProviderForm";
+import { type ProviderFormValues, SAVED_CREDENTIAL_MASK } from "./ProviderForm";
 
 /** Drop placeholder masks so they don't round-trip back to the API. */
 const sanitizeCredential = (
@@ -104,7 +100,6 @@ export const getProviderDisplayType = (
 };
 
 const buildBedrockSettings = (
-	region: string | undefined,
 	model: string,
 	smallFastModel: string,
 	accessKey: string,
@@ -112,7 +107,6 @@ const buildBedrockSettings = (
 ): BedrockSettingsWire => ({
 	_type: BEDROCK_SETTINGS_TYPE,
 	_version: BEDROCK_SETTINGS_VERSION,
-	...(region ? { region } : {}),
 	model,
 	small_fast_model: smallFastModel,
 	...(accessKey ? { access_key: accessKey } : {}),
@@ -134,9 +128,7 @@ export const providerFormValuesToCreate = (
 	};
 
 	if (values.type === "bedrock") {
-		const region = parseBedrockRegionFromBaseUrl(base.base_url);
 		const settings = buildBedrockSettings(
-			region,
 			values.model.trim(),
 			values.smallFastModel.trim(),
 			sanitizeCredential(values.accessKey),
@@ -205,12 +197,7 @@ export const providerFormValuesToUpdate = (
 	// the user is rotating credentials.
 	const credentialsChanged = newAccessKey !== "" && newAccessKeySecret !== "";
 
-	// Yup blocks non-canonical Bedrock URLs upstream, so any `undefined`
-	// region here is a real bug that should surface, not be papered over.
-	const region = parseBedrockRegionFromBaseUrl(base.base_url ?? "");
-
 	const settings = buildBedrockSettings(
-		region,
 		values.model.trim(),
 		values.smallFastModel.trim(),
 		credentialsChanged ? newAccessKey : "",

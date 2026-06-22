@@ -625,6 +625,78 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotContains(t, body, `"access_key"`)
 		require.NotContains(t, body, `"access_key_secret"`)
 	})
+
+	t.Run("BedrockDerivesRegionFromBaseURL", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "bedrock-region-derived",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.US-EAST-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, created.Settings.Bedrock)
+		require.Equal(t, "us-east-1", created.Settings.Bedrock.Region)
+
+		newURL := "https://bedrock-runtime.us-west-2.amazonaws.com"
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: &newURL,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Equal(t, "us-west-2", updated.Settings.Bedrock.Region)
+
+		explicitRegion := "us-gov-west-1"
+		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: ptr.Ref("https://bedrock-runtime.us-east-2.amazonaws.com"),
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Region: explicitRegion},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Equal(t, explicitRegion, updated.Settings.Bedrock.Region)
+
+		updated, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{Model: "anthropic.claude-3-5-haiku"},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Equal(t, explicitRegion, updated.Settings.Bedrock.Region)
+	})
+
+	t.Run("BedrockTypeDerivesRegionWithoutSettings", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-type-region",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-2.amazonaws.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeBedrock, created.Type)
+		require.NotNil(t, created.Settings.Bedrock)
+		require.Equal(t, "us-east-2", created.Settings.Bedrock.Region)
+	})
+
 }
 
 func TestAIProvidersKeyManagement(t *testing.T) {

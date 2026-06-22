@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -178,6 +180,8 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.Settings = normalizeAIProviderSettings(req.Type, req.BaseURL, req.Settings)
+
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
 		api.Logger.Error(ctx, "encode AI provider settings", slog.Error(err))
@@ -320,6 +324,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
+		baseURL := ptr.NilToDefault(req.BaseURL, old.BaseUrl)
+		if req.BaseURL != nil && existing.Bedrock != nil {
+			if req.Settings == nil || req.Settings.Bedrock == nil || req.Settings.Bedrock.Region == "" {
+				existing.Bedrock.Region = ""
+			}
+		}
+		existing = normalizeAIProviderSettings(codersdk.AIProviderType(old.Type), baseURL, existing)
 		// Bedrock settings are only meaningful for anthropic- or
 		// bedrock-typed providers; rejecting the mismatch keeps a
 		// misconfiguration from sitting silently in the encrypted
@@ -354,7 +365,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			Type:        old.Type,
 			DisplayName: displayName,
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
-			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
+			BaseUrl:     baseURL,
 			Settings:    settings,
 			// SettingsKeyID is set by the dbcrypt wrapper.
 			SettingsKeyID: sql.NullString{},
@@ -738,6 +749,23 @@ func applyAIProviderKeyOps(ctx context.Context, tx database.Store, providerID uu
 // into a 400.
 var errAIProviderKeyUnknown = xerrors.New("api_keys references an unknown id for this provider")
 
+var canonicalBedrockBaseURLRegex = regexp.MustCompile(`(?i)^https://bedrock-runtime\.([a-z0-9-]+)\.amazonaws\.com/?$`)
+
+func normalizeAIProviderSettings(providerType codersdk.AIProviderType, baseURL string, settings codersdk.AIProviderSettings) codersdk.AIProviderSettings {
+	if providerType == codersdk.AIProviderTypeBedrock && settings.Bedrock == nil {
+		settings.Bedrock = &codersdk.AIProviderBedrockSettings{}
+	}
+	if settings.Bedrock == nil || settings.Bedrock.Region != "" {
+		return settings
+	}
+	if match := canonicalBedrockBaseURLRegex.FindStringSubmatch(strings.TrimSpace(baseURL)); len(match) == 2 {
+		bedrock := *settings.Bedrock
+		bedrock.Region = strings.ToLower(match[1])
+		settings.Bedrock = &bedrock
+	}
+	return settings
+}
+
 // encodeAIProviderSettings serializes a settings value into the
 // discriminated JSON form stored in ai_providers.settings. Empty
 // settings return an invalid sql.NullString so the row stores SQL NULL
@@ -766,6 +794,9 @@ func mergeAIProviderSettings(existing, patch codersdk.AIProviderSettings) coders
 	}
 	merged := *patch.Bedrock
 	if existing.Bedrock != nil {
+		if merged.Region == "" {
+			merged.Region = existing.Bedrock.Region
+		}
 		if merged.AccessKey == nil {
 			merged.AccessKey = existing.Bedrock.AccessKey
 		}
