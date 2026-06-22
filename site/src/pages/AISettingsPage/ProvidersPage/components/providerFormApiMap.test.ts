@@ -29,6 +29,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
+	roleArn: "",
 	apiKey: "sk-test",
 	enabled: true,
 };
@@ -42,6 +43,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 	smallFastModel: "anthropic.claude-haiku-4-5",
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
+	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
@@ -55,6 +57,7 @@ const baseCopilotFormValues: ProviderFormValues = {
 	smallFastModel: "",
 	accessKey: "",
 	accessKeySecret: "",
+	roleArn: "",
 	apiKey: "",
 	enabled: true,
 };
