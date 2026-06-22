@@ -1,6 +1,13 @@
 //go:build bench_chat_search
 
 /*
+Quick and dirty benchmark for native PostgreSQL full-text search applied to chat_messages.
+To run:
+
+    go test -tags bench_chat_search -run=^$ -bench=BenchmarkChatMessageSearchIndex -benchtime=1x -v ./coderd/database
+
+WARNING: VIBES ABOUND
+
 Ranking with expression (not stored)
 chat_message_search_bench_test.go:39: seed before index: users=120 total_chats=5240 seeded_messages=1045484 duration=52.576159285s
     chat_message_search_bench_test.go:45: create index duration: 18.122563581s
@@ -36,6 +43,19 @@ Ranking with stored tsvector and NULL for non-searchable rows
     chat_message_search_bench_test.go:84: query="CODAGT-517" count=50 duration=107.772913ms
     chat_message_search_bench_test.go:84: query="database migration" count=50 duration=120.116589ms
     chat_message_search_bench_test.go:84: query="workspace timeout" count=50 duration=61.535032ms
+
+With adjusted dataset to better match dev.coder.com:
+    chat_message_search_bench_test.go:72: chat search bench distribution: users=120 total_chats=5240 expected_messages=1043599
+    chat_message_search_bench_test.go:78: seed before index: users=120 total_chats=5240 seeded_messages=1048980 duration=1m8.07731601s
+    chat_message_search_bench_test.go:84: create index duration: 35.943917994s
+    chat_message_search_bench_test.go:85: after create index: index size=75 MB bytes=78225408
+    chat_message_search_bench_test.go:90: seed after index: users=120 total_chats=5240 seeded_messages=1033895 duration=1m12.465452216s
+    chat_message_search_bench_test.go:92: after indexed seed: index size=117 MB bytes=122839040
+    chat_message_search_bench_test.go:95: query="authentication" count=50 duration=39.924913ms
+    chat_message_search_bench_test.go:95: query="permission denied" count=50 duration=15.35056ms
+    chat_message_search_bench_test.go:95: query="CODAGT-517" count=50 duration=26.511268ms
+    chat_message_search_bench_test.go:95: query="database migration" count=50 duration=10.529819ms
+    chat_message_search_bench_test.go:95: query="workspace timeout" count=50 duration=12.889135ms
 */
 
 package database_test
@@ -47,6 +67,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -105,7 +126,10 @@ type userChatProfile struct {
 }
 
 // devChatDistribution is the per-user (root chat count, avg messages per chat)
-// observed on the dev deployment. Averages are rounded to whole messages.
+// observed on the dev deployment. Averages are rounded to whole messages. The
+// message generator below applies the observed root-chat role, visibility, and
+// text-bearing mix separately, so these averages represent all root messages,
+// not only indexed messages.
 var devChatDistribution = []userChatProfile{
 	{577, 47}, {465, 326}, {460, 151}, {269, 70}, {261, 31},
 	{189, 304}, {183, 114}, {182, 219}, {135, 190}, {121, 191},
@@ -274,8 +298,10 @@ func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.
 }
 
 // chatMessageBatchParams builds a single InsertChatMessages call for an entire
-// chat, alternating user and assistant roles and reserving a slice of messages
-// as model-only to mirror hidden content that the partial index excludes.
+// chat. The role and content mix mirrors the dev deployment's non-archived root
+// chats: about half the messages are visible tool results with no indexed text,
+// about one fifth are user or assistant text-bearing messages, and a small
+// slice is model-only context.
 func chatMessageBatchParams(faker *gofakeit.Faker, chat database.Chat, ownerID uuid.UUID, apiKeyID string, modelConfigID uuid.UUID, chatIndex, messagesPerChat int) database.InsertChatMessagesParams {
 	params := database.InsertChatMessagesParams{
 		ChatID:              chat.ID,
@@ -301,31 +327,75 @@ func chatMessageBatchParams(faker *gofakeit.Faker, chat database.Chat, ownerID u
 
 	for messageIndex := range messagesPerChat {
 		absoluteIndex := chatIndex*messagesPerChat + messageIndex
-		role := database.ChatMessageRoleUser
-		createdBy := ownerID
-		keyID := apiKeyID
-		if messageIndex%2 == 1 {
-			role = database.ChatMessageRoleAssistant
-			// Assistant turns have no creator or API key.
-			createdBy = uuid.Nil
-			keyID = ""
-		}
-
-		visibility := database.ChatMessageVisibilityBoth
-		if messageIndex%53 == 52 {
-			visibility = database.ChatMessageVisibilityModel
+		message := chatSearchMessage(faker, absoluteIndex)
+		createdBy := uuid.Nil
+		keyID := ""
+		if message.Role == database.ChatMessageRoleUser {
+			createdBy = ownerID
+			keyID = apiKeyID
 		}
 
 		params.CreatedBy[messageIndex] = createdBy
 		params.APIKeyID[messageIndex] = keyID
 		params.ModelConfigID[messageIndex] = modelConfigID
-		params.Role[messageIndex] = role
-		params.Content[messageIndex] = chatSearchTextContentJSON(chatSearchSeedText(faker, absoluteIndex))
+		params.Role[messageIndex] = message.Role
+		params.Content[messageIndex] = message.Content
 		params.ContentVersion[messageIndex] = chatprompt.CurrentContentVersion
-		params.Visibility[messageIndex] = visibility
+		params.Visibility[messageIndex] = message.Visibility
 	}
 
 	return params
+}
+
+type chatSearchMessageParts struct {
+	Role       database.ChatMessageRole
+	Visibility database.ChatMessageVisibility
+	Content    string
+}
+
+func chatSearchMessage(faker *gofakeit.Faker, index int) chatSearchMessageParts {
+	// Observed on non-archived root chats in dev, not deleted:
+	// tool/both 49.1%, assistant/both 45.1%, user/both 4.5%, model-only 1.3%.
+	// Of those, roughly 16% are assistant text and 4% are user text. The rest
+	// carry no indexed text parts.
+	switch bucket := index % 1000; {
+	case bucket < 491:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleTool,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    `[]`,
+		}
+	case bucket < 781:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleAssistant,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    `[]`,
+		}
+	case bucket < 941:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleAssistant,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    chatSearchTextContentJSON(chatSearchSeedText(faker, index)),
+		}
+	case bucket < 981:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    chatSearchTextContentJSON(chatSearchSeedText(faker, index)),
+		}
+	case bucket < 987:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleUser,
+			Visibility: database.ChatMessageVisibilityBoth,
+			Content:    `[]`,
+		}
+	default:
+		return chatSearchMessageParts{
+			Role:       database.ChatMessageRoleSystem,
+			Visibility: database.ChatMessageVisibilityModel,
+			Content:    chatSearchTextContentJSON(chatSearchSeedText(faker, index)),
+		}
+	}
 }
 
 func chatSearchTextContentJSON(text string) string {
@@ -339,17 +409,45 @@ func chatSearchTextContentJSON(text string) string {
 }
 
 func chatSearchSeedText(faker *gofakeit.Faker, index int) string {
-	base := faker.Paragraph(1, 3, 12, " ")
+	text := chatSearchTextWithApproxBytes(faker, chatSearchTextBytes(faker))
 	switch {
 	case index%100 == 0:
-		return base + " authentication permission denied oauth callback"
+		return text + " authentication permission denied oauth callback"
 	case index%137 == 0:
-		return base + " CODAGT-517 database migration failed"
+		return text + " CODAGT-517 database migration failed"
 	case index%251 == 0:
-		return base + " workspace timeout provisioner agent disconnected"
+		return text + " workspace timeout provisioner agent disconnected"
 	default:
-		return base
+		return text
 	}
+}
+
+func chatSearchTextBytes(faker *gofakeit.Faker) int {
+	// Observed extracted text bytes for non-archived root text-bearing messages:
+	// avg 405, p50 120, p90 979, p99 4719, max about 36k. This distribution is
+	// intentionally approximate and gives the benchmark a similar long tail.
+	r := faker.Number(1, 10_000)
+	switch {
+	case r <= 5000:
+		return faker.Number(20, 120)
+	case r <= 9000:
+		return faker.Number(121, 979)
+	case r <= 9900:
+		return faker.Number(980, 4719)
+	default:
+		return faker.Number(4720, 36_000)
+	}
+}
+
+func chatSearchTextWithApproxBytes(faker *gofakeit.Faker, target int) string {
+	var builder strings.Builder
+	for builder.Len() < target {
+		if builder.Len() > 0 {
+			builder.WriteByte(' ')
+		}
+		builder.WriteString(faker.Word())
+	}
+	return builder.String()
 }
 
 func logChatMessageSearchIndexSize(ctx context.Context, t testing.TB, sqlDB *sql.DB, label string) {
@@ -401,6 +499,7 @@ FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 CROSS JOIN search_query
 WHERE c.parent_chat_id IS NULL
+  AND c.archived = false
   AND cm.deleted = false
   AND cm.search_tsv IS NOT NULL
   AND cm.search_tsv @@ search_query.query
