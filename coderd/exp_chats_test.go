@@ -10112,6 +10112,42 @@ func TestGetChatFile(t *testing.T) {
 		require.Equal(t, "report.pdf", params["filename"])
 	})
 
+	t.Run("AgentArtifactZipServedAsAttachment", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		data := []byte("zip data")
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		row, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           data,
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodGet,
+			fmt.Sprintf("/api/experimental/chats/files/%s", row.ID), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		require.Equal(t, "application/zip", res.Header.Get("Content-Type"))
+		require.Equal(t, "nosniff", res.Header.Get("X-Content-Type-Options"))
+
+		disposition, params, err := mime.ParseMediaType(res.Header.Get("Content-Disposition"))
+		require.NoError(t, err)
+		require.Equal(t, "attachment", disposition)
+		require.Equal(t, "artifact.zip", params["filename"])
+
+		got, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.Equal(t, data, got)
+	})
+
 	t.Run("LongFilename", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
