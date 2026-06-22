@@ -67,9 +67,12 @@ func (r *RootCmd) chatContextCommand() *serpent.Command {
 
 // resolveContextSourcePath makes a user-supplied source path absolute so the
 // agent (which requires absolute, canonical paths) accepts it. A leading ~ is
-// preserved for the agent to expand against its own home directory; other
-// relative paths are resolved against the CLI's working directory, which shares
-// the workspace filesystem with the agent.
+// preserved for the agent to expand against its own home directory. A path that
+// is already absolute on the agent's POSIX filesystem (a leading /) is cleaned
+// and passed through; filepath.Abs is host-OS specific and would mangle such a
+// path on a Windows CLI host, so it is reserved for resolving relative paths
+// against the CLI's working directory, which shares the workspace filesystem
+// with the agent.
 func resolveContextSourcePath(p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if p == "" {
@@ -77,6 +80,9 @@ func resolveContextSourcePath(p string) (string, error) {
 	}
 	if p == "~" || strings.HasPrefix(p, "~/") {
 		return p, nil
+	}
+	if strings.HasPrefix(p, "/") {
+		return path.Clean(p), nil
 	}
 	abs, err := filepath.Abs(p)
 	if err != nil {
@@ -255,13 +261,13 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 // addChatContextOneShot preserves the legacy `add --chat` behavior: read
 // context files and skills from a directory and inject them into a single
 // chat via coderd, without registering a persistent source.
-func addChatContextOneShot(ctx context.Context, inv *serpent.Invocation, agentAuth *AgentAuth, path, chatID string) error {
+func addChatContextOneShot(ctx context.Context, inv *serpent.Invocation, agentAuth *AgentAuth, dir, chatID string) error {
 	client, err := agentAuth.CreateClient()
 	if err != nil {
 		return xerrors.Errorf("create agent client: %w", err)
 	}
 
-	resolvedDir, err := filepath.Abs(path)
+	resolvedDir, err := filepath.Abs(dir)
 	if err != nil {
 		return xerrors.Errorf("resolve directory: %w", err)
 	}
