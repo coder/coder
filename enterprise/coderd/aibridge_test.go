@@ -1457,6 +1457,53 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
 	})
 
+	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fwSessionID := uuid.New()
+
+		// Thread with firewall correlation on the root interception.
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "fw-session", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		}, &rootEndedAt)
+
+		// Thread without firewall correlation in the same session.
+		noFWEndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "openai",
+			Model:           "gpt-4",
+			StartedAt:       now.Add(time.Minute),
+			ClientSessionID: sql.NullString{String: "fw-session", Valid: true},
+		}, &noFWEndedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "fw-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "fw-session", res.ID)
+		require.Len(t, res.Threads, 2)
+
+		// First thread has firewall correlation.
+		require.Equal(t, root.ID, res.Threads[0].ID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSessionID)
+		require.Equal(t, fwSessionID, *res.Threads[0].AgentFirewallSessionID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSequenceNumber)
+		require.Equal(t, int32(5), *res.Threads[0].AgentFirewallSequenceNumber)
+
+		// Second thread has no firewall correlation.
+		require.Nil(t, res.Threads[1].AgentFirewallSessionID)
+		require.Nil(t, res.Threads[1].AgentFirewallSequenceNumber)
+	})
+
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
 		t.Parallel()
 		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
