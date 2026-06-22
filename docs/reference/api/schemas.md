@@ -1263,6 +1263,38 @@ None
 |-----------------------------------------------|
 | `always_collapsed`, `always_expanded`, `auto` |
 
+## codersdk.AgentFirewallLog
+
+```json
+{
+  "allowed": true,
+  "captured_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "matched_rule": "string",
+  "method": "string",
+  "proto": "string",
+  "sequence_number": 0,
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `allowed`         | boolean | false    |              |             |
+| `captured_at`     | string  | false    |              |             |
+| `created_at`      | string  | false    |              |             |
+| `detail`          | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `matched_rule`    | string  | false    |              |             |
+| `method`          | string  | false    |              |             |
+| `proto`           | string  | false    |              |             |
+| `sequence_number` | integer | false    |              |             |
+| `session_id`      | string  | false    |              |             |
+
 ## codersdk.AgentFirewallSession
 
 ```json
@@ -1284,6 +1316,33 @@ None
 | `owner_id`         | string | false    |              |             |
 | `started_at`       | string | false    |              |             |
 | `workspace_id`     | string | false    |              |             |
+
+## codersdk.AgentFirewallSessionLogsResponse
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                            | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
 ## codersdk.AgentScriptTiming
 
