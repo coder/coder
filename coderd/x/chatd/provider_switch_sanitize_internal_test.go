@@ -26,13 +26,9 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 	openAICfg := uuid.New()
 	unknownCfg := uuid.New()
 
-	// Two distinct openai-compat provider instances (same type, different
-	// AIProvider rows). Their identities are the provider UUIDs, not the
-	// shared "openai-compat" type.
 	vllmProviderID := uuid.New()
 	togetherProviderID := uuid.New()
 	vllmCfg := uuid.New()
-	togetherCfg := uuid.New()
 
 	peCall := func(id string) codersdk.ChatMessagePart {
 		p := codersdk.ChatMessageToolCall(id, "web_search", json.RawMessage(`{"query":"x"}`))
@@ -71,8 +67,6 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		}
 	}
 
-	// origin maps a model config ID to its normalized provider. unknownCfg is
-	// intentionally absent so the resolver reports an unknown origin.
 	origin := func(providerByConfig map[uuid.UUID]string) func(uuid.NullUUID) (string, bool) {
 		return func(id uuid.NullUUID) (string, bool) {
 			if !id.Valid {
@@ -86,10 +80,8 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 		anthropicCfg: anthropic,
 		openAICfg:    openai,
 		vllmCfg:      vllmProviderID.String(),
-		togetherCfg:  togetherProviderID.String(),
 	})
 
-	// partsOf parses a row's content back into SDK parts for comparison.
 	partsOf := func(t *testing.T, row database.ChatMessage) []codersdk.ChatMessagePart {
 		t.Helper()
 		parts, err := chatprompt.ParseContent(row)
@@ -193,8 +185,6 @@ func TestStripForeignProviderExecutedToolRows(t *testing.T) {
 
 	t.Run("same type different instance drops provider blocks", func(t *testing.T) {
 		t.Parallel()
-		// vLLM and Together are both openai-compat but different provider
-		// instances. Switching from vLLM to Together must strip vLLM's PE blocks.
 		rows := []database.ChatMessage{
 			userRow(t, "hi"),
 			assistantRow(t, vllmCfg, peCall("ws"), peResult("ws"), text("done")),

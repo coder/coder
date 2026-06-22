@@ -11,8 +11,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// providerSwitchStripStats counts the provider-executed tool history removed
-// when sanitizing a prompt for a model-provider switch.
+// providerSwitchStripStats counts provider-executed tool history removed
+// during a provider switch.
 type providerSwitchStripStats struct {
 	RemovedToolCalls   int
 	RemovedToolResults int
@@ -32,26 +32,13 @@ func modelConfigProviderIdentity(modelConfig database.ChatModelConfig, normalize
 	return normalizedProvider
 }
 
-// stripForeignProviderExecutedToolRows removes provider-executed tool blocks
-// (both calls and results) from assistant history rows whose producing provider
-// differs from targetIdentity. Provider-executed tool blocks are only valid for
-// the provider that produced them: a provider sharing another's wire format can
-// still reject them (e.g. Bedrock rejects Anthropic web_search_tool_result with
-// HTTP 400), so switching providers mid-chat must drop the foreign blocks.
+// stripForeignProviderExecutedToolRows drops provider-executed tool blocks
+// (calls and results) from assistant rows whose producing provider differs
+// from targetIdentity. Rows with an unknown origin are treated as foreign
+// (fail closed). Rows emptied by stripping are dropped; rows that fail to parse
+// or re-marshal are kept unchanged.
 //
-// targetIdentity is a provider identity string (see modelConfigProviderIdentity):
-// the AIProvider UUID when available, or the normalized provider type for legacy
-// configs. originProvider resolves a row's ModelConfigID to the same identity
-// shape; ok is false when the origin cannot be determined, in which case the row
-// is treated as foreign (fail closed). Rows from the target provider,
-// non-assistant rows, rows with no provider-executed parts, and rows that fail
-// to parse or re-marshal are returned unchanged. Rows emptied by stripping are
-// dropped.
-//
-// Provenance is the provider instance (AIProviderID), not the normalized type,
-// so two providers of the same type but different instances are correctly
-// distinguished. This also stays correct when requests route through aibridged,
-// which serializes both Anthropic and Bedrock as the Anthropic wire format.
+// See modelConfigProviderIdentity for how identity is derived.
 func stripForeignProviderExecutedToolRows(
 	rows []database.ChatMessage,
 	targetIdentity string,
@@ -64,9 +51,6 @@ func stripForeignProviderExecutedToolRows(
 
 	out := make([]database.ChatMessage, 0, len(rows))
 	for _, row := range rows {
-		// Provider-executed blocks that must be replayed live on assistant rows.
-		// Provider-executed results orphaned onto tool rows are dropped during
-		// prompt conversion, so they never reach the provider.
 		if row.Role != database.ChatMessageRoleAssistant {
 			out = append(out, row)
 			continue
@@ -78,7 +62,6 @@ func stripForeignProviderExecutedToolRows(
 
 		parts, err := chatprompt.ParseContent(row)
 		if err != nil {
-			// Leave unparsable rows untouched; the converter handles them.
 			out = append(out, row)
 			continue
 		}
@@ -108,7 +91,6 @@ func stripForeignProviderExecutedToolRows(
 
 		content, err := chatprompt.MarshalParts(kept)
 		if err != nil {
-			// Keep the original row rather than corrupting history.
 			out = append(out, row)
 			continue
 		}
@@ -121,10 +103,6 @@ func stripForeignProviderExecutedToolRows(
 	return out, stats
 }
 
-// sanitizeForeignProviderExecutedToolRows strips provider-executed tool history
-// produced by a provider other than the one targeted by modelConfigID. It
-// resolves each row's provider via the model config cache and logs a single
-// summary when anything is removed.
 func (server *Server) sanitizeForeignProviderExecutedToolRows(
 	ctx context.Context,
 	logger slog.Logger,
@@ -133,7 +111,6 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 ) []database.ChatMessage {
 	targetCfg, targetProvider, err := server.resolveModelConfigAndNormalizedProvider(ctx, modelConfigID)
 	if err != nil || targetProvider == "" {
-		// Without a known target provider we cannot classify history; leave it.
 		logger.Debug(ctx, "skipping provider-switch sanitization: target provider unresolved",
 			slog.F("model_config_id", modelConfigID),
 			slog.Error(err),
@@ -152,9 +129,6 @@ func (server *Server) sanitizeForeignProviderExecutedToolRows(
 		}
 		originCfg, provider, rErr := server.resolveModelConfigAndNormalizedProvider(ctx, id.UUID)
 		if rErr != nil {
-			// Unresolvable origin (e.g. a since-disabled or deleted config) is
-			// treated as foreign so we fail closed rather than replay blocks the
-			// target may reject.
 			logger.Debug(ctx, "provider-switch sanitization: origin provider unresolved, treating as foreign",
 				slog.F("model_config_id", id.UUID),
 				slog.Error(rErr),
