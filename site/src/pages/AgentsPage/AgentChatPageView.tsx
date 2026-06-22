@@ -186,15 +186,16 @@ interface AgentChatPageViewProps {
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 
-	// Archive actions.
+	// Chat actions.
 	handleArchiveAgentAction: () => void;
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
 	handlePinAgentAction?: () => void;
 	handleUnpinAgentAction?: () => void;
-	handleOpenRenameDialog?: () => void;
+	handleOpenRenameDialogAction?: () => void;
 	isPinned?: boolean;
 	isChildChat?: boolean;
+	isArchivingThisChat?: boolean;
 	isRegeneratingTitle?: boolean;
 
 	// Scroll container ref.
@@ -363,9 +364,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleArchiveAndDeleteWorkspaceAction,
 	handlePinAgentAction,
 	handleUnpinAgentAction,
-	handleOpenRenameDialog,
+	handleOpenRenameDialogAction,
 	isPinned,
 	isChildChat,
+	isArchivingThisChat,
 	isRegeneratingTitle,
 	scrollContainerRef,
 	scrollToBottomRef,
@@ -845,9 +847,10 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								}
 								onPinAgent={handlePinAgentAction}
 								onUnpinAgent={handleUnpinAgentAction}
-								onOpenRenameDialog={handleOpenRenameDialog}
+								onOpenRenameDialog={handleOpenRenameDialogAction}
 								isPinned={isPinned}
 								isChildChat={isChildChat}
+								isArchiving={isArchivingThisChat}
 								isRegeneratingTitle={isRegeneratingTitle}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}

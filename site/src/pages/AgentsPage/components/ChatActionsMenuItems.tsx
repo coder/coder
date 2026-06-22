@@ -16,10 +16,6 @@ import type {
 	DropdownMenuSeparator,
 } from "#/components/DropdownMenu/DropdownMenu";
 
-/**
- * Polymorphic item/separator components. Lets the same menu body render into
- * either a DropdownMenu (kebab-triggered) or a ContextMenu (right-click).
- */
 type ItemComponent = typeof DropdownMenuItem | typeof ContextMenuItem;
 type SeparatorComponent =
 	| typeof DropdownMenuSeparator
@@ -30,7 +26,6 @@ interface ChatActionsMenuItemsProps {
 	readonly isPinned: boolean;
 	readonly isChildChat: boolean;
 	readonly hasWorkspace: boolean;
-	/** Disables destructive actions while an archive request is in flight. */
 	readonly isArchiving?: boolean;
 	readonly onPinAgent?: () => void;
 	readonly onUnpinAgent?: () => void;
@@ -43,11 +38,6 @@ interface ChatActionsMenuItemsProps {
 	readonly Separator: SeparatorComponent;
 }
 
-/**
- * Shared body of the per-chat actions menu. Used by both the chat top bar's
- * kebab and the sidebar row's kebab/right-click menus so the two stay in
- * lockstep.
- */
 export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 	isArchived,
 	isPinned,
@@ -93,7 +83,8 @@ export const ChatActionsMenuItems: FC<ChatActionsMenuItemsProps> = ({
 							Rename chat
 						</Item>
 					)}
-					<Separator />
+					{(onOpenRenameDialog ||
+						(!isChildChat && onPinAgent && onUnpinAgent)) && <Separator />}
 					<Item
 						className="text-content-destructive focus:text-content-destructive"
 						disabled={isArchiving}

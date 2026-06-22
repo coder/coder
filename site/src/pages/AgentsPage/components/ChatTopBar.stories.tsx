@@ -278,6 +278,7 @@ export const PinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Pin agent")).toBeInTheDocument();
+			expect(body.queryByText("Unpin agent")).not.toBeInTheDocument();
 		});
 	},
 };
@@ -293,6 +294,7 @@ export const UnpinAgentItem: Story = {
 		await waitFor(() => {
 			const body = within(document.body);
 			expect(body.getByText("Unpin agent")).toBeInTheDocument();
+			expect(body.queryByText("Pin agent")).not.toBeInTheDocument();
 		});
 	},
 };

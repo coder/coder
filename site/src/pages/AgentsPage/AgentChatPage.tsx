@@ -706,6 +706,8 @@ const AgentChatPage: FC = () => {
 		requestUnarchiveAgent,
 		requestPinAgent,
 		requestUnpinAgent,
+		isArchiving,
+		archivingChatId,
 		onOpenRenameDialog,
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
@@ -1297,7 +1299,7 @@ const AgentChatPage: FC = () => {
 		requestUnpinAgent(agentId);
 	};
 
-	const handleOpenRenameDialog =
+	const handleOpenRenameDialogAction =
 		onOpenRenameDialog && chatRecord
 			? () => {
 					if (isArchived) {
@@ -1678,9 +1680,13 @@ const AgentChatPage: FC = () => {
 			}
 			handlePinAgentAction={handlePinAgentAction}
 			handleUnpinAgentAction={handleUnpinAgentAction}
-			handleOpenRenameDialog={handleOpenRenameDialog}
+			handleOpenRenameDialogAction={handleOpenRenameDialogAction}
+			isArchivingThisChat={
+				isArchiving &&
+				(archivingChatId === undefined || archivingChatId === agentId)
+			}
 			isPinned={(chatRecord?.pin_order ?? 0) > 0}
-			isChildChat={parentChat !== undefined}
+			isChildChat={parentChatID !== undefined}
 			isRegeneratingTitle={isRegeneratingThisChat}
 			urlTransform={urlTransform}
 			scrollContainerRef={scrollContainerRef}
