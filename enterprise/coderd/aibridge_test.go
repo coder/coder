@@ -1232,7 +1232,7 @@ func TestAIBridgeRouting(t *testing.T) {
 	}{
 		{
 			name:         "StablePrefix",
-			path:         "/api/v2/aibridge/openai/v1/chat/completions",
+			path:         "/api/v2/ai-gateway/openai/v1/chat/completions",
 			expectedPath: "/openai/v1/chat/completions",
 		},
 	}
@@ -1290,7 +1290,7 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Make requests up to the limit - should succeed.
 	for range 2 {
@@ -1350,7 +1350,7 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Start a request that will block.
 	done := make(chan struct{})
@@ -2012,7 +2012,7 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			reqURL := client.URL.String() + "/api/v2/aibridge/test"
+			reqURL := client.URL.String() + "/api/v2/ai-gateway/test"
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
 			require.NoError(t, err)
 			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())

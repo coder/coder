@@ -40,7 +40,7 @@ type AIBridgeListSessionsResponse struct {
 }
 
 // AIBridgeSessionThreadsResponse is the response for GET
-// /api/v2/aibridge/sessions/{session_id} which returns a single
+// /api/v2/ai-gateway/sessions/{session_id} which returns a single
 // session with fully expanded threads.
 type AIBridgeSessionThreadsResponse struct {
 	ID                string                           `json:"id"`
@@ -191,7 +191,7 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 
 // AIBridgeListSessions returns AI Bridge sessions with the given filter.
 func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSessionsFilter) (AIBridgeListSessionsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/sessions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption())
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/sessions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {
 		return AIBridgeListSessionsResponse{}, err
 	}
@@ -206,7 +206,7 @@ func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSe
 // AIBridgeGetSessionThreads returns a single session with expanded
 // thread details including agentic actions and thinking blocks.
 func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string, afterID, beforeID uuid.UUID, limit int32) (AIBridgeSessionThreadsResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/aibridge/sessions/%s", sessionID), nil, func(r *http.Request) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/ai-gateway/sessions/%s", sessionID), nil, func(r *http.Request) {
 		q := r.URL.Query()
 		if afterID != uuid.Nil {
 			q.Set("after_id", afterID.String())
@@ -232,7 +232,7 @@ func (c *Client) AIBridgeGetSessionThreads(ctx context.Context, sessionID string
 
 // AIBridgeListClients returns the distinct AI clients visible to the caller.
 func (c *Client) AIBridgeListClients(ctx context.Context) ([]string, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/clients", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/clients", nil)
 	if err != nil {
 		return nil, err
 	}
