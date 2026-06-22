@@ -354,7 +354,7 @@ func TestResolver_DuplicateRootsDeduplicated(t *testing.T) {
 	require.Len(t, snap.Resources, 1)
 }
 
-func TestResolver_MCPProviderResources(t *testing.T) {
+func TestResolver_MCPResources(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
@@ -368,7 +368,7 @@ func TestResolver_MCPProviderResources(t *testing.T) {
 		Description: "GitHub MCP server",
 	}
 	r := &agentcontext.Resolver{
-		MCP: &fakeMCPProvider{resources: []agentcontext.Resource{mcpRes}},
+		MCPResources: func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
 	}
 
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
@@ -377,10 +377,10 @@ func TestResolver_MCPProviderResources(t *testing.T) {
 	require.Equal(t, "GitHub MCP server", got.Description)
 }
 
-// TestResolver_MCPProviderRespectsAggregateByteCap guards the
+// TestResolver_MCPResourcesRespectAggregateByteCap guards the
 // contract that a single oversized MCP payload cannot blow past
 // MaxSnapshotBytes with StatusOK.
-func TestResolver_MCPProviderRespectsAggregateByteCap(t *testing.T) {
+func TestResolver_MCPResourcesRespectAggregateByteCap(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 
@@ -398,7 +398,7 @@ func TestResolver_MCPProviderRespectsAggregateByteCap(t *testing.T) {
 	}
 	r := &agentcontext.Resolver{
 		MaxSnapshotBytes: 512,
-		MCP:              &fakeMCPProvider{resources: []agentcontext.Resource{mcpRes}},
+		MCPResources:     func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
 	}
 
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
@@ -409,12 +409,37 @@ func TestResolver_MCPProviderRespectsAggregateByteCap(t *testing.T) {
 	require.NotEmpty(t, snap.SnapshotError, "snapshot must surface the cap breach")
 }
 
-type fakeMCPProvider struct {
-	resources []agentcontext.Resource
-}
+// TestResolver_MCPExcludedFromAggregateHash verifies that MCP resources
+// (config and live servers) are carried in the snapshot but excluded
+// from the drift/aggregate hash, so an MCP server connecting (or its
+// tools changing) does not flip already-hydrated chats to dirty.
+func TestResolver_MCPExcludedFromAggregateHash(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// An instruction file provides drift-relevant pinned content.
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "workspace rules")
 
-func (f *fakeMCPProvider) MCPResources() []agentcontext.Resource {
-	return f.resources
+	base := (&agentcontext.Resolver{}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	mcpRes := agentcontext.Resource{
+		ID:          "mcp_server:github",
+		Kind:        agentcontext.KindMCPServer,
+		Source:      "github",
+		Name:        "github",
+		Status:      agentcontext.StatusOK,
+		ContentHash: sha256.Sum256([]byte("tool-list")),
+		Tools:       []agentcontext.MCPTool{{Name: "search"}},
+	}
+	withMCP := (&agentcontext.Resolver{
+		MCPResources: func() []agentcontext.Resource { return []agentcontext.Resource{mcpRes} },
+	}).Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	// The MCP server resource is present in the snapshot...
+	got := findResource(t, withMCP.Resources, agentcontext.KindMCPServer, "github")
+	require.Len(t, got.Tools, 1)
+	// ...but does not change the drift/aggregate hash.
+	require.Equal(t, base.AggregateHash, withMCP.AggregateHash,
+		"MCP resources must not participate in the drift hash")
 }
 
 // TestResolver_UnreadableInstructionFile verifies the

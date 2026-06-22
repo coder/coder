@@ -1113,9 +1113,9 @@ func (api *API) CheckBuildUsage(
 	task *database.Task,
 	transition database.WorkspaceTransition,
 ) (wsbuilder.UsageCheckResponse, error) {
-	// If the template version has an external agent, we need to check that the
-	// license is entitled to this feature.
-	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
+	// External-agent templates require an entitlement for start builds.
+	if transition == database.WorkspaceTransitionStart &&
+		templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
 		feature, ok := api.Entitlements.Feature(codersdk.FeatureWorkspaceExternalAgent)
 		if !ok || !feature.Enabled {
 			return wsbuilder.UsageCheckResponse{
