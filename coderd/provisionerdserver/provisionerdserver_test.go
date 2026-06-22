@@ -317,11 +317,10 @@ func TestAcquireJob_ProvisionerKeyDeleted(t *testing.T) {
 			// blocking.
 			keyID := uuid.New()
 			sessionCanceled := make(chan struct{})
-			var once sync.Once
 			srv, srvDB, _, _ := setup(t, false, &overrides{
 				keyID:                      keyID,
 				acquireJobLongPollDuration: testutil.IntervalFast,
-				sessionCancel:              func() { once.Do(func() { close(sessionCanceled) }) },
+				sessionCancel:              sync.OnceFunc(func() { close(sessionCanceled) }),
 			})
 
 			// While the key exists, acquiring returns without error.

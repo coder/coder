@@ -399,7 +399,8 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		closeSubscribe, err := api.Pubsub.Subscribe(
 			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
 			func(_ context.Context, _ []byte) {
-				logger.Info(ctx, "provisioner key deleted, canceling session")
+				logger.Info(ctx, "provisioner key deleted, canceling session",
+					slog.F("provisioner_key_id", authRes.keyID))
 				srvCancel()
 			},
 		)
@@ -409,13 +410,12 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		}
 		defer closeSubscribe()
 
-		// Re-check that the key still exists after subscribing. Postgres
-		// LISTEN/NOTIFY does not deliver notifications published before the
-		// subscription registered, so a deletion during connection setup could
-		// be missed without this check.
+		// Postgres LISTEN/NOTIFY does not deliver notifications published before
+		// registration, so re-check after subscribing.
 		_, err = api.Database.GetProvisionerKeyByID(authCtx, authRes.keyID)
 		if xerrors.Is(err, sql.ErrNoRows) {
-			logger.Info(ctx, "provisioner key no longer exists, closing connection")
+			logger.Info(ctx, "provisioner key no longer exists, closing connection",
+				slog.F("provisioner_key_id", authRes.keyID))
 			_ = conn.Close(websocket.StatusGoingAway, "provisioner key deleted")
 			return
 		}

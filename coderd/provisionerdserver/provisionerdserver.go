@@ -381,8 +381,10 @@ func (s *server) AcquireJob(ctx context.Context, _ *proto.Empty) (*proto.Acquire
 	if deleted, err := s.keyDeleted(ctx); err != nil {
 		return nil, xerrors.Errorf("acquire job: check provisioner key: %w", err)
 	} else if deleted {
+		s.Logger.Warn(ctx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
 		s.terminateOnDeletedKey()
-		return nil, xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
+		return nil, xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
 	}
 	// Since AcquireJob blocks until a job is available, we set a long (5s by default) timeout.  This allows back-level
 	// provisioner daemons to gracefully shut down within a few seconds, but keeps them from rapidly polling the
@@ -420,8 +422,10 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 	if deleted, err := s.keyDeleted(streamCtx); err != nil {
 		return xerrors.Errorf("acquire job: check provisioner key: %w", err)
 	} else if deleted {
+		s.Logger.Warn(streamCtx, "provisioner key deleted, rejecting job acquisition",
+			slog.F("provisioner_key_id", s.KeyID))
 		s.terminateOnDeletedKey()
-		return xerrors.Errorf("key %q: %w", s.KeyID, ErrProvisionerKeyDeleted)
+		return xerrors.Errorf("acquire job: %w", ErrProvisionerKeyDeleted)
 	}
 	acqCtx, acqCancel := context.WithCancel(streamCtx)
 	defer acqCancel()
