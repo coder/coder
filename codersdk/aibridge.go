@@ -40,7 +40,7 @@ type AIBridgeListSessionsResponse struct {
 }
 
 // AIBridgeSessionThreadsResponse is the response for GET
-// /api/v2/aibridge/sessions/{session_id} which returns a single
+// /api/v2/ai-gateway/sessions/{session_id} which returns a single
 // session with fully expanded threads.
 type AIBridgeSessionThreadsResponse struct {
 	ID                string                           `json:"id"`

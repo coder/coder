@@ -3127,21 +3127,21 @@ class ApiMethods {
 	};
 
 	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+		const url = getURLWithSearchParams("/api/v2/ai-gateway/models", options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeClients = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+		const url = getURLWithSearchParams("/api/v2/ai-gateway/clients", options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeSessionList = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/sessions", options);
+		const url = getURLWithSearchParams("/api/v2/ai-gateway/sessions", options);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);
 		return response.data;
@@ -3152,7 +3152,7 @@ class ApiMethods {
 		options?: { after_id?: string; before_id?: string; limit?: number },
 	) => {
 		const url = getURLWithSearchParams(
-			`/api/v2/aibridge/sessions/${sessionId}`,
+			`/api/v2/ai-gateway/sessions/${sessionId}`,
 			options,
 		);
 		const response =
@@ -3203,7 +3203,7 @@ class ApiMethods {
 
 	getAIGatewayKeys = async (): Promise<TypesGen.AIGatewayKey[]> => {
 		const response = await this.axios.get<TypesGen.AIGatewayKey[]>(
-			"/api/v2/aibridge/keys",
+			"/api/v2/ai-gateway/keys",
 		);
 		return response.data;
 	};
@@ -3212,14 +3212,16 @@ class ApiMethods {
 		req: TypesGen.CreateAIGatewayKeyRequest,
 	): Promise<TypesGen.CreateAIGatewayKeyResponse> => {
 		const response = await this.axios.post<TypesGen.CreateAIGatewayKeyResponse>(
-			"/api/v2/aibridge/keys",
+			"/api/v2/ai-gateway/keys",
 			req,
 		);
 		return response.data;
 	};
 
 	deleteAIGatewayKey = async (id: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/aibridge/keys/${encodeURIComponent(id)}`);
+		await this.axios.delete(
+			`/api/v2/ai-gateway/keys/${encodeURIComponent(id)}`,
+		);
 	};
 }
 
