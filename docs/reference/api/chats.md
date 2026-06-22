@@ -46,17 +46,17 @@ Experimental: this endpoint is subject to change.
         {
           "error": "string",
           "kind": "instruction_file",
-          "mcp_tools": [
-            {
-              "description": "string",
-              "name": "string"
-            }
-          ],
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
-          "status": "ok"
+          "status": "ok",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ]
         }
       ]
     },
@@ -220,14 +220,14 @@ Status Code **200**
 | `»» resources`                    | array                                                                              | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight.                                                                                                                                                                 |
 | `»»» error`                       | string                                                                             | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                                                                                                                                                  |
 | `»»» kind`                        | [codersdk.ChatContextResourceKind](schemas.md#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `»»» mcp_tools`                   | array                                                                              | false    |              | Mcp tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                                                                                                                                                 |
-| `»»»» description`                | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                                                                                                                                                            |
-| `»»»» name`                       | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                                                                                                                                                          |
 | `»»» size_bytes`                  | integer                                                                            | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                                                                                                                                                          |
 | `»»» skill_description`           | string                                                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» skill_name`                  | string                                                                             | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                                                                                                                                                        |
 | `»»» source`                      | string                                                                             | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                                                                                                                                                   |
-| `»»» status`                      | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, MCP tools) are empty.                                                                                                                             |
+| `»»» status`                      | [codersdk.ChatContextResourceStatus](schemas.md#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty.                                                                                                                                 |
+| `»»» tools`                       | array                                                                              | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                                                                                                                                                     |
+| `»»»» description`                | string                                                                             | false    |              | Description is the tool's human-readable summary; may be empty.                                                                                                                                                                                                                                                                                                                                            |
+| `»»»» name`                       | string                                                                             | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it.                                                                                                                                                                                                                                                                                          |
 | `» created_at`                    | string(date-time)                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» additions`                    | integer                                                                            | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -429,17 +429,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -585,17 +585,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },
@@ -892,17 +892,17 @@ Experimental: this endpoint is subject to change.
         {
           "error": "string",
           "kind": "instruction_file",
-          "mcp_tools": [
-            {
-              "description": "string",
-              "name": "string"
-            }
-          ],
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",
           "source": "string",
-          "status": "ok"
+          "status": "ok",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ]
         }
       ]
     },
@@ -1102,17 +1102,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -1258,17 +1258,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },
@@ -1505,17 +1505,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -1661,17 +1661,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },
@@ -1906,17 +1906,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -2062,17 +2062,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },
@@ -2874,17 +2874,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -3030,17 +3030,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },
@@ -3600,17 +3600,17 @@ Experimental: this endpoint is subject to change.
           {
             "error": "string",
             "kind": "instruction_file",
-            "mcp_tools": [
-              {
-                "description": "string",
-                "name": "string"
-              }
-            ],
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
             "source": "string",
-            "status": "ok"
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
           }
         ]
       },
@@ -3756,17 +3756,17 @@ Experimental: this endpoint is subject to change.
       {
         "error": "string",
         "kind": "instruction_file",
-        "mcp_tools": [
-          {
-            "description": "string",
-            "name": "string"
-          }
-        ],
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
         "source": "string",
-        "status": "ok"
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
       }
     ]
   },

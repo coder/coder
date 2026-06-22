@@ -16801,19 +16801,6 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.ChatContextMCPTool": {
-            "type": "object",
-            "properties": {
-                "description": {
-                    "description": "Description is the tool's human-readable summary; may be empty.",
-                    "type": "string"
-                },
-                "name": {
-                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
-                    "type": "string"
-                }
-            }
-        },
         "codersdk.ChatContextResource": {
             "type": "object",
             "properties": {
@@ -16823,13 +16810,6 @@ const docTemplate = `{
                 },
                 "kind": {
                     "$ref": "#/definitions/codersdk.ChatContextResourceKind"
-                },
-                "mcp_tools": {
-                    "description": "McpTools lists the tools exposed by an MCP server. Populated only for\nthe mcp_server kind; nil otherwise.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatContextMCPTool"
-                    }
                 },
                 "size_bytes": {
                     "description": "SizeBytes is the original payload size in bytes.",
@@ -16847,12 +16827,19 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "status": {
-                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, MCP tools) are empty.",
+                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty.",
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ChatContextResourceStatus"
                         }
                     ]
+                },
+                "tools": {
+                    "description": "Tools lists the tools exposed by an MCP server. Populated only for the\nmcp_server kind; nil otherwise.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextTool"
+                    }
                 }
             }
         },
@@ -16887,6 +16874,19 @@ const docTemplate = `{
                 "ChatContextResourceStatusInvalid",
                 "ChatContextResourceStatusExcluded"
             ]
+        },
+        "codersdk.ChatContextTool": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description is the tool's human-readable summary; may be empty.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ChatDiffContents": {
             "type": "object",

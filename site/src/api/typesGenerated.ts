@@ -1720,23 +1720,6 @@ export interface ChatContextFilePart {
 
 // From codersdk/chats.go
 /**
- * ChatContextMCPTool is one tool exposed by a pinned MCP server, reported on
- * the single-chat GET response. Metadata only; the input schema is omitted.
- */
-export interface ChatContextMCPTool {
-	/**
-	 * Name is the tool name with the "<server>__" prefix the agent adds
-	 * stripped, so it reads as the server exposes it.
-	 */
-	readonly name: string;
-	/**
-	 * Description is the tool's human-readable summary; may be empty.
-	 */
-	readonly description?: string;
-}
-
-// From codersdk/chats.go
-/**
  * ChatContextResource is one pinned workspace-context resource the chat's
  * prompt is built from. It is metadata only; bodies are omitted. Reported
  * only on the single-chat GET response.
@@ -1759,15 +1742,15 @@ export interface ChatContextResource {
 	readonly skill_name?: string;
 	readonly skill_description?: string;
 	/**
-	 * McpTools lists the tools exposed by an MCP server. Populated only for
-	 * the mcp_server kind; nil otherwise.
+	 * Tools lists the tools exposed by an MCP server. Populated only for the
+	 * mcp_server kind; nil otherwise.
 	 */
-	readonly mcp_tools?: readonly ChatContextMCPTool[];
+	readonly tools?: readonly ChatContextTool[];
 	/**
 	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
 	 * oversize, excluded) are still reported so the UI can surface why a
 	 * resource was dropped from the prompt instead of silently omitting it;
-	 * their body-specific fields (skill name, MCP tools) are empty.
+	 * their body-specific fields (skill name, tools) are empty.
 	 */
 	readonly status: ChatContextResourceStatus;
 	/**
@@ -1806,6 +1789,23 @@ export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
 	"oversize",
 	"unreadable",
 ];
+
+// From codersdk/chats.go
+/**
+ * ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+ * single-chat GET response. Metadata only; the input schema is omitted.
+ */
+export interface ChatContextTool {
+	/**
+	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * stripped, so it reads as the server exposes it.
+	 */
+	readonly name: string;
+	/**
+	 * Description is the tool's human-readable summary; may be empty.
+	 */
+	readonly description?: string;
+}
 
 // From codersdk/chats.go
 /**

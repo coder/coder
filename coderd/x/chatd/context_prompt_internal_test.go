@@ -655,7 +655,7 @@ func TestPinnedContextResources(t *testing.T) {
 				SizeBytes: 12,
 				Status:    codersdk.ChatContextResourceStatusOK,
 				// Tool names are reported with the "github__" prefix stripped.
-				McpTools: []codersdk.ChatContextMCPTool{
+				Tools: []codersdk.ChatContextTool{
 					{Name: "create", Description: "Create an issue"},
 					{Name: "search", Description: "Search code"},
 				},

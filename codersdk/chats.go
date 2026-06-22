@@ -200,13 +200,13 @@ type ChatContextResource struct {
 	// SkillName and SkillDescription are populated only for skill kinds.
 	SkillName        string `json:"skill_name,omitempty"`
 	SkillDescription string `json:"skill_description,omitempty"`
-	// McpTools lists the tools exposed by an MCP server. Populated only for
-	// the mcp_server kind; nil otherwise.
-	McpTools []ChatContextMCPTool `json:"mcp_tools,omitempty"`
+	// Tools lists the tools exposed by an MCP server. Populated only for the
+	// mcp_server kind; nil otherwise.
+	Tools []ChatContextTool `json:"tools,omitempty"`
 	// Status is the resource's health. Non-ok resources (invalid, unreadable,
 	// oversize, excluded) are still reported so the UI can surface why a
 	// resource was dropped from the prompt instead of silently omitting it;
-	// their body-specific fields (skill name, MCP tools) are empty.
+	// their body-specific fields (skill name, tools) are empty.
 	Status ChatContextResourceStatus `json:"status"`
 	// Error explains a non-ok Status; empty when healthy. May also carry a
 	// non-fatal warning when Status is ok.
@@ -225,9 +225,9 @@ const (
 	ChatContextResourceStatusExcluded   ChatContextResourceStatus = "excluded"
 )
 
-// ChatContextMCPTool is one tool exposed by a pinned MCP server, reported on
-// the single-chat GET response. Metadata only; the input schema is omitted.
-type ChatContextMCPTool struct {
+// ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+// single-chat GET response. Metadata only; the input schema is omitted.
+type ChatContextTool struct {
 	// Name is the tool name with the "<server>__" prefix the agent adds
 	// stripped, so it reads as the server exposes it.
 	Name string `json:"name"`
