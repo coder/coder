@@ -250,3 +250,47 @@ func TestBuildBedrockCredentialsAssumeRoleCaches(t *testing.T) {
 	require.Equal(t, int64(1), stsCalls.Load(),
 		"AssumeRole should be called once, then served from the credentials cache")
 }
+
+// TestBuildBedrockCredentialsAssumeRoleRefreshesOnExpiry verifies that once the
+// assumed credentials expire, the next retrieval re-assumes the role rather than
+// serving stale credentials from the cache.
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRoleRefreshesOnExpiry(t *testing.T) {
+	var stsCalls atomic.Int64
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		stsCalls.Add(1)
+		w.Header().Set("Content-Type", "text/xml")
+		// An expiration in the past makes the returned credentials immediately
+		// stale, so the cache cannot reuse them and must re-assume on the next
+		// retrieval.
+		_, _ = w.Write([]byte(`<AssumeRoleResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <AssumeRoleResult>
+    <Credentials>
+      <AccessKeyId>ASIAASSUMED</AccessKeyId>
+      <SecretAccessKey>assumed-secret</SecretAccessKey>
+      <SessionToken>assumed-token</SessionToken>
+      <Expiration>2000-01-01T00:00:00Z</Expiration>
+    </Credentials>
+  </AssumeRoleResult>
+</AssumeRoleResponse>`))
+	}))
+	defer sts.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
+
+	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:  "us-east-1",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
+	})
+	require.NoError(t, err)
+
+	_, err = creds.Retrieve(context.Background())
+	require.NoError(t, err)
+	_, err = creds.Retrieve(context.Background())
+	require.NoError(t, err)
+
+	require.Equal(t, int64(2), stsCalls.Load(),
+		"expired credentials should trigger a fresh AssumeRole on the next retrieval")
+}
