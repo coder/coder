@@ -32,7 +32,7 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 	syntheticPasteInlineBudget,
 )
 
-const inlinedFileInlinePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its full content is inlined below for direct model consumption.\n\n"
+const inlinedFilePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its full content is inlined below for direct model consumption.\n\n"
 
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
@@ -1310,8 +1310,8 @@ func formatInlinedFileText(name string, body []byte) string {
 	const fileNameSuffix = "\n\n"
 
 	var sb strings.Builder
-	sb.Grow(len(inlinedFileInlinePrefix) + len(fileNameLabel) + len(name) + len(fileNameSuffix) + len(body))
-	_, _ = sb.WriteString(inlinedFileInlinePrefix)
+	sb.Grow(len(inlinedFilePrefix) + len(fileNameLabel) + len(name) + len(fileNameSuffix) + len(body))
+	_, _ = sb.WriteString(inlinedFilePrefix)
 	if name != "" {
 		_, _ = fmt.Fprintf(&sb, "%s%s%s", fileNameLabel, name, fileNameSuffix)
 	}
