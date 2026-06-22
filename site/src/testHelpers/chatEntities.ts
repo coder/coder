@@ -1,6 +1,9 @@
 import type {
 	Chat,
+	ChatContext,
+	ChatContextResource,
 	ChatMessage,
+	ChatMessagePart,
 	ChatQueuedMessage,
 	MCPServerConfig,
 } from "#/api/typesGenerated";
@@ -29,6 +32,70 @@ export const MockChat: Chat = {
 	client_type: "ui",
 	children: [],
 };
+
+// Pinned workspace-context resources the prompt is built from.
+const MockChatContextResources: ChatContextResource[] = [
+	{
+		source: "/home/coder/AGENTS.md",
+		kind: "instruction_file",
+		size_bytes: 248,
+		status: "ok",
+	},
+	{
+		source: "/home/coder/.coder/skills/deploy",
+		kind: "skill",
+		size_bytes: 96,
+		status: "ok",
+		skill_name: "deploy",
+		skill_description: "Deploy the app to staging.",
+	},
+	{
+		source: "/home/coder/.mcp.json",
+		kind: "mcp_config",
+		size_bytes: 184,
+		status: "ok",
+	},
+	{
+		source: "github",
+		kind: "mcp_server",
+		size_bytes: 512,
+		status: "ok",
+		tools: [
+			{
+				name: "search_issues",
+				description: "Search issues and pull requests.",
+			},
+			{ name: "create_issue", description: "Open a new issue." },
+		],
+	},
+	{
+		// An invalid skill the agent rejected: surfaced as an issue with its
+		// error rather than silently dropped.
+		source: "/home/coder/test/.agents/skills/moo",
+		kind: "skill",
+		size_bytes: 356,
+		status: "invalid",
+		error: 'front-matter name "coder-review" does not match directory "moo"',
+	},
+];
+
+export const MockChatContextClean: ChatContext = {
+	dirty: false,
+	resources: MockChatContextResources,
+};
+
+export const MockChatContextDirty: ChatContext = {
+	dirty: true,
+	dirty_since: "2024-01-02T00:00:00Z",
+	resources: MockChatContextResources,
+};
+
+// Injected-context fallback whose only context-file marker has no path. The
+// agent emits this empty placeholder for skill-only additions; the context
+// indicator must skip it rather than render a nameless "Context files" row.
+export const MockLastInjectedContextEmptyFile: readonly ChatMessagePart[] = [
+	{ type: "context-file", context_file_path: "" },
+];
 
 export const MockMCPServerConfig: MCPServerConfig = {
 	id: "mcp-1",
