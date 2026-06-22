@@ -1674,6 +1674,7 @@ const AgentChatPage: FC = () => {
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
 			lastInjectedContext={chatQuery.data?.last_injected_context}
+			chatContext={chatQuery.data?.context}
 		/>
 	);
 };

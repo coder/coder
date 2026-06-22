@@ -216,6 +216,7 @@ interface AgentChatPageViewProps {
 	desktopChatId?: string;
 
 	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	chatContext?: TypesGen.ChatContext;
 }
 
 const UnavailableTabMessage: FC<{ message: string }> = ({ message }) => (
@@ -373,6 +374,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	onMCPAuthComplete,
 	desktopChatId,
 	lastInjectedContext,
+	chatContext,
 }) => {
 	const queryClient = useQueryClient();
 	const { proxy } = useProxy();
@@ -964,6 +966,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onMCPSelectionChange={onMCPSelectionChange}
 								onMCPAuthComplete={onMCPAuthComplete}
 								lastInjectedContext={lastInjectedContext}
+								chatContext={chatContext}
 								workspace={workspace}
 								workspaceAgent={workspaceAgent}
 								chatId={agentId}
