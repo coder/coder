@@ -696,7 +696,6 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotNil(t, created.Settings.Bedrock)
 		require.Equal(t, "us-east-2", created.Settings.Bedrock.Region)
 	})
-
 }
 
 func TestAIProvidersKeyManagement(t *testing.T) {
