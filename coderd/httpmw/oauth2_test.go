@@ -189,7 +189,6 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", callbackPath+"?redirect="+url.QueryEscape("/dashboard"), nil)
 		req.Host = altHost
-		req.Header.Set("X-Forwarded-Proto", "https")
 		res := httptest.NewRecorder()
 
 		tp := newTestOAuth2Provider(t,
@@ -197,7 +196,7 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 			oauth2.SetAuthURLParam("redirect_uri", wantAltURI),
 		)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost, altHost}, "")(nil).ServeHTTP(res, req)
+			[]string{primaryHost, altHost}, "https")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 
@@ -234,19 +233,19 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 		t.Parallel()
 		req := httptest.NewRequest("GET", callbackPath, nil)
 		req.Host = "DEV-WORKSPACES.test.netflix.net:8443"
-		req.Header.Set("X-Forwarded-Proto", "https")
 		res := httptest.NewRecorder()
 
 		// Host is preserved verbatim in the constructed redirect_uri so the
 		// IdP sees exactly what the user typed (case is preserved but the
-		// allowlist match is insensitive).
+		// allowlist match is insensitive). The scheme comes from the caller-
+		// supplied defaultScheme; real callers populate this from AccessURL.
 		expectedURI := "https://DEV-WORKSPACES.test.netflix.net:8443" + callbackPath
 		tp := newTestOAuth2Provider(t,
 			oauth2.AccessTypeOffline,
 			oauth2.SetAuthURLParam("redirect_uri", expectedURI),
 		)
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{altHost}, "")(nil).ServeHTTP(res, req)
+			[]string{altHost}, "https")(nil).ServeHTTP(res, req)
 
 		require.Equal(t, http.StatusTemporaryRedirect, res.Result().StatusCode)
 	})

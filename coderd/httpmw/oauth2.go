@@ -507,31 +507,25 @@ func uriFromURL(u string) string {
 }
 
 // buildDynamicRedirectURI constructs the OIDC redirect_uri from the incoming
-// request, used when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is configured. The
-// callback path is whatever path the middleware is mounted at, which today
-// is /api/v2/users/oidc/callback for OIDC.
+// request, used when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is configured.
 //
-// Scheme selection (in order):
-//  1. defaultScheme (from configured AccessURL) when provided. This is the
-//     operator-defined source of truth, identical to what the static OIDC
-//     path uses today. It takes precedence because some upstream proxies
-//     set X-Forwarded-Proto to the inner-hop scheme (e.g. "http" between
-//     proxy and coderd) rather than the original client-facing scheme,
-//     which would produce a redirect_uri the IdP rejects.
-//  2. r.TLS != nil  -> "https" (request arrived over TLS at this server).
-//  3. X-Forwarded-Proto when set.
-//  4. "http" as a last resort.
+// The scheme is taken from the configured AccessURL (passed in as
+// defaultScheme by the caller) rather than from the request itself. Real
+// deployments that use this feature always sit behind a TLS-terminating
+// proxy, and some such proxies set X-Forwarded-Proto to the inner-hop
+// scheme (e.g. "http" between proxy and coderd) instead of the original
+// client-facing scheme. Trusting the request for scheme would produce a
+// redirect_uri the IdP rejects. AccessURL is the operator-defined source
+// of truth and is the same value the static OIDC path uses, so reusing
+// it keeps the dynamic and static paths byte-for-byte consistent.
+//
+// The callback path is whatever path the middleware is mounted at, which
+// today is /api/v2/users/oidc/callback for OIDC.
 func buildDynamicRedirectURI(r *http.Request, defaultScheme string) string {
-	var scheme string
-	switch {
-	case defaultScheme != "":
-		scheme = defaultScheme
-	case r.TLS != nil:
-		scheme = "https"
-	case r.Header.Get("X-Forwarded-Proto") != "":
-		scheme = r.Header.Get("X-Forwarded-Proto")
-	default:
-		scheme = "http"
+	u := url.URL{
+		Scheme: defaultScheme,
+		Host:   r.Host,
+		Path:   r.URL.Path,
 	}
-	return scheme + "://" + r.Host + r.URL.Path
+	return u.String()
 }
