@@ -5588,6 +5588,59 @@ func TestUpdateWorkspaceACL(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	//nolint:tparallel,paralleltest // Modifies package global rbac.workspaceACLDisabled.
+	t.Run("OrgAdminCanChangeOwnRole", func(t *testing.T) {
+		// Save and restore the global to avoid affecting other tests.
+		prevWorkspaceACLDisabled := rbac.WorkspaceACLDisabled()
+		rbac.SetWorkspaceACLDisabled(false)
+		t.Cleanup(func() { rbac.SetWorkspaceACLDisabled(prevWorkspaceACLDisabled) })
+
+		dv := coderdtest.DeploymentValues(t)
+
+		adminClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			DeploymentValues:         dv,
+		})
+		adminUser := coderdtest.CreateFirstUser(t, adminClient)
+		orgID := adminUser.OrganizationID
+		workspaceOwnerClient, _ := coderdtest.CreateAnotherUser(t, adminClient, orgID)
+		orgAdminClient, orgAdminUser := coderdtest.CreateAnotherUser(t, adminClient, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+
+		tv := coderdtest.CreateTemplateVersion(t, adminClient, orgID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, tv.ID)
+		template := coderdtest.CreateTemplate(t, adminClient, orgID, tv.ID)
+
+		ws := coderdtest.CreateWorkspace(t, workspaceOwnerClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, workspaceOwnerClient, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		// An org admin can share a workspace they do not own with themselves,
+		// because they hold workspace share permission across the organization
+		// independent of this workspace's ACL.
+		err := orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleAdmin,
+			},
+		})
+		require.NoError(t, err)
+
+		// They can also change and then remove their own role.
+		err = orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleUse,
+			},
+		})
+		require.NoError(t, err)
+
+		err = orgAdminClient.UpdateWorkspaceACL(ctx, ws.ID, codersdk.UpdateWorkspaceACL{
+			UserRoles: map[string]codersdk.WorkspaceRole{
+				orgAdminUser.ID.String(): codersdk.WorkspaceRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+	})
 }
 
 func TestDeleteWorkspaceACL(t *testing.T) {
