@@ -28,13 +28,16 @@ func BenchmarkChatMessageSearchIndex(b *testing.B) {
 
 	createChatMessageSearchTextFunction(ctx, b, sqlDB)
 
-	config := chatMessageSearchBenchConfigFromEnv(b)
+	profiles := chatMessageSearchProfiles(b)
+	totalChats, expectedMessages := chatMessageSearchTotals(profiles)
+	b.Logf("chat search bench distribution: users=%d total_chats=%d expected_messages=%d",
+		len(profiles), totalChats, expectedMessages)
 
 	seedStart := time.Now()
-	seedChatMessageSearchCorpus(ctx, b, db, config, 0)
+	seededMessages := seedChatMessageSearchCorpus(ctx, b, db, profiles, 0)
 	seedBeforeIndex := time.Since(seedStart)
-	b.Logf("seed before index: users=%d chats_per_user=%d messages_per_chat=%d total_chats=%d total_messages=%d duration=%s",
-		config.Users, config.ChatsPerUser, config.MessagesPerChat, config.TotalChats(), config.TotalMessages(), seedBeforeIndex)
+	b.Logf("seed before index: users=%d total_chats=%d seeded_messages=%d duration=%s",
+		len(profiles), totalChats, seededMessages, seedBeforeIndex)
 
 	indexStart := time.Now()
 	createChatMessageSearchIndex(ctx, b, sqlDB)
@@ -43,41 +46,74 @@ func BenchmarkChatMessageSearchIndex(b *testing.B) {
 	logChatMessageSearchIndexSize(ctx, b, sqlDB, "after create index")
 
 	seedStart = time.Now()
-	seedChatMessageSearchCorpus(ctx, b, db, config, config.TotalChats())
+	seededMessages = seedChatMessageSearchCorpus(ctx, b, db, profiles, totalChats)
 	seedAfterIndex := time.Since(seedStart)
-	b.Logf("seed after index: users=%d chats_per_user=%d messages_per_chat=%d total_chats=%d total_messages=%d duration=%s",
-		config.Users, config.ChatsPerUser, config.MessagesPerChat, config.TotalChats(), config.TotalMessages(), seedAfterIndex)
+	b.Logf("seed after index: users=%d total_chats=%d seeded_messages=%d duration=%s",
+		len(profiles), totalChats, seededMessages, seedAfterIndex)
 	logChatMessageSearchIndexSize(ctx, b, sqlDB, "after indexed seed")
 
 	analyzeChatMessageSearchTables(ctx, b, sqlDB)
 	runChatMessageSearchSampleQueries(ctx, b, sqlDB)
 }
 
-type chatMessageSearchBenchConfig struct {
-	Users           int
-	ChatsPerUser    int
-	MessagesPerChat int
+// userChatProfile describes one user's chat volume: how many root chats they
+// own and the average number of messages per chat. The default distribution
+// mirrors the Coder dev deployment, which is heavily skewed: a few users own
+// hundreds of chats and some chats hold thousands of messages, while most users
+// own a single short chat.
+type userChatProfile struct {
+	Chats       int
+	AvgMessages int
 }
 
-func (c chatMessageSearchBenchConfig) TotalChats() int {
-	return c.Users * c.ChatsPerUser
+// devChatDistribution is the per-user (root chat count, avg messages per chat)
+// observed on the dev deployment. Averages are rounded to whole messages.
+var devChatDistribution = []userChatProfile{
+	{577, 47}, {465, 326}, {460, 151}, {269, 70}, {261, 31},
+	{189, 304}, {183, 114}, {182, 219}, {135, 190}, {121, 191},
+	{115, 155}, {113, 342}, {97, 96}, {94, 606}, {93, 100},
+	{88, 422}, {74, 270}, {71, 139}, {71, 369}, {68, 85},
+	{68, 140}, {64, 199}, {63, 87}, {60, 397}, {60, 202},
+	{60, 382}, {57, 321}, {56, 331}, {51, 202}, {49, 249},
+	{48, 140}, {47, 38}, {47, 140}, {47, 196}, {44, 414},
+	{43, 423}, {43, 130}, {40, 93}, {40, 211}, {38, 244},
+	{35, 334}, {34, 423}, {32, 89}, {28, 162}, {27, 86},
+	{18, 296}, {18, 211}, {15, 75}, {13, 35}, {13, 67},
+	{12, 77}, {11, 75}, {11, 196}, {11, 197}, {10, 4999},
+	{10, 763}, {10, 235}, {10, 650}, {9, 71}, {9, 4},
+	{7, 139}, {7, 34}, {6, 115}, {6, 122}, {6, 38},
+	{6, 16}, {5, 88}, {5, 36}, {5, 134}, {5, 274},
+	{5, 29}, {4, 58}, {4, 21}, {4, 186}, {4, 37},
+	{4, 816}, {3, 13}, {3, 17}, {3, 12}, {3, 26},
+	{3, 382}, {3, 63}, {2, 11}, {2, 189}, {2, 8},
+	{2, 5}, {2, 53}, {2, 71}, {2, 27}, {2, 196},
+	{2, 65}, {2, 26}, {2, 4}, {2, 127}, {2, 82},
+	{2, 7}, {1, 227}, {1, 54}, {1, 204}, {1, 331},
+	{1, 67}, {1, 19}, {1, 4}, {1, 18}, {1, 540},
+	{1, 387}, {1, 217}, {1, 34}, {1, 20}, {1, 127},
+	{1, 47}, {1, 59}, {1, 329}, {1, 4}, {1, 6},
+	{1, 10}, {1, 86}, {1, 6}, {1, 6}, {1, 14},
 }
 
-func (c chatMessageSearchBenchConfig) TotalMessages() int {
-	return c.TotalChats() * c.MessagesPerChat
-}
-
-func chatMessageSearchBenchConfigFromEnv(t testing.TB) chatMessageSearchBenchConfig {
+// chatMessageSearchProfiles returns the dev distribution, optionally truncated
+// to the first N users via CODER_CHAT_SEARCH_BENCH_USER_LIMIT to keep local
+// runs short.
+func chatMessageSearchProfiles(t testing.TB) []userChatProfile {
 	t.Helper()
 
-	config := chatMessageSearchBenchConfig{
-		Users:           benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_USERS", 10),
-		ChatsPerUser:    benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_CHATS_PER_USER", 10),
-		MessagesPerChat: benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_MESSAGES_PER_CHAT", 10),
+	profiles := devChatDistribution
+	if limit := benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_USER_LIMIT", 0); limit > 0 && limit < len(profiles) {
+		profiles = profiles[:limit]
 	}
-	t.Logf("chat search bench config: users=%d chats_per_user=%d messages_per_chat=%d total_chats=%d total_messages=%d",
-		config.Users, config.ChatsPerUser, config.MessagesPerChat, config.TotalChats(), config.TotalMessages())
-	return config
+	return profiles
+}
+
+func chatMessageSearchTotals(profiles []userChatProfile) (totalChats, expectedMessages int) {
+	for _, profile := range profiles {
+		totalChats += profile.Chats
+		expectedMessages += profile.Chats * profile.AvgMessages
+	}
+	return totalChats, expectedMessages
 }
 
 func benchEnvInt(t testing.TB, name string, fallback int) int {
@@ -89,7 +125,7 @@ func benchEnvInt(t testing.TB, name string, fallback int) int {
 	}
 	parsed, err := strconv.Atoi(value)
 	require.NoError(t, err, "parse %s", name)
-	require.Positive(t, parsed, "%s must be positive", name)
+	require.GreaterOrEqual(t, parsed, 0, "%s must not be negative", name)
 	return parsed
 }
 
@@ -125,31 +161,49 @@ WHERE deleted = false
 	require.NoError(t, err)
 }
 
-func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.Store, config chatMessageSearchBenchConfig, chatOffset int) {
+// jitteredMessageCount returns a per-chat message count drawn uniformly from
+// [1, 2*avg-1]. The range is symmetric around avg, so the expected value stays
+// exactly avg while individual chats vary in size.
+func jitteredMessageCount(faker *gofakeit.Faker, avg int) int {
+	if avg <= 1 {
+		return 1
+	}
+	return faker.Number(1, 2*avg-1)
+}
+
+// seedChatMessageSearchCorpus seeds the given user distribution and returns the
+// actual number of messages inserted, which varies run to run because per-chat
+// counts are jittered around each user's average.
+func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.Store, profiles []userChatProfile, chatOffset int) int {
 	t.Helper()
 
 	faker := gofakeit.New(uint64(1 + chatOffset))
 	organization := dbgen.Organization(t, db, database.Organization{})
 	provider := dbgen.ChatProvider(t, db, database.ChatProvider{})
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: provider.Provider})
-	for userIndex := range config.Users {
+	chatCounter := chatOffset
+	seededMessages := 0
+	for userIndex, profile := range profiles {
 		owner := dbgen.User(t, db, database.User{})
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
-		for chatIndex := range config.ChatsPerUser {
-			absoluteChatIndex := chatOffset + userIndex*config.ChatsPerUser + chatIndex
+		for range profile.Chats {
 			chat := dbgen.Chat(t, db, database.Chat{
 				OrganizationID:    organization.ID,
 				OwnerID:           owner.ID,
 				LastModelConfigID: modelConfig.ID,
-				Title:             fmt.Sprintf("benchmark chat %d %s", absoluteChatIndex, chatSearchSeedText(faker, absoluteChatIndex)),
+				Title:             fmt.Sprintf("benchmark chat %d %s", chatCounter, chatSearchSeedText(faker, chatCounter)),
 			})
 
-			params := chatMessageBatchParams(faker, chat, owner.ID, apiKey.ID, modelConfig.ID, absoluteChatIndex, config.MessagesPerChat)
+			messageCount := jitteredMessageCount(faker, profile.AvgMessages)
+			params := chatMessageBatchParams(faker, chat, owner.ID, apiKey.ID, modelConfig.ID, chatCounter, messageCount)
 			_, err := db.InsertChatMessages(ctx, params)
 			require.NoError(t, err)
+			seededMessages += messageCount
+			chatCounter++
 		}
-		t.Logf("user: %d chats:%d messages:%d", userIndex, config.ChatsPerUser, config.MessagesPerChat)
+		t.Logf("user: %d chats:%d avg_messages:%d", userIndex, profile.Chats, profile.AvgMessages)
 	}
+	return seededMessages
 }
 
 // chatMessageBatchParams builds a single InsertChatMessages call for an entire
