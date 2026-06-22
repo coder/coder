@@ -23,7 +23,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "#/components/Select/Select";
-import { Switch } from "#/components/Switch/Switch";
 import { Textarea } from "#/components/Textarea/Textarea";
 import {
 	Tooltip,
@@ -41,6 +40,11 @@ import {
 	getPricingPlaceholderForField,
 	pricingFieldNames,
 } from "./pricingFields";
+
+const booleanFieldOptions = [
+	{ label: "On", value: "true" },
+	{ label: "Off", value: "false" },
+] as const;
 
 /** Sentinel value for Select components to represent "no selection". */
 const unsetSelectValue = "__unset__";
@@ -288,12 +292,13 @@ const SelectField: FC<
 	);
 };
 
-const BooleanSwitchField: FC<
+const SegmentedField: FC<
 	FieldRenderContext & {
 		fieldKey: string;
 		errorKey?: string;
 		label: string;
 		description?: string;
+		options: readonly { label: string; value: string }[];
 	}
 > = ({
 	form,
@@ -303,28 +308,47 @@ const BooleanSwitchField: FC<
 	errorKey,
 	label,
 	description,
+	options,
 }) => {
 	const errorId = `${fieldKey}-error`;
 	const fieldError = fieldErrors[errorKey ?? fieldKey];
 	const currentValue = (getIn(form.values, fieldKey) as string) || "";
-	const checked = currentValue === "true";
 
 	return (
 		<div className="flex min-w-0 flex-col gap-1.5">
-			<div className="flex items-center gap-2">
-				<Switch
-					id={fieldKey}
-					checked={checked}
-					onCheckedChange={(next) =>
-						void form.setFieldValue(fieldKey, next ? "true" : "false")
-					}
-					disabled={disabled}
-				/>
-				<FieldLabel
-					htmlFor={fieldKey}
-					label={label}
-					description={description}
-				/>
+			<FieldLabel htmlFor={fieldKey} label={label} description={description} />
+			<div
+				role="radiogroup"
+				aria-label={label}
+				className={cn(
+					"flex h-9 items-stretch rounded-md border border-solid border-border p-0.5",
+					fieldError && "border-content-destructive",
+				)}
+			>
+				{options.map((opt) => {
+					const isActive = currentValue === opt.value;
+					return (
+						<button
+							key={opt.value}
+							type="button"
+							role="radio"
+							aria-checked={isActive}
+							disabled={disabled}
+							className={cn(
+								"h-8 flex-1 cursor-pointer rounded-[5px] border-0 px-3 text-[13px] font-medium transition-colors",
+								isActive
+									? "bg-surface-secondary text-content-primary"
+									: "bg-transparent text-content-secondary hover:text-content-primary",
+								disabled && "pointer-events-none opacity-60",
+							)}
+							onClick={() =>
+								void form.setFieldValue(fieldKey, isActive ? "" : opt.value)
+							}
+						>
+							{opt.label}
+						</button>
+					);
+				})}
 			</div>
 			{fieldError && (
 				<p id={errorId} className="m-0 text-xs text-content-destructive">
@@ -426,16 +450,33 @@ const SchemaField: FC<SchemaFieldProps> = ({
 		case "select": {
 			if (field.type === "boolean") {
 				return (
-					<BooleanSwitchField
+					<SegmentedField
 						{...ctx}
 						fieldKey={fieldKey}
 						errorKey={errorKey}
 						label={label}
 						description={field.description}
+						options={booleanFieldOptions}
 					/>
 				);
 			}
 			const options: readonly string[] = field.enum ?? [];
+			const maxSegmented = 6;
+			if (options.length > 0 && options.length <= maxSegmented) {
+				return (
+					<SegmentedField
+						{...ctx}
+						fieldKey={fieldKey}
+						errorKey={errorKey}
+						label={label}
+						description={field.description}
+						options={options.map((value) => ({
+							label: capitalize(value),
+							value,
+						}))}
+					/>
+				);
+			}
 			return (
 				<SelectField
 					{...ctx}
@@ -467,16 +508,18 @@ const SchemaField: FC<SchemaFieldProps> = ({
 
 /**
  * How many grid columns a field should span in the 3-col layout.
- *   1 = default (inputs, enum dropdowns)
- *   3 = full-width (boolean switches, json textareas)
+ *   1 = default (inputs, booleans, small enums)
+ *   3 = full-width (large enums, json textareas)
  */
 function colSpan(field: FieldSchema): 1 | 3 {
 	if (field.input_type === "json") {
 		return 3;
 	}
-	// Boolean switches each take their own full-width row, stacked below the
-	// compact input/dropdown fields.
-	if (field.input_type === "select" && field.type === "boolean") {
+	if (
+		field.input_type === "select" &&
+		field.type !== "boolean" &&
+		(field.enum?.length ?? 0) > 3
+	) {
 		return 3;
 	}
 	return 1;

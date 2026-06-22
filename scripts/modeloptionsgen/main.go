@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/shopspring/decimal"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -56,7 +57,10 @@ func main() {
 		"",
 		map[string]bool{"ProviderOptions": true},
 	)
-	validateFieldReferences("general", schema.General)
+	if err := validateFieldReferences("general", schema.General); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 
 	// Provider-specific options. Each entry maps a provider key
 	// to the concrete options struct used for that provider.
@@ -74,7 +78,10 @@ func main() {
 
 	for _, p := range providerTypes {
 		schema.Providers[p.key] = extractFields(p.typ, "", nil)
-		validateFieldReferences(p.key, schema.Providers[p.key])
+		if err := validateFieldReferences(p.key, schema.Providers[p.key]); err != nil {
+			_, _ = fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	}
 
 	out, err := json.MarshalIndent(schema, "", "\t")
@@ -92,7 +99,7 @@ func main() {
 // `visible_when` or `conflicts_with` tag names a sibling that does
 // not exist in the same group, catching typos in the struct tags
 // before they reach the frontend.
-func validateFieldReferences(group string, fg FieldGroup) {
+func validateFieldReferences(group string, fg FieldGroup) error {
 	names := make(map[string]bool, len(fg.Fields))
 	for _, f := range fg.Fields {
 		names[f.JSONName] = true
@@ -100,20 +107,15 @@ func validateFieldReferences(group string, fg FieldGroup) {
 
 	for _, f := range fg.Fields {
 		if f.VisibleWhen != "" && !names[f.VisibleWhen] {
-			_, _ = fmt.Fprintf(os.Stderr,
-				"field %q in group %q has visible_when=%q referencing an unknown sibling field\n",
-				f.JSONName, group, f.VisibleWhen)
-			os.Exit(1)
+			return xerrors.Errorf("field %q in group %q has visible_when=%q referencing an unknown sibling field", f.JSONName, group, f.VisibleWhen)
 		}
 		for _, sibling := range f.ConflictsWith {
 			if !names[sibling] {
-				_, _ = fmt.Fprintf(os.Stderr,
-					"field %q in group %q has conflicts_with entry %q referencing an unknown sibling field\n",
-					f.JSONName, group, sibling)
-				os.Exit(1)
+				return xerrors.Errorf("field %q in group %q has conflicts_with entry %q referencing an unknown sibling field", f.JSONName, group, sibling)
 			}
 		}
 	}
+	return nil
 }
 
 // extractFields walks the struct fields of t and returns a FieldGroup.
