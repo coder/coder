@@ -166,9 +166,12 @@ func TestConvertMessagesWithFiles_NilPredicateKeepsFilePart(t *testing.T) {
 	require.Equal(t, data, filePart.Data)
 }
 
-func TestConvertMessagesWithFiles_InlinedTextTruncatedToBudget(t *testing.T) {
+func TestConvertMessagesWithFiles_InlinedTextNotTruncated(t *testing.T) {
 	t.Parallel()
 
+	// A large text file is inlined in full, with no silent truncation,
+	// matching how a provider that accepts the media type natively would
+	// receive the whole file.
 	const budget = 128 * 1024
 	data := []byte(strings.Repeat("a", budget+1024))
 	messages, resolver := userFileMessage(t, "big.txt", "text/plain", data)
@@ -184,7 +187,7 @@ func TestConvertMessagesWithFiles_InlinedTextTruncatedToBudget(t *testing.T) {
 	require.Len(t, prompt[0].Content, 1)
 	textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](prompt[0].Content[0])
 	require.True(t, ok, "expected TextPart")
-	require.Less(t, len(textPart.Text), len(data)+1024,
-		"inlined text should be bounded by the budget")
-	require.Contains(t, textPart.Text, "truncated")
+	require.Contains(t, textPart.Text, string(data),
+		"the full file content should be inlined without truncation")
+	require.NotContains(t, textPart.Text, "truncated")
 }

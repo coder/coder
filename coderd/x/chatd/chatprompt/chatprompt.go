@@ -32,12 +32,7 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 	syntheticPasteInlineBudget,
 )
 
-const inlinedFileInlinePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its content is inlined below for direct model consumption.\n\n"
-
-var inlinedFileTruncationWarning = fmt.Sprintf(
-	"\n\n[inlined-file] The file content was truncated to %d bytes before sending to the model.",
-	syntheticPasteInlineBudget,
-)
+const inlinedFileInlinePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its full content is inlined below for direct model consumption.\n\n"
 
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
@@ -1272,14 +1267,19 @@ func isSyntheticPaste(name string, mediaType string) bool {
 
 func formatSyntheticPasteText(name string, body []byte) string {
 	const syntheticPasteNameLabel = "Synthetic attachment name: "
+	const syntheticPasteNameSuffix = "\n\n"
 
-	return formatBudgetedInlineText(
-		syntheticPasteInlinePrefix,
-		syntheticPasteNameLabel,
-		name,
-		body,
-		syntheticPasteTruncationWarning,
-	)
+	var sb strings.Builder
+	sb.Grow(len(syntheticPasteInlinePrefix) + len(name) + min(len(body), syntheticPasteInlineBudget) + len(syntheticPasteTruncationWarning) + len(syntheticPasteNameLabel) + len(syntheticPasteNameSuffix))
+	_, _ = sb.WriteString(syntheticPasteInlinePrefix)
+	if name != "" {
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", syntheticPasteNameLabel, name, syntheticPasteNameSuffix)
+	}
+	_, _ = sb.WriteString(string(body[:min(len(body), syntheticPasteInlineBudget)]))
+	if len(body) > syntheticPasteInlineBudget {
+		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
+	}
+	return sb.String()
 }
 
 // isInlinableTextMediaType reports whether mediaType is a text-family
@@ -1297,39 +1297,25 @@ func isInlinableTextMediaType(mediaType string) bool {
 	}
 }
 
-// formatInlinedFileText renders an uploaded file's content as prompt
-// text for providers that would drop the file part. It mirrors
-// formatSyntheticPasteText but uses file-oriented wording, includes the
-// filename for context, and reuses the same 128 KiB inline budget and
-// truncation marker.
+// formatInlinedFileText renders an uploaded file's full content as prompt
+// text for providers that would otherwise drop the file part. Unlike the
+// synthetic-paste path, it does not truncate: the file already passed the
+// upload size cap, and a provider that accepts the media type natively
+// would receive the whole file, so inlining the full content keeps
+// behavior consistent across providers and avoids silent data loss. An
+// over-large file fails loudly at the provider, exactly as a native file
+// part of the same size would.
 func formatInlinedFileText(name string, body []byte) string {
 	const fileNameLabel = "Attachment filename: "
-
-	return formatBudgetedInlineText(
-		inlinedFileInlinePrefix,
-		fileNameLabel,
-		name,
-		body,
-		inlinedFileTruncationWarning,
-	)
-}
-
-// formatBudgetedInlineText writes prefix, an optional "label + name"
-// header, then up to syntheticPasteInlineBudget bytes of body, appending
-// truncationWarning when the body exceeds the budget.
-func formatBudgetedInlineText(prefix, nameLabel, name string, body []byte, truncationWarning string) string {
-	const nameSuffix = "\n\n"
+	const fileNameSuffix = "\n\n"
 
 	var sb strings.Builder
-	sb.Grow(len(prefix) + len(nameLabel) + len(name) + len(nameSuffix) + min(len(body), syntheticPasteInlineBudget) + len(truncationWarning))
-	_, _ = sb.WriteString(prefix)
+	sb.Grow(len(inlinedFileInlinePrefix) + len(fileNameLabel) + len(name) + len(fileNameSuffix) + len(body))
+	_, _ = sb.WriteString(inlinedFileInlinePrefix)
 	if name != "" {
-		_, _ = fmt.Fprintf(&sb, "%s%s%s", nameLabel, name, nameSuffix)
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", fileNameLabel, name, fileNameSuffix)
 	}
-	_, _ = sb.WriteString(string(body[:min(len(body), syntheticPasteInlineBudget)]))
-	if len(body) > syntheticPasteInlineBudget {
-		_, _ = sb.WriteString(truncationWarning)
-	}
+	_, _ = sb.Write(body)
 	return sb.String()
 }
 
