@@ -1738,6 +1738,20 @@ func (mr *MockStoreMockRecorder) ExpirePrebuildsAPIKeys(ctx, now any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExpirePrebuildsAPIKeys", reflect.TypeOf((*MockStore)(nil).ExpirePrebuildsAPIKeys), ctx, now)
 }
 
+// FavoriteTemplate mocks base method.
+func (m *MockStore) FavoriteTemplate(ctx context.Context, arg database.FavoriteTemplateParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FavoriteTemplate", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FavoriteTemplate indicates an expected call of FavoriteTemplate.
+func (mr *MockStoreMockRecorder) FavoriteTemplate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteTemplate", reflect.TypeOf((*MockStore)(nil).FavoriteTemplate), ctx, arg)
+}
+
 // FavoriteWorkspace mocks base method.
 func (m *MockStore) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -6252,6 +6266,51 @@ func (mr *MockStoreMockRecorder) GetUserTaskNotificationAlertDismissed(ctx, user
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTaskNotificationAlertDismissed", reflect.TypeOf((*MockStore)(nil).GetUserTaskNotificationAlertDismissed), ctx, userID)
 }
 
+// GetUserTemplateFavorites mocks base method.
+func (m *MockStore) GetUserTemplateFavorites(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserTemplateFavorites", ctx, userID)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserTemplateFavorites indicates an expected call of GetUserTemplateFavorites.
+func (mr *MockStoreMockRecorder) GetUserTemplateFavorites(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTemplateFavorites", reflect.TypeOf((*MockStore)(nil).GetUserTemplateFavorites), ctx, userID)
+}
+
+// GetUserTerminalFont mocks base method.
+func (m *MockStore) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserTerminalFont", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserTerminalFont indicates an expected call of GetUserTerminalFont.
+func (mr *MockStoreMockRecorder) GetUserTerminalFont(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserTerminalFont", reflect.TypeOf((*MockStore)(nil).GetUserTerminalFont), ctx, userID)
+}
+
+// GetUserThemePreference mocks base method.
+func (m *MockStore) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserThemePreference", ctx, userID)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserThemePreference indicates an expected call of GetUserThemePreference.
+func (mr *MockStoreMockRecorder) GetUserThemePreference(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserThemePreference", reflect.TypeOf((*MockStore)(nil).GetUserThemePreference), ctx, userID)
+}
+
 // GetUserThinkingDisplayMode mocks base method.
 func (m *MockStore) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	m.ctrl.T.Helper()
@@ -9414,6 +9473,20 @@ func (m *MockStore) UnarchiveTemplateVersion(ctx context.Context, arg database.U
 func (mr *MockStoreMockRecorder) UnarchiveTemplateVersion(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnarchiveTemplateVersion", reflect.TypeOf((*MockStore)(nil).UnarchiveTemplateVersion), ctx, arg)
+}
+
+// UnfavoriteTemplate mocks base method.
+func (m *MockStore) UnfavoriteTemplate(ctx context.Context, arg database.UnfavoriteTemplateParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnfavoriteTemplate", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnfavoriteTemplate indicates an expected call of UnfavoriteTemplate.
+func (mr *MockStoreMockRecorder) UnfavoriteTemplate(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnfavoriteTemplate", reflect.TypeOf((*MockStore)(nil).UnfavoriteTemplate), ctx, arg)
 }
 
 // UnfavoriteWorkspace mocks base method.

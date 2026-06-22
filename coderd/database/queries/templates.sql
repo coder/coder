@@ -98,7 +98,7 @@ WHERE
 	END
   -- Authorize Filter clause will be injected below in GetAuthorizedTemplates
   -- @authorize_filter
-ORDER BY (t.name, t.id) ASC
+ORDER BY (LOWER(COALESCE(NULLIF(t.display_name, ''), t.name)), t.id) ASC
 ;
 
 -- name: GetTemplateByOrganizationAndName :one
@@ -115,7 +115,7 @@ LIMIT
 
 -- name: GetTemplates :many
 SELECT * FROM template_with_names AS templates
-ORDER BY (name, id) ASC
+ORDER BY (LOWER(COALESCE(NULLIF(display_name, ''), name)), id) ASC
 ;
 
 -- name: InsertTemplate :exec

@@ -5,6 +5,7 @@ import {
 } from "#/components/Filter/storyHelpers";
 import { chromaticWithTablet } from "#/testHelpers/chromatic";
 import {
+	MockFavoriteTemplate,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -195,5 +196,22 @@ export const WithValidationError: Story = {
 		templates: undefined,
 		examples: undefined,
 		canCreateTemplates: false,
+	},
+};
+
+export const WithFavoriteTemplate: Story = {
+	args: {
+		...WithTemplates.args,
+		templates: [
+			MockFavoriteTemplate,
+			MockTemplate,
+			{
+				...MockTemplate,
+				name: "another-template",
+				display_name: "Another Template",
+				active_user_count: 10,
+				icon: "/icon/goland.svg",
+			},
+		],
 	},
 };

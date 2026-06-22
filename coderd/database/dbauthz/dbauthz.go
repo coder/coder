@@ -2631,6 +2631,18 @@ func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) err
 	return q.db.ExpirePrebuildsAPIKeys(ctx, now)
 }
 
+func (q *querier) FavoriteTemplate(ctx context.Context, arg database.FavoriteTemplateParams) error {
+	// Any authenticated user can favorite a template they can read.
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, tpl); err != nil {
+		return err
+	}
+	return q.db.FavoriteTemplate(ctx, arg)
+}
+
 func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	fetch := func(ctx context.Context, id uuid.UUID) (database.Workspace, error) {
 		return q.db.GetWorkspaceByID(ctx, id)
@@ -5114,6 +5126,41 @@ func (q *querier) GetUserTaskNotificationAlertDismissed(ctx context.Context, use
 	return q.db.GetUserTaskNotificationAlertDismissed(ctx, userID)
 }
 
+func (q *querier) GetUserTemplateFavorites(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	// Users can read their own favorites. This is a personal
+	// preference, so we check ReadPersonal on the user.
+	user, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, user); err != nil {
+		return nil, err
+	}
+	return q.db.GetUserTemplateFavorites(ctx, userID)
+}
+
+func (q *querier) GetUserTerminalFont(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserTerminalFont(ctx, userID)
+}
+
+func (q *querier) GetUserThemePreference(ctx context.Context, userID uuid.UUID) (string, error) {
+	u, err := q.db.GetUserByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionReadPersonal, u); err != nil {
+		return "", err
+	}
+	return q.db.GetUserThemePreference(ctx, userID)
+}
+
 func (q *querier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid.UUID) (string, error) {
 	user, err := q.db.GetUserByID(ctx, userID)
 	if err != nil {
@@ -6971,6 +7018,17 @@ func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.Una
 		return err
 	}
 	return q.db.UnarchiveTemplateVersion(ctx, arg)
+}
+
+func (q *querier) UnfavoriteTemplate(ctx context.Context, arg database.UnfavoriteTemplateParams) error {
+	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, tpl); err != nil {
+		return err
+	}
+	return q.db.UnfavoriteTemplate(ctx, arg)
 }
 
 func (q *querier) UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error {

@@ -83,6 +83,33 @@ func TestTemplateList(t *testing.T) {
 		require.NoError(t, json.Unmarshal(out.Bytes(), &templates))
 		require.Len(t, templates, 2)
 	})
+	t.Run("ListFavoritedTemplate", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Favorite the template via the API.
+		err := memberClient.FavoriteTemplate(ctx, template.ID)
+		require.NoError(t, err)
+
+		// List templates and verify the ★ indicator appears.
+		inv, root := clitest.New(t, "templates", "list")
+		clitest.SetupConfig(t, memberClient, root)
+
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		err = inv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		require.Contains(t, buf.String(), "★")
+	})
 	t.Run("NoTemplates", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{})

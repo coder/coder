@@ -5,14 +5,17 @@ import {
 	EllipsisVerticalIcon,
 	PlusIcon,
 	SettingsIcon,
+	StarIcon,
+	StarOffIcon,
 	TrashIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
+import { toggleFavoriteTemplate } from "#/api/queries/templates";
 import { workspaces } from "#/api/queries/workspaces";
 import type {
 	AuthorizationResponse,
@@ -220,12 +223,26 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
+	const queryClient = useQueryClient();
+	const favoriteMutation = useMutation({
+		...toggleFavoriteTemplate(template, queryClient),
+		onError: (error: unknown) => {
+			toast.error("Failed to update favorite status.", {
+				description: getErrorDetail(error),
+			});
+		},
+	});
 
 	return (
 		<Margins>
 			<PageHeader
 				actions={
 					<>
+						<Button variant="outline" onClick={() => favoriteMutation.mutate()}>
+							{template.favorite ? <StarOffIcon /> : <StarIcon />}
+							{template.favorite ? "Unfavorite" : "Favorite"}
+						</Button>
+
 						{!template.deprecated &&
 							workspacePermissions.createWorkspaceForUserID && (
 								<Button asChild>

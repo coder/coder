@@ -931,6 +931,13 @@ export const MockTemplate: TypesGen.Template = {
 	use_classic_parameter_flow: false,
 	cors_behavior: "simple",
 	disable_module_cache: false,
+	favorite: false,
+};
+
+export const MockFavoriteTemplate: TypesGen.Template = {
+	...MockTemplate,
+	id: "test-favorite-template",
+	favorite: true,
 };
 
 const _MockTemplateVersionFiles: TemplateVersionFiles = {

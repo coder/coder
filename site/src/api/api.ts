@@ -2814,6 +2814,14 @@ class ApiMethods {
 		await this.axios.delete(`/api/v2/workspaces/${workspaceID}/favorite`);
 	};
 
+	putFavoriteTemplate = async (templateID: string) => {
+		await this.axios.put(`/api/v2/templates/${templateID}/favorite`);
+	};
+
+	deleteFavoriteTemplate = async (templateID: string) => {
+		await this.axios.delete(`/api/v2/templates/${templateID}/favorite`);
+	};
+
 	postWorkspaceUsage = async (
 		workspaceID: string,
 		options: PostWorkspaceUsageRequest,

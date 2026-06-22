@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { userEvent, within } from "storybook/test";
 import { workspacesKey } from "#/api/queries/workspaces";
 import {
+	MockFavoriteTemplate,
 	MockTemplate,
 	MockTemplateVersion,
 	MockWorkspace,
@@ -90,5 +91,11 @@ export const Deprecated: Story = {
 			deprecation_message:
 				"This template is not going to be used anymore. [See details](#details).",
 		},
+	},
+};
+
+export const Favorited: Story = {
+	args: {
+		template: MockFavoriteTemplate,
 	},
 };

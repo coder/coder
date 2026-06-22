@@ -196,6 +196,41 @@ export const updateActiveTemplateVersion = (
 	};
 };
 
+export const toggleFavoriteTemplate = (
+	template: Template,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: () => {
+			if (template.favorite) {
+				return API.deleteFavoriteTemplate(template.id);
+			}
+			return API.putFavoriteTemplate(template.id);
+		},
+		onSuccess: async () => {
+			// Optimistic update for the individual template query so
+			// the favorite button switches immediately.
+			const updated = { ...template, favorite: !template.favorite };
+			queryClient.setQueryData(templateKey(template.id), updated);
+			queryClient.setQueryData(
+				templateByNameKey(template.organization_name, template.name),
+				updated,
+			);
+			// Also update the layout query which uses a different key
+			// shape: ["template", templateName].
+			queryClient.setQueryData(["template", template.name], (old: unknown) => {
+				if (old && typeof old === "object" && "template" in old) {
+					return { ...old, template: updated };
+				}
+				return old;
+			});
+			await queryClient.invalidateQueries({
+				queryKey: getTemplatesQueryKey(),
+			});
+		},
+	};
+};
+
 export const templaceACLAvailable = (
 	templateId: string,
 	options: UsersRequest,
