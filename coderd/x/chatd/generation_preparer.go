@@ -239,7 +239,7 @@ func (server *Server) prepareGeneration(
 		// Anthropic transport). The conversion that actually drops or
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := func(mediaType string) bool {
-			return chatprovider.AcceptsFilePartMediaType(model.Provider(), mediaType)
+			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
 		}
 		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(modelConfig.Provider), logger, acceptsFilePart)
 		if err != nil {

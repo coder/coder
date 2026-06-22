@@ -98,7 +98,9 @@ func ExtractFileID(raw json.RawMessage) (uuid.UUID, error) {
 // prompt messages, resolving user file references via the provided
 // resolver. Missing-data placeholders are emitted only for replayed
 // user uploads; assistant-side and tool-side file metadata without
-// bytes is dropped from later model turns.
+// bytes is dropped from later model turns. acceptsFilePart, when
+// non-nil, gates whether text-family file parts are inlined as text for
+// providers that would drop them; nil preserves them as FilePart.
 func ConvertMessagesWithFiles(
 	ctx context.Context,
 	messages []database.ChatMessage,
@@ -1583,7 +1585,11 @@ func partsToMessageParts(
 			// provider would drop this media type, inline the content as
 			// text so the model still sees it. The stored file part is
 			// unchanged, so the chip and download are unaffected. Only an
-			// explicit text-ish allowlist is ever decoded.
+			// explicit text-family allowlist is ever decoded.
+			//
+			// This must run after the isSyntheticPaste check above;
+			// synthetic pastes use a truncating path and must not fall
+			// through to the non-truncating inline path.
 			if acceptsFilePart != nil &&
 				isInlinableTextMediaType(mediaType) &&
 				!acceptsFilePart(mediaType) {

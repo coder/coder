@@ -81,9 +81,11 @@ func InlineImageCapBytes(provider string) (int, bool) {
 // conversion accepts mediaType as a file content part, rather than
 // silently dropping it with a "file part media type not supported"
 // warning. The matrix mirrors each provider's FilePart handling in the
-// fantasy SDK. Unknown providers return false so callers convert
-// text-ish content to plain text and guarantee the model still sees it.
-func AcceptsFilePartMediaType(provider, mediaType string) bool {
+// fantasy SDK. modelID distinguishes API paths within a provider (e.g.
+// OpenAI Responses vs Chat Completions). Unknown providers return false
+// so callers convert text-family content to plain text and guarantee the
+// model still sees it.
+func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		baseType = parsed
@@ -102,9 +104,14 @@ func AcceptsFilePartMediaType(provider, mediaType string) bool {
 		// file-part acceptance, including text/* as native documents.
 		return isImage || isText || isPDF
 	case fantasyopenai.Name, fantasyazure.Name:
-		// chatd configures both with the Responses API, which only
-		// accepts images and PDFs as file parts.
-		return isImage || isPDF
+		// chatd configures both with WithUseResponsesAPI, but only
+		// Responses-capable models actually use it. Non-Responses models
+		// fall through to the Chat Completions path, which accepts
+		// text/* and audio as native file parts (same as openaicompat).
+		if fantasyopenai.IsResponsesModel(modelID) {
+			return isImage || isPDF
+		}
+		return isImage || isText || isAudio || isPDF
 	case fantasyopenaicompat.Name:
 		return isImage || isText || isAudio || isPDF
 	case fantasyopenrouter.Name, fantasyvercel.Name:
