@@ -63,8 +63,10 @@ func (d *runnerDebugTurn) Ensure(
 		return ctx
 	}
 	if d.created {
-		// Errors-only turns keep installing the ensurer so later model
-		// calls reuse the already-created run (the ensurer dedups).
+		// Errors-only turns keep installing a fresh ensurer so later
+		// model calls can each reach lazyCreateRun. lazyCreateRun itself
+		// dedups via d.created under the mutex, so only one run is ever
+		// created per turn.
 		if d.errorsOnly {
 			return chatdebug.WithErrorRunEnsurer(ctx, d.lazyCreateRun)
 		}

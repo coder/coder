@@ -106,6 +106,10 @@ import {
 export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
+
+// Cadence for the lightweight Debug-tab existence check while a turn is in
+// flight. Idle chats fetch once on mount and do not poll.
+const DEBUG_RUNS_EXISTENCE_POLL_MS = 5_000;
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
 
@@ -777,14 +781,6 @@ const AgentChatPage: FC = () => {
 	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
-	// Fetch debug runs independent of the Debug tab so the tab can appear
-	// whenever a chat has captured runs (errors are captured even when debug
-	// logging is off). The Debug panel shares this query key, so react-query
-	// dedupes the two consumers.
-	const chatDebugRunsQuery = useQuery({
-		...chatDebugRuns(agentId ?? ""),
-		enabled: Boolean(agentId),
-	});
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
@@ -795,7 +791,6 @@ const AgentChatPage: FC = () => {
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
-	const hasDebugRuns = (chatDebugRunsQuery.data?.length ?? 0) > 0;
 
 	// MCP server selection state.
 	const mcpServers = mcpServersQuery.data ?? [];
@@ -1071,6 +1066,30 @@ const AgentChatPage: FC = () => {
 	});
 	const liveChatStatus =
 		useChatSelector(store, selectChatStatus) ?? chatRecord?.status ?? null;
+	// Surface the Debug tab whenever a chat has captured debug runs, even
+	// when full debug logging is off (errors are captured by default). This
+	// existence check shares the Debug panel's query key, so react-query
+	// dedupes them. To avoid polling every idle chat every few seconds, it
+	// fetches once on mount and only keeps polling while a turn is in flight
+	// (or just errored) and no run has been found yet; the Debug panel keeps
+	// its own polling while open.
+	const chatTurnInFlight =
+		liveChatStatus === "pending" ||
+		liveChatStatus === "running" ||
+		liveChatStatus === "interrupting" ||
+		liveChatStatus === "requires_action" ||
+		liveChatStatus === "error";
+	const chatDebugRunsQuery = useQuery({
+		...chatDebugRuns(agentId ?? ""),
+		enabled: Boolean(agentId),
+		refetchInterval: (query) => {
+			const hasRuns = (query.state.data?.length ?? 0) > 0;
+			return hasRuns || !chatTurnInFlight
+				? false
+				: DEBUG_RUNS_EXISTENCE_POLL_MS;
+		},
+	});
+	const hasDebugRuns = (chatDebugRunsQuery.data?.length ?? 0) > 0;
 	const persistedError = getPersistedDetailError({
 		chatStatus: liveChatStatus,
 		chatRecord,
