@@ -83,8 +83,7 @@ type Options struct {
 	// value and reserved key IDs are not validated.
 	KeyID uuid.UUID
 
-	// SessionCancel, if set, terminates the daemon's session. It is called when
-	// the key is found deleted during job acquisition.
+	// SessionCancel, if set, terminates the daemon's session.
 	SessionCancel context.CancelFunc
 
 	// Clock for testing
