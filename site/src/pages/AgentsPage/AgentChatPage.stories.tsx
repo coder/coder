@@ -1477,7 +1477,7 @@ export const CompletedWithDiffPanel: Story = {
 		// Verify menu items are rendered.
 		const body = within(document.body);
 		await waitFor(() => {
-			expect(body.getByText("Archive Agent")).toBeInTheDocument();
+			expect(body.getByText("Archive agent")).toBeInTheDocument();
 		});
 		// Workspace items moved to the workspace pill popover.
 		expect(body.queryByText("Open in Cursor")).not.toBeInTheDocument();

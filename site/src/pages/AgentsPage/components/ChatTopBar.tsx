@@ -3,14 +3,16 @@ import {
 	ArchiveRestoreIcon,
 	ArrowLeftIcon,
 	ChevronRightIcon,
-	EllipsisIcon,
+	EllipsisVerticalIcon,
 	PanelLeftIcon,
 	PanelRightCloseIcon,
 	PanelRightOpenIcon,
+	PinIcon,
+	PinOffIcon,
 	Share2Icon,
+	SquarePenIcon,
 	Trash2Icon,
 	UsersIcon,
-	WandSparklesIcon,
 } from "lucide-react";
 import { type FC, Fragment, type ReactNode, useState } from "react";
 import { Link, useLocation } from "react-router";
@@ -47,11 +49,14 @@ type ChatTopBarProps = {
 	onArchiveAgent: () => void;
 	onUnarchiveAgent: () => void;
 	onArchiveAndDeleteWorkspace: () => void;
-	onRegenerateTitle?: () => void;
+	onPinAgent?: () => void;
+	onUnpinAgent?: () => void;
+	onOpenRenameDialog?: () => void;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
 	hasWorkspace?: boolean;
 	isArchived?: boolean;
+	isChildChat?: boolean;
+	isPinned?: boolean;
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
 	diffStatusData?: ChatDiffStatus;
@@ -99,11 +104,14 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 	onArchiveAgent,
 	onUnarchiveAgent,
 	onArchiveAndDeleteWorkspace,
-	onRegenerateTitle,
+	onPinAgent,
+	onUnpinAgent,
+	onOpenRenameDialog,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
 	hasWorkspace,
 	isArchived,
+	isChildChat,
+	isPinned,
 	isSidebarCollapsed,
 	onToggleSidebarCollapsed,
 	diffStatusData,
@@ -247,38 +255,50 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 								className="size-7 text-content-secondary hover:text-content-primary"
 								aria-label="Open agent actions"
 							>
-								<EllipsisIcon className="size-4" />
+								<EllipsisVerticalIcon className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
 							className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
 						>
-							{!isArchived && onRegenerateTitle && (
-								<>
-									<DropdownMenuItem
-										disabled={isRegenerateTitleDisabled}
-										onSelect={onRegenerateTitle}
-									>
-										<WandSparklesIcon className="size-3.5" />
-										Generate new title
-									</DropdownMenuItem>
-									<DropdownMenuSeparator />
-								</>
+							{!isArchived && !isChildChat && (onPinAgent || onUnpinAgent) && (
+								<DropdownMenuItem
+									onSelect={isPinned ? onUnpinAgent : onPinAgent}
+								>
+									{isPinned ? (
+										<>
+											<PinOffIcon className="size-3.5" />
+											Unpin agent
+										</>
+									) : (
+										<>
+											<PinIcon className="size-3.5" />
+											Pin agent
+										</>
+									)}
+								</DropdownMenuItem>
 							)}
 							{isArchived ? (
 								<DropdownMenuItem onSelect={onUnarchiveAgent}>
 									<ArchiveRestoreIcon className="size-3.5" />
-									Unarchive Agent
+									Unarchive agent
 								</DropdownMenuItem>
 							) : (
 								<>
+									{onOpenRenameDialog && (
+										<DropdownMenuItem onSelect={onOpenRenameDialog}>
+											<SquarePenIcon className="size-3.5" />
+											Rename chat
+										</DropdownMenuItem>
+									)}
+									<DropdownMenuSeparator />
 									<DropdownMenuItem
 										className="text-content-destructive focus:text-content-destructive"
 										onSelect={onArchiveAgent}
 									>
 										<ArchiveIcon className="size-3.5" />
-										Archive Agent
+										Archive agent
 									</DropdownMenuItem>
 									{hasWorkspace && (
 										<DropdownMenuItem
@@ -286,7 +306,7 @@ export const ChatTopBar: FC<ChatTopBarProps> = ({
 											onSelect={onArchiveAndDeleteWorkspace}
 										>
 											<Trash2Icon className="size-3.5" />
-											Archive & Delete Workspace
+											Archive & delete workspace
 										</DropdownMenuItem>
 									)}
 								</>

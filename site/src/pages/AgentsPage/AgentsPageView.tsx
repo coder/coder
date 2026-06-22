@@ -1,6 +1,7 @@
-import { type FC, type RefObject, useRef } from "react";
+import { type FC, type RefObject, useRef, useState } from "react";
 import { Outlet, useLocation } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import type { ModelSelectorOption } from "./components/ChatElements";
@@ -28,6 +29,8 @@ export interface AgentsOutletContext {
 	requestReorderPinnedAgent?: (chatId: string, pinOrder: number) => void;
 	onRegenerateTitle?: (chatId: string) => void;
 	onRenameTitle?: (chatId: string, title: string) => Promise<void>;
+	/** Opens the shared rename dialog for the given chat. */
+	onOpenRenameDialog?: (chat: Chat) => void;
 	regeneratingTitleChatIds: readonly string[];
 	isSidebarCollapsed: boolean;
 	onToggleSidebarCollapsed: () => void;
@@ -142,6 +145,10 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 
 	const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
+	// State for the shared rename-chat dialog. Lifted here so both the
+	// sidebar menu and the chat top bar open the same dialog instance.
+	const [chatPendingRename, setChatPendingRename] = useState<Chat | null>(null);
+
 	const outletContextValue: AgentsOutletContext = {
 		chatErrorReasons,
 		setChatErrorReason,
@@ -155,6 +162,7 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 		onRegenerateTitle: (chatId: string) => {
 			onRegenerateTitle(chatId).catch(() => {});
 		},
+		onOpenRenameDialog: setChatPendingRename,
 		regeneratingTitleChatIds,
 		isSidebarCollapsed,
 		onToggleSidebarCollapsed,
@@ -194,6 +202,8 @@ export const AgentsPageView: FC<AgentsPageViewProps> = ({
 					onReorderPinnedAgent={requestReorderPinnedAgent}
 					onRenameTitle={onRenameTitle}
 					onProposeTitle={onProposeTitle}
+					chatPendingRename={chatPendingRename}
+					onChatPendingRenameChange={setChatPendingRename}
 					regeneratingTitleChatIds={regeneratingTitleChatIds}
 					onBeforeNewAgent={handleNewAgent}
 					isSearchDialogOpen={isSearchDialogOpen}

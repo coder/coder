@@ -253,7 +253,6 @@ const AgentTopBarRouteElement = () => {
 			panel={{ showSidebarPanel: false, onToggleSidebar: fn() }}
 			onArchiveAgent={fn()}
 			onArchiveAndDeleteWorkspace={fn()}
-			onRegenerateTitle={fn()}
 			onUnarchiveAgent={fn()}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}

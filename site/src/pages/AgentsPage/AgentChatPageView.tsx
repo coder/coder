@@ -190,9 +190,12 @@ interface AgentChatPageViewProps {
 	handleArchiveAgentAction: () => void;
 	handleUnarchiveAgentAction: () => void;
 	handleArchiveAndDeleteWorkspaceAction: () => void;
-	handleRegenerateTitle?: () => void;
+	handlePinAgentAction?: () => void;
+	handleUnpinAgentAction?: () => void;
+	handleOpenRenameDialog?: () => void;
+	isPinned?: boolean;
+	isChildChat?: boolean;
 	isRegeneratingTitle?: boolean;
-	isRegenerateTitleDisabled?: boolean;
 
 	// Scroll container ref.
 	scrollContainerRef: RefObject<HTMLDivElement | null>;
@@ -358,9 +361,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 	handleArchiveAgentAction,
 	handleUnarchiveAgentAction,
 	handleArchiveAndDeleteWorkspaceAction,
-	handleRegenerateTitle,
+	handlePinAgentAction,
+	handleUnpinAgentAction,
+	handleOpenRenameDialog,
+	isPinned,
+	isChildChat,
 	isRegeneratingTitle,
-	isRegenerateTitleDisabled,
 	scrollContainerRef,
 	scrollToBottomRef,
 	hasMoreMessages,
@@ -837,11 +843,12 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 								onArchiveAndDeleteWorkspace={
 									handleArchiveAndDeleteWorkspaceAction
 								}
-								{...(handleRegenerateTitle
-									? { onRegenerateTitle: handleRegenerateTitle }
-									: {})}
+								onPinAgent={handlePinAgentAction}
+								onUnpinAgent={handleUnpinAgentAction}
+								onOpenRenameDialog={handleOpenRenameDialog}
+								isPinned={isPinned}
+								isChildChat={isChildChat}
 								isRegeneratingTitle={isRegeneratingTitle}
-								isRegenerateTitleDisabled={isRegenerateTitleDisabled}
 								hasWorkspace={Boolean(workspace)}
 								isArchived={isArchived}
 								diffStatusData={diffStatusData}
@@ -1080,7 +1087,6 @@ export const AgentChatPageLoadingView: FC<AgentChatPageLoadingViewProps> = ({
 					}}
 					onArchiveAgent={() => {}}
 					onUnarchiveAgent={() => {}}
-					onRegenerateTitle={() => {}}
 					onArchiveAndDeleteWorkspace={() => {}}
 					hasWorkspace={false}
 					isSidebarCollapsed={isSidebarCollapsed}
@@ -1158,7 +1164,6 @@ export const AgentChatPageNotFoundView: FC<AgentChatPageNotFoundViewProps> = ({
 				}}
 				onArchiveAgent={() => {}}
 				onUnarchiveAgent={() => {}}
-				onRegenerateTitle={() => {}}
 				onArchiveAndDeleteWorkspace={() => {}}
 				hasWorkspace={false}
 				isSidebarCollapsed={isSidebarCollapsed}
