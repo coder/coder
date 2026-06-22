@@ -4,11 +4,11 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type { ChatModelConfig } from "#/api/typesGenerated";
 import ModelsPageView from "./ModelsPageView";
 import {
-	mockAnthropicProviderState,
+	MockAnthropicProviderState,
+	MockOpenAIProviderState,
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
-	mockOpenAIProviderState,
 } from "./testFixtures";
 
 const meta: Meta<typeof ModelsPageView> = {
@@ -18,7 +18,7 @@ const meta: Meta<typeof ModelsPageView> = {
 		isLoading: false,
 		error: null,
 		models: [mockGPT5, mockClaude, mockDisabledModel],
-		providerStates: [mockOpenAIProviderState, mockAnthropicProviderState],
+		providerStates: [MockOpenAIProviderState, MockAnthropicProviderState],
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({

@@ -3,7 +3,7 @@ import type { ProviderState } from "#/modules/aiModels/providerStates";
 
 const now = "2026-02-18T12:00:00.000Z";
 
-const mockOpenAIProviderConfig: ChatProviderConfig = {
+const MockOpenAIProviderConfig: ChatProviderConfig = {
 	id: "prov-openai",
 	provider: "openai",
 	display_name: "OpenAI",
@@ -18,8 +18,8 @@ const mockOpenAIProviderConfig: ChatProviderConfig = {
 	updated_at: now,
 };
 
-const mockAnthropicProviderConfig: ChatProviderConfig = {
-	...mockOpenAIProviderConfig,
+const MockAnthropicProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
 	id: "prov-anthropic",
 	provider: "anthropic",
 	display_name: "Anthropic",
@@ -59,11 +59,11 @@ export const mockDisabledModel: ChatModelConfig = {
 	context_limit: 128000,
 };
 
-export const mockOpenAIProviderState: ProviderState = {
+export const MockOpenAIProviderState: ProviderState = {
 	key: "prov-openai",
 	provider: "openai",
 	label: "OpenAI",
-	providerConfig: mockOpenAIProviderConfig,
+	providerConfig: MockOpenAIProviderConfig,
 	modelConfigs: [mockGPT5, mockDisabledModel],
 	catalogModelCount: 0,
 	hasManagedAPIKey: true,
@@ -74,11 +74,11 @@ export const mockOpenAIProviderState: ProviderState = {
 	baseURL: "",
 };
 
-export const mockAnthropicProviderState: ProviderState = {
-	...mockOpenAIProviderState,
+export const MockAnthropicProviderState: ProviderState = {
+	...MockOpenAIProviderState,
 	key: "prov-anthropic",
 	provider: "anthropic",
 	label: "Anthropic",
-	providerConfig: mockAnthropicProviderConfig,
+	providerConfig: MockAnthropicProviderConfig,
 	modelConfigs: [mockClaude],
 };
