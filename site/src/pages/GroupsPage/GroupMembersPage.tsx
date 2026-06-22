@@ -144,6 +144,8 @@ const GroupMembersPage: FC = () => {
 						}
 					}}
 					user={budgetUser}
+					// TODO(#26401): pass the member's effective group, not the page's
+					// group, once the effective-group API exists.
 					currentGroup={groupData}
 				/>
 			)}

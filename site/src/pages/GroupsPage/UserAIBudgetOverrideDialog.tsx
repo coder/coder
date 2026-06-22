@@ -75,7 +75,7 @@ export const UserAIBudgetOverrideDialog: FC<
 		enabled: open,
 	});
 	const userGroupsQuery = useQuery({
-		...groupsForUser(user.id),
+		...groupsForUser(user.id, currentGroup.organization_id),
 		enabled: open,
 	});
 	const groupBudgetQuery = useQuery({
@@ -181,10 +181,12 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	const overrideId = useId();
 
 	const [overrideEnabled, setOverrideEnabled] = useState(override !== null);
-	// Seed from the override, falling back to the group budget, so it's never empty.
-	const [budgetDollars, setBudgetDollars] = useState(() =>
-		String(microsToDollars((override ?? groupBudget)?.spend_limit_micros ?? 0)),
-	);
+	// Seed from the override, else the group budget. Neither (uncapped) seeds
+	// empty, so enabling the override prompts for a value.
+	const [budgetDollars, setBudgetDollars] = useState(() => {
+		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
+		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
+	});
 	const [selectedGroupId, setSelectedGroupId] = useState(
 		override?.group_id ?? currentGroup.id,
 	);

@@ -2182,11 +2182,14 @@ class ApiMethods {
 	};
 
 	getGroups = async (
-		options: { userId?: string } = {},
+		options: { userId?: string; organization?: string } = {},
 	): Promise<TypesGen.Group[]> => {
 		const params: Record<string, string> = {};
 		if (options.userId !== undefined) {
 			params.has_member = options.userId;
+		}
+		if (options.organization !== undefined) {
+			params.organization = options.organization;
 		}
 
 		const response = await this.axios.get("/api/v2/groups", { params });

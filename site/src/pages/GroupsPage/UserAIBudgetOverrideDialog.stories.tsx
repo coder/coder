@@ -24,7 +24,7 @@ const mockGroupBudget: GroupAIBudget = {
 
 const groupQueries = [
 	{
-		key: groupsForUser(MockUserMember.id).queryKey,
+		key: groupsForUser(MockUserMember.id, MockGroup.organization_id).queryKey,
 		data: [MockGroup, MockGroup2],
 	},
 	{ key: groupAIBudget(MockGroup.id).queryKey, data: mockGroupBudget },
@@ -92,16 +92,30 @@ export const Uncapped: Story = {
 		queries: [
 			{ key: getUserAIBudgetOverrideQueryKey(MockUserMember.id), data: null },
 			{
-				key: groupsForUser(MockUserMember.id).queryKey,
+				key: groupsForUser(MockUserMember.id, MockGroup.organization_id)
+					.queryKey,
 				data: [MockGroup, MockGroup2],
 			},
 			{ key: groupAIBudget(MockGroup.id).queryKey, data: null },
 		],
 	},
-	play: async () => {
+	play: async ({ step }) => {
 		const body = within(document.body);
 		await expect(await body.findByText("uncapped")).toBeInTheDocument();
 		await expect(body.getByRole("checkbox")).not.toBeChecked();
+
+		await step(
+			"enabling the override starts empty, with no $0 warning",
+			async () => {
+				await userEvent.click(body.getByRole("checkbox"));
+				await expect(body.getByLabelText("Custom monthly budget")).toHaveValue(
+					null,
+				);
+				await expect(
+					body.queryByText("A $0 limit disables AI access for this member."),
+				).not.toBeInTheDocument();
+			},
+		);
 	},
 };
 

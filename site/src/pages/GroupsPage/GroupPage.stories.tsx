@@ -255,7 +255,13 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 				key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id),
 				data: mockOwnerOverride,
 			},
-			{ key: getGroupsForUserQueryKey(MockUserOwner.id), data: [MockGroup] },
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup],
+			},
 			{
 				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
 				data: null,
