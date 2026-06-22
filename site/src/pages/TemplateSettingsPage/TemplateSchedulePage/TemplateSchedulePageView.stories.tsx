@@ -82,3 +82,37 @@ export const SubmitClearsActivityBumpWhenDefaultTTLIsZero: Story = {
 		});
 	},
 };
+
+export const SubmitAutostopReminderConvertsHoursToMs: Story = {
+	args: {
+		...defaultArgs,
+		template: {
+			...MockTemplate,
+			time_til_autostop_notify_ms: 0,
+		},
+		onSubmit: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const reminderField = await canvas.findByLabelText(
+			"Autostop reminder (hours)",
+		);
+
+		await user.clear(reminderField);
+		await user.type(reminderField, "2");
+
+		const submitButton = canvas.getByRole("button", { name: /save/i });
+		await user.click(submitButton);
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					// 2 hours in milliseconds.
+					time_til_autostop_notify_ms: 2 * 60 * 60 * 1000,
+				}),
+			);
+		});
+	},
+};

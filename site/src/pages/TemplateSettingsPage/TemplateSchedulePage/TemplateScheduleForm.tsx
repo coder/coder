@@ -37,6 +37,7 @@ import { ScheduleDialog } from "./ScheduleDialog";
 import { TemplateScheduleAutostart } from "./TemplateScheduleAutostart";
 import {
 	ActivityBumpHelperText,
+	AutostopReminderHelperText,
 	DefaultTTLHelperText,
 	DormancyAutoDeletionTTLHelperText,
 	DormancyTTLHelperText,
@@ -84,6 +85,8 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			// on display, convert from ms => hours
 			default_ttl_ms: template.default_ttl_ms / MS_HOUR_CONVERSION,
 			activity_bump_ms: template.activity_bump_ms / MS_HOUR_CONVERSION,
+			time_til_autostop_notify_ms:
+				template.time_til_autostop_notify_ms / MS_HOUR_CONVERSION,
 			failure_ttl_ms: template.failure_ttl_ms,
 			time_til_dormant_ms: template.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms: template.time_til_dormant_autodelete_ms,
@@ -207,6 +210,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				form.values.default_ttl_ms && form.values.activity_bump_ms
 					? form.values.activity_bump_ms * MS_HOUR_CONVERSION
 					: undefined,
+			// 0 disables the reminder, so always send an explicit value.
+			time_til_autostop_notify_ms: form.values.time_til_autostop_notify_ms
+				? form.values.time_til_autostop_notify_ms * MS_HOUR_CONVERSION
+				: 0,
 			failure_ttl_ms: form.values.failure_ttl_ms,
 			time_til_dormant_ms: form.values.time_til_dormant_ms,
 			time_til_dormant_autodelete_ms:
@@ -314,6 +321,21 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 						fullWidth
 						inputProps={{ min: 0, step: 1 }}
 						label="Activity bump (hours)"
+						type="number"
+					/>
+
+					<TextField
+						{...getFieldHelpers("time_til_autostop_notify_ms", {
+							helperText: (
+								<AutostopReminderHelperText
+									lead={form.values.time_til_autostop_notify_ms}
+								/>
+							),
+						})}
+						disabled={isSubmitting}
+						fullWidth
+						inputProps={{ min: 0, step: 1 }}
+						label="Autostop reminder (hours)"
 						type="number"
 					/>
 

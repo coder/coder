@@ -59,6 +59,31 @@ export const ActivityBumpHelperText = (props: {
 	);
 };
 
+export const AutostopReminderHelperText = (props: { lead?: number }) => {
+	const { lead = 0 } = props;
+
+	// Error will show once field is considered touched
+	if (lead < 0) {
+		return null;
+	}
+
+	if (lead === 0) {
+		return (
+			<span>
+				Workspace owners will not be reminded before their workspace is
+				automatically stopped.
+			</span>
+		);
+	}
+
+	return (
+		<span>
+			Workspace owners will be reminded {lead} {hours(lead)} before their
+			workspace is automatically stopped.
+		</span>
+	);
+};
+
 export const FailureTTLHelperText = (props: { ttl?: number }) => {
 	const { ttl = 0 } = props;
 
