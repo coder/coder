@@ -63,15 +63,18 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 		return nil, xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
 	}
 
-	// The base identity signs requests directly unless a target RoleARN is
+	// The base identity signs Bedrock requests directly unless a target role is
 	// configured, in which case it signs the AssumeRole call and the resulting
-	// temporary credentials sign Bedrock requests.
+	// temporary credentials sign Bedrock requests. The default credential chain
+	// is already cache-wrapped, so only the AssumeRoleProvider is wrapped with a
+	// cache to avoid re-assuming the role on every request.
 	credsProvider := base.Credentials
 	if cfg.RoleARN != "" {
 		credsProvider = stscreds.NewAssumeRoleProvider(sts.NewFromConfig(base), cfg.RoleARN, func(o *stscreds.AssumeRoleOptions) {
 			o.RoleSessionName = bedrockSessionName
 		})
+		credsProvider = aws.NewCredentialsCache(credsProvider)
 	}
 
-	return aws.NewCredentialsCache(credsProvider), nil
+	return credsProvider, nil
 }
