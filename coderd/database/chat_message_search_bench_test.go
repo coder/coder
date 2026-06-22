@@ -1,5 +1,31 @@
 //go:build bench_chat_search
 
+/*
+Ranking with expression (not stored)
+chat_message_search_bench_test.go:39: seed before index: users=120 total_chats=5240 seeded_messages=1045484 duration=52.576159285s
+    chat_message_search_bench_test.go:45: create index duration: 18.122563581s
+    chat_message_search_bench_test.go:46: after create index: index size=41 MB bytes=43147264
+    chat_message_search_bench_test.go:51: seed after index: users=120 total_chats=5240 seeded_messages=1063192 duration=1m33.113173961s
+    chat_message_search_bench_test.go:53: after indexed seed: index size=95 MB bytes=99704832
+    chat_message_search_bench_test.go:56: query="authentication" count=50 duration=436.506558ms
+    chat_message_search_bench_test.go:56: query="permission denied" count=50 duration=448.813666ms
+    chat_message_search_bench_test.go:56: query="CODAGT-517" count=50 duration=316.140652ms
+    chat_message_search_bench_test.go:56: query="database migration" count=50 duration=271.755078ms
+    chat_message_search_bench_test.go:56: query="workspace timeout" count=50 duration=170.23749ms
+
+Ranking with stored tsvector
+    chat_message_search_bench_test.go:39: seed before index: users=120 total_chats=5240 seeded_messages=1045484 duration=1m9.879143913s
+    chat_message_search_bench_test.go:45: create index duration: 35.733918554s
+	chat_message_search_bench_test.go:46: after create index: index size=87 MB bytes=91373568
+    chat_message_search_bench_test.go:51: seed after index: users=120 total_chats=5240 seeded_messages=1063192 duration=1m21.926884633s
+    chat_message_search_bench_test.go:53: after indexed seed: index size=141 MB bytes=147734528
+    chat_message_search_bench_test.go:56: query="authentication" count=50 duration=120.732181ms
+    chat_message_search_bench_test.go:56: query="permission denied" count=50 duration=128.017026ms
+    chat_message_search_bench_test.go:56: query="CODAGT-517" count=50 duration=83.092696ms
+    chat_message_search_bench_test.go:56: query="database migration" count=50 duration=41.964317ms
+    chat_message_search_bench_test.go:56: query="workspace timeout" count=50 duration=69.882221ms
+*/
+
 package database_test
 
 import (
@@ -26,7 +52,7 @@ func BenchmarkChatMessageSearchIndex(b *testing.B) {
 	ctx := b.Context()
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(b)
 
-	createChatMessageSearchTextFunction(ctx, b, sqlDB)
+	createChatMessageSearchSchema(ctx, b, sqlDB)
 
 	profiles := chatMessageSearchProfiles(b)
 	totalChats, expectedMessages := chatMessageSearchTotals(profiles)
@@ -129,7 +155,7 @@ func benchEnvInt(t testing.TB, name string, fallback int) int {
 	return parsed
 }
 
-func createChatMessageSearchTextFunction(ctx context.Context, t testing.TB, sqlDB *sql.DB) {
+func createChatMessageSearchSchema(ctx context.Context, t testing.TB, sqlDB *sql.DB) {
 	t.Helper()
 
 	_, err := sqlDB.ExecContext(ctx, `
@@ -144,6 +170,25 @@ AS $$
 	) WITH ORDINALITY AS t(part, ord)
 	WHERE part->>'type' = 'text'
 $$;
+
+ALTER TABLE chat_messages
+	ADD COLUMN search_tsv tsvector;
+
+CREATE OR REPLACE FUNCTION chat_message_search_tsv_update()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+	NEW.search_tsv := to_tsvector('simple', chat_message_search_text(NEW.content));
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER chat_message_search_tsv_update
+BEFORE INSERT OR UPDATE OF content
+ON chat_messages
+FOR EACH ROW
+EXECUTE FUNCTION chat_message_search_tsv_update();
 `)
 	require.NoError(t, err)
 }
@@ -152,9 +197,12 @@ func createChatMessageSearchIndex(ctx context.Context, t testing.TB, sqlDB *sql.
 	t.Helper()
 
 	_, err := sqlDB.ExecContext(ctx, `
+UPDATE chat_messages
+SET search_tsv = to_tsvector('simple', chat_message_search_text(content));
+
 CREATE INDEX idx_chat_messages_visible_fts
 ON chat_messages
-USING GIN (to_tsvector('simple', chat_message_search_text(content)))
+USING GIN (search_tsv)
 WHERE deleted = false
   AND visibility IN ('user', 'both');
 `)
@@ -329,14 +377,14 @@ WITH search_query AS (
 )
 SELECT
 	cm.chat_id,
-	MAX(ts_rank(to_tsvector('simple', chat_message_search_text(cm.content)), search_query.query)) AS rank
+	MAX(ts_rank(cm.search_tsv, search_query.query)) AS rank
 FROM chat_messages cm
 JOIN chats c ON c.id = cm.chat_id
 CROSS JOIN search_query
 WHERE c.parent_chat_id IS NULL
   AND cm.deleted = false
   AND cm.visibility IN ('user', 'both')
-  AND to_tsvector('simple', chat_message_search_text(cm.content)) @@ search_query.query
+  AND cm.search_tsv @@ search_query.query
 GROUP BY cm.chat_id
 ORDER BY rank DESC
 LIMIT 50;
