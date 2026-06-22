@@ -968,7 +968,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
-	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/ai-gateway", reqCtx.Provider, originalPath)
+	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), agplaibridge.AIGatewayRootPath, reqCtx.Provider, originalPath)
 	if err != nil {
 		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Gateway URL")

@@ -5,8 +5,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+// API route prefixes for the AI Gateway Proxy and legacy AI Bridge Proxy endpoints.
+const (
+	AIGatewayProxyPath = agplaibridge.AIGatewayRootPath + "/proxy"
+	AIBridgeProxyPath  = agplaibridge.AIBridgeRootPath + "/proxy"
 )
 
 // RegisterInMemoryAIBridgeProxydHTTPHandler mounts [aibridgeproxyd.Server]'s HTTP handler
@@ -20,13 +27,13 @@ func (api *API) RegisterInMemoryAIBridgeProxydHTTPHandler(srv http.Handler) {
 	api.aibridgeproxydHandler = srv
 }
 
-// aibridgeproxyHandler returns the legacy /api/v2/aibridge/proxy route tree.
+// aibridgeProxyHTTPHandler returns the legacy /api/v2/aibridge/proxy route tree.
 // Kept for backward compatibility only.
 //
 // NOTE: new endpoints must be registered on the enterprise API
 // handler under /api/v2/ai-gateway, not in this shared route builder.
-func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	return aiGatewayProxyRoutes(api, "/api/v2/aibridge/proxy", middlewares...)
+func aibridgeProxyHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiGatewayProxyRoutes(api, AIBridgeProxyPath, middlewares...)
 }
 
 // aiGatewayProxyHTTPHandler returns the /api/v2/ai-gateway/proxy route tree.
@@ -36,7 +43,7 @@ func aibridgeproxyHandler(api *API, middlewares ...func(http.Handler) http.Handl
 // NOTE: new endpoints must be registered on the enterprise API
 // handler under /api/v2/ai-gateway, not in this shared route builder.
 func aiGatewayProxyHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	return aiGatewayProxyRoutes(api, "/api/v2/ai-gateway/proxy", middlewares...)
+	return aiGatewayProxyRoutes(api, AIGatewayProxyPath, middlewares...)
 }
 
 // aiGatewayProxyRoutes builds the route tree for AI Gateway Proxy endpoints.

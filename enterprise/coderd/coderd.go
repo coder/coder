@@ -294,11 +294,11 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// Legacy aibridge routes: kept for backward compatibility.
 	// New endpoints should be added to /ai-gateway only.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge", aibridgeHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeProxyHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	// AI Gateway routes: canonical aliases for the aibridge endpoints.

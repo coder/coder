@@ -47,13 +47,13 @@ var errInvalidCursor = xerrors.New("invalid pagination cursor")
 // check_constraint.go.
 const userAIBudgetOverridesMustBeGroupMemberConstraint database.CheckConstraint = "user_ai_budget_overrides_must_be_group_member"
 
-// aibridgeHandler returns the legacy /api/v2/aibridge route tree.
+// aibridgeHTTPHandler returns the legacy /api/v2/aibridge route tree.
 // Kept for backward compatibility only.
 //
 // NOTE: new endpoints must be registered on the enterprise API
 // handler under /api/v2/ai-gateway, not in this shared route builder.
-func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	return aiBridgeRoutes(api, "/api/v2/aibridge", middlewares...)
+func aibridgeHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
+	return aiBridgeRoutes(api, agplaibridge.AIBridgeRootPath, middlewares...)
 }
 
 // aiGatewayHTTPHandler returns the /api/v2/ai-gateway route tree.
@@ -63,7 +63,7 @@ func aibridgeHandler(api *API, middlewares ...func(http.Handler) http.Handler) f
 // NOTE: new endpoints must be registered on the enterprise API
 // handler under /api/v2/ai-gateway, not in this shared route builder.
 func aiGatewayHTTPHandler(api *API, middlewares ...func(http.Handler) http.Handler) func(r chi.Router) {
-	return aiBridgeRoutes(api, "/api/v2/ai-gateway", middlewares...)
+	return aiBridgeRoutes(api, agplaibridge.AIGatewayRootPath, middlewares...)
 }
 
 // aiBridgeRoutes builds the shared route tree for the legacy /aibridge

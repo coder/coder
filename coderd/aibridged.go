@@ -43,7 +43,7 @@ func (api *API) RegisterInMemoryAIBridgedHTTPHandler(srv http.Handler) {
 
 	api.aiGatewayHandler = srv
 
-	factory := aibridged.NewTransportFactory(http.StripPrefix("/api/v2/ai-gateway", srv))
+	factory := aibridged.NewTransportFactory(http.StripPrefix(agplaibridge.AIGatewayRootPath, srv))
 	var asInterface agplaibridge.TransportFactory = factory
 	api.AIBridgeTransportFactory.Store(&asInterface)
 }
