@@ -8,9 +8,9 @@ import {
 import { type FC, useRef, useState } from "react";
 import type {
 	ChatContext,
-	ChatContextMCPTool,
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
+	ChatContextTool,
 	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
@@ -61,7 +61,7 @@ type ContextSkillItem = {
 type ContextMcpItem = {
 	readonly name: string;
 	readonly source: string;
-	readonly tools: readonly ChatContextMCPTool[];
+	readonly tools: readonly ChatContextTool[];
 };
 // A pinned resource the agent could not use, surfaced with its error so the
 // failure is visible instead of silent.
@@ -238,7 +238,7 @@ export const ContextUsageIndicator: FC<{
 								? resource.source
 								: getPathBasename(resource.source),
 						source: resource.source,
-						tools: resource.mcp_tools ?? [],
+						tools: resource.tools ?? [],
 					}))
 			: []
 	)

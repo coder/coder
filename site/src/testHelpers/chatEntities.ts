@@ -61,7 +61,7 @@ const MockChatContextResources: ChatContextResource[] = [
 		kind: "mcp_server",
 		size_bytes: 512,
 		status: "ok",
-		mcp_tools: [
+		tools: [
 			{
 				name: "search_issues",
 				description: "Search issues and pull requests.",
