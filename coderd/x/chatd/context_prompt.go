@@ -2,6 +2,8 @@ package chatd
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -17,6 +19,58 @@ import (
 // the agent context push (coderd/agentapi/context.go). DiscardUnknown keeps
 // the reader forward compatible as new body fields are added to the proto.
 var contextBodyUnmarshalOptions = protojson.UnmarshalOptions{DiscardUnknown: true}
+
+// decodeInstructionFileBody decodes a protojson instruction-file resource
+// body. ok is false when the body cannot be decoded, letting callers count it
+// as malformed rather than silently treating it as empty.
+func decodeInstructionFileBody(body json.RawMessage) (*agentproto.InstructionFileBody, bool) {
+	var decoded agentproto.InstructionFileBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return nil, false
+	}
+	return &decoded, true
+}
+
+// decodeSkillMetaBody decodes a protojson skill resource body. ok is false
+// when the body cannot be decoded.
+func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool) {
+	var decoded agentproto.SkillMetaBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return nil, false
+	}
+	return &decoded, true
+}
+
+// mcpToolsFromServerBody decodes a stored mcp_server resource body and returns
+// its tool list for the chat response. The agent prefixes each tool name with
+// "<server>__"; that prefix is stripped so the name reads as the server
+// exposes it. Returns nil when the body has no tools or cannot be decoded.
+func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.ChatContextMCPTool {
+	var decoded agentproto.MCPServerBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return nil
+	}
+	tools := decoded.GetTools()
+	if len(tools) == 0 {
+		return nil
+	}
+	prefix := server + "__"
+	out := make([]codersdk.ChatContextMCPTool, 0, len(tools))
+	for _, t := range tools {
+		name := strings.TrimPrefix(t.GetName(), prefix)
+		if name == "" {
+			continue
+		}
+		out = append(out, codersdk.ChatContextMCPTool{
+			Name:        name,
+			Description: t.GetDescription(),
+		})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
 // workspace skills from the chat's pinned context resources
@@ -127,8 +181,8 @@ func contextResourcesToPrompt(
 		}
 		switch r.BodyKind {
 		case database.WorkspaceAgentContextBodyKindInstructionFile:
-			var body agentproto.InstructionFileBody
-			if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &body); err != nil {
+			body, decoded := decodeInstructionFileBody(r.Body)
+			if !decoded {
 				malformed++
 				continue
 			}
@@ -142,8 +196,8 @@ func contextResourcesToPrompt(
 				ContextFileContent: content,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
-			var body agentproto.SkillMetaBody
-			if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &body); err != nil {
+			body, decoded := decodeSkillMetaBody(r.Body)
+			if !decoded {
 				malformed++
 				continue
 			}
