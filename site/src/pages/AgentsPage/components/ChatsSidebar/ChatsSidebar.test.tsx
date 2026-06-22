@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { FC, PropsWithChildren } from "react";
-import { QueryClient, QueryClientProvider } from "react-query";
+import { QueryClientProvider } from "react-query";
 import { MemoryRouter } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -9,6 +9,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockAppearanceConfig,
 	MockBuildInfo,
@@ -16,6 +17,7 @@ import {
 	MockEntitlements,
 	MockUserOwner,
 } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import themes, { DEFAULT_THEME } from "#/theme";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { ChatsSidebar } from "./ChatsSidebar";
@@ -55,22 +57,11 @@ vi.mock("#/hooks/useAuthenticated", async () => {
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: "owner-1",
-	title: "Agent",
-	status: "completed",
 	last_model_config_id: "model-1",
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	mcp_server_ids: [],
-	labels: {},
-	children: [],
 	...overrides,
 });
 
@@ -85,11 +76,7 @@ const dashboardValue = {
 };
 
 const Wrapper: FC<PropsWithChildren> = ({ children }) => {
-	const queryClient = new QueryClient({
-		defaultOptions: {
-			queries: { retry: false, refetchOnWindowFocus: false },
-		},
-	});
+	const queryClient = createTestQueryClient();
 	return (
 		<QueryClientProvider client={queryClient}>
 			<ThemeOverride theme={themes[DEFAULT_THEME]}>
@@ -110,6 +97,7 @@ const defaultSidebarFilters: AgentSidebarFilters = {
 	groupBy: "date",
 	prStatuses: [],
 	chatStatuses: ["unread", "read"],
+	sources: ["created_by_me"],
 };
 
 const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
@@ -130,9 +118,82 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	isCreating: false,
 	sidebarFilters: defaultSidebarFilters,
 	onSidebarFiltersChange: vi.fn(),
+	currentUserId: MockUserOwner.id,
 };
 
 // ---- Tests ----
+
+describe("ChatsSidebar sections", () => {
+	it("renders unpinned shared chats in Shared with you before date sections", () => {
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-shared-chat",
+							title: "Pinned shared chat",
+							shared: true,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "shared-chat",
+							title: "Shared chat",
+							owner_id: "sharing-user-id",
+							shared: true,
+						}),
+						buildChat({
+							id: "owned-shared-chat",
+							title: "Owned shared chat",
+							shared: true,
+							updated_at: new Date().toISOString(),
+						}),
+						buildChat({
+							id: "owned-chat",
+							title: "Owned chat",
+							updated_at: new Date().toISOString(),
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		const pinnedSection = screen.getByTestId("agents-section-toggle-Pinned");
+		const pinnedSharedNode = screen.getByTestId(
+			"agents-tree-node-pinned-shared-chat",
+		);
+		const sharedSection = screen.getByTestId(
+			"agents-section-toggle-Shared-with-you",
+		);
+		const sharedNode = screen.getByTestId("agents-tree-node-shared-chat");
+		const todaySection = screen.getByTestId("agents-section-toggle-Today");
+		const ownedNode = screen.getByTestId("agents-tree-node-owned-chat");
+
+		expect(pinnedSection).toHaveTextContent("Pinned (1)");
+		expect(sharedSection).toHaveTextContent("Shared with you (1)");
+		expect(todaySection).toHaveTextContent("Today (2)");
+		expect(
+			pinnedSection.compareDocumentPosition(pinnedSharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			pinnedSharedNode.compareDocumentPosition(sharedSection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedSection.compareDocumentPosition(sharedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			sharedNode.compareDocumentPosition(todaySection) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+		expect(
+			todaySection.compareDocumentPosition(ownedNode) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+});
 
 describe("ChatsSidebar filters", () => {
 	it("calls the sidebar filter change callback after Apply is clicked", async () => {
@@ -171,6 +232,7 @@ describe("ChatsSidebar filters", () => {
 			groupBy: "chat_status",
 			prStatuses: ["draft"],
 			chatStatuses: ["unread"],
+			sources: ["shared_with_me"],
 		};
 
 		render(
@@ -197,6 +259,53 @@ describe("ChatsSidebar filters", () => {
 			...sidebarFilters,
 			prStatuses: [],
 			chatStatuses: ["unread", "read"],
+			sources: ["created_by_me"],
+		});
+	});
+
+	it("applies source filters", async () => {
+		const user = userEvent.setup();
+		const onSidebarFiltersChange = vi.fn();
+
+		const { rerender } = render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={defaultSidebarFilters}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Shared with me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["created_by_me", "shared_with_me"],
+		});
+
+		rerender(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					sidebarFilters={{
+						...defaultSidebarFilters,
+						sources: ["created_by_me", "shared_with_me"],
+					}}
+					onSidebarFiltersChange={onSidebarFiltersChange}
+				/>
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Filter agents" }));
+		await user.click(screen.getByRole("checkbox", { name: "Created by me" }));
+		await user.click(screen.getByRole("button", { name: "Apply" }));
+
+		expect(onSidebarFiltersChange).toHaveBeenLastCalledWith({
+			...defaultSidebarFilters,
+			sources: ["shared_with_me"],
 		});
 	});
 

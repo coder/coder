@@ -107,7 +107,7 @@ func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
 	clitest.StartWithAssert(t, inv, func(t *testing.T, err error) {
 		// actually no assertions are needed as the test verifies only Prometheus endpoint
 	})
-	stdout.ExpectMatchContext(ctx, "Started HTTP listener at")
+	stdout.ExpectMatch(ctx, "Started HTTP listener at")
 
 	// Fetch metrics from Prometheus endpoint
 	var res *http.Response

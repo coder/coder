@@ -19,10 +19,10 @@ Experimental: this endpoint is subject to change.
 
 ### Parameters
 
-| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-|---------|-------|--------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, diff_url:<url> (quote values containing colons), pr:<number> (exact PR number match), repo:<owner/repo> (case-insensitive substring match against git remote origin or URL), pr_title:<text> (case-insensitive PR title substring). Bare terms are not supported; use title:<value> for title filtering. |
-| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Name    | In    | Type   | Required | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|---------|-------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `q`     | query | string | false    | Search query. Supports title:<substring> (case-insensitive, quote multi-word values), archived:bool, has_unread:bool, pr_status:<draft\|open\|merged\|closed> as repeated or comma-separated values, source:<created_by_me\|shared_with_me>, diff_url:<url> (quote values containing colons), pr:<number> (exact PR number match), repo:<owner/repo> (case-insensitive substring match against git remote origin or URL), pr_title:<text> (case-insensitive PR title substring). Bare terms are not supported; use title:<value> for title filtering. |
+| `label` | query | string | false    | Filter by label as key:value. Repeat for multiple (AND logic).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ### Example responses
 
@@ -38,6 +38,11 @@ Experimental: this endpoint is subject to change.
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -161,6 +166,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -190,6 +196,10 @@ Status Code **200**
 | `» build_id`                      | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» children`                      | [codersdk.Chat](schemas.md#codersdkchat)                               | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats.                                                                                                                                 |
 | `» client_type`                   | [codersdk.ChatClientType](schemas.md#codersdkchatclienttype)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» context`                       | [codersdk.ChatContext](schemas.md#codersdkchatcontext)                 | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                                                                                                                                                 |
+| `»» dirty`                        | boolean                                                                | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                                                                                                                                                                                   |
+| `»» dirty_since`                  | string(date-time)                                                      | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                                                                                                                                                                                          |
+| `»» error`                        | string                                                                 | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                                                                                                                                                                                    |
 | `» created_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» diff_status`                   | [codersdk.ChatDiffStatus](schemas.md#codersdkchatdiffstatus)           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»» additions`                    | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -286,6 +296,7 @@ Status Code **200**
 | `» pin_order`                     | integer                                                                | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» plan_mode`                     | [codersdk.ChatPlanMode](schemas.md#codersdkchatplanmode)               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» root_chat_id`                  | string(uuid)                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `» shared`                        | boolean                                                                | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                                                                                                                                                          |
 | `» status`                        | [codersdk.ChatStatus](schemas.md#codersdkchatstatus)                   | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» title`                         | string                                                                 | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `» updated_at`                    | string(date-time)                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -294,13 +305,13 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property      | Value(s)                                                                                                                                 |
-|---------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| `client_type` | `api`, `ui`                                                                                                                              |
-| `kind`        | `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
-| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                             |
-| `plan_mode`   | `plan`                                                                                                                                   |
-| `status`      | `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting`                                                       |
+| Property      | Value(s)                                                                                                                                        |
+|---------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `client_type` | `api`, `ui`                                                                                                                                     |
+| `kind`        | `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
+| `type`        | `context-file`, `file`, `file-reference`, `reasoning`, `skill`, `source`, `text`, `tool-call`, `tool-result`                                    |
+| `plan_mode`   | `plan`                                                                                                                                          |
+| `status`      | `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting`                                              |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -382,6 +393,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -505,6 +521,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -515,6 +532,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -638,6 +660,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -799,6 +822,11 @@ Experimental: this endpoint is subject to change.
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -922,6 +950,7 @@ Experimental: this endpoint is subject to change.
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -986,6 +1015,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -1109,6 +1143,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -1119,6 +1154,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -1242,6 +1282,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1303,6 +1344,329 @@ Experimental: this endpoint is subject to change.
 | Status | Meaning                                                         | Description | Schema |
 |--------|-----------------------------------------------------------------|-------------|--------|
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Refresh chat context
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/experimental/chats/{chat}/context \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/experimental/chats/{chat}/context`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_injected_context": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "last_injected_context": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
+  "status": "waiting",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1387,6 +1751,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -1510,6 +1879,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -1520,6 +1890,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -1643,6 +2018,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2272,6 +2648,329 @@ message in the chat.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Reconcile invalid chat state
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/experimental/chats/{chat}/reconcile-invalid \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/experimental/chats/{chat}/reconcile-invalid`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "archived": true,
+  "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+  "children": [
+    {
+      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+      "archived": true,
+      "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
+      "children": [],
+      "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
+      "created_at": "2019-08-24T14:15:22Z",
+      "diff_status": {
+        "additions": 0,
+        "approved": true,
+        "author_avatar_url": "string",
+        "author_login": "string",
+        "base_branch": "string",
+        "changed_files": 0,
+        "changes_requested": true,
+        "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+        "commits": 0,
+        "deletions": 0,
+        "head_branch": "string",
+        "pr_number": 0,
+        "pull_request_draft": true,
+        "pull_request_state": "string",
+        "pull_request_title": "string",
+        "refreshed_at": "2019-08-24T14:15:22Z",
+        "reviewer_count": 0,
+        "stale_at": "2019-08-24T14:15:22Z",
+        "url": "string"
+      },
+      "files": [
+        {
+          "created_at": "2019-08-24T14:15:22Z",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "mime_type": "string",
+          "name": "string",
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+          "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+        }
+      ],
+      "has_unread": true,
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "last_error": {
+        "detail": "string",
+        "kind": "generic",
+        "message": "string",
+        "provider": "string",
+        "retryable": true,
+        "status_code": 0
+      },
+      "last_injected_context": [
+        {
+          "args": [
+            0
+          ],
+          "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
+          "content": "string",
+          "context_file_agent_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "context_file_content": "string",
+          "context_file_directory": "string",
+          "context_file_os": "string",
+          "context_file_path": "string",
+          "context_file_skill_meta_file": "string",
+          "context_file_truncated": true,
+          "created_at": "2019-08-24T14:15:22Z",
+          "data": [
+            0
+          ],
+          "end_line": 0,
+          "file_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "file_name": "string",
+          "is_error": true,
+          "is_media": true,
+          "mcp_server_config_id": {
+            "uuid": "string",
+            "valid": true
+          },
+          "media_type": "string",
+          "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
+          "provider_executed": true,
+          "provider_metadata": [
+            0
+          ],
+          "result": [
+            0
+          ],
+          "result_delta": "string",
+          "result_reset": true,
+          "signature": "string",
+          "skill_description": "string",
+          "skill_dir": "string",
+          "skill_name": "string",
+          "source_id": "string",
+          "start_line": 0,
+          "text": "string",
+          "title": "string",
+          "tool_call_id": "string",
+          "tool_name": "string",
+          "type": "text",
+          "url": "string"
+        }
+      ],
+      "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+      "last_turn_summary": "string",
+      "mcp_server_ids": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
+      "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+      "pin_order": 0,
+      "plan_mode": "plan",
+      "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
+      "status": "waiting",
+      "title": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "warnings": [
+        "string"
+      ],
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+    }
+  ],
+  "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
+  "created_at": "2019-08-24T14:15:22Z",
+  "diff_status": {
+    "additions": 0,
+    "approved": true,
+    "author_avatar_url": "string",
+    "author_login": "string",
+    "base_branch": "string",
+    "changed_files": 0,
+    "changes_requested": true,
+    "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
+    "commits": 0,
+    "deletions": 0,
+    "head_branch": "string",
+    "pr_number": 0,
+    "pull_request_draft": true,
+    "pull_request_state": "string",
+    "pull_request_title": "string",
+    "refreshed_at": "2019-08-24T14:15:22Z",
+    "reviewer_count": 0,
+    "stale_at": "2019-08-24T14:15:22Z",
+    "url": "string"
+  },
+  "files": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "mime_type": "string",
+      "name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05"
+    }
+  ],
+  "has_unread": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "last_error": {
+    "detail": "string",
+    "kind": "generic",
+    "message": "string",
+    "provider": "string",
+    "retryable": true,
+    "status_code": 0
+  },
+  "last_injected_context": [
+    {
+      "args": [
+        0
+      ],
+      "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "content": "string",
+      "context_file_agent_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "context_file_content": "string",
+      "context_file_directory": "string",
+      "context_file_os": "string",
+      "context_file_path": "string",
+      "context_file_skill_meta_file": "string",
+      "context_file_truncated": true,
+      "created_at": "2019-08-24T14:15:22Z",
+      "data": [
+        0
+      ],
+      "end_line": 0,
+      "file_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "file_name": "string",
+      "is_error": true,
+      "is_media": true,
+      "mcp_server_config_id": {
+        "uuid": "string",
+        "valid": true
+      },
+      "media_type": "string",
+      "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
+      "provider_executed": true,
+      "provider_metadata": [
+        0
+      ],
+      "result": [
+        0
+      ],
+      "result_delta": "string",
+      "result_reset": true,
+      "signature": "string",
+      "skill_description": "string",
+      "skill_dir": "string",
+      "skill_name": "string",
+      "source_id": "string",
+      "start_line": 0,
+      "text": "string",
+      "title": "string",
+      "tool_call_id": "string",
+      "tool_name": "string",
+      "type": "text",
+      "url": "string"
+    }
+  ],
+  "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
+  "last_turn_summary": "string",
+  "mcp_server_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
+  "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
+  "pin_order": 0,
+  "plan_mode": "plan",
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
+  "status": "waiting",
+  "title": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "warnings": [
+    "string"
+  ],
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Chat](schemas.md#codersdkchat) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Stream chat events via WebSockets
 
 ### Code samples
@@ -2399,6 +3098,8 @@ Experimental: this endpoint is subject to change.
     }
   },
   "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
     "part": {
       "args": [
         0
@@ -2461,7 +3162,8 @@ Experimental: this endpoint is subject to change.
       "type": "text",
       "url": "string"
     },
-    "role": "system"
+    "role": "system",
+    "seq": 0
   },
   "queued_messages": [
     {
@@ -2675,6 +3377,11 @@ Experimental: this endpoint is subject to change.
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -2798,6 +3505,7 @@ Experimental: this endpoint is subject to change.
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2808,6 +3516,11 @@ Experimental: this endpoint is subject to change.
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2931,6 +3644,7 @@ Experimental: this endpoint is subject to change.
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",

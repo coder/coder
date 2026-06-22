@@ -2301,8 +2301,10 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	// Then
 	require.Len(t, invalidated.Invalidated, 2)
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name}, invalidated.Invalidated[0])
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[1])
+	require.ElementsMatch(t, []codersdk.InvalidatedPreset{
+		{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters1.Name},
+		{TemplateName: template.Name, TemplateVersionName: version1.Name, PresetName: presetWithParameters2.Name},
+	}, invalidated.Invalidated)
 
 	// Given the template is updated...
 	version2 := coderdtest.UpdateTemplateVersion(t, templateAdminClient, owner.OrganizationID, &echo.Responses{
@@ -2320,8 +2322,10 @@ func TestInvalidateTemplatePrebuilds(t *testing.T) {
 
 	// Then: it should only invalidate the presets from the currently active version (preset2 and preset3)
 	require.Len(t, invalidated.Invalidated, 2)
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name}, invalidated.Invalidated[0])
-	require.Equal(t, codersdk.InvalidatedPreset{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name}, invalidated.Invalidated[1])
+	require.ElementsMatch(t, []codersdk.InvalidatedPreset{
+		{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters2.Name},
+		{TemplateName: template.Name, TemplateVersionName: version2.Name, PresetName: presetWithParameters3.Name},
+	}, invalidated.Invalidated)
 }
 
 func TestInvalidateTemplatePrebuilds_RegularUser(t *testing.T) {

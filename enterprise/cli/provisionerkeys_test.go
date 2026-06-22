@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestProvisionerKeys(t *testing.T) {
@@ -39,19 +39,18 @@ func TestProvisionerKeys(t *testing.T) {
 			"provisioner", "keys", "create", name, "--tag", "foo=bar", "--tag", "my=way",
 		)
 
-		pty := ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, orgAdminClient, conf)
 
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		line := pty.ReadLine(ctx)
+		line := stdout.ReadLine(ctx)
 		require.Contains(t, line, "Successfully created provisioner key")
 		require.Contains(t, line, strings.ToLower(name))
 		// empty line
-		_ = pty.ReadLine(ctx)
-		key := pty.ReadLine(ctx)
+		_ = stdout.ReadLine(ctx)
+		key := stdout.ReadLine(ctx)
 		require.NotEmpty(t, key)
 		require.NoError(t, provisionerkey.Validate(key))
 
@@ -59,17 +58,16 @@ func TestProvisionerKeys(t *testing.T) {
 			t,
 			"provisioner", "keys", "ls",
 		)
-		pty = ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout = expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, orgAdminClient, conf)
 
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		line = pty.ReadLine(ctx)
+		line = stdout.ReadLine(ctx)
 		require.Contains(t, line, "NAME")
 		require.Contains(t, line, "CREATED AT")
 		require.Contains(t, line, "TAGS")
-		line = pty.ReadLine(ctx)
+		line = stdout.ReadLine(ctx)
 		require.Contains(t, line, strings.ToLower(name))
 		require.Contains(t, line, "foo=bar my=way")
 
@@ -78,13 +76,12 @@ func TestProvisionerKeys(t *testing.T) {
 			"provisioner", "keys", "delete", "-y", name,
 		)
 
-		pty = ptytest.New(t)
-		inv.Stdout = pty.Output()
+		stdout = expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, orgAdminClient, conf)
 
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		line = pty.ReadLine(ctx)
+		line = stdout.ReadLine(ctx)
 		require.Contains(t, line, "Successfully deleted provisioner key")
 		require.Contains(t, line, strings.ToLower(name))
 
@@ -92,14 +89,12 @@ func TestProvisionerKeys(t *testing.T) {
 			t,
 			"provisioner", "keys", "ls",
 		)
-		pty = ptytest.New(t)
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout = expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, orgAdminClient, conf)
 
 		err = inv.WithContext(ctx).Run()
 		require.NoError(t, err)
-		line = pty.ReadLine(ctx)
+		line = stdout.ReadLine(ctx)
 		require.Contains(t, line, "No provisioner keys found")
 	})
 }

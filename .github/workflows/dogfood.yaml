@@ -16,28 +16,26 @@ on:
   #   registry); the Docker Hub push is gated on
   #   `github.ref == 'refs/heads/main'`. Fork PRs skip the entire
   #   base+mise-oci pipeline since GITHUB_TOKEN is read-only for
-  #   packages; the nix matrix entry still runs.
+  #   packages.
   #   `deploy_template` runs `terraform init` + `validate` only; the
   #   apply step and SHA/title gathering are gated on main.
   #
   #   Pushes to main: `build_image` retags rolling tags on
-  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`),
-  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), and
-  #   `codercom/oss-dogfood-nix` (`:latest`), plus a per-branch tag on
-  #   each. The image-tooling validation runs as above before any
-  #   push, so a broken image never reaches Docker Hub.
+  #   `codercom/oss-dogfood` (`:latest`, `:22.04`, `:26.04`) and
+  #   `codercom/oss-dogfood-vscode-coder` (`:latest`), plus a
+  #   per-branch tag on each. The image-tooling validation runs as
+  #   above before any push, so a broken image never reaches Docker
+  #   Hub.
   #   `deploy_template` runs `terraform apply` and creates new
   #   `coderd_template` versions on dev.coder.com whose `name` is the
-  #   commit short SHA. Content is unchanged when neither `dogfood/**`
-  #   nor the flake files changed, so the new versions are cosmetic.
+  #   commit short SHA. Content is unchanged when `dogfood/**` is
+  #   unchanged, so the new versions are cosmetic.
   push:
     branches:
       - main
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
-      - "flake.lock"
-      - "flake.nix"
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
@@ -46,8 +44,6 @@ on:
     paths:
       - "dogfood/**"
       - ".github/workflows/dogfood.yaml"
-      - "flake.lock"
-      - "flake.nix"
       - "mise.toml"
       - "mise.lock"
       - "scripts/dogfood/**"
@@ -62,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image-version: ["22.04", "26.04", "nix"]
+        image-version: ["22.04", "26.04"]
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
@@ -83,34 +79,6 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Setup Nix
-        uses: nixbuild/nix-quick-install-action@2c9db80fb984ceb1bcaa77cdda3fdf8cfba92035 # v34
-        with:
-          # Pinning to 2.28 here, as Nix gets a "error: [json.exception.type_error.302] type must be array, but is string"
-          # on version 2.29 and above.
-          nix_version: "2.28.5"
-        if: matrix.image-version == 'nix'
-
-      - uses: nix-community/cache-nix-action@7df957e333c1e5da7721f60227dbba6d06080569 # v7.0.2
-        with:
-          # restore and save a cache using this key
-          primary-key: nix-${{ runner.os }}-${{ hashFiles('**/*.nix', '**/flake.lock') }}
-          # if there's no cache hit, restore a cache by this prefix
-          restore-prefixes-first-match: nix-${{ runner.os }}-
-          # collect garbage until Nix store size (in bytes) is at most this number
-          # before trying to save a new cache
-          # 1G = 1073741824
-          gc-max-store-size-linux: 5G
-          # do purge caches
-          purge: true
-          # purge all versions of the cache
-          purge-prefixes: nix-${{ runner.os }}-
-          # created more than this number of seconds ago relative to the start of the `Post Restore` phase
-          purge-created: 0
-          # except the version with the `primary-key`, if it exists
-          purge-primary-key: never
-        if: matrix.image-version == 'nix'
-
       - name: Get branch name
         id: branch-name
         uses: tj-actions/branch-names@5250492686b253f06fa55861556d1027b067aeb5 # v9.0.2
@@ -126,21 +94,19 @@ jobs:
 
       - name: Set up Depot CLI
         uses: depot/setup-action@15c09a5f77a0840ad4bce955686522a257853461 # v1.7.1
-        if: matrix.image-version != 'nix'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
-        if: matrix.image-version != 'nix'
 
       - name: Set up mise tools
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: ./.github/actions/setup-mise
 
       - name: Compute image SHAs
         # Match the fork guard on the downstream consumers of these
         # outputs: nothing reads `steps.shas.outputs.*` outside the
         # base-push + mise-oci pipeline, which is gated below.
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         id: shas
         env:
           IMAGE_VERSION: ${{ matrix.image-version }}
@@ -153,8 +119,8 @@ jobs:
       - name: Login to GHCR
         # Fork PRs get a read-only GITHUB_TOKEN that cannot push to
         # ghcr.io. Skip the entire GHCR-dependent pipeline (base push +
-        # mise oci build) for fork PRs; the nix matrix entry still runs.
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        # mise oci build) for fork PRs.
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
         with:
           registry: ghcr.io
@@ -170,7 +136,7 @@ jobs:
 
       - name: Build base image
         uses: depot/build-push-action@5f3b3c2e5a00f0093de47f657aeaefcedff27d18 # v1.17.0
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
           project: b4q6ltmpzh
           token: ${{ secrets.DEPOT_TOKEN }}
@@ -191,7 +157,7 @@ jobs:
             ghcr.io/coder/oss-dogfood-base:${{ matrix.image-version }}-${{ steps.docker-tag-name.outputs.tag }}
 
       - name: Build mise oci layer
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           IMAGE_VERSION: ${{ matrix.image-version }}
           BASE_SHA: ${{ steps.shas.outputs.base_sha }}
@@ -210,7 +176,7 @@ jobs:
       # daemon command, but its built-in registry server gives us a
       # simple two-hop path with no extra dependencies.
       - name: Load mise oci image into Docker daemon
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           IMAGE_VERSION: ${{ matrix.image-version }}
         run: |
@@ -230,7 +196,7 @@ jobs:
       # lint, and a fat build inside it. Failures here block the
       # Docker Hub push below so broken images never reach workspaces.
       - name: Test image tooling
-        if: matrix.image-version != 'nix' && !github.event.pull_request.head.repo.fork
+        if: ${{ !github.event.pull_request.head.repo.fork }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./scripts/dogfood_test_image.sh "dogfood-test:${{ matrix.image-version }}"
@@ -278,25 +244,6 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
         if: matrix.image-version == '22.04'
-
-      - name: Build Nix image
-        run: nix build .#dev_image
-        if: matrix.image-version == 'nix'
-
-      - name: Push Nix image
-        if: matrix.image-version == 'nix' && github.ref == 'refs/heads/main'
-        run: |
-          docker load -i result
-
-          CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
-
-          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:${DOCKER_TAG}"
-          docker image push "codercom/oss-dogfood-nix:${DOCKER_TAG}"
-
-          docker image tag "codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM" "codercom/oss-dogfood-nix:latest"
-          docker image push "codercom/oss-dogfood-nix:latest"
-        env:
-          DOCKER_TAG: ${{ steps.docker-tag-name.outputs.tag }}
 
   deploy_template:
     needs: build_image

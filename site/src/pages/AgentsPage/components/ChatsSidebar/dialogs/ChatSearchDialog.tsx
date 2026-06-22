@@ -400,7 +400,7 @@ const ChatSearchDialogContent: FC<ChatSearchDialogContentProps> = ({
 				   the dropdown, but clicks within the dropdown (which is
 				   inside the same container) don't trigger blur. */}
 			<div
-				className="relative"
+				className="relative w-full min-w-0 max-w-full"
 				onBlur={(e) => {
 					if (!e.currentTarget.contains(e.relatedTarget)) {
 						setIsDropdownOpen(false);

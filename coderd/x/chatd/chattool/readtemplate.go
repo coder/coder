@@ -23,16 +23,17 @@ type readTemplateArgs struct {
 }
 
 // ReadTemplate returns a tool that retrieves details about a specific
-// template, including its configurable rich parameters. The agent
-// uses this after list_templates and before create_workspace.
+// template, including its configurable rich parameters. The agent uses
+// this after list_templates when it needs parameters or presets before
+// create_workspace.
 // db must not be nil.
 func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTemplateOptions) fantasy.AgentTool {
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
 			"configurable parameters and available presets. Use this "+
-			"after finding a template with list_templates and before "+
-			"creating a workspace with create_workspace.",
+			"after list_templates when you need required parameter "+
+			"details or preset IDs before create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {

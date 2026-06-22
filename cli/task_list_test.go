@@ -77,7 +77,7 @@ func TestExpTaskList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		stdout.ExpectMatchContext(ctx, "No tasks found.")
+		stdout.ExpectMatch(ctx, "No tasks found.")
 	})
 
 	t.Run("Single_Table", func(t *testing.T) {
@@ -102,9 +102,9 @@ func TestExpTaskList(t *testing.T) {
 		require.NoError(t, err)
 
 		// Validate the table includes the task and status.
-		stdout.ExpectMatchContext(ctx, task.Name)
-		stdout.ExpectMatchContext(ctx, "initializing")
-		stdout.ExpectMatchContext(ctx, wantPrompt)
+		stdout.ExpectMatch(ctx, task.Name)
+		stdout.ExpectMatch(ctx, "initializing")
+		stdout.ExpectMatch(ctx, wantPrompt)
 	})
 
 	t.Run("StatusFilter_JSON", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestExpTaskList(t *testing.T) {
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
 
-		stdout.ExpectMatchContext(ctx, task.Name)
+		stdout.ExpectMatch(ctx, task.Name)
 	})
 
 	t.Run("Quiet", func(t *testing.T) {

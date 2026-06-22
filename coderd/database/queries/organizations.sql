@@ -116,10 +116,10 @@ SELECT
 
 -- name: InsertOrganization :one
 INSERT INTO
-    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default)
+    organizations (id, "name", display_name, description, icon, created_at, updated_at, is_default, default_org_member_roles)
 VALUES
     -- If no organizations exist, and this is the first, make it the default.
-    (@id, @name, @display_name, @description, @icon, @created_at, @updated_at, (SELECT TRUE FROM organizations LIMIT 1) IS NULL) RETURNING *;
+    (@id, @name, @display_name, @description, @icon, @created_at, @updated_at, (SELECT TRUE FROM organizations LIMIT 1) IS NULL, @default_org_member_roles) RETURNING *;
 
 -- name: UpdateOrganization :one
 UPDATE
@@ -129,7 +129,8 @@ SET
     name = @name,
     display_name = @display_name,
     description = @description,
-    icon = @icon
+    icon = @icon,
+    default_org_member_roles = @default_org_member_roles
 WHERE
     id = @id
 RETURNING *;

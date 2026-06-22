@@ -50,7 +50,7 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should return a message when no presets are found for the given template and version.
 		notFoundMessage := fmt.Sprintf("No presets found for template %q and template-version %q.", template.Name, version.Name)
-		stdout.ExpectRegexMatchContext(ctx, notFoundMessage)
+		stdout.ExpectRegexMatch(ctx, notFoundMessage)
 	})
 
 	t.Run("ListsPresetsForDefaultTemplateVersion", func(t *testing.T) {
@@ -119,11 +119,11 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should: return the active version's presets sorted by name
 		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
-		stdout.ExpectMatchContext(ctx, message)
-		stdout.ExpectRegexMatchContext(ctx, `preset-default\s+k1=v2\s+true\s+0`)
+		stdout.ExpectMatch(ctx, message)
+		stdout.ExpectRegexMatch(ctx, `preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
-		stdout.ExpectRegexMatchContext(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		stdout.ExpectRegexMatchContext(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
+		stdout.ExpectRegexMatch(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
+		stdout.ExpectRegexMatch(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
 	})
 
 	t.Run("ListsPresetsForSpecifiedTemplateVersion", func(t *testing.T) {
@@ -211,11 +211,11 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should: return the specified version's presets sorted by name
 		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
-		stdout.ExpectMatchContext(ctx, message)
-		stdout.ExpectRegexMatchContext(ctx, `preset-default\s+k1=v2\s+true\s+0`)
+		stdout.ExpectMatch(ctx, message)
+		stdout.ExpectRegexMatch(ctx, `preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
-		stdout.ExpectRegexMatchContext(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		stdout.ExpectRegexMatchContext(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
+		stdout.ExpectRegexMatch(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
+		stdout.ExpectRegexMatch(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
 	})
 
 	t.Run("ListsPresetsJSON", func(t *testing.T) {

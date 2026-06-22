@@ -1,0 +1,77 @@
+{
+  "id": "git-clone",
+  "display_name": "Git Clone",
+  "description": "Clone a Git repository by URL and skip if it exists.",
+  "icon": "/icon/git.svg",
+  "category": "Source Control",
+  "tags": [
+    "git",
+    "helper"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "2.0.1",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "base_dir",
+      "type": "string",
+      "description": "The base directory to clone the repository. Defaults to \"$HOME\".",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "branch_name",
+      "type": "string",
+      "description": "The branch name to clone. If not provided, the default branch will be cloned.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder_name",
+      "type": "string",
+      "description": "The destination folder to clone the repository into.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "post_clone_script",
+      "type": "string",
+      "description": "Custom script to run after cloning the repository. Runs always after git clone, even if the repository already exists.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "pre_clone_script",
+      "type": "string",
+      "description": "Custom script to run before cloning the repository. Runs before git clone, even if the repository already exists.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "description": "The URL of the Git repository.",
+      "required": true,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

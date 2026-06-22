@@ -16,12 +16,28 @@ INSERT INTO boundary_sessions (
 ) RETURNING *;
 
 -- name: GetBoundarySessionByID :one
-SELECT * FROM boundary_sessions WHERE id = @id;
+SELECT
+    bs.*,
+    w.id AS workspace_id,
+    w.owner_id AS workspace_owner_id
+FROM
+    boundary_sessions bs
+JOIN
+    workspace_agents wa ON wa.id = bs.workspace_agent_id
+JOIN
+    workspace_resources wr ON wr.id = wa.resource_id
+JOIN
+    workspace_builds wb ON wb.job_id = wr.job_id
+JOIN
+    workspaces w ON w.id = wb.workspace_id
+WHERE
+    bs.id = @id;
 
 -- name: InsertBoundaryLogs :many
 INSERT INTO boundary_logs (
     id,
     session_id,
+    owner_id,
     sequence_number,
     captured_at,
     created_at,
@@ -33,13 +49,14 @@ INSERT INTO boundary_logs (
 SELECT
     unnest(@id :: uuid[]),
     @session_id :: uuid,
+    @owner_id :: uuid,
     unnest(@sequence_number :: int[]),
     unnest(@captured_at :: timestamptz[]),
     unnest(@created_at :: timestamptz[]),
     unnest(@proto :: text[]),
     unnest(@method :: text[]),
     unnest(@detail :: text[]),
-    unnest(@matched_rule :: text[])
+    NULLIF(unnest(@matched_rule :: text[]), '')
 RETURNING *;
 
 -- name: GetBoundaryLogByID :one
@@ -77,3 +94,20 @@ WITH old_logs AS (
 DELETE FROM boundary_logs
 USING old_logs
 WHERE boundary_logs.id = old_logs.id;
+
+-- name: DeleteOldBoundarySessions :execrows
+-- Deletes boundary sessions that have aged past retention and no longer
+-- have any associated logs.
+WITH old_sessions AS (
+    SELECT bs.id
+    FROM boundary_sessions bs
+    WHERE bs.updated_at < @before_time::timestamptz
+      AND NOT EXISTS (
+          SELECT 1 FROM boundary_logs bl WHERE bl.session_id = bs.id
+      )
+    ORDER BY bs.updated_at ASC
+    LIMIT @limit_count
+)
+DELETE FROM boundary_sessions
+USING old_sessions
+WHERE boundary_sessions.id = old_sessions.id;

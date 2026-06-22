@@ -1025,6 +1025,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls/index.md",
@@ -1614,6 +1620,10 @@
 							"path": "./reference/api/tasks.md"
 						},
 						{
+							"title": "TemplateBuilder",
+							"path": "./reference/api/templatebuilder.md"
+						},
+						{
 							"title": "Templates",
 							"path": "./reference/api/templates.md"
 						},
@@ -1638,29 +1648,14 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
-							"title": "aibridge",
-							"description": "Manage AI Bridge.",
-							"path": "reference/cli/aibridge.md"
-						},
-						{
-							"title": "aibridge interceptions",
-							"description": "Manage AI Bridge interceptions.",
-							"path": "reference/cli/aibridge_interceptions.md"
-						},
-						{
-							"title": "aibridge interceptions list",
-							"description": "List AI Bridge interceptions as JSON.",
-							"path": "reference/cli/aibridge_interceptions_list.md"
-						},
-						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"
 						},
 						{
-							"title": "boundary",
+							"title": "agent-firewall",
 							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
-							"path": "reference/cli/boundary.md"
+							"path": "reference/cli/agent-firewall.md"
 						},
 						{
 							"title": "coder",

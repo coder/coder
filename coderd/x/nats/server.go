@@ -20,7 +20,7 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	}
 	maxPending := opts.MaxPending
 	if maxPending <= 0 {
-		maxPending = DefaultMaxPending
+		maxPending = DefaultServerMaxPendingBytes
 	}
 
 	sopts := &natsserver.Options{
@@ -34,6 +34,9 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	sopts.DontListen = false
 	sopts.Host = "127.0.0.1"
 	sopts.Port = natsserver.RANDOM_PORT
+	if opts.ClusterAuthToken != "" {
+		sopts.Authorization = opts.ClusterAuthToken
+	}
 
 	if !opts.disableCluster {
 		clusterHost := opts.ClusterHost
@@ -54,6 +57,10 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			Host:     clusterHost,
 			Port:     clusterPort,
 			PoolSize: routePoolSize,
+		}
+		if opts.ClusterAuthToken != "" {
+			sopts.Cluster.Username = defaultClusterTokenUsername
+			sopts.Cluster.Password = opts.ClusterAuthToken
 		}
 	}
 
@@ -89,6 +96,9 @@ type connHandlers struct {
 func connectClient(ns *natsserver.Server, opts Options, handlers connHandlers, connName string) (*natsgo.Conn, error) {
 	connOpts := []natsgo.Option{
 		natsgo.Name(connName),
+	}
+	if opts.ClusterAuthToken != "" {
+		connOpts = append(connOpts, natsgo.Token(opts.ClusterAuthToken))
 	}
 	if opts.ReconnectWait > 0 {
 		connOpts = append(connOpts, natsgo.ReconnectWait(opts.ReconnectWait))

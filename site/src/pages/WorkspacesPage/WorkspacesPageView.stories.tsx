@@ -193,6 +193,14 @@ export const AllStates: Story = {
 		workspaces: allWorkspaces,
 		count: allWorkspaces.length,
 	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByText(allWorkspaces[0].name);
+		const images = canvasElement.querySelectorAll("img");
+		expect(images.length).toBeGreaterThan(0);
+		for (const img of images) {
+			expect(img).toHaveAttribute("alt");
+		}
+	},
 };
 
 export const Loading: Story = {

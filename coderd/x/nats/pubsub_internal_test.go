@@ -2,16 +2,16 @@ package nats
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/url"
-	"sync"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -74,19 +74,21 @@ func Test_pickConn(t *testing.T) {
 
 	t.Run("DifferentSubjects", func(t *testing.T) {
 		t.Parallel()
-		var a, b natsgo.Conn
-		pool := []*natsgo.Conn{&a, &b}
-
-		require.NotSame(t, pickConn(pool, "a"), pickConn(pool, "b"))
+		a := new(fakeConn)
+		b := new(fakeConn)
+		pool := []conn{a, b}
+		ca := pickConn(pool, "a")
+		cb := pickConn(pool, "b")
+		require.NotSame(t, ca, cb)
 	})
 }
 
-func subjectForConn(t *testing.T, pool []*natsgo.Conn, conn *natsgo.Conn, prefix string) string {
+func subjectForConn(t *testing.T, pool []conn, c conn, prefix string) string {
 	t.Helper()
 
 	for i := range 10_000 {
 		subject := fmt.Sprintf("%s_%d", prefix, i)
-		if pickConn(pool, subject) == conn {
+		if pickConn(pool, subject) == c {
 			return subject
 		}
 	}
@@ -115,8 +117,8 @@ func Test_New(t *testing.T) {
 			}
 		})
 
-		require.Equal(t, 2, ps.ns.NumClients(),
-			"expected exactly 2 client connections (pubConn + subConn), got %d", ps.ns.NumClients())
+		require.Equal(t, 2, ps.Server.NumClients(),
+			"expected exactly 2 client connections (pubConn + subConn), got %d", ps.Server.NumClients())
 		require.Len(t, ps.publishPool, 1, "default PublishConns must be 1")
 		require.Len(t, ps.subscribePool, 1, "default SubscribeConns must be 1")
 		require.NotSame(t, ps.publishPool[0], ps.subscribePool[0], "pubConn and subConn must be distinct")
@@ -158,184 +160,121 @@ func Test_Pubsub_buildConnHandlers(t *testing.T) {
 		ps := newPubsub(ctx, logger, defaultTestOptions())
 
 		var subConnA, subConnB, pubConn natsgo.Conn
-		ps.subscribePool = []*natsgo.Conn{&subConnA, &subConnB}
+		ps.subscribePool = []conn{&subConnA, &subConnB}
 		matchingEvent := subjectForConn(t, ps.subscribePool, &subConnA, "disconnect_match")
 		otherEvent := subjectForConn(t, ps.subscribePool, &subConnB, "disconnect_other")
 
-		newLocal := func(event string) *localSub {
+		newLocal := func(event string, errCh chan error) *localSub {
+			queue := pubsub.NewMsgQueue(ctx, nil, func(_ context.Context, _ []byte, err error) {
+				testutil.RequireSend(ctx, t, errCh, err)
+			})
+			// normally, closing the pubsub would clean this, but we don't actually close pubsub in this test because
+			// it uses fake connections. So, we need to close these to avoid leaking goroutines.
+			t.Cleanup(func() {
+				queue.Close()
+			})
 			return &localSub{
-				event:      event,
-				dropSignal: make(chan struct{}, 1),
+				event: event,
+				queue: queue,
 			}
 		}
 
-		matchingSub := newLocal(matchingEvent)
-		otherSub := newLocal(otherEvent)
-		ps.subscriptions[matchingSub.event] = &natsSub{localSubs: map[*localSub]struct{}{matchingSub: {}}}
-		ps.subscriptions[otherSub.event] = &natsSub{localSubs: map[*localSub]struct{}{otherSub: {}}}
+		matchErr := make(chan error)
+		matchingSub := newLocal(matchingEvent, matchErr)
+		otherErr := make(chan error)
+		otherSub := newLocal(otherEvent, otherErr)
+		ps.subscriptions[matchingSub.event] = &groupSub{localSubs: map[*localSub]struct{}{matchingSub: {}}}
+		ps.subscriptions[otherSub.event] = &groupSub{localSubs: map[*localSub]struct{}{otherSub: {}}}
 
 		handlers := ps.buildConnHandlers()
 		handlers.disconnectErr(&subConnA, xerrors.New("disconnect"))
 
+		err := testutil.RequireReceive(ctx, t, matchErr)
+		require.ErrorIs(t, err, pubsub.ErrDroppedMessages)
 		select {
-		case <-matchingSub.dropSignal:
-		default:
-			require.Fail(t, "matching subscriber did not receive drop signal")
-		}
-		select {
-		case <-otherSub.dropSignal:
+		case <-otherErr:
 			require.Fail(t, "non-matching subscriber received drop signal")
 		default:
 		}
 
 		handlers.disconnectErr(&pubConn, xerrors.New("publisher disconnect"))
 		select {
-		case <-otherSub.dropSignal:
+		case <-otherErr:
 			require.Fail(t, "publisher connection disconnect signaled subscriber")
 		default:
 		}
 	})
 }
 
-func Test_localSub_init(t *testing.T) {
+func Test_localSub(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SerializesCallbacks", func(t *testing.T) {
+	t.Run("SameSubjectSlowListenerDoesNotBlockPeer", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		dataStarted := make(chan struct{})
-		dropDelivered := make(chan struct{})
-		release := make(chan struct{})
-		var dataOnce sync.Once
-		var dropOnce sync.Once
-		var releaseOnce sync.Once
-		var active atomic.Int64
-		var concurrent atomic.Bool
-
-		s := &localSub{
-			ctx:    ctx,
-			cancel: func() {},
-			listener: func(_ context.Context, _ []byte, ferr error) {
-				if active.Add(1) != 1 {
-					concurrent.Store(true)
-				}
-				defer active.Add(-1)
-
-				if errors.Is(ferr, pubsub.ErrDroppedMessages) {
-					dropOnce.Do(func() { close(dropDelivered) })
-					return
-				}
-
-				dataOnce.Do(func() { close(dataStarted) })
-				<-release
-			},
-			queue:      make(chan []byte, 1),
-			dropSignal: make(chan struct{}, 1),
-		}
-		s.init()
-		t.Cleanup(func() {
-			releaseOnce.Do(func() { close(release) })
-			s.close()
-		})
-
-		s.enqueue([]byte("data"))
-		require.Eventually(t, func() bool {
-			select {
-			case <-dataStarted:
-				return true
-			default:
-				return false
-			}
-		}, testutil.WaitShort, testutil.IntervalFast)
-
-		s.signalDrop()
-		require.Never(t, func() bool {
-			select {
-			case <-dropDelivered:
-				return true
-			default:
-				return false
-			}
-		}, testutil.IntervalMedium, testutil.IntervalFast,
-			"drop callback must wait for the blocked data callback")
-		require.False(t, concurrent.Load(), "listener callback ran concurrently")
-
-		releaseOnce.Do(func() { close(release) })
-		require.Eventually(t, func() bool {
-			select {
-			case <-dropDelivered:
-				return true
-			default:
-				return false
-			}
-		}, testutil.WaitShort, testutil.IntervalFast)
-		require.False(t, concurrent.Load(), "listener callback ran concurrently")
-	})
-
-	t.Run("CrossSubjectListenerIsolation", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ps, err := New(ctx, logger, defaultTestOptions())
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = ps.Close() })
 
 		release := make(chan struct{})
-		var releaseOnce sync.Once
-		var slowDrops atomic.Int64
-		var slowBlocked atomic.Bool
-		slowCancel, err := ps.SubscribeWithErr("iso_slow", func(_ context.Context, _ []byte, ferr error) {
-			if ferr != nil && errors.Is(ferr, pubsub.ErrDroppedMessages) {
-				slowDrops.Add(1)
-				return
-			}
-			if slowBlocked.CompareAndSwap(false, true) {
-				<-release
-			}
+		defer close(release)
+
+		// The blocking listener wedges on its first delivery and never
+		// returns, so its dispatcher goroutine only ever runs the body once.
+		blocked := make(chan struct{}, 1)
+		slowCancel, err := ps.Subscribe("subject", func(context.Context, []byte) {
+			blocked <- struct{}{}
+			<-release
 		})
 		require.NoError(t, err)
 		defer slowCancel()
 
+		// Wedge the slow listener's dispatcher goroutine before the fast
+		// listener subscribes, so the fast listener only ever sees the pings
+		// published below.
+		require.NoError(t, ps.Publish("subject", []byte("blocking listener")))
+		require.NoError(t, ps.Flush())
+		testutil.RequireReceive(ctx, t, blocked)
+
 		var fastCount atomic.Int64
-		fastCancel, err := ps.Subscribe("iso_fast", func(_ context.Context, _ []byte) {
+		fastCancel, err := ps.Subscribe("subject", func(context.Context, []byte) {
 			fastCount.Add(1)
 		})
 		require.NoError(t, err)
 		defer fastCancel()
-		defer releaseOnce.Do(func() { close(release) })
 
-		total := defaultListenerQueueSize + 256
-		payload := make([]byte, 4*1024)
-		for range total {
-			require.NoError(t, ps.Publish("iso_slow", payload))
-			require.NoError(t, ps.Publish("iso_fast", []byte("ping")))
+		// Both listeners share one NATS subscription. The fast listener has its
+		// own bounded inbox and dispatcher goroutine, so it must receive every
+		// ping even though its same-subject peer is stuck. fastMsgs stays well
+		// under the inbox cap, so no overflow drop is possible and the count is
+		// deterministic.
+		const fastMsgs = 64
+		for range fastMsgs {
+			require.NoError(t, ps.Publish("subject", []byte("ping")))
 		}
 		require.NoError(t, ps.Flush())
-
 		require.Eventually(t, func() bool {
-			return fastCount.Load() >= int64(total)
-		}, testutil.WaitLong, testutil.IntervalFast)
-		require.Zero(t, slowDrops.Load(),
-			"drop callback must wait for the blocked data callback")
-		releaseOnce.Do(func() { close(release) })
-		require.Eventually(t, func() bool {
-			return slowDrops.Load() >= 1
+			return fastCount.Load() == int64(fastMsgs)
 		}, testutil.WaitLong, testutil.IntervalFast,
-			"slow subscriber must receive at least one ErrDroppedMessages signal")
+			"fast listener must keep receiving while same-subject peer is blocked")
 
-		require.GreaterOrEqual(t, fastCount.Load(), int64(total),
-			"fast subscriber must keep receiving despite slow peer on shared subConn")
+		// One coalesced subscription on one subConn; the slow consumer must
+		// not tear it down.
 		require.Len(t, ps.subscribePool, 1)
-		require.False(t, ps.subscribePool[0].IsClosed(), "subConn must not be closed by slow consumer")
-		require.True(t, ps.subscribePool[0].IsConnected(), "subConn must stay connected")
-		require.Equal(t, 2, ps.ns.NumClients(), "slow consumer must not disconnect subConn")
+		natsConn, ok := ps.subscribePool[0].(*natsgo.Conn)
+		require.True(t, ok)
+		require.False(t, natsConn.IsClosed(), "subConn must not be closed by slow consumer")
+		require.True(t, natsConn.IsConnected(), "subConn must stay connected")
+
+		err = ps.Close()
+		require.NoError(t, err)
+		require.Empty(t, ps.subscriptions)
 	})
 }
 
 func TestPubsubCluster(t *testing.T) {
 	t.Parallel()
-
 	// OK verifies that SetPeerAddresses changes the active cluster topology.
 	// A starts connected to B, then C is added and receives both global and
 	// C-only messages. B is then removed from A's peers, while C continues to
@@ -343,15 +282,18 @@ func TestPubsubCluster(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		a := newTestPubsub(t, clusterTestOptions(t))
-		b := newTestPubsub(t, clusterTestOptions(t))
-		c := newTestPubsub(t, clusterTestOptions(t))
+		opts := clusterTestOptions(t)
+		a := newTestPubsub(t, opts)
+		b := newTestPubsub(t, opts)
+		c := newTestPubsub(t, opts)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
 
-		require.NoError(t, a.SetPeerAddresses([]string{addrB}))
-		requireRoutesEqual(t, a.currentRoutes, addrB)
+		require.NoError(t, a.setPeerAddresses([]string{addrB}))
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+		)
 
 		globalEvent := "global"
 		bGlobal := make(chan []byte, 8)
@@ -383,8 +325,11 @@ func TestPubsubCluster(t *testing.T) {
 
 		// Add C to A's peer list. B and C should both receive global messages,
 		// while the C-only subject should route only to C.
-		require.NoError(t, a.SetPeerAddresses([]string{addrC, addrB}))
-		requireRoutesEqual(t, a.currentRoutes, addrB, addrC)
+		require.NoError(t, a.setPeerAddresses([]string{addrC, addrB}))
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrB, opts.ClusterAuthToken),
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		waitForRouteSubscription(t, a, globalEvent)
 		waitForRouteSubscription(t, a, cSubject)
@@ -397,8 +342,10 @@ func TestPubsubCluster(t *testing.T) {
 		require.Equal(t, "c-unique-msg", string(receiveMessage(t, cUnique)))
 
 		// Remove B from A's peer list. Only C should receive the next messages.
-		require.NoError(t, a.SetPeerAddresses([]string{addrC}))
-		requireRoutesEqual(t, a.currentRoutes, addrC)
+		require.NoError(t, a.setPeerAddresses([]string{addrC}))
+		requireRoutesEqual(t, a.currentRoutes,
+			addrWithAuth(t, addrC, opts.ClusterAuthToken),
+		)
 
 		publishAndFlush(t, a, globalEvent, "no-b-peer")
 		require.Equal(t, "no-b-peer", string(receiveMessage(t, cGlobal)))
@@ -406,6 +353,102 @@ func TestPubsubCluster(t *testing.T) {
 		publishAndFlush(t, a, cSubject, "c-messages-still-work")
 		require.Equal(t, "c-messages-still-work", string(receiveMessage(t, cUnique)))
 	})
+
+	// InvalidAuthRejected asserts the cluster route listener rejects
+	// connections that do not present the configured ClusterAuthToken.
+	// We dial the route listener directly with the nats.go client, which
+	// surfaces a typed nats.ErrAuthorization for protocol-level -ERR
+	// 'Authorization Violation' responses.
+	t.Run("ClusterAuthRequired", func(t *testing.T) {
+		t.Parallel()
+
+		ps := newTestPubsub(t, clusterTestOptions(t))
+		routeURL := clusterRouteAddress(t, ps)
+
+		_, err := natsgo.Connect(routeURL,
+			natsgo.Token("wrong-token"),
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"route dial with wrong token must be rejected")
+
+		_, err = natsgo.Connect(routeURL,
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"unauthenticated route dial must be rejected")
+	})
+
+	// ClientAuthRequired asserts the local NATS client listener also requires
+	// the configured ClusterAuthToken, so loopback clients cannot bypass auth.
+	t.Run("ClientAuthRequired", func(t *testing.T) {
+		t.Parallel()
+
+		opts := clusterTestOptions(t)
+		ps := newTestPubsub(t, opts)
+		clientURL := ps.Server.ClientURL()
+
+		_, err := natsgo.Connect(clientURL,
+			natsgo.MaxReconnects(0),
+			natsgo.RetryOnFailedConnect(false),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.ErrorIs(t, err, natsgo.ErrAuthorization,
+			"unauthenticated client connect must be rejected")
+
+		nc, err := natsgo.Connect(clientURL,
+			natsgo.Token(opts.ClusterAuthToken),
+			natsgo.Timeout(testutil.WaitShort),
+		)
+		require.NoError(t, err, "authenticated client connect with matching token must succeed")
+		nc.Close()
+	})
+}
+
+func TestSubscribeError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name  string
+		fConn *fakeConn
+	}{
+		{
+			name: "Subscribe",
+			fConn: &fakeConn{
+				subError: assert.AnError,
+			},
+		},
+		{
+			name: "Flush",
+			fConn: &fakeConn{
+				flushError: assert.AnError,
+			},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			logger := slogtest.Make(t, &slogtest.Options{
+				IgnoredErrorIs: []error{natsgo.ErrConnectionClosed, assert.AnError},
+			})
+			ctx := testutil.Context(t, testutil.WaitShort)
+			ps := newPubsub(ctx, logger, defaultTestOptions())
+			ps.subscribePool = []conn{tc.fConn}
+			cancel, err := ps.SubscribeWithErr("foo", func(ctx context.Context, message []byte, err error) {
+				t.Error("should not get any events")
+			})
+			require.ErrorIs(t, err, assert.AnError)
+			require.Nil(t, cancel)
+			ps.mu.Lock()
+			defer ps.mu.Unlock()
+			require.Empty(t, ps.subscriptions)
+		})
+	}
 }
 
 func defaultTestOptions() Options {
@@ -415,9 +458,10 @@ func defaultTestOptions() Options {
 func clusterTestOptions(t *testing.T) Options {
 	t.Helper()
 	return Options{
-		ClusterHost:    "127.0.0.1",
-		ClusterPort:    natsserver.RANDOM_PORT,
-		disableCluster: false,
+		ClusterHost:      "127.0.0.1",
+		ClusterPort:      natsserver.RANDOM_PORT,
+		disableCluster:   false,
+		ClusterAuthToken: fmt.Sprintf("shared-token-%d", time.Now().UnixNano()),
 	}
 }
 
@@ -435,15 +479,23 @@ func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 
 func clusterRouteAddress(t *testing.T, ps *Pubsub) string {
 	t.Helper()
-	addr := ps.ns.ClusterAddr()
+	addr := ps.Server.ClusterAddr()
 	require.NotNil(t, addr)
 	return "nats://" + addr.String()
+}
+
+func addrWithAuth(t *testing.T, addr string, authToken string) string {
+	t.Helper()
+	u, err := url.Parse(addr)
+	require.NoError(t, err)
+	u.User = url.UserPassword(defaultClusterTokenUsername, authToken)
+	return u.String()
 }
 
 func waitForRouteSubscription(t *testing.T, ps *Pubsub, subject string) {
 	t.Helper()
 	require.Eventually(t, func() bool {
-		routes, err := ps.ns.Routez(&natsserver.RoutezOptions{Subscriptions: true})
+		routes, err := ps.Server.Routez(&natsserver.RoutezOptions{Subscriptions: true})
 		if err != nil {
 			return false
 		}
@@ -477,16 +529,42 @@ func receiveMessage(t *testing.T, got <-chan []byte) []byte {
 
 func requireRoutesEqual(t *testing.T, routes []*url.URL, addresses ...string) {
 	t.Helper()
-	want, err := parsePeerAddresses(addresses)
-	require.NoError(t, err)
-	want = sortRouteURLs(want)
-	require.True(t, sortedURLsEqual(want, routes), "want %v, got %v", routeStrings(want), routeStrings(routes))
+
+	rrs := routeStrings(routes)
+
+	slices.Sort(rrs)
+	slices.Sort(addresses)
+
+	require.True(t, slices.Equal(rrs, addresses), "want %v, got %v", rrs, addresses)
 }
 
 func routeStrings(routes []*url.URL) []string {
-	strings := make([]string, 0, len(routes))
+	out := make([]string, 0, len(routes))
 	for _, route := range routes {
-		strings = append(strings, route.String())
+		out = append(out, route.String())
 	}
-	return strings
+	return out
+}
+
+type fakeConn struct {
+	subError   error
+	flushError error
+}
+
+func (*fakeConn) Publish(string, []byte) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (*fakeConn) Close() {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (f *fakeConn) Flush() error {
+	return f.flushError
+}
+
+func (f *fakeConn) Subscribe(string, natsgo.MsgHandler) (*natsgo.Subscription, error) {
+	return &natsgo.Subscription{}, f.subError
 }

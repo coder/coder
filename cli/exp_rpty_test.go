@@ -63,7 +63,7 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, randStr)
+		stdout.ExpectMatch(ctx, randStr)
 		<-cmdDone
 	})
 
@@ -134,9 +134,9 @@ func TestExpRpty(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
-		stdout.ExpectMatchContext(ctx, " #")
+		stdout.ExpectMatch(ctx, " #")
 		stdin.WriteLine("hostname")
-		stdout.ExpectMatchContext(ctx, ct.Container.Config.Hostname)
+		stdout.ExpectMatch(ctx, ct.Container.Config.Hostname)
 		stdin.WriteLine("exit")
 		<-cmdDone
 	})

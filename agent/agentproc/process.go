@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/quartz"
 )
@@ -74,22 +76,32 @@ type manager struct {
 	mu         sync.Mutex
 	logger     slog.Logger
 	execer     agentexec.Execer
+	fs         afero.Fs
 	clock      quartz.Clock
 	procs      map[string]*process
 	closed     bool
 	updateEnv  func(current []string) (updated []string, err error)
 	workingDir func() string
+	envInfo    usershell.EnvInfoer
 }
 
 // newManager creates a new process manager.
-func newManager(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
+func newManager(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *manager {
+	if fs == nil {
+		fs = afero.NewOsFs()
+	}
+	if envInfo == nil {
+		envInfo = &usershell.SystemEnvInfo{}
+	}
 	return &manager{
 		logger:     logger,
 		execer:     execer,
+		fs:         fs,
 		clock:      quartz.NewReal(),
 		procs:      make(map[string]*process),
 		updateEnv:  updateEnv,
 		workingDir: workingDir,
+		envInfo:    envInfo,
 	}
 }
 
@@ -116,7 +128,7 @@ func (m *manager) start(req workspacesdk.StartProcessRequest, chatID string) (*p
 	// the process is not tied to any HTTP request.
 	ctx, cancel := context.WithCancel(context.Background())
 	cmd := m.execer.CommandContext(ctx, "sh", "-c", req.Command)
-	cmd.Dir = m.resolveWorkDir(req.WorkDir)
+	cmd.Dir = m.resolveWorkingDirectory(req.WorkDir)
 	cmd.Stdin = nil
 	cmd.SysProcAttr = procSysProcAttr()
 
@@ -364,23 +376,21 @@ func (p *process) waitForOutput(ctx context.Context) error {
 	return ctx.Err()
 }
 
-// resolveWorkDir returns the directory a process should start in.
-// Priority: explicit request dir > agent configured dir > $HOME.
-// Falls through when a candidate is empty or does not exist on
-// disk, matching the behavior of SSH sessions.
-func (m *manager) resolveWorkDir(requested string) string {
+// resolveWorkingDirectory returns the directory a process should start in.
+// Priority: explicit request dir > agent configured dir > user home.
+// The configured dir > home tail is shared with SSH sessions via
+// usershell.ResolveWorkingDirectory so the two cannot drift.
+func (m *manager) resolveWorkingDirectory(requested string) string {
 	if requested != "" {
 		return requested
 	}
+	var configured string
 	if m.workingDir != nil {
-		if dir := m.workingDir(); dir != "" {
-			if info, err := os.Stat(dir); err == nil && info.IsDir() {
-				return dir
-			}
-		}
+		configured = m.workingDir()
 	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return home
+	dir, err := usershell.ResolveWorkingDirectory(m.fs, m.envInfo, configured)
+	if err != nil {
+		return ""
 	}
-	return ""
+	return dir
 }

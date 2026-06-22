@@ -1,42 +1,38 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { AdvisorSettings } from "./AdvisorSettings";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
+		...MockChatModelConfig,
 		id: "model-1",
-		provider: "openai",
 		model: "gpt-5",
 		display_name: "GPT-5",
-		enabled: true,
 		is_default: true,
-		context_limit: 200000,
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
+		...MockChatModelConfig,
 		id: "model-2",
 		provider: "anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
-		enabled: true,
-		is_default: false,
-		context_limit: 200000,
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
+		...MockChatModelConfig,
 		id: "model-3",
-		provider: "openai",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
 		enabled: false,
-		is_default: false,
 		context_limit: 16000,
 		compression_threshold: 60,
 		created_at: "2025-01-01T00:00:00Z",

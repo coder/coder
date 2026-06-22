@@ -27,8 +27,8 @@ func TestFeaturesList(t *testing.T) {
 		clitest.SetupConfig(t, anotherClient, conf)
 		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.Start(t, inv)
-		stdout.ExpectMatchContext(ctx, "user_limit")
-		stdout.ExpectMatchContext(ctx, "not_entitled")
+		stdout.ExpectMatch(ctx, "user_limit")
+		stdout.ExpectMatch(ctx, "not_entitled")
 	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()

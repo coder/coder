@@ -57,7 +57,7 @@ func TestCurrentOrganization(t *testing.T) {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		stdout.ExpectMatchContext(ctx, orgID.String())
+		stdout.ExpectMatch(ctx, orgID.String())
 	})
 }
 
@@ -179,7 +179,7 @@ func TestOrganizationDelete(t *testing.T) {
 			execDone <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Delete organization %s?", pretty.Sprint(cliui.DefaultStyles.Code, "my-org")))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Delete organization %s?", pretty.Sprint(cliui.DefaultStyles.Code, "my-org")))
 		stdin.WriteLine("yes")
 
 		require.NoError(t, <-execDone)

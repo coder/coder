@@ -29,6 +29,13 @@ create or update them.
 > that workspace. Do not share a workspace that has injected secrets with users
 > who should not access those values.
 
+### Storage and encryption
+
+Coder stores user secret values in the database. When
+[database encryption](../admin/security/database-encryption.md) is enabled,
+Coder encrypts secret values at rest. Otherwise, values are stored in plaintext
+in the database.
+
 ## How your secrets reach a workspace
 
 Coder applies your secrets when your workspace starts. The same applies any
@@ -103,13 +110,27 @@ the env aggregate could never be injected successfully as an environment
 variable.
 
 These caps measure stored bytes, which is what Coder writes to the database.
-In deployments with secret encryption enabled, stored bytes exceed the raw
-value.
+In deployments with
+[database encryption](../admin/security/database-encryption.md) enabled,
+stored bytes exceed the raw value.
+
+## Manage secrets from the dashboard
+
+You can create, edit, and delete user secrets from the Coder dashboard:
+
+1. Click your avatar in the top right.
+1. Select **Account**.
+1. Select **Secrets**.
+
+From this page you can add a new secret, update an existing secret's value,
+description, or environment variable and file targets, and delete secrets you
+no longer need.
+
+The rest of this guide shows the equivalent CLI commands. The same behaviors,
+limits, and injection rules apply whether you manage secrets from the
+dashboard or the CLI.
 
 ## Create a secret
-
-You can create, edit, and delete user secrets in the Coder dashboard. Click your
-avatar, select **Account**, then select **Secrets**.
 
 Use `coder secret create <name>` to create a user secret. For sensitive values,
 provide the value through non-interactive stdin with a pipe or redirect. This

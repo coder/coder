@@ -103,15 +103,15 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should see their own workspaces.
 		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[0].OwnerName+"/"+ws[0].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		stdout.ExpectMatchContext(ctx, ws[1].OwnerName+"/"+ws[1].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("OwnerAll", func(t *testing.T) {
@@ -125,21 +125,21 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should see all workspaces
 		// 1st workspace: a-owner-ws1 has both autostart and autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[0].OwnerName+"/"+ws[0].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[0].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		stdout.ExpectMatchContext(ctx, ws[1].OwnerName+"/"+ws[1].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 		// 3rd workspace: c-member-ws3 has only autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[2].OwnerName+"/"+ws[2].Name)
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 4th workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[3].OwnerName+"/"+ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("OwnerSearchByName", func(t *testing.T) {
@@ -153,9 +153,9 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should see workspaces matching that query
 		// 2nd workspace: b-owner-ws2 has only autostart enabled.
-		stdout.ExpectMatchContext(ctx, ws[1].OwnerName+"/"+ws[1].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("OwnerOneArg", func(t *testing.T) {
@@ -169,9 +169,9 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should see that workspace
 		// 3rd workspace: c-member-ws3 has only autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[2].OwnerName+"/"+ws[2].Name)
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("MemberNoArgs", func(t *testing.T) {
@@ -184,11 +184,11 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should see their own workspaces
 		// 1st workspace: c-member-ws3 has only autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[2].OwnerName+"/"+ws[2].Name)
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[3].OwnerName+"/"+ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("MemberAll", func(t *testing.T) {
@@ -205,11 +205,11 @@ func TestScheduleShow(t *testing.T) {
 
 		// Then: they should only see their own
 		// 1st workspace: c-member-ws3 has only autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[2].OwnerName+"/"+ws[2].Name)
-		stdout.ExpectMatchContext(ctx, "8h")
-		stdout.ExpectMatchContext(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 		// 2nd workspace: d-member-ws4 has neither autostart nor autostop enabled.
-		stdout.ExpectMatchContext(ctx, ws[3].OwnerName+"/"+ws[3].Name)
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
 	})
 
 	t.Run("JSON", func(t *testing.T) {
@@ -286,9 +286,9 @@ func TestScheduleModify(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		stdout.ExpectMatchContext(ctx, ws[3].OwnerName+"/"+ws[3].Name)
-		stdout.ExpectMatchContext(ctx, sched.Humanize())
-		stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[3].OwnerName+"/"+ws[3].Name)
+		stdout.ExpectMatch(ctx, sched.Humanize())
+		stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("SetStop", func(t *testing.T) {
@@ -303,9 +303,9 @@ func TestScheduleModify(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		stdout.ExpectMatchContext(ctx, ws[2].OwnerName+"/"+ws[2].Name)
-		stdout.ExpectMatchContext(ctx, "8h30m")
-		stdout.ExpectMatchContext(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
+		stdout.ExpectMatch(ctx, ws[2].OwnerName+"/"+ws[2].Name)
+		stdout.ExpectMatch(ctx, "8h30m")
+		stdout.ExpectMatch(ctx, ws[2].LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339))
 	})
 
 	t.Run("UnsetStart", func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestScheduleModify(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		stdout.ExpectMatchContext(ctx, ws[1].OwnerName+"/"+ws[1].Name)
+		stdout.ExpectMatch(ctx, ws[1].OwnerName+"/"+ws[1].Name)
 	})
 
 	t.Run("UnsetStop", func(t *testing.T) {
@@ -335,7 +335,7 @@ func TestScheduleModify(t *testing.T) {
 		require.NoError(t, inv.Run())
 
 		// Then: the updated schedule should be shown
-		stdout.ExpectMatchContext(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
 	})
 }
 
@@ -386,11 +386,11 @@ func TestScheduleOverride(t *testing.T) {
 			expectedDeadline := updated.LatestBuild.Deadline.Time.In(loc).Format(time.RFC3339)
 
 			// Then: the updated schedule should be shown
-			stdout.ExpectMatchContext(ctx, ws[0].OwnerName+"/"+ws[0].Name)
-			stdout.ExpectMatchContext(ctx, sched.Humanize())
-			stdout.ExpectMatchContext(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
-			stdout.ExpectMatchContext(ctx, "8h")
-			stdout.ExpectMatchContext(ctx, expectedDeadline)
+			stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
+			stdout.ExpectMatch(ctx, sched.Humanize())
+			stdout.ExpectMatch(ctx, sched.Next(now).In(loc).Format(time.RFC3339))
+			stdout.ExpectMatch(ctx, "8h")
+			stdout.ExpectMatch(ctx, expectedDeadline)
 		})
 	}
 }
@@ -438,8 +438,8 @@ func TestScheduleStart_TemplateAutostartRequirement(t *testing.T) {
 
 		// Then: warning should be shown
 		// In AGPL, this will show all days (enterprise feature defaults to all days allowed)
-		stdout.ExpectMatchContext(ctx, "Warning")
-		stdout.ExpectMatchContext(ctx, "may only autostart")
+		stdout.ExpectMatch(ctx, "Warning")
+		stdout.ExpectMatch(ctx, "may only autostart")
 	})
 
 	t.Run("NoWarningWhenManual", func(t *testing.T) {

@@ -456,179 +456,6 @@
 | `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 | `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
-## codersdk.AIBridgeInterception
-
-```json
-{
-  "api_key_id": "string",
-  "client": "string",
-  "ended_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "username": "string"
-  },
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "model": "string",
-  "provider": "string",
-  "provider_name": "string",
-  "started_at": "2019-08-24T14:15:22Z",
-  "token_usages": [
-    {
-      "cache_read_input_tokens": 0,
-      "cache_write_input_tokens": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "input_tokens": 0,
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "output_tokens": 0,
-      "provider_response_id": "string"
-    }
-  ],
-  "tool_usages": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "injected": true,
-      "input": "string",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "invocation_error": "string",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "provider_response_id": "string",
-      "server_url": "string",
-      "tool": "string"
-    }
-  ],
-  "user_prompts": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "prompt": "string",
-      "provider_response_id": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name               | Type                                                                | Required | Restrictions | Description |
-|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `api_key_id`       | string                                                              | false    |              |             |
-| `client`           | string                                                              | false    |              |             |
-| `ended_at`         | string                                                              | false    |              |             |
-| `id`               | string                                                              | false    |              |             |
-| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
-| `metadata`         | object                                                              | false    |              |             |
-| » `[any property]` | any                                                                 | false    |              |             |
-| `model`            | string                                                              | false    |              |             |
-| `provider`         | string                                                              | false    |              |             |
-| `provider_name`    | string                                                              | false    |              |             |
-| `started_at`       | string                                                              | false    |              |             |
-| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
-| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
-| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
-
-## codersdk.AIBridgeListInterceptionsResponse
-
-```json
-{
-  "count": 0,
-  "results": [
-    {
-      "api_key_id": "string",
-      "client": "string",
-      "ended_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator": {
-        "avatar_url": "http://example.com",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string",
-        "username": "string"
-      },
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "model": "string",
-      "provider": "string",
-      "provider_name": "string",
-      "started_at": "2019-08-24T14:15:22Z",
-      "token_usages": [
-        {
-          "cache_read_input_tokens": 0,
-          "cache_write_input_tokens": 0,
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "input_tokens": 0,
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "output_tokens": 0,
-          "provider_response_id": "string"
-        }
-      ],
-      "tool_usages": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "injected": true,
-          "input": "string",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "invocation_error": "string",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "provider_response_id": "string",
-          "server_url": "string",
-          "tool": "string"
-        }
-      ],
-      "user_prompts": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "prompt": "string",
-          "provider_response_id": "string"
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                                                    | Required | Restrictions | Description |
-|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
-| `count`   | integer                                                                 | false    |              |             |
-| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
-
 ## codersdk.AIBridgeListSessionsResponse
 
 ```json
@@ -1036,40 +863,6 @@
 | `started_at`      | string                                                                                 | false    |              |             |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
 
-## codersdk.AIBridgeTokenUsage
-
-```json
-{
-  "cache_read_input_tokens": 0,
-  "cache_write_input_tokens": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "input_tokens": 0,
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "output_tokens": 0,
-  "provider_response_id": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `created_at`               | string  | false    |              |             |
-| `id`                       | string  | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `interception_id`          | string  | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
-| `provider_response_id`     | string  | false    |              |             |
-
 ## codersdk.AIBridgeToolCall
 
 ```json
@@ -1103,70 +896,6 @@
 | `provider_response_id` | string  | false    |              |             |
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
-
-## codersdk.AIBridgeToolUsage
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "injected": true,
-  "input": "string",
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "invocation_error": "string",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "provider_response_id": "string",
-  "server_url": "string",
-  "tool": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `injected`             | boolean | false    |              |             |
-| `input`                | string  | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `invocation_error`     | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
-| `server_url`           | string  | false    |              |             |
-| `tool`                 | string  | false    |              |             |
-
-## codersdk.AIBridgeUserPrompt
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "prompt": "string",
-  "provider_response_id": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type   | Required | Restrictions | Description |
-|------------------------|--------|----------|--------------|-------------|
-| `created_at`           | string | false    |              |             |
-| `id`                   | string | false    |              |             |
-| `interception_id`      | string | false    |              |             |
-| `metadata`             | object | false    |              |             |
-| » `[any property]`     | any    | false    |              |             |
-| `prompt`               | string | false    |              |             |
-| `provider_response_id` | string | false    |              |             |
 
 ## codersdk.AIConfig
 
@@ -1247,6 +976,28 @@
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
+
+## codersdk.AIGatewayKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key_prefix": "string",
+  "last_used_at": "2019-08-24T14:15:22Z",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `created_at`   | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `key_prefix`   | string | false    |              |             |
+| `last_used_at` | string | false    |              |             |
+| `name`         | string | false    |              |             |
 
 ## codersdk.AIProvider
 
@@ -1511,6 +1262,28 @@ None
 | Value(s)                                      |
 |-----------------------------------------------|
 | `always_collapsed`, `always_expanded`, `auto` |
+
+## codersdk.AgentFirewallSession
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `confined_process` | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `owner_id`         | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `workspace_id`     | string | false    |              |             |
 
 ## codersdk.AgentScriptTiming
 
@@ -2174,6 +1947,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string"
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -2297,6 +2075,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2307,6 +2086,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string"
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2430,6 +2214,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2449,6 +2234,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
 | `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
 | `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
 | `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2469,6 +2255,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
 | `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
 | `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
 | `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
@@ -2572,6 +2359,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatContext
+
+```json
+{
+  "dirty": true,
+  "dirty_since": "2019-08-24T14:15:22Z",
+  "error": "string"
+}
+```
+
+### Properties
+
+| Name          | Type    | Required | Restrictions | Description                                                                              |
+|---------------|---------|----------|--------------|------------------------------------------------------------------------------------------|
+| `dirty`       | boolean | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash. |
+| `dirty_since` | string  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                        |
+| `error`       | string  | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).  |
 
 ## codersdk.ChatDiffContents
 
@@ -2681,9 +2486,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -3502,9 +3307,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                                                           |
+|----------------------------------------------------------------------------------------------------|
+| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -3630,6 +3435,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
     "part": {
       "args": [
         0
@@ -3692,7 +3499,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text",
       "url": "string"
     },
-    "role": "system"
+    "role": "system",
+    "seq": 0
   },
   "queued_messages": [
     {
@@ -3806,14 +3614,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                 |
-|------------------------------------------------------------------------------------------|
-| `action_required`, `error`, `message`, `message_part`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
 ## codersdk.ChatStreamMessagePart
 
 ```json
 {
+  "generation_attempt": 0,
+  "history_version": 0,
   "part": {
     "args": [
       0
@@ -3876,16 +3686,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "type": "text",
     "url": "string"
   },
-  "role": "system"
+  "role": "system",
+  "seq": 0
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                 | Required | Restrictions | Description |
-|--------|------------------------------------------------------|----------|--------------|-------------|
-| `part` | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `role` | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| Name                 | Type                                                 | Required | Restrictions | Description |
+|----------------------|------------------------------------------------------|----------|--------------|-------------|
+| `generation_attempt` | integer                                              | false    |              |             |
+| `history_version`    | integer                                              | false    |              |             |
+| `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| `seq`                | integer                                              | false    |              |             |
 
 ## codersdk.ChatStreamRetry
 
@@ -3985,6 +3799,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string"
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -4108,6 +3927,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -4145,9 +3965,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
@@ -4405,6 +4225,42 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------|------------------------------------------|----------|--------------|------------------------------------------|
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
+
+## codersdk.CreateAIGatewayKeyRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `name` | string | true     |              |             |
+
+## codersdk.CreateAIGatewayKeyResponse
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `key`        | string | false    |              |             |
+| `key_prefix` | string | false    |              |             |
+| `name`       | string | false    |              |             |
 
 ## codersdk.CreateAIProviderRequest
 
@@ -5893,6 +5749,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -6003,6 +5860,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
@@ -6493,6 +6351,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "auto_repair_links": true,
     "client_cert_file": "string",
     "client_id": "string",
     "client_key_file": "string",
@@ -6603,6 +6462,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
+    "boundary_logs": 0,
     "connection_logs": 0,
     "workspace_agent_logs": 0
   },
@@ -7161,9 +7021,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-app-tabs`, `ai-gateway-cost-control`, `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -8972,6 +8832,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "auto_repair_links": true,
   "client_cert_file": "string",
   "client_id": "string",
   "client_key_file": "string",
@@ -9042,6 +8903,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auto_repair_links`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
@@ -9091,6 +8953,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -9103,16 +8968,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `created_at`   | string  | true     |              |             |
-| `description`  | string  | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `icon`         | string  | false    |              |             |
-| `id`           | string  | true     |              |             |
-| `is_default`   | boolean | true     |              |             |
-| `name`         | string  | false    |              |             |
-| `updated_at`   | string  | true     |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                                                                                     |
+|----------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string          | true     |              |                                                                                                                                                 |
+| `default_org_member_roles` | array of string | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `description`              | string          | false    |              |                                                                                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                                                                                 |
+| `id`                       | string          | true     |              |                                                                                                                                                 |
+| `is_default`               | boolean         | true     |              |                                                                                                                                                 |
+| `name`                     | string          | false    |              |                                                                                                                                                 |
+| `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
 ## codersdk.OrganizationMember
 
@@ -9231,219 +9097,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `mapping`                     | object          | false    |              | Mapping maps from an OIDC claim --> Coder organization uuid                                                                                                                         |
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
-
-## codersdk.PRInsightsModelBreakdown
-
-```json
-{
-  "cost_per_merged_pr_micros": 0,
-  "display_name": "string",
-  "merge_rate": 0,
-  "merged_prs": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "provider": "string",
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs": 0
-}
-```
-
-### Properties
-
-| Name                        | Type    | Required | Restrictions | Description |
-|-----------------------------|---------|----------|--------------|-------------|
-| `cost_per_merged_pr_micros` | integer | false    |              |             |
-| `display_name`              | string  | false    |              |             |
-| `merge_rate`                | number  | false    |              |             |
-| `merged_prs`                | integer | false    |              |             |
-| `model_config_id`           | string  | false    |              |             |
-| `provider`                  | string  | false    |              |             |
-| `total_additions`           | integer | false    |              |             |
-| `total_cost_micros`         | integer | false    |              |             |
-| `total_deletions`           | integer | false    |              |             |
-| `total_prs`                 | integer | false    |              |             |
-
-## codersdk.PRInsightsPullRequest
-
-```json
-{
-  "additions": 0,
-  "approved": true,
-  "author_avatar_url": "string",
-  "author_login": "string",
-  "base_branch": "string",
-  "changed_files": 0,
-  "changes_requested": true,
-  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "commits": 0,
-  "cost_micros": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "deletions": 0,
-  "draft": true,
-  "model_display_name": "string",
-  "pr_number": 0,
-  "pr_title": "string",
-  "pr_url": "string",
-  "reviewer_count": 0,
-  "state": "string"
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `additions`          | integer | false    |              |             |
-| `approved`           | boolean | false    |              |             |
-| `author_avatar_url`  | string  | false    |              |             |
-| `author_login`       | string  | false    |              |             |
-| `base_branch`        | string  | false    |              |             |
-| `changed_files`      | integer | false    |              |             |
-| `changes_requested`  | boolean | false    |              |             |
-| `chat_id`            | string  | false    |              |             |
-| `commits`            | integer | false    |              |             |
-| `cost_micros`        | integer | false    |              |             |
-| `created_at`         | string  | false    |              |             |
-| `deletions`          | integer | false    |              |             |
-| `draft`              | boolean | false    |              |             |
-| `model_display_name` | string  | false    |              |             |
-| `pr_number`          | integer | false    |              |             |
-| `pr_title`           | string  | false    |              |             |
-| `pr_url`             | string  | false    |              |             |
-| `reviewer_count`     | integer | false    |              |             |
-| `state`              | string  | false    |              |             |
-
-## codersdk.PRInsightsResponse
-
-```json
-{
-  "by_model": [
-    {
-      "cost_per_merged_pr_micros": 0,
-      "display_name": "string",
-      "merge_rate": 0,
-      "merged_prs": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "provider": "string",
-      "total_additions": 0,
-      "total_cost_micros": 0,
-      "total_deletions": 0,
-      "total_prs": 0
-    }
-  ],
-  "recent_prs": [
-    {
-      "additions": 0,
-      "approved": true,
-      "author_avatar_url": "string",
-      "author_login": "string",
-      "base_branch": "string",
-      "changed_files": 0,
-      "changes_requested": true,
-      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-      "commits": 0,
-      "cost_micros": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "deletions": 0,
-      "draft": true,
-      "model_display_name": "string",
-      "pr_number": 0,
-      "pr_title": "string",
-      "pr_url": "string",
-      "reviewer_count": 0,
-      "state": "string"
-    }
-  ],
-  "summary": {
-    "approval_rate": 0,
-    "cost_per_merged_pr_micros": 0,
-    "merge_rate": 0,
-    "prev_cost_per_merged_pr_micros": 0,
-    "prev_merge_rate": 0,
-    "prev_total_prs_created": 0,
-    "prev_total_prs_merged": 0,
-    "total_additions": 0,
-    "total_cost_micros": 0,
-    "total_deletions": 0,
-    "total_prs_created": 0,
-    "total_prs_merged": 0
-  },
-  "time_series": [
-    {
-      "date": "2019-08-24T14:15:22Z",
-      "prs_closed": 0,
-      "prs_created": 0,
-      "prs_merged": 0
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name          | Type                                                                              | Required | Restrictions | Description |
-|---------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `by_model`    | array of [codersdk.PRInsightsModelBreakdown](#codersdkprinsightsmodelbreakdown)   | false    |              |             |
-| `recent_prs`  | array of [codersdk.PRInsightsPullRequest](#codersdkprinsightspullrequest)         | false    |              |             |
-| `summary`     | [codersdk.PRInsightsSummary](#codersdkprinsightssummary)                          | false    |              |             |
-| `time_series` | array of [codersdk.PRInsightsTimeSeriesEntry](#codersdkprinsightstimeseriesentry) | false    |              |             |
-
-## codersdk.PRInsightsSummary
-
-```json
-{
-  "approval_rate": 0,
-  "cost_per_merged_pr_micros": 0,
-  "merge_rate": 0,
-  "prev_cost_per_merged_pr_micros": 0,
-  "prev_merge_rate": 0,
-  "prev_total_prs_created": 0,
-  "prev_total_prs_merged": 0,
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs_created": 0,
-  "total_prs_merged": 0
-}
-```
-
-### Properties
-
-| Name                             | Type    | Required | Restrictions | Description |
-|----------------------------------|---------|----------|--------------|-------------|
-| `approval_rate`                  | number  | false    |              |             |
-| `cost_per_merged_pr_micros`      | integer | false    |              |             |
-| `merge_rate`                     | number  | false    |              |             |
-| `prev_cost_per_merged_pr_micros` | integer | false    |              |             |
-| `prev_merge_rate`                | number  | false    |              |             |
-| `prev_total_prs_created`         | integer | false    |              |             |
-| `prev_total_prs_merged`          | integer | false    |              |             |
-| `total_additions`                | integer | false    |              |             |
-| `total_cost_micros`              | integer | false    |              |             |
-| `total_deletions`                | integer | false    |              |             |
-| `total_prs_created`              | integer | false    |              |             |
-| `total_prs_merged`               | integer | false    |              |             |
-
-## codersdk.PRInsightsTimeSeriesEntry
-
-```json
-{
-  "date": "2019-08-24T14:15:22Z",
-  "prs_closed": 0,
-  "prs_created": 0,
-  "prs_merged": 0
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `date`        | string  | false    |              |             |
-| `prs_closed`  | integer | false    |              |             |
-| `prs_created` | integer | false    |              |             |
-| `prs_merged`  | integer | false    |              |             |
 
 ## codersdk.PaginatedMembersResponse
 
@@ -11036,9 +10689,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -11291,6 +10944,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
+  "boundary_logs": 0,
   "connection_logs": 0,
   "workspace_agent_logs": 0
 }
@@ -11298,12 +10952,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
-| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
-| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
-| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                          |
+|------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                                         |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                                |
+| `boundary_logs`        | integer | false    |              | Boundary logs controls how long boundary audit log entries are retained. Boundary logs record every HTTP request processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements. |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                      |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior.                     |
 
 ## codersdk.Role
 
@@ -12242,6 +11897,125 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------|------------------------------------------------------|----------|--------------|-------------|
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateBuilderBase
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "os": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                      | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                                                                    | false    |              |             |
+| `icon`        | string                                                                                    | false    |              |             |
+| `id`          | string                                                                                    | false    |              |             |
+| `name`        | string                                                                                    | false    |              |             |
+| `os`          | string                                                                                    | false    |              |             |
+| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+
+## codersdk.TemplateBuilderBasesResponse
+
+```json
+{
+  "bases": [
+    {
+      "description": "string",
+      "icon": "string",
+      "id": "string",
+      "name": "string",
+      "os": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                  | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
+
+## codersdk.TemplateBuilderComposeModule
+
+```json
+{
+  "id": "string",
+  "variables": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `variables`        | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+
+## codersdk.TemplateBuilderComposeRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+
 ## codersdk.TemplateBuilderConfig
 
 ```json
@@ -12257,6 +12031,246 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |----------------|---------|----------|--------------|-------------|
 | `disabled`     | boolean | false    |              |             |
 | `registry_url` | string  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `description`          | string                                                                                  | false    |              |             |
+| `display_name`         | string                                                                                  | false    |              |             |
+| `icon`                 | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`                 | string                                                                                  | true     |              |             |
+| `organization_id`      | string                                                                                  | true     |              |             |
+| `provisioner_tags`     | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateResponse
+
+```json
+{
+  "template": {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": [
+        "monday"
+      ]
+    },
+    "autostop_requirement": {
+      "days_of_week": [
+        "monday"
+      ],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "cors_behavior": "simple",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deleted": true,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "disable_module_cache": true,
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                   | Required | Restrictions | Description |
+|------------|----------------------------------------|----------|--------------|-------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
+
+## codersdk.TemplateBuilderModule
+
+```json
+{
+  "category": "string",
+  "compatible_os": [
+    "string"
+  ],
+  "conflicts_with": [
+    "string"
+  ],
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ],
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                                      | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `category`       | string                                                                                    | false    |              |             |
+| `compatible_os`  | array of string                                                                           | false    |              |             |
+| `conflicts_with` | array of string                                                                           | false    |              |             |
+| `description`    | string                                                                                    | false    |              |             |
+| `display_name`   | string                                                                                    | false    |              |             |
+| `icon`           | string                                                                                    | false    |              |             |
+| `id`             | string                                                                                    | false    |              |             |
+| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| `version`        | string                                                                                    | false    |              |             |
+
+## codersdk.TemplateBuilderModuleVariable
+
+```json
+{
+  "default": [
+    0
+  ],
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                         | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `default`     | array of integer                                                             | false    |              |             |
+| `description` | string                                                                       | false    |              |             |
+| `name`        | string                                                                       | false    |              |             |
+| `required`    | boolean                                                                      | false    |              |             |
+| `sensitive`   | boolean                                                                      | false    |              |             |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+
+## codersdk.TemplateBuilderModulesResponse
+
+```json
+{
+  "modules": [
+    {
+      "category": "string",
+      "compatible_os": [
+        "string"
+      ],
+      "conflicts_with": [
+        "string"
+      ],
+      "description": "string",
+      "display_name": "string",
+      "icon": "string",
+      "id": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ],
+      "version": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                      | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderVariableType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `bool`, `number`, `string` |
 
 ## codersdk.TemplateExample
 
@@ -13138,6 +13152,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -13147,12 +13164,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `description`  | string | false    |              |             |
-| `display_name` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                     |
+|----------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------|
+| `default_org_member_roles` | array of string | false    |              | Default org member roles when non-nil, replaces the org's default member roles. |
+| `description`              | string          | false    |              |                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                 |
+| `name`                     | string          | false    |              |                                                                                 |
 
 ## codersdk.UpdateRoles
 

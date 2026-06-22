@@ -341,7 +341,8 @@ CREATE TYPE chat_status AS ENUM (
     'paused',
     'completed',
     'error',
-    'requires_action'
+    'requires_action',
+    'interrupting'
 );
 
 CREATE TYPE connection_status AS ENUM (
@@ -569,7 +570,8 @@ CREATE TYPE resource_type AS ENUM (
     'ai_provider_key',
     'group_ai_budget',
     'user_skill',
-    'ai_gateway_key'
+    'ai_gateway_key',
+    'user_ai_budget_override'
 );
 
 CREATE TYPE shareable_workspace_owners AS ENUM (
@@ -608,6 +610,25 @@ CREATE TYPE user_status AS ENUM (
 );
 
 COMMENT ON TYPE user_status IS 'Defines the users status: active, dormant, or suspended.';
+
+CREATE TYPE workspace_agent_context_body_kind AS ENUM (
+    'instruction_file',
+    'skill',
+    'mcp_config',
+    'mcp_server',
+    'plugin',
+    'hook',
+    'subagent',
+    'command'
+);
+
+CREATE TYPE workspace_agent_context_resource_status AS ENUM (
+    'ok',
+    'oversize',
+    'unreadable',
+    'invalid',
+    'excluded'
+);
 
 CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'created',
@@ -711,6 +732,29 @@ BEGIN
 				)
         END;
 
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION bump_chat_queue_version_on_queued_message_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    changed_chat_id uuid;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        changed_chat_id = OLD.chat_id;
+    ELSE
+        changed_chat_id = NEW.chat_id;
+    END IF;
+
+    UPDATE chats
+    SET queue_version = snapshot_version
+    WHERE id = changed_chat_id;
+
+    IF TG_OP = 'DELETE' THEN
+        RETURN OLD;
+    END IF;
     RETURN NEW;
 END;
 $$;
@@ -1292,6 +1336,103 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION set_chat_message_revision_before() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+    chat_snapshot_version bigint;
+BEGIN
+    IF TG_OP = 'INSERT' AND NEW.revision IS NOT NULL THEN
+        RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF OLD.chat_id IS DISTINCT FROM NEW.chat_id THEN
+            RAISE EXCEPTION 'chat_messages.chat_id is immutable';
+        END IF;
+
+        IF OLD.revision IS DISTINCT FROM NEW.revision THEN
+            RAISE EXCEPTION 'chat_messages.revision must be assigned by trigger';
+        END IF;
+
+        IF OLD IS NOT DISTINCT FROM NEW THEN
+            RETURN NEW;
+        END IF;
+    END IF;
+
+    SELECT snapshot_version INTO chat_snapshot_version
+    FROM chats WHERE id = NEW.chat_id;
+
+    IF chat_snapshot_version IS NULL THEN
+        RAISE EXCEPTION 'chat % does not exist', NEW.chat_id;
+    END IF;
+
+    NEW.revision = chat_snapshot_version;
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION sync_chat_retry_state() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF OLD.retry_state_version IS DISTINCT FROM NEW.retry_state_version THEN
+        RAISE EXCEPTION 'chats.retry_state_version must be assigned by trigger';
+    END IF;
+
+    IF NEW.generation_attempt IS DISTINCT FROM OLD.generation_attempt THEN
+        NEW.retry_state = NULL;
+    END IF;
+
+    IF NEW.retry_state IS DISTINCT FROM OLD.retry_state THEN
+        NEW.retry_state_version = NEW.snapshot_version;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION update_chat_history_after_message_insert() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE chats c
+    SET history_version = c.snapshot_version,
+        generation_attempt = 0
+    FROM (
+        SELECT DISTINCT chat_id FROM chat_message_history_new_rows
+    ) AS affected
+    WHERE c.id = affected.chat_id
+      AND (
+          c.history_version IS DISTINCT FROM c.snapshot_version
+          OR c.generation_attempt <> 0
+      );
+    RETURN NULL;
+END;
+$$;
+
+CREATE FUNCTION update_chat_history_after_message_update() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    UPDATE chats c
+    SET history_version = c.snapshot_version,
+        generation_attempt = 0
+    FROM (
+        SELECT DISTINCT n.chat_id
+        FROM chat_message_history_new_rows n
+        JOIN chat_message_history_old_rows o ON o.id = n.id
+        WHERE o IS DISTINCT FROM n
+    ) AS affected
+    WHERE c.id = affected.chat_id
+      AND (
+          c.history_version IS DISTINCT FROM c.snapshot_version
+          OR c.generation_attempt <> 0
+      );
+    RETURN NULL;
+END;
+$$;
+
 CREATE TABLE ai_gateway_keys (
     id uuid NOT NULL,
     created_at timestamp with time zone NOT NULL,
@@ -1390,7 +1531,9 @@ CREATE TABLE aibridge_interceptions (
     session_id text GENERATED ALWAYS AS (COALESCE(client_session_id, ((thread_root_id)::text)::character varying, ((id)::text)::character varying)) STORED NOT NULL,
     provider_name text DEFAULT ''::text NOT NULL,
     credential_kind credential_kind DEFAULT 'centralized'::credential_kind NOT NULL,
-    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL
+    credential_hint character varying(15) DEFAULT ''::character varying NOT NULL,
+    agent_firewall_session_id uuid,
+    agent_firewall_sequence_number integer
 );
 
 COMMENT ON TABLE aibridge_interceptions IS 'Audit log of requests intercepted by AI Bridge';
@@ -1411,6 +1554,10 @@ COMMENT ON COLUMN aibridge_interceptions.credential_kind IS 'How the request was
 
 COMMENT ON COLUMN aibridge_interceptions.credential_hint IS 'Masked credential identifier for audit (e.g. sk-a***efgh).';
 
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_session_id IS 'The Agent Firewall session ID, linking this Bridge interception to an Agent Firewall confinement session.';
+
+COMMENT ON COLUMN aibridge_interceptions.agent_firewall_sequence_number IS 'The Agent Firewall sequence number from the request header. Used to determine exact ordering of network requests relative to Agent Firewall audit events. NULL when the request did not pass through Agent Firewall.';
+
 CREATE TABLE aibridge_model_thoughts (
     interception_id uuid NOT NULL,
     content text NOT NULL,
@@ -1429,7 +1576,18 @@ CREATE TABLE aibridge_token_usages (
     metadata jsonb,
     created_at timestamp with time zone NOT NULL,
     cache_read_input_tokens bigint DEFAULT 0 NOT NULL,
-    cache_write_input_tokens bigint DEFAULT 0 NOT NULL
+    cache_write_input_tokens bigint DEFAULT 0 NOT NULL,
+    effective_group_id uuid,
+    input_price_micros bigint,
+    output_price_micros bigint,
+    cache_read_price_micros bigint,
+    cache_write_price_micros bigint,
+    cost_micros bigint,
+    CONSTRAINT aibridge_token_usages_cache_read_price_micros_check CHECK ((cache_read_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_cache_write_price_micros_check CHECK ((cache_write_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_cost_micros_check CHECK ((cost_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_input_price_micros_check CHECK ((input_price_micros >= 0)),
+    CONSTRAINT aibridge_token_usages_output_price_micros_check CHECK ((output_price_micros >= 0))
 );
 
 COMMENT ON TABLE aibridge_token_usages IS 'Audit log of tokens used by intercepted requests in AI Bridge';
@@ -1520,6 +1678,7 @@ CREATE TABLE boundary_logs (
     method text DEFAULT ''::text NOT NULL,
     detail text DEFAULT ''::text NOT NULL,
     matched_rule text,
+    owner_id uuid,
     CONSTRAINT boundary_logs_sequence_number_check CHECK ((sequence_number >= 0))
 );
 
@@ -1540,6 +1699,8 @@ COMMENT ON COLUMN boundary_logs.method IS 'The operation within the protocol. e.
 COMMENT ON COLUMN boundary_logs.detail IS 'Protocol-specific detail. e.g. the full URL for http, the hostname for dns, the path for fs.';
 
 COMMENT ON COLUMN boundary_logs.matched_rule IS 'The allow-list rule that matched. NULL when the request was denied; non-NULL implies the request was allowed.';
+
+COMMENT ON COLUMN boundary_logs.owner_id IS 'The ID of the user who owns the workspace. NULL for logs inserted before this column existed or if the user was deleted.';
 
 CREATE TABLE boundary_sessions (
     id uuid NOT NULL,
@@ -1589,6 +1750,38 @@ COMMENT ON COLUMN boundary_usage_stats.denied_requests IS 'Total denied requests
 COMMENT ON COLUMN boundary_usage_stats.window_start IS 'Start of the time window for these stats, set on first flush after reset.';
 
 COMMENT ON COLUMN boundary_usage_stats.updated_at IS 'Timestamp of the last update to this row.';
+
+CREATE TABLE chat_context_resources (
+    chat_id uuid NOT NULL,
+    source text NOT NULL,
+    body_kind workspace_agent_context_body_kind NOT NULL,
+    body jsonb NOT NULL,
+    content_hash bytea NOT NULL,
+    size_bytes bigint NOT NULL,
+    status workspace_agent_context_resource_status NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    source_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
+
+COMMENT ON COLUMN chat_context_resources.source IS 'Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.';
+
+COMMENT ON COLUMN chat_context_resources.body_kind IS 'Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
+
+COMMENT ON COLUMN chat_context_resources.body IS 'protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.';
+
+COMMENT ON COLUMN chat_context_resources.content_hash IS 'sha256 over the resource''s original bytes (or transport-encoded server tool list).';
+
+COMMENT ON COLUMN chat_context_resources.size_bytes IS 'Original payload size in bytes; populated regardless of status.';
+
+COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.';
+
+COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
+
+COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -1669,6 +1862,14 @@ CREATE TABLE chat_files (
     data bytea NOT NULL
 );
 
+CREATE UNLOGGED TABLE chat_heartbeats (
+    chat_id uuid NOT NULL,
+    runner_id uuid NOT NULL,
+    heartbeat_at timestamp with time zone NOT NULL
+);
+
+COMMENT ON TABLE chat_heartbeats IS 'Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.';
+
 CREATE TABLE chat_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
@@ -1691,7 +1892,8 @@ CREATE TABLE chat_messages (
     runtime_ms bigint,
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
-    api_key_id text
+    api_key_id text,
+    revision bigint NOT NULL
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -1725,13 +1927,22 @@ CREATE TABLE chat_model_configs (
     CONSTRAINT chat_model_configs_context_limit_check CHECK ((context_limit > 0))
 );
 
+CREATE SEQUENCE chat_queued_messages_position_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
 CREATE TABLE chat_queued_messages (
     id bigint NOT NULL,
     chat_id uuid NOT NULL,
     content jsonb NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     model_config_id uuid,
-    api_key_id text
+    api_key_id text,
+    "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
+    created_by uuid NOT NULL
 );
 
 CREATE SEQUENCE chat_queued_messages_id_seq
@@ -1796,12 +2007,38 @@ CREATE TABLE chats (
     last_turn_summary text,
     user_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
     group_acl jsonb DEFAULT '{}'::jsonb NOT NULL,
+    snapshot_version bigint DEFAULT 1 NOT NULL,
+    history_version bigint DEFAULT 0 NOT NULL,
+    queue_version bigint DEFAULT 0 NOT NULL,
+    generation_attempt bigint DEFAULT 0 NOT NULL,
+    retry_state jsonb,
+    retry_state_version bigint DEFAULT 0 NOT NULL,
+    runner_id uuid,
+    requires_action_deadline_at timestamp with time zone,
+    context_aggregate_hash bytea,
+    context_dirty_since timestamp with time zone,
+    context_dirty_resources jsonb,
+    context_error text DEFAULT ''::text NOT NULL,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
     CONSTRAINT chats_pin_order_archived_check CHECK (((pin_order = 0) OR (archived = false))),
     CONSTRAINT chats_pin_order_parent_check CHECK (((pin_order = 0) OR (parent_chat_id IS NULL)))
 );
+
+COMMENT ON COLUMN chats.snapshot_version IS 'Monotonic version for the full chat snapshot. Starts at 1 so stream loops and workers can use 0 to mean they have not loaded the chat yet.';
+
+COMMENT ON COLUMN chats.history_version IS 'Snapshot version of the latest durable history change. Starts at 0 until chat_messages triggers set it to the current snapshot_version.';
+
+COMMENT ON COLUMN chats.queue_version IS 'Snapshot version of the latest queued-message change. Starts at 0 until chat_queued_messages triggers set it to the current snapshot_version.';
+
+COMMENT ON COLUMN chats.context_aggregate_hash IS 'Aggregate hash of the agent context snapshot this chat is pinned to. NULL until first hydrated; compared against the agent''s latest snapshot hash to detect drift.';
+
+COMMENT ON COLUMN chats.context_dirty_since IS 'Set when an agent push changes the pinned hash; cleared on refresh. NULL means clean.';
+
+COMMENT ON COLUMN chats.context_dirty_resources IS 'Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.';
+
+COMMENT ON COLUMN chats.context_error IS 'Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
 
 CREATE TABLE users (
     id uuid NOT NULL,
@@ -1883,10 +2120,22 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    c.snapshot_version,
+    c.history_version,
+    c.queue_version,
+    c.generation_attempt,
+    c.retry_state,
+    c.retry_state_version,
+    c.runner_id,
+    c.requires_action_deadline_at,
     COALESCE(root.user_acl, c.user_acl) AS user_acl,
     COALESCE(root.group_acl, c.group_acl) AS group_acl,
     owner.username AS owner_username,
-    owner.name AS owner_name
+    owner.name AS owner_name,
+    c.context_aggregate_hash,
+    c.context_dirty_since,
+    c.context_dirty_resources,
+    c.context_error
    FROM ((chats c
      LEFT JOIN chats root ON ((root.id = COALESCE(c.root_chat_id, c.parent_chat_id))))
      JOIN visible_users owner ON ((owner.id = c.owner_id)));
@@ -2375,10 +2624,13 @@ CREATE TABLE organizations (
     display_name text NOT NULL,
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
-    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL
+    shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
+    default_org_member_roles text[] NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
+
+COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -3302,6 +3554,56 @@ CREATE TABLE webpush_subscriptions (
     endpoint_auth_key text NOT NULL
 );
 
+CREATE TABLE workspace_agent_context_resources (
+    workspace_agent_id uuid NOT NULL,
+    source text NOT NULL,
+    body_kind workspace_agent_context_body_kind NOT NULL,
+    body jsonb NOT NULL,
+    content_hash bytea NOT NULL,
+    size_bytes bigint NOT NULL,
+    status workspace_agent_context_resource_status NOT NULL,
+    error text DEFAULT ''::text NOT NULL,
+    source_path text DEFAULT ''::text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.source IS 'Resource locator: canonical file path for file-backed kinds, or the MCP server name for mcp_server resources.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.body_kind IS 'Discriminator for the body JSON shape. Matches the proto oneof variant: instruction_file, skill, mcp_config, mcp_server. PLUGIN/HOOK/SUBAGENT/COMMAND are reserved for the Claude Code plugin RFC.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.body IS 'protojson-encoded variant body matching body_kind. Always populated; non-OK statuses use the variant zero value so the wire kind is still attributable.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.content_hash IS 'sha256 over the resource''s original bytes (or transport-encoded server tool list).';
+
+COMMENT ON COLUMN workspace_agent_context_resources.size_bytes IS 'Original payload size in bytes; populated regardless of status.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource status. ok carries a populated body; oversize, unreadable, invalid, and excluded carry an empty body plus an error string.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+
+CREATE TABLE workspace_agent_context_snapshots (
+    workspace_agent_id uuid NOT NULL,
+    version bigint NOT NULL,
+    aggregate_hash bytea NOT NULL,
+    snapshot_error text DEFAULT ''::text NOT NULL,
+    received_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+COMMENT ON TABLE workspace_agent_context_snapshots IS 'Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.version IS 'Monotonic per-agent-process push counter. Resets to one when the agent process restarts; combined with the initial flag on the wire to detect agent reboots.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.aggregate_hash IS 'sha256 over a canonical encoding of every resource in the snapshot. Identical inputs always produce identical hashes; chat hydration uses this to detect drift.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.snapshot_error IS 'Singular snapshot-level error string (count cap exceeded, watcher degraded, etc.). Empty when healthy.';
+
+COMMENT ON COLUMN workspace_agent_context_snapshots.received_at IS 'Time at which coderd received the push.';
+
 CREATE TABLE workspace_agent_devcontainers (
     id uuid NOT NULL,
     workspace_agent_id uuid NOT NULL,
@@ -3829,6 +4131,9 @@ ALTER TABLE ONLY boundary_sessions
 ALTER TABLE ONLY boundary_usage_stats
     ADD CONSTRAINT boundary_usage_stats_pkey PRIMARY KEY (replica_id);
 
+ALTER TABLE ONLY chat_context_resources
+    ADD CONSTRAINT chat_context_resources_pkey PRIMARY KEY (chat_id, source);
+
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_pkey PRIMARY KEY (id);
 
@@ -3843,6 +4148,9 @@ ALTER TABLE ONLY chat_file_links
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY chat_heartbeats
+    ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_pkey PRIMARY KEY (id);
@@ -4093,6 +4401,12 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workspace_agent_context_resources
+    ADD CONSTRAINT workspace_agent_context_resources_pkey PRIMARY KEY (workspace_agent_id, source);
+
+ALTER TABLE ONLY workspace_agent_context_snapshots
+    ADD CONSTRAINT workspace_agent_context_snapshots_pkey PRIMARY KEY (workspace_agent_id);
+
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_pkey PRIMARY KEY (id);
 
@@ -4186,6 +4500,8 @@ CREATE INDEX api_keys_last_used_idx ON api_keys USING btree (last_used DESC);
 
 COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys queries filtering by last_used';
 
+CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -4193,6 +4509,8 @@ CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_
 CREATE INDEX idx_ai_provider_keys_provider_id ON ai_provider_keys USING btree (provider_id);
 
 CREATE INDEX idx_ai_providers_enabled ON ai_providers USING btree (enabled) WHERE (deleted = false);
+
+CREATE INDEX idx_aibridge_interceptions_agent_firewall_session_id ON aibridge_interceptions USING btree (agent_firewall_session_id) WHERE (agent_firewall_session_id IS NOT NULL);
 
 CREATE INDEX idx_aibridge_interceptions_client ON aibridge_interceptions USING btree (client);
 
@@ -4315,6 +4633,8 @@ CREATE INDEX idx_chats_parent_chat_id ON chats USING btree (parent_chat_id);
 CREATE INDEX idx_chats_pending ON chats USING btree (status) WHERE (status = 'pending'::chat_status);
 
 CREATE INDEX idx_chats_root_chat_id ON chats USING btree (root_chat_id);
+
+CREATE INDEX idx_chats_worker_acquisition_candidates ON chats USING btree (status, updated_at, id) WHERE (archived = false);
 
 CREATE INDEX idx_chats_workspace ON chats USING btree (workspace_id);
 
@@ -4546,6 +4866,12 @@ COMMENT ON TRIGGER remove_organization_member_custom_role ON custom_roles IS 'Wh
 
 CREATE TRIGGER trigger_aggregate_usage_event AFTER INSERT ON usage_events FOR EACH ROW EXECUTE FUNCTION aggregate_usage_event();
 
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DELETE ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+
 CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_group_members_on_org_member_delete();
 
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
@@ -4561,6 +4887,16 @@ CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXE
 CREATE TRIGGER trigger_insert_organization_system_roles AFTER INSERT ON organizations FOR EACH ROW EXECUTE FUNCTION insert_organization_system_roles();
 
 CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
+
+CREATE TRIGGER trigger_set_chat_message_revision_on_insert BEFORE INSERT ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
+
+CREATE TRIGGER trigger_set_chat_message_revision_on_update BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_chat_message_revision_before();
+
+CREATE TRIGGER trigger_sync_chat_retry_state BEFORE UPDATE OF retry_state, retry_state_version, generation_attempt ON chats FOR EACH ROW EXECUTE FUNCTION sync_chat_retry_state();
+
+CREATE TRIGGER trigger_update_chat_history_after_message_insert AFTER INSERT ON chat_messages REFERENCING NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_insert();
+
+CREATE TRIGGER trigger_update_chat_history_after_message_update AFTER UPDATE ON chat_messages REFERENCING OLD TABLE AS chat_message_history_old_rows NEW TABLE AS chat_message_history_new_rows FOR EACH STATEMENT EXECUTE FUNCTION update_chat_history_after_message_update();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
@@ -4603,13 +4939,16 @@ ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY boundary_logs
-    ADD CONSTRAINT boundary_logs_session_id_fkey FOREIGN KEY (session_id) REFERENCES boundary_sessions(id) ON DELETE CASCADE;
+    ADD CONSTRAINT boundary_logs_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY boundary_sessions
     ADD CONSTRAINT boundary_sessions_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id);
+
+ALTER TABLE ONLY chat_context_resources
+    ADD CONSTRAINT chat_context_resources_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_debug_runs
     ADD CONSTRAINT chat_debug_runs_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
@@ -4631,6 +4970,9 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_heartbeats
+    ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_messages
     ADD CONSTRAINT chat_messages_api_key_id_fkey FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE SET NULL;
@@ -4928,6 +5270,12 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_context_resources
+    ADD CONSTRAINT workspace_agent_context_resources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_context_snapshots
+    ADD CONSTRAINT workspace_agent_context_snapshots_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_devcontainers
     ADD CONSTRAINT workspace_agent_devcontainers_subagent_id_fkey FOREIGN KEY (subagent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

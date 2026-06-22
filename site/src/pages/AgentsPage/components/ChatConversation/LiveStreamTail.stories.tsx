@@ -6,7 +6,7 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 	textResponseStreamParts,
 } from "./storyFixtures";
 
@@ -24,20 +24,7 @@ const defaultArgs: React.ComponentProps<typeof LiveStreamTailContent> = {
 const meta: Meta<typeof LiveStreamTailContent> = {
 	title: "pages/AgentsPage/ChatConversation/LiveStreamTail",
 	component: LiveStreamTailContent,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof LiveStreamTailContent>;
@@ -257,14 +244,14 @@ export const RetryingTimeoutAnthropic: Story = {
 	},
 };
 
-/** Terminal startup timeouts get a specific heading without provider metadata. */
-export const TerminalStartupTimeoutError: Story = {
+/** Terminal stream-silence timeouts get a specific heading without provider metadata. */
+export const TerminalStreamSilenceTimeoutError: Story = {
 	args: {
 		...defaultArgs,
 		liveStatus: buildLiveStatus({
 			persistedError: {
-				kind: "startup_timeout",
-				message: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				message: "Anthropic did not send response data in time.",
 				provider: "anthropic",
 				retryable: true,
 			},
@@ -273,10 +260,10 @@ export const TerminalStartupTimeoutError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /startup timed out/i }),
+			canvas.getByRole("heading", { name: /response stalled/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time./i),
+			canvas.getByText(/anthropic did not send response data in time./i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/^retryable$/i)).not.toBeInTheDocument();

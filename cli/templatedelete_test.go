@@ -44,7 +44,7 @@ func TestTemplateDelete(t *testing.T) {
 			execDone <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx, fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, template.Name)))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Delete these templates: %s?", pretty.Sprint(cliui.DefaultStyles.Code, template.Name)))
 		stdin.WriteLine("yes")
 
 		require.NoError(t, <-execDone)
@@ -107,7 +107,7 @@ func TestTemplateDelete(t *testing.T) {
 			execDone <- inv.Run()
 		}()
 
-		stdout.ExpectMatchContext(ctx,
+		stdout.ExpectMatch(ctx,
 			fmt.Sprintf("Delete these templates: %s?",
 				pretty.Sprint(cliui.DefaultStyles.Code, strings.Join(templateNames, ", "))))
 		stdin.WriteLine("yes")

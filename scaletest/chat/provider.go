@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -12,56 +13,95 @@ import (
 )
 
 const (
-	scaletestProviderType        = "openai-compat"
-	scaletestProviderDisplayName = "Scaletest LLM Mock"
-	scaletestModelName           = "scaletest-model"
-	scaletestModelDisplayName    = "Scaletest Model"
+	scaletestAIProviderType        = codersdk.AIProviderTypeOpenAICompat
+	scaletestAIProviderName        = "coder-scaletest-mock"
+	scaletestAIProviderDisplayName = "Scaletest LLM Mock"
+	scaletestAIProviderAPIKey      = "coder-scaletest"
+	scaletestModelName             = "scaletest-model"
+	scaletestModelDisplayName      = "Scaletest Model"
+	scaletestModelContextLimit     = int64(4096)
 )
 
-type scaletestProviderAction string
+// DefaultProviderPropagationWait is how long to wait after creating or
+// updating the mock LLM provider before starting chats. Provider config is
+// cached per coderd replica with a 10 second TTL (see
+// coderd/x/chatd/configcache.go), and a change is only guaranteed to be
+// visible everywhere once every replica's cached entry has expired. 15
+// seconds comfortably exceeds that TTL.
+const DefaultProviderPropagationWait = 15 * time.Second
+
+type scaletestAIProviderAction string
 
 const (
-	scaletestProviderActionCreated scaletestProviderAction = "created"
-	scaletestProviderActionUpdated scaletestProviderAction = "updated"
-	scaletestProviderActionReused  scaletestProviderAction = "reused"
+	scaletestAIProviderActionCreated scaletestAIProviderAction = "created"
+	scaletestAIProviderActionUpdated scaletestAIProviderAction = "updated"
+	scaletestAIProviderActionReused  scaletestAIProviderAction = "reused"
 )
 
-// EnsureScaletestModelConfig bootstraps the shared chat provider and model
-// config used by chat scaletests.
-func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.ExperimentalClient, logger slog.Logger, llmMockURL string) (uuid.UUID, error) {
+// EnsureScaletestModelConfig bootstraps the shared AI provider and model
+// config used by chat scaletests. When the provider was created or updated,
+// it sleeps for propagationWait so every coderd replica's cached provider
+// config expires before chats start.
+func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Client, logger slog.Logger, llmMockURL string, propagationWait time.Duration) (uuid.UUID, error) {
+	expClient := codersdk.NewExperimentalClient(client)
+
 	logger.Info(ctx, "bootstrapping mock LLM provider", slog.F("llm_mock_url", llmMockURL))
 
-	provider, providerAction, err := ensureScaletestProvider(ctx, client, llmMockURL)
+	provider, providerAction, err := ensureScaletestAIProvider(ctx, expClient, llmMockURL)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
 	switch providerAction {
-	case scaletestProviderActionCreated:
+	case scaletestAIProviderActionCreated:
 		logger.Info(ctx, "created mock LLM provider",
-			slog.F("provider_type", scaletestProviderType),
-			slog.F("llm_mock_url", llmMockURL),
-		)
-	case scaletestProviderActionUpdated:
-		logger.Info(ctx, "updated mock LLM provider",
-			slog.F("provider_type", scaletestProviderType),
+			slog.F("provider_name", provider.Name),
 			slog.F("provider_id", provider.ID),
 			slog.F("llm_mock_url", llmMockURL),
 		)
-	case scaletestProviderActionReused:
+	case scaletestAIProviderActionUpdated:
+		logger.Info(ctx, "updated mock LLM provider",
+			slog.F("provider_name", provider.Name),
+			slog.F("provider_id", provider.ID),
+			slog.F("llm_mock_url", llmMockURL),
+		)
+	case scaletestAIProviderActionReused:
 		logger.Info(ctx, "reusing mock LLM provider",
-			slog.F("provider_type", scaletestProviderType),
+			slog.F("provider_name", provider.Name),
 			slog.F("provider_id", provider.ID),
 		)
 	}
 
+	modelConfigID, err := ensureScaletestChatModelConfig(ctx, expClient, logger, provider)
+	if err != nil {
+		return uuid.Nil, err
+	}
+
+	if providerAction != scaletestAIProviderActionReused && propagationWait > 0 {
+		logger.Info(ctx, "waiting for mock LLM provider propagation",
+			slog.F("provider_name", provider.Name),
+			slog.F("wait", propagationWait),
+		)
+		select {
+		case <-ctx.Done():
+			return uuid.Nil, ctx.Err()
+		case <-time.After(propagationWait):
+		}
+	}
+
+	return modelConfigID, nil
+}
+
+func ensureScaletestChatModelConfig(ctx context.Context, client chatModelConfigClient, logger slog.Logger, provider codersdk.AIProvider) (uuid.UUID, error) {
 	modelConfigs, err := client.ListChatModelConfigs(ctx)
 	if err != nil {
 		return uuid.Nil, xerrors.Errorf("list chat model configs: %w", err)
 	}
 
 	for i := range modelConfigs {
-		if modelConfigs[i].Provider != provider.Provider || modelConfigs[i].Model != scaletestModelName {
+		matchesProvider := modelConfigs[i].AIProviderID != nil && *modelConfigs[i].AIProviderID == provider.ID
+		matchesModel := modelConfigs[i].Model == scaletestModelName
+		if !matchesProvider || !matchesModel {
 			continue
 		}
 		if !modelConfigs[i].Enabled {
@@ -74,9 +114,9 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Experiment
 
 	enabled := true
 	isDefault := false
-	contextLimit := int64(4096)
+	contextLimit := scaletestModelContextLimit
 	created, err := client.CreateChatModelConfig(ctx, codersdk.CreateChatModelConfigRequest{
-		Provider:     provider.Provider,
+		AIProviderID: &provider.ID,
 		Model:        scaletestModelName,
 		DisplayName:  scaletestModelDisplayName,
 		Enabled:      &enabled,
@@ -90,59 +130,66 @@ func EnsureScaletestModelConfig(ctx context.Context, client *codersdk.Experiment
 	return created.ID, nil
 }
 
-func ensureScaletestProvider(ctx context.Context, client *codersdk.ExperimentalClient, llmMockURL string) (codersdk.ChatProviderConfig, scaletestProviderAction, error) {
-	enabled := true
-	mockProviderToken := uuid.NewString()
-	created, err := client.CreateChatProvider(ctx, codersdk.CreateChatProviderConfigRequest{
-		Provider:    scaletestProviderType,
-		DisplayName: scaletestProviderDisplayName,
-		APIKey:      mockProviderToken,
-		BaseURL:     llmMockURL,
-		Enabled:     &enabled,
-	})
-	if err == nil {
-		return created, scaletestProviderActionCreated, nil
-	}
-
-	var sdkErr *codersdk.Error
-	if !xerrors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusConflict {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("create scaletest chat provider: %w", err)
-	}
-
-	providers, err := client.ListChatProviders(ctx)
+func ensureScaletestAIProvider(ctx context.Context, client *codersdk.ExperimentalClient, llmMockURL string) (codersdk.AIProvider, scaletestAIProviderAction, error) {
+	provider, err := client.AIProvider(ctx, scaletestAIProviderName)
 	if err != nil {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("list chat providers: %w", err)
-	}
+		var sdkErr *codersdk.Error
+		if !xerrors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusNotFound {
+			return codersdk.AIProvider{}, "", xerrors.Errorf("look up scaletest AI provider: %w", err)
+		}
 
-	var existing *codersdk.ChatProviderConfig
-	for i := range providers {
-		if providers[i].Provider == scaletestProviderType {
-			existing = &providers[i]
-			break
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:        scaletestAIProviderType,
+			Name:        scaletestAIProviderName,
+			DisplayName: scaletestAIProviderDisplayName,
+			Enabled:     true,
+			BaseURL:     llmMockURL,
+			APIKeys:     []string{scaletestAIProviderAPIKey},
+		})
+		if err == nil {
+			return created, scaletestAIProviderActionCreated, nil
+		}
+
+		sdkErr = nil
+		if !xerrors.As(err, &sdkErr) || sdkErr.StatusCode() != http.StatusConflict {
+			return codersdk.AIProvider{}, "", xerrors.Errorf("create scaletest AI provider: %w", err)
+		}
+
+		provider, err = client.AIProvider(ctx, scaletestAIProviderName)
+		if err != nil {
+			return codersdk.AIProvider{}, "", xerrors.Errorf("look up scaletest AI provider after conflict: %w", err)
 		}
 	}
-	if existing == nil {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("find existing %s provider after conflict: not found", scaletestProviderType)
+
+	if provider.Type != scaletestAIProviderType {
+		return codersdk.AIProvider{}, "", xerrors.Errorf("refusing to use scaletest AI provider %s with type %q", provider.ID, provider.Type)
 	}
-	if existing.DisplayName != scaletestProviderDisplayName {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("refusing to overwrite existing %s provider %s with display name %q", scaletestProviderType, existing.ID, existing.DisplayName)
+	if provider.DisplayName != scaletestAIProviderDisplayName {
+		return codersdk.AIProvider{}, "", xerrors.Errorf("refusing to use scaletest AI provider %s with display name %q", provider.ID, provider.DisplayName)
+	}
+	if !provider.Enabled {
+		return codersdk.AIProvider{}, "", xerrors.Errorf("existing scaletest AI provider %s is disabled; re-enable or delete it before running scaletests", provider.ID)
 	}
 
-	if !existing.Enabled {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("existing scaletest chat provider %s is disabled; re-enable or delete it before running scaletests", existing.ID)
+	var update codersdk.UpdateAIProviderRequest
+	needsUpdate := false
+	if provider.BaseURL != llmMockURL {
+		update.BaseURL = &llmMockURL
+		needsUpdate = true
 	}
-	if existing.BaseURL == llmMockURL {
-		return *existing, scaletestProviderActionReused, nil
+	if len(provider.APIKeys) == 0 {
+		apiKey := scaletestAIProviderAPIKey
+		apiKeys := []codersdk.AIProviderKeyMutation{{APIKey: &apiKey}}
+		update.APIKeys = &apiKeys
+		needsUpdate = true
+	}
+	if !needsUpdate {
+		return provider, scaletestAIProviderActionReused, nil
 	}
 
-	updated, err := client.UpdateChatProvider(ctx, existing.ID, codersdk.UpdateChatProviderConfigRequest{
-		DisplayName: scaletestProviderDisplayName,
-		APIKey:      &mockProviderToken,
-		BaseURL:     &llmMockURL,
-		Enabled:     &enabled,
-	})
+	updated, err := client.UpdateAIProvider(ctx, scaletestAIProviderName, update)
 	if err != nil {
-		return codersdk.ChatProviderConfig{}, "", xerrors.Errorf("update scaletest chat provider: %w", err)
+		return codersdk.AIProvider{}, "", xerrors.Errorf("update scaletest AI provider: %w", err)
 	}
-	return updated, scaletestProviderActionUpdated, nil
+	return updated, scaletestAIProviderActionUpdated, nil
 }

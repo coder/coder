@@ -1,0 +1,94 @@
+{
+  "id": "dotfiles",
+  "display_name": "Dotfiles",
+  "description": "Allow developers to optionally bring their own dotfiles repository to customize their shell and IDE settings!",
+  "icon": "/icon/dotfiles.svg",
+  "category": "Utility",
+  "tags": [
+    "helper",
+    "dotfiles"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.4.2",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "default_dotfiles_branch",
+      "type": "string",
+      "description": "The default dotfiles branch if the workspace user does not provide one",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "default_dotfiles_uri",
+      "type": "string",
+      "description": "The default dotfiles URI if the workspace user does not provide one",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "description",
+      "type": "string",
+      "description": "A custom description for the dotfiles parameter. This is shown in the UI - and allows you to customize the instructions you give to your users.",
+      "default": "Enter a URL for a [dotfiles repository](https://dotfiles.github.io) to personalize your workspace. Use an SSH URL (e.g. `git@host:user/repo`) if your Git provider restricts HTTPS cloning.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "dotfiles_branch",
+      "type": "string",
+      "description": "The branch to use for the dotfiles repository (optional, when set, the user isn't prompted for the branch)",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "dotfiles_uri",
+      "type": "string",
+      "description": "The URL to a dotfiles repository. (optional, when set, the user isn't prompted for their dotfiles)",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "manual_update",
+      "type": "bool",
+      "description": "If true, this adds a button to workspace page to refresh dotfiles on demand.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "post_clone_script",
+      "type": "string",
+      "description": "Custom script to run after applying dotfiles. Runs every time, even if dotfiles were already applied.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "user",
+      "type": "string",
+      "description": "The name of the user to apply the dotfiles to. (optional, applies to the current user by default)",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

@@ -3,7 +3,9 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
+import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider } from "#/testHelpers/storybook";
 import {
 	AgentChatInput,
@@ -403,9 +405,6 @@ export const LongContentScrollable: Story = {
 const TINY_PNG =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 
-const createMockFile = (name: string, type: string) =>
-	new File(["mock-data"], name, { type });
-
 export const WithAttachments: Story = {
 	args: (() => {
 		const file1 = createMockFile("screenshot.png", "image/png");
@@ -681,39 +680,17 @@ export const CtrlShiftVBypassesAttachmentCollapse: Story = {
 
 const now = "2026-03-19T12:00:00.000Z";
 
-const makeMCPServer = (
+const buildMCPServer = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
-	id: overrides.id,
-	display_name: overrides.display_name,
-	slug: overrides.slug,
-	description: overrides.description ?? "",
-	icon_url: overrides.icon_url ?? "",
-	transport: overrides.transport ?? "streamable_http",
-	url: overrides.url ?? "https://mcp.example.com/sse",
-	auth_type: overrides.auth_type ?? "none",
-	oauth2_client_id: overrides.oauth2_client_id,
-	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
-	oauth2_auth_url: overrides.oauth2_auth_url,
-	oauth2_token_url: overrides.oauth2_token_url,
-	oauth2_scopes: overrides.oauth2_scopes,
-	api_key_header: overrides.api_key_header,
-	has_api_key: overrides.has_api_key ?? false,
-	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
-	availability: overrides.availability ?? "default_on",
-	enabled: overrides.enabled ?? true,
-	model_intent: overrides.model_intent ?? false,
-	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
-	forward_coder_headers: overrides.forward_coder_headers ?? false,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-	auth_connected: overrides.auth_connected ?? false,
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
-const sentryMCP = makeMCPServer({
+const sentryMCP = buildMCPServer({
 	id: "mcp-sentry",
 	display_name: "Sentry",
 	slug: "sentry",
@@ -724,7 +701,7 @@ const sentryMCP = makeMCPServer({
 	enabled: true,
 });
 
-const linearMCP = makeMCPServer({
+const linearMCP = buildMCPServer({
 	id: "mcp-linear",
 	display_name: "Linear",
 	slug: "linear",
@@ -733,7 +710,7 @@ const linearMCP = makeMCPServer({
 	enabled: true,
 });
 
-const githubMCP = makeMCPServer({
+const githubMCP = buildMCPServer({
 	id: "mcp-github",
 	display_name: "GitHub",
 	slug: "github",
@@ -839,6 +816,76 @@ export const PlanningIndicator: Story = {
 		expect(
 			canvas.getByRole("button", { name: "Disable plan mode" }),
 		).toBeVisible();
+	},
+};
+
+const narrowPlanningContextUsage: AgentContextUsage = {
+	usedTokens: 100_000,
+	contextLimitTokens: 200_000,
+};
+
+const narrowPlanningModelOptions = [
+	{
+		id: "long-model-name",
+		provider: "anthropic",
+		model: "claude-sonnet-4-5-long-name",
+		displayName: "Claude Sonnet 4.5 Extended Thinking",
+	},
+] as const;
+
+export const PlanningIndicatorNarrow: Story = {
+	args: {
+		planModeEnabled: true,
+		onPlanModeToggle: fn(),
+		contextUsage: narrowPlanningContextUsage,
+		selectedModel: narrowPlanningModelOptions[0].id,
+		modelOptions: [...narrowPlanningModelOptions],
+	},
+	decorators: [
+		(Story) => (
+			<div style={{ width: 360 }}>
+				<Story />
+			</div>
+		),
+	],
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const composer = await canvas.findByTestId("chat-composer");
+		const sendButton = canvas.getByRole("button", { name: "Send" });
+		const contextUsageButton = canvas.getByRole("button", {
+			name: /Context usage/,
+		});
+		const planningBadge = canvasElement.querySelector<HTMLElement>(
+			"[data-testid='planning-badge']",
+		);
+		const isVisible = (element: HTMLElement) => {
+			const style = getComputedStyle(element);
+			const rect = element.getBoundingClientRect();
+			return (
+				style.display !== "none" &&
+				style.visibility !== "hidden" &&
+				rect.width > 0 &&
+				rect.height > 0
+			);
+		};
+
+		await waitFor(() => {
+			const composerRect = composer.getBoundingClientRect();
+			const sendButtonRect = sendButton.getBoundingClientRect();
+			const contextUsageRect = contextUsageButton.getBoundingClientRect();
+
+			expect(contextUsageRect.left).toBeGreaterThanOrEqual(composerRect.left);
+			expect(sendButtonRect.right).toBeLessThanOrEqual(composerRect.right);
+
+			if (planningBadge && isVisible(planningBadge)) {
+				expect(planningBadge.getBoundingClientRect().right).toBeLessThanOrEqual(
+					contextUsageRect.left + 1,
+				);
+				return;
+			}
+
+			expect(canvas.getByRole("button", { name: "1 more item" })).toBeVisible();
+		});
 	},
 };
 
@@ -1041,7 +1088,7 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 	},
 };
 
-const confluenceMCP = makeMCPServer({
+const confluenceMCP = buildMCPServer({
 	id: "mcp-confluence",
 	display_name: "Confluence Cloud",
 	slug: "confluence",
@@ -1050,7 +1097,7 @@ const confluenceMCP = makeMCPServer({
 	enabled: true,
 });
 
-const datadogMCP = makeMCPServer({
+const datadogMCP = buildMCPServer({
 	id: "mcp-datadog",
 	display_name: "Datadog Monitoring",
 	slug: "datadog",
@@ -1059,7 +1106,7 @@ const datadogMCP = makeMCPServer({
 	enabled: true,
 });
 
-const pagerdutyMCP = makeMCPServer({
+const pagerdutyMCP = buildMCPServer({
 	id: "mcp-pagerduty",
 	display_name: "PagerDuty",
 	slug: "pagerduty",

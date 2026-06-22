@@ -7,6 +7,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { userChatProviderConfigsKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { Chat } from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
 import {
 	withAuthProvider,
@@ -59,22 +60,11 @@ const defaultModelConfigs: TypesGen.ChatModelConfig[] = [
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
+	...MockChat,
 	id: "chat-default",
-	organization_id: "test-org-id",
-	owner_id: "owner-1",
-	title: "Agent",
-	status: "completed",
 	last_model_config_id: defaultModelConfigs[0].id,
-	mcp_server_ids: [],
-	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
 	...overrides,
 });
 
@@ -114,6 +104,7 @@ const meta: Meta<typeof ChatsSidebar> = {
 		onSearchDialogOpenChange: fn(),
 		isCreating: false,
 		regeneratingTitleChatIds: [],
+		currentUserId: MockUserOwner.id,
 		sidebarFilters: defaultSidebarFilters,
 		isPersonalModelOverridesEnabled: true,
 		onSidebarFiltersChange: fn(),
@@ -181,6 +172,56 @@ export const ChatWithTurnSummary: Story = {
  * holds the previous turn's text. The sidebar replaces it with a live
  * "{model} streaming…" label so the status does not look stuck.
  */
+export const SharedChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-chat",
+				title: "Shared chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				last_turn_summary: "Original chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(canvas.getByText("Original chat summary")).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Shared by Sharing User"),
+		).not.toBeInTheDocument();
+	},
+};
+
+export const SharedUnreadChat: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "shared-unread-chat",
+				title: "Shared unread chat",
+				owner_id: "sharing-user",
+				owner_name: "Sharing User",
+				owner_username: "sharing-user",
+				shared: true,
+				has_unread: true,
+				last_turn_summary: "Original unread chat summary",
+			}),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		await expect(
+			canvas.getByTestId("unread-indicator-shared-unread-chat"),
+		).toBeInTheDocument();
+	},
+};
+
 export const ChatStreamingOverridesTurnSummary: Story = {
 	args: {
 		chats: [

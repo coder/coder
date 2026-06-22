@@ -608,7 +608,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.
 		return ""
-	case database.ResourceTypeGroupAiBudget:
+	case database.ResourceTypeGroupAIBudget:
 		// The resource_id is the group's UUID; link to the group's
 		// settings page.
 		group, err := api.Database.GetGroupByID(ctx, alog.AuditLog.ResourceID)
@@ -620,6 +620,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 			return ""
 		}
 		return fmt.Sprintf("/organizations/%s/groups/%s", org.Name, group.Name)
+	case database.ResourceTypeUserAIBudgetOverride:
+		// TODO: point at the user's AI budget override management page
+		// once it ships. Until then, the audit row links nowhere.
+		return ""
 	default:
 		return ""
 	}

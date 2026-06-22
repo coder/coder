@@ -123,6 +123,27 @@ OAuth token, so do not attach API keys. For client-side setup (proxy,
 certificates, IDE configuration), see
 [GitHub Copilot client configuration](./clients/copilot.md).
 
+### ChatGPT
+
+ChatGPT subscriptions (Plus, Pro, Business) are supported through a
+provider of type `openai` with a specific name and base URL:
+
+| Field    | Value                                   |
+|----------|-----------------------------------------|
+| Type     | `openai`                                |
+| Name     | `chatgpt`                               |
+| Base URL | `https://chatgpt.com/backend-api/codex` |
+
+The name must be exactly `chatgpt`. It determines the route clients use
+to reach the provider: `/api/v2/aibridge/chatgpt/v1`. If no provider
+with this name exists, requests to that route fail with
+`404 route not supported`.
+
+Do not attach API keys. ChatGPT providers authenticate with each user's
+ChatGPT OAuth token through [BYOK](./auth.md#bring-your-own-key-byok),
+so BYOK must remain enabled. For client-side setup, see the
+[Codex CLI ChatGPT subscription configuration](./clients/codex.md#byok-chatgpt-subscription).
+
 ### OpenAI-compatible providers
 
 Azure-hosted OpenAI, Google, OpenRouter, Vercel, and any other
@@ -154,11 +175,11 @@ Provider configuration changes take effect automatically, without
 restarting `coderd`. AI Gateway records the timestamp of each reload
 attempt and each successful reload, exposed as Prometheus metrics:
 
-- `coder_aibridged_providers_last_reload_timestamp_seconds`
-- `coder_aibridged_providers_last_reload_success_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_timestamp_seconds`
+- `coder_ai_gateway_providers_last_reload_success_timestamp_seconds`
 
 If you run the [external proxy](./ai-gateway-proxy/index.md), it exposes
-the same pair under the `coder_aibridgeproxyd_` prefix.
+the same pair under the `coder_ai_gateway_proxy_` prefix.
 
 A growing gap between the attempt and success timestamps means reloads
 are firing but failing to apply. Alert on that gap rather than on a

@@ -148,15 +148,36 @@
           vendorHash = "sha256-OuQWmZmofdJKq1hvk43RPkILQwAuFzqhmB22Xf6Z3lA=";
         };
 
-        # Keep Terraform aligned with provisioner/terraform/testdata/version.txt
-        # so `make gen` remains deterministic in Nix shells.
+        # Pin to provisioner/terraform/testdata/version.txt for deterministic
+        # `make gen` across platforms.
         terraform_1_15_5 =
-          if pkgs.stdenv.isLinux && pkgs.stdenv.hostPlatform.isx86_64 then
+          let
+            releases = {
+              x86_64-linux = {
+                platform = "linux_amd64";
+                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+              };
+              aarch64-linux = {
+                platform = "linux_arm64";
+                hash = "sha256-Bue0jegmFGxtkzG6NbE9oSMy2Dkr4w0d1reJukcT//A=";
+              };
+              aarch64-darwin = {
+                platform = "darwin_arm64";
+                hash = "sha256-ARN2YFEABbkYu6ghVIZvvqxDkxY9gnfCq+hh37WELDw=";
+              };
+              x86_64-darwin = {
+                platform = "darwin_amd64";
+                hash = "sha256-NofQfANLPn3u1bByzYris0g1vLE5uuw/xPX9U02r9e0=";
+              };
+            };
+            target = releases.${system} or null;
+          in
+          if target != null then
             pkgs.runCommand "terraform-1.15.5" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_linux_amd64.zip";
-                hash = "sha256-cCshNq9nKMj/A3+EPdLbzit62IeGtzgdHXKu+iUPYBw=";
+                url = "https://releases.hashicorp.com/terraform/1.15.5/terraform_1.15.5_${target.platform}.zip";
+                hash = target.hash;
               };
             } ''
               mkdir -p "$out/bin"
@@ -263,8 +284,6 @@
           ]
           ++ frontendPackages;
 
-        docker = pkgs.callPackage ./nix/docker.nix { };
-
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
           inherit nodejs pnpm;
@@ -340,59 +359,20 @@
           };
         };
 
-        packages =
-          {
-            default = packages.${system};
+        packages = {
+          default = packages.${system};
 
-            proto_gen_go = proto_gen_go_1_30;
-            site = buildSite;
+          proto_gen_go = proto_gen_go_1_30;
+          site = buildSite;
 
-            # Copying `OS_ARCHES` from the Makefile.
-            x86_64-linux = buildFat "linux_amd64";
-            aarch64-linux = buildFat "linux_arm64";
-            x86_64-darwin = buildFat "darwin_amd64";
-            aarch64-darwin = buildFat "darwin_arm64";
-            x86_64-windows = buildFat "windows_amd64.exe";
-            aarch64-windows = buildFat "windows_arm64.exe";
-          }
-          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = docker.buildNixShellImage rec {
-              name = "codercom/oss-dogfood-nix";
-              tag = "latest-${system}";
-
-              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
-              # to have issues on dogfood envs.
-              maxLayers = 32;
-
-              uname = "coder";
-              homeDirectory = "/home/${uname}";
-              releaseName = version;
-
-              drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs =
-                  (with pkgs; [
-                    coreutils
-                    nix.out
-                    curl.bin # Ensure the actual curl binary is included in the PATH
-                    glibc.bin # Ensure the glibc binaries are included in the PATH
-                    jq.bin
-                    binutils # ld and strings
-                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
-                    systemd.out
-                    service-wrapper
-                    docker_26
-                    shadow.out
-                    su
-                    ncurses.out # clear
-                    unzip
-                    zip
-                    gzip
-                    procps # free
-                  ])
-                  ++ oldAttrs.buildInputs;
-              });
-            };
-          });
+          # Copying `OS_ARCHES` from the Makefile.
+          x86_64-linux = buildFat "linux_amd64";
+          aarch64-linux = buildFat "linux_arm64";
+          x86_64-darwin = buildFat "darwin_amd64";
+          aarch64-darwin = buildFat "darwin_arm64";
+          x86_64-windows = buildFat "windows_amd64.exe";
+          aarch64-windows = buildFat "windows_arm64.exe";
+        };
       }
     );
 }

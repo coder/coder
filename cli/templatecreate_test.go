@@ -52,7 +52,7 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -92,7 +92,7 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Upload", write: "no"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -248,7 +248,7 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
@@ -288,7 +288,7 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			stdout.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
 				stdin.WriteLine(m.write)
 			}
