@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { FieldSchema } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	buildInitialModelFormValues,
 	buildModelConfigFromForm,
 	emptyModelConfigFormState,
 	extractModelConfigFormState,
+	hasFieldValue,
+	isFieldConflictDisabled,
 	type ModelConfigFormState,
 	parsePositiveInteger,
 	parseThresholdInteger,
@@ -1221,5 +1224,93 @@ describe("buildModelConfigFromForm", () => {
 			expect(result.fieldErrors).toEqual({});
 			expect(result.modelConfig).toBeUndefined();
 		});
+	});
+});
+
+// ── hasFieldValue ─────────────────────────────────────────────
+
+describe("hasFieldValue", () => {
+	it("returns false for an empty string", () => {
+		expect(hasFieldValue("")).toBe(false);
+	});
+
+	it("returns false for whitespace-only string", () => {
+		expect(hasFieldValue("   ")).toBe(false);
+		expect(hasFieldValue("\t\n")).toBe(false);
+	});
+
+	it("returns false for the empty JSON array sentinel '[]'", () => {
+		expect(hasFieldValue("[]")).toBe(false);
+	});
+
+	it("returns false for '[]' with surrounding whitespace", () => {
+		expect(hasFieldValue("  []  ")).toBe(false);
+	});
+
+	it("returns true for a non-empty string", () => {
+		expect(hasFieldValue("hello")).toBe(true);
+		expect(hasFieldValue("  hello  ")).toBe(true);
+	});
+
+	it("returns true for a non-empty JSON array", () => {
+		expect(hasFieldValue('["example.com"]')).toBe(true);
+	});
+
+	it("returns false for non-string values", () => {
+		expect(hasFieldValue(undefined)).toBe(false);
+		expect(hasFieldValue(null)).toBe(false);
+		expect(hasFieldValue(42)).toBe(false);
+		expect(hasFieldValue(true)).toBe(false);
+		expect(hasFieldValue({})).toBe(false);
+	});
+});
+
+// ── isFieldConflictDisabled ──────────────────────────────────
+
+describe("isFieldConflictDisabled", () => {
+	const makeReader =
+		(values: Record<string, unknown>): ((jsonName: string) => unknown) =>
+		(jsonName: string): unknown => values[jsonName];
+
+	const field = (overrides: Partial<FieldSchema> = {}): FieldSchema => ({
+		json_name: "field_a",
+		go_name: "FieldA",
+		type: "string",
+		required: false,
+		input_type: "input",
+		conflicts_with: ["field_b"],
+		...overrides,
+	});
+
+	it("disables the field when a sibling has a value and this field is empty", () => {
+		const reader = makeReader({ field_a: "", field_b: "some-value" });
+		expect(isFieldConflictDisabled(field(), reader)).toBe(true);
+	});
+
+	it("does not disable when the field has its own value, even if a sibling is set", () => {
+		const reader = makeReader({ field_a: "my-value", field_b: "some-value" });
+		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
+	});
+
+	it("does not disable when the field has no conflicts_with", () => {
+		const reader = makeReader({ field_a: "", field_b: "some-value" });
+		expect(
+			isFieldConflictDisabled(field({ conflicts_with: undefined }), reader),
+		).toBe(false);
+	});
+
+	it("does not disable when the sibling value is empty", () => {
+		const reader = makeReader({ field_a: "", field_b: "" });
+		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
+	});
+
+	it("does not disable when the sibling value is whitespace-only", () => {
+		const reader = makeReader({ field_a: "", field_b: "   " });
+		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
+	});
+
+	it("does not disable when the sibling value is the empty array sentinel '[]'", () => {
+		const reader = makeReader({ field_a: "", field_b: "[]" });
+		expect(isFieldConflictDisabled(field(), reader)).toBe(false);
 	});
 });

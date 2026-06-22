@@ -32,6 +32,7 @@ import {
 import { cn } from "#/utils/cn";
 import { normalizeProvider } from "./helpers";
 import {
+	isFieldConflictDisabled,
 	isVisibleWhenSatisfied,
 	type ModelConfigFormBuildResult,
 	type ModelFormValues,
@@ -530,16 +531,6 @@ const colSpanClass: Record<1 | 3, string | undefined> = {
 	3: "sm:col-span-full",
 };
 
-// A field counts as "set" when it holds a non-empty value. JSON array fields
-// serialize to "[]" when empty, so that is treated as unset too.
-const hasFieldValue = (raw: unknown): boolean => {
-	if (typeof raw !== "string") {
-		return false;
-	}
-	const trimmed = raw.trim();
-	return trimmed.length > 0 && trimmed !== "[]";
-};
-
 interface ModelConfigFieldsProps {
 	provider: string;
 	form: FormikContextType<ModelFormValues>;
@@ -575,16 +566,6 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	const isFieldVisible = (field: FieldSchema): boolean =>
 		isVisibleWhenSatisfied(field, fieldValueByName);
 
-	// conflicts_with: disable the field while a mutually exclusive sibling holds
-	// a value, unless this field also has one so a both-set state stays
-	// recoverable.
-	const isFieldConflictDisabled = (field: FieldSchema): boolean =>
-		Boolean(field.conflicts_with) &&
-		!hasFieldValue(fieldValueByName(field.json_name)) &&
-		(field.conflicts_with ?? []).some((sibling) =>
-			hasFieldValue(fieldValueByName(sibling)),
-		);
-
 	// Sort wider fields to the end so compact fields fill the
 	// grid first, keeping the layout dense.
 	const sorted = [...fields]
@@ -604,7 +585,7 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 							errorKey={errorKey}
 							form={form}
 							fieldErrors={fieldErrors}
-							disabled={disabled || isFieldConflictDisabled(field)}
+							disabled={disabled || isFieldConflictDisabled(field, fieldValueByName)}
 						/>
 					</div>
 				);

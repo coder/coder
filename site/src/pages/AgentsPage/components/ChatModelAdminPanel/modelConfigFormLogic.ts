@@ -109,6 +109,31 @@ export const isVisibleWhenSatisfied = (
 ): boolean =>
 	!field.visible_when || readSiblingValue(field.visible_when) === "true";
 
+// A field counts as "set" when it holds a non-empty value. JSON array fields
+// serialize to "[]" when empty, so that is treated as unset too.
+export const hasFieldValue = (raw: unknown): boolean => {
+	if (typeof raw !== "string") {
+		return false;
+	}
+	const trimmed = raw.trim();
+	return trimmed.length > 0 && trimmed !== "[]";
+};
+
+/**
+ * conflicts_with: disable the field while a mutually exclusive sibling holds
+ * a value, unless this field also has one so a both-set state stays
+ * recoverable.
+ */
+export const isFieldConflictDisabled = (
+	field: FieldSchema,
+	readSiblingValue: (jsonName: string) => unknown,
+): boolean =>
+	Boolean(field.conflicts_with) &&
+	!hasFieldValue(readSiblingValue(field.json_name)) &&
+	(field.conflicts_with ?? []).some((sibling) =>
+		hasFieldValue(readSiblingValue(sibling)),
+	);
+
 /**
  * Convert a form string value to its API representation based on
  * the field schema type. Empty strings yield `undefined` so
