@@ -394,7 +394,6 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		rl.WriteLog(ctx, http.StatusAccepted)
 	}
 
-	// Cancel this session if the key it authenticated with is deleted.
 	if codersdk.IsDeletableProvisionerKey(authRes.keyID) {
 		closeSubscribe, err := api.Pubsub.Subscribe(
 			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),

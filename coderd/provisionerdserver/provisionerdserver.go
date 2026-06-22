@@ -344,9 +344,7 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 	})
 }
 
-// keyDeleted reports whether the provisioner key the daemon authenticated with
-// no longer exists. Reserved keys and the zero value are not deletable, so they
-// always report false.
+// keyDeleted reports whether the provisioner key no longer exists.
 func (s *server) keyDeleted(ctx context.Context) (bool, error) {
 	if !codersdk.IsDeletableProvisionerKey(s.KeyID) {
 		return false, nil
