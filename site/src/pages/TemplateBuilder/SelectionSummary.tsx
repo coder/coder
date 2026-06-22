@@ -75,7 +75,7 @@ const stepCircleVariants = cva(
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-secondary",
+				upcoming: "border-border text-content-disabled",
 			},
 		},
 	},
@@ -86,7 +86,7 @@ const stepLabelVariants = cva("font-normal mr-2", {
 		variant: {
 			complete: "text-content-primary",
 			current: "text-content-primary",
-			upcoming: "text-content-secondary",
+			upcoming: "text-content-disabled",
 		},
 	},
 });
