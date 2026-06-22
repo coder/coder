@@ -101,7 +101,11 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
 				<PageHeaderSubtitle>
 					A Terraform blueprint for reproducible workspaces.
-					<Link href={docs("/admin/templates")} className="ml-1">
+					<Link
+						href={docs("/admin/templates")}
+						target="_blank"
+						className="ml-1"
+					>
 						View docs
 					</Link>
 				</PageHeaderSubtitle>
