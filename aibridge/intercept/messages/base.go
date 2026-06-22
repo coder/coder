@@ -295,7 +295,7 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
 	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
-		return nil, xerrors.Errorf("no AWS credentials found: %w", err)
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
 	}
 
 	// Fall back to the SDK-resolved region (e.g. from AWS_REGION) when no
