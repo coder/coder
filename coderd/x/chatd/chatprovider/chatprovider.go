@@ -77,14 +77,11 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
-// AcceptsFilePartMediaType reports whether the provider's fantasy
-// conversion accepts mediaType as a file content part, rather than
-// silently dropping it with a "file part media type not supported"
-// warning. The matrix mirrors each provider's FilePart handling in the
-// fantasy SDK. modelID distinguishes API paths within a provider (e.g.
-// OpenAI Responses vs Chat Completions). Unknown providers return false
-// so callers convert text-family content to plain text and guarantee the
-// model still sees it.
+// AcceptsFilePartMediaType reports whether provider accepts mediaType
+// as a file content part rather than silently dropping it. modelID
+// distinguishes API paths within a provider (e.g. OpenAI Responses vs
+// Chat Completions). Unknown providers return false so callers convert
+// text-family content to text and guarantee the model still sees it.
 func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 	baseType := mediaType
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
@@ -92,6 +89,9 @@ func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
 	}
 	isImage := strings.HasPrefix(baseType, "image/")
 	isText := strings.HasPrefix(baseType, "text/")
+	// Audio types are included for matrix completeness but are not
+	// currently reachable: no audio type is in the storable attachment
+	// allowlist (codersdk.AllChatAttachmentMediaTypes).
 	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
 	isPDF := baseType == "application/pdf"
 

@@ -1287,6 +1287,9 @@ func formatSyntheticPasteText(name string, body []byte) string {
 // isInlinableTextMediaType reports whether mediaType is a text-family
 // type whose bytes may be decoded and inlined as prompt text. The set
 // is deliberately narrow so binary or unknown content is never decoded.
+// Any new text type added to codersdk.AllChatAttachmentMediaTypes must
+// also be added here, or it will be silently dropped on providers that
+// reject it as a file part.
 func isInlinableTextMediaType(mediaType string) bool {
 	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
 		mediaType = parsed
@@ -1299,14 +1302,9 @@ func isInlinableTextMediaType(mediaType string) bool {
 	}
 }
 
-// formatInlinedFileText renders an uploaded file's full content as prompt
-// text for providers that would otherwise drop the file part. Unlike the
-// synthetic-paste path, it does not truncate: the file already passed the
-// upload size cap, and a provider that accepts the media type natively
-// would receive the whole file, so inlining the full content keeps
-// behavior consistent across providers and avoids silent data loss. An
-// over-large file fails loudly at the provider, exactly as a native file
-// part of the same size would.
+// formatInlinedFileText renders a file's full content as prompt text
+// for providers that would drop the file part. Unlike the
+// synthetic-paste path, no truncation is applied.
 func formatInlinedFileText(name string, body []byte) string {
 	const fileNameLabel = "Attachment filename: "
 	const fileNameSuffix = "\n\n"
@@ -1580,12 +1578,8 @@ func partsToMessageParts(
 				// not look expired.
 				continue
 			}
-			// Some providers drop text-family file parts (e.g. JSON on
-			// every provider, or plain text on OpenAI). When the target
-			// provider would drop this media type, inline the content as
-			// text so the model still sees it. The stored file part is
-			// unchanged, so the chip and download are unaffected. Only an
-			// explicit text-family allowlist is ever decoded.
+			// When the target provider would drop a text-family file part,
+			// inline the content as text so the model still sees it.
 			//
 			// This must run after the isSyntheticPaste check above;
 			// synthetic pastes use a truncating path and must not fall
@@ -1593,6 +1587,11 @@ func partsToMessageParts(
 			if acceptsFilePart != nil &&
 				isInlinableTextMediaType(mediaType) &&
 				!acceptsFilePart(mediaType) {
+				logger.Info(ctx,
+					"inlining text-family file part as text for provider that would drop it",
+					slog.F("file_name", name),
+					slog.F("media_type", mediaType),
+				)
 				result = append(result, fantasy.TextPart{
 					Text:            formatInlinedFileText(name, data),
 					ProviderOptions: opts,
