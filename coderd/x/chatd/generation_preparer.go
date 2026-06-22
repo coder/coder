@@ -215,8 +215,6 @@ func (server *Server) prepareGeneration(
 		resolvedUserPrompt string
 	)
 
-	persistedSkills := skillsFromParts(promptRows)
-	hasContextFiles := false
 	if chat.WorkspaceID.Valid {
 		// Resolve the workspace agent so the chat row's AgentID and
 		// BuildID bindings are up to date before the chatworker
@@ -225,9 +223,14 @@ func (server *Server) prepareGeneration(
 		// the bound agent has changed, so this is a cheap metadata
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
-		_, _ = workspaceCtx.getWorkspaceAgent(ctx)
-		_, found := contextFileAgentID(promptRows)
-		hasContextFiles = found
+		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+
+		var resolveErr error
+		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent, promptRows)
+		if resolveErr != nil {
+			cleanup()
+			return generationPrepared{}, resolveErr
+		}
 	}
 
 	var g2 errgroup.Group
@@ -239,10 +242,6 @@ func (server *Server) prepareGeneration(
 		}
 		return nil
 	})
-	if hasContextFiles {
-		instruction = instructionFromContextFiles(promptRows)
-		workspaceSkills = persistedSkills
-	}
 	g2.Go(func() error {
 		personalSkills = server.fetchPersonalSkillMetadata(ctx, chat.OwnerID, logger)
 		return nil
