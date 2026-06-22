@@ -13,6 +13,7 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -23,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -55,6 +57,23 @@ func skillResource(t *testing.T, source, name, description string, status databa
 		}),
 		Status: status,
 	}
+}
+
+func mcpServerResource(t *testing.T, source string, body *agentproto.MCPServerBody, status database.WorkspaceAgentContextResourceStatus) database.ChatContextResource {
+	t.Helper()
+	return database.ChatContextResource{
+		Source:   source,
+		BodyKind: database.WorkspaceAgentContextBodyKindMcpServer,
+		Body:     mustMarshalContextBody(t, body),
+		Status:   status,
+	}
+}
+
+func mustStruct(t *testing.T, m map[string]any) *structpb.Struct {
+	t.Helper()
+	s, err := structpb.NewStruct(m)
+	require.NoError(t, err)
+	return s
 }
 
 func TestContextResourcesToPrompt(t *testing.T) {
@@ -93,6 +112,9 @@ func TestContextResourcesToPrompt(t *testing.T) {
 		require.Equal(t, "/home/coder/.coder/skills/deploy", skills[0].Dir)
 		// MetaFile is left empty so chattool defaults to SKILL.md.
 		require.Empty(t, skills[0].MetaFile)
+		// Meta carries the pushed SKILL.md so read_skill serves the body
+		// from the pin without dialing the workspace.
+		require.Equal(t, []byte("# deploy"), skills[0].Meta)
 	})
 
 	t.Run("SkipsNonOKStatus", func(t *testing.T) {
@@ -698,5 +720,169 @@ func TestContextResources(t *testing.T) {
 
 		_, err := server.ContextResources(context.Background(), database.Chat{ID: chatID})
 		require.Error(t, err)
+	})
+}
+
+func TestWorkspaceMCPToolInfosFromResources(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BuildsPrefixedToolsFromMCPServers", func(t *testing.T) {
+		t.Parallel()
+
+		schema := mustStruct(t, map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"title": map[string]any{"type": "string"},
+				"body":  map[string]any{"type": "string"},
+			},
+			"required": []any{"title"},
+		})
+		resources := []database.ChatContextResource{
+			// Skipped: a config resource carries no tools.
+			{
+				Source:   "/home/coder/.mcp.json",
+				BodyKind: database.WorkspaceAgentContextBodyKindMcpConfig,
+				Body:     mustMarshalContextBody(t, &agentproto.MCPConfigBody{}),
+				Status:   database.WorkspaceAgentContextResourceStatusOk,
+			},
+			mcpServerResource(t, "github", &agentproto.MCPServerBody{
+				ServerName: "github",
+				Tools: []*agentproto.MCPTool{
+					{Name: "create_issue", Description: "Create an issue", InputSchema: schema},
+					// Skipped: a tool with no name cannot be addressed.
+					{Name: "", Description: "nameless"},
+				},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+			// Skipped: a server that failed to connect is not OK.
+			mcpServerResource(t, "broken", &agentproto.MCPServerBody{ServerName: "broken"},
+				database.WorkspaceAgentContextResourceStatusUnreadable),
+		}
+
+		infos := workspaceMCPToolInfosFromResources(resources)
+		require.Len(t, infos, 1)
+		require.Equal(t, "github", infos[0].ServerName)
+		// Tool names are re-prefixed with the server name so the workspace
+		// agent's MCP proxy routes the call to the owning server.
+		require.Equal(t, "github__create_issue", infos[0].Name)
+		require.Equal(t, "Create an issue", infos[0].Description)
+		require.Equal(t, []string{"title"}, infos[0].Required)
+		// Schema is the JSON Schema "properties" sub-map, matching the shape the
+		// live discovery path produces; "required" travels separately.
+		require.Contains(t, infos[0].Schema, "title")
+		require.Contains(t, infos[0].Schema, "body")
+		require.NotContains(t, infos[0].Schema, "required")
+	})
+
+	t.Run("FallsBackToSourceWhenServerNameEmpty", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			mcpServerResource(t, "playwright", &agentproto.MCPServerBody{
+				Tools: []*agentproto.MCPTool{{Name: "navigate"}},
+			}, database.WorkspaceAgentContextResourceStatusOk),
+		}
+		infos := workspaceMCPToolInfosFromResources(resources)
+		require.Len(t, infos, 1)
+		require.Equal(t, "playwright", infos[0].ServerName)
+		require.Equal(t, "playwright__navigate", infos[0].Name)
+	})
+
+	t.Run("NoMCPServersYieldsNil", func(t *testing.T) {
+		t.Parallel()
+
+		resources := []database.ChatContextResource{
+			instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+		}
+		require.Empty(t, workspaceMCPToolInfosFromResources(resources))
+	})
+}
+
+func TestPinnedWorkspaceMCPTools(t *testing.T) {
+	t.Parallel()
+
+	// getConn is never dialed by these tests: pinnedWorkspaceMCPTools builds
+	// tool definitions from the snapshot and only wires the connection for
+	// later execution.
+	getConn := func(context.Context) (workspacesdk.AgentConn, error) {
+		return nil, xerrors.New("not dialed in this test")
+	}
+
+	t.Run("NoRowsFallsBack", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{}, nil)
+		server := newPinServer(t, db)
+
+		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		require.NoError(t, err)
+		require.False(t, ok)
+		require.Empty(t, tools)
+	})
+
+	t.Run("ListError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return(nil, xerrors.New("boom"))
+		server := newPinServer(t, db)
+
+		_, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		require.Error(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("BuildsToolsFromMCPServers", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+				mcpServerResource(t, "github", &agentproto.MCPServerBody{
+					ServerName: "github",
+					Tools: []*agentproto.MCPTool{
+						{Name: "create_issue", Description: "Create an issue"},
+						{Name: "search", Description: "Search code"},
+					},
+				}, database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
+		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Len(t, tools, 2)
+		require.Equal(t, "github__create_issue", tools[0].Info().Name)
+		require.Equal(t, "github__search", tools[1].Info().Name)
+	})
+
+	t.Run("PinWithoutMCPServersIsAuthoritative", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		chatID := uuid.New()
+		// The chat is pinned (an instruction file is present) but the agent
+		// reported no MCP servers: ok is true with zero tools so the caller does
+		// not fall back to a live pull that could resurrect stale tools.
+		db.EXPECT().ListChatContextResourcesByChatID(gomock.Any(), chatID).
+			Return([]database.ChatContextResource{
+				instructionResource(t, "/home/coder/AGENTS.md", "be helpful", database.WorkspaceAgentContextResourceStatusOk),
+			}, nil)
+		server := newPinServer(t, db)
+
+		tools, ok, err := server.pinnedWorkspaceMCPTools(context.Background(), database.Chat{ID: chatID}, getConn)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Empty(t, tools)
 	})
 }
