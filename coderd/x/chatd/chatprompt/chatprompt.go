@@ -32,6 +32,13 @@ var syntheticPasteTruncationWarning = fmt.Sprintf(
 	syntheticPasteInlineBudget,
 )
 
+const inlinedFileInlinePrefix = "[inlined-file] The user uploaded a file attachment. The target provider cannot accept this file type as a native attachment, so its content is inlined below for direct model consumption.\n\n"
+
+var inlinedFileTruncationWarning = fmt.Sprintf(
+	"\n\n[inlined-file] The file content was truncated to %d bytes before sending to the model.",
+	syntheticPasteInlineBudget,
+)
+
 var toolCallIDSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 var syntheticPasteFileNamePattern = regexp.MustCompile(`^pasted-text-\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.txt$`)
@@ -102,6 +109,7 @@ func ConvertMessagesWithFiles(
 	messages []database.ChatMessage,
 	resolver FileResolver,
 	logger slog.Logger,
+	acceptsFilePart func(mediaType string) bool,
 ) ([]fantasy.Message, error) {
 	// Phase 1: Parse all messages via ParseContent (→ SDK parts)
 	// and collect file_id references from user messages for batch
@@ -183,6 +191,7 @@ func ConvertMessagesWithFiles(
 				pm.parts,
 				resolved,
 				userMissingFilePolicy,
+				acceptsFilePart,
 			)
 			if len(userParts) == 0 {
 				continue
@@ -193,7 +202,7 @@ func ConvertMessagesWithFiles(
 			})
 		case codersdk.ChatMessageRoleAssistant:
 			fantasyParts := normalizeAssistantToolCallInputs(
-				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles),
+				partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil),
 			)
 			for _, toolCall := range ExtractToolCalls(fantasyParts) {
 				if toolCall.ToolCallID == "" || strings.TrimSpace(toolCall.ToolName) == "" {
@@ -217,7 +226,7 @@ func ConvertMessagesWithFiles(
 					}
 				}
 			}
-			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles)
+			toolParts := partsToMessageParts(ctx, logger, pm.parts, nil, dropMissingFiles, nil)
 			if len(toolParts) == 0 {
 				continue
 			}
@@ -1263,17 +1272,63 @@ func isSyntheticPaste(name string, mediaType string) bool {
 
 func formatSyntheticPasteText(name string, body []byte) string {
 	const syntheticPasteNameLabel = "Synthetic attachment name: "
-	const syntheticPasteNameSuffix = "\n\n"
+
+	return formatBudgetedInlineText(
+		syntheticPasteInlinePrefix,
+		syntheticPasteNameLabel,
+		name,
+		body,
+		syntheticPasteTruncationWarning,
+	)
+}
+
+// isInlinableTextMediaType reports whether mediaType is a text-family
+// type whose bytes may be decoded and inlined as prompt text. The set
+// is deliberately narrow so binary or unknown content is never decoded.
+func isInlinableTextMediaType(mediaType string) bool {
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		mediaType = parsed
+	}
+	switch mediaType {
+	case "text/plain", "text/markdown", "text/csv", "application/json":
+		return true
+	default:
+		return false
+	}
+}
+
+// formatInlinedFileText renders an uploaded file's content as prompt
+// text for providers that would drop the file part. It mirrors
+// formatSyntheticPasteText but uses file-oriented wording, includes the
+// filename for context, and reuses the same 128 KiB inline budget and
+// truncation marker.
+func formatInlinedFileText(name string, body []byte) string {
+	const fileNameLabel = "Attachment filename: "
+
+	return formatBudgetedInlineText(
+		inlinedFileInlinePrefix,
+		fileNameLabel,
+		name,
+		body,
+		inlinedFileTruncationWarning,
+	)
+}
+
+// formatBudgetedInlineText writes prefix, an optional "label + name"
+// header, then up to syntheticPasteInlineBudget bytes of body, appending
+// truncationWarning when the body exceeds the budget.
+func formatBudgetedInlineText(prefix, nameLabel, name string, body []byte, truncationWarning string) string {
+	const nameSuffix = "\n\n"
 
 	var sb strings.Builder
-	sb.Grow(len(syntheticPasteInlinePrefix) + len(name) + min(len(body), syntheticPasteInlineBudget) + len(syntheticPasteTruncationWarning) + len(syntheticPasteNameLabel) + len(syntheticPasteNameSuffix))
-	_, _ = sb.WriteString(syntheticPasteInlinePrefix)
+	sb.Grow(len(prefix) + len(nameLabel) + len(name) + len(nameSuffix) + min(len(body), syntheticPasteInlineBudget) + len(truncationWarning))
+	_, _ = sb.WriteString(prefix)
 	if name != "" {
-		_, _ = fmt.Fprintf(&sb, "%s%s%s", syntheticPasteNameLabel, name, syntheticPasteNameSuffix)
+		_, _ = fmt.Fprintf(&sb, "%s%s%s", nameLabel, name, nameSuffix)
 	}
 	_, _ = sb.WriteString(string(body[:min(len(body), syntheticPasteInlineBudget)]))
 	if len(body) > syntheticPasteInlineBudget {
-		_, _ = sb.WriteString(syntheticPasteTruncationWarning)
+		_, _ = sb.WriteString(truncationWarning)
 	}
 	return sb.String()
 }
@@ -1451,6 +1506,7 @@ func partsToMessageParts(
 	parts []codersdk.ChatMessagePart,
 	resolved map[uuid.UUID]FileData,
 	policy missingFilePolicy,
+	acceptsFilePart func(mediaType string) bool,
 ) []fantasy.MessagePart {
 	result := make([]fantasy.MessagePart, 0, len(parts))
 	for _, part := range parts {
@@ -1534,6 +1590,21 @@ func partsToMessageParts(
 				// uploads, or provider-invalid prompt content. Unresolved
 				// file-backed parts are handled above so empty uploads do
 				// not look expired.
+				continue
+			}
+			// Some providers drop text-family file parts (e.g. JSON on
+			// every provider, or plain text on OpenAI). When the target
+			// provider would drop this media type, inline the content as
+			// text so the model still sees it. The stored file part is
+			// unchanged, so the chip and download are unaffected. Only an
+			// explicit text-ish allowlist is ever decoded.
+			if acceptsFilePart != nil &&
+				isInlinableTextMediaType(mediaType) &&
+				!acceptsFilePart(mediaType) {
+				result = append(result, fantasy.TextPart{
+					Text:            formatInlinedFileText(name, data),
+					ProviderOptions: opts,
+				})
 				continue
 			}
 			result = append(result, fantasy.FilePart{

@@ -2,6 +2,7 @@ package chatprovider
 
 import (
 	"context"
+	"mime"
 	"net/http"
 	neturl "net/url"
 	"sort"
@@ -73,6 +74,43 @@ func InlineImageCapBytes(provider string) (int, bool) {
 		return codersdk.AnthropicInlineImageCapBytes, true
 	default:
 		return 0, false
+	}
+}
+
+// AcceptsFilePartMediaType reports whether the provider's fantasy
+// conversion accepts mediaType as a file content part, rather than
+// silently dropping it with a "file part media type not supported"
+// warning. The matrix mirrors each provider's FilePart handling in the
+// fantasy SDK. Unknown providers return false so callers convert
+// text-ish content to plain text and guarantee the model still sees it.
+func AcceptsFilePartMediaType(provider, mediaType string) bool {
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	isImage := strings.HasPrefix(baseType, "image/")
+	isText := strings.HasPrefix(baseType, "text/")
+	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
+	isPDF := baseType == "application/pdf"
+
+	switch NormalizeProvider(provider) {
+	case fantasygoogle.Name:
+		// Google passes any file part through unfiltered.
+		return true
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		// Bedrock wraps the anthropic client, so it shares the same
+		// file-part acceptance, including text/* as native documents.
+		return isImage || isText || isPDF
+	case fantasyopenai.Name, fantasyazure.Name:
+		// chatd configures both with the Responses API, which only
+		// accepts images and PDFs as file parts.
+		return isImage || isPDF
+	case fantasyopenaicompat.Name:
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		return isImage || isAudio || isPDF
+	default:
+		return false
 	}
 }
 
