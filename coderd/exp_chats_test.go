@@ -7438,6 +7438,51 @@ func TestChatMessageWithFiles(t *testing.T) {
 		require.Contains(t, sdkErr.Detail, "does not exist")
 	})
 
+	t.Run("UnsupportedPromptInputFileType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, store := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: firstUser.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "initial message"},
+			},
+		})
+		require.NoError(t, err)
+
+		//nolint:gocritic // Using AsChatd to mimic an agent-created artifact.
+		chatdCtx := dbauthz.AsChatd(ctx)
+		fileRow, err := store.InsertChatFile(chatdCtx, database.InsertChatFileParams{
+			OwnerID:        firstUser.UserID,
+			OrganizationID: firstUser.OrganizationID,
+			Name:           "artifact.zip",
+			Mimetype:       "application/zip",
+			Data:           []byte("zip data"),
+		})
+		require.NoError(t, err)
+		rejected, err := store.LinkChatFiles(chatdCtx, database.LinkChatFilesParams{
+			ChatID:       chat.ID,
+			MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+			FileIds:      []uuid.UUID{fileRow.ID},
+		})
+		require.NoError(t, err)
+		require.Zero(t, rejected)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeFile, FileID: fileRow.ID},
+			},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Contains(t, sdkErr.Detail, "cannot be used as prompt input")
+		require.Contains(t, sdkErr.Detail, "application/json")
+	})
+
 	t.Run("FilesLinkedOnSend", func(t *testing.T) {
 		t.Parallel()
 

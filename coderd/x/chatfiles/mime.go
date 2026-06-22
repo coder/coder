@@ -26,11 +26,11 @@ var (
 
 	utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
-	// allowedStoredMediaTypes is derived from codersdk.AllChatAttachmentMediaTypes
+	// allowedPromptInputMediaTypes is derived from codersdk.AllChatAttachmentMediaTypes
 	// so the frontend file picker and the server enforcement share a single
 	// source of truth. Do not edit this map directly; add new entries to the
 	// codersdk const block instead.
-	allowedStoredMediaTypes = func() map[string]struct{} {
+	allowedPromptInputMediaTypes = func() map[string]struct{} {
 		m := make(map[string]struct{}, len(codersdk.AllChatAttachmentMediaTypes))
 		for _, t := range codersdk.AllChatAttachmentMediaTypes {
 			m[string(t)] = struct{}{}
@@ -57,16 +57,16 @@ func BaseMediaType(mediaType string) string {
 	return mediaType
 }
 
-// AllowedStoredMediaTypesString returns the supported prompt input media
+// AllowedPromptInputMediaTypesString returns the supported prompt input media
 // types as a comma-separated list.
-func AllowedStoredMediaTypesString() string {
-	return strings.Join(slices.Sorted(maps.Keys(allowedStoredMediaTypes)), ", ")
+func AllowedPromptInputMediaTypesString() string {
+	return strings.Join(slices.Sorted(maps.Keys(allowedPromptInputMediaTypes)), ", ")
 }
 
-// IsAllowedStoredMediaType reports whether the media type is supported for
+// IsAllowedPromptInputMediaType reports whether the media type is supported for
 // user-provided prompt input.
-func IsAllowedStoredMediaType(mediaType string) bool {
-	_, ok := allowedStoredMediaTypes[BaseMediaType(mediaType)]
+func IsAllowedPromptInputMediaType(mediaType string) bool {
+	_, ok := allowedPromptInputMediaTypes[BaseMediaType(mediaType)]
 	return ok
 }
 
@@ -76,7 +76,7 @@ func IsAllowedStoredMediaType(mediaType string) bool {
 // attack surface than the other media types we allow inline.
 func IsInlineRenderableStoredMediaType(mediaType string) bool {
 	mediaType = BaseMediaType(mediaType)
-	if !IsAllowedStoredMediaType(mediaType) {
+	if !IsAllowedPromptInputMediaType(mediaType) {
 		return false
 	}
 	return mediaType != "application/pdf"

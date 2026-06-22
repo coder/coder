@@ -6165,10 +6165,10 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	// application/octet-stream means the client could not classify the file
 	// ahead of time, so we defer to byte classification below.
-	if contentType != "application/octet-stream" && !chatfiles.IsAllowedStoredMediaType(contentType) {
+	if contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
 		})
 		return
 	}
@@ -6217,10 +6217,10 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if !chatfiles.IsAllowedStoredMediaType(detected) {
+	if !chatfiles.IsAllowedPromptInputMediaType(detected) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
 		})
 		return
 	}
@@ -6370,6 +6370,12 @@ func createChatInputFromParts(
 				return nil, "", nil, &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+				}
+			}
+			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
+				return nil, "", nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id references a file type that cannot be used as prompt input. Allowed types: %s.", fieldName, i, chatfiles.AllowedPromptInputMediaTypesString()),
 				}
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))
