@@ -69,6 +69,11 @@ var bedrockSupportedBetaFlags = map[string]bool{
 type BedrockRuntime struct {
 	Cfg   aibconfig.AWSBedrock
 	Creds aws.CredentialsProvider
+	// ResolvedRegion is the region the AWS SDK resolved at construction (from
+	// the environment, shared config, or IMDS). It is used for request signing
+	// when Cfg.Region is empty, e.g. a custom base URL with the region supplied
+	// via AWS_REGION.
+	ResolvedRegion string
 }
 
 type interceptionBase struct {
@@ -293,8 +298,14 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 		return nil, xerrors.Errorf("no AWS credentials found: %w", err)
 	}
 
+	// Fall back to the SDK-resolved region (e.g. from AWS_REGION) when no
+	// explicit region is configured.
+	region := cfg.Region
+	if region == "" {
+		region = i.bedrock.ResolvedRegion
+	}
 	awsCfg := aws.Config{
-		Region:      cfg.Region,
+		Region:      region,
 		Credentials: i.bedrock.Creds,
 	}
 

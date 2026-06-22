@@ -49,7 +49,7 @@ func TestBuildBedrockCredentialsValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := buildBedrockCredentials(context.Background(), tt.cfg)
+			_, _, err := buildBedrockCredentials(context.Background(), tt.cfg)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), tt.errorMsg)
 		})
@@ -60,7 +60,7 @@ func TestBuildBedrockCredentialsValidation(t *testing.T) {
 func TestBuildBedrockCredentialsStatic(t *testing.T) {
 	t.Parallel()
 
-	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+	creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 		Region:          "us-east-1",
 		AccessKey:       "test-key",
 		AccessKeySecret: "test-secret",
@@ -135,7 +135,7 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 			// buildBedrockCredentials only wires up the provider chain; it
 			// does not resolve credentials, so it succeeds regardless of
 			// credential availability. Resolution failures surface on Retrieve.
-			creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+			creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 				Region: "us-east-1",
 			})
 			require.NoError(t, err)
@@ -189,7 +189,7 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
 
-	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+	creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 		Region:  "us-east-1",
 		RoleARN: "arn:aws:iam::123456789012:role/target",
 	})
@@ -233,7 +233,7 @@ func TestBuildBedrockCredentialsAssumeRoleCaches(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
 
-	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+	creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 		Region:  "us-east-1",
 		RoleARN: "arn:aws:iam::123456789012:role/target",
 	})
@@ -280,7 +280,7 @@ func TestBuildBedrockCredentialsAssumeRoleRefreshesOnExpiry(t *testing.T) {
 	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
 
-	creds, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+	creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
 		Region:  "us-east-1",
 		RoleARN: "arn:aws:iam::123456789012:role/target",
 	})

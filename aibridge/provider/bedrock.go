@@ -29,9 +29,9 @@ const bedrockSessionName = "coder-aigateway"
 // so per-request credential retrieval is served from this cache rather than
 // re-resolving (and re-assuming) on every request. No network call is made here:
 // the base identity and any AssumeRole are resolved lazily on first retrieval.
-func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.CredentialsProvider, error) {
+func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.CredentialsProvider, string, error) {
 	if cfg.Region == "" && cfg.BaseURL == "" {
-		return nil, xerrors.New("region or base url required")
+		return nil, "", xerrors.New("region or base url required")
 	}
 
 	var loadOpts []func(*awsconfig.LoadOptions) error
@@ -53,14 +53,14 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 		))
 	// Only one set: misconfiguration.
 	case cfg.AccessKey != "" || cfg.AccessKeySecret != "":
-		return nil, xerrors.New("both access key and access key secret must be provided together")
+		return nil, "", xerrors.New("both access key and access key secret must be provided together")
 	// Neither set: SDK default credential chain resolves the base identity.
 	default:
 	}
 
 	base, err := awsconfig.LoadDefaultConfig(ctx, loadOpts...)
 	if err != nil {
-		return nil, xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
+		return nil, "", xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
 	}
 
 	// The base identity signs Bedrock requests directly unless a target role is
@@ -76,5 +76,7 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 		credsProvider = aws.NewCredentialsCache(credsProvider)
 	}
 
-	return credsProvider, nil
+	// base.Region is the region the SDK resolved (explicit config, AWS_REGION /
+	// AWS_DEFAULT_REGION, shared config, or IMDS).
+	return credsProvider, base.Region, nil
 }
