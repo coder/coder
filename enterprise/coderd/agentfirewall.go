@@ -53,7 +53,7 @@ func (api *API) agentFirewallSessionByID(rw http.ResponseWriter, r *http.Request
 // @Produce json
 // @Tags Enterprise
 // @Param id path string true "Agent firewall session ID" format(uuid)
-// @Param seq_after query int false "Exclusive lower bound on sequence number"
+// @Param seq_after query int false "Inclusive lower bound on sequence number"
 // @Param seq_before query int false "Exclusive upper bound on sequence number"
 // @Param limit query int false "Maximum number of logs to return (default 100)"
 // @Success 200 {object} codersdk.AgentFirewallSessionLogsResponse

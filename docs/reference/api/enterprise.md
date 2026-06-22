@@ -143,7 +143,7 @@ curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
 | Name         | In    | Type         | Required | Description                                    |
 |--------------|-------|--------------|----------|------------------------------------------------|
 | `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
-| `seq_after`  | query | integer      | false    | Exclusive lower bound on sequence number       |
+| `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
 | `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
 | `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
 

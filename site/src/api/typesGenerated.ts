@@ -1060,8 +1060,8 @@ export interface AgentFirewallSession {
  */
 export interface AgentFirewallSessionLogsParams {
 	/**
-	 * SeqAfter is an exclusive lower bound on sequence_number.
-	 * Only logs with sequence_number > SeqAfter are returned.
+	 * SeqAfter is an inclusive lower bound on sequence_number.
+	 * Only logs with sequence_number >= SeqAfter are returned.
 	 */
 	readonly seq_after?: number;
 	/**

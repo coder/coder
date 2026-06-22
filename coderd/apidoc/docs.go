@@ -1348,7 +1348,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Exclusive lower bound on sequence number",
+                        "description": "Inclusive lower bound on sequence number",
                         "name": "seq_after",
                         "in": "query"
                     },

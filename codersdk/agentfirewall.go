@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -58,8 +57,8 @@ type AgentFirewallSessionLogsResponse struct {
 // AgentFirewallSessionLogsParams are query parameters for listing
 // agent firewall session logs.
 type AgentFirewallSessionLogsParams struct {
-	// SeqAfter is an exclusive lower bound on sequence_number.
-	// Only logs with sequence_number > SeqAfter are returned.
+	// SeqAfter is an inclusive lower bound on sequence_number.
+	// Only logs with sequence_number >= SeqAfter are returned.
 	SeqAfter *int64 `json:"seq_after,omitempty"`
 	// SeqBefore is an exclusive upper bound on sequence_number.
 	// Only logs with sequence_number < SeqBefore are returned.
@@ -68,26 +67,30 @@ type AgentFirewallSessionLogsParams struct {
 	Limit *int32 `json:"limit,omitempty"`
 }
 
+func (p AgentFirewallSessionLogsParams) asRequestOption() RequestOption {
+	return func(r *http.Request) {
+		q := r.URL.Query()
+		if p.SeqAfter != nil {
+			q.Set("seq_after", strconv.FormatInt(*p.SeqAfter, 10))
+		}
+		if p.SeqBefore != nil {
+			q.Set("seq_before", strconv.FormatInt(*p.SeqBefore, 10))
+		}
+		if p.Limit != nil {
+			q.Set("limit", strconv.FormatInt(int64(*p.Limit), 10))
+		}
+		r.URL.RawQuery = q.Encode()
+	}
+}
+
 // AgentFirewallSessionLogs returns agent firewall audit logs for the
 // given session, sorted by sequence number ascending.
 func (c *Client) AgentFirewallSessionLogs(ctx context.Context, sessionID uuid.UUID, params AgentFirewallSessionLogsParams) (AgentFirewallSessionLogsResponse, error) {
-	qp := url.Values{}
-	if params.SeqAfter != nil {
-		qp.Set("seq_after", strconv.FormatInt(*params.SeqAfter, 10))
-	}
-	if params.SeqBefore != nil {
-		qp.Set("seq_before", strconv.FormatInt(*params.SeqBefore, 10))
-	}
-	if params.Limit != nil {
-		qp.Set("limit", strconv.FormatInt(int64(*params.Limit), 10))
-	}
-
-	reqURL := fmt.Sprintf("/api/v2/agent-firewall/sessions/%s/logs", sessionID)
-	if encoded := qp.Encode(); encoded != "" {
-		reqURL += "?" + encoded
-	}
-
-	res, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/agent-firewall/sessions/%s/logs", sessionID),
+		nil,
+		params.asRequestOption(),
+	)
 	if err != nil {
 		return AgentFirewallSessionLogsResponse{}, err
 	}

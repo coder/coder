@@ -405,9 +405,9 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 		wantSeqs []int32
 	}{
 		{
-			name:     "SeqAfterExcludesBound",
+			name:     "SeqAfterIncludesBound",
 			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0))},
-			wantSeqs: []int32{1, 2},
+			wantSeqs: []int32{0, 1, 2},
 		},
 		{
 			name:     "SeqBeforeExcludesBound",
@@ -415,9 +415,9 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 			wantSeqs: []int32{0, 1},
 		},
 		{
-			name:     "BetweenBoundsExclusive",
+			name:     "BetweenBoundsInclusiveExclusive",
 			params:   codersdk.AgentFirewallSessionLogsParams{SeqAfter: ptr.Ref(int64(0)), SeqBefore: ptr.Ref(int64(2))},
-			wantSeqs: []int32{1},
+			wantSeqs: []int32{0, 1},
 		},
 		{
 			name:     "LimitCapsResults",
@@ -431,10 +431,12 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 			client, db, owner := newEntClient(t)
 
 			session, insertLogs := setupSession(t, db, owner.UserID, owner.OrganizationID)
+			// Insert in reverse order to prove the endpoint sorts by
+			// sequence_number regardless of DB insertion order.
 			insertLogs(
-				logOpt{SeqNum: 0, Proto: "http", Method: "GET", Detail: "https://a.com", Rule: "domain=a.com"},
-				logOpt{SeqNum: 1, Proto: "http", Method: "GET", Detail: "https://b.com", Rule: "domain=b.com"},
 				logOpt{SeqNum: 2, Proto: "http", Method: "GET", Detail: "https://c.com", Rule: "domain=c.com"},
+				logOpt{SeqNum: 1, Proto: "http", Method: "GET", Detail: "https://b.com", Rule: "domain=b.com"},
+				logOpt{SeqNum: 0, Proto: "http", Method: "GET", Detail: "https://a.com", Rule: "domain=a.com"},
 			)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -468,10 +470,11 @@ func TestAgentFirewallSessionLogs(t *testing.T) {
 			SeqBefore: ptr.Ref(int64(12)),
 		})
 		require.NoError(t, err)
-		require.Len(t, resp.Results, 3, "should return events at seq 6, 7, 11")
-		require.Equal(t, int32(6), resp.Results[0].SequenceNumber)
-		require.Equal(t, int32(7), resp.Results[1].SequenceNumber)
-		require.Equal(t, int32(11), resp.Results[2].SequenceNumber)
+		require.Len(t, resp.Results, 4, "should return events at seq 5, 6, 7, 11")
+		require.Equal(t, int32(5), resp.Results[0].SequenceNumber)
+		require.Equal(t, int32(6), resp.Results[1].SequenceNumber)
+		require.Equal(t, int32(7), resp.Results[2].SequenceNumber)
+		require.Equal(t, int32(11), resp.Results[3].SequenceNumber)
 	})
 
 	t.Run("EmptySession", func(t *testing.T) {

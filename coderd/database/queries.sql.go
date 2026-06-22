@@ -3892,7 +3892,7 @@ FROM boundary_logs
 WHERE
     session_id = $1
     AND CASE
-        WHEN $2::int IS NOT NULL THEN sequence_number > $2
+        WHEN $2::int IS NOT NULL THEN sequence_number >= $2
         ELSE true
     END
     AND CASE
@@ -3911,8 +3911,8 @@ type ListBoundaryLogsBySessionIDParams struct {
 }
 
 // Lists boundary logs for a session, sorted by sequence number ascending.
-// Supports optional exclusive sequence number bounds (seq_after, seq_before)
-// for fetching events between two known interceptions.
+// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
+// (seq_before) for fetching events between two known interceptions.
 func (q *sqlQuerier) ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error) {
 	rows, err := q.db.QueryContext(ctx, listBoundaryLogsBySessionID,
 		arg.SessionID,
