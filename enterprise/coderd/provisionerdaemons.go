@@ -146,13 +146,6 @@ func (p *provisionerDaemonAuth) authorize(r *http.Request, org database.Organiza
 	}, nil
 }
 
-// isDeletableProvisionerKey reports whether the given provisioner key ID can
-// be deleted. The reserved keys (built-in, user-auth, PSK) and the zero value
-// are not deletable.
-func isDeletableProvisionerKey(keyID uuid.UUID) bool {
-	return keyID != uuid.Nil && !codersdk.IsReservedProvisionerKey(keyID)
-}
-
 // Serves the provisioner daemon protobuf API over a WebSocket.
 //
 // @Summary Serve provisioner daemon
@@ -402,7 +395,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	// Cancel this session if the key it authenticated with is deleted.
-	if isDeletableProvisionerKey(authRes.keyID) {
+	if codersdk.IsDeletableProvisionerKey(authRes.keyID) {
 		closeSubscribe, err := api.Pubsub.Subscribe(
 			pubsub.ProvisionerKeyDeletedChannel(authRes.keyID),
 			func(_ context.Context, _ []byte) {

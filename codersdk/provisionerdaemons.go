@@ -423,6 +423,13 @@ func IsReservedProvisionerKey(id uuid.UUID) bool {
 	}
 }
 
+// IsDeletableProvisionerKey reports whether the given ID identifies a
+// provisioner key that can be deleted. The zero value and reserved keys cannot
+// be deleted.
+func IsDeletableProvisionerKey(id uuid.UUID) bool {
+	return id != uuid.Nil && !IsReservedProvisionerKey(id)
+}
+
 type CreateProvisionerKeyRequest struct {
 	Name string            `json:"name"`
 	Tags map[string]string `json:"tags"`

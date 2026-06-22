@@ -348,7 +348,7 @@ func (s *server) defaultHeartbeat(ctx context.Context) error {
 // no longer exists. Reserved keys and the zero value are not deletable, so they
 // always report false.
 func (s *server) keyDeleted(ctx context.Context) (bool, error) {
-	if s.KeyID == uuid.Nil || codersdk.IsReservedProvisionerKey(s.KeyID) {
+	if !codersdk.IsDeletableProvisionerKey(s.KeyID) {
 		return false, nil
 	}
 	_, err := s.Database.GetProvisionerKeyByID(
