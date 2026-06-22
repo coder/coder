@@ -680,6 +680,40 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.NotNil(t, created.Settings.Bedrock)
 		require.Equal(t, "us-east-2", created.Settings.Bedrock.Region)
 	})
+
+	t.Run("BedrockTypeRejectsCustomBaseURLWithoutRegion", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		const required = "type=bedrock requires a Bedrock region or credentials"
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-type-custom-no-region",
+			Enabled: true,
+			BaseURL: "https://bedrock.internal.example.com",
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
+		require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "settings", Detail: required})
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock-type-custom-update-no-region",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+		})
+		require.NoError(t, err)
+
+		_, err = client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			BaseURL: ptr.Ref("https://bedrock.internal.example.com"),
+		})
+		sdkErr = requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, required, sdkErr.Message)
+	})
 }
 
 func TestAIProvidersKeyManagement(t *testing.T) {

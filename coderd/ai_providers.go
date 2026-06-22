@@ -181,6 +181,17 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	req.Settings = normalizeAIProviderSettings(req.Type, req.BaseURL, req.Settings)
+	if req.Type == codersdk.AIProviderTypeBedrock &&
+		(req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid AI provider request.",
+			Validations: []codersdk.ValidationError{{
+				Field:  "settings",
+				Detail: errAIProviderBedrockSettingsRequired.Error(),
+			}},
+		})
+		return
+	}
 
 	settings, err := encodeAIProviderSettings(req.Settings)
 	if err != nil {
@@ -340,6 +351,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
+		if old.Type == database.AIProviderTypeBedrock &&
+			(existing.Bedrock == nil || !existing.Bedrock.IsConfigured()) {
+			return errAIProviderBedrockSettingsRequired
+		}
 		settings, err := encodeAIProviderSettings(existing)
 		if err != nil {
 			return xerrors.Errorf("encode settings: %w", err)
@@ -408,6 +423,12 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
+		})
+		return
+	}
+	if errors.Is(err, errAIProviderBedrockSettingsRequired) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: errAIProviderBedrockSettingsRequired.Error(),
 		})
 		return
 	}
@@ -516,6 +537,10 @@ var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_
 // Bedrock block but the provider is not anthropic- or bedrock-typed;
 // the outer handler translates it into a 400.
 var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
+
+// errAIProviderBedrockSettingsRequired is returned when a Bedrock
+// provider's settings cannot produce runtime Bedrock config.
+var errAIProviderBedrockSettingsRequired = xerrors.New("type=bedrock requires a Bedrock region or credentials")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.
