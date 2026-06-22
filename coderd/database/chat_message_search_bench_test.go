@@ -24,6 +24,18 @@ Ranking with stored tsvector
     chat_message_search_bench_test.go:56: query="CODAGT-517" count=50 duration=83.092696ms
     chat_message_search_bench_test.go:56: query="database migration" count=50 duration=41.964317ms
     chat_message_search_bench_test.go:56: query="workspace timeout" count=50 duration=69.882221ms
+
+Ranking with stored tsvector and NULL for non-searchable rows
+    chat_message_search_bench_test.go:67: seed before index: users=120 total_chats=5240 seeded_messages=1045484 duration=1m10.601606116s
+    chat_message_search_bench_test.go:73: create index duration: 35.465990465s
+    chat_message_search_bench_test.go:74: after create index: index size=87 MB bytes=91258880
+    chat_message_search_bench_test.go:79: seed after index: users=120 total_chats=5240 seeded_messages=1063192 duration=1m20.947277757s
+    chat_message_search_bench_test.go:81: after indexed seed: index size=138 MB bytes=144801792
+    chat_message_search_bench_test.go:84: query="authentication" count=50 duration=160.727851ms
+    chat_message_search_bench_test.go:84: query="permission denied" count=50 duration=147.165677ms
+    chat_message_search_bench_test.go:84: query="CODAGT-517" count=50 duration=107.772913ms
+    chat_message_search_bench_test.go:84: query="database migration" count=50 duration=120.116589ms
+    chat_message_search_bench_test.go:84: query="workspace timeout" count=50 duration=61.535032ms
 */
 
 package database_test
@@ -179,13 +191,17 @@ RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-	NEW.search_tsv := to_tsvector('simple', chat_message_search_text(NEW.content));
+	IF NEW.deleted = false AND NEW.visibility IN ('user', 'both') THEN
+		NEW.search_tsv := to_tsvector('simple', chat_message_search_text(NEW.content));
+	ELSE
+		NEW.search_tsv := NULL;
+	END IF;
 	RETURN NEW;
 END;
 $$;
 
 CREATE TRIGGER chat_message_search_tsv_update
-BEFORE INSERT OR UPDATE OF content
+BEFORE INSERT OR UPDATE OF content, deleted, visibility
 ON chat_messages
 FOR EACH ROW
 EXECUTE FUNCTION chat_message_search_tsv_update();
@@ -198,13 +214,16 @@ func createChatMessageSearchIndex(ctx context.Context, t testing.TB, sqlDB *sql.
 
 	_, err := sqlDB.ExecContext(ctx, `
 UPDATE chat_messages
-SET search_tsv = to_tsvector('simple', chat_message_search_text(content));
+SET search_tsv = CASE
+	WHEN deleted = false AND visibility IN ('user', 'both') THEN
+		to_tsvector('simple', chat_message_search_text(content))
+	ELSE NULL
+END;
 
 CREATE INDEX idx_chat_messages_visible_fts
 ON chat_messages
 USING GIN (search_tsv)
-WHERE deleted = false
-  AND visibility IN ('user', 'both');
+WHERE search_tsv IS NOT NULL;
 `)
 	require.NoError(t, err)
 }
@@ -231,7 +250,7 @@ func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: provider.Provider})
 	chatCounter := chatOffset
 	seededMessages := 0
-	for userIndex, profile := range profiles {
+	for _, profile := range profiles {
 		owner := dbgen.User(t, db, database.User{})
 		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
 		for range profile.Chats {
@@ -249,7 +268,7 @@ func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.
 			seededMessages += messageCount
 			chatCounter++
 		}
-		t.Logf("user: %d chats:%d avg_messages:%d", userIndex, profile.Chats, profile.AvgMessages)
+		// t.Logf("user: %d chats:%d avg_messages:%d", userIndex, profile.Chats, profile.AvgMessages)
 	}
 	return seededMessages
 }
@@ -383,7 +402,7 @@ JOIN chats c ON c.id = cm.chat_id
 CROSS JOIN search_query
 WHERE c.parent_chat_id IS NULL
   AND cm.deleted = false
-  AND cm.visibility IN ('user', 'both')
+  AND cm.search_tsv IS NOT NULL
   AND cm.search_tsv @@ search_query.query
 GROUP BY cm.chat_id
 ORDER BY rank DESC
