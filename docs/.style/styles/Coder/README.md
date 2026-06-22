@@ -4,11 +4,11 @@ Custom Vale rules specific to Coder live here. Each rule is a YAML file
 that Vale loads through the `BasedOnStyles = Coder` setting in the
 repo-root `.vale.ini`.
 
-This directory is intentionally empty for now. Follow-up PRs add rules
-incrementally. Planned starter rules:
+Active rules ship as YAML files in this directory; see the matching
+sections in `docs/.style/style-guide.md` for the user-facing policy each
+rule enforces. Follow-up PRs add rules incrementally. Planned coverage:
 
 - Dev Container terminology
-- HashiCorp casing
 - Limit "we"
 - Setup vs set up, Quickstart casing
 - Next steps vs Learn more
