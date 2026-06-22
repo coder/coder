@@ -264,50 +264,6 @@ func TestLoadSkillFile(t *testing.T) {
 func TestReadSkillTool(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ValidSkill", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		conn := agentconnmock.NewMockAgentConn(ctrl)
-
-		skills := []chattool.SkillMeta{{
-			Name:        "my-skill",
-			Description: "test",
-			Dir:         "/work/.agents/skills/my-skill",
-		}}
-
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "test"))),
-			"text/markdown",
-			nil,
-		)
-		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-			workspacesdk.LSResponse{
-				Contents: []workspacesdk.LSFile{
-					{Name: "SKILL.md"},
-				},
-			}, nil,
-		)
-
-		tool := chattool.ReadSkill(chattool.ReadSkillOptions{
-			GetWorkspaceConn: func(context.Context) (workspacesdk.AgentConn, error) {
-				return conn, nil
-			},
-			GetSkills: func() []chattool.SkillMeta { return skills },
-		})
-
-		resp, err := tool.Run(context.Background(), fantasy.ToolCall{
-			ID:    "call-1",
-			Name:  "read_skill",
-			Input: `{"name":"my-skill"}`,
-		})
-		require.NoError(t, err)
-		assert.False(t, resp.IsError)
-		assert.Contains(t, resp.Content, "Do the thing.")
-	})
-
 	t.Run("PinnedBodyFromMeta", func(t *testing.T) {
 		t.Parallel()
 
@@ -469,15 +425,9 @@ func TestReadSkillTool(t *testing.T) {
 			Name:        "my-skill",
 			Description: "test",
 			Dir:         "/work/.agents/skills/my-skill",
+			Meta:        []byte(validSkillMD("my-skill", "test")),
 		}}
 
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "test"))),
-			"text/markdown",
-			nil,
-		)
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 			workspacesdk.LSResponse{}, nil,
 		)
@@ -521,15 +471,9 @@ func TestReadSkillTool(t *testing.T) {
 			Name:        "deploy",
 			Description: "workspace deploy",
 			Dir:         "/work/.agents/skills/deploy",
+			Meta:        []byte(validSkillMD("deploy", "workspace deploy")),
 		}}
 
-		conn.EXPECT().ReadFile(
-			gomock.Any(), gomock.Any(), int64(0), gomock.Any(),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("deploy", "workspace deploy"))),
-			"text/markdown",
-			nil,
-		)
 		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
 			workspacesdk.LSResponse{}, nil,
 		)

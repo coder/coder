@@ -67,12 +67,17 @@ const (
 	DefaultInFlightChatStaleAfter = 5 * time.Minute
 
 	homeInstructionLookupTimeout = 5 * time.Second
-	planPathLookupTimeout        = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
 	turnStatusLabelWriteTimeout  = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
+	// planPathLookupTimeout bounds resolving the per-chat plan path, which
+	// dials the workspace agent to read its home directory. It must exceed
+	// defaultDialTimeout so a cold dial, bounded internally by that timeout,
+	// can finish before this outer budget fires, with a small margin for the
+	// follow-up LS call.
+	planPathLookupTimeout = defaultDialTimeout + 5*time.Second
 	// DefaultChatHeartbeatInterval is the default time between chat
 	// heartbeat updates while a chat is being processed.
 	DefaultChatHeartbeatInterval = 30 * time.Second

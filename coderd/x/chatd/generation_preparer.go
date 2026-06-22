@@ -213,6 +213,7 @@ func (server *Server) prepareGeneration(
 		workspaceSkills    []chattool.SkillMeta
 		personalSkills     []skillspkg.Skill
 		resolvedUserPrompt string
+		planPathBlock      string
 	)
 
 	if chat.WorkspaceID.Valid {
@@ -224,6 +225,14 @@ func (server *Server) prepareGeneration(
 		// refresh, not a workspace dial. It must not insert chat
 		// history; only metadata is mutated here.
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
+
+		// API-created chats bind their agent lazily here, after
+		// hydrateChatContextOnCreate ran with no agent. Pin the chat to the
+		// bound agent's pushed snapshot now if it is still unpinned, so the
+		// first turn reads workspace context instead of waiting for the
+		// agent's next push. Idempotent and snapshot-gated; runs before the
+		// pinned context is read below.
+		server.ensureChatContextPinnedOnFirstTurn(ctx, workspaceCtx.currentChatSnapshot())
 
 		var resolveErr error
 		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
@@ -268,6 +277,17 @@ func (server *Server) prepareGeneration(
 	if chat.WorkspaceID.Valid && !isPlanModeTurn && !isExploreSubagent {
 		g2.Go(func() error {
 			workspaceMCPTools = server.resolveWorkspaceMCPTools(ctx, logger, chat, &workspaceCtx)
+			return nil
+		})
+	}
+	// Resolve the per-chat plan path block in the parallel phase. It dials
+	// the workspace agent to read the home directory, so running it here lets
+	// the cold dial overlap with the rest of turn preparation instead of
+	// blocking system prompt assembly on a sequential dial. Best-effort:
+	// resolvePlanPathBlock logs and returns an empty block on failure.
+	if chat.WorkspaceID.Valid && !chat.ParentChatID.Valid {
+		g2.Go(func() error {
+			planPathBlock = resolvePlanPathBlock(ctx)
 			return nil
 		})
 	}
@@ -322,7 +342,7 @@ func (server *Server) prepareGeneration(
 	if advisorRuntime != nil {
 		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
 	}
-	prompt = renderPlanPathPrompt(prompt, resolvePlanPathBlock(ctx))
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
 	setAdvisorPromptSnapshot(prompt)
 
 	storeChatAttachment := server.newStoreChatAttachmentFunc(&workspaceCtx)

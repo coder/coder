@@ -45,7 +45,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -1385,23 +1384,17 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	})
 
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	// Workspace MCP tools now come from the agent's pinned snapshot, not live
+	// discovery. Seed the workspace MCP server so chats bound to the agent
+	// hydrate the "workspace-plan-mcp__echo" tool.
+	seedAgentMCPToolContext(ctx, t, db, dbAgent.ID,
+		"workspace-plan-mcp", "echo", "Workspace echo tool")
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
 	workspaceToolName := "workspace-plan-mcp__echo"
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-plan-mcp",
-			Name:        workspaceToolName,
-			Description: "Workspace echo tool",
-			Schema: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		}}}, nil).
-		Times(1)
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -6303,11 +6296,12 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name       string
-		toolName   string
-		toolArgs   string
-		chatMode   database.NullChatMode
-		setupAgent func(*agentconnmock.MockAgentConn)
+		name        string
+		toolName    string
+		toolArgs    string
+		chatMode    database.NullChatMode
+		setupAgent  func(*agentconnmock.MockAgentConn)
+		seedContext func(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID)
 	}{
 		{
 			name:     "builtin tool IsError",
@@ -6321,7 +6315,7 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 		},
 		{
 			name:     "non builtin MCP style tool IsError",
-			toolName: "dynamic_error_tool",
+			toolName: "dynamic__error_tool",
 			toolArgs: `{"input":"hello"}`,
 			setupAgent: func(mockConn *agentconnmock.MockAgentConn) {
 				mockConn.EXPECT().CallMCPTool(gomock.Any(), gomock.Any()).
@@ -6333,6 +6327,9 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 						}},
 					}, nil).
 					Times(1)
+			},
+			seedContext: func(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
+				seedAgentMCPToolContext(ctx, t, db, agentID, "dynamic", "error_tool", "dynamic error tool")
 			},
 		},
 		{
@@ -6373,16 +6370,7 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 
 			ctrl := gomock.NewController(t)
 			mockConn := agentconnmock.NewMockAgentConn(ctrl)
-			setupToolExecutionAgentConn(t, mockConn, workspacesdk.MCPToolInfo{
-				Name:        "dynamic_error_tool",
-				Description: "dynamic error tool",
-				Schema: map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"input": map[string]any{"type": "string"},
-					},
-				},
-			})
+			setupToolExecutionAgentConn(t, mockConn)
 			tt.setupAgent(mockConn)
 
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
@@ -6404,6 +6392,9 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 				InitialUserContent: []codersdk.ChatMessagePart{
 					codersdk.ChatMessageText("run an erroring tool"),
 				},
+			}
+			if tt.seedContext != nil {
+				tt.seedContext(ctx, t, db, dbAgent.ID)
 			}
 			chat, err := server.CreateChat(ctx, chatOpts)
 			require.NoError(t, err)
@@ -6490,13 +6481,6 @@ func setupToolExecutionAgentConn(
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-}
-
-func mustParseChatParts(t *testing.T, msg database.ChatMessage) []codersdk.ChatMessagePart {
-	t.Helper()
-	parts, err := chatprompt.ParseContent(msg)
-	require.NoError(t, err)
-	return parts
 }
 
 func dynamicToolJSON(t *testing.T, name string) []byte {
@@ -9909,6 +9893,11 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.NoError(t, err)
 
 	const contextText = "# Project instructions\nAlways keep routing metadata."
+	// Workspace context is sourced from the agent's pinned snapshot. Seed it so
+	// the chat hydrates it on the lazy first-turn bind and the workspace-context
+	// path runs before AI gateway routing resolves the key.
+	seedAgentInstructionContext(ctx, t, db, dbAgent.ID,
+		"/home/coder/project/AGENTS.md", contextText)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
 		cfg.AIGatewayRoutingEnabled = true
@@ -9927,24 +9916,12 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 
-	messages := persistedChatMessages(ctx, t, db, chat.ID)
-	var contextMessages []database.ChatMessage
-	for _, msg := range messages {
-		if msg.Role != database.ChatMessageRoleUser ||
-			msg.Visibility != database.ChatMessageVisibilityBoth {
-			continue
-		}
-		for _, part := range mustParseChatParts(t, msg) {
-			if part.Type == codersdk.ChatMessagePartTypeContextFile &&
-				part.ContextFileAgentID.Valid &&
-				part.ContextFileAgentID.UUID == dbAgent.ID {
-				contextMessages = append(contextMessages, msg)
-			}
-		}
-	}
-	require.Len(t, contextMessages, 1)
-	require.True(t, contextMessages[0].APIKeyID.Valid)
-	require.Equal(t, apiKey.ID, contextMessages[0].APIKeyID.String)
+	// Workspace context is pinned to the chat, not injected as a user message.
+	// Confirm the agent's pushed instruction hydrated onto the chat so the
+	// workspace-context path ran before AI gateway routing resolved the key.
+	pinned, err := db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 
 	requests := factory.requestsSnapshot()
 	require.NotEmpty(t, requests)
@@ -11394,7 +11371,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	deploymentValues := directChatRoutingDeploymentValues(t)
-	client := coderdtest.New(t, &coderdtest.Options{
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
 		DeploymentValues:              deploymentValues,
 		IncludeProvisionerDaemon:      true,
 		ChatdInstructionLookupTimeout: testutil.WaitLong,
@@ -11416,6 +11393,26 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 
 	_ = agenttest.New(t, client.URL, agentToken, agenttest.WithContextConfigFromEnv())
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).Wait()
+
+	// Pinned context is the sole source of workspace context. The chat binds
+	// its agent lazily on the first turn and re-pins from that agent's pushed
+	// snapshot, so the snapshot must exist before the turn runs. Wait for the
+	// agent to push its instruction file and skill before creating the chat;
+	// otherwise the re-pin copies nothing and the prompt omits them.
+	builtWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	var agentID uuid.UUID
+	for _, res := range builtWorkspace.LatestBuild.Resources {
+		for _, agent := range res.Agents {
+			agentID = agent.ID
+		}
+	}
+	require.NotEqual(t, uuid.Nil, agentID, "workspace should expose an agent")
+	require.Eventually(t, func() bool {
+		pushed, lerr := db.ListWorkspaceAgentContextResources(
+			dbauthz.AsSystemRestricted(ctx), agentID)
+		return lerr == nil && len(pushed) >= 2
+	}, testutil.WaitSuperLong, testutil.IntervalFast)
 
 	// Capture LLM requests so we can inspect the system prompt.
 	var streamedCallsMu sync.Mutex
@@ -12628,349 +12625,6 @@ func nullRawMessage(raw []byte) pqtype.NullRawMessage {
 	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
 }
 
-// Regression for the cold-start race: chatd must wait long enough
-// for ListMCPTools to return after the agent's MCP reload settles.
-func TestActiveServer_WorkspaceContextAndDynamicToolInjection(t *testing.T) {
-	t.Parallel()
-
-	t.Run("persists workspace context before provider request", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		var (
-			requestsMu sync.Mutex
-			requests   []recordedOpenAIRequest
-		)
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-
-			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
-			requestsMu.Unlock()
-
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("done")...,
-			)
-		})
-
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-		const contextText = "# Project instructions\nAlways write tests."
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				require.Equal(t, dbAgent.ID, agentID)
-
-				ctrl := gomock.NewController(t)
-				mockConn := agentconnmock.NewMockAgentConn(ctrl)
-				setupWorkspaceContextAgentConn(t, mockConn, dbAgent, contextText, nil)
-				return mockConn, func() {}, nil
-			}
-		})
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			APIKeyID:       testAPIKeyID(t, db, user.ID),
-			Title:          "workspace-context-before-provider",
-			ModelConfigID:  model.ID,
-			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("What are the workspace rules?"),
-			},
-		})
-		require.NoError(t, err)
-
-		chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		if chatResult.Status == database.ChatStatusError {
-			require.FailNowf(t, "chat failed", "last_error=%q",
-				chatLastErrorMessage(chatResult.LastError))
-		}
-		require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, allContextFilePartsForAgent(parts, dbAgent.ID), 1)
-		contextPart := allContextFilePartsForAgent(parts, dbAgent.ID)[0]
-		require.Equal(t, "/home/coder/project/AGENTS.md", contextPart.ContextFilePath)
-		require.Equal(t, contextText, contextPart.ContextFileContent)
-		require.Equal(t, "linux", contextPart.ContextFileOS)
-		require.Equal(t, "/home/coder/project", contextPart.ContextFileDirectory)
-
-		requestsMu.Lock()
-		recorded := append([]recordedOpenAIRequest(nil), requests...)
-		requestsMu.Unlock()
-		require.Len(t, recorded, 1, "expected exactly one streamed model call")
-		require.True(t, requestHasSystemSubstring(recorded[0], "<workspace-context>"))
-		require.True(t, requestHasSystemSubstring(recorded[0], contextText))
-		require.True(t, requestHasSystemSubstring(recorded[0], "AGENTS.md"))
-	})
-
-	t.Run("persists workspace context once for the same agent", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		var (
-			requestsMu sync.Mutex
-			requests   []recordedOpenAIRequest
-		)
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-
-			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
-			requestsMu.Unlock()
-
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("done")...,
-			)
-		})
-
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-		const contextText = "# Project instructions\nKeep it simple."
-		var contextConfigCalls atomic.Int32
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				require.Equal(t, dbAgent.ID, agentID)
-
-				ctrl := gomock.NewController(t)
-				mockConn := agentconnmock.NewMockAgentConn(ctrl)
-				setupWorkspaceContextAgentConn(t, mockConn, dbAgent, contextText, &contextConfigCalls)
-				return mockConn, func() {}, nil
-			}
-		})
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			APIKeyID:       testAPIKeyID(t, db, user.ID),
-			Title:          "workspace-context-once",
-			ModelConfigID:  model.ID,
-			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("First turn."),
-			},
-		})
-		require.NoError(t, err)
-		firstResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		if firstResult.Status == database.ChatStatusError {
-			require.FailNowf(t, "chat failed", "last_error=%q",
-				chatLastErrorMessage(firstResult.LastError))
-		}
-
-		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:    chat.ID,
-			CreatedBy: user.ID,
-			APIKeyID:  testAPIKeyID(t, db, user.ID),
-			Content: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("Second turn."),
-			},
-		})
-		require.NoError(t, err)
-
-		secondResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		if secondResult.Status == database.ChatStatusError {
-			require.FailNowf(t, "chat failed", "last_error=%q",
-				chatLastErrorMessage(secondResult.LastError))
-		}
-		require.Equal(t, database.ChatStatusWaiting, secondResult.Status)
-
-		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, allContextFilePartsForAgent(parts, dbAgent.ID), 1)
-		require.Equal(t, int32(1), contextConfigCalls.Load())
-
-		requestsMu.Lock()
-		recorded := append([]recordedOpenAIRequest(nil), requests...)
-		requestsMu.Unlock()
-		require.GreaterOrEqual(t, len(recorded), 2)
-		require.True(t, requestHasSystemSubstring(recorded[0], contextText))
-		require.True(t, requestHasSystemSubstring(recorded[len(recorded)-1], contextText))
-	})
-
-	t.Run("commits marker when selected agent is unreachable", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		var (
-			requestsMu sync.Mutex
-			requests   []recordedOpenAIRequest
-		)
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-
-			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
-			requestsMu.Unlock()
-
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("done")...,
-			)
-		})
-
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-		require.NoError(t, db.SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, ws.ID))
-
-		var agentDialCalls atomic.Int32
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				agentDialCalls.Add(1)
-				return nil, nil, xerrors.New("unexpected workspace agent dial")
-			}
-		})
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			APIKeyID:       testAPIKeyID(t, db, user.ID),
-			Title:          "workspace-context-agent-unreachable",
-			ModelConfigID:  model.ID,
-			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-			AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("Continue without workspace context."),
-			},
-		})
-		require.NoError(t, err)
-
-		chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-		parts := persistedChatParts(ctx, t, db, chat.ID)
-		markers := contextFileMarkersForAgent(parts, dbAgent.ID)
-		require.Len(t, markers, 1)
-		require.Empty(t, markers[0].ContextFileContent)
-
-		requestsMu.Lock()
-		recorded := append([]recordedOpenAIRequest(nil), requests...)
-		requestsMu.Unlock()
-		require.Len(t, recorded, 1, "expected model call after marker commit")
-		require.False(t, requestHasSystemSubstring(recorded[0], "Source: "))
-		require.Zero(t, agentDialCalls.Load())
-	})
-
-	t.Run("repersists workspace context after agent changes", func(t *testing.T) {
-		t.Parallel()
-
-		db, ps := dbtestutil.NewDB(t)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		var (
-			requestsMu sync.Mutex
-			requests   []recordedOpenAIRequest
-		)
-		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-			if !req.Stream {
-				return chattest.OpenAINonStreamingResponse("title")
-			}
-
-			requestsMu.Lock()
-			requests = append(requests, recordOpenAIRequest(req))
-			requestsMu.Unlock()
-
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("done")...,
-			)
-		})
-
-		user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-		ws, firstAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-		oldContext := "# Old instructions\nUse the old agent."
-		newContext := "# New instructions\nUse the new agent."
-		server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-			cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-				ctrl := gomock.NewController(t)
-				mockConn := agentconnmock.NewMockAgentConn(ctrl)
-				switch agentID {
-				case firstAgent.ID:
-					setupWorkspaceContextAgentConn(t, mockConn, firstAgent, oldContext, nil)
-				default:
-					setupWorkspaceContextAgentConn(t, mockConn, database.WorkspaceAgent{
-						ID:                agentID,
-						OperatingSystem:   "linux",
-						Directory:         "/home/coder/project-new",
-						ExpandedDirectory: "/home/coder/project-new",
-					}, newContext, nil)
-				}
-				return mockConn, func() {}, nil
-			}
-		})
-
-		chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			APIKeyID:       testAPIKeyID(t, db, user.ID),
-			Title:          "workspace-context-agent-change",
-			ModelConfigID:  model.ID,
-			WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-			InitialUserContent: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("First turn."),
-			},
-		})
-		require.NoError(t, err)
-		firstResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		if firstResult.Status == database.ChatStatusError {
-			require.FailNowf(t, "chat failed", "last_error=%q",
-				chatLastErrorMessage(firstResult.LastError))
-		}
-
-		secondTV := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-			OrganizationID: org.ID,
-			CreatedBy:      user.ID,
-		})
-		secondBuild, secondAgent := seedNewWorkspaceAgentBuild(t, db, user.ID, org.ID, ws.ID, secondTV.ID)
-		_, err = db.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{
-			ID:      chat.ID,
-			BuildID: uuid.NullUUID{UUID: secondBuild.ID, Valid: true},
-			AgentID: uuid.NullUUID{UUID: secondAgent.ID, Valid: true},
-		})
-		require.NoError(t, err)
-
-		_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
-			ChatID:    chat.ID,
-			CreatedBy: user.ID,
-			APIKeyID:  testAPIKeyID(t, db, user.ID),
-			Content: []codersdk.ChatMessagePart{
-				codersdk.ChatMessageText("Second turn."),
-			},
-		})
-		require.NoError(t, err)
-
-		secondResult := waitForTerminalChat(ctx, t, db, chat.ID)
-		if secondResult.Status == database.ChatStatusError {
-			require.FailNowf(t, "chat failed", "last_error=%q",
-				chatLastErrorMessage(secondResult.LastError))
-		}
-		require.Equal(t, database.ChatStatusWaiting, secondResult.Status)
-
-		parts := persistedChatParts(ctx, t, db, chat.ID)
-		require.Len(t, allContextFilePartsForAgent(parts, firstAgent.ID), 1)
-		require.Len(t, allContextFilePartsForAgent(parts, secondAgent.ID), 1)
-
-		requestsMu.Lock()
-		recorded := append([]recordedOpenAIRequest(nil), requests...)
-		requestsMu.Unlock()
-		require.GreaterOrEqual(t, len(recorded), 2)
-		latest := recorded[len(recorded)-1]
-		require.True(t, requestHasSystemSubstring(latest, newContext))
-		require.False(t, requestHasSystemSubstring(latest, oldContext))
-	})
-}
-
 func setupWorkspaceContextAgentConn(
 	t *testing.T,
 	mockConn *agentconnmock.MockAgentConn,
@@ -13013,691 +12667,4 @@ func setupWorkspaceContextAgentConn(
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-}
-
-func persistedChatParts(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	chatID uuid.UUID,
-) []codersdk.ChatMessagePart {
-	t.Helper()
-	messages := persistedChatMessages(ctx, t, db, chatID)
-	var parts []codersdk.ChatMessagePart
-	for _, msg := range messages {
-		parts = append(parts, mustParseChatParts(t, msg)...)
-	}
-	return parts
-}
-
-func persistedChatMessages(
-	ctx context.Context,
-	t *testing.T,
-	db database.Store,
-	chatID uuid.UUID,
-) []database.ChatMessage {
-	t.Helper()
-	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  chatID,
-		AfterID: 0,
-	})
-	require.NoError(t, err)
-	return messages
-}
-
-func allContextFilePartsForAgent(
-	parts []codersdk.ChatMessagePart,
-	agentID uuid.UUID,
-) []codersdk.ChatMessagePart {
-	var matched []codersdk.ChatMessagePart
-	for _, part := range parts {
-		if part.Type != codersdk.ChatMessagePartTypeContextFile ||
-			!part.ContextFileAgentID.Valid ||
-			part.ContextFileAgentID.UUID != agentID ||
-			part.ContextFileContent == "" {
-			continue
-		}
-		matched = append(matched, part)
-	}
-	return matched
-}
-
-func contextFileMarkersForAgent(
-	parts []codersdk.ChatMessagePart,
-	agentID uuid.UUID,
-) []codersdk.ChatMessagePart {
-	var matched []codersdk.ChatMessagePart
-	for _, part := range parts {
-		if part.Type != codersdk.ChatMessagePartTypeContextFile ||
-			!part.ContextFileAgentID.Valid ||
-			part.ContextFileAgentID.UUID != agentID {
-			continue
-		}
-		matched = append(matched, part)
-	}
-	return matched
-}
-
-func requireChatToolPart(
-	t *testing.T,
-	messages []database.ChatMessage,
-	partType codersdk.ChatMessagePartType,
-	toolName string,
-) codersdk.ChatMessagePart {
-	t.Helper()
-	for _, msg := range messages {
-		for _, part := range mustParseChatParts(t, msg) {
-			if part.Type == partType && part.ToolName == toolName {
-				return part
-			}
-		}
-	}
-	require.FailNowf(t, "missing chat tool part", "type=%q tool=%q", partType, toolName)
-	return codersdk.ChatMessagePart{}
-}
-
-func openAIRequestContainsToolResult(req recordedOpenAIRequest, toolResultText string) bool {
-	for _, msg := range req.Messages {
-		if msg.Role == "tool" && strings.Contains(msg.Content, toolResultText) {
-			return true
-		}
-	}
-	return false
-}
-
-func nextWorkspaceBuildNumber(t *testing.T, db database.Store, workspaceID uuid.UUID) int32 {
-	t.Helper()
-	builds, err := db.GetWorkspaceBuildsByWorkspaceID(context.Background(), database.GetWorkspaceBuildsByWorkspaceIDParams{
-		WorkspaceID: workspaceID,
-		OffsetOpt:   0,
-		LimitOpt:    100,
-	})
-	require.NoError(t, err)
-	var maxBuild int32
-	for _, build := range builds {
-		if build.BuildNumber > maxBuild {
-			maxBuild = build.BuildNumber
-		}
-	}
-	return maxBuild + 1
-}
-
-func seedNewWorkspaceAgentBuild(
-	t *testing.T,
-	db database.Store,
-	userID uuid.UUID,
-	orgID uuid.UUID,
-	workspaceID uuid.UUID,
-	templateVersionID uuid.UUID,
-) (database.WorkspaceBuild, database.WorkspaceAgent) {
-	t.Helper()
-	pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-		InitiatorID:    userID,
-		OrganizationID: orgID,
-		StartedAt:      sql.NullTime{Time: dbtime.Now().Add(-time.Minute), Valid: true},
-		CompletedAt:    sql.NullTime{Time: dbtime.Now(), Valid: true},
-	})
-	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-		WorkspaceID:       workspaceID,
-		TemplateVersionID: templateVersionID,
-		JobID:             pj.ID,
-		BuildNumber:       nextWorkspaceBuildNumber(t, db, workspaceID),
-		InitiatorID:       userID,
-		Transition:        database.WorkspaceTransitionStart,
-	})
-	res := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-		Transition: database.WorkspaceTransitionStart,
-		JobID:      pj.ID,
-	})
-	now := dbtime.Now()
-	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
-		ResourceID:       res.ID,
-		LifecycleState:   database.WorkspaceAgentLifecycleStateReady,
-		StartedAt:        sql.NullTime{Time: now, Valid: true},
-		ReadyAt:          sql.NullTime{Time: now, Valid: true},
-		FirstConnectedAt: sql.NullTime{Time: now, Valid: true},
-		LastConnectedAt:  sql.NullTime{Time: now, Valid: true},
-		Directory:        "/home/coder/project-new",
-		OperatingSystem:  "linux",
-	})
-	require.NoError(t, db.UpdateWorkspaceAgentStartupByID(context.Background(), database.UpdateWorkspaceAgentStartupByIDParams{
-		ID:                agent.ID,
-		Version:           "v1.0.0",
-		ExpandedDirectory: "/home/coder/project-new",
-	}))
-	loadedAgent, err := db.GetWorkspaceAgentByID(context.Background(), agent.ID)
-	require.NoError(t, err)
-	return build, loadedAgent
-}
-
-func seedWorkspaceForCreateTool(
-	t *testing.T,
-	db database.Store,
-	user database.User,
-	org database.Organization,
-) (database.Template, database.WorkspaceTable, database.WorkspaceBuild, database.WorkspaceAgent) {
-	t.Helper()
-	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	tpl := dbgen.Template(t, db, database.Template{
-		CreatedBy:       user.ID,
-		OrganizationID:  org.ID,
-		ActiveVersionID: tv.ID,
-	})
-	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID:     tpl.ID,
-		OwnerID:        user.ID,
-		OrganizationID: org.ID,
-	})
-	build, agent := seedNewWorkspaceAgentBuild(t, db, user.ID, org.ID, ws.ID, tv.ID)
-	return tpl, ws, build, agent
-}
-
-func TestRunChat_WorkspaceMCPDiscoveryWaitsForSlowAgent(t *testing.T) {
-	t.Parallel()
-
-	const slowAgentMCPListDelay = 7 * time.Second
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		requestsMu.Unlock()
-
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
-
-	workspaceToolName := "workspace-slow-mcp__echo"
-	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
-		Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-slow-mcp",
-			Name:        workspaceToolName,
-			Description: "Slow workspace echo tool",
-			Schema: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		}},
-	}
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	// Honor ctx so the goroutine exits if chatd cancels.
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		DoAndReturn(func(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
-			select {
-			case <-time.After(slowAgentMCPListDelay):
-				return workspaceToolsResp, nil
-			case <-ctx.Done():
-				return workspacesdk.ListMCPToolsResponse{}, ctx.Err()
-			}
-		}).AnyTimes()
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "workspace-mcp-slow-agent",
-		ModelConfigID:  model.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("List the workspace MCP tools."),
-		},
-	})
-	require.NoError(t, err)
-
-	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q",
-			chatLastErrorMessage(chatResult.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.Len(t, recorded, 1, "expected exactly one streamed model call")
-	require.Contains(t, recorded[0].Tools, workspaceToolName,
-		"workspace MCP tool should reach the LLM once chatd's discovery "+
-			"timeout exceeds the agent's MCP reload time")
-}
-
-// TestActiveServer_WorkspaceMCPToolDiscoveredMidTurnExecutes guards that
-// a workspace MCP tool discovered after mid-turn workspace binding is
-// active and executable in later generation actions for the same turn.
-func TestActiveServer_WorkspaceMCPToolDiscoveredMidTurnExecutes(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-
-	workspaceToolName := "workspace-exec-mcp__echo"
-	workspaceCreateToolArgsJSON := ""
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		callIdx := len(requests)
-		requestsMu.Unlock()
-
-		switch callIdx {
-		case 1:
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON))
-		case 2:
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(workspaceToolName, `{"input":"hello"}`))
-		default:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("done")...,
-			)
-		}
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-
-	// Seed a workspace and agent for create_workspace to bind to.
-	tpl, ws, build, dbAgent := seedWorkspaceForCreateTool(t, db, user, org)
-	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
-
-	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
-		Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-exec-mcp",
-			Name:        workspaceToolName,
-			Description: "workspace echo tool",
-			Schema: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"input": map[string]any{"type": "string"},
-				},
-			},
-			Required: []string{"input"},
-		}},
-	}
-
-	var callMCPToolCount atomic.Int32
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspaceToolsResp, nil).AnyTimes()
-	mockConn.EXPECT().CallMCPTool(gomock.Any(), gomock.Cond(func(req workspacesdk.CallMCPToolRequest) bool {
-		return req.ToolName == workspaceToolName && req.Arguments["input"] == "hello"
-	})).DoAndReturn(func(_ context.Context, _ workspacesdk.CallMCPToolRequest) (workspacesdk.CallMCPToolResponse, error) {
-		callMCPToolCount.Add(1)
-		return workspacesdk.CallMCPToolResponse{
-			Content: []workspacesdk.MCPToolContent{{
-				Type: "text",
-				Text: "echo: hello",
-			}},
-		}, nil
-	}).Times(1)
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.ReadFileLinesResponse{Success: true}, nil).AnyTimes()
-	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
-
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-		return codersdk.Workspace{
-			ID:             ws.ID,
-			Name:           req.Name,
-			OwnerName:      user.Username,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-			LatestBuild: codersdk.WorkspaceBuild{
-				ID:     build.ID,
-				Status: codersdk.WorkspaceStatusRunning,
-			},
-		}, nil
-	}
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-		cfg.CreateWorkspace = createFn
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "workspace-mcp-midturn-executes",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
-		},
-	})
-	require.NoError(t, err)
-
-	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q",
-			chatLastErrorMessage(chatResult.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-	require.Equal(t, int32(1), callMCPToolCount.Load())
-
-	messages := persistedChatMessages(ctx, t, db, chat.ID)
-	toolCall := requireChatToolPart(t, messages, codersdk.ChatMessagePartTypeToolCall, workspaceToolName)
-	require.NotEmpty(t, toolCall.ToolCallID)
-	toolResult := requireChatToolPart(t, messages, codersdk.ChatMessagePartTypeToolResult, workspaceToolName)
-	require.Contains(t, string(toolResult.Result), "echo: hello")
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.GreaterOrEqual(t, len(recorded), 3)
-	require.Contains(t, recorded[1].Tools, workspaceToolName)
-	require.True(t, openAIRequestContainsToolResult(recorded[len(recorded)-1], "echo: hello"))
-}
-
-func TestActiveServer_WorkspaceMCPDiscoveryAfterMidTurnCreateWorkspace(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-
-	workspaceToolName := "workspace-midturn-mcp__echo"
-	workspaceCreateToolArgsJSON := ""
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		callIdx := len(requests)
-		requestsMu.Unlock()
-
-		if callIdx == 1 {
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON))
-		}
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-
-	// Seed a workspace and agent for create_workspace to bind to.
-	tpl, ws, build, dbAgent := seedWorkspaceForCreateTool(t, db, user, org)
-	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
-
-	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
-		Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-midturn-mcp",
-			Name:        workspaceToolName,
-			Description: "workspace echo tool",
-			Schema: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		}},
-	}
-
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspaceToolsResp, nil).AnyTimes()
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
-
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-		return codersdk.Workspace{
-			ID:             ws.ID,
-			Name:           req.Name,
-			OwnerName:      user.Username,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-			LatestBuild: codersdk.WorkspaceBuild{
-				ID:     build.ID,
-				Status: codersdk.WorkspaceStatusRunning,
-			},
-		}, nil
-	}
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-		cfg.CreateWorkspace = createFn
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "workspace-mcp-midturn",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
-		},
-	})
-	require.NoError(t, err)
-
-	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q",
-			chatLastErrorMessage(chatResult.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.GreaterOrEqual(t, len(recorded), 2,
-		"expected at least two streamed model calls (create_workspace + follow-up)")
-	require.NotContains(t, recorded[0].Tools, workspaceToolName,
-		"first call should not advertise workspace MCP tools because the chat has no workspace yet")
-	require.Contains(t, recorded[1].Tools, workspaceToolName,
-		"second call (after create_workspace) must advertise the workspace MCP tool: "+
-			"this is the fix for mid-turn workspace MCP discovery")
-}
-
-// TestActiveServer_WorkspaceMCPDiscoveryRetriesAfterEmptyResult guards
-// the regression where an empty workspace MCP discovery result
-// permanently blocked retries within the turn. The active worker should
-// retry discovery in later generation actions until tools appear.
-func TestActiveServer_WorkspaceMCPDiscoveryRetriesAfterEmptyResult(t *testing.T) {
-	t.Parallel()
-
-	db, ps := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	var (
-		requestsMu sync.Mutex
-		requests   []recordedOpenAIRequest
-	)
-
-	workspaceToolName := "workspace-empty-retry-mcp__echo"
-	workspaceCreateToolArgsJSON := ""
-
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-
-		requestsMu.Lock()
-		requests = append(requests, recordOpenAIRequest(req))
-		callIdx := len(requests)
-		requestsMu.Unlock()
-
-		// Step 1: trigger create_workspace.
-		if callIdx == 1 {
-			return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk("create_workspace", workspaceCreateToolArgsJSON))
-		}
-		// Step 2..N-1 calls a cheap workspace tool so the active worker
-		// runs several generation actions before the final assistant text.
-		if callIdx < 6 {
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("ls", `{"path":"/tmp"}`),
-			)
-		}
-		// Final step: finish the chat.
-		return chattest.OpenAIStreamingResponse(
-			chattest.OpenAITextChunks("done")...,
-		)
-	})
-
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-
-	// Seed a workspace and agent for create_workspace to bind to.
-	tpl, ws, build, dbAgent := seedWorkspaceForCreateTool(t, db, user, org)
-	workspaceCreateToolArgsJSON = fmt.Sprintf(`{"template_id":%q}`, tpl.ID.String())
-
-	workspaceToolsResp := workspacesdk.ListMCPToolsResponse{
-		Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-empty-retry-mcp",
-			Name:        workspaceToolName,
-			Description: "workspace echo tool",
-			Schema: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		}},
-	}
-
-	// First two ListMCPTools calls return empty (no error). One may
-	// come from the cache primer and one from the first generation
-	// action after create_workspace. Later calls return the workspace
-	// tool, proving discovery retries after empty results.
-	var listCalls atomic.Int32
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
-	mockConn.EXPECT().ContextConfig(gomock.Any()).
-		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).DoAndReturn(
-		func(context.Context) (workspacesdk.ListMCPToolsResponse, error) {
-			n := listCalls.Add(1)
-			if n <= 2 {
-				return workspacesdk.ListMCPToolsResponse{}, nil
-			}
-			return workspaceToolsResp, nil
-		},
-	).AnyTimes()
-	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
-	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(io.NopCloser(strings.NewReader("")), "", nil).AnyTimes()
-	mockConn.EXPECT().AwaitReachable(gomock.Any()).Return(true).AnyTimes()
-
-	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
-		return codersdk.Workspace{
-			ID:             ws.ID,
-			Name:           req.Name,
-			OwnerName:      user.Username,
-			OrganizationID: org.ID,
-			TemplateID:     tpl.ID,
-			LatestBuild: codersdk.WorkspaceBuild{
-				ID:     build.ID,
-				Status: codersdk.WorkspaceStatusRunning,
-			},
-		}, nil
-	}
-
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-		cfg.CreateWorkspace = createFn
-	})
-
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		APIKeyID:       testAPIKeyID(t, db, user.ID),
-		Title:          "workspace-mcp-empty-retry",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("Create a workspace and call the workspace MCP tool."),
-		},
-	})
-	require.NoError(t, err)
-
-	chatResult := waitForTerminalChat(ctx, t, db, chat.ID)
-	if chatResult.Status == database.ChatStatusError {
-		require.FailNowf(t, "chat failed", "last_error=%q",
-			chatLastErrorMessage(chatResult.LastError))
-	}
-	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
-
-	requestsMu.Lock()
-	recorded := append([]recordedOpenAIRequest(nil), requests...)
-	requestsMu.Unlock()
-	require.GreaterOrEqual(t, len(recorded), 3,
-		"expected at least three streamed model calls; chat must run past the empty discovery")
-
-	// The first call has no workspace yet. By a later post-binding
-	// call, workspace MCP discovery must have retried after the empty
-	// results and advertised the workspace tool.
-	sawWorkspaceTool := false
-	for i := 2; i < len(recorded); i++ {
-		if slices.Contains(recorded[i].Tools, workspaceToolName) {
-			sawWorkspaceTool = true
-			break
-		}
-	}
-	require.True(t, sawWorkspaceTool,
-		"workspace MCP discovery must retry on subsequent steps; "+
-			"without the fix the first empty result would permanently "+
-			"block retries within the turn")
 }
