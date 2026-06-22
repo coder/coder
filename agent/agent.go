@@ -2289,26 +2289,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	logPath := filepath.Join(a.logDir, "coder-agent.log")
-	f, err := os.Open(logPath)
-	if err != nil {
-		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-		return
-	}
-	defer f.Close()
-
-	// Limit to 10MiB.
-	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
-	if err != nil && !errors.Is(err, io.EOF) {
-		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		return
-	}
-}
-
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
