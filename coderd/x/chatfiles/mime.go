@@ -24,10 +24,6 @@ var (
 	// after normalization.
 	ErrStoredFileNameRequired = xerrors.New("stored file name is required")
 
-	// ErrUnsupportedStoredFileType indicates that classified file bytes do not
-	// map to an allowed durable file type.
-	ErrUnsupportedStoredFileType = xerrors.New("unsupported attachment type")
-
 	utf8BOM = []byte{0xEF, 0xBB, 0xBF}
 
 	// allowedStoredMediaTypes is derived from codersdk.AllChatAttachmentMediaTypes
@@ -61,14 +57,14 @@ func BaseMediaType(mediaType string) string {
 	return mediaType
 }
 
-// AllowedStoredMediaTypesString returns the supported durable chat file media
+// AllowedStoredMediaTypesString returns the supported prompt input media
 // types as a comma-separated list.
 func AllowedStoredMediaTypesString() string {
 	return strings.Join(slices.Sorted(maps.Keys(allowedStoredMediaTypes)), ", ")
 }
 
 // IsAllowedStoredMediaType reports whether the media type is supported for
-// durable chat file storage.
+// user-provided prompt input.
 func IsAllowedStoredMediaType(mediaType string) bool {
 	_, ok := allowedStoredMediaTypes[BaseMediaType(mediaType)]
 	return ok
@@ -102,8 +98,7 @@ func NormalizeStoredFileName(name string) string {
 
 // PrepareStoredFile normalizes the display name, rejects empty normalized
 // names, and classifies the file bytes using detectName when provided, so
-// callers can preserve subtype detection even when the user-facing filename is
-// overridden.
+// callers can apply the right policy for their file source.
 func PrepareStoredFile(name, detectName string, data []byte) (storedName, mediaType string, err error) {
 	storedName = NormalizeStoredFileName(name)
 	if storedName == "" {
@@ -112,11 +107,7 @@ func PrepareStoredFile(name, detectName string, data []byte) (storedName, mediaT
 	if strings.TrimSpace(detectName) == "" {
 		detectName = storedName
 	}
-	mediaType = ClassifyStoredMediaType(detectName, data)
-	if !IsAllowedStoredMediaType(mediaType) {
-		return "", "", xerrors.Errorf("%w %q", ErrUnsupportedStoredFileType, mediaType)
-	}
-	return storedName, mediaType, nil
+	return storedName, ClassifyStoredMediaType(detectName, data), nil
 }
 
 // PrepareRecordingArtifact normalizes the recording artifact name, rejects

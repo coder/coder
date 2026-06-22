@@ -166,16 +166,17 @@ func TestPrepareStoredFile(t *testing.T) {
 		require.ErrorIs(t, err, chatfiles.ErrStoredFileNameRequired)
 	})
 
-	t.Run("RejectsUnsupportedStoredFileType", func(t *testing.T) {
+	t.Run("ClassifiesUnsupportedPromptInputType", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := chatfiles.PrepareStoredFile(
+		name, mediaType, err := chatfiles.PrepareStoredFile(
 			"evil.svg",
 			"evil.svg",
 			[]byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`),
 		)
-		require.ErrorIs(t, err, chatfiles.ErrUnsupportedStoredFileType)
-		require.ErrorContains(t, err, "image/svg+xml")
+		require.NoError(t, err)
+		require.Equal(t, "evil.svg", name)
+		require.Equal(t, "image/svg+xml", mediaType)
 	})
 
 	t.Run("TruncatesNamesAtRuneBoundaries", func(t *testing.T) {
@@ -344,6 +345,7 @@ func TestIsInlineRenderableStoredMediaType(t *testing.T) {
 	require.True(t, chatfiles.IsInlineRenderableStoredMediaType("image/png"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/pdf"))
 	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("image/svg+xml"))
+	require.False(t, chatfiles.IsInlineRenderableStoredMediaType("application/zip"))
 }
 
 func TestHasSVGRootElement(t *testing.T) {

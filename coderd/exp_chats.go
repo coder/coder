@@ -6199,7 +6199,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the actual content matches an allowed file type so that
+	// Classify the actual content before applying the upload policy so
 	// a client cannot spoof Content-Type to serve active content.
 	filename, detected, err := chatfiles.PrepareStoredFile(filename, filename, data)
 	if err != nil {
@@ -6209,17 +6209,19 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 				Message: "Filename is required.",
 				Detail:  "Provide a filename in the Content-Disposition header.",
 			})
-		case errors.Is(err, chatfiles.ErrUnsupportedStoredFileType):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Unsupported file type.",
-				Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
-			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid file.",
 				Detail:  err.Error(),
 			})
 		}
+		return
+	}
+	if !chatfiles.IsAllowedStoredMediaType(detected) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type.",
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+		})
 		return
 	}
 	// The compatibility check below is security-critical: it keeps exact
