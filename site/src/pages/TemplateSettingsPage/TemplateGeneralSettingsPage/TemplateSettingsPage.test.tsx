@@ -19,7 +19,10 @@ import TemplateSettingsPage from "./TemplateSettingsPage";
 type FormValues = Required<
 	Omit<
 		UpdateTemplateMeta,
-		"default_ttl_ms" | "activity_bump_ms" | "deprecation_message"
+		| "default_ttl_ms"
+		| "activity_bump_ms"
+		| "time_til_autostop_notify_ms"
+		| "deprecation_message"
 	>
 >;
 
