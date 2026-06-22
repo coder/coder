@@ -656,15 +656,19 @@ const WorkspaceApps: FC<WorkspaceAppsProps> = ({ workspace }) => {
 	 * Coder is pretty flexible and allows an enormous variety of use cases, such
 	 * as having multiple resources with many agents, but they are not common. The
 	 * most common scenario is to have one single compute resource with one single
-	 * agent containing all the apps. Lets test this getting the apps for the
-	 * first resource, and first agent - they are sorted to return the compute
-	 * resource first - and see what customers and ourselves, using dogfood, think
-	 * about that.
+	 * agent containing all the apps. We get the apps from the first compute
+	 * resource (they are sorted to return the compute resource first).
+	 *
+	 * For multi-agent workspaces we show the apps from the parent agent, the one
+	 * without a `parent_id`, instead of whichever agent happens to be discovered
+	 * first. Sub-agents, such as those created by devcontainers, are skipped so
+	 * their apps do not replace the parent agent's apps depending on ordering.
+	 * This keeps the shortcuts row deterministic.
 	 */
 	const agent = workspace.latest_build.resources
 		.filter((r) => !r.hide)
 		.at(0)
-		?.agents?.at(0);
+		?.agents?.find((a) => a.parent_id === null);
 	if (!agent) {
 		return null;
 	}
