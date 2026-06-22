@@ -205,6 +205,10 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		UpdatedAt:      now,
 		Roles:          []string{},
 	})
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

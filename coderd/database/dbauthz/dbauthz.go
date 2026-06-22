@@ -6108,12 +6108,9 @@ func (q *querier) InsertOrganizationMembersBatch(ctx context.Context, arg databa
 		return nil, err
 	}
 
-	// Authorize creation for each user in the batch.
-	for _, uid := range arg.UserIds {
-		obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(uid)
-		if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
-			return nil, err
-		}
+	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)
+	if err := q.authorizeContext(ctx, policy.ActionCreate, obj); err != nil {
+		return nil, err
 	}
 
 	return q.db.InsertOrganizationMembersBatch(ctx, arg)

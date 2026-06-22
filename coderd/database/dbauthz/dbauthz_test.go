@@ -2494,6 +2494,25 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate,
 		)
 	}))
+	s.Run("InsertOrganizationMembersBatch", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
+		u1 := testutil.Fake(s.T(), faker, database.User{})
+		u2 := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.InsertOrganizationMembersBatchParams{
+			OrganizationID: o.ID,
+			UserIds:        []uuid.UUID{u1.ID, u2.ID},
+			Roles:          []string{codersdk.RoleOrganizationAdmin},
+		}
+		dbm.EXPECT().GetOrganizationByID(gomock.Any(), o.ID).Return(o, nil).AnyTimes()
+		dbm.EXPECT().InsertOrganizationMembersBatch(gomock.Any(), arg).Return([]database.OrganizationMember{
+			{OrganizationID: o.ID, UserID: u1.ID, Roles: arg.Roles},
+			{OrganizationID: o.ID, UserID: u2.ID, Roles: arg.Roles},
+		}, nil).AnyTimes()
+		check.Args(arg).Asserts(
+			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
+			rbac.ResourceOrganizationMember.InOrg(o.ID), policy.ActionCreate,
+		)
+	}))
 	s.Run("InsertPreset", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertPresetParams{TemplateVersionID: uuid.New(), Name: "test"}
 		dbm.EXPECT().InsertPreset(gomock.Any(), arg).Return(database.TemplateVersionPreset{}, nil).AnyTimes()

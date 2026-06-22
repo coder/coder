@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -178,6 +179,52 @@ func TestAddMembers(t *testing.T) {
 		}
 		require.Contains(t, ids, user1.ID)
 		require.Contains(t, ids, user2.ID)
+	})
+
+	t.Run("AuditLogsOnlyForNewMembers", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{Auditor: auditor})
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, user1 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, user2 := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Pre-add user2 to the second org so the next call is a no-op for it.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user2.ID},
+		})
+		require.NoError(t, err)
+
+		// Reset audit logs after the setup call so the assertions
+		// below only see entries from the batch under test.
+		auditor.ResetLogs()
+
+		// Batch-add user1 (new) and user2 (already member). Only
+		// user1 should produce an audit log because ON CONFLICT
+		// DO NOTHING skips user2 and the handler emits audits only
+		// for inserted rows.
+		members, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{user1.ID, user2.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, members, 1)
+
+		var memberCreateLogs []database.AuditLog
+		for _, log := range auditor.AuditLogs() {
+			if log.ResourceType == database.ResourceTypeOrganizationMember &&
+				log.Action == database.AuditActionCreate &&
+				log.OrganizationID == secondOrg.ID {
+				memberCreateLogs = append(memberCreateLogs, log)
+			}
+		}
+		require.Len(t, memberCreateLogs, 1, "expected exactly one audit log for the newly-added member")
+		require.Equal(t, user1.ID, memberCreateLogs[0].ResourceID, "audit log should reference the new member, not the existing one")
 	})
 }
 
