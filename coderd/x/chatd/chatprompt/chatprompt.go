@@ -1484,8 +1484,10 @@ const (
 
 // partsToMessageParts converts SDK chat message parts into fantasy
 // message parts for LLM dispatch. resolved is a lookup map for file
-// bytes, and policy controls whether missing file-backed parts are
-// dropped or replaced with text placeholders.
+// bytes, policy controls whether missing file-backed parts are dropped
+// or replaced with text placeholders, and acceptsFilePart (when non-nil)
+// gates whether text-family file parts are inlined as text for providers
+// that would drop them.
 func partsToMessageParts(
 	ctx context.Context,
 	logger slog.Logger,
