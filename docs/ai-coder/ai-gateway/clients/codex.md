@@ -141,4 +141,35 @@ Do not set `OPENAI_API_KEY` in the workspace when using the ChatGPT
 subscription flow, or Codex authenticates with the API key instead of
 the ChatGPT login.
 
+## Troubleshooting
+
+### Codex falls back from WebSockets to HTTPS transport
+
+Recent Codex CLI versions default to the WebSocket runtime for the
+Responses API. AI Gateway does not support WebSocket transport, so each
+request attempts a WebSocket connection, fails, and falls back to HTTPS.
+When this happens you will see:
+
+```text
+Falling back from WebSockets to HTTPS transport.
+```
+
+The requests still succeed over HTTPS, but every turn wastes time on the
+failed WebSocket attempts.
+
+To stop Codex from attempting WebSockets, set `supports_websockets = false`
+in your AI Gateway provider block in `~/.codex/config.toml`:
+
+```toml
+model_provider = "ai_gateway"
+
+[model_providers.ai_gateway]
+name = "AI Gateway"
+base_url = "<your-deployment-url>/api/v2/aibridge/openai/v1"
+wire_api = "responses"
+supports_websockets = false
+```
+
+This forces the HTTPS transport directly and removes the fallback delay.
+
 **References:** [Codex CLI Configuration](https://developers.openai.com/codex/config-advanced)
