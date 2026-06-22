@@ -79,8 +79,8 @@ type Options struct {
 	ExternalAuthConfigs []*externalauth.Config
 	AISeatTracker       aiseats.SeatTracker
 
-	// KeyID is the provisioner key the daemon authenticated with. The zero
-	// value and reserved key IDs are not validated.
+	// KeyID is the provisioner key the daemon authenticated with, or the
+	// zero value if it did not authenticate with a key.
 	KeyID uuid.UUID
 
 	// SessionCancel, if set, terminates the daemon's session.
