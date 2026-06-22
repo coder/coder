@@ -171,30 +171,24 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
 // workspace skills from the chat's pinned context resources
-// (chat_context_resources), populated at hydrate and refresh time.
-//
-// ok reports whether the caller should use these values instead of the
-// per-turn, history-derived path. It is false when the chat has no pinned
-// rows (an older agent that never reported context, or a chat not yet
-// hydrated), so the caller falls back to the legacy path. When rows exist ok
-// is true even if they all filter to empty content, because the pin is then
-// the source of truth. A read error is returned rather than swallowed,
-// matching the other prompt-input reads in prepareGeneration.
+// (chat_context_resources), populated at hydrate and refresh time. A chat
+// with no pinned rows yields no context. A read error is returned rather than
+// swallowed, matching the other prompt-input reads in prepareGeneration.
 //
 // agent only decorates the instruction header with its OS and directory; an
-// unresolved (zero-value) agent does not force a fallback, so the pin keeps
+// unresolved (zero-value) agent does not blank the context, so the pin keeps
 // working when the workspace is unreachable.
 func (server *Server) pinnedWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
-) (instruction string, skills []chattool.SkillMeta, ok bool, err error) {
+) (instruction string, skills []chattool.SkillMeta, err error) {
 	resources, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
-		return "", nil, false, xerrors.Errorf("list chat context resources: %w", err)
+		return "", nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	if len(resources) == 0 {
-		return "", nil, false, nil
+		return "", nil, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -218,42 +212,23 @@ func (server *Server) pinnedWorkspaceContext(
 		slog.F("skill_count", len(skills)),
 		slog.F("has_instruction", instruction != ""),
 	)
-	return instruction, skills, true, nil
+	return instruction, skills, nil
 }
 
 // resolveTurnWorkspaceContext selects the instruction block and workspace
-// skills for a turn. It prefers the chat's pinned context copy when the
-// workspace agent has reported context, and falls back to the per-turn,
-// history-derived context-file and skill parts for older agents that have
-// not. The two paths are mutually exclusive. agent is the chat's resolved
-// workspace agent, used only to decorate the pinned instruction header. A
-// non-workspace chat yields no context.
+// skills for a turn from the chat's pinned context snapshot
+// (chat_context_resources). agent is the chat's resolved workspace agent,
+// used only to decorate the pinned instruction header. A non-workspace chat
+// yields no context.
 func (server *Server) resolveTurnWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
-	promptRows []database.ChatMessage,
 ) (instruction string, skills []chattool.SkillMeta, err error) {
 	if !chat.WorkspaceID.Valid {
 		return "", nil, nil
 	}
-
-	pinnedInstruction, pinnedSkills, ok, err := server.pinnedWorkspaceContext(ctx, chat, agent)
-	if err != nil {
-		return "", nil, err
-	}
-	if ok {
-		return pinnedInstruction, pinnedSkills, nil
-	}
-
-	// History fallback: re-derive the instruction and skills from the
-	// context-file and skill parts the per-turn pull persisted. Skills are
-	// included only when context files are present; the pinned path resolves
-	// them independently.
-	if _, found := contextFileAgentID(promptRows); found {
-		return instructionFromContextFiles(promptRows), skillsFromParts(promptRows), nil
-	}
-	return "", nil, nil
+	return server.pinnedWorkspaceContext(ctx, chat, agent)
 }
 
 // contextResourcesToPrompt converts a chat's pinned context resources into

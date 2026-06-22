@@ -16651,13 +16651,6 @@ const docTemplate = `{
                 "last_error": {
                     "$ref": "#/definitions/codersdk.ChatError"
                 },
-                "last_injected_context": {
-                    "description": "LastInjectedContext holds the most recently persisted\ninjected context parts (AGENTS.md files and skills). It\nis updated only when context changes, on first workspace\nattach or agent change.",
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ChatMessagePart"
-                    }
-                },
                 "last_model_config_id": {
                     "type": "string",
                     "format": "uuid"

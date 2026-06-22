@@ -1,7 +1,6 @@
 package chatd
 
 import (
-	"bytes"
 	"cmp"
 	"context"
 	"database/sql"
@@ -70,26 +69,7 @@ const (
 	homeInstructionLookupTimeout = 5 * time.Second
 	planPathLookupTimeout        = 5 * time.Second
 	workspaceDialValidationDelay = 5 * time.Second
-	// Must exceed agent/x/agentmcp.connectTimeout (30s) so a
-	// cold-start agent's first MCP reload can settle before
-	// chatd gives up.
-	workspaceMCPDiscoveryTimeout = 35 * time.Second
-	// workspaceMCPPrimeMaxWait bounds the deadline used by the
-	// create_workspace / start_workspace post-ready cache primer
-	// loop. The primer checks the deadline only after each
-	// discoverWorkspaceMCPTools call returns, so total wall-clock
-	// time can exceed this by one such call (dialTimeout +
-	// workspaceMCPDiscoveryTimeout in the worst case). The constant
-	// caps when new retries can start, not when an in-flight call
-	// must finish. Empty results usually mean the agent's MCP
-	// Connect is still racing with agent startup. The agent-side
-	// budget is agent/x/agentmcp.connectTimeout (30s).
-	workspaceMCPPrimeMaxWait = 30 * time.Second
-	// workspaceMCPPrimeRetryInterval is the short backoff between
-	// re-attempts inside the primer when ListMCPTools returns an
-	// empty list without error.
-	workspaceMCPPrimeRetryInterval = 2 * time.Second
-	turnStatusLabelWriteTimeout    = 5 * time.Second
+	turnStatusLabelWriteTimeout  = 5 * time.Second
 	// defaultDialTimeout matches the timeout used by ~8 other
 	// server-side AgentConn callers.
 	defaultDialTimeout = 30 * time.Second
@@ -194,11 +174,6 @@ type Server struct {
 	debugSvcInit                   sync.Once
 	configCache                    *chatConfigCache
 	configCacheUnsubscribe         func()
-
-	// workspaceMCPToolsCache caches workspace MCP tool definitions
-	// per chat to avoid re-fetching on every turn. The cache is
-	// keyed by chat ID and invalidated when the agent changes.
-	workspaceMCPToolsCache sync.Map // uuid.UUID -> *cachedWorkspaceMCPTools
 
 	usageTracker      *workspacestats.UsageTracker
 	clock             quartz.Clock
@@ -444,226 +419,50 @@ func (p *Server) newAdvisorRuntime(
 	return rt, nil
 }
 
-// cachedWorkspaceMCPTools stores workspace MCP tools discovered
-// from a workspace agent, keyed by the agent ID that provided them.
-type cachedWorkspaceMCPTools struct {
-	agentID uuid.UUID
-	tools   []workspacesdk.MCPToolInfo
-}
-
-// loadCachedWorkspaceContext checks the MCP tools cache for the
-// given chat and agent. Returns non-nil tools when the cache hits,
-// which signals the caller to skip the slow MCP discovery path.
-func (p *Server) loadCachedWorkspaceContext(
-	chatID uuid.UUID,
-	agent database.WorkspaceAgent,
-	getConn func(context.Context) (workspacesdk.AgentConn, error),
-) []fantasy.AgentTool {
-	cached, ok := p.workspaceMCPToolsCache.Load(chatID)
-	if !ok {
-		return nil
-	}
-	entry, ok := cached.(*cachedWorkspaceMCPTools)
-	if !ok || entry.agentID != agent.ID {
-		return nil
-	}
-
-	var tools []fantasy.AgentTool
-	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
-	for _, t := range entry.tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, getConn, invalidate))
-	}
-
-	return tools
-}
-
-// discoverWorkspaceMCPTools resolves the chat's workspace agent and
-// lists the workspace MCP tools advertised by that agent. Results are
-// cached per chat keyed on the agent ID so subsequent calls hit the
-// cache. Returns nil (and never an error) on every failure mode so the
-// caller can continue without MCP tools.
-//
-// This helper is shared between the initial discovery path and the
-// mid-turn workspace binding path triggered after create_workspace or
-// start_workspace bind a workspace to a chat that started without one.
-func (p *Server) discoverWorkspaceMCPTools(
-	ctx context.Context,
-	logger slog.Logger,
-	chatID uuid.UUID,
-	workspaceCtx *turnWorkspaceContext,
-) []fantasy.AgentTool {
-	// Fast path: check cache using the in-memory cached agent
-	// (ensureWorkspaceAgent is free when already loaded). This
-	// avoids a per-turn latest-build DB query on the common
-	// subsequent-turn path.
-	if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-		if tools := p.loadCachedWorkspaceContext(
-			chatID, agent, workspaceCtx.getWorkspaceConn,
-		); tools != nil {
-			return tools
-		}
-	} // Cache miss, agent changed, or no cache: validate
-	// that the workspace still has a live agent before
-	// attempting a dial.
-	_, _, agentErr := workspaceCtx.workspaceAgentIDForConn(ctx)
-	if agentErr != nil {
-		if xerrors.Is(agentErr, errChatHasNoWorkspaceAgent) {
-			p.workspaceMCPToolsCache.Delete(chatID)
-			return nil
-		}
-		logger.Warn(ctx, "failed to resolve workspace agent for MCP tools",
-			slog.Error(agentErr))
-		return nil
-	}
-
-	// List workspace MCP tools via the agent conn.
-	conn, connErr := workspaceCtx.getWorkspaceConn(ctx)
-	if connErr != nil {
-		logger.Warn(ctx, "failed to get workspace conn for MCP tools",
-			slog.Error(connErr))
-		return nil
-	}
-	listCtx, cancel := context.WithTimeout(ctx, workspaceMCPDiscoveryTimeout)
-	defer cancel()
-	toolsResp, listErr := conn.ListMCPTools(listCtx)
-	if listErr != nil {
-		logger.Warn(ctx, "failed to list workspace MCP tools",
-			slog.Error(listErr))
-		return nil
-	}
-	// Cache the result for subsequent turns. Skip caching when
-	// the list is empty because the agent's MCP Connect may not
-	// have finished yet; caching an empty list would hide tools
-	// permanently.
-	if len(toolsResp.Tools) > 0 {
-		if agent, agentErr := workspaceCtx.getWorkspaceAgent(ctx); agentErr == nil {
-			p.workspaceMCPToolsCache.Store(chatID, &cachedWorkspaceMCPTools{
-				agentID: agent.ID,
-				tools:   toolsResp.Tools,
-			})
-		}
-	}
-
-	invalidate := func() { p.workspaceMCPToolsCache.Delete(chatID) }
-	tools := make([]fantasy.AgentTool, 0, len(toolsResp.Tools))
-	for _, t := range toolsResp.Tools {
-		tools = append(tools, chattool.NewWorkspaceMCPTool(t, workspaceCtx.getWorkspaceConn, invalidate))
-	}
-	return tools
-}
-
-// resolveWorkspaceMCPTools selects the workspace MCP tool set for a turn. It
-// prefers the chat's pinned context snapshot and falls back to the per-turn
-// live discovery path for chats whose agent has not reported context yet. The
-// two paths are mutually exclusive, mirroring resolveTurnWorkspaceContext for
-// instructions and skills.
+// resolveWorkspaceMCPTools builds the workspace MCP tool set for a turn from
+// the chat's pinned context snapshot (chat_context_resources). The agent
+// reports its MCP servers in the snapshot it pushes, so a chat with no pinned
+// rows, or one whose workspace advertises no MCP servers, contributes no
+// workspace MCP tools. A read failure is logged and yields no tools rather
+// than aborting the turn.
 func (p *Server) resolveWorkspaceMCPTools(
 	ctx context.Context,
 	logger slog.Logger,
 	chat database.Chat,
 	workspaceCtx *turnWorkspaceContext,
 ) []fantasy.AgentTool {
-	pinned, ok, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+	tools, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
 	if err != nil {
-		// A pinned-read failure should not be more fatal than a live
-		// discovery failure (which returns nil tools), so log and fall back
-		// rather than aborting the turn.
-		logger.Warn(ctx, "failed to read pinned workspace MCP tools; falling back to live discovery",
+		logger.Warn(ctx, "failed to read pinned workspace MCP tools",
 			slog.F("chat_id", chat.ID), slog.Error(err))
-	} else if ok {
-		return pinned
+		return nil
 	}
-	return p.discoverWorkspaceMCPTools(ctx, logger, chat.ID, workspaceCtx)
+	return tools
 }
 
 // pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
-// context snapshot (chat_context_resources) instead of dialing the agent for
-// a live tool list. ok reports whether the caller should use these tools
-// instead of the live discovery path. It is false when the chat has no pinned
-// rows (an older agent that never reported context, or a chat not yet
-// hydrated), so the caller falls back. When rows exist ok is true even if none
-// are MCP servers, because the pin is then authoritative: a workspace with no
-// MCP servers contributes no tools.
-//
-// Each tool still proxies its calls back through the workspace agent
-// connection; the snapshot carries tool definitions, not a way to execute
-// them, so execution requires a reachable agent. There is no per-chat cache to
-// invalidate on the pinned path: a server removed or renamed in the workspace
-// surfaces as a dirty chat on the agent's next push, and the user refreshes to
-// re-pin, so a nil invalidate callback (a 404 no-op) is correct here.
+// context snapshot (chat_context_resources). Each tool still proxies its calls
+// back through the workspace agent connection; the snapshot carries tool
+// definitions, not a way to execute them, so execution requires a reachable
+// agent. There is no per-chat cache to invalidate: a server removed or renamed
+// in the workspace surfaces as a dirty chat on the agent's next push, and the
+// user refreshes to re-pin, so a nil invalidate callback (a 404 no-op) is
+// correct here.
 func (p *Server) pinnedWorkspaceMCPTools(
 	ctx context.Context,
 	chat database.Chat,
 	getConn func(context.Context) (workspacesdk.AgentConn, error),
-) (tools []fantasy.AgentTool, ok bool, err error) {
+) ([]fantasy.AgentTool, error) {
 	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
-		return nil, false, xerrors.Errorf("list chat context resources: %w", err)
-	}
-	if len(resources) == 0 {
-		return nil, false, nil
+		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	infos := workspaceMCPToolInfosFromResources(resources)
-	tools = make([]fantasy.AgentTool, 0, len(infos))
+	tools := make([]fantasy.AgentTool, 0, len(infos))
 	for _, info := range infos {
 		tools = append(tools, chattool.NewWorkspaceMCPTool(info, getConn, nil))
 	}
-	return tools, true, nil
-}
-
-// primeWorkspaceMCPCache populates workspaceMCPToolsCache after the
-// create_workspace or start_workspace tool finishes waiting for the
-// workspace agent to become reachable. By the time it runs the agent
-// is already Ready, so a single ListMCPTools call usually succeeds.
-// When the agent's MCP server is still racing with agent startup,
-// ListMCPTools may return an empty list (no error) on the first call;
-// the primer retries with a short backoff up to
-// workspaceMCPPrimeMaxWait so the generation action that follows the
-// tool call sees the workspace MCP tools in the cache and does not need
-// to dial again.
-//
-// Returns silently on every failure mode. The chat continues without
-// workspace MCP tools when the agent does not advertise any within
-// the budget. The next user turn re-runs top-of-turn discovery from
-// scratch.
-func (p *Server) primeWorkspaceMCPCache(
-	ctx context.Context,
-	logger slog.Logger,
-	chatID uuid.UUID,
-	workspaceCtx *turnWorkspaceContext,
-) {
-	deadline := p.clock.Now().Add(workspaceMCPPrimeMaxWait)
-	attempt := 0
-	for {
-		attempt++
-		tools := p.discoverWorkspaceMCPTools(ctx, logger, chatID, workspaceCtx)
-		if len(tools) > 0 {
-			logger.Debug(ctx, "primed workspace MCP cache",
-				slog.F("chat_id", chatID),
-				slog.F("tool_count", len(tools)),
-				slog.F("attempts", attempt),
-			)
-			return
-		}
-		if ctx.Err() != nil {
-			return
-		}
-		if !p.clock.Now().Before(deadline) {
-			logger.Debug(ctx,
-				"workspace MCP cache primer gave up waiting for tools",
-				slog.F("chat_id", chatID),
-				slog.F("attempts", attempt),
-			)
-			return
-		}
-		timer := p.clock.NewTimer(workspaceMCPPrimeRetryInterval, "chatd", "workspace-mcp-prime")
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			timer.Stop()
-			return
-		}
-	}
+	return tools, nil
 }
 
 type turnWorkspaceContext struct {
@@ -3585,7 +3384,6 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStatus) codersdk.Chat {
 	sdkChat := db2sdk.Chat(chat, nil, nil)
 	sdkChat.Files = nil
-	sdkChat.LastInjectedContext = nil
 	if diffStatus != nil {
 		sdkChat.DiffStatus = diffStatus
 	}
@@ -4079,11 +3877,6 @@ type rootChatToolsOptions struct {
 	resolvePlanPath func(context.Context) (string, string, error)
 	storeFile       chattool.StoreFileFunc
 	isPlanModeTurn  bool
-	// primerCtx scopes the workspace MCP cache primer goroutines
-	// that onChatUpdated launches. runChat cancels it before
-	// workspaceCtx.close() so an in-flight primer cannot dial a
-	// fresh conn after the cached one was released.
-	primerCtx context.Context
 }
 
 func (p *Server) loadPlanModeInstructions(
@@ -4203,56 +3996,6 @@ func (p *Server) appendRootChatTools(
 		// Notify the frontend immediately so it can start streaming
 		// build logs before the tool completes.
 		p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindStatusChange, nil)
-
-		// Note: we intentionally do not insert AGENTS.md / workspace
-		// context here. Local tool callbacks must not mutate chat
-		// history while a local-tool generation task is in flight,
-		// because that advances history_version before the tool
-		// result is committed and exits the local-tool commit as
-		// stale. Workspace context is persisted by the
-		// persist_workspace_context generation action in a later
-		// pass.
-
-		// Prime the workspace MCP tools cache while the create_workspace
-		// or start_workspace tool is still running. The AgentID guard
-		// below restricts the primer to the post-ready callback, when
-		// the agent is reachable. ListMCPTools may still return an
-		// empty list on the first try when the agent's MCP Connect is
-		// racing with agent startup; primeWorkspaceMCPCache retries
-		// with a short backoff up to workspaceMCPPrimeMaxWait. Priming
-		// here lets the next assistant-generation action hit the cache
-		// instead of dialing again on a separate timeout budget.
-		//
-		// Run asynchronously: the tool itself must not block on the
-		// primer because the agent may not advertise any MCP tools at
-		// all (e.g. minimal templates), in which case the primer waits
-		// the full budget before giving up. The next assistant-generation
-		// action covers the cache miss path; the primer is purely an
-		// optimization that warms the cache while the LLM is thinking.
-		// inflight tracking ensures server shutdown still waits for any
-		// in-progress primer.
-		//
-		// Guard on both WorkspaceID and AgentID being valid:
-		// create_workspace and start_workspace each fire onChatUpdated
-		// twice for a new build (binding before waitForAgentReady;
-		// post-ready after it), and stop_workspace fires it with a nil
-		// agent. Only the post-ready callback has a live AgentID, so
-		// the pre-build and stop-side firings would otherwise spawn a
-		// primer goroutine that dials a missing or dying agent and
-		// burns the full budget for nothing.
-		snapshot := opts.workspaceCtx.currentChatSnapshot()
-		if snapshot.WorkspaceID.Valid && snapshot.AgentID.Valid {
-			if err := p.goInflight(func() {
-				p.primeWorkspaceMCPCache(opts.primerCtx, p.logger, snapshot.ID, opts.workspaceCtx)
-			}); err != nil {
-				p.logger.Error(context.WithoutCancel(ctx), "failed to schedule workspace MCP cache primer",
-					slog.F("chat_id", snapshot.ID),
-					slog.F("workspace_id", snapshot.WorkspaceID.UUID),
-					slog.F("agent_id", snapshot.AgentID.UUID),
-					slog.Error(err),
-				)
-			}
-		}
 	}
 
 	tools = append(tools,
@@ -4724,251 +4467,6 @@ func refreshChatWorkspaceSnapshot(
 	}
 
 	return refreshedChat, nil
-}
-
-// contextFileAgentID extracts the workspace agent ID from the most
-// recent persisted instruction-file parts. The skill-only sentinel is
-// ignored because it does not represent persisted instruction content.
-// Returns uuid.Nil, false if no instruction-file parts exist.
-func contextFileAgentID(messages []database.ChatMessage) (uuid.UUID, bool) {
-	var lastID uuid.UUID
-	found := false
-	for _, msg := range messages {
-		if !msg.Content.Valid || !bytes.Contains(msg.Content.RawMessage, []byte(`"context-file"`)) {
-			continue
-		}
-		var parts []codersdk.ChatMessagePart
-		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
-			continue
-		}
-		for _, p := range parts {
-			if p.Type != codersdk.ChatMessagePartTypeContextFile ||
-				!p.ContextFileAgentID.Valid ||
-				p.ContextFilePath == AgentChatContextSentinelPath {
-				continue
-			}
-			lastID = p.ContextFileAgentID.UUID
-			found = true
-			break
-		}
-	}
-	return lastID, found
-}
-
-// fetchWorkspaceContext retrieves fresh instruction files and
-// skills from the workspace agent without persisting. It handles
-// agent connection, context configuration fetching, content
-// sanitization, and metadata stamping. Returns the workspace
-// agent, the stamped parts, discovered skills, and whether the
-// workspace connection succeeded. A nil agent means the chat has
-// no valid workspace or the agent lookup failed;
-// workspaceConnOK is false in that case.
-func (p *Server) fetchWorkspaceContext(
-	ctx context.Context,
-	chat database.Chat,
-	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
-	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (agent *database.WorkspaceAgent, agentParts []codersdk.ChatMessagePart, discoveredSkills []chattool.SkillMeta, workspaceConnOK bool) {
-	if !chat.WorkspaceID.Valid || getWorkspaceAgent == nil {
-		return nil, nil, nil, false
-	}
-
-	loadedAgent, agentErr := getWorkspaceAgent(ctx)
-	if agentErr != nil {
-		return nil, nil, nil, false
-	}
-
-	directory := loadedAgent.ExpandedDirectory
-	if directory == "" {
-		directory = loadedAgent.Directory
-	}
-
-	// Fetch context configuration from the agent. Parts
-	// arrive pre-populated with context-file and skill entries
-	// so we don't need additional round-trips.
-	if getWorkspaceConn != nil {
-		instructionCtx, cancel := context.WithTimeout(ctx, p.instructionLookupTimeout)
-		defer cancel()
-
-		conn, connErr := getWorkspaceConn(instructionCtx)
-		if connErr != nil {
-			p.logger.Debug(ctx, "failed to resolve workspace connection for instruction files",
-				slog.F("chat_id", chat.ID),
-				slog.Error(connErr),
-			)
-		} else {
-			workspaceConnOK = true
-
-			agentCfg, cfgErr := conn.ContextConfig(instructionCtx)
-			if cfgErr != nil {
-				p.logger.Debug(ctx, "failed to fetch context config from agent",
-					slog.F("chat_id", chat.ID), slog.Error(cfgErr))
-				// Treat a transient ContextConfig failure the
-				// same as a failed connection so no sentinel is
-				// persisted. The next turn will retry.
-				workspaceConnOK = false
-			} else {
-				agentParts = agentCfg.Parts
-			}
-		}
-	}
-
-	// Stamp server-side fields and sanitize content. The
-	// agent cannot know its own UUID, OS metadata, or
-	// directory, those are added here at the trust boundary.
-	agentID := uuid.NullUUID{UUID: loadedAgent.ID, Valid: true}
-
-	for i := range agentParts {
-		agentParts[i].ContextFileAgentID = agentID
-		switch agentParts[i].Type {
-		case codersdk.ChatMessagePartTypeContextFile:
-			agentParts[i].ContextFileContent = SanitizePromptText(agentParts[i].ContextFileContent)
-			agentParts[i].ContextFileOS = loadedAgent.OperatingSystem
-			agentParts[i].ContextFileDirectory = directory
-		case codersdk.ChatMessagePartTypeSkill:
-			discoveredSkills = append(discoveredSkills, chattool.SkillMeta{
-				Name:        agentParts[i].SkillName,
-				Description: agentParts[i].SkillDescription,
-				Dir:         agentParts[i].SkillDir,
-				MetaFile:    agentParts[i].ContextFileSkillMetaFile,
-			})
-		}
-	}
-
-	return &loadedAgent, agentParts, discoveredSkills, workspaceConnOK
-}
-
-func filterSkillParts(parts []codersdk.ChatMessagePart) []codersdk.ChatMessagePart {
-	var filtered []codersdk.ChatMessagePart
-	for _, part := range parts {
-		if part.Type == codersdk.ChatMessagePartTypeSkill {
-			filtered = append(filtered, part)
-		}
-	}
-	return filtered
-}
-
-// persistInstructionFiles fetches AGENTS.md instruction files and
-// skills from the workspace agent, persisting both as message
-// parts. This is called once when a workspace is first attached
-// to a chat (or when the agent changes). Returns the formatted
-// instruction string and skill index for injection into the
-// current turn's prompt.
-func (p *Server) persistInstructionFiles(
-	ctx context.Context,
-	chat database.Chat,
-	modelConfigID uuid.UUID,
-	getWorkspaceAgent func(context.Context) (database.WorkspaceAgent, error),
-	getWorkspaceConn func(context.Context) (workspacesdk.AgentConn, error),
-) (instruction string, skills []chattool.SkillMeta, err error) {
-	agent, agentParts, discoveredSkills, workspaceConnOK := p.fetchWorkspaceContext(
-		ctx, chat, getWorkspaceAgent, getWorkspaceConn,
-	)
-	if agent == nil {
-		return "", nil, nil
-	}
-
-	agentID := uuid.NullUUID{UUID: agent.ID, Valid: true}
-	hasContent := false
-	hasContextFilePart := false
-	for _, part := range agentParts {
-		if part.Type == codersdk.ChatMessagePartTypeContextFile {
-			hasContextFilePart = true
-			if part.ContextFileContent != "" {
-				hasContent = true
-			}
-		}
-	}
-	directory := agent.ExpandedDirectory
-	if directory == "" {
-		directory = agent.Directory
-	}
-
-	contextAPIKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(ctx)
-	if !hasContent {
-		if !workspaceConnOK {
-			return "", nil, nil
-		}
-		if !hasContextFilePart {
-			agentParts = append([]codersdk.ChatMessagePart{{
-				Type:               codersdk.ChatMessagePartTypeContextFile,
-				ContextFileAgentID: agentID,
-			}}, agentParts...)
-		}
-		content, err := chatprompt.MarshalParts(agentParts)
-		if err != nil {
-			return "", nil, nil
-		}
-		msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
-			ChatID: chat.ID,
-		}
-		appendUserChatMessage(&msgParams, newUserChatMessage(
-			contextAPIKeyID,
-			content,
-			database.ChatMessageVisibilityBoth,
-			modelConfigID,
-			chatprompt.CurrentContentVersion,
-		))
-		_, _ = p.db.InsertChatMessages(ctx, msgParams)
-		skillParts := filterSkillParts(agentParts)
-		p.updateLastInjectedContext(ctx, chat.ID, skillParts)
-		return "", discoveredSkills, nil
-	}
-	content, err := chatprompt.MarshalParts(agentParts)
-	if err != nil {
-		return "", nil, xerrors.Errorf("marshal context-file parts: %w", err)
-	}
-
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendUserChatMessage.
-		ChatID: chat.ID,
-	}
-	appendUserChatMessage(&msgParams, newUserChatMessage(
-		contextAPIKeyID,
-		content,
-		database.ChatMessageVisibilityBoth,
-		modelConfigID,
-		chatprompt.CurrentContentVersion,
-	))
-	if _, err := p.db.InsertChatMessages(ctx, msgParams); err != nil {
-		return "", nil, xerrors.Errorf("persist instruction files: %w", err)
-	}
-	stripped := make([]codersdk.ChatMessagePart, len(agentParts))
-	copy(stripped, agentParts)
-	for i := range stripped {
-		stripped[i].StripInternal()
-	}
-	p.updateLastInjectedContext(ctx, chat.ID, stripped)
-
-	return formatSystemInstructions(agent.OperatingSystem, directory, agentParts), discoveredSkills, nil
-}
-
-// updateLastInjectedContext persists the injected context
-// parts (AGENTS.md files and skills) on the chat row so they
-// are directly queryable without scanning messages. This is
-// best-effort, a failure here is logged but does not block
-// the turn.
-func (p *Server) updateLastInjectedContext(ctx context.Context, chatID uuid.UUID, parts []codersdk.ChatMessagePart) {
-	param := pqtype.NullRawMessage{Valid: false}
-	if parts != nil {
-		raw, err := json.Marshal(parts)
-		if err != nil {
-			p.logger.Warn(ctx, "failed to marshal injected context",
-				slog.F("chat_id", chatID),
-				slog.Error(err),
-			)
-			return
-		}
-		param = pqtype.NullRawMessage{RawMessage: raw, Valid: true}
-	}
-	if _, err := p.db.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-		ID:                  chatID,
-		LastInjectedContext: param,
-	}); err != nil {
-		p.logger.Warn(ctx, "failed to update injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-	}
 }
 
 // resolveUserCompactionThreshold looks up the user's per-model

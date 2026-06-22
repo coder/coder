@@ -123,51 +123,6 @@ func TestFormatResolvedSkillIndex(t *testing.T) {
 	})
 }
 
-func TestLoadSkillBody(t *testing.T) {
-	t.Parallel()
-
-	t.Run("ReturnsBodyAndFiles", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		conn := agentconnmock.NewMockAgentConn(ctrl)
-
-		skill := chattool.SkillMeta{
-			Name:        "my-skill",
-			Description: "desc",
-			Dir:         "/work/.agents/skills/my-skill",
-		}
-
-		// Read the full SKILL.md.
-		conn.EXPECT().ReadFile(
-			gomock.Any(),
-			"/work/.agents/skills/my-skill/SKILL.md",
-			int64(0),
-			int64(64*1024+1),
-		).Return(
-			io.NopCloser(strings.NewReader(validSkillMD("my-skill", "desc"))),
-			"text/markdown",
-			nil,
-		)
-
-		// List supporting files.
-		conn.EXPECT().LS(gomock.Any(), "", gomock.Any()).Return(
-			workspacesdk.LSResponse{
-				Contents: []workspacesdk.LSFile{
-					{Name: "SKILL.md"},
-					{Name: "helper.md"},
-					{Name: "roles", IsDir: true},
-				},
-			}, nil,
-		)
-
-		content, err := chattool.LoadSkillBody(context.Background(), conn, skill, "SKILL.md")
-		require.NoError(t, err)
-		assert.Contains(t, content.Body, "Do the thing.")
-		assert.Equal(t, []string{"helper.md", "roles/"}, content.Files)
-	})
-}
-
 func TestLoadSkillFile(t *testing.T) {
 	t.Parallel()
 

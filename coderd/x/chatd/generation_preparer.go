@@ -226,7 +226,7 @@ func (server *Server) prepareGeneration(
 		agent, _ := workspaceCtx.getWorkspaceAgent(ctx)
 
 		var resolveErr error
-		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent, promptRows)
+		instruction, workspaceSkills, resolveErr = server.resolveTurnWorkspaceContext(ctx, chat, agent)
 		if resolveErr != nil {
 			cleanup()
 			return generationPrepared{}, resolveErr
@@ -359,7 +359,6 @@ func (server *Server) prepareGeneration(
 			resolvePlanPath: resolvePlanPathForTools,
 			storeFile:       storeChatAttachment,
 			isPlanModeTurn:  isPlanModeTurn,
-			primerCtx:       ctx,
 		})
 	}
 
@@ -563,13 +562,10 @@ func (server *Server) prepareGeneration(
 	compactionOptions.StepUsage = latestPromptUsage(promptRows)
 	compactionNeeded := shouldCompactPromptUsage(compactionOptions.StepUsage, modelConfig.ContextLimit, effectiveThreshold)
 
-	workspaceContextEligible := chat.WorkspaceID.Valid && isRootChat && !isPlanModeTurn && !isExploreSubagent
-
 	// workspaceCtx.currentChatSnapshot may carry a freshly persisted
 	// AgentID/BuildID binding from the getWorkspaceAgent call above.
-	// Return that snapshot so the chatworker decision helper sees
-	// the up-to-date metadata when deciding whether to run
-	// persist_workspace_context.
+	// Return that snapshot so downstream consumers see the up-to-date
+	// metadata.
 	refreshedChat := workspaceCtx.currentChatSnapshot()
 	if refreshedChat.ID == uuid.Nil {
 		refreshedChat = chat
@@ -601,9 +597,8 @@ func (server *Server) prepareGeneration(
 			Required: compactionNeeded,
 			Options:  compactionOptions,
 		},
-		Cleanup:                  cleanup,
-		Debug:                    debug,
-		WorkspaceContextEligible: workspaceContextEligible,
+		Cleanup: cleanup,
+		Debug:   debug,
 	}, nil
 }
 
