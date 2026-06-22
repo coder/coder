@@ -1596,9 +1596,9 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 				})
 				return
 			}
-			// Claim build still in progress: fall through to the
-			// transmitter. The pubsub subscription (set up above)
-			// will deliver the event when the build completes
+			// Claim build still in progress: proceed to the
+			// transmitter below. The pubsub subscription (set up
+			// above) will deliver the event when the build completes
 			// successfully. Note: FailJob does not publish a claim
 			// event, so a failed in-progress build will leave the
 			// agent blocking here until it disconnects and
@@ -1606,7 +1606,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			// handles it).
 		case latestBuild.InitiatorID == database.PrebuildsSystemUserID:
 			// The workspace owner has changed but the claim build has
-			// not been created yet. Fall through to the transmitter;
+			// not been created yet. Proceed to the transmitter below;
 			// the pubsub subscription set up above delivers the claim
 			// event once the claim build completes.
 		default:
@@ -1617,6 +1617,7 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			// reconnection. Return 409 so the agent stops polling,
 			// the same as a regular workspace.
 			log.Debug(ctx, "prebuild claim already handled, stopping reinit polling",
+				slog.F("job_id", job.ID),
 				slog.F("latest_build_id", latestBuild.ID),
 				slog.F("latest_build_number", latestBuild.BuildNumber))
 			cancelSub()
