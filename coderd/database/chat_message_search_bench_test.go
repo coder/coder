@@ -71,9 +71,9 @@ func chatMessageSearchBenchConfigFromEnv(t testing.TB) chatMessageSearchBenchCon
 	t.Helper()
 
 	config := chatMessageSearchBenchConfig{
-		Users:           benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_USERS", 100),
-		ChatsPerUser:    benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_CHATS_PER_USER", 100),
-		MessagesPerChat: benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_MESSAGES_PER_CHAT", 100),
+		Users:           benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_USERS", 10),
+		ChatsPerUser:    benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_CHATS_PER_USER", 10),
+		MessagesPerChat: benchEnvInt(t, "CODER_CHAT_SEARCH_BENCH_MESSAGES_PER_CHAT", 10),
 	}
 	t.Logf("chat search bench config: users=%d chats_per_user=%d messages_per_chat=%d total_chats=%d total_messages=%d",
 		config.Users, config.ChatsPerUser, config.MessagesPerChat, config.TotalChats(), config.TotalMessages())
