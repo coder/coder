@@ -1327,6 +1327,59 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/agent-firewall/sessions/{id}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get agent firewall session logs",
+                "operationId": "get-agent-firewall-session-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Agent firewall session ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Inclusive lower bound on sequence number",
+                        "name": "seq_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Exclusive upper bound on sequence number",
+                        "name": "seq_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Maximum number of logs to return (default 100)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentFirewallSessionLogsResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/ai/providers": {
             "get": {
                 "produces": [
@@ -15088,6 +15141,15 @@ const docTemplate = `{
         "codersdk.AIBridgeThread": {
             "type": "object",
             "properties": {
+                "agent_firewall_sequence_number": {
+                    "description": "AgentFirewallSequenceNumber is the firewall sequence number from\nthe root interception. Used to determine the position of this\nLLM request in the firewall event stream. Nil when the request\ndid not pass through the agent firewall.",
+                    "type": "integer"
+                },
+                "agent_firewall_session_id": {
+                    "description": "AgentFirewallSessionID links this thread to an agent firewall\nconfinement session. Nil when the request did not pass through\nthe agent firewall.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "agentic_actions": {
                     "type": "array",
                     "items": {
@@ -15943,6 +16005,45 @@ const docTemplate = `{
                 "AgentDisplayModeAlwaysCollapsed"
             ]
         },
+        "codersdk.AgentFirewallLog": {
+            "type": "object",
+            "properties": {
+                "allowed": {
+                    "type": "boolean"
+                },
+                "captured_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "detail": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "matched_rule": {
+                    "type": "string"
+                },
+                "method": {
+                    "type": "string"
+                },
+                "proto": {
+                    "type": "string"
+                },
+                "sequence_number": {
+                    "type": "integer"
+                },
+                "session_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
         "codersdk.AgentFirewallSession": {
             "type": "object",
             "properties": {
@@ -15964,6 +16065,17 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
+                }
+            }
+        },
+        "codersdk.AgentFirewallSessionLogsResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentFirewallLog"
+                    }
                 }
             }
         },
@@ -16678,6 +16790,100 @@ const docTemplate = `{
                 },
                 "error": {
                     "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
+                    "type": "string"
+                },
+                "resources": {
+                    "description": "Resources is the chat's pinned context (instruction files and\nskills) the prompt is built from, metadata only (no bodies). It is\npopulated only on the single-chat GET response; list and watch\npayloads leave it nil to stay lightweight.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextResource"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatContextResource": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "description": "Error explains a non-ok Status; empty when healthy. May also carry a\nnon-fatal warning when Status is ok.",
+                    "type": "string"
+                },
+                "kind": {
+                    "$ref": "#/definitions/codersdk.ChatContextResourceKind"
+                },
+                "size_bytes": {
+                    "description": "SizeBytes is the original payload size in bytes.",
+                    "type": "integer"
+                },
+                "skill_description": {
+                    "type": "string"
+                },
+                "skill_name": {
+                    "description": "SkillName and SkillDescription are populated only for skill kinds.",
+                    "type": "string"
+                },
+                "source": {
+                    "description": "Source is the resource locator: the canonical file path for an\ninstruction file, the skill directory for a skill, the file path for\nan MCP config, or the server name for an MCP server.",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status is the resource's health. Non-ok resources (invalid, unreadable,\noversize, excluded) are still reported so the UI can surface why a\nresource was dropped from the prompt instead of silently omitting it;\ntheir body-specific fields (skill name, tools) are empty.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatContextResourceStatus"
+                        }
+                    ]
+                },
+                "tools": {
+                    "description": "Tools lists the tools exposed by an MCP server. Populated only for the\nmcp_server kind; nil otherwise.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ChatContextTool"
+                    }
+                }
+            }
+        },
+        "codersdk.ChatContextResourceKind": {
+            "type": "string",
+            "enum": [
+                "instruction_file",
+                "skill",
+                "mcp_config",
+                "mcp_server"
+            ],
+            "x-enum-varnames": [
+                "ChatContextResourceKindInstructionFile",
+                "ChatContextResourceKindSkill",
+                "ChatContextResourceKindMCPConfig",
+                "ChatContextResourceKindMCPServer"
+            ]
+        },
+        "codersdk.ChatContextResourceStatus": {
+            "type": "string",
+            "enum": [
+                "ok",
+                "oversize",
+                "unreadable",
+                "invalid",
+                "excluded"
+            ],
+            "x-enum-varnames": [
+                "ChatContextResourceStatusOK",
+                "ChatContextResourceStatusOversize",
+                "ChatContextResourceStatusUnreadable",
+                "ChatContextResourceStatusInvalid",
+                "ChatContextResourceStatusExcluded"
+            ]
+        },
+        "codersdk.ChatContextTool": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "description": "Description is the tool's human-readable summary; may be empty.",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "Name is the tool name with the \"\u003cserver\u003e__\" prefix the agent adds\nstripped, so it reads as the server exposes it.",
                     "type": "string"
                 }
             }

@@ -168,6 +168,71 @@ type ChatContext struct {
 	// Error is the snapshot-level error copied from the pinned snapshot
 	// (empty when healthy).
 	Error string `json:"error,omitempty"`
+	// Resources is the chat's pinned context (instruction files and
+	// skills) the prompt is built from, metadata only (no bodies). It is
+	// populated only on the single-chat GET response; list and watch
+	// payloads leave it nil to stay lightweight.
+	Resources []ChatContextResource `json:"resources,omitempty"`
+}
+
+// ChatContextResourceKind classifies a pinned context resource the prompt
+// uses. Only the kinds that contribute to the prompt are reported.
+type ChatContextResourceKind string
+
+const (
+	ChatContextResourceKindInstructionFile ChatContextResourceKind = "instruction_file"
+	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
+	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
+	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+)
+
+// ChatContextResource is one pinned workspace-context resource the chat's
+// prompt is built from. It is metadata only; bodies are omitted. Reported
+// only on the single-chat GET response.
+type ChatContextResource struct {
+	// Source is the resource locator: the canonical file path for an
+	// instruction file, the skill directory for a skill, the file path for
+	// an MCP config, or the server name for an MCP server.
+	Source string                  `json:"source"`
+	Kind   ChatContextResourceKind `json:"kind"`
+	// SizeBytes is the original payload size in bytes.
+	SizeBytes int64 `json:"size_bytes"`
+	// SkillName and SkillDescription are populated only for skill kinds.
+	SkillName        string `json:"skill_name,omitempty"`
+	SkillDescription string `json:"skill_description,omitempty"`
+	// Tools lists the tools exposed by an MCP server. Populated only for the
+	// mcp_server kind; nil otherwise.
+	Tools []ChatContextTool `json:"tools,omitempty"`
+	// Status is the resource's health. Non-ok resources (invalid, unreadable,
+	// oversize, excluded) are still reported so the UI can surface why a
+	// resource was dropped from the prompt instead of silently omitting it;
+	// their body-specific fields (skill name, tools) are empty.
+	Status ChatContextResourceStatus `json:"status"`
+	// Error explains a non-ok Status; empty when healthy. May also carry a
+	// non-fatal warning when Status is ok.
+	Error string `json:"error,omitempty"`
+}
+
+// ChatContextResourceStatus is the health of a pinned context resource,
+// mirroring the agent resolver's per-resource status.
+type ChatContextResourceStatus string
+
+const (
+	ChatContextResourceStatusOK         ChatContextResourceStatus = "ok"
+	ChatContextResourceStatusOversize   ChatContextResourceStatus = "oversize"
+	ChatContextResourceStatusUnreadable ChatContextResourceStatus = "unreadable"
+	ChatContextResourceStatusInvalid    ChatContextResourceStatus = "invalid"
+	ChatContextResourceStatusExcluded   ChatContextResourceStatus = "excluded"
+)
+
+// ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+// single-chat GET response. Metadata only; the input schema is omitted.
+type ChatContextTool struct {
+	// Name is the tool name with the "<server>__" prefix the agent adds
+	// stripped, so it reads as the server exposes it.
+	Name string `json:"name"`
+	// Description is the tool's human-readable summary; may be empty.
+	Description string `json:"description,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
