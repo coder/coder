@@ -11751,6 +11751,346 @@ func TestUpsertAISeats(t *testing.T) {
 	require.False(t, alreadyExists)
 }
 
+func TestUpsertUserDailySpend(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep the test deterministic.
+	day := time.Date(2024, 6, 15, 0, 0, 0, 0, time.UTC)
+	nextDay := day.AddDate(0, 0, 1)
+
+	// Given a sequence of costs upserted to the same (user, group, day),
+	// when applied in order, then they accumulate into a single row.
+	tests := []struct {
+		name      string
+		costs     []int64
+		wantTotal int64
+	}{
+		{name: "InsertsNewRow", costs: []int64{100}, wantTotal: 100},
+		{name: "AccumulatesAcrossCalls", costs: []int64{100, 50, 30, 20}, wantTotal: 200},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+			var row database.AIUserDailySpend
+			for _, cost := range tt.costs {
+				var err error
+				row, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+					UserID:           user.ID,
+					EffectiveGroupID: group.ID,
+					Day:              day,
+					CostMicros:       cost,
+				})
+				require.NoError(t, err)
+			}
+			require.Equal(t, user.ID, row.UserID)
+			require.Equal(t, group.ID, row.EffectiveGroupID)
+			require.Equal(t, tt.wantTotal, row.SpendMicros)
+			require.True(t, row.Day.Equal(day),
+				"row.Day = %s, want = %s", row.Day, day)
+		})
+	}
+
+	// Given two users in the same group on the same day, when each upserts, then each gets its own row.
+	t.Run("SeparateRowPerUser", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		userARow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: userA.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(100), userARow.SpendMicros)
+
+		userBRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: userB.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 25,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(25), userBRow.SpendMicros,
+			"userB row must not include userA spend")
+	})
+
+	// Given one user across two groups on the same day, when each upserts, then each gets its own row.
+	t.Run("SeparateRowPerEffectiveGroup", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		groupARow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: groupA.ID, Day: day, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(100), groupARow.SpendMicros)
+
+		groupBRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: groupB.ID, Day: day, CostMicros: 25,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(25), groupBRow.SpendMicros,
+			"groupB row must not include groupA spend")
+	})
+
+	// Given existing spend on day, when the same user upserts on the next day, then a new row is created.
+	t.Run("SeparateRowPerDay", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		dayRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(100), dayRow.SpendMicros)
+
+		// The ON CONFLICT target is the full PK including day, so this upsert
+		// cannot modify the previous day's row by construction.
+		nextDayRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: nextDay, CostMicros: 25,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(25), nextDayRow.SpendMicros,
+			"nextDay row must not include day spend")
+		require.True(t, nextDayRow.Day.Equal(nextDay))
+	})
+
+	// Given a non-midnight UTC time, when upserted, then it lands on the same row as the truncated day.
+	t.Run("TruncatesDayToUTCMidnight", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		_, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		dayNonTruncated := day.Add(14*time.Hour + 30*time.Minute)
+		row, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: dayNonTruncated, CostMicros: 50,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(150), row.SpendMicros,
+			"non-midnight UTC time should accumulate on the truncated day's row")
+		require.True(t, row.Day.Equal(day),
+			"row.Day = %s, want truncated = %s", row.Day, day)
+	})
+
+	// Given a non-UTC time that crosses the UTC date boundary, when upserted, then it lands on the UTC calendar day.
+	t.Run("NormalizesNonUTCTimezones", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		// 2024-06-15 23:00 in UTC-5 is 2024-06-16 04:00 UTC, so this should land on nextDay.
+		localLate := time.Date(2024, 6, 15, 23, 0, 0, 0, time.FixedZone("UTC-5", -5*3600))
+		row, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: localLate, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		require.True(t, row.Day.Equal(nextDay),
+			"non-UTC input should land on the UTC calendar day (%s), got %s", nextDay, row.Day)
+	})
+
+	// Given a zero-cost upsert, when applied, then it is idempotent (creates a zero-spend row or leaves an existing one unchanged).
+	t.Run("ZeroCostIsIdempotent", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		// Zero-cost upsert on a fresh key creates a row with spend = 0.
+		newRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 0,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(0), newRow.SpendMicros)
+
+		// After a real upsert, the row has spend = 100.
+		_, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
+		})
+		require.NoError(t, err)
+
+		// Zero-cost upsert on the existing row leaves spend unchanged.
+		sameRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 0,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(100), sameRow.SpendMicros,
+			"zero-cost upsert must not change existing spend")
+	})
+}
+
+func TestGetUserSpendSince(t *testing.T) {
+	t.Parallel()
+
+	// Use fixed dates to keep the test deterministic.
+	monthStart := time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC)
+	today := monthStart.AddDate(0, 0, 14)            // 2024-06-15
+	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
+
+	// Given seeded rows for a single (user, group), when querying since
+	// monthStart, then the period sum is returned.
+	tests := []struct {
+		name string
+		rows []struct {
+			day   time.Time
+			spend int64
+		}
+		wantSpend int64
+	}{
+		{name: "NoRows", wantSpend: 0},
+		{
+			name: "SingleRowOnToday",
+			rows: []struct {
+				day   time.Time
+				spend int64
+			}{{today, 100}},
+			wantSpend: 100,
+		},
+		{
+			name: "FirstOfMonthIncluded",
+			rows: []struct {
+				day   time.Time
+				spend int64
+			}{{monthStart, 50}},
+			wantSpend: 50,
+		},
+		{
+			name: "SumsMultipleDaysInMonth",
+			rows: []struct {
+				day   time.Time
+				spend int64
+			}{{monthStart, 50}, {today, 100}},
+			wantSpend: 150,
+		},
+		{
+			name: "ExcludesRowsBeforePeriodStart",
+			rows: []struct {
+				day   time.Time
+				spend int64
+			}{{prevMonthLastDay, 999}, {monthStart, 25}},
+			wantSpend: 25,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			user := dbgen.User(t, db, database.User{})
+			org := dbgen.Organization(t, db, database.Organization{})
+			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+			for _, r := range tt.rows {
+				_, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+					UserID:           user.ID,
+					EffectiveGroupID: group.ID,
+					Day:              r.day,
+					CostMicros:       r.spend,
+				})
+				require.NoError(t, err)
+			}
+
+			got, err := db.GetUserSpendSince(ctx, database.GetUserSpendSinceParams{
+				UserID:           user.ID,
+				EffectiveGroupID: group.ID,
+				PeriodStart:      monthStart,
+			})
+			require.NoError(t, err)
+			require.Equal(t, user.ID, got.UserID)
+			require.Equal(t, group.ID, got.EffectiveGroupID)
+			require.True(t, got.PeriodStart.Equal(monthStart),
+				"PeriodStart = %s, want = %s", got.PeriodStart, monthStart)
+			require.Equal(t, tt.wantSpend, got.SpendMicros)
+		})
+	}
+
+	// Given two users with spend in the same group on the same day, when querying one user, then the other's spend is excluded.
+	t.Run("SumExcludesOtherUsers", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		userA := dbgen.User(t, db, database.User{})
+		userB := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		_, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: userA.ID, EffectiveGroupID: group.ID, Day: today, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: userB.ID, EffectiveGroupID: group.ID, Day: today, CostMicros: 25,
+		})
+		require.NoError(t, err)
+
+		got, err := db.GetUserSpendSince(ctx, database.GetUserSpendSinceParams{
+			UserID:           userB.ID,
+			EffectiveGroupID: group.ID,
+			PeriodStart:      monthStart,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(25), got.SpendMicros,
+			"userB sum must not include userA spend")
+	})
+
+	// Given one user with spend in two groups on the same day, when querying one group, then the other's spend is excluded.
+	t.Run("SumExcludesOtherEffectiveGroups", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		groupA := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+		groupB := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		_, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: groupA.ID, Day: today, CostMicros: 100,
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: groupB.ID, Day: today, CostMicros: 25,
+		})
+		require.NoError(t, err)
+
+		got, err := db.GetUserSpendSince(ctx, database.GetUserSpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: groupB.ID,
+			PeriodStart:      monthStart,
+		})
+		require.NoError(t, err)
+		require.Equal(t, int64(25), got.SpendMicros,
+			"groupB sum must not include groupA spend")
+	})
+}
+
 func TestChatPinOrderQueries(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {

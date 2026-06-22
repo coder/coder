@@ -882,6 +882,9 @@ type sqlcQuerier interface {
 	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
 	GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
 	GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (UserSkill, error)
+	// Total spend for (user_id, effective_group_id) on or after period_start.
+	// The period_start parameter is normalized to its UTC calendar day.
+	GetUserSpendSince(ctx context.Context, arg GetUserSpendSinceParams) (GetUserSpendSinceRow, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
@@ -1573,6 +1576,10 @@ type sqlcQuerier interface {
 	UpsertUserAIProviderKey(ctx context.Context, arg UpsertUserAIProviderKeyParams) (UserAIProviderKey, error)
 	UpsertUserChatDebugLoggingEnabled(ctx context.Context, arg UpsertUserChatDebugLoggingEnabledParams) error
 	UpsertUserChatPersonalModelOverride(ctx context.Context, arg UpsertUserChatPersonalModelOverrideParams) error
+	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
+	// The day parameter is normalized to its UTC calendar day before storage.
+	// Returns the resulting row.
+	UpsertUserDailySpend(ctx context.Context, arg UpsertUserDailySpendParams) (AIUserDailySpend, error)
 	UpsertWebpushVAPIDKeys(ctx context.Context, arg UpsertWebpushVAPIDKeysParams) error
 	UpsertWorkspaceAgentContextResource(ctx context.Context, arg UpsertWorkspaceAgentContextResourceParams) (WorkspaceAgentContextResource, error)
 	UpsertWorkspaceAgentContextSnapshot(ctx context.Context, arg UpsertWorkspaceAgentContextSnapshotParams) (WorkspaceAgentContextSnapshot, error)

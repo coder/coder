@@ -6802,6 +6802,31 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(user.ID).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
 	}))
 
+	s.Run("GetUserSpendSince", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		user := testutil.Fake(s.T(), faker, database.User{})
+		arg := database.GetUserSpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: uuid.New(),
+			PeriodStart:      time.Now().UTC().Truncate(24 * time.Hour),
+		}
+		row := testutil.Fake(s.T(), faker, database.GetUserSpendSinceRow{UserID: user.ID, EffectiveGroupID: arg.EffectiveGroupID, PeriodStart: arg.PeriodStart})
+		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
+		dbm.EXPECT().GetUserSpendSince(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
+	}))
+
+	s.Run("UpsertUserDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpsertUserDailySpendParams{
+			UserID:           uuid.New(),
+			EffectiveGroupID: uuid.New(),
+			Day:              time.Now().UTC().Truncate(24 * time.Hour),
+			CostMicros:       1000,
+		}
+		row := testutil.Fake(s.T(), faker, database.AIUserDailySpend{UserID: arg.UserID, EffectiveGroupID: arg.EffectiveGroupID, Day: arg.Day})
+		dbm.EXPECT().UpsertUserDailySpend(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionUpdate).Returns(row)
+	}))
+
 	s.Run("GetAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		dbm.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()

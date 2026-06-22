@@ -5093,6 +5093,13 @@ func (q *querier) GetUserSkillByUserIDAndName(ctx context.Context, arg database.
 	return q.db.GetUserSkillByUserIDAndName(ctx, arg)
 }
 
+func (q *querier) GetUserSpendSince(ctx context.Context, arg database.GetUserSpendSinceParams) (database.GetUserSpendSinceRow, error) {
+	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
+		return database.GetUserSpendSinceRow{}, err
+	}
+	return q.db.GetUserSpendSince(ctx, arg)
+}
+
 func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
 		return nil, err
@@ -8934,6 +8941,14 @@ func (q *querier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.UpsertUserChatPersonalModelOverride(ctx, arg)
+}
+
+func (q *querier) UpsertUserDailySpend(ctx context.Context, arg database.UpsertUserDailySpendParams) (database.AIUserDailySpend, error) {
+	// Daily spend writes are made by the aibridged process.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
+		return database.AIUserDailySpend{}, err
+	}
+	return q.db.UpsertUserDailySpend(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
