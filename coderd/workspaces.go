@@ -65,7 +65,7 @@ var (
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
-// @Router /workspaces/{workspace} [get]
+// @Router /api/v2/workspaces/{workspace} [get]
 func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -90,7 +90,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again.", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?include_deleted=true' and trying again.", workspace.ID.String()),
 		})
 		return
 	}
@@ -146,7 +146,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} codersdk.WorkspacesResponse
-// @Router /workspaces [get]
+// @Router /api/v2/workspaces [get]
 func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
@@ -157,7 +157,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.UserID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -269,7 +269,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 // @Param workspacename path string true "Workspace name"
 // @Param include_deleted query bool false "Return data instead of HTTP 404 if the workspace is deleted"
 // @Success 200 {object} codersdk.Workspace
-// @Router /users/{user}/workspace/{workspacename} [get]
+// @Router /api/v2/users/{user}/workspace/{workspacename} [get]
 func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -371,7 +371,7 @@ func (api *API) workspaceByOwnerAndName(rw http.ResponseWriter, r *http.Request)
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 200 {object} codersdk.Workspace
-// @Router /organizations/{organization}/members/{user}/workspaces [post]
+// @Router /api/v2/organizations/{organization}/members/{user}/workspaces [post]
 func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                   = r.Context()
@@ -432,7 +432,7 @@ func (api *API) postWorkspacesByOrganization(rw http.ResponseWriter, r *http.Req
 // @Param user path string true "Username, UUID, or me"
 // @Param request body codersdk.CreateWorkspaceRequest true "Create workspace request"
 // @Success 200 {object} codersdk.Workspace
-// @Router /users/{user}/workspaces [post]
+// @Router /api/v2/users/{user}/workspaces [post]
 func (api *API) postUserWorkspaces(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx     = r.Context()
@@ -860,7 +860,7 @@ func createWorkspace(
 		[]database.WorkspaceAgent{},
 		[]database.WorkspaceApp{},
 		[]database.WorkspaceAppStatus{},
-		[]database.WorkspaceAgentScript{},
+		[]database.GetWorkspaceAgentScriptsByAgentIDsRow{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
 		provisionerDaemons,
@@ -1047,7 +1047,7 @@ func (api *API) notifyWorkspaceCreated(
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceRequest true "Metadata update request"
 // @Success 204
-// @Router /workspaces/{workspace} [patch]
+// @Router /api/v2/workspaces/{workspace} [patch]
 func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1142,7 +1142,7 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutostartRequest true "Schedule update request"
 // @Success 204
-// @Router /workspaces/{workspace}/autostart [put]
+// @Router /api/v2/workspaces/{workspace}/autostart [put]
 func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1245,7 +1245,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceTTLRequest true "Workspace TTL update request"
 // @Success 204
-// @Router /workspaces/{workspace}/ttl [put]
+// @Router /api/v2/workspaces/{workspace}/ttl [put]
 func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1374,7 +1374,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceDormancy true "Make a workspace dormant or active"
 // @Success 200 {object} codersdk.Workspace
-// @Router /workspaces/{workspace}/dormant [put]
+// @Router /api/v2/workspaces/{workspace}/dormant [put]
 func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1448,29 +1448,24 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+		if initiatorErr == nil {
+			labels := map[string]string{
+				"name":   newWorkspace.Name,
+				"reason": "a " + initiator.Username + " request",
+			}
+			// DeletingAt is set by the UPDATE only when the template's
+			// time_til_dormant_autodelete is non-zero, so skip the label when
+			// auto-delete is disabled so the body omits the deletion
+			// timeline.
+			if newWorkspace.DeletingAt.Valid {
+				labels["timeTilDelete"] = humanize.Time(newWorkspace.DeletingAt.Time)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           newWorkspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
+				labels,
 				"api",
 				newWorkspace.ID,
 				newWorkspace.OwnerID,
@@ -1546,7 +1541,7 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.PutExtendWorkspaceRequest true "Extend deadline update request"
 // @Success 200 {object} codersdk.Response
-// @Router /workspaces/{workspace}/extend [put]
+// @Router /api/v2/workspaces/{workspace}/extend [put]
 func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
@@ -1654,7 +1649,7 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.PostWorkspaceUsageRequest false "Post workspace usage request"
 // @Success 204
-// @Router /workspaces/{workspace}/usage [post]
+// @Router /api/v2/workspaces/{workspace}/usage [post]
 func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 	workspace := httpmw.WorkspaceParam(r)
 	if !api.Authorize(r, policy.ActionUpdate, workspace) {
@@ -1768,7 +1763,7 @@ func (api *API) postWorkspaceUsage(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
-// @Router /workspaces/{workspace}/favorite [put]
+// @Router /api/v2/workspaces/{workspace}/favorite [put]
 func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -1815,7 +1810,7 @@ func (api *API) putFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
-// @Router /workspaces/{workspace}/favorite [delete]
+// @Router /api/v2/workspaces/{workspace}/favorite [delete]
 func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -1864,7 +1859,7 @@ func (api *API) deleteFavoriteWorkspace(rw http.ResponseWriter, r *http.Request)
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceAutomaticUpdatesRequest true "Automatic updates request"
 // @Success 204
-// @Router /workspaces/{workspace}/autoupdates [put]
+// @Router /api/v2/workspaces/{workspace}/autoupdates [put]
 func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -1924,7 +1919,7 @@ func (api *API) putWorkspaceAutoupdates(rw http.ResponseWriter, r *http.Request)
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.ResolveAutostartResponse
-// @Router /workspaces/{workspace}/resolve-autostart [get]
+// @Router /api/v2/workspaces/{workspace}/resolve-autostart [get]
 func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -2018,7 +2013,7 @@ func (api *API) resolveAutostart(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.Response
-// @Router /workspaces/{workspace}/watch [get]
+// @Router /api/v2/workspaces/{workspace}/watch [get]
 // @Deprecated Use /workspaces/{workspace}/watch-ws instead
 func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 	api.watchWorkspace(rw, r, httpapi.ServerSentEventSender)
@@ -2031,9 +2026,9 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.ServerSentEvent
-// @Router /workspaces/{workspace}/watch-ws [get]
+// @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspace(
@@ -2183,7 +2178,7 @@ func (api *API) watchWorkspace(
 // @Produce json
 // @Tags Workspaces
 // @Success 101
-// @Router /experimental/watch-all-workspacebuilds [get]
+// @Router /api/experimental/watch-all-workspacebuilds [get]
 // @x-apidocgen {"skip": true}
 func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -2230,7 +2225,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	defer cancel()
 
 	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)
@@ -2256,7 +2251,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceBuildTimings
-// @Router /workspaces/{workspace}/timings [get]
+// @Router /api/v2/workspaces/{workspace}/timings [get]
 func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -2291,7 +2286,7 @@ func (api *API) workspaceTimings(rw http.ResponseWriter, r *http.Request) {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceACL
-// @Router /workspaces/{workspace}/acl [get]
+// @Router /api/v2/workspaces/{workspace}/acl [get]
 func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx       = r.Context()
@@ -2402,7 +2397,7 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceACL true "Update workspace ACL request"
 // @Success 204
-// @Router /workspaces/{workspace}/acl [patch]
+// @Router /api/v2/workspaces/{workspace}/acl [patch]
 func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -2513,7 +2508,7 @@ type workspaceData struct {
 // @Tags Workspaces
 // @Param workspace path string true "Workspace ID" format(uuid)
 // @Success 204
-// @Router /workspaces/{workspace}/acl [delete]
+// @Router /api/v2/workspaces/{workspace}/acl [delete]
 func (api *API) deleteWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx                 = r.Context()
@@ -3023,7 +3018,7 @@ func convertToWorkspaceRole(actions []policy.Action) codersdk.WorkspaceRole {
 // @Param limit query int false "Limit results"
 // @Param offset query int false "Offset for pagination"
 // @Success 200 {array} codersdk.MinimalUser
-// @Router /organizations/{organization}/members/{user}/workspaces/available-users [get]
+// @Router /api/v2/organizations/{organization}/members/{user}/workspaces/available-users [get]
 func (api *API) workspaceAvailableUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)

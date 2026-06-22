@@ -16,12 +16,12 @@ import (
 func TestEndpointsDocumented(t *testing.T) {
 	t.Parallel()
 
-	swaggerComments, err := coderdtest.ParseSwaggerComments("..")
+	swaggerComments, err := coderdtest.ParseSwaggerComments("..", "../workspaceconnwatcher")
 	require.NoError(t, err, "can't parse swagger comments")
 	require.NotEmpty(t, swaggerComments, "swagger comments must be present")
 
 	_, _, api := coderdtest.NewWithAPI(t, nil)
-	coderdtest.VerifySwaggerDefinitions(t, api.APIHandler, swaggerComments)
+	coderdtest.VerifySwaggerDefinitions(t, api.APIHandler, swaggerComments, coderdtest.WithSwaggerRoutePrefix("/api/v2"))
 }
 
 func TestSDKFieldsFormatted(t *testing.T) {

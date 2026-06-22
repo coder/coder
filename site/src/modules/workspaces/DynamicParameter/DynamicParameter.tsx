@@ -36,7 +36,6 @@ import {
 	SelectValue,
 } from "#/components/Select/Select";
 import { Slider } from "#/components/Slider/Slider";
-import { Stack } from "#/components/Stack/Stack";
 import { Switch } from "#/components/Switch/Switch";
 import { TagInput } from "#/components/TagInput/TagInput";
 import { Textarea } from "#/components/Textarea/Textarea";
@@ -505,7 +504,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<Stack direction="row" spacing={0} alignItems="center">
+		<div className="flex flex-row items-center">
 			<Input
 				id={id}
 				type={masked && showMaskedInput ? "text" : type}
@@ -535,7 +534,7 @@ const MaskableInput: FC<MaskableInputProps> = ({
 					)}
 				</Button>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -552,7 +551,7 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<Stack direction="row" spacing={0} alignItems="center">
+		<div className="flex flex-row items-center">
 			<Textarea
 				ref={textareaRef}
 				id={id}
@@ -589,7 +588,7 @@ const MaskableTextArea: FC<MaskableInputProps> = ({
 					)}
 				</Button>
 			)}
-		</Stack>
+		</div>
 	);
 };
 
@@ -699,7 +698,8 @@ export const getInitialParameterValues = (
 		);
 
 		const useAutofill =
-			autofillParam?.value && isValidParameterOption(parameter, autofillParam);
+			autofillParam?.value !== undefined &&
+			isValidParameterOption(parameter, autofillParam);
 
 		return {
 			name: parameter.name,

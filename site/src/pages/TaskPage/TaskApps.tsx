@@ -16,12 +16,15 @@ import { ScrollArea, ScrollBar } from "#/components/ScrollArea/ScrollArea";
 import { getTerminalHref } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
 import {
+	WorkspaceAppFrame,
+	WorkspaceIframe,
+} from "#/modules/apps/WorkspaceAppFrame";
+import {
 	getAllAppsWithAgent,
 	type WorkspaceAppWithAgent,
-} from "#/modules/tasks/apps";
+} from "#/modules/apps/workspaceApps";
 import { cn } from "#/utils/cn";
 import { docs } from "#/utils/docs";
-import { TaskAppIFrame, TaskIframe } from "./TaskAppIframe";
 
 type TaskAppsProps = {
 	task: Task;
@@ -31,16 +34,17 @@ type TaskAppsProps = {
 const TERMINAL_TAB_ID = "terminal";
 
 export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
-	const apps = getAllAppsWithAgent(workspace).filter(
+	const allApps = getAllAppsWithAgent(workspace);
+	const apps = allApps.filter(
 		// The Chat UI app will be displayed in the sidebar, so we don't want to
 		// show it as a web app.
-		(app) => app.id !== task.workspace_app_id,
+		(app) => app.id !== task.workspace_app_id && !app.hidden,
 	);
 	const [embeddedApps, externalApps] = splitEmbeddedAndExternalApps(apps);
 	const [activeAppId, setActiveAppId] = useState(embeddedApps.at(0)?.id);
 	const hasAvailableAppsToDisplay =
 		embeddedApps.length > 0 || externalApps.length > 0;
-	const taskAgent = apps.at(0)?.agent;
+	const taskAgent = allApps.at(0)?.agent;
 	const terminalHref = getTerminalHref({
 		username: task.owner_name,
 		workspace: task.workspace_name,
@@ -93,7 +97,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 			{embeddedApps.length > 0 ? (
 				<div className="flex-1">
 					{embeddedApps.map((app) => (
-						<TaskAppIFrame
+						<WorkspaceAppFrame
 							key={app.id}
 							active={activeAppId === app.id}
 							app={app}
@@ -101,7 +105,7 @@ export const TaskApps: FC<TaskAppsProps> = ({ task, workspace }) => {
 						/>
 					))}
 
-					<TaskIframe
+					<WorkspaceIframe
 						src={terminalHref}
 						title="Terminal"
 						className={cn({

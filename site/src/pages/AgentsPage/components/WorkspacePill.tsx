@@ -4,9 +4,10 @@ import {
 	LayoutGridIcon,
 	MonitorIcon,
 	SquareTerminalIcon,
+	UnlinkIcon,
 } from "lucide-react";
 import type { FC } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "react-query";
 import { Link } from "react-router";
 import { toast } from "sonner";
@@ -32,7 +33,9 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
+import { useIsBelowMdViewport } from "#/hooks/useIsBelowMdViewport";
 import {
 	getTerminalHref,
 	getVSCodeHref,
@@ -41,8 +44,13 @@ import {
 	openAppInNewWindow,
 } from "#/modules/apps/apps";
 import { useAppLink } from "#/modules/apps/useAppLink";
+import {
+	canShowPortForwarding,
+	usePortsData,
+} from "#/modules/resources/usePortsData";
 import { cn } from "#/utils/cn";
 import { getWorkspaceStatus, StatusIcon } from "./StatusIcon";
+import { MobilePortsPanel, PortsMenuItem } from "./WorkspacePillPorts";
 
 interface WorkspacePillProps {
 	workspace: Workspace;
@@ -50,6 +58,7 @@ interface WorkspacePillProps {
 	chatId: string;
 	sshCommand?: string;
 	folder?: string;
+	onRemoveWorkspace?: () => void;
 }
 
 export const WorkspacePill: FC<WorkspacePillProps> = ({
@@ -58,6 +67,7 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	chatId,
 	sshCommand,
 	folder,
+	onRemoveWorkspace,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [tooltipOpen, setTooltipOpen] = useState(false);
@@ -69,104 +79,192 @@ export const WorkspacePill: FC<WorkspacePillProps> = ({
 	const { mutate: generateKey, isPending: isGeneratingKey } = useMutation({
 		mutationFn: () => API.getApiKey(),
 	});
+	const { proxy } = useProxy();
+	const host = proxy.preferredWildcardHostname;
 
 	const builtinApps = new Set(agent.display_apps);
 	const hasVSCode = builtinApps.has("vscode");
 	const hasVSCodeInsiders = builtinApps.has("vscode_insiders");
 	const hasTerminal = builtinApps.has("web_terminal");
+	const portForwardingEnabled = canShowPortForwarding(agent, host);
 
 	const userApps = agent.apps.filter((app) => !app.hidden);
 
 	const hasItemsAboveSeparator =
-		hasVSCode || hasVSCodeInsiders || userApps.length > 0 || hasTerminal;
+		hasVSCode ||
+		hasVSCodeInsiders ||
+		userApps.length > 0 ||
+		hasTerminal ||
+		portForwardingEnabled;
+
+	// Flyout sub-menus clip on mobile.
+	const [view, setView] = useState<"main" | "ports">("main");
+	const [focusPortsOnMain, setFocusPortsOnMain] = useState(false);
+	const isBelowMd = useIsBelowMdViewport();
+	const showPortsView = view === "ports" && isBelowMd;
+
+	const portsData = usePortsData(
+		workspace,
+		agent,
+		open && agent.status === "connected" && portForwardingEnabled,
+	);
+
+	useEffect(() => {
+		if (!isBelowMd && view === "ports") {
+			setView("main");
+			setFocusPortsOnMain(false);
+		}
+	}, [isBelowMd, view]);
 
 	return (
-		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<Tooltip
-				open={tooltipOpen}
-				onOpenChange={(v) => setTooltipOpen(v && !open)}
-			>
-				<TooltipTrigger asChild>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							aria-label={`${workspace.name} workspace menu`}
-							className={cn(
-								"inline-flex min-w-[2.75rem] max-w-[200px] items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary overflow-hidden",
-								"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
-							)}
-						>
-							<StatusIcon type={effectiveType} className="size-3 shrink-0" />
-							<span className="flex min-w-0 truncate">{workspace.name}</span>
-							{/* The menu opens upward (side="top"), so the chevron
-							   points away from the menu when closed (default) and
-							   toward it when open (rotate-180). */}
-							<ChevronDownIcon
+		<DropdownMenu
+			open={open}
+			onOpenChange={(next) => {
+				setOpen(next);
+				if (!next) {
+					setView("main");
+					setFocusPortsOnMain(false);
+				}
+			}}
+		>
+			<span className="inline-flex min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary md:min-w-[2.75rem]">
+				<Tooltip
+					open={tooltipOpen}
+					onOpenChange={(v) => setTooltipOpen(v && !open)}
+				>
+					<TooltipTrigger asChild>
+						<DropdownMenuTrigger asChild>
+							<button
+								type="button"
+								aria-label={`${workspace.name} workspace menu`}
 								className={cn(
-									"size-3 shrink-0 opacity-60 transition-transform",
-									open && "rotate-180",
+									"inline-flex min-w-0 cursor-pointer items-center justify-center gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+									"size-7 md:size-auto md:max-w-[200px] md:justify-start md:px-2 md:py-0.5",
 								)}
-							/>
-						</button>
-					</DropdownMenuTrigger>
-				</TooltipTrigger>
-				<TooltipContent>{statusLabel}</TooltipContent>
-			</Tooltip>
+							>
+								<StatusIcon
+									type={effectiveType}
+									className="size-icon-sm shrink-0 md:size-3"
+								/>
+								<span className="hidden min-w-0 truncate md:inline">
+									{workspace.name}
+								</span>
+								<ChevronDownIcon
+									className={cn(
+										"hidden size-3 shrink-0 opacity-60 transition-transform md:block",
+										open && "rotate-180",
+									)}
+								/>
+							</button>
+						</DropdownMenuTrigger>
+					</TooltipTrigger>
+					<TooltipContent className="hidden md:block">
+						{statusLabel}
+					</TooltipContent>
+				</Tooltip>
+			</span>
+
 			<DropdownMenuContent
 				side="top"
 				align="start"
-				className="w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:!size-3.5 [&_img]:!size-3.5"
 			>
-				{hasVSCode && (
-					<VSCodeMenuItem
-						variant="vscode"
-						label="VS Code"
+				{showPortsView ? (
+					<MobilePortsPanel
 						workspace={workspace}
 						agent={agent}
-						chatId={chatId}
-						folder={folder}
-						isRunning={isRunning}
-						generateKey={generateKey}
-						isGeneratingKey={isGeneratingKey}
+						host={host}
+						portsData={portsData}
+						onBack={() => {
+							setFocusPortsOnMain(true);
+							setView("main");
+						}}
 					/>
+				) : (
+					<>
+						{hasVSCode && (
+							<VSCodeMenuItem
+								variant="vscode"
+								label="VS Code"
+								workspace={workspace}
+								agent={agent}
+								chatId={chatId}
+								folder={folder}
+								isRunning={isRunning}
+								generateKey={generateKey}
+								isGeneratingKey={isGeneratingKey}
+							/>
+						)}
+						{hasVSCodeInsiders && (
+							<VSCodeMenuItem
+								variant="vscode-insiders"
+								label="VS Code Insiders"
+								workspace={workspace}
+								agent={agent}
+								chatId={chatId}
+								folder={folder}
+								isRunning={isRunning}
+								generateKey={generateKey}
+								isGeneratingKey={isGeneratingKey}
+							/>
+						)}
+						{userApps.map((app) => (
+							<AppMenuItem
+								key={app.id}
+								app={app}
+								workspace={workspace}
+								agent={agent}
+								isRunning={isRunning}
+							/>
+						))}
+						{hasTerminal && (
+							<TerminalMenuItem
+								workspace={workspace}
+								agent={agent}
+								isRunning={isRunning}
+							/>
+						)}
+						{portForwardingEnabled && (
+							<PortsMenuItem
+								workspace={workspace}
+								agent={agent}
+								host={host}
+								portsData={portsData}
+								isRunning={isRunning}
+								isBelowMd={isBelowMd}
+								focusOnMount={focusPortsOnMain}
+								onFocusApplied={() => setFocusPortsOnMain(false)}
+								onSelectInline={() => {
+									setFocusPortsOnMain(false);
+									setView("ports");
+								}}
+							/>
+						)}
+						{hasItemsAboveSeparator && (
+							<DropdownMenuSeparator className="my-1" />
+						)}
+
+						{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
+						<DropdownMenuItem asChild>
+							<Link to={route} target="_blank" rel="noreferrer">
+								<MonitorIcon className="size-3.5" />
+								View Workspace
+							</Link>
+						</DropdownMenuItem>
+						{onRemoveWorkspace && (
+							<>
+								<DropdownMenuSeparator className="my-1" />
+								<DropdownMenuItem
+									className="text-content-destructive focus:text-content-destructive"
+									onClick={onRemoveWorkspace}
+								>
+									<UnlinkIcon className="size-3.5" />
+									Detach workspace
+								</DropdownMenuItem>
+							</>
+						)}
+					</>
 				)}
-				{hasVSCodeInsiders && (
-					<VSCodeMenuItem
-						variant="vscode-insiders"
-						label="VS Code Insiders"
-						workspace={workspace}
-						agent={agent}
-						chatId={chatId}
-						folder={folder}
-						isRunning={isRunning}
-						generateKey={generateKey}
-						isGeneratingKey={isGeneratingKey}
-					/>
-				)}
-				{userApps.map((app) => (
-					<AppMenuItem
-						key={app.id}
-						app={app}
-						workspace={workspace}
-						agent={agent}
-						isRunning={isRunning}
-					/>
-				))}
-				{hasTerminal && (
-					<TerminalMenuItem
-						workspace={workspace}
-						agent={agent}
-						isRunning={isRunning}
-					/>
-				)}
-				{hasItemsAboveSeparator && <DropdownMenuSeparator className="my-1" />}
-				{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-				<DropdownMenuItem asChild>
-					<Link to={route} target="_blank" rel="noreferrer">
-						<MonitorIcon className="size-3.5" />
-						View Workspace
-					</Link>
-				</DropdownMenuItem>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

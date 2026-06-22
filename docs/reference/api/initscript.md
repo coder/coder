@@ -10,7 +10,7 @@ curl -X GET http://coder-server:8080/api/v2/init-script/{os}/{arch}
 
 ```
 
-`GET /init-script/{os}/{arch}`
+`GET /api/v2/init-script/{os}/{arch}`
 
 ### Parameters
 

@@ -64,6 +64,13 @@ export const Active: Story = {
 	},
 };
 
+export const Muted: Story = {
+	args: {
+		children: "Muted",
+		type: "muted" as const,
+	},
+};
+
 export const WithIcon: Story = {
 	args: {
 		children: "Information",

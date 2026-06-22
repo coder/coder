@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -25,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -32,6 +34,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -163,14 +167,14 @@ func TestDERPForceWebSockets(t *testing.T) {
 
 	// Set the HTTP handler to a custom one that ensures all /derp calls are
 	// WebSockets and not `Upgrade: derp`.
-	var upgradeCount int64
+	var upgradeCount atomic.Int64
 	setHandler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
 			up := r.Header.Get("Upgrade")
 			if up != "" && up != "websocket" {
 				t.Errorf("expected Upgrade: websocket, got %q", up)
 			} else {
-				atomic.AddInt64(&upgradeCount, 1)
+				upgradeCount.Add(1)
 			}
 		}
 
@@ -183,7 +187,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 		_ = provisionerCloser.Close()
 	})
 
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		client.HTTPClient.CloseIdleConnections()
 	})
@@ -223,7 +227,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 	}()
 	conn.AwaitReachable(ctx)
 
-	require.GreaterOrEqual(t, atomic.LoadInt64(&upgradeCount), int64(1), "expected at least one /derp call")
+	require.GreaterOrEqual(t, upgradeCount.Load(), int64(1), "expected at least one /derp call")
 }
 
 func TestDERPLatencyCheck(t *testing.T) {
@@ -280,7 +284,9 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), "Swagger UI")
+		bodyString := string(body)
+		require.Contains(t, bodyString, "Swagger UI")
+		require.Contains(t, bodyString, "requestInterceptor")
 	})
 	t.Run("doc.json exposed", func(t *testing.T) {
 		t.Parallel()
@@ -299,7 +305,23 @@ func TestSwagger(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		require.Contains(t, string(body), `"swagger": "2.0"`)
+		bodyString := string(body)
+		require.NotContains(t, bodyString, `"/api/v2/scim/v2`)
+
+		var doc struct {
+			Swagger  string                                `json:"swagger"`
+			BasePath string                                `json:"basePath"`
+			Paths    map[string]map[string]json.RawMessage `json:"paths"`
+		}
+		require.NoError(t, json.Unmarshal(body, &doc))
+		require.Equal(t, "2.0", doc.Swagger)
+		require.Equal(t, "/", doc.BasePath)
+		require.Contains(t, doc.Paths, "/api/v2/users")
+		require.Contains(t, doc.Paths, "/api/v2/oauth2-provider/apps")
+		require.Contains(t, doc.Paths, "/api/experimental/watch-all-workspacebuilds")
+		require.Contains(t, doc.Paths, "/.well-known/oauth-authorization-server")
+		require.Contains(t, doc.Paths, "/oauth2/tokens")
+		require.Contains(t, doc.Paths, "/scim/v2/Users")
 	})
 	t.Run("endpoint disabled by default", func(t *testing.T) {
 		t.Parallel()
@@ -415,6 +437,69 @@ func TestDERPMetrics(t *testing.T) {
 		"expected coder_derp_server_bytes_received_total to be registered")
 	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
 		"expected coder_derp_server_packets_dropped_reason_total to be registered")
+}
+
+// TestWebSocketProbeMetrics verifies that the coderd_api_websocket_probes_total
+// metric is recorded end-to-end through a real coderd server.
+func TestWebSocketProbeMetrics(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mClock := quartz.NewMock(t)
+
+	trap := mClock.Trap().NewTicker("WSWatcher")
+	defer trap.Close()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Clock: mClock,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	// Open a WebSocket connection to the inbox watch endpoint.
+	u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
+	require.NoError(t, err)
+
+	// nolint:bodyclose
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{member.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	// Start a reader to process control frames (pong responses).
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				_, _, err := wsConn.Read(ctx)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for the WSWatcher ticker to be created, then trigger one probe.
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+
+	// Assert the probe metric was recorded.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		metrics, err := api.Options.PrometheusRegistry.Gather()
+		assert.NoError(t, err)
+		return testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_api_websocket_probes_total", "/api/v2/notifications/inbox/watch", "ok")
+	}, testutil.IntervalFast, "websocket probe metric not recorded")
 }
 
 // TestRateLimitByUser verifies that rate limiting keys by user ID when

@@ -10,7 +10,9 @@ import {
 	type CreateChatMessageRequestWithClearablePlanMode,
 } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
+import { type AIProviderType, AIProviderTypes } from "#/api/typesGenerated";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
+import { formatProviderLabel } from "#/utils/aiProviders";
 import {
 	projectEditedConversationIntoCache,
 	reconcileEditedMessageInCache,
@@ -20,6 +22,53 @@ export const chatsKey = ["chats"] as const;
 export const chatKey = (chatId: string) => ["chats", chatId] as const;
 export const chatMessagesKey = (chatId: string) =>
 	["chats", chatId, "messages"] as const;
+export const chatPromptsKey = (chatId: string) =>
+	["chats", chatId, "prompts"] as const;
+
+export const chatACLKey = (chatId: string) => ["chats", chatId, "acl"] as const;
+
+export type ChatListPRStatusFilter = "draft" | "open" | "merged" | "closed";
+export type ChatListStatusFilter = "read" | "unread";
+
+type InfiniteChatsFilters = Readonly<{
+	archived?: boolean;
+	prStatuses?: readonly ChatListPRStatusFilter[];
+	chatStatus?: ChatListStatusFilter;
+	sources?: readonly TypesGen.ChatListSource[];
+}>;
+
+export const infiniteChatsKey = (filters?: InfiniteChatsFilters) =>
+	[...chatsKey, filters] as const;
+
+export const CHAT_LIST_PR_STATUS_ORDER = [
+	"draft",
+	"open",
+	"merged",
+	"closed",
+] as const satisfies readonly ChatListPRStatusFilter[];
+
+const chatListPRStatusSet = new Set<ChatListPRStatusFilter>(
+	CHAT_LIST_PR_STATUS_ORDER,
+);
+
+type InfiniteChatsCacheData = InfiniteData<TypesGen.Chat[]>;
+
+/** Shared ordering keeps URL serialization stable. */
+export const canonicalizeChatListPRStatuses = (
+	prStatuses: Iterable<unknown>,
+): readonly ChatListPRStatusFilter[] => {
+	const selected = new Set<ChatListPRStatusFilter>();
+	for (const prStatus of prStatuses) {
+		if (
+			typeof prStatus === "string" &&
+			chatListPRStatusSet.has(prStatus as ChatListPRStatusFilter)
+		) {
+			selected.add(prStatus as ChatListPRStatusFilter);
+		}
+	}
+
+	return CHAT_LIST_PR_STATUS_ORDER.filter((status) => selected.has(status));
+};
 
 export const chatsByWorkspaceKeyPrefix = [...chatsKey, "by-workspace"] as const;
 
@@ -42,17 +91,16 @@ export const updateInfiniteChatsCache = (
 	updater: (chats: TypesGen.Chat[]) => TypesGen.Chat[],
 ) => {
 	// Update ALL infinite chat queries regardless of their filter opts.
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev) return prev;
-		if (!prev.pages) return prev;
-		const nextPages = prev.pages.map((page) => updater(page));
-		// Only return a new reference if something actually changed.
-		const changed = nextPages.some((page, i) => page !== prev.pages[i]);
-		return changed ? { ...prev, pages: nextPages } : prev;
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			const nextPages = prev.pages.map((page) => updater(page));
+			// Only return a new reference if something actually changed.
+			const changed = nextPages.some((page, i) => page !== prev.pages[i]);
+			return changed ? { ...prev, pages: nextPages } : prev;
+		},
+	);
 };
 
 /**
@@ -66,22 +114,22 @@ export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
 ) => {
-	queryClient.setQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery }, (prev) => {
-		if (!prev?.pages) return prev;
-		// Check across ALL pages to avoid duplicates.
-		const exists = prev.pages.some((page) =>
-			page.some((c) => c.id === chat.id),
-		);
-		if (exists) return prev;
-		// Only prepend to the first page.
-		const nextPages = prev.pages.map((page, i) =>
-			i === 0 ? [chat, ...page] : page,
-		);
-		return { ...prev, pages: nextPages };
-	});
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			// Check across ALL pages to avoid duplicates.
+			const exists = prev.pages.some((page) =>
+				page.some((c) => c.id === chat.id),
+			);
+			if (exists) return prev;
+			// Only prepend to the first page.
+			const nextPages = prev.pages.map((page, i) =>
+				i === 0 ? [chat, ...page] : page,
+			);
+			return { ...prev, pages: nextPages };
+		},
+	);
 };
 
 /**
@@ -91,10 +139,10 @@ export const prependToInfiniteChatsCache = (
 export const readInfiniteChatsCache = (
 	queryClient: QueryClient,
 ): TypesGen.Chat[] | undefined => {
-	const queries = queryClient.getQueriesData<{
-		pages: TypesGen.Chat[][];
-		pageParams: unknown[];
-	}>({ queryKey: chatsKey, predicate: isChatListQuery });
+	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
+		queryKey: chatsKey,
+		predicate: isChatListQuery,
+	});
 	for (const [, data] of queries) {
 		if (data?.pages) {
 			return data.pages.flat();
@@ -185,6 +233,187 @@ export const removeChildFromParentInCache = (
 		return changed ? next : chats;
 	});
 	return found;
+};
+
+const parseUpdatedAtInstant = (updatedAt: string) => {
+	const match = updatedAt.match(/^(.*?)(?:\.(\d+))?(Z|[+-]\d\d:\d\d)$/);
+	if (!match) {
+		const epochMs = Date.parse(updatedAt);
+		return Number.isNaN(epochMs) ? undefined : { epochMs, fractionalNanos: 0 };
+	}
+
+	const [, timestampWithoutFraction, fractionalSeconds = "", timezone] = match;
+	const epochMs = Date.parse(`${timestampWithoutFraction}${timezone}`);
+	if (Number.isNaN(epochMs)) {
+		return undefined;
+	}
+	return {
+		epochMs,
+		fractionalNanos: Number(fractionalSeconds.slice(0, 9).padEnd(9, "0")),
+	};
+};
+
+const compareUpdatedAtInstants = (a: string, b: string): number => {
+	const parsedA = parseUpdatedAtInstant(a);
+	const parsedB = parseUpdatedAtInstant(b);
+	if (!parsedA || !parsedB) {
+		return a.localeCompare(b);
+	}
+	if (parsedA.epochMs !== parsedB.epochMs) {
+		return parsedA.epochMs - parsedB.epochMs;
+	}
+	return parsedA.fractionalNanos - parsedB.fractionalNanos;
+};
+
+type MergeWatchedChatOptions = {
+	readonly eventKind: TypesGen.ChatWatchEventKind;
+	readonly activeChatId?: string;
+};
+
+// Shallow-compare two ChatDiffStatus objects by their meaningful
+// fields, ignoring refreshed_at/stale_at which change on every poll.
+const diffStatusEqual = (
+	a: TypesGen.ChatDiffStatus | undefined,
+	b: TypesGen.ChatDiffStatus | undefined,
+): boolean => {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return (
+		a.url === b.url &&
+		a.pull_request_state === b.pull_request_state &&
+		a.pull_request_title === b.pull_request_title &&
+		a.pull_request_draft === b.pull_request_draft &&
+		a.changes_requested === b.changes_requested &&
+		a.additions === b.additions &&
+		a.deletions === b.deletions &&
+		a.changed_files === b.changed_files &&
+		a.pr_number === b.pr_number &&
+		a.approved === b.approved &&
+		a.commits === b.commits
+	);
+};
+
+/**
+ * Merges event-scoped chat fields into a cached summary, using updated_at
+ * as a stale guard while still adopting the latest DB-backed model config.
+ */
+export const mergeWatchedChatSummary = (
+	cachedChat: TypesGen.Chat,
+	watchedChat: TypesGen.Chat,
+	{ eventKind, activeChatId }: MergeWatchedChatOptions,
+): TypesGen.Chat => {
+	const isTitleEvent = eventKind === "title_change";
+	const isStatusEvent = eventKind === "status_change";
+	const isSummaryEvent = eventKind === "summary_change";
+	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const updatedAtComparison = compareUpdatedAtInstants(
+		cachedChat.updated_at,
+		watchedChat.updated_at,
+	);
+	const isFreshEnough = updatedAtComparison <= 0;
+	const nextStatus =
+		isFreshEnough && isStatusEvent ? watchedChat.status : cachedChat.status;
+	// maybeGenerateChatTitle can publish a previously loaded chat snapshot, so
+	// apply title_change payloads even when the chat summary timestamp is older.
+	const nextTitle = isTitleEvent ? watchedChat.title : cachedChat.title;
+	// Diff status freshness is tracked outside chats.updated_at, so apply
+	// diff_status_change payloads even when the chat summary timestamp is older.
+	const nextDiffStatus = isDiffStatusEvent
+		? watchedChat.diff_status
+		: cachedChat.diff_status;
+	const nextWorkspaceId = isFreshEnough
+		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
+		: cachedChat.workspace_id;
+	const nextBuildId = isFreshEnough
+		? (watchedChat.build_id ?? cachedChat.build_id)
+		: cachedChat.build_id;
+	// All event types carry the current model config from the DB.
+	const nextLastModelConfigId = isFreshEnough
+		? watchedChat.last_model_config_id
+		: cachedChat.last_model_config_id;
+	const nextLastTurnSummary =
+		isFreshEnough || isSummaryEvent
+			? watchedChat.last_turn_summary
+			: cachedChat.last_turn_summary;
+	const nextHasUnread =
+		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
+			? true
+			: cachedChat.has_unread;
+	const nextUpdatedAt =
+		updatedAtComparison > 0 ? cachedChat.updated_at : watchedChat.updated_at;
+
+	// Keep updated_at in the no-op guard. This gives up the old streaming
+	// rerender shortcut so later stale events cannot pass isFreshEnough
+	// against a timestamp that should already have been superseded.
+	if (
+		nextStatus === cachedChat.status &&
+		nextTitle === cachedChat.title &&
+		diffStatusEqual(nextDiffStatus, cachedChat.diff_status) &&
+		nextWorkspaceId === cachedChat.workspace_id &&
+		nextBuildId === cachedChat.build_id &&
+		nextLastModelConfigId === cachedChat.last_model_config_id &&
+		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextHasUnread === cachedChat.has_unread &&
+		nextUpdatedAt === cachedChat.updated_at
+	) {
+		return cachedChat;
+	}
+
+	return {
+		...cachedChat,
+		status: nextStatus,
+		title: nextTitle,
+		diff_status: nextDiffStatus,
+		workspace_id: nextWorkspaceId,
+		build_id: nextBuildId,
+		last_model_config_id: nextLastModelConfigId,
+		last_turn_summary: nextLastTurnSummary,
+		has_unread: nextHasUnread,
+		updated_at: nextUpdatedAt,
+	};
+};
+
+/**
+ * Applies the same event-scoped merge and stale guard across the list,
+ * parent-child, and per-chat caches, covering all three cache layers.
+ */
+export const mergeWatchedChatIntoCaches = (
+	queryClient: QueryClient,
+	watchedChat: TypesGen.Chat,
+	options: MergeWatchedChatOptions,
+) => {
+	const mergeCachedChat = (cachedChat: TypesGen.Chat) =>
+		mergeWatchedChatSummary(cachedChat, watchedChat, options);
+
+	updateInfiniteChatsCache(queryClient, (chats) => {
+		let didUpdate = false;
+		const nextChats = chats.map((chat) => {
+			if (chat.id !== watchedChat.id) {
+				return chat;
+			}
+			const mergedChat = mergeCachedChat(chat);
+			if (mergedChat !== chat) {
+				didUpdate = true;
+			}
+			return mergedChat;
+		});
+		return didUpdate ? nextChats : chats;
+	});
+
+	updateChildInParentCache(queryClient, mergeCachedChat, watchedChat.id);
+	queryClient.setQueryData<TypesGen.Chat | undefined>(
+		chatKey(watchedChat.id),
+		(cachedChat) => {
+			if (!cachedChat) {
+				return cachedChat;
+			}
+			return mergeCachedChat(cachedChat);
+		},
+	);
 };
 
 const getNextOptimisticPinOrder = (queryClient: QueryClient): number => {
@@ -296,6 +525,7 @@ export const cancelChatListRefetches = (queryClient: QueryClient) => {
 };
 
 const DEFAULT_CHAT_PAGE_LIMIT = 50;
+export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
 	chatId: string;
@@ -316,21 +546,31 @@ const toChatPlanModePayload = (
 	return planMode ?? CLEAR_PLAN_MODE_WIRE_VALUE;
 };
 
-export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
-	const limit = DEFAULT_CHAT_PAGE_LIMIT;
-
-	// Build the search query string including the archived filter.
+const getInfiniteChatsQueryString = (
+	filters: InfiniteChatsFilters | undefined,
+): string | undefined => {
 	const qParts: string[] = [];
-	if (opts?.q) {
-		qParts.push(opts.q);
+	if (filters?.archived !== undefined) {
+		qParts.push(`archived:${filters.archived}`);
 	}
-	if (opts?.archived !== undefined) {
-		qParts.push(`archived:${opts.archived}`);
+	if (filters?.prStatuses?.length) {
+		qParts.push(`pr_status:${filters.prStatuses.join(",")}`);
 	}
-	const q = qParts.length > 0 ? qParts.join(" ") : undefined;
+	if (filters?.chatStatus) {
+		qParts.push(`has_unread:${filters.chatStatus === "unread"}`);
+	}
+	if (filters?.sources?.length) {
+		qParts.push(`source:${filters.sources.join(",")}`);
+	}
+	return qParts.length > 0 ? qParts.join(" ") : undefined;
+};
+
+export const infiniteChats = (filters?: InfiniteChatsFilters) => {
+	const limit = DEFAULT_CHAT_PAGE_LIMIT;
+	const q = getInfiniteChatsQueryString(filters);
 
 	return {
-		queryKey: [...chatsKey, opts],
+		queryKey: infiniteChatsKey(filters),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
@@ -353,9 +593,24 @@ export const infiniteChats = (opts?: { q?: string; archived?: boolean }) => {
 	} satisfies UseInfiniteQueryOptions<TypesGen.Chat[]>;
 };
 
+export const chatSearch = (q: string) =>
+	queryOptions({
+		queryKey: [...chatsKey, "search", { q }],
+		queryFn: () =>
+			API.experimental.getChats({
+				limit: CHAT_SEARCH_LIMIT,
+				q,
+			}),
+	});
+
 export const chat = (chatId: string) => ({
 	queryKey: chatKey(chatId),
 	queryFn: () => API.experimental.getChat(chatId),
+});
+
+export const chatACL = (chatId: string) => ({
+	queryKey: chatACLKey(chatId),
+	queryFn: () => API.experimental.getChatACL(chatId),
 });
 
 const MESSAGES_PAGE_SIZE = 50;
@@ -377,6 +632,19 @@ export const chatMessagesForInfiniteScroll = (chatId: string) => ({
 		// Use its ID as the cursor for the next (older) page.
 		return lastPage.messages[lastPage.messages.length - 1].id;
 	},
+});
+
+// Cap requested prompts to keep the response small; well under the server-side maximum.
+const PROMPT_HISTORY_LIMIT = 500;
+
+const PROMPTS_STALE_MS = 30_000;
+
+export const chatPromptsQuery = (chatId: string) => ({
+	queryKey: chatPromptsKey(chatId),
+	queryFn: () =>
+		API.experimental.getChatPrompts(chatId, { limit: PROMPT_HISTORY_LIMIT }),
+	staleTime: PROMPTS_STALE_MS,
+	enabled: chatId !== "",
 });
 
 export const archiveChat = (queryClient: QueryClient) => ({
@@ -828,6 +1096,18 @@ export const regenerateChatTitle = (queryClient: QueryClient) => ({
 	},
 });
 
+export const proposeChatTitle = (queryClient: QueryClient) => ({
+	mutationFn: (chatId: string) => API.experimental.proposeChatTitle(chatId),
+
+	onSettled: (
+		_data: { title: string } | undefined,
+		_error: unknown,
+		chatId: string,
+	) => {
+		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
 type UpdateChatTitleVariables = {
 	chatId: string;
 	title: string;
@@ -956,6 +1236,10 @@ export const createChatMessage = (
 		API.experimental.createChatMessage(chatId, req),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
+			exact: true,
+		});
 	},
 });
 
@@ -1045,6 +1329,10 @@ export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 			queryKey: chatKey(chatId),
 			exact: true,
 		});
+		void queryClient.invalidateQueries({
+			queryKey: chatPromptsKey(chatId),
+			exact: true,
+		});
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
 });
@@ -1127,23 +1415,6 @@ export const updateChatPlanModeInstructions = (queryClient: QueryClient) => ({
 	},
 });
 
-const chatExploreModelOverrideKey = ["chat-explore-model-override"] as const;
-
-export const chatExploreModelOverride = () => ({
-	queryKey: chatExploreModelOverrideKey,
-	queryFn: () => API.experimental.getChatExploreModelOverride(),
-});
-
-export const updateChatExploreModelOverride = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.UpdateChatExploreModelOverrideRequest) =>
-		API.experimental.updateChatExploreModelOverride(req),
-	onSuccess: async () => {
-		await queryClient.invalidateQueries({
-			queryKey: chatExploreModelOverrideKey,
-		});
-	},
-});
-
 const chatDesktopEnabledKey = ["chat-desktop-enabled"] as const;
 
 export const chatDesktopEnabled = () => ({
@@ -1160,7 +1431,66 @@ export const updateChatDesktopEnabled = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatPersonalModelOverridesAdminSettingsKey = [
+	...chatsKey,
+	"admin-personal-model-overrides",
+] as const;
+
+export const chatPersonalModelOverridesAdminSettings = () => ({
+	queryKey: chatPersonalModelOverridesAdminSettingsKey,
+	queryFn: () => API.experimental.getChatPersonalModelOverridesAdminSettings(),
+});
+
+export const updateChatPersonalModelOverridesAdminSettings = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: (
+		req: TypesGen.UpdateChatPersonalModelOverridesAdminSettingsRequest,
+	) => API.experimental.updateChatPersonalModelOverridesAdminSettings(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatPersonalModelOverridesAdminSettingsKey,
+		});
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
+		});
+	},
+});
+
 export * from "./chatDebugLogging";
+export const chatAdvisorConfigKey = ["chat-advisor-config"] as const;
+
+export const chatAdvisorConfig = () => ({
+	queryKey: chatAdvisorConfigKey,
+	queryFn: (): Promise<TypesGen.AdvisorConfig> =>
+		API.experimental.getChatAdvisorConfig(),
+});
+
+export const updateChatAdvisorConfig = (queryClient: QueryClient) => ({
+	mutationFn: (req: TypesGen.UpdateAdvisorConfigRequest) =>
+		API.experimental.updateChatAdvisorConfig(req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAdvisorConfigKey,
+		});
+	},
+});
+
+const chatComputerUseProviderKey = ["chat-computer-use-provider"] as const;
+
+export const chatComputerUseProvider = () => ({
+	queryKey: chatComputerUseProviderKey,
+	queryFn: () => API.experimental.getChatComputerUseProvider(),
+});
+
+export const updateChatComputerUseProvider = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatComputerUseProvider,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatComputerUseProviderKey,
+		});
+	},
+});
 
 const chatWorkspaceTTLKey = ["chat-workspace-ttl"] as const;
 
@@ -1194,6 +1524,38 @@ export const updateChatRetentionDays = (queryClient: QueryClient) => ({
 	},
 });
 
+const chatDebugRetentionDaysKey = ["chat-debug-retention-days"] as const;
+
+export const chatDebugRetentionDays = () => ({
+	queryKey: chatDebugRetentionDaysKey,
+	queryFn: () => API.experimental.getChatDebugRetentionDays(),
+});
+
+export const updateChatDebugRetentionDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatDebugRetentionDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatDebugRetentionDaysKey,
+		});
+	},
+});
+
+const chatAutoArchiveDaysKey = ["chat-auto-archive-days"] as const;
+
+export const chatAutoArchiveDays = () => ({
+	queryKey: chatAutoArchiveDaysKey,
+	queryFn: () => API.experimental.getChatAutoArchiveDays(),
+});
+
+export const updateChatAutoArchiveDays = (queryClient: QueryClient) => ({
+	mutationFn: API.experimental.updateChatAutoArchiveDays,
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: chatAutoArchiveDaysKey,
+		});
+	},
+});
+
 const chatTemplateAllowlistKey = ["chat-template-allowlist"] as const;
 
 export const chatTemplateAllowlist = () => ({
@@ -1222,6 +1584,34 @@ export const updateUserChatCustomPrompt = (queryClient: QueryClient) => ({
 	onSuccess: async () => {
 		await queryClient.invalidateQueries({
 			queryKey: chatUserCustomPromptKey,
+		});
+	},
+});
+
+const userChatPersonalModelOverridesKey = [
+	...chatsKey,
+	"user-personal-model-overrides",
+] as const;
+
+export const userChatPersonalModelOverrides = () => ({
+	queryKey: userChatPersonalModelOverridesKey,
+	queryFn: (): Promise<TypesGen.UserChatPersonalModelOverridesResponse> =>
+		API.experimental.getUserChatPersonalModelOverrides(),
+});
+
+type UpdateUserChatPersonalModelOverrideArgs = {
+	context: TypesGen.ChatPersonalModelOverrideContext;
+	req: TypesGen.UpdateUserChatPersonalModelOverrideRequest;
+};
+
+export const updateUserChatPersonalModelOverride = (
+	queryClient: QueryClient,
+) => ({
+	mutationFn: ({ context, req }: UpdateUserChatPersonalModelOverrideArgs) =>
+		API.experimental.updateUserChatPersonalModelOverride(context, req),
+	onSuccess: async () => {
+		await queryClient.invalidateQueries({
+			queryKey: userChatPersonalModelOverridesKey,
 		});
 	},
 });
@@ -1271,10 +1661,29 @@ export const chatModels = () => ({
 
 const chatProviderConfigsKey = ["chat-provider-configs"] as const;
 
+const toChatProviderConfig = (
+	provider: TypesGen.AIProvider,
+): TypesGen.ChatProviderConfig => ({
+	id: provider.id,
+	provider: provider.type,
+	display_name: provider.display_name || provider.type,
+	enabled: provider.enabled,
+	has_api_key: provider.api_keys.length > 0,
+	central_api_key_enabled: true,
+	allow_user_api_key: true,
+	allow_central_api_key_fallback: true,
+	base_url: provider.base_url,
+	source: "database",
+	created_at: provider.created_at,
+	updated_at: provider.updated_at,
+});
+
 export const chatProviderConfigs = () => ({
 	queryKey: chatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.ChatProviderConfig[]> =>
-		API.experimental.getChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.ChatProviderConfig[]> => {
+		const providers = await API.experimental.listAIProviders();
+		return providers.map(toChatProviderConfig);
+	},
 });
 
 const chatModelConfigsKey = ["chat-model-configs"] as const;
@@ -1291,8 +1700,17 @@ export const userChatProviderConfigsKey = [
 
 export const userChatProviderConfigs = () => ({
 	queryKey: userChatProviderConfigsKey,
-	queryFn: (): Promise<TypesGen.UserChatProviderConfig[]> =>
-		API.experimental.getUserChatProviderConfigs(),
+	queryFn: async (): Promise<TypesGen.UserChatProviderConfig[]> => {
+		const configs = await API.experimental.getUserAIProviderKeyConfigs();
+		return configs.map((config) => ({
+			provider_id: config.provider.id,
+			provider: config.provider.type,
+			display_name: config.provider.display_name || config.provider.type,
+			has_user_api_key: config.has_user_api_key,
+			byok_enabled: config.byok_enabled,
+			has_central_api_key_fallback: config.has_provider_api_key,
+		}));
+	},
 });
 
 type UpsertUserChatProviderKeyArgs = {
@@ -1302,7 +1720,7 @@ type UpsertUserChatProviderKeyArgs = {
 
 export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: ({ providerConfigId, req }: UpsertUserChatProviderKeyArgs) =>
-		API.experimental.upsertUserChatProviderKey(providerConfigId, req),
+		API.experimental.upsertUserAIProviderKey(providerConfigId, req),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1315,7 +1733,7 @@ export const upsertUserChatProviderKey = (queryClient: QueryClient) => ({
 
 export const deleteUserChatProviderKey = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteUserChatProviderKey(providerConfigId),
+		API.experimental.deleteUserAIProviderKey(providerConfigId),
 	onSuccess: async () => {
 		await Promise.all([
 			queryClient.invalidateQueries({
@@ -1334,9 +1752,41 @@ const invalidateChatConfigurationQueries = async (queryClient: QueryClient) => {
 	]);
 };
 
+const generatedAIProviderName = (provider: string): string => {
+	const suffix =
+		globalThis.crypto?.randomUUID?.() ??
+		`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+	return `${provider}-${suffix}`;
+};
+
+const normalizeAIProviderType = (provider: string): AIProviderType => {
+	const normalized = provider.trim().toLowerCase();
+	const aliased =
+		normalized === "openai-compatible" || normalized === "openai_compatible"
+			? "openai-compat"
+			: normalized;
+	const providerType = AIProviderTypes.find(
+		(candidate) => candidate === aliased,
+	);
+	if (!providerType) {
+		throw new Error(`Unsupported AI provider type "${provider}".`);
+	}
+	return providerType;
+};
+
 export const createChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) =>
-		API.experimental.createChatProviderConfig(req),
+	mutationFn: (req: TypesGen.CreateChatProviderConfigRequest) => {
+		const providerType = normalizeAIProviderType(req.provider);
+		const apiKey = req.api_key;
+		return API.experimental.createAIProvider({
+			type: providerType,
+			name: generatedAIProviderName(providerType),
+			display_name: req.display_name || formatProviderLabel(providerType),
+			base_url: req.base_url ?? "",
+			enabled: req.enabled ?? true,
+			api_keys: apiKey ? [apiKey] : undefined,
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1348,11 +1798,23 @@ type UpdateChatProviderConfigMutationArgs = {
 };
 
 export const updateChatProviderConfig = (queryClient: QueryClient) => ({
-	mutationFn: ({
+	mutationFn: async ({
 		providerConfigId,
 		req,
-	}: UpdateChatProviderConfigMutationArgs) =>
-		API.experimental.updateChatProviderConfig(providerConfigId, req),
+	}: UpdateChatProviderConfigMutationArgs) => {
+		const apiKey = req.api_key;
+		return API.experimental.updateAIProvider(providerConfigId, {
+			display_name: req.display_name,
+			base_url: req.base_url,
+			enabled: req.enabled,
+			api_keys:
+				req.api_key === undefined
+					? undefined
+					: apiKey
+						? [{ api_key: apiKey }]
+						: [],
+		});
+	},
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1360,7 +1822,7 @@ export const updateChatProviderConfig = (queryClient: QueryClient) => ({
 
 export const deleteChatProviderConfig = (queryClient: QueryClient) => ({
 	mutationFn: (providerConfigId: string) =>
-		API.experimental.deleteChatProviderConfig(providerConfigId),
+		API.experimental.deleteAIProvider(providerConfigId),
 	onSuccess: async () => {
 		await invalidateChatConfigurationQueries(queryClient);
 	},
@@ -1436,18 +1898,6 @@ export function paginatedChatCostUsers(
 		staleTime: 60_000,
 	};
 }
-
-const prInsightsKey = (params?: { start_date?: string; end_date?: string }) =>
-	[...chatsKey, "prInsights", params] as const;
-
-export const prInsights = (params?: {
-	start_date?: string;
-	end_date?: string;
-}) => ({
-	queryKey: prInsightsKey(params),
-	queryFn: () => API.experimental.getPRInsights(params),
-	staleTime: 60_000,
-});
 
 export const chatUsageLimitStatusKey = [
 	...chatsKey,
@@ -1573,5 +2023,43 @@ export const deleteMCPServerConfig = (queryClient: QueryClient) => ({
 	mutationFn: (id: string) => API.experimental.deleteMCPServerConfig(id),
 	onSuccess: async () => {
 		await invalidateMCPServerConfigQueries(queryClient);
+	},
+});
+
+type SetChatUserRoleVariables = {
+	chatId: string;
+	userId: string;
+	role: TypesGen.ChatRole;
+};
+
+type SetChatGroupRoleVariables = {
+	chatId: string;
+	groupId: string;
+	role: TypesGen.ChatRole;
+};
+
+export const setChatUserRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, userId, role }: SetChatUserRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			user_roles: { [userId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatUserRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
+	},
+});
+
+export const setChatGroupRole = (queryClient: QueryClient) => ({
+	mutationFn: ({ chatId, groupId, role }: SetChatGroupRoleVariables) =>
+		API.experimental.updateChatACL(chatId, {
+			group_roles: { [groupId]: role },
+		}),
+	onSuccess: async (_data: unknown, { chatId }: SetChatGroupRoleVariables) => {
+		await queryClient.invalidateQueries({
+			queryKey: chatACLKey(chatId),
+			exact: true,
+		});
 	},
 });

@@ -20,7 +20,7 @@ export const MessageContent = ({
 		<div
 			ref={ref}
 			className={cn(
-				"whitespace-pre-wrap break-words text-sm leading-relaxed text-content-primary",
+				"whitespace-pre-wrap break-words text-[13px] leading-relaxed text-content-primary",
 				className,
 			)}
 			{...props}

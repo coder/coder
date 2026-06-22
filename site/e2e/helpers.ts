@@ -432,7 +432,7 @@ export const startWorkspaceWithEphemeralParameters = async (
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	await page.getByRole("button", { name: /update and start/i }).click();
+	await clickWorkspaceUpdateSubmit(page, /update and start/i);
 
 	await page.waitForSelector("text=Workspace status: Running", {
 		state: "visible",
@@ -1107,6 +1107,12 @@ const fillParameters = async (
 	}
 };
 
+const clickWorkspaceUpdateSubmit = async (page: Page, name: RegExp) => {
+	const submitButton = page.getByRole("button", { name });
+	await expect(submitButton).toBeEnabled({ timeout: 30_000 });
+	await submitButton.click();
+};
+
 export const updateTemplate = async (
 	page: Page,
 	organization: string,
@@ -1205,11 +1211,11 @@ export const updateWorkspace = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await page.getByRole("button", { name: /update and restart/i }).click();
+		await clickWorkspaceUpdateSubmit(page, /update and restart/i);
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await page.getByRole("button", { name: /update and start/i }).click();
+		await clickWorkspaceUpdateSubmit(page, /update and start/i);
 	}
 };
 
@@ -1228,11 +1234,11 @@ export const updateWorkspaceParameters = async (
 	await fillParameters(page, richParameters, buildParameters);
 
 	if (workspaceStatus === "running") {
-		await page.getByRole("button", { name: /update and restart/i }).click();
+		await clickWorkspaceUpdateSubmit(page, /update and restart/i);
 		// Confirmation dialog.
 		await page.getByRole("button", { name: /restart/i }).click();
 	} else {
-		await page.getByRole("button", { name: /update and start/i }).click();
+		await clickWorkspaceUpdateSubmit(page, /update and start/i);
 	}
 
 	await page.waitForSelector("text=Workspace status: Running", {
@@ -1264,6 +1270,10 @@ export async function openTerminalWindow(
 	await terminal.goto(
 		`/@${user.username}/${workspaceName}.${agentName}/terminal${commandQuery}`,
 	);
+
+	// The terminal command confirmation dialog requires explicit user
+	// approval before the command executes.
+	await terminal.getByRole("button", { name: "Run command" }).click();
 
 	return terminal;
 }
@@ -1328,11 +1338,12 @@ export async function createUser(
 	await expect(addedRow).toBeVisible();
 
 	// Give them a role
-	await addedRow.getByLabel("Edit user roles").click();
+	await addedRow.getByLabel("Open menu").click();
+	await page.getByText("Edit roles").click();
 	for (const role of roles) {
-		await page.getByRole("group").getByText(role, { exact: true }).click();
+		await page.getByRole("dialog").getByText(role, { exact: true }).click();
 	}
-	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	await page.getByText("Confirm").click();
 
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password, roles };

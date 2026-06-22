@@ -1,10 +1,15 @@
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
+import {
+	LoaderIcon,
+	MessageCircleQuestionIcon,
+	TriangleAlertIcon,
+} from "lucide-react";
 import { type FC, type FormEvent, useId, useState } from "react";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -161,8 +166,10 @@ const SelectableAnswerOption: FC<SelectableAnswerOptionProps> = ({
 				id={id}
 				value={value}
 			/>
-			<span className="text-sm font-medium text-content-primary">{label}</span>
-			<p className="col-start-2 m-0 whitespace-pre-wrap text-sm text-content-secondary">
+			<span className="text-[13px] font-medium text-content-primary">
+				{label}
+			</span>
+			<p className="col-start-2 m-0 whitespace-pre-wrap text-[13px] text-content-secondary">
 				{description}
 			</p>
 		</label>
@@ -282,18 +289,20 @@ const QuestionStep: FC<QuestionStepProps> = ({
 					Question {questionIndex + 1} of {questionCount}
 				</p>
 			)}
-			<div className="space-y-1.5">
-				<p
-					id={questionHeaderId}
-					className="text-xs font-medium text-content-secondary"
-				>
-					{questionHeader}
-				</p>
+			<div className="flex items-start gap-1.5 text-content-secondary">
+				<MessageCircleQuestionIcon
+					aria-hidden="true"
+					className="mt-0.5 size-4 shrink-0"
+				/>
 				<p
 					id={questionTextId}
-					className="whitespace-pre-wrap text-sm text-content-primary"
+					className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
 				>
-					{questionText}
+					<span className="sr-only" id={questionHeaderId}>
+						{questionHeader}
+					</span>
+					<span aria-hidden="true">Asking: </span>
+					<span>{questionText}</span>
 				</p>
 			</div>
 			<div className="rounded-md border border-solid border-border-default px-3 py-1">
@@ -343,12 +352,19 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 	idPrefix,
 }) => {
 	return (
-		<p
-			id={`${idPrefix}-question-${questionIndex}-text`}
-			className="whitespace-pre-wrap text-sm text-content-primary"
-		>
-			{getQuestionText(question)}
-		</p>
+		<div className="flex items-start gap-1.5 text-content-secondary">
+			<MessageCircleQuestionIcon
+				aria-hidden="true"
+				className="mt-0.5 size-4 shrink-0"
+			/>
+			<p
+				id={`${idPrefix}-question-${questionIndex}-text`}
+				className="m-0 min-w-0 flex-1 whitespace-pre-wrap text-[13px]"
+			>
+				<span aria-hidden="true">Asked: </span>
+				<span>{getQuestionText(question)}</span>
+			</p>
+		</div>
 	);
 };
 
@@ -520,17 +536,18 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 
 	if (isError) {
 		return (
-			<div className="w-full">
-				<div
-					role="alert"
-					className="flex items-center gap-1.5 py-0.5 text-sm text-content-secondary"
+			<div className="w-full" role="alert">
+				<ToolCall.Root
+					status={status}
+					isError
+					errorMessage={errorMessage || "Failed to ask questions"}
+					hasContent={false}
 				>
-					<TriangleAlertIcon
-						aria-label="Error"
-						className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label={errorMessage || "Failed to ask questions"}
 					/>
-					<span>{errorMessage || "Failed to ask questions"}</span>
-				</div>
+				</ToolCall.Root>
 			</div>
 		);
 	}
@@ -539,21 +556,19 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<div
+					<ToolCall.Root
+						status={status}
+						hasContent={false}
 						role="status"
 						aria-live="polite"
-						className="flex items-center gap-1.5 py-0.5"
 					>
-						<span className="text-sm text-content-secondary">
-							Asking for clarification...
-						</span>
-						<LoaderIcon
-							data-testid="ask-user-question-loading-icon"
-							className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+						<ToolCall.Header
+							iconName="ask_user_question"
+							label="Asking for clarification..."
 						/>
-					</div>
+					</ToolCall.Root>
 				) : (
-					<p className="text-sm italic text-content-secondary">
+					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
 					</p>
 				)}
@@ -606,7 +621,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					<p className="text-xs font-medium text-content-secondary">
 						Submitted answer
 					</p>
-					<p className="mt-1 whitespace-pre-wrap text-sm text-content-primary">
+					<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">
 						{displayedSubmittedResponseText || "No answer recorded."}
 					</p>
 				</div>
@@ -615,9 +630,9 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 			{submitError && (
 				<div
 					role="alert"
-					className="mt-3 flex items-center gap-1.5 text-sm text-content-destructive"
+					className="mt-3 flex items-center gap-1.5 text-[13px] text-content-destructive"
 				>
-					<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+					<TriangleAlertIcon className="size-3.5 shrink-0" />
 					<span>{submitError}</span>
 				</div>
 			)}
@@ -652,7 +667,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							disabled={!canSubmitAllAnswers || isSubmitting}
 						>
 							{isSubmitting && (
-								<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+								<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 							)}
 							{isSubmitting ? "Submitting..." : "Submit"}
 						</Button>
@@ -665,19 +680,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<div
+				<ToolCall.Root
+					status={status}
+					hasContent={false}
 					role="status"
 					aria-live="polite"
-					className="flex items-center gap-1.5 py-0.5"
 				>
-					<span className="text-sm text-content-secondary">
-						Asking for clarification...
-					</span>
-					<LoaderIcon
-						data-testid="ask-user-question-loading-icon"
-						className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label="Asking for clarification..."
 					/>
-				</div>
+				</ToolCall.Root>
 			)}
 
 			{isInteractive ? (

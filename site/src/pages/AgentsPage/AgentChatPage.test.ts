@@ -1,12 +1,16 @@
 import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type * as TypesGen from "#/api/typesGenerated";
+import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
-	filterWorkspaceOptionsByOrganization,
 	getPersistedDraftInputValue,
+	getWorkspaceOptionsWithLinkedWorkspace,
 	restoreOptimisticRequestSnapshot,
+	runPromoteQueuedMessage,
 	submitEditAndScroll,
 	useConversationEditingState,
 	waitForPendingChatSettingsSyncs,
@@ -14,6 +18,12 @@ import {
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
 import { createChatStore } from "./components/ChatConversation/chatStore";
 import type { PendingAttachment } from "./components/ChatPageContent";
+import {
+	clearPersistedSidebarTabId,
+	getPersistedSidebarTabId,
+	lastActiveSidebarTabStorageKeyPrefix,
+	savePersistedSidebarTabId,
+} from "./utils/sidebarTabStorage";
 
 type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
@@ -71,21 +81,41 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
-type Deferred<T> = {
-	promise: Promise<T>;
-	resolve: (value: T | PromiseLike<T>) => void;
-	reject: (reason?: unknown) => void;
-};
+describe("getWorkspaceOptionsWithLinkedWorkspace", () => {
+	it("includes a missing linked workspace only when the current user owns it", () => {
+		const existingWorkspace = {
+			...MockWorkspace,
+			id: "existing-workspace",
+		};
+		const ownerWorkspaceOptions = [existingWorkspace];
+		const linkedWorkspace = {
+			...MockWorkspace,
+			id: "linked-workspace",
+			owner_id: MockUserOwner.id,
+		};
 
-const createDeferred = <T>(): Deferred<T> => {
-	let resolve!: (value: T | PromiseLike<T>) => void;
-	let reject!: (reason?: unknown) => void;
-	const promise = new Promise<T>((res, rej) => {
-		resolve = res;
-		reject = rej;
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				linkedWorkspace,
+				MockUserOwner.id,
+			),
+		).toEqual([linkedWorkspace, existingWorkspace]);
+
+		const sharedWorkspace = {
+			...linkedWorkspace,
+			owner_id: "another-user",
+		};
+
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				sharedWorkspace,
+				MockUserOwner.id,
+			),
+		).toBe(ownerWorkspaceOptions);
 	});
-	return { promise, resolve, reject };
-};
+});
 
 describe("waitForPendingChatSettingsSyncs", () => {
 	it("waits for plan-mode and workspace updates before resolving", async () => {
@@ -121,32 +151,6 @@ describe("waitForPendingChatSettingsSyncs", () => {
 
 		workspaceUpdate.reject(new Error("boom"));
 		await expect(waitPromise).rejects.toThrow("boom");
-	});
-});
-
-describe("filterWorkspaceOptionsByOrganization", () => {
-	const makeWorkspace = (id: string, organizationID: string) =>
-		({ id, organization_id: organizationID }) as TypesGen.Workspace;
-
-	it("returns only workspaces from the active chat organization", () => {
-		const workspaces = [
-			makeWorkspace("workspace-1", "org-a"),
-			makeWorkspace("workspace-2", "org-b"),
-			makeWorkspace("workspace-3", "org-a"),
-		];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, "org-a")).toEqual([
-			workspaces[0],
-			workspaces[2],
-		]);
-	});
-
-	it("returns an empty list until the chat organization is known", () => {
-		const workspaces = [makeWorkspace("workspace-1", "org-a")];
-
-		expect(filterWorkspaceOptionsByOrganization(workspaces, undefined)).toEqual(
-			[],
-		);
 	});
 });
 
@@ -205,6 +209,81 @@ describe("restoreOptimisticRequestSnapshot", () => {
 	});
 });
 
+describe("runPromoteQueuedMessage", () => {
+	const buildQueuedMessage = (
+		id: number,
+		text: string,
+		chatID = "chat-1",
+	): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		chat_id: chatID,
+		content: [{ type: "text", text }],
+	});
+
+	it("suppresses the promoted ID and removes it optimistically", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
+		store.setQueuedMessages([a, b, c]);
+		store.setChatStatus("running");
+
+		const promote = vi.fn(async (_id: number) => undefined);
+		const clearChatErrorReason = vi.fn();
+		const handleUsageLimitError = vi.fn();
+
+		await runPromoteQueuedMessage({
+			id: b.id,
+			store,
+			promoteQueuedMessage: promote,
+			agentId: "chat-1",
+			clearChatErrorReason,
+			handleUsageLimitError,
+		});
+
+		expect(promote).toHaveBeenCalledWith(b.id);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, c.id]);
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+		expect(snapshot.chatStatus).toBe("pending");
+	});
+
+	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
+		const store = createChatStore();
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		store.setQueuedMessages([a, b]);
+		store.setChatStatus("waiting");
+
+		const apiError = new Error("boom");
+		const promote = vi.fn(async (_id: number) => {
+			throw apiError;
+		});
+		const clearChatErrorReason = vi.fn();
+		const handleUsageLimitError = vi.fn();
+
+		await expect(
+			runPromoteQueuedMessage({
+				id: b.id,
+				store,
+				promoteQueuedMessage: promote,
+				agentId: "chat-1",
+				clearChatErrorReason,
+				handleUsageLimitError,
+			}),
+		).rejects.toBe(apiError);
+
+		expect(handleUsageLimitError).toHaveBeenCalledWith(apiError);
+
+		const snapshot = store.getSnapshot();
+		expect(snapshot.queuedMessages.map((m) => m.id)).toEqual([a.id, b.id]);
+		expect(snapshot.chatStatus).toBe("waiting");
+		expect(snapshot.suppressedQueuedMessageIDs.has(b.id)).toBe(false);
+	});
+});
+
 describe("useConversationEditingState", () => {
 	const chatID = "chat-abc-123";
 	const expectedKey = `${draftInputStorageKeyPrefix}${chatID}`;
@@ -249,6 +328,9 @@ describe("useConversationEditingState", () => {
 			);
 		});
 		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		// handleContentChange persists only; it must not advance the seed.
+		expect(result.current.editorInitialValue).toBe("");
+		expect(result.current.initialEditorState).toBeUndefined();
 
 		act(() => {
 			// Even though the serialized state is non-empty (Lexical always
@@ -257,6 +339,27 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
 		});
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+
+		unmount();
+	});
+
+	it("carries a draft typed during loading into the seed for the loaded editor", () => {
+		const { result, unmount } = renderEditing();
+
+		// handleContentChange persists but does not advance the seed.
+		const editorState =
+			'{"root":{"children":[{"text":"typed while loading"}]}}';
+		act(() => {
+			result.current.handleLoadingDraftChange(
+				"typed while loading",
+				editorState,
+				false,
+			);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("typed while loading");
+		expect(result.current.initialEditorState).toBe(editorState);
 
 		unmount();
 	});
@@ -910,5 +1013,105 @@ describe("submitEditAndScroll", () => {
 		});
 
 		expect(editMessage).toHaveBeenCalled();
+	});
+});
+
+describe("sidebar tab persistence", () => {
+	beforeEach(() => {
+		localStorage.clear();
+	});
+
+	describe("getPersistedSidebarTabId", () => {
+		it("returns null when no value is stored for that chat", () => {
+			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
+		});
+
+		it("returns the stored string when one is present", () => {
+			localStorage.setItem(
+				`${lastActiveSidebarTabStorageKeyPrefix}chat-1`,
+				"terminal",
+			);
+			expect(getPersistedSidebarTabId("chat-1")).toBe("terminal");
+		});
+
+		it("returns null when chatID is undefined", () => {
+			expect(getPersistedSidebarTabId(undefined)).toBeNull();
+		});
+
+		it("returns null when chatID is empty string", () => {
+			expect(getPersistedSidebarTabId("")).toBeNull();
+		});
+
+		it("reads from the key agents.last-active-tab.<chatID>", () => {
+			const chatID = "chat-xyz";
+			localStorage.setItem(`agents.last-active-tab.${chatID}`, "git");
+			expect(getPersistedSidebarTabId(chatID)).toBe("git");
+		});
+	});
+
+	describe("savePersistedSidebarTabId", () => {
+		it("writes tabID to agents.last-active-tab.<chatID>", () => {
+			savePersistedSidebarTabId("chat-1", "desktop");
+			expect(
+				localStorage.getItem(`${lastActiveSidebarTabStorageKeyPrefix}chat-1`),
+			).toBe("desktop");
+		});
+
+		it("is a no-op when chatID is undefined", () => {
+			savePersistedSidebarTabId(undefined, "desktop");
+			expect(localStorage.length).toBe(0);
+		});
+
+		it("is a no-op when chatID is empty string", () => {
+			savePersistedSidebarTabId("", "desktop");
+			expect(localStorage.length).toBe(0);
+		});
+
+		it("can be round-tripped with getPersistedSidebarTabId", () => {
+			savePersistedSidebarTabId("chat-rt", "terminal");
+			expect(getPersistedSidebarTabId("chat-rt")).toBe("terminal");
+		});
+
+		it("does not collide across different chatIDs", () => {
+			savePersistedSidebarTabId("chat-a", "git");
+			savePersistedSidebarTabId("chat-b", "desktop");
+			expect(getPersistedSidebarTabId("chat-a")).toBe("git");
+			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
+		});
+	});
+
+	describe("clearPersistedSidebarTabId", () => {
+		it("removes agents.last-active-tab.<chatID> from storage", () => {
+			savePersistedSidebarTabId("chat-1", "terminal");
+			clearPersistedSidebarTabId("chat-1");
+			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
+		});
+
+		it("is a no-op when nothing is stored", () => {
+			// Calling twice should not throw.
+			clearPersistedSidebarTabId("chat-1");
+			clearPersistedSidebarTabId("chat-1");
+			expect(getPersistedSidebarTabId("chat-1")).toBeNull();
+		});
+
+		it("is a no-op when chatID is undefined", () => {
+			savePersistedSidebarTabId("chat-1", "git");
+			clearPersistedSidebarTabId(undefined);
+			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
+		});
+
+		it("is a no-op when chatID is empty string", () => {
+			savePersistedSidebarTabId("chat-1", "git");
+			clearPersistedSidebarTabId("");
+			expect(getPersistedSidebarTabId("chat-1")).toBe("git");
+		});
+
+		it("only affects the target chat's entry", () => {
+			savePersistedSidebarTabId("chat-a", "git");
+			savePersistedSidebarTabId("chat-b", "desktop");
+			clearPersistedSidebarTabId("chat-a");
+			expect(getPersistedSidebarTabId("chat-a")).toBeNull();
+			expect(getPersistedSidebarTabId("chat-b")).toBe("desktop");
+		});
 	});
 });

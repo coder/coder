@@ -91,7 +91,7 @@ func TestWorkspace(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		// Getting with deleted=true should still work.
+		// Getting with include_deleted=true should still work.
 		_, err := client.DeletedWorkspace(ctx, workspace.ID)
 		require.NoError(t, err)
 
@@ -102,12 +102,12 @@ func TestWorkspace(t *testing.T) {
 		require.NoError(t, err, "delete the workspace")
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
-		// Getting with deleted=true should work.
+		// Getting with include_deleted=true should work.
 		workspaceNew, err := client.DeletedWorkspace(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
 
-		// Getting with deleted=false should not work.
+		// Getting with include_deleted=false should not work.
 		_, err = client.Workspace(ctx, workspace.ID)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "410") // gone
@@ -1517,12 +1517,12 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		// Then:
-		// When we call without includes_deleted, we don't expect to get the workspace back
+		// When we call without include_deleted, we don't expect to get the workspace back
 		_, err = client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.ErrorContains(t, err, "404")
 
 		// Then:
-		// When we call with includes_deleted, we should get the workspace back
+		// When we call with include_deleted, we should get the workspace back
 		workspaceNew, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{IncludeDeleted: true})
 		require.NoError(t, err)
 		require.Equal(t, workspace.ID, workspaceNew.ID)
@@ -4587,7 +4587,15 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err)
 
 		// Should be able to stop a workspace while it is dormant.
-		coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			return auditor.Contains(t, database.AuditLog{
+				ResourceID:   workspace.LatestBuild.ID,
+				ResourceType: database.ResourceTypeWorkspaceBuild,
+				Action:       database.AuditActionStop,
+				StatusCode:   http.StatusOK,
+			})
+		}, testutil.IntervalFast)
 
 		// Reset the auditor
 		auditor.ResetLogs()
@@ -4610,16 +4618,20 @@ func TestWorkspaceDormant(t *testing.T) {
 		require.NoError(t, err, "fetch updated workspace")
 		require.Nil(t, updatedWs.DormantAt)
 
-		// There should be an audit log for both the dormancy update and the start.
-		require.Len(t, auditor.AuditLogs(), 2)
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionWrite,
-			ResourceType: database.ResourceTypeWorkspace,
-		}))
-		require.True(t, auditor.Contains(t, database.AuditLog{
-			Action:       database.AuditActionStart,
-			ResourceType: database.ResourceTypeWorkspaceBuild,
-		}))
+		// There should be an audit log for both the dormancy update and the
+		// start. Audit logs are written asynchronously to build completion,
+		// so poll until both appear.
+		require.Eventually(t, func() bool {
+			return len(auditor.AuditLogs()) == 2 &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionWrite,
+					ResourceType: database.ResourceTypeWorkspace,
+				}) &&
+				auditor.Contains(t, database.AuditLog{
+					Action:       database.AuditActionStart,
+					ResourceType: database.ResourceTypeWorkspaceBuild,
+				})
+		}, testutil.WaitShort, testutil.IntervalFast)
 	})
 }
 
@@ -4756,7 +4768,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			DefaultTTL:      int64(8 * time.Hour),
 		})
 		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
+			ActivityBumpMillis: ptr.Ref(8 * time.Hour.Milliseconds()),
 		})
 		require.NoError(t, err)
 		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -4872,6 +4884,75 @@ func TestWorkspaceNotifications(t *testing.T) {
 			require.Contains(t, sent[0].Targets, workspace.ID)
 			require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 			require.Contains(t, sent[0].Targets, workspace.OwnerID)
+			// Auto-delete is not configured on this template, so the body must
+			// omit the deletion timeline.
+			require.NotContains(t, sent[0].Labels, "timeTilDelete")
+		})
+
+		t.Run("InitiatorNotOwnerWithAutoDelete", func(t *testing.T) {
+			t.Parallel()
+
+			// Given
+			var (
+				notifyEnq = &notificationstest.FakeEnqueuer{}
+				// 35 days sits solidly inside humanize.Time's "1 month"
+				// bucket (between 30 and 60 days), so the rendered label is
+				// deterministic regardless of microsecond-level timing
+				// differences.
+				timeTilDormantAutoDelete = 35 * 24 * time.Hour
+				client                   = coderdtest.New(t, &coderdtest.Options{
+					IncludeProvisionerDaemon: true,
+					NotificationsEnqueuer:    notifyEnq,
+					// AGPL templateScheduleStore drops TimeTilDormantAutoDelete
+					// when Set runs. The mock propagates it into the template
+					// row so the UPDATE in UpdateWorkspaceDormantDeletingAt
+					// can compute deleting_at.
+					TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+						SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+							template.TimeTilDormantAutoDelete = int64(options.TimeTilDormantAutoDelete)
+							return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+						},
+						GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
+							return schedule.TemplateScheduleOptions{
+								UserAutostartEnabled:     false,
+								UserAutostopEnabled:      true,
+								DefaultTTL:               0,
+								AutostopRequirement:      schedule.TemplateAutostopRequirement{},
+								TimeTilDormantAutoDelete: timeTilDormantAutoDelete,
+							}, nil
+						},
+					},
+				})
+				user            = coderdtest.CreateFirstUser(t, client)
+				memberClient, _ = coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
+				version         = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+				_               = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				template        = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					ctr.TimeTilDormantAutoDeleteMillis = ptr.Ref[int64](timeTilDormantAutoDelete.Milliseconds())
+				})
+				workspace = coderdtest.CreateWorkspace(t, client, template.ID)
+				_         = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			)
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			t.Cleanup(cancel)
+
+			// When
+			err := memberClient.UpdateWorkspaceDormancy(ctx, workspace.ID, codersdk.UpdateWorkspaceDormancy{
+				Dormant: true,
+			})
+
+			// Then
+			require.NoError(t, err, "mark workspace as dormant")
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceDormant))
+			require.Len(t, sent, 1)
+			require.Contains(t, sent[0].Labels, "timeTilDelete")
+			require.Contains(t, sent[0].Labels["timeTilDelete"], "1 month",
+				"timeTilDelete must humanize the workspace's deleting_at, got %q",
+				sent[0].Labels["timeTilDelete"])
+			require.NotContains(t, sent[0].Labels["timeTilDelete"], "ago",
+				"timeTilDelete must be a future timestamp, got %q",
+				sent[0].Labels["timeTilDelete"])
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {
@@ -5027,7 +5108,7 @@ func TestWorkspaceTimings(t *testing.T) {
 		scripts := dbgen.WorkspaceAgentScripts(t, db, 3, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
+		timings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching the timings
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -5038,6 +5119,19 @@ func TestWorkspaceTimings(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.ProvisionerTimings, 5)
 		require.Len(t, res.AgentScriptTimings, 3)
+
+		// The same timings should be on the workspace response.
+		workspace, err := client.Workspace(ctx, ws.ID)
+		require.NoError(t, err)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents[0].Scripts, 3)
+		for _, script := range workspace.LatestBuild.Resources[0].Agents[0].Scripts {
+			timing, found := slice.Find(timings, func(timing database.WorkspaceAgentScriptTiming) bool {
+				return timing.ScriptID == script.ID
+			})
+			require.True(t, found)
+			require.Equal(t, *script.ExitCode, timing.ExitCode)
+			require.Equal(t, *script.Status, codersdk.WorkspaceAgentScriptStatus(timing.Status))
+		}
 	})
 
 	t.Run("NonExistentWorkspace", func(t *testing.T) {
@@ -6199,8 +6293,8 @@ func TestWorkspaceBuildsEnqueuedMetric(t *testing.T) {
 	p, err := coderdtest.GetProvisionerForTags(db, time.Now(), workspace.OrganizationID, map[string]string{})
 	require.NoError(t, err)
 
+	tickTime := coderdtest.NextAutostartTick(t, workspace)
 	go func() {
-		tickTime := sched.Next(workspace.LatestBuild.CreatedAt)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
 		tickCh <- tickTime
 		close(tickCh)

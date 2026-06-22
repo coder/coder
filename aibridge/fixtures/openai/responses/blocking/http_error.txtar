@@ -6,16 +6,16 @@
 }
 
 -- non-streaming --
-HTTP/2.0 401 Unauthorized
-Content-Length: 234
+HTTP/2.0 400 Bad Request
+Content-Length: 281
 Content-Type: application/json
 
 {
   "error": {
-    "message": "Incorrect API key provided: sk-***. You can find your API key at https://platform.openai.com/account/api-keys.",
-    "type": "authentication_error",
-    "param": null,
-    "code": "invalid_api_key"
+    "message": "Input tokens exceed the configured limit of 272000 tokens. Your messages resulted in 3148588 tokens. Please reduce the length of the messages.",
+    "type": "invalid_request_error",
+    "param": "messages",
+    "code": "context_length_exceeded"
   }
 }
 

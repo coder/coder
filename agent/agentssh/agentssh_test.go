@@ -203,7 +203,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 				assert.NoError(t, err)
 
 				// Allow the session to settle (i.e. reach echo).
-				pty.ExpectMatchContext(ctx, "started")
+				pty.ExpectMatch(ctx, "started")
 				// Sleep a bit to ensure the sleep has started.
 				time.Sleep(testutil.IntervalMedium)
 

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
@@ -138,6 +138,15 @@ export const PullRequestAndWorkingChanges: Story = {
 			diff: sampleDiff,
 		});
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The branch row exposes a button that copies the PR head
+		// branch name. The aria-label embeds the branch so a single
+		// query is enough to assert both presence and target.
+		await expect(
+			canvas.getByLabelText("Copy branch name: feat/add-mcp-config"),
+		).toBeVisible();
+	},
 };
 
 /** Draft PR with head/base branches. */
@@ -227,6 +236,10 @@ export const WorkingChangesOnly: Story = {
 	args: {
 		repositories: new Map([["/home/coder/coder", makeRepo()]]),
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Refresh")).toBeEnabled();
+	},
 };
 
 /** Multiple repos with working changes. */
@@ -268,6 +281,35 @@ export const EmptyState: Story = {
 	},
 };
 
+/** No repositories and no remote tab; Git controls should be disabled. */
+export const GitNotActive: Story = {
+	args: {
+		repositories: new Map(),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByLabelText("Refresh")).toBeDisabled();
+		await expect(canvas.getByLabelText("Unified diff")).toBeDisabled();
+		await expect(canvas.getByLabelText("Split diff")).toBeDisabled();
+		await expect(
+			canvas.getByText("Git is not set up for this chat."),
+		).toBeVisible();
+		await expect(canvas.getByText(/Git status will appear/)).toBeVisible();
+	},
+};
+
+/** Git watcher is loading its first repository update. */
+export const GitStatusLoading: Story = {
+	args: {
+		repositories: new Map(),
+		isGitStatusLoading: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Waiting for Git status")).toBeVisible();
+	},
+};
+
 /**
  * PR diff with the inline comment input visible. The play function
  * waits for the diff to render, then clicks a line number gutter
@@ -292,35 +334,19 @@ export const InlineCommentInput: Story = {
 		});
 	},
 	play: async ({ canvasElement }) => {
-		// Wait for the diff to load and render inside Shadow DOM.
-		// The line numbers live inside @pierre/diffs FileDiff web
-		// components, so we need to wait a bit for them to mount.
-		await new Promise((resolve) => setTimeout(resolve, 2000));
-
-		// Find a line number element inside a Shadow DOM diff viewer.
-		// The diff renders in shadow roots, so we look for the
-		// host elements and query inside their shadow DOMs.
-		const diffHosts = canvasElement.querySelectorAll("[data-diffs]");
-
-		for (const host of diffHosts) {
-			const shadow = host.shadowRoot;
-			if (!shadow) continue;
-
-			// Look for a line number cell — they have data-line-number.
-			const lineNumber = shadow.querySelector(
-				"[data-line-number]",
-			) as HTMLElement | null;
-			if (lineNumber) {
-				await userEvent.click(lineNumber);
-				break;
+		const canvas = within(canvasElement);
+		const lineNumber = await waitFor(() => {
+			for (const host of canvasElement.querySelectorAll("diffs-container")) {
+				const target = host.shadowRoot?.querySelector(
+					"[data-column-number]",
+				) as HTMLElement | null;
+				if (target) return target;
 			}
-		}
+			throw new Error("No rendered diff line number found");
+		});
 
-		// Verify the inline prompt appeared.
-		const textarea = canvasElement.querySelector("textarea");
-		if (textarea) {
-			expect(textarea).toBeInTheDocument();
-		}
+		await userEvent.click(lineNumber);
+		expect(canvas.getByRole("textbox")).toBeInTheDocument();
 	},
 };
 
@@ -337,5 +363,55 @@ export const LargeDiff: Story = {
 				}),
 			],
 		]),
+	},
+};
+
+/**
+ * Regression: when a repo was dirty during this session and then went
+ * clean (empty unified_diff), the tab must remain visible. Before the
+ * ever-dirty fix, the tab vanished the moment the diff became empty,
+ * which is what users saw as "diff disappears between edit_files".
+ */
+export const EverDirtyRepoGoneClean: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(["/home/coder/coder"]),
+	},
+	play: async ({ canvasElement }) => {
+		// The repo tab is still present (identified by the 'Working'
+		// prefix used by GitPanel's tab-strip button) even though the
+		// current diff is empty, because it was dirty earlier in the
+		// session.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(1);
+
+		// The content pane shows the diff viewer's empty-diff state.
+		expect(canvasElement.textContent ?? "").toContain("No file changes");
+	},
+};
+
+/**
+ * Baseline: a repo reported clean from the start (never dirty in
+ * this session) has no tab. Ensures the ever-dirty fix did not
+ * regress the "nothing to show" case.
+ */
+export const CleanRepoFromStart: Story = {
+	args: {
+		repositories: new Map([
+			["/home/coder/coder", makeRepo({ unified_diff: "" })],
+		]),
+		everDirty: new Set(),
+	},
+	play: async ({ canvasElement }) => {
+		// No local repo tab should appear in the tab strip. The
+		// 'Working' prefix is GitPanel's tab-strip label contract.
+		const tabs = Array.from(canvasElement.querySelectorAll("button")).filter(
+			(b) => (b.textContent ?? "").startsWith("Working"),
+		);
+		expect(tabs).toHaveLength(0);
 	},
 };

@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder ai-gateway keys
+
+  Manage AI Gateway keys
+
+SUBCOMMANDS:
+    create    Create an AI Gateway key
+    delete    Delete an AI Gateway key
+    list      List AI Gateway keys
+
+———
+Run `coder --help` for a list of global options.

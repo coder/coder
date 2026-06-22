@@ -100,6 +100,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 	window.WebSocket = class WebSocket {
 		public readyState = 1;
 		public binaryType = "blob";
+		static OPEN = 1;
 
 		#listeners = new Map<string, CallbackFn>();
 		#callEventsDelay: number | undefined;
@@ -145,7 +146,7 @@ export const withWebSocket = (Story: FC, { parameters }: StoryContext) => {
 		removeEventListener(_type: string, _callback: CallbackFn) {}
 
 		close() {}
-	} as unknown as typeof window.WebSocket;
+	} as unknown as typeof WebSocket;
 
 	return <Story />;
 };

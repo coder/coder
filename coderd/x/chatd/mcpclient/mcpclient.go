@@ -24,6 +24,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 )
@@ -39,6 +40,15 @@ import (
 // directly when calling the remote server.
 const toolNameSep = "__"
 
+// truncateToolName caps the assembled tool name at MaxToolNameLen so
+// it fits within provider limits (e.g. OpenAI 64, Bedrock 128).
+func truncateToolName(name string) string {
+	if len(name) > aidmcp.MaxToolNameLen {
+		return name[:aidmcp.MaxToolNameLen]
+	}
+	return name
+}
+
 // connectTimeout bounds how long we wait for a single MCP server
 // to start its transport and complete initialization. Servers that
 // take longer are skipped so one slow server cannot block the
@@ -48,6 +58,18 @@ const connectTimeout = 10 * time.Second
 // toolCallTimeout bounds how long a single tool invocation may
 // take before being canceled.
 const toolCallTimeout = 60 * time.Second
+
+// UserOIDCTokenSource resolves the OIDC access token for the calling
+// user. Implementations attempt to refresh tokens that are expired
+// or close to expiring and MUST return ("", nil) when the user has
+// no OIDC link or a refresh attempt failed for any reason. A
+// non-nil error is reserved for unexpected infrastructure failures
+// (e.g. database errors) and skips header construction entirely.
+// The empty-token-on-refresh-failure behavior matches
+// provisionerdserver.ObtainOIDCAccessToken.
+type UserOIDCTokenSource interface {
+	OIDCAccessToken(ctx context.Context, userID uuid.UUID) (string, error)
+}
 
 // ConnectAll connects to all configured MCP servers, discovers
 // their tools, and returns them as fantasy.AgentTool values.
@@ -60,6 +82,9 @@ func ConnectAll(
 	logger slog.Logger,
 	configs []database.MCPServerConfig,
 	tokens []database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, func()) {
 	// Index tokens by server config ID so auth header
 	// construction is O(1) per server.
@@ -95,7 +120,7 @@ func ConnectAll(
 
 		eg.Go(func() error {
 			serverTools, mcpClient, connectErr := connectOne(
-				ctx, logger, cfg, tokensByConfigID,
+				ctx, logger, cfg, tokensByConfigID, userID, oidcSrc, coderHeaders,
 			)
 			if connectErr != nil {
 				logger.Warn(ctx,
@@ -148,6 +173,31 @@ func ConnectAll(
 		)
 	})
 
+	// Warn about name collisions that may result from sanitization
+	// and truncation. When two tools resolve to the same name, the
+	// LLM tool-call dispatch map keeps only one, so the other
+	// becomes silently unreachable.
+	for i := 1; i < len(tools); i++ {
+		if tools[i-1].Info().Name == tools[i].Info().Name {
+			prevTool, ok := tools[i-1].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			currTool, ok := tools[i].(MCPToolIdentifier)
+			if !ok {
+				continue
+			}
+			if prevTool.MCPServerConfigID() != currTool.MCPServerConfigID() {
+				logger.Warn(ctx,
+					"duplicate tool name after sanitization; one tool will be unreachable",
+					slog.F("tool_name", tools[i].Info().Name),
+					slog.F("prev_config_id", prevTool.MCPServerConfigID()),
+					slog.F("curr_config_id", currTool.MCPServerConfigID()),
+				)
+			}
+		}
+	}
+
 	return tools, cleanup
 }
 
@@ -159,8 +209,32 @@ func connectOne(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
+	coderHeaders map[string]string,
 ) ([]fantasy.AgentTool, *client.Client, error) {
-	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID)
+	headers := buildAuthHeaders(ctx, logger, cfg, tokensByConfigID, userID, oidcSrc)
+
+	// When opted-in, merge Coder identity headers BEFORE the
+	// transport is created so any auth header already set above
+	// wins on a conflict. Conflict detection uses
+	// http.CanonicalHeaderKey because the upstream transport applies
+	// http.Header.Set, which canonicalizes keys; without that, an
+	// admin-configured header that differs only in case from a Coder
+	// identity header would land in the request map twice and the
+	// surviving value would be non-deterministic.
+	if cfg.ForwardCoderHeaders {
+		canonicalAuth := make(map[string]struct{}, len(headers))
+		for k := range headers {
+			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
+		}
+		for k, v := range coderHeaders {
+			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+				continue
+			}
+			headers[k] = v
+		}
+	}
 
 	tr, err := createTransport(cfg, headers)
 	if err != nil {
@@ -246,31 +320,24 @@ func createTransport(
 	cfg database.MCPServerConfig,
 	headers map[string]string,
 ) (transport.Interface, error) {
-	// Each connection gets its own HTTP client with a dedicated
-	// transport so that httptest.Server.Close() (which calls
-	// CloseIdleConnections on http.DefaultTransport) does not
-	// disrupt unrelated connections during parallel tests.
-	var httpClient *http.Client
-	if dt, ok := http.DefaultTransport.(*http.Transport); ok {
-		httpClient = &http.Client{Transport: dt.Clone()}
-	} else {
-		httpClient = &http.Client{}
-	}
+	httpClient := mcpHTTPClient()
 
 	switch cfg.Transport {
 	case "sse":
-		return transport.NewSSE(
-			cfg.Url,
-			transport.WithHeaders(headers),
-			transport.WithHTTPClient(httpClient),
-		)
+		var opts []transport.ClientOption
+		opts = append(opts, transport.WithHeaders(headers))
+		if httpClient != nil {
+			opts = append(opts, transport.WithHTTPClient(httpClient))
+		}
+		return transport.NewSSE(cfg.Url, opts...)
 	case "", "streamable_http":
 		// Default to streamable HTTP, the newer transport.
-		return transport.NewStreamableHTTP(
-			cfg.Url,
-			transport.WithHTTPHeaders(headers),
-			transport.WithHTTPBasicClient(httpClient),
-		)
+		var opts []transport.StreamableHTTPCOption
+		opts = append(opts, transport.WithHTTPHeaders(headers))
+		if httpClient != nil {
+			opts = append(opts, transport.WithHTTPBasicClient(httpClient))
+		}
+		return transport.NewStreamableHTTP(cfg.Url, opts...)
 	default:
 		return nil, xerrors.Errorf(
 			"unsupported transport %q", cfg.Transport,
@@ -285,6 +352,8 @@ func buildAuthHeaders(
 	logger slog.Logger,
 	cfg database.MCPServerConfig,
 	tokensByConfigID map[uuid.UUID]database.MCPServerUserToken,
+	userID uuid.UUID,
+	oidcSrc UserOIDCTokenSource,
 ) map[string]string {
 	// Using map[string]string rather than http.Header because
 	// the mcp-go transport options accept map[string]string.
@@ -347,6 +416,40 @@ func buildAuthHeaders(
 				}
 			}
 		}
+	case "user_oidc":
+		// Forward the calling user's OIDC access token from
+		// user_links as Authorization: Bearer <token>. The token
+		// source is responsible for refreshing tokens that are
+		// expired or close to expiring before returning them.
+		if oidcSrc == nil || userID == uuid.Nil {
+			logger.Warn(ctx,
+				"user_oidc auth requested but no token source available",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		token, err := oidcSrc.OIDCAccessToken(ctx, userID)
+		if err != nil {
+			logger.Warn(ctx,
+				"failed to obtain user OIDC token for MCP server",
+				slog.F("server_slug", cfg.Slug),
+				slog.Error(err),
+			)
+			break
+		}
+		if token == "" {
+			// The user has no OIDC link, or a non-fatal refresh
+			// failure occurred. Fall through with no header and let
+			// the upstream MCP server decide how to respond
+			// (typically 401). Logged at debug so password and
+			// GitHub users don't generate noise for every chat turn.
+			logger.Debug(ctx,
+				"no user OIDC token available for MCP server",
+				slog.F("server_slug", cfg.Slug),
+			)
+			break
+		}
+		headers["Authorization"] = "Bearer " + token
 	case "none", "":
 		// No auth headers needed.
 	}
@@ -452,7 +555,7 @@ func newMCPTool(
 ) *mcpToolWrapper {
 	return &mcpToolWrapper{
 		configID:     configID,
-		prefixedName: serverSlug + toolNameSep + tool.Name,
+		prefixedName: truncateToolName(aidmcp.SanitizeToolName(serverSlug) + toolNameSep + aidmcp.SanitizeToolName(tool.Name)),
 		originalName: tool.Name,
 		description:  tool.Description,
 		parameters:   tool.InputSchema.Properties,
@@ -607,7 +710,7 @@ func convertCallResult(
 	for _, item := range result.Content {
 		switch c := item.(type) {
 		case mcp.TextContent:
-			textParts = append(textParts, c.Text)
+			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case mcp.ImageContent:
 			data, err := base64.StdEncoding.DecodeString(
 				c.Data,
@@ -653,7 +756,7 @@ func convertCallResult(
 			// regardless of form.
 			switch r := c.Resource.(type) {
 			case mcp.TextResourceContents:
-				textParts = append(textParts, r.Text)
+				textParts = append(textParts, strings.ToValidUTF8(r.Text, "\uFFFD"))
 			case mcp.BlobResourceContents:
 				data, err := base64.StdEncoding.DecodeString(
 					r.Blob,

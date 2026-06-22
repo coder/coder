@@ -5,7 +5,6 @@ import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
-import { Stack } from "#/components/Stack/Stack";
 import type { Permissions } from "#/modules/permissions";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
@@ -76,19 +75,15 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 						Observability
 					</SidebarNavItem>
 				)}
-				{permissions.viewDeploymentConfig && (
-					<SidebarNavItem href="/deployment/ai-governance">
-						AI Governance
-					</SidebarNavItem>
-				)}
+
 				{permissions.viewAllUsers && (
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
 				{permissions.viewAnyGroup && (
 					<SidebarNavItem href="/deployment/groups">
-						<Stack direction="row" alignItems="center" spacing={0.5}>
+						<div className="flex flex-row items-center gap-1">
 							Groups {showOrganizations && <ArrowUpRightIcon size={16} />}
-						</Stack>
+						</div>
 					</SidebarNavItem>
 				)}
 				{permissions.viewOrganizationIDPSyncSettings && (
@@ -105,13 +100,6 @@ export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 				)}
 				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
-				)}
-				{permissions.editDeploymentConfig && (
-					<SidebarNavItem href="/agents/settings/agents">
-						<Stack direction="row" alignItems="center" spacing={0.5}>
-							Manage Coder Agents <ArrowUpRightIcon size={16} />
-						</Stack>
-					</SidebarNavItem>
 				)}
 			</div>
 		</BaseSidebar>

@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/scaletest/dashboard"
 	"github.com/coder/coder/v2/scaletest/harness"
 	"github.com/coder/coder/v2/scaletest/loadtestutil"
+	"github.com/coder/coder/v2/scaletest/prebuilds"
 	"github.com/coder/coder/v2/scaletest/reconnectingpty"
 	"github.com/coder/coder/v2/scaletest/workspacebuild"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
@@ -69,6 +70,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestSMTP(),
 			r.scaletestPrebuilds(),
 			r.scaletestBridge(),
+			r.scaletestChat(),
 			r.scaletestLLMMock(),
 		},
 	}
@@ -394,6 +396,7 @@ type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
 	useHostLogin     bool
+	allowEmpty       bool
 }
 
 // attach adds the workspace target flags to the given options set.
@@ -403,13 +406,13 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
-			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Description:   "Name or ID of the template. Only workspaces created from this template are targeted.",
 			Value:         serpent.StringOf(&f.template),
 		},
 		serpent.Option{
 			Flag:        "target-workspaces",
 			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
-			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Description: "Target a specific range of matching workspaces in the format [START]:[END] (exclusive). Example: 0:10 targets the first 10 matching workspaces returned by the workspace query.",
 			Value:       serpent.StringOf(&f.targetWorkspaces),
 		},
 		serpent.Option{
@@ -461,6 +464,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Validate range
 	if len(workspaces) == 0 {
+		if f.allowEmpty {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("no scaletest workspaces exist")
 	}
 	if targetEnd > len(workspaces) {
@@ -471,7 +477,7 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 	return workspaces[targetStart:targetEnd], nil
 }
 
-func requireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
+func RequireAdmin(ctx context.Context, client *codersdk.Client) (codersdk.User, error) {
 	me, err := client.User(ctx, codersdk.Me)
 	if err != nil {
 		return codersdk.User{}, xerrors.Errorf("fetch current user: %w", err)
@@ -519,6 +525,88 @@ func (r *userCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) erro
 	return nil
 }
 
+// prebuildTemplateCleanupRunner deletes a single scaletest prebuilds template.
+// All prebuild workspaces must be deleted before this runs.
+type prebuildTemplateCleanupRunner struct {
+	client   *codersdk.Client
+	template codersdk.Template
+}
+
+var _ harness.Runnable = &prebuildTemplateCleanupRunner{}
+
+// Run implements Runnable.
+func (r *prebuildTemplateCleanupRunner) Run(ctx context.Context, _ string, _ io.Writer) error {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+
+	if err := r.client.DeleteTemplate(ctx, r.template.ID); err != nil {
+		return xerrors.Errorf("delete template %q: %w", r.template.Name, err)
+	}
+	return nil
+}
+
+// getScaletestPrebuildWorkspaces returns all prebuild workspaces that belong
+// to scaletest templates. It uses getScaletestPrebuildsTemplates to scope the
+// query so that legitimate (non-scaletest) prebuilds on the deployment are not
+// caught in the cleanup. If template is non-empty only workspaces for that
+// template are returned.
+func getScaletestPrebuildWorkspaces(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Workspace, error) {
+	const pageSize = 100
+
+	templates, err := getScaletestPrebuildsTemplates(ctx, client, template)
+	if err != nil {
+		return nil, xerrors.Errorf("list scaletest prebuild templates: %w", err)
+	}
+
+	seen := make(map[uuid.UUID]struct{})
+	var result []codersdk.Workspace
+
+	for _, tmpl := range templates {
+		for page := 0; ; page++ {
+			resp, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
+				Template: tmpl.Name,
+				Offset:   page * pageSize,
+				Limit:    pageSize,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("list workspaces for template %q (page %d): %w", tmpl.Name, page, err)
+			}
+			for _, ws := range resp.Workspaces {
+				if _, ok := seen[ws.ID]; !ok {
+					seen[ws.ID] = struct{}{}
+					result = append(result, ws)
+				}
+			}
+			if len(resp.Workspaces) < pageSize {
+				break
+			}
+		}
+	}
+
+	return result, nil
+}
+
+// getScaletestPrebuildsTemplates returns all templates created by the scaletest
+// prebuilds runner (identified by prebuilds.TemplatePrefix). If template is
+// non-empty only that named template is returned; it must start with
+// prebuilds.TemplatePrefix or an error is returned.
+func getScaletestPrebuildsTemplates(ctx context.Context, client *codersdk.Client, template string) ([]codersdk.Template, error) {
+	var filter codersdk.TemplateFilter
+	if template != "" {
+		if !strings.HasPrefix(template, prebuilds.TemplatePrefix) {
+			return nil, xerrors.Errorf("template %q is not a scaletest prebuilds template (expected prefix %q)", template, prebuilds.TemplatePrefix)
+		}
+		filter = codersdk.TemplateFilter{ExactName: template}
+	} else {
+		filter = codersdk.TemplateFilter{FuzzyName: prebuilds.TemplatePrefix}
+	}
+	templates, err := client.Templates(ctx, filter)
+	if err != nil {
+		return nil, xerrors.Errorf("list templates: %w", err)
+	}
+	return templates, nil
+}
+
 func (r *RootCmd) scaletestCleanup() *serpent.Command {
 	var template string
 	cleanupStrategy := newScaletestCleanupStrategy()
@@ -534,7 +622,7 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -552,6 +640,85 @@ func (r *RootCmd) scaletestCleanup() *serpent.Command {
 				_, err := parseTemplate(ctx, client, me.OrganizationIDs, template)
 				if err != nil {
 					return xerrors.Errorf("parse template: %w", err)
+				}
+			}
+
+			cliui.Infof(inv.Stdout, "Pausing prebuilds reconciler...")
+			setPrebuild := func(val bool) error {
+				return client.PutPrebuildsSettings(ctx, codersdk.PrebuildsSettings{ReconciliationPaused: val})
+			}
+			if err = setPrebuild(true); err != nil {
+				return xerrors.Errorf("pause prebuilds reconciler: %w", err)
+			}
+			defer func() {
+				cliui.Infof(inv.Stdout, "Resuming prebuilds reconciler...")
+				if resumeErr := setPrebuild(false); resumeErr != nil {
+					cliui.Errorf(inv.Stderr, "Failed to resume prebuilds reconciler: %+v\n", resumeErr)
+				}
+			}()
+
+			cliui.Infof(inv.Stdout, "Fetching scaletest prebuild workspaces...")
+			prebuildWorkspaces, err := getScaletestPrebuildWorkspaces(ctx, client, template)
+			if err != nil {
+				return err
+			}
+
+			cliui.Errorf(inv.Stderr, "Found %d scaletest prebuild workspaces\n", len(prebuildWorkspaces))
+			if len(prebuildWorkspaces) != 0 {
+				cliui.Infof(inv.Stdout, "Deleting scaletest prebuild workspaces...")
+				prebuildWsHarness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, ws := range prebuildWorkspaces {
+					const testName = "cleanup-prebuild-workspace"
+					prebuildWsHarness.AddRun(testName, strconv.Itoa(i), workspacebuild.NewCleanupRunner(client, ws.ID))
+				}
+
+				prebuildWsCtx, prebuildWsCancel := cleanupStrategy.toContext(ctx)
+				defer prebuildWsCancel()
+				if err := prebuildWsHarness.Run(prebuildWsCtx); err != nil {
+					return xerrors.Errorf("run test harness to delete prebuild workspaces (harness failure, not a test failure): %w", err)
+				}
+
+				cliui.Infof(inv.Stdout, "Done deleting scaletest prebuild workspaces:")
+				prebuildWsRes := prebuildWsHarness.Results()
+				prebuildWsRes.PrintText(inv.Stderr)
+
+				if prebuildWsRes.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete %d scaletest prebuild workspace(s)", prebuildWsRes.TotalFail)
+				}
+			}
+
+			cliui.Infof(inv.Stdout, "Fetching scaletest prebuilds templates...")
+			prebuildTemplates, err := getScaletestPrebuildsTemplates(ctx, client, template)
+			if err != nil {
+				return err
+			}
+
+			cliui.Errorf(inv.Stderr, "Found %d scaletest prebuilds templates\n", len(prebuildTemplates))
+			if len(prebuildTemplates) != 0 {
+				cliui.Infof(inv.Stdout, "Deleting scaletest prebuilds templates...")
+				prebuildTplHarness := harness.NewTestHarness(cleanupStrategy.toStrategy(), harness.ConcurrentExecutionStrategy{})
+
+				for i, t := range prebuildTemplates {
+					const testName = "cleanup-prebuilds-template"
+					prebuildTplHarness.AddRun(testName, strconv.Itoa(i), &prebuildTemplateCleanupRunner{
+						client:   client,
+						template: t,
+					})
+				}
+
+				prebuildTplCtx, prebuildTplCancel := cleanupStrategy.toContext(ctx)
+				defer prebuildTplCancel()
+				if err := prebuildTplHarness.Run(prebuildTplCtx); err != nil {
+					return xerrors.Errorf("run test harness to delete prebuilds templates (harness failure, not a test failure): %w", err)
+				}
+
+				cliui.Infof(inv.Stdout, "Done deleting scaletest prebuilds templates:")
+				prebuildTplRes := prebuildTplHarness.Results()
+				prebuildTplRes.PrintText(inv.Stderr)
+
+				if prebuildTplRes.TotalFail > 0 {
+					return xerrors.Errorf("failed to delete %d scaletest prebuilds template(s)", prebuildTplRes.TotalFail)
 				}
 			}
 
@@ -689,7 +856,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 			ctx := inv.Context()
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -889,7 +1056,7 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 		{
 			Flag:        "no-wait-for-agents",
 			Env:         "CODER_SCALETEST_NO_WAIT_FOR_AGENTS",
-			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly.`,
+			Description: `Do not wait for agents to start before marking the test as succeeded. This can be useful if you are running the test against a template that does not start the agent quickly. This is REQUIRED for templates whose workspaces use coder_external_agent resources, since external agents never connect on their own; pair with "coder exp scaletest agentfake" to drive those agents.`,
 			Value:       serpent.BoolOf(&noWaitForAgents),
 		},
 		{
@@ -1015,7 +1182,7 @@ func (r *RootCmd) scaletestWorkspaceUpdates() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1311,7 +1478,7 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}
@@ -1763,7 +1930,7 @@ func (r *RootCmd) scaletestAutostart() *serpent.Command {
 			defer stop()
 			ctx = notifyCtx
 
-			me, err := requireAdmin(ctx, client)
+			me, err := RequireAdmin(ctx, client)
 			if err != nil {
 				return err
 			}

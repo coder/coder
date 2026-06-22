@@ -27,7 +27,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {object} codersdk.WorkspaceSharingSettings
-// @Router /organizations/{organization}/settings/workspace-sharing [get]
+// @Router /api/v2/organizations/{organization}/settings/workspace-sharing [get]
 func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
@@ -59,7 +59,7 @@ func (api *API) workspaceSharingSettings(rw http.ResponseWriter, r *http.Request
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.UpdateWorkspaceSharingSettingsRequest true "Workspace sharing settings"
 // @Success 200 {object} codersdk.WorkspaceSharingSettings
-// @Router /organizations/{organization}/settings/workspace-sharing [patch]
+// @Router /api/v2/organizations/{organization}/settings/workspace-sharing [patch]
 func (api *API) patchWorkspaceSharingSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)

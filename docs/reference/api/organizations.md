@@ -11,7 +11,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations`
+`GET /api/v2/organizations`
 
 ### Example responses
 
@@ -21,6 +21,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 [
   {
     "created_at": "2019-08-24T14:15:22Z",
+    "default_org_member_roles": [
+      "string"
+    ],
     "description": "string",
     "display_name": "string",
     "icon": "string",
@@ -42,17 +45,18 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-|------------------|-------------------|----------|--------------|-------------|
-| `[array item]`   | array             | false    |              |             |
-| `» created_at`   | string(date-time) | true     |              |             |
-| `» description`  | string            | false    |              |             |
-| `» display_name` | string            | false    |              |             |
-| `» icon`         | string            | false    |              |             |
-| `» id`           | string(uuid)      | true     |              |             |
-| `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | false    |              |             |
-| `» updated_at`   | string(date-time) | true     |              |             |
+| Name                         | Type              | Required | Restrictions | Description                                                                                                                                     |
+|------------------------------|-------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `[array item]`               | array             | false    |              |                                                                                                                                                 |
+| `» created_at`               | string(date-time) | true     |              |                                                                                                                                                 |
+| `» default_org_member_roles` | array             | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `» description`              | string            | false    |              |                                                                                                                                                 |
+| `» display_name`             | string            | false    |              |                                                                                                                                                 |
+| `» icon`                     | string            | false    |              |                                                                                                                                                 |
+| `» id`                       | string(uuid)      | true     |              |                                                                                                                                                 |
+| `» is_default`               | boolean           | true     |              |                                                                                                                                                 |
+| `» name`                     | string            | false    |              |                                                                                                                                                 |
+| `» updated_at`               | string(date-time) | true     |              |                                                                                                                                                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -68,7 +72,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`POST /organizations`
+`POST /api/v2/organizations`
 
 > Body parameter
 
@@ -94,6 +98,9 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -123,7 +130,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}`
+`GET /api/v2/organizations/{organization}`
 
 ### Parameters
 
@@ -138,6 +145,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -167,7 +177,7 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`DELETE /organizations/{organization}`
+`DELETE /api/v2/organizations/{organization}`
 
 ### Parameters
 
@@ -212,12 +222,15 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`PATCH /organizations/{organization}`
+`PATCH /api/v2/organizations/{organization}`
 
 > Body parameter
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -239,6 +252,9 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -268,7 +284,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerjobs`
+`GET /api/v2/organizations/{organization}/provisionerjobs`
 
 ### Parameters
 
@@ -388,7 +404,7 @@ Status Code **200**
 
 | Property                     | Value(s)                                                                 |
 |------------------------------|--------------------------------------------------------------------------|
-| `error_code`                 | `REQUIRED_TEMPLATE_VARIABLES`                                            |
+| `error_code`                 | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                      |
 | `workspace_build_transition` | `delete`, `start`, `stop`                                                |
 | `status`                     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded`     |
 | `type`                       | `template_version_dry_run`, `template_version_import`, `workspace_build` |
@@ -406,7 +422,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /organizations/{organization}/provisionerjobs/{job}`
+`GET /api/v2/organizations/{organization}/provisionerjobs/{job}`
 
 ### Parameters
 

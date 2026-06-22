@@ -120,7 +120,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidNodeAddressError{Addr: prefix.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -146,7 +146,37 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 
 	// The agent connection should be closed immediately after sending an invalid addr
 	agent.AssertEventuallyResponsesClosed(
-		agpl.AuthorizationError{Wrapped: agpl.InvalidAddressBitsError{Bits: 64}}.Error())
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("Addresses: %w", agpl.InvalidAddressBitsError{Bits: 64})}.Error())
+	assertEventuallyLost(ctx, t, store, agent.ID)
+}
+
+func TestPGCoordinatorSingle_AgentInvalidAllowedIP(t *testing.T) {
+	t.Parallel()
+
+	store, ps := dbtestutil.NewDB(t)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+	defer cancel()
+	logger := testutil.Logger(t)
+	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer coordinator.Close()
+
+	agent := agpltest.NewAgent(ctx, t, coordinator, "agent")
+	defer agent.Close(ctx)
+	// A valid self-address paired with an AllowedIP belonging to a different
+	// (victim) agent must be rejected.
+	victim := agpl.TailscaleServicePrefix.PrefixFromUUID(uuid.New())
+	agent.UpdateNode(&proto.Node{
+		Addresses: []string{
+			agpl.TailscaleServicePrefix.PrefixFromUUID(agent.ID).String(),
+		},
+		AllowedIps:    []string{victim.String()},
+		PreferredDerp: 10,
+	})
+
+	// The agent connection should be closed after sending an invalid AllowedIP.
+	agent.AssertEventuallyResponsesClosed(
+		agpl.AuthorizationError{Wrapped: xerrors.Errorf("AllowedIps: %w", agpl.InvalidNodeAddressError{Addr: victim.Addr().String()})}.Error())
 	assertEventuallyLost(ctx, t, store, agent.ID)
 }
 
@@ -268,6 +298,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 
@@ -281,6 +312,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	fCoord3.heartbeat()
@@ -304,7 +336,6 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	// one more heartbeat period will result in fCoord2 being expired, which should cause us to
 	// revert to the original agent mapping
 	mClock.Advance(tailnet.HeartbeatPeriod).MustWait(ctx)
-	// note that the timeout doesn't get reset because both fCoord2 and fCoord3 are expired
 	client.AssertEventuallyHasDERP(agent.ID, 10)
 
 	// send fCoord3 heartbeat, which should trigger us to consider that mapping valid again.
@@ -343,6 +374,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 		ctx:   ctx,
 		t:     t,
 		store: store,
+		ps:    ps,
 		id:    uuid.New(),
 	}
 	// simulate a single heartbeat, the coordinator is healthy
@@ -594,7 +626,7 @@ func TestPGCoordinator_Unhealthy(t *testing.T) {
 	mStore.EXPECT().GetTailnetTunnelPeerBindingsBatch(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().DeleteTailnetPeer(gomock.Any(), gomock.Any()).
 		AnyTimes().Return(database.DeleteTailnetPeerRow{}, nil)
-	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil)
+	mStore.EXPECT().DeleteAllTailnetTunnels(gomock.Any(), gomock.Any()).AnyTimes().Return(nil, nil)
 	mStore.EXPECT().UpdateTailnetPeerStatusByCoordinator(gomock.Any(), gomock.Any())
 
 	uut, err := tailnet.NewPGCoord(ctx, logger, ps, mStore)
@@ -948,12 +980,15 @@ type fakeCoordinator struct {
 	ctx   context.Context
 	t     *testing.T
 	store database.Store
+	ps    pubsub.Pubsub
 	id    uuid.UUID
 }
 
 func (c *fakeCoordinator) heartbeat() {
 	c.t.Helper()
 	_, err := c.store.UpsertTailnetCoordinator(c.ctx, c.id)
+	require.NoError(c.t, err)
+	err = c.ps.Publish(tailnet.EventHeartbeats, []byte(c.id.String()))
 	require.NoError(c.t, err)
 }
 
@@ -969,5 +1004,7 @@ func (c *fakeCoordinator) agentNode(agentID uuid.UUID, node *agpl.Node) {
 		Node:          nodeRaw,
 		Status:        database.TailnetStatusOk,
 	})
+	require.NoError(c.t, err)
+	err = c.ps.Publish("tailnet_peer_update", []byte(agentID.String()))
 	require.NoError(c.t, err)
 }

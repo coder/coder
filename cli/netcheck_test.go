@@ -9,14 +9,14 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestNetcheck(t *testing.T) {
 	t.Parallel()
 
-	pty := ptytest.New(t)
-	config := login(t, pty)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	config := login(ctx, t)
 
 	var out bytes.Buffer
 	inv, _ := clitest.New(t, "netcheck", "--global-config", string(config))

@@ -3,7 +3,6 @@ package gitsync_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -83,7 +82,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 		},
 	}
 
-	providers := func(string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -945,38 +944,23 @@ func TestWorker(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 
-	// 3. Set up FK chain: chat_providers -> chat_model_configs -> chats.
-	_, err := db.InsertChatProvider(ctx, database.InsertChatProviderParams{
-		Provider:             "openai",
-		DisplayName:          "OpenAI",
-		Enabled:              true,
-		CentralApiKeyEnabled: true,
-	})
-	require.NoError(t, err)
+	// 3. Set up FK chain: ai_providers -> chat_model_configs -> chats.
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
 
-	modelCfg, err := db.InsertChatModelConfig(ctx, database.InsertChatModelConfigParams{
-		Provider:             "openai",
-		Model:                "test-model",
-		DisplayName:          "Test Model",
-		Enabled:              true,
-		ContextLimit:         100000,
-		CompressionThreshold: 70,
-		Options:              json.RawMessage("{}"),
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:        "test-model",
+		ContextLimit: 100000,
 	})
-	require.NoError(t, err)
 
-	chat, err := db.InsertChat(ctx, database.InsertChatParams{
+	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
-		Status:            database.ChatStatusWaiting,
-		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           user.ID,
 		LastModelConfigID: modelCfg.ID,
 		Title:             "integration-test",
 	})
-	require.NoError(t, err)
 
 	// 4. Seed a stale diff status row so the worker picks it up.
-	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+	_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
 		ChatID:          chat.ID,
 		GitBranch:       "feature",
 		GitRemoteOrigin: "https://github.com/o/r",
@@ -1136,7 +1120,7 @@ func TestRefreshChat_RefreshError(t *testing.T) {
 	// UpsertChatDiffStatus should NOT be called.
 
 	// Provider resolver returns nil → "no provider" error.
-	providers := func(string) gitprovider.Provider { return nil }
+	providers := func(context.Context, string) gitprovider.Provider { return nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref("tok"), nil
 	}
@@ -1221,7 +1205,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// Token resolver returns empty token → ErrNoTokenAvailable.
 	// Provider methods should never be called.
 	prov := &mockProvider{}
-	providers := func(string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) gitprovider.Provider { return prov }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return ptr.Ref(""), nil
 	}

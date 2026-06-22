@@ -60,6 +60,9 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				autofillParameters,
 			),
 		},
+		initialTouched: Object.fromEntries(
+			autofillParameters.map((p) => [p.name, true]),
+		),
 		validationSchema: useValidationSchemaForDynamicParameters(parameters),
 		enableReinitialize: false,
 		validateOnChange: true,
@@ -78,14 +81,21 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			const formInputs: Record<string, string> = {};
 			const formParameters = form.values.rich_parameter_values ?? [];
 			for (const param of formParameters) {
-				if (param?.name && param?.value) {
+				if (param?.name && param?.value !== undefined) {
 					formInputs[param.name] = param.value;
 				}
 			}
 			formInputs[parameter.name] = value;
 			sendMessage(formInputs);
 		},
-		500,
+		(parameter: PreviewParameter, _value: string) => {
+			// Return a debounce for string fields (those that involve typing) and
+			// zero debounce for all others (so the UI can react immediately).
+			return parameter.form_type === "input" ||
+				parameter.form_type === "textarea"
+				? 500
+				: 0;
+		},
 	);
 
 	const handleChange = async (
@@ -97,12 +107,14 @@ export const WorkspaceParametersPageViewExperimental: FC<
 			name: parameter.name,
 			value,
 		});
+		form.setFieldTouched(parameter.name, true);
 		sendDynamicParamsRequest(parameter, value);
 	};
 
 	useSyncFormParameters({
 		parameters,
 		formValues: form.values.rich_parameter_values ?? [],
+		touched: form.touched,
 		setFieldValue: form.setFieldValue,
 	});
 
@@ -201,7 +213,11 @@ export const WorkspaceParametersPageViewExperimental: FC<
 				</div>
 			)}
 
-			<form onSubmit={form.handleSubmit} className="flex flex-col gap-8">
+			<form
+				onSubmit={form.handleSubmit}
+				className="flex flex-col gap-8"
+				data-testid="form"
+			>
 				{parameters.length > 0 && (
 					<section className="flex flex-col gap-9">
 						<hgroup>

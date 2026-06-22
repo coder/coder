@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,10 +12,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -32,16 +32,6 @@ const (
 
 var copilotOpenErrorResponse = func() []byte {
 	return []byte(`{"error":{"message":"circuit breaker is open","type":"server_error","code":"service_unavailable"}}`)
-}
-
-// Headers that need to be forwarded to Copilot API.
-// These were determined through manual testing as there is no reference
-// of the headers in the official documentation.
-// LiteLLM uses the same headers:
-// https://docs.litellm.ai/docs/providers/github_copilot
-var copilotForwardHeaders = []string{
-	"Editor-Version",
-	"Copilot-Integration-Id",
 }
 
 // Copilot implements the Provider interface for GitHub Copilot.
@@ -61,16 +51,6 @@ func NewCopilot(cfg config.Copilot) *Copilot {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = copilotBaseURL
 	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("COPILOT_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
-		}
-	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.OpenErrorResponse = copilotOpenErrorResponse
 	}
@@ -87,6 +67,8 @@ func (*Copilot) Type() string {
 func (p *Copilot) Name() string {
 	return p.cfg.Name
 }
+
+func (*Copilot) Enabled() bool { return true }
 
 func (p *Copilot) BaseURL() string {
 	return p.cfg.BaseURL
@@ -117,11 +99,16 @@ func (*Copilot) AuthHeader() string {
 	return "Authorization"
 }
 
-// InjectAuthHeader is a no-op for Copilot.
-// Copilot uses per-user tokens passed in the original Authorization header,
-// rather than a global key configured at the provider level.
-// The original Authorization header flows through untouched from the client.
-func (*Copilot) InjectAuthHeader(_ *http.Header) {}
+// KeyPool returns nil. Copilot is always BYOK and has no key pool.
+func (*Copilot) KeyPool() *keypool.Pool {
+	return nil
+}
+
+// KeyFailoverConfig returns a config with a nil Pool, which makes
+// the KeyFailoverTransport short-circuit. Copilot is always BYOK.
+func (*Copilot) KeyFailoverConfig(_ slog.Logger) keypool.KeyFailoverConfig {
+	return keypool.KeyFailoverConfig{}
+}
 
 func (p *Copilot) CircuitBreakerConfig() *config.CircuitBreaker {
 	return p.circuitBreaker
@@ -136,7 +123,7 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 	defer tracing.EndSpanErr(span, &outErr)
 
 	// Extract the per-user Copilot key from the Authorization header.
-	key := utils.ExtractBearerToken(r.Header.Get("Authorization"))
+	key := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization))
 	if key == "" {
 		span.SetStatus(codes.Error, "missing authorization")
 		return nil, xerrors.New("missing Copilot authorization: Authorization header not found or invalid")
@@ -144,19 +131,14 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	id := uuid.New()
 
-	// Build config for the interceptor using the per-request key.
-	// Copilot's API is OpenAI-compatible, so it uses the OpenAI interceptors
-	// that require a config.OpenAI.
-	cfg := config.OpenAI{
-		BaseURL:        p.cfg.BaseURL,
-		Key:            key,
-		APIDumpDir:     p.cfg.APIDumpDir,
-		CircuitBreaker: p.cfg.CircuitBreaker,
-		ExtraHeaders:   extractCopilotHeaders(r),
-		MaxRetries:     p.cfg.MaxRetries,
+	// Copilot's API is OpenAI-compatible, so it reuses the OpenAI interceptors.
+	// It is always BYOK: the per-user key arrives in the Authorization header.
+	cfg := intercept.Config{
+		ProviderName: p.Name(),
+		BaseURL:      p.cfg.BaseURL,
+		APIDumpDir:   p.cfg.APIDumpDir,
 	}
-
-	cred := intercept.NewCredentialInfo(intercept.CredentialKindBYOK, key)
+	cred := intercept.BYOK{Secret: key, Header: intercept.AuthHeaderAuthorization}
 
 	var interceptor intercept.Interceptor
 
@@ -169,9 +151,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		}
 
 	case routeCopilotResponses:
@@ -185,9 +167,9 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 		}
 
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		}
 
 	default:
@@ -197,16 +179,4 @@ func (p *Copilot) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trac
 
 	span.SetAttributes(interceptor.TraceAttributes(r)...)
 	return interceptor, nil
-}
-
-// extractCopilotHeaders extracts headers required by the Copilot API from the
-// incoming request. Copilot requires certain client headers to be forwarded.
-func extractCopilotHeaders(r *http.Request) map[string]string {
-	headers := make(map[string]string, len(copilotForwardHeaders))
-	for _, h := range copilotForwardHeaders {
-		if v := r.Header.Get(h); v != "" {
-			headers[h] = v
-		}
-	}
-	return headers
 }

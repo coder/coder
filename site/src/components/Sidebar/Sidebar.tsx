@@ -1,6 +1,5 @@
 import type { ElementType, FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router";
-import { Stack } from "#/components/Stack/Stack";
 import { cn } from "#/utils/cn";
 
 interface SidebarProps {
@@ -31,7 +30,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	linkTo,
 }) => {
 	return (
-		<Stack direction="row" spacing={1} className="mb-4">
+		<div className="flex flex-row gap-2 mb-4">
 			{avatar}
 			<div className="overflow-hidden flex flex-col">
 				{linkTo ? (
@@ -45,7 +44,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 					{subtitle}
 				</span>
 			</div>
-		</Stack>
+		</div>
 	);
 };
 
@@ -100,10 +99,10 @@ export const SidebarNavItem: FC<SidebarNavItemProps> = ({
 				)
 			}
 		>
-			<Stack alignItems="center" spacing={1.5} direction="row">
+			<div className="flex flex-row gap-3 items-center">
 				<Icon className="size-4" />
 				{children}
-			</Stack>
+			</div>
 		</NavLink>
 	);
 };

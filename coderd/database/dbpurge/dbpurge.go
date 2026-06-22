@@ -2,6 +2,7 @@ package dbpurge
 
 import (
 	"context"
+	"errors"
 	"io"
 	"time"
 
@@ -28,24 +29,36 @@ const (
 	connectionLogsBatchSize = 10000
 	// Batch size for audit log deletion.
 	auditLogsBatchSize = 10000
+	// Batch size for boundary log deletion.
+	boundaryLogsBatchSize = 10000
+	// Batch size for boundary session deletion.
+	boundarySessionsBatchSize = 10000
 	// Telemetry heartbeats are used to deduplicate events across replicas. We
 	// don't need to persist heartbeat rows for longer than 24 hours, as they
 	// are only used for deduplication across replicas. The time needs to be
 	// long enough to cover the maximum interval of a heartbeat event (currently
 	// 1 hour) plus some buffer.
 	maxTelemetryHeartbeatAge = 24 * time.Hour
-	// Batch sizes for chat purging. Both use 1000, which is smaller
-	// than audit/connection log batches (10000), because chat_files
-	// rows contain bytea blob data that make large batches heavier.
+	// Chat and chat file batch sizes stay smaller than audit/connection
+	// log batches because chat_files rows carry bytea blobs.
 	chatsBatchSize     = 1000
 	chatFilesBatchSize = 1000
+	// Chat debug run deletions can cascade into steps with large JSONB
+	// payloads, so they use the same conservative batch size.
+	chatDebugRunsBatchSize = 1000
 )
 
+type Option func(*instance)
+
+// WithClock overrides the clock used by the purger. Defaults to
+// quartz.NewReal().
+func WithClock(clk quartz.Clock) Option {
+	return func(i *instance) { i.clk = clk }
+}
+
 // New creates a new periodically purging database instance.
-// It is the caller's responsibility to call Close on the returned instance.
-//
-// This is for cleaning up old, unused resources from the database that take up space.
-func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, clk quartz.Clock, reg prometheus.Registerer) io.Closer {
+// Callers must Close the returned instance.
+func New(ctx context.Context, logger slog.Logger, db database.Store, vals *codersdk.DeploymentValues, reg prometheus.Registerer, opts ...Option) io.Closer {
 	closed := make(chan struct{})
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -74,13 +87,16 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		closed:            closed,
 		logger:            logger,
 		vals:              vals,
-		clk:               clk,
+		clk:               quartz.NewReal(),
 		iterationDuration: iterationDuration,
 		recordsPurged:     recordsPurged,
 	}
+	for _, opt := range opts {
+		opt(inst)
+	}
 
 	// Start the ticker with the initial delay.
-	ticker := clk.NewTicker(delay)
+	ticker := inst.clk.NewTicker(delay)
 	doTick := func(ctx context.Context, start time.Time) {
 		defer ticker.Reset(delay)
 		err := inst.purgeTick(ctx, db, start)
@@ -88,7 +104,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 
 			// Record metrics for failed purge iteration.
-			duration := clk.Since(start)
+			duration := inst.clk.Since(start)
 			iterationDuration.WithLabelValues("false").Observe(duration.Seconds())
 		}
 	}
@@ -97,7 +113,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 		defer close(closed)
 		defer ticker.Stop()
 		// Force an initial tick.
-		doTick(ctx, dbtime.Time(clk.Now()).UTC())
+		doTick(ctx, dbtime.Time(inst.clk.Now()).UTC())
 		for {
 			select {
 			case <-ctx.Done():
@@ -114,20 +130,30 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, vals *coder
 // purgeTick performs a single purge iteration. It returns an error if the
 // purge fails.
 func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.Time) error {
-	// Read chat retention config outside the transaction to
-	// avoid poisoning the tx if the stored value is corrupt.
-	// A SQL-level cast error (e.g. non-numeric text) puts PG
-	// into error state, failing all subsequent queries in the
-	// same transaction.
-	chatRetentionDays, err := db.GetChatRetentionDays(ctx)
-	if err != nil {
-		i.logger.Warn(ctx, "failed to read chat retention config, skipping chat purge", slog.Error(err))
-		chatRetentionDays = 0
+	// Read chat configs outside the tx so a corrupt value can't
+	// poison subsequent queries. On config read errors, log and stash
+	// the error, then run unrelated purges best-effort. Retention
+	// errors skip only the conversation purge. Debug retention errors
+	// skip only the debug purge. purgeTick returns chatConfigErr after
+	// the tx so the failed iteration is operator-visible via metric and
+	// logs.
+	chatRetentionDays, chatRetentionErr := db.GetChatRetentionDays(ctx)
+	purgeChats := chatRetentionErr == nil
+	if chatRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat retention config: skipping chat purge this tick", slog.Error(chatRetentionErr))
 	}
+
+	chatDebugRetentionDays, chatDebugRetentionErr := db.GetChatDebugRetentionDays(ctx, codersdk.DefaultChatDebugRetentionDays)
+	purgeChatDebugRuns := chatDebugRetentionErr == nil
+	if chatDebugRetentionErr != nil {
+		i.logger.Error(ctx, "failed to read chat debug retention config: skipping chat debug purge this tick", slog.Error(chatDebugRetentionErr))
+	}
+
+	chatConfigErr := errors.Join(chatRetentionErr, chatDebugRetentionErr)
 
 	// Start a transaction to grab advisory lock, we don't want to run
 	// multiple purges at the same time (multiple replicas).
-	return db.InTx(func(tx database.Store) error {
+	err := db.InTx(func(tx database.Store) error {
 		// Acquire a lock to ensure that only one instance of the
 		// purge is running at a time.
 		ok, err := tx.TryAcquireLock(ctx, database.LockIDDBPurge)
@@ -229,62 +255,94 @@ func (i *instance) purgeTick(ctx context.Context, db database.Store, start time.
 			}
 		}
 
-		// Chat retention is configured via site_configs. When
-		// enabled, old archived chats are deleted first, then
-		// orphaned chat files. Deleting a chat cascades to
-		// chat_file_links (removing references) but not to
-		// chat_files directly, so files from deleted chats
-		// become orphaned and are caught by DeleteOldChatFiles
-		// in the same tick.
-		var purgedChats int64
-		var purgedChatFiles int64
-		if chatRetentionDays > 0 {
-			chatRetention := time.Duration(chatRetentionDays) * 24 * time.Hour
-			deleteChatsBefore := start.Add(-chatRetention)
-
-			purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatsBatchSize,
+		var purgedBoundaryLogs, purgedBoundarySessions int64
+		boundaryLogsRetention := i.vals.Retention.BoundaryLogs.Value()
+		if boundaryLogsRetention > 0 {
+			deleteBoundaryLogsBefore := start.Add(-boundaryLogsRetention)
+			purgedBoundaryLogs, err = tx.DeleteOldBoundaryLogs(ctx, database.DeleteOldBoundaryLogsParams{
+				BeforeTime: deleteBoundaryLogsBefore,
+				LimitCount: boundaryLogsBatchSize,
 			})
 			if err != nil {
-				return xerrors.Errorf("failed to delete old chats: %w", err)
+				return xerrors.Errorf("failed to delete old boundary logs: %w", err)
 			}
-
-			purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
-				BeforeTime: deleteChatsBefore,
-				LimitCount: chatFilesBatchSize,
+			purgedBoundarySessions, err = tx.DeleteOldBoundarySessions(ctx, database.DeleteOldBoundarySessionsParams{
+				BeforeTime: deleteBoundaryLogsBefore,
+				LimitCount: boundarySessionsBatchSize,
 			})
 			if err != nil {
-				return xerrors.Errorf("failed to delete old chat files: %w", err)
+				return xerrors.Errorf("failed to delete old boundary sessions: %w", err)
 			}
 		}
+
+		var purgedChats, purgedChatFiles, purgedChatDebugRuns int64
+		if purgeChats {
+			purgedChats, purgedChatFiles, err = i.purgeChatsInTx(ctx, tx, start, chatRetentionDays)
+			if err != nil {
+				return xerrors.Errorf("failed to purge chats: %w", err)
+			}
+		}
+		if purgeChatDebugRuns && chatDebugRetentionDays > 0 {
+			deleteChatDebugRunsBefore := start.Add(-time.Duration(chatDebugRetentionDays) * 24 * time.Hour)
+			// updated_at is the retention clock, so the window starts after
+			// the run stops being written to. There is intentionally no
+			// finished_at guard, so abandoned in-flight rows can be purged.
+			purgedChatDebugRuns, err = tx.DeleteOldChatDebugRuns(ctx, database.DeleteOldChatDebugRunsParams{
+				BeforeTime: deleteChatDebugRunsBefore,
+				LimitCount: chatDebugRunsBatchSize,
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to delete old chat debug runs: %w", err)
+			}
+		}
+
 		i.logger.Debug(ctx, "purged old database entries",
 			slog.F("workspace_agent_logs", purgedWorkspaceAgentLogs),
 			slog.F("expired_api_keys", expiredAPIKeys),
 			slog.F("aibridge_records", purgedAIBridgeRecords),
 			slog.F("connection_logs", purgedConnectionLogs),
 			slog.F("audit_logs", purgedAuditLogs),
+			slog.F("boundary_logs", purgedBoundaryLogs),
+			slog.F("boundary_sessions", purgedBoundarySessions),
 			slog.F("chats", purgedChats),
 			slog.F("chat_files", purgedChatFiles),
+			slog.F("chat_debug_runs", purgedChatDebugRuns),
 			slog.F("duration", i.clk.Since(start)),
 		)
 
-		if i.iterationDuration != nil {
-			duration := i.clk.Since(start)
-			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
-		}
 		if i.recordsPurged != nil {
 			i.recordsPurged.WithLabelValues("workspace_agent_logs").Add(float64(purgedWorkspaceAgentLogs))
 			i.recordsPurged.WithLabelValues("expired_api_keys").Add(float64(expiredAPIKeys))
 			i.recordsPurged.WithLabelValues("aibridge_records").Add(float64(purgedAIBridgeRecords))
 			i.recordsPurged.WithLabelValues("connection_logs").Add(float64(purgedConnectionLogs))
 			i.recordsPurged.WithLabelValues("audit_logs").Add(float64(purgedAuditLogs))
+			i.recordsPurged.WithLabelValues("boundary_logs").Add(float64(purgedBoundaryLogs))
+			i.recordsPurged.WithLabelValues("boundary_sessions").Add(float64(purgedBoundarySessions))
 			i.recordsPurged.WithLabelValues("chats").Add(float64(purgedChats))
+			i.recordsPurged.WithLabelValues("chat_debug_runs").Add(float64(purgedChatDebugRuns))
 			i.recordsPurged.WithLabelValues("chat_files").Add(float64(purgedChatFiles))
+		}
+
+		// chatConfigErr is returned after the tx, so do not record this
+		// iteration as successful when only the deferred config read failed.
+		if i.iterationDuration != nil && chatConfigErr == nil {
+			duration := i.clk.Since(start)
+			i.iterationDuration.WithLabelValues("true").Observe(duration.Seconds())
 		}
 
 		return nil
 	}, database.DefaultTXOptions().WithID("db_purge"))
+	if err != nil {
+		return err
+	}
+
+	// Surface the deferred chat-config error so doTick records
+	// the failed iteration metric.
+	if chatConfigErr != nil {
+		return xerrors.Errorf("chat config read failed this tick: %w", chatConfigErr)
+	}
+
+	return nil
 }
 
 type instance struct {
@@ -301,4 +359,30 @@ func (i *instance) Close() error {
 	i.cancel()
 	<-i.closed
 	return nil
+}
+
+// purgeChatsInTx MUST BE CALLED WITH A TRANSACTION
+func (*instance) purgeChatsInTx(ctx context.Context, tx database.Store, start time.Time, chatRetentionDays int32) (purgedChats, purgedChatFiles int64, err error) {
+	// Delete old archived chats first, then orphaned files
+	// (cascade clears chat_file_links but not chat_files).
+	if chatRetentionDays > 0 {
+		deleteChatsBefore := start.Add(-time.Duration(chatRetentionDays) * 24 * time.Hour)
+		purgedChats, err = tx.DeleteOldChats(ctx, database.DeleteOldChatsParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatsBatchSize,
+		})
+		if err != nil {
+			return 0, 0, xerrors.Errorf("failed to delete old chats: %w", err)
+		}
+
+		purgedChatFiles, err = tx.DeleteOldChatFiles(ctx, database.DeleteOldChatFilesParams{
+			BeforeTime: deleteChatsBefore,
+			LimitCount: chatFilesBatchSize,
+		})
+		if err != nil {
+			return 0, 0, xerrors.Errorf("failed to delete old chat files: %w", err)
+		}
+	}
+
+	return purgedChats, purgedChatFiles, nil
 }

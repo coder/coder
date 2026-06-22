@@ -83,3 +83,19 @@ type DRPCAgentClient28 interface {
 	DRPCAgentClient27
 	UpdateAppStatus(ctx context.Context, in *UpdateAppStatusRequest) (*UpdateAppStatusResponse, error)
 }
+
+// DRPCAgentClient29 is the Agent API at v2.9. It adds
+// session_id and confined_process fields to ReportBoundaryLogsRequest,
+// and sequence_number to BoundaryLog. No new RPCs.
+type DRPCAgentClient29 interface {
+	DRPCAgentClient28
+}
+
+// DRPCAgentClient210 is the Agent API at v2.10. It adds the
+// PushContextState RPC used by the agent to ship resolved
+// workspace context snapshots (instruction files, skills, MCP
+// configs, MCP server tool lists) to coderd.
+type DRPCAgentClient210 interface {
+	DRPCAgentClient29
+	PushContextState(ctx context.Context, in *PushContextStateRequest) (*PushContextStateResponse, error)
+}

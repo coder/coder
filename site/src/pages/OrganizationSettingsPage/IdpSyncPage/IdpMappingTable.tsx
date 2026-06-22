@@ -1,5 +1,4 @@
 import type { FC } from "react";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
@@ -37,28 +36,27 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={rowCount === 0}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message={`No ${type.toLocaleLowerCase()} mappings`}
-										isCompact
-										cta={
-											<Link
-												href={docs(
-													`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
-												)}
-											>
-												How to setup IdP {type.toLocaleLowerCase()} sync
-											</Link>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
-						<Cond>{children}</Cond>
-					</ChooseOne>
+					{rowCount === 0 ? (
+						<TableRow>
+							<TableCell colSpan={999}>
+								<EmptyState
+									message={`No ${type.toLocaleLowerCase()} mappings`}
+									isCompact
+									cta={
+										<Link
+											href={docs(
+												`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
+											)}
+										>
+											How to setup IdP {type.toLocaleLowerCase()} sync
+										</Link>
+									}
+								/>
+							</TableCell>
+						</TableRow>
+					) : (
+						children
+					)}
 				</TableBody>
 			</Table>
 			<div className="flex justify-end">

@@ -12,8 +12,8 @@ import {
 	type ConfirmDialogProps,
 } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Stack } from "#/components/Stack/Stack";
 import { cn } from "#/utils/cn";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type DownloadLogsDialogProps = Pick<
 	ConfirmDialogProps,
@@ -40,15 +40,12 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 	});
 
 	const allUniqueAgents = useMemo<readonly WorkspaceAgent[]>(() => {
-		const allAgents = workspace.latest_build.resources.flatMap(
-			(resource) => resource.agents ?? [],
-		);
+		const allAgents = getWorkspaceAgents(workspace);
 
 		// Can't use the "new Set()" trick because we're not dealing with primitives
 		const uniqueAgents = new Map(allAgents.map((agent) => [agent.id, agent]));
-		const iterable = [...uniqueAgents.values()];
-		return iterable;
-	}, [workspace.latest_build.resources]);
+		return [...uniqueAgents.values()];
+	}, [workspace]);
 
 	const agentLogQueries = useQueries({
 		queries: allUniqueAgents.map((agent) => ({
@@ -140,7 +137,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 				}
 			}}
 			description={
-				<Stack className="pb-4">
+				<div className="flex flex-col gap-4 pb-4">
 					<p>
 						Downloading logs will create a zip file containing all logs from all
 						jobs in this workspace. This may take a while.
@@ -162,7 +159,7 @@ export const DownloadLogsDialog: FC<DownloadLogsDialogProps> = ({
 							/>
 						))}
 					</ul>
-				</Stack>
+				</div>
 			}
 		/>
 	);
@@ -228,21 +225,22 @@ const DownloadingItem: FC<DownloadingItemProps> = ({ file, giveUpTimeMs }) => {
 	);
 };
 
-function humanBlobSize(size: number) {
+export function humanBlobSize(size: number) {
 	const BLOB_SIZE_UNITS = ["B", "KB", "MB", "GB", "TB"] as const;
 	let i = 0;
-	let sizeIterator = size;
-	while (sizeIterator > 1024 && i < BLOB_SIZE_UNITS.length) {
-		sizeIterator /= 1024;
+	let sizeInUnits = size;
+	while (sizeInUnits >= 1024 && i < BLOB_SIZE_UNITS.length - 1) {
+		sizeInUnits /= 1024;
 		i++;
 	}
 
-	// The condition for the while loop above means that over time, we could break
-	// out of the loop because we accidentally shot past the array bounds and i
-	// is at index (BLOB_SIZE_UNITS.length). Adding a lot of redundant checks to
-	// make sure we always have a usable unit
-	const finalUnit = BLOB_SIZE_UNITS[i] ?? BLOB_SIZE_UNITS.at(-1) ?? "TB";
-	return `${size.toFixed(2)} ${finalUnit}`;
+	const finalUnit = BLOB_SIZE_UNITS[i];
+
+	// Round to 2 decimals and omit trailing zeros for whole numbers.
+	const formattedSize = new Intl.NumberFormat("en-US", {
+		maximumFractionDigits: 2,
+	}).format(sizeInUnits);
+	return `${formattedSize} ${finalUnit}`;
 }
 
 type FileNameInfo = Readonly<{

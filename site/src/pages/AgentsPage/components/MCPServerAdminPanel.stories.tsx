@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
 import { MCPServerAdminPanel } from "./MCPServerAdminPanel";
 
 // ── Helpers ────────────────────────────────────────────────────
@@ -12,31 +13,10 @@ const createServerConfig = (
 	overrides: Partial<TypesGen.MCPServerConfig> &
 		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
 ): TypesGen.MCPServerConfig => ({
-	id: overrides.id,
-	display_name: overrides.display_name,
-	slug: overrides.slug,
-	description: overrides.description ?? "",
-	icon_url: overrides.icon_url ?? "",
-	transport: overrides.transport ?? "streamable_http",
-	url: overrides.url ?? "https://mcp.example.com/sse",
-	auth_type: overrides.auth_type ?? "none",
-	oauth2_client_id: overrides.oauth2_client_id,
-	has_oauth2_secret: overrides.has_oauth2_secret ?? false,
-	oauth2_auth_url: overrides.oauth2_auth_url,
-	oauth2_token_url: overrides.oauth2_token_url,
-	oauth2_scopes: overrides.oauth2_scopes,
-	api_key_header: overrides.api_key_header,
-	has_api_key: overrides.has_api_key ?? false,
-	has_custom_headers: overrides.has_custom_headers ?? false,
-	tool_allow_list: overrides.tool_allow_list ?? [],
-	tool_deny_list: overrides.tool_deny_list ?? [],
-	availability: overrides.availability ?? "default_on",
-	enabled: overrides.enabled ?? true,
-	model_intent: overrides.model_intent ?? false,
-	allow_in_plan_mode: overrides.allow_in_plan_mode ?? false,
-	created_at: overrides.created_at ?? now,
-	updated_at: overrides.updated_at ?? now,
-	auth_connected: overrides.auth_connected ?? false,
+	...MockMCPServerConfig,
+	created_at: now,
+	updated_at: now,
+	...overrides,
 });
 
 // ── Meta ───────────────────────────────────────────────────────
@@ -162,21 +142,18 @@ export const CreateServer: Story = {
 			await body.findByRole("button", { name: /Add your first server/i }),
 		);
 
-		// Fill in the display name via the inline header input.
+		// Fill in the Display name field.
 		const nameInput = await body.findByLabelText(/Display Name/i);
 		await userEvent.type(nameInput, "Sentry");
 
-		// Required fields (slug, server URL) are always visible. Optional
-		// sections start collapsed and the Enabled switch is edit-only.
-		// PencilIcon sits next to the editable name.
+		// Required fields (display name, slug, server URL) are always visible.
+		// Optional sections start collapsed and the Enabled switch is edit-only.
 		expect(body.getByLabelText(/^Slug/i)).toBeInTheDocument();
 		expect(body.getByLabelText(/Server URL/i)).toBeInTheDocument();
 		expect(body.queryByLabelText(/Description/i)).not.toBeInTheDocument();
 		expect(
 			body.queryByRole("switch", { name: /Enabled/i }),
 		).not.toBeInTheDocument();
-		const nameRow = nameInput.closest("div")?.parentElement;
-		expect(nameRow?.querySelector("svg.lucide-pencil")).toBeTruthy();
 
 		// Slug should auto-populate from the display name.
 		await expect(body.getByLabelText(/^Slug/i)).toHaveValue("sentry");
@@ -699,5 +676,57 @@ export const CustomHeadersAuthType: Story = {
 				custom_headers: { "X-Api-Token": "secret-token-123" },
 			}),
 		);
+	},
+};
+
+export const CreateServerUserOIDC: Story = {
+	args: {
+		serversData: [],
+	},
+	play: async ({ canvasElement, args }) => {
+		const body = within(canvasElement.ownerDocument.body);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Add your first server/i }),
+		);
+
+		await userEvent.type(
+			await body.findByLabelText(/Display Name/i),
+			"Internal API",
+		);
+		await userEvent.type(
+			body.getByLabelText(/Server URL/i),
+			"https://mcp.internal.example.com/v1",
+		);
+
+		await userEvent.click(
+			await body.findByRole("button", { name: /Authentication/i }),
+		);
+		await userEvent.click(body.getByLabelText(/Authentication/i));
+		await userEvent.click(
+			await body.findByRole("option", { name: /User OIDC Identity/i }),
+		);
+
+		// No additional auth fields for user_oidc; the helper text is shown.
+		expect(
+			body.getByText(/forwarded to this MCP server in the/i),
+		).toBeInTheDocument();
+
+		await userEvent.click(body.getByRole("button", { name: /Create server/i }));
+
+		await waitFor(() => {
+			expect(args.onCreateServer).toHaveBeenCalledTimes(1);
+		});
+		expect(args.onCreateServer).toHaveBeenCalledWith(
+			expect.objectContaining({
+				auth_type: "user_oidc",
+			}),
+		);
+		// Should not include any oauth2/api_key/custom_headers fields.
+		const call = (args.onCreateServer as ReturnType<typeof fn>).mock
+			.calls[0][0];
+		expect(call).not.toHaveProperty("oauth2_client_id");
+		expect(call).not.toHaveProperty("api_key_value");
+		expect(call).not.toHaveProperty("custom_headers");
 	},
 };

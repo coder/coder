@@ -1,13 +1,11 @@
 import type { FC } from "react";
 import type { Region } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
-import { ChooseOne, Cond } from "#/components/Conditionals/ChooseOne";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
-import { Stack } from "#/components/Stack/Stack";
 import {
 	Table,
 	TableBody,
@@ -39,7 +37,7 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 	selectProxyError,
 }) => {
 	return (
-		<Stack>
+		<div className="flex flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Workspace Proxies</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
@@ -62,25 +60,46 @@ export const WorkspaceProxyView: FC<WorkspaceProxyViewProps> = ({
 					</TableRow>
 				</TableHeader>
 				<TableBody>
-					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-						<Cond condition={hasLoaded && proxies?.length === 0}>
-							<TableEmpty message="No workspace proxies found" />
-						</Cond>
-						<Cond>
-							{proxies?.map((proxy) => (
-								<ProxyRow
-									latency={proxyLatencies?.[proxy.id]}
-									key={proxy.id}
-									proxy={proxy}
-								/>
-							))}
-						</Cond>
-					</ChooseOne>
+					<ProxiesTableBody
+						proxies={proxies}
+						proxyLatencies={proxyLatencies}
+						isLoading={isLoading}
+						hasLoaded={hasLoaded}
+					/>
 				</TableBody>
 			</Table>
-		</Stack>
+		</div>
+	);
+};
+
+interface ProxiesTableBodyProps {
+	proxies?: readonly Region[];
+	proxyLatencies?: Record<string, ProxyLatencyReport>;
+	isLoading: boolean;
+	hasLoaded: boolean;
+}
+
+const ProxiesTableBody: FC<ProxiesTableBodyProps> = ({
+	proxies,
+	proxyLatencies,
+	isLoading,
+	hasLoaded,
+}) => {
+	if (isLoading) {
+		return <TableLoader />;
+	}
+	if (hasLoaded && proxies?.length === 0) {
+		return <TableEmpty message="No workspace proxies found" />;
+	}
+	return (
+		<>
+			{proxies?.map((proxy) => (
+				<ProxyRow
+					latency={proxyLatencies?.[proxy.id]}
+					key={proxy.id}
+					proxy={proxy}
+				/>
+			))}
+		</>
 	);
 };

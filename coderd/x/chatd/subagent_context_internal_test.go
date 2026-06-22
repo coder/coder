@@ -11,7 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
@@ -148,11 +150,12 @@ func createParentChatWithInheritedContext(
 ) database.Chat {
 	t.Helper()
 
-	user, org, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(t, db)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent-with-context",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -182,26 +185,14 @@ func createParentChatWithInheritedContext(
 	content, err := json.Marshal(inheritedParts)
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              parent.ID,
-		CreatedBy:           []uuid.UUID{user.ID},
-		ModelConfigID:       []uuid.UUID{model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser},
-		Content:             []string{string(content)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0},
-		OutputTokens:        []int64{0},
-		TotalTokens:         []int64{0},
-		ReasoningTokens:     []int64{0},
-		CacheCreationTokens: []int64{0},
-		CacheReadTokens:     []int64{0},
-		ContextLimit:        []int64{0},
-		Compressed:          []bool{false},
-		TotalCostMicros:     []int64{0},
-		RuntimeMs:           []int64{0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: content, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
-	require.NoError(t, err)
 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
@@ -329,11 +320,12 @@ func createParentChatWithRotatedInheritedContext(
 ) database.Chat {
 	t.Helper()
 
-	user, org, model := seedInternalChatDeps(ctx, t, db)
+	user, org, model := seedInternalChatDeps(t, db)
 
 	parent, err := server.CreateChat(ctx, CreateOptions{
 		OrganizationID:     org.ID,
 		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
 		Title:              "parent-with-rotated-context",
 		ModelConfigID:      model.ID,
 		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
@@ -379,26 +371,22 @@ func createParentChatWithRotatedInheritedContext(
 	})
 	require.NoError(t, err)
 
-	_, err = db.InsertChatMessages(ctx, database.InsertChatMessagesParams{
-		ChatID:              parent.ID,
-		CreatedBy:           []uuid.UUID{user.ID, user.ID},
-		ModelConfigID:       []uuid.UUID{model.ID, model.ID},
-		Role:                []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleUser},
-		Content:             []string{string(oldContent), string(newContent)},
-		ContentVersion:      []int16{chatprompt.CurrentContentVersion, chatprompt.CurrentContentVersion},
-		Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		InputTokens:         []int64{0, 0},
-		OutputTokens:        []int64{0, 0},
-		TotalTokens:         []int64{0, 0},
-		ReasoningTokens:     []int64{0, 0},
-		CacheCreationTokens: []int64{0, 0},
-		CacheReadTokens:     []int64{0, 0},
-		ContextLimit:        []int64{0, 0},
-		Compressed:          []bool{false, false},
-		TotalCostMicros:     []int64{0, 0},
-		RuntimeMs:           []int64{0, 0},
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: oldContent, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
-	require.NoError(t, err)
+	_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:         parent.ID,
+		CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID:  uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:           database.ChatMessageRoleUser,
+		Content:        pqtype.NullRawMessage{RawMessage: newContent, Valid: true},
+		ContentVersion: chatprompt.CurrentContentVersion,
+	})
 
 	parentChat, err := db.GetChatByID(ctx, parent.ID)
 	require.NoError(t, err)
@@ -414,6 +402,7 @@ func TestCreateChildSubagentChatCopiesOnlyLatestAgentContext(t *testing.T) {
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithRotatedInheritedContext(ctx, t, db, server)
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, server.db, parentChat.OwnerID))
 	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
 	require.NoError(t, err)
 
@@ -461,10 +450,33 @@ func TestCreateChildSubagentChatUpdatesInheritedLastInjectedContext(t *testing.T
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
 
+	// Set a delegated API key so that copied user-role context messages
+	// are stamped with api_key_id, preserving AI Gateway routing.
+	apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: parentChat.OwnerID})
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, apiKey.ID)
+
 	child, err := server.createChildSubagentChat(ctx, parentChat, "inspect bindings", "")
 	require.NoError(t, err)
 
 	assertChildInheritedContext(ctx, t, db, child.ID, "inspect bindings")
+
+	// Verify that all user-role messages in the child chat carry
+	// api_key_id so activeTurnAPIKeyIDFromMessages resolves correctly.
+	childMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID:  child.ID,
+		AfterID: 0,
+	})
+	require.NoError(t, err)
+	var userMsgCount int
+	for _, msg := range childMessages {
+		if msg.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		userMsgCount++
+		require.True(t, msg.APIKeyID.Valid, "child user message (id=%d) should have api_key_id set", msg.ID)
+		require.Equal(t, apiKey.ID, msg.APIKeyID.String, "child user message (id=%d) api_key_id mismatch", msg.ID)
+	}
+	require.Greater(t, userMsgCount, 0, "expected at least one user-role message in child chat")
 }
 
 func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
@@ -476,7 +488,7 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 
 	ctx := chatdTestContext(t)
 	parentChat := createParentChatWithInheritedContext(ctx, t, db, server)
-	insertEnabledAnthropicProvider(ctx, t, db, parentChat.OwnerID)
+	insertEnabledAnthropicProvider(t, db, parentChat.OwnerID)
 	// The direct DB insert above bypasses the pubsub event that
 	// production uses to invalidate the provider cache. Explicitly
 	// invalidate here so the background processing goroutine does
@@ -484,6 +496,7 @@ func TestSpawnComputerUseAgentInheritsContext(t *testing.T) {
 	// before the Anthropic provider was inserted.
 	server.configCache.InvalidateProviders()
 
+	ctx = aibridge.WithDelegatedAPIKeyID(ctx, testAPIKeyID(t, db, parentChat.OwnerID))
 	tools := server.subagentTools(ctx, func() database.Chat { return parentChat }, parentChat.LastModelConfigID)
 	tool := findToolByName(tools, spawnAgentToolName)
 	require.NotNil(t, tool)

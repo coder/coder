@@ -1,21 +1,18 @@
 package coderd
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/awsidentity"
 	"github.com/coder/coder/v2/coderd/azureidentity"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -31,20 +28,26 @@ import (
 // @Tags Agents
 // @Param request body agentsdk.AzureInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
-// @Router /workspaceagents/azure-instance-identity [post]
+// @Router /api/v2/workspaceagents/azure-instance-identity [post]
 func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req agentsdk.AzureInstanceIdentityToken
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, azureidentity.Options{
-		VerifyOptions: api.AzureCertificates,
-	})
+	instanceID, err := azureidentity.Validate(r.Context(), req.Signature, api.AzureCertificates)
 	if err != nil {
+		// Log the full error for operators but return only a
+		// generic message to the caller. Errors from the
+		// certificate fetch path may contain fragments of
+		// internal HTTP responses, so exposing them would be
+		// an information disclosure risk.
+		api.Logger.Warn(ctx, "azure identity validation failed",
+			slog.Error(err),
+		)
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "Invalid Azure identity.",
-			Detail:  err.Error(),
+			Detail:  "Signature verification failed.",
 		})
 		return
 	}
@@ -63,7 +66,7 @@ func (api *API) postWorkspaceAuthAzureInstanceIdentity(rw http.ResponseWriter, r
 // @Tags Agents
 // @Param request body agentsdk.AWSInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
-// @Router /workspaceagents/aws-instance-identity [post]
+// @Router /api/v2/workspaceagents/aws-instance-identity [post]
 func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req agentsdk.AWSInstanceIdentityToken
@@ -93,7 +96,7 @@ func (api *API) postWorkspaceAuthAWSInstanceIdentity(rw http.ResponseWriter, r *
 // @Tags Agents
 // @Param request body agentsdk.GoogleInstanceIdentityToken true "Instance identity token. The optional agent_name field disambiguates when multiple agents share the same instance ID."
 // @Success 200 {object} agentsdk.AuthenticateResponse
-// @Router /workspaceagents/google-instance-identity [post]
+// @Router /api/v2/workspaceagents/google-instance-identity [post]
 func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req agentsdk.GoogleInstanceIdentityToken
@@ -136,41 +139,14 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	systemCtx := dbauthz.AsSystemRestricted(ctx)
 	agentName = strings.TrimSpace(agentName)
 
-	agents, err := api.Database.GetWorkspaceAgentsByInstanceID(systemCtx, instanceID)
+	agents, err := api.Database.GetWorkspaceBuildAgentsByInstanceID(systemCtx, instanceID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job agent.",
+			Message: "Internal error fetching workspace agent.",
 			Detail:  err.Error(),
 		})
 		return
 	}
-
-	// Template version agents can share an instance ID with workspace build
-	// agents. Keep only workspace build agents before resolving ambiguity so
-	// template version agents do not force CODER_AGENT_NAME.
-	buildAgents := agents[:0]
-	for _, candidate := range agents {
-		resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, candidate.ResourceID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job resource.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching provisioner job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-		if job.Type == database.ProvisionerJobTypeWorkspaceBuild {
-			buildAgents = append(buildAgents, candidate)
-		}
-	}
-	agents = buildAgents
 	if len(agents) == 0 {
 		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 			Message: fmt.Sprintf("Instance with id %q not found.", instanceID),
@@ -178,85 +154,46 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		return
 	}
 
-	var agent database.WorkspaceAgent
+	selected := agents[0]
 	if agentName != "" {
+		found := false
 		for _, candidate := range agents {
-			if candidate.Name == agentName {
-				agent = candidate
+			if candidate.WorkspaceAgent.Name == agentName {
+				selected = candidate
+				found = true
 				break
 			}
 		}
-		if agent.ID == uuid.Nil {
+		if !found {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("No agent found with instance ID %q and name %q.", instanceID, agentName),
 			})
 			return
 		}
-	} else {
-		if len(agents) != 1 {
-			// Include agent names in the error message to help operators
-			// configure CODER_AGENT_NAME. The caller has already proven
-			// cloud instance identity, so agent names are not sensitive
-			// here.
-			names := make([]string, len(agents))
-			for i, candidate := range agents {
-				names[i] = candidate.Name
-			}
-			sort.Strings(names)
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf(
-					"Multiple agents found with instance ID %q. Set CODER_AGENT_NAME to one of: %s",
-					instanceID,
-					strings.Join(names, ", "),
-				),
-			})
-			return
+	} else if len(agents) != 1 {
+		// Include agent names in the error message to help operators
+		// configure CODER_AGENT_NAME. The caller has already proven
+		// cloud instance identity, so agent names are not sensitive
+		// here.
+		names := make([]string, len(agents))
+		for i, candidate := range agents {
+			names[i] = candidate.WorkspaceAgent.Name
 		}
-		agent = agents[0]
-	}
-	resource, err := api.Database.GetWorkspaceResourceByID(systemCtx, agent.ResourceID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job resource.",
-			Detail:  err.Error(),
+		sort.Strings(names)
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf(
+				"Multiple agents found with instance ID %q. Set CODER_AGENT_NAME to one of: %s",
+				instanceID,
+				strings.Join(names, ", "),
+			),
 		})
 		return
 	}
-	job, err := api.Database.GetProvisionerJobByID(systemCtx, resource.JobID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner job.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if job.Type != database.ProvisionerJobTypeWorkspaceBuild {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("%q jobs cannot be authenticated.", job.Type),
-		})
-		return
-	}
-	var jobData provisionerdserver.WorkspaceProvisionJob
-	err = json.Unmarshal(job.Input, &jobData)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error extracting job data.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	resourceHistory, err := api.Database.GetWorkspaceBuildByID(systemCtx, jobData.WorkspaceBuildID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching workspace build.",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	agent := selected.WorkspaceAgent
 	// This token should only be exchanged if the instance ID is valid
 	// for the latest history. If an instance ID is recycled by a cloud,
 	// we'd hate to leak access to a user's workspace.
-	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, resourceHistory.WorkspaceID)
+	latestHistory, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(systemCtx, selected.WorkspaceTable.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching the latest workspace build.",
@@ -264,7 +201,7 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 		})
 		return
 	}
-	if latestHistory.ID != resourceHistory.ID {
+	if latestHistory.ID != selected.WorkspaceBuildID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Resource found for id %q, but isn't registered on the latest history.", instanceID),
 		})

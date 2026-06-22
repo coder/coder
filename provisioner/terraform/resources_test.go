@@ -1764,6 +1764,32 @@ func TestAITasks(t *testing.T) {
 		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", sidebarApp.GetId())
 		require.Equal(t, "5ece4674-dd35-4f16-88c8-82e40e72e2fd", state.AITasks[0].AppId)
 	})
+
+	t.Run("Disabled with count zero", func(t *testing.T) {
+		t.Parallel()
+
+		// nolint:dogsled
+		_, filename, _, _ := runtime.Caller(0)
+
+		// This fixture has coder_ai_task.a in the graph (resource is defined
+		// in the .tf file) but NOT in PlannedValues (count = 0). The old
+		// graph-based check returned true here; the new len(aiTasks) > 0
+		// check should return false.
+		dir := filepath.Join(filepath.Dir(filename), "testdata", "resources", "ai-tasks-disabled")
+		tfPlanRaw, err := os.ReadFile(filepath.Join(dir, "ai-tasks-disabled.tfplan.json"))
+		require.NoError(t, err)
+		var tfPlan tfjson.Plan
+		err = json.Unmarshal(tfPlanRaw, &tfPlan)
+		require.NoError(t, err)
+		tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "ai-tasks-disabled.tfplan.dot"))
+		require.NoError(t, err)
+
+		state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule, tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
+		require.NotNil(t, state)
+		require.NoError(t, err)
+		require.False(t, state.HasAITasks)
+		require.Empty(t, state.AITasks)
+	})
 }
 
 func TestExternalAgents(t *testing.T) {

@@ -20,7 +20,6 @@ const meta: Meta<typeof NavbarView> = {
 	parameters: {
 		chromatic: chromaticWithTablet,
 		layout: "fullscreen",
-		experiments: ["agents"],
 		queries: [
 			{
 				key: ["tasks", tasksFilter],
@@ -34,6 +33,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
+		canViewAISettings: true,
 		canViewOrganizations: true,
 		canCreateChat: true,
 		supportLinks: [],
@@ -59,6 +59,7 @@ export const ForAuditor: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 	},
 	play: async ({ canvasElement }) => {
@@ -75,7 +76,24 @@ export const ForOrgAdmin: Story = {
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Admin settings" }),
+		);
+	},
+};
+
+export const ForSingleOrgOSSAdmin: Story = {
+	args: {
+		canViewAuditLog: false,
+		canViewOrganizations: false,
+		canViewConnectionLog: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -91,6 +109,7 @@ export const ForMember: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		canCreateChat: false,
 	},
@@ -102,14 +121,9 @@ export const ForMemberWithAgentsAccess: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		canCreateChat: true,
-	},
-};
-
-export const CustomLogo: Story = {
-	args: {
-		logo_url: "/icon/github.svg",
 	},
 };
 
@@ -130,6 +144,7 @@ export const SupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{
@@ -170,6 +185,7 @@ export const DefaultSupportLinks: Story = {
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
+		canViewAISettings: false,
 		canViewOrganizations: false,
 		supportLinks: [
 			{ icon: "docs", name: "Documentation", target: "" },

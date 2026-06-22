@@ -3,19 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { watchChatDesktop } from "#/api/api";
 import { useClipboard } from "#/hooks/useClipboard";
-
-interface UseDesktopConnectionOptions {
-	chatId: string | undefined;
-	/** When false the hook stays dormant — no WebSocket, no RFB. */
-	activated: boolean;
-}
-
-type DesktopConnectionStatus =
+export type DesktopConnectionStatus =
 	| "idle"
 	| "connecting"
 	| "connected"
 	| "disconnected"
 	| "error";
+
+interface UseDesktopConnectionOptions {
+	chatId: string | undefined;
+	/** When false the hook stays dormant, no WebSocket, no RFB. */
+	activated: boolean;
+	/** When true the viewport is scaled to fit the container. Default: false (native 100%). */
+	scaleViewport?: boolean;
+}
 
 export interface UseDesktopConnectionResult {
 	/** Current connection status. */
@@ -82,8 +83,10 @@ const isMacCutShortcut = (event: KeyboardEvent): boolean => {
 export function useDesktopConnection({
 	chatId,
 	activated,
+	scaleViewport = false,
 }: UseDesktopConnectionOptions): UseDesktopConnectionResult {
 	const [status, setStatus] = useState<DesktopConnectionStatus>("idle");
+
 	const [hasConnected, setHasConnected] = useState(false);
 	const [remoteClipboardText, setRemoteClipboardText] = useState<string | null>(
 		null,
@@ -228,6 +231,7 @@ export function useDesktopConnection({
 			offscreenContainerRef.current.style.width = "100%";
 			offscreenContainerRef.current.style.height = "100%";
 			offscreenContainerRef.current.style.position = "relative";
+			offscreenContainerRef.current.style.overflow = "hidden";
 
 			const socket = watchChatDesktop(chatId);
 
@@ -236,9 +240,19 @@ export function useDesktopConnection({
 					shared: true,
 				});
 
-				rfb.scaleViewport = true;
+				rfb.scaleViewport = false;
 				rfb.resizeSession = false;
 				rfb.focusOnClick = true;
+
+				// Override the noVNC default background (rgb(40,40,40))
+				// so the letterbox margins match the app surface color
+				// in both light and dark themes.
+				const surfaceHsl = getComputedStyle(document.documentElement)
+					.getPropertyValue("--surface-secondary")
+					.trim();
+				if (surfaceHsl) {
+					rfb.background = `hsl(${surfaceHsl})`;
+				}
 
 				// Per-session flags scoped to this RFB instance.
 				// NOT refs — each doConnect() gets fresh copies so
@@ -458,7 +472,7 @@ export function useDesktopConnection({
 				// shrinks to 0×0. When the container becomes visible
 				// again, noVNC may skip rescaling because it believes
 				// the viewport size hasn't changed. Re-assigning
-				// scaleViewport = true forces a fresh scale pass
+				// scaleViewport forces a fresh scale pass
 				// regardless.
 				let prevContainerW = 0;
 				let prevContainerH = 0;
@@ -472,7 +486,12 @@ export function useDesktopConnection({
 					prevContainerW = width;
 					prevContainerH = height;
 					if (wasHidden && isVisible && rfbRef.current) {
-						rfbRef.current.scaleViewport = true;
+						// Re-assign the current value to force noVNC to
+						// recalculate the viewport. The setter triggers an
+						// internal rescale regardless of whether the value
+						// actually changed.
+						const current = rfbRef.current.scaleViewport;
+						rfbRef.current.scaleViewport = current;
 					}
 				});
 				visibilityObserver.observe(offscreenContainerRef.current);
@@ -499,6 +518,12 @@ export function useDesktopConnection({
 			setHasConnected(false);
 		};
 	}, [activated, chatId, syncRemoteClipboardToLocal]);
+
+	useEffect(() => {
+		if (rfbInstance && rfbRef.current) {
+			rfbRef.current.scaleViewport = scaleViewport;
+		}
+	}, [rfbInstance, scaleViewport]);
 
 	return {
 		status,

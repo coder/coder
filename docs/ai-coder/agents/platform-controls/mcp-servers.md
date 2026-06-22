@@ -5,11 +5,12 @@ for agent chat sessions. Configured servers are injected into or offered to
 users during chat depending on the availability policy.
 
 This is an admin-only feature accessible at **Agents** > **Settings** >
-**MCP Servers**.
+**Manage Agents** > **MCP Servers**.
 
 ## Add an MCP server
 
-1. Navigate to **Agents** > **Settings** > **MCP Servers**.
+1. Navigate to **Agents** > **Settings** > **Manage Agents** >
+   **MCP Servers**.
 1. Click **Add**.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
@@ -32,11 +33,12 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 
 ### Availability
 
-| Field          | Required | Description                                                                                                                   |
-|----------------|----------|-------------------------------------------------------------------------------------------------------------------------------|
-| `enabled`      | No       | Master toggle. Disabled servers are hidden from non-admin users.                                                              |
-| `availability` | Yes      | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                        |
-| `model_intent` | No       | When enabled, requires the model to describe each tool call's purpose in natural language, shown as a status label in the UI. |
+| Field                   | Required | Description                                                                                                                         |
+|-------------------------|----------|-------------------------------------------------------------------------------------------------------------------------------------|
+| `enabled`               | No       | Master toggle. Disabled servers are hidden from non-admin users.                                                                    |
+| `availability`          | Yes      | Controls how the server appears in chat sessions. See [Availability policies](#availability-policies).                              |
+| `model_intent`          | No       | When enabled, requires the model to describe each tool call's purpose in natural language, shown as a status label in the UI.       |
+| `forward_coder_headers` | No       | When enabled, forwards Coder identity headers on every outgoing MCP request. See [Coder identity headers](#coder-identity-headers). |
 
 #### Availability policies
 
@@ -48,7 +50,7 @@ This is an admin-only feature accessible at **Agents** > **Settings** >
 
 ## Authentication
 
-Each MCP server uses one of four authentication modes. When you change the
+Each MCP server uses one of five authentication modes. When you change the
 auth type, fields from the previous type are automatically cleared.
 
 Secrets are never returned in API responses — boolean flags indicate whether
@@ -104,6 +106,21 @@ A static key sent as a header on every request.
 Arbitrary key-value header pairs sent on every request. At least one header
 is required when this mode is selected.
 
+### User OIDC Identity
+
+Forwards the calling user's OIDC access token (stored in
+`user_links.oauth_access_token`) to the MCP server as an
+`Authorization: Bearer <token>` header. The token is refreshed
+transparently before each request if it has expired or is close to
+expiring.
+
+No admin-configurable fields. No per-user connect step.
+
+**Limitation**: this auth mode only works for users who authenticated to
+Coder via OIDC. Users who logged in with password or GitHub will see
+requests sent without an authorization header, and the upstream MCP
+server is expected to respond with 401.
+
 ## Tool governance
 
 Control which tools from a server are available in chat:
@@ -112,6 +129,28 @@ Control which tools from a server are available in chat:
 |-------------------|---------------------------------------------------------------------------------------|
 | `tool_allow_list` | If non-empty, only the listed tool names are exposed. An empty list allows all tools. |
 | `tool_deny_list`  | Listed tool names are always blocked, even if they appear in the allow list.          |
+
+## Coder identity headers
+
+MCP servers configured with `forward_coder_headers = true` receive the
+following identity headers on every outgoing request, alongside the
+auth header for the configured `auth_type`:
+
+| Header                 | Description                                                                                                  |
+|------------------------|--------------------------------------------------------------------------------------------------------------|
+| `X-Coder-Owner-Id`     | Coder user who owns the chat that issued the tool call.                                                      |
+| `X-Coder-Chat-Id`      | Top-level (parent) chat ID. For root chats this is the chat's own ID; for subchats it is the parent chat ID. |
+| `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
+| `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
+
+Coder sends the same identity headers to LLM providers, so a first-party
+MCP server can correlate a tool call back to the originating chat.
+
+Because the headers leak chat identity, the option is **off by
+default** and should only be enabled for first-party or trusted
+internal MCP servers. If the auth header for the configured
+`auth_type` collides with one of these headers, the auth header
+wins.
 
 ## Permissions
 

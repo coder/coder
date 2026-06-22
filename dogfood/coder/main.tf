@@ -126,8 +126,7 @@ locals {
     // Older style option values, where the option value was just supposed to
     // be the exact name of the image on Docker hub. In practice, this is rather
     // restrictive because the image_type parameter is immutable.
-    "codercom/oss-dogfood:latest"     = "codercom/oss-dogfood:latest"
-    "codercom/oss-dogfood-nix:latest" = "codercom/oss-dogfood-nix:latest"
+    "codercom/oss-dogfood:latest" = "codercom/oss-dogfood:latest"
 
     "ubuntu-latest" = "codercom/oss-dogfood:26.04"
   }
@@ -147,11 +146,6 @@ data "coder_parameter" "image_type" {
     icon  = "/icon/coder.svg"
     name  = "Ubuntu 22.04 (Legacy)"
     value = "codercom/oss-dogfood:latest"
-  }
-  option {
-    icon  = "/icon/nix.svg"
-    name  = "Dogfood Nix (Experimental)"
-    value = "codercom/oss-dogfood-nix:latest"
   }
 }
 
@@ -240,20 +234,27 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "use_ai_bridge" {
+data "coder_parameter" "enable_ai_gateway" {
   type        = "bool"
-  name        = "Use AI Bridge"
+  name        = "Use AI Gateway"
   default     = true
-  description = "If enabled, AI requests will be sent via AI Bridge."
+  description = "If enabled, AI requests will be sent via AI Gateway."
   mutable     = true
 }
 
-# Only used if AI Bridge is disabled.
+# Only used if AI Gateway is disabled.
 # dogfood/main.tf injects this value from a GH Actions secret;
-# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY`.
+# `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
 variable "anthropic_api_key" {
   type        = string
   description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  default     = ""
+  sensitive   = true
+}
+
+variable "openai_api_key" {
+  type        = string
+  description = "The API key used to authenticate with the OpenAI API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -270,7 +271,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -359,7 +359,7 @@ module "slackme" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
@@ -375,7 +375,7 @@ module "git-config" {
 module "git-clone" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/git-clone/coder"
-  version           = "1.2.3"
+  version           = "1.3.0"
   agent_id          = coder_agent.dev.id
   url               = "https://github.com/coder/coder"
   base_dir          = local.repo_base_dir
@@ -411,7 +411,7 @@ module "mux" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.4"
+  version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -444,7 +444,7 @@ module "jetbrains" {
 module "filebrowser" {
   count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/coder/filebrowser/coder"
-  version    = "1.1.4"
+  version    = "1.1.5"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
@@ -501,9 +501,23 @@ resource "coder_agent" "dev" {
   env = merge(
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
-      CODER_AGENT_EXP_MCP_CONFIG_FILES : "~/.mcp.json,.mcp.json",
+      # `mise oci build` bakes `ENV MISE_CONFIG_DIR=/etc/mise` into
+      # the image layer above Dockerfile.base, so mise treats
+      # /etc/mise as the user config dir and never reads
+      # ~/.config/mise/conf.d/*, silently dropping the trust file
+      # the install-deps coder_script below seeds. `[oci.env]` in
+      # mise.toml would be the natural place for this, but mise's
+      # internal env bake currently wins on MISE_* key collisions
+      # (non-MISE keys flow through). Move this back to `[oci.env]`
+      # once upstream mise fixes that.
+      MISE_CONFIG_DIR : "/home/coder/.config/mise",
+      # Keep user-installed mise tools on the persistent home volume.
+      # The image still exposes baked tools from /opt/mise/data via
+      # MISE_SHARED_INSTALL_DIRS, but /opt itself is image-resident
+      # and is recreated with the container on workspace restart.
+      MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
-    data.coder_parameter.use_ai_bridge.value ? {
+    data.coder_parameter.enable_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
@@ -673,18 +687,64 @@ resource "coder_script" "install-deps" {
   display_name       = "Installing Dependencies"
   run_on_start       = true
   start_blocks_login = false
-  script             = <<EOT
+  script             = <<-EOT
     #!/usr/bin/env bash
     set -euo pipefail
 
     trap 'coder exp sync complete install-deps' EXIT
+
+    # Ensure /opt/mise is writable by coder before any login shell
+    # or other script touches mise. `mise oci build` emits its tar
+    # layers in deterministic mode with hardcoded uid=0/gid=0 (see
+    # mise's src/oci/layer.rs), and `prefix_parents` walks the full
+    # mount_point chain, so the final image stamps /opt, /opt/mise,
+    # and /opt/mise/data as root:root regardless of what the base
+    # Dockerfile sets. Without this chown mise warns `migrate:
+    # failed create_dir_all: /opt/mise/data/migrations` and skips
+    # its state writes. /opt/mise is image-resident (not on the
+    # home volume), so this runs every workspace start. Runs
+    # before the git-clone sync barrier so early shells never
+    # observe the unwritable state.
+    sudo chown -R coder:coder /opt/mise
+
     coder exp sync want install-deps git-clone
     coder exp sync start install-deps
+
+    # Seed a user-owned mise trust config on the persistent home
+    # volume. The image ships /etc/mise/conf.d/00-coder-trust.toml as
+    # a fallback, but mise's `trusted_config_paths` setting doesn't
+    # merge across config layers, so anything the user adds to their
+    # own file would otherwise replace the system fallback. Writing
+    # this file once (if-absent) seeds the defaults under
+    # ~/.config/mise/conf.d/ where the user can edit it and the edits
+    # survive workspace restart.
+    TRUST_FILE="$HOME/.config/mise/conf.d/00-coder-trust.toml"
+    if [ ! -f "$TRUST_FILE" ]; then
+      mkdir -p "$(dirname "$TRUST_FILE")"
+      cat > "$TRUST_FILE" <<'TRUST'
+    # mise trust paths for the dogfood workspace. Edit to add your own
+    # paths; this file lives on the persistent home volume so changes
+    # survive workspace restart. The install-deps coder_script only
+    # writes this file when it's absent.
+    [settings]
+    trusted_config_paths = [
+      "/home/coder/coder",
+      "/etc/mise",
+    ]
+    TRUST
+    fi
 
     # Install playwright dependencies
     # We want to use the playwright version from site/package.json
     cd "${local.repo_dir}" && make clean
     cd "${local.repo_dir}/site" && pnpm install
+
+    # Two playwright installs: site/'s @playwright/test and
+    # @playwright/mcp@0.0.75 bundle different playwright-core versions
+    # with different chromium revisions, and both are used at runtime
+    # (site tests + the claude-code/codex MCP servers below).
+    cd "${local.repo_dir}/site" && pnpm exec playwright install chromium
+    npx --yes --package=@playwright/mcp@0.0.75 playwright-core install --no-shell chromium
   EOT
 }
 
@@ -722,6 +782,38 @@ resource "coder_metadata" "home_volume" {
 
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
+  # Protect the volume from being deleted due to changes in attributes.
+  lifecycle {
+    ignore_changes = all
+  }
+  # Add labels in Docker to keep track of orphan resources.
+  labels {
+    label = "coder.owner"
+    value = data.coder_workspace_owner.me.name
+  }
+  labels {
+    label = "coder.owner_id"
+    value = data.coder_workspace_owner.me.id
+  }
+  labels {
+    label = "coder.workspace_id"
+    value = data.coder_workspace.me.id
+  }
+  # This field becomes outdated if the workspace is renamed but can
+  # be useful for debugging or cleaning out dangling volumes.
+  labels {
+    label = "coder.workspace_name_at_creation"
+    value = data.coder_workspace.me.name
+  }
+}
+
+resource "coder_metadata" "homebrew_volume" {
+  resource_id = docker_volume.homebrew_volume.id
+  hide        = true # Hide it as it only backs Homebrew state.
+}
+
+resource "docker_volume" "homebrew_volume" {
+  name = "coder-${data.coder_workspace.me.id}-homebrew"
   # Protect the volume from being deleted due to changes in attributes.
   lifecycle {
     ignore_changes = all
@@ -785,12 +877,10 @@ data "docker_registry_image" "dogfood" {
 
 resource "docker_image" "dogfood" {
   name = "${local.image_tags[data.coder_parameter.image_type.value]}@${data.docker_registry_image.dogfood.sha256_digest}"
+  # CI rebuilds and pushes when any baked-in input changes, so the
+  # digest captures every effective change on its own.
   pull_triggers = [
     data.docker_registry_image.dogfood.sha256_digest,
-    sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
-    filesha1("ubuntu-22.04/Dockerfile"),
-    filesha1("ubuntu-26.04/Dockerfile"),
-    filesha1("nix.hash"),
   ]
   keep_locally = true
 }
@@ -816,6 +906,7 @@ resource "docker_container" "workspace" {
   # CPU limits are unnecessary since Docker will load balance automatically
   memory  = data.coder_workspace_owner.me.name == "code-asher" ? 65536 : 32768
   runtime = "sysbox-runc"
+  restart = "unless-stopped"
 
   # Ensure the workspace is given time to:
   # - Execute shutdown scripts
@@ -833,6 +924,7 @@ resource "docker_container" "workspace" {
     "CODER_PROC_OOM_SCORE=10",
     "CODER_PROC_NICE_SCORE=1",
     "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
+    "CODER_AGENT_EXP_MCP_CONFIG_FILES=~/.mcp.json,.mcp.json",
   ]
   host {
     host = "host.docker.internal"
@@ -841,6 +933,13 @@ resource "docker_container" "workspace" {
   volumes {
     container_path = "/home/coder/"
     volume_name    = docker_volume.home_volume.name
+    read_only      = false
+  }
+  # Homebrew is baked into this path. A Docker named volume copies the
+  # image contents on first mount, then persists user-installed formulae.
+  volumes {
+    container_path = "/home/linuxbrew/"
+    volume_name    = docker_volume.homebrew_volume.name
     read_only      = false
   }
   volumes {
@@ -885,40 +984,6 @@ resource "coder_metadata" "container_info" {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
-  }
-}
-
-locals {
-  claude_system_prompt = <<-EOT
-    -- Framing --
-    You are a helpful coding assistant. Aim to autonomously investigate
-    and solve issues the user gives you and test your work, whenever possible.
-
-    Avoid shortcuts like mocking tests. When you get stuck, you can ask the user
-    but opt for autonomy.
-
-    -- Tool Selection --
-    - playwright: previewing your changes after you made them
-      to confirm it worked as expected
-    -	Built-in tools - use for everything else:
-      (file operations, git commands, builds & installs, one-off shell commands)
-
-    -- Workflow --
-    When starting new work:
-    1. If given a GitHub issue URL, use the `gh` CLI to read the full issue details with `gh issue view <issue-number>`.
-    2. Create a feature branch for the work using a descriptive name based on the issue or task.
-       Example: `git checkout -b fix/issue-123-oauth-error` or `git checkout -b feat/add-dark-mode`
-    3. Proceed with implementation following the CLAUDE.md guidelines.
-
-    -- Context --
-    There is an existing application in the current directory.
-    Be sure to read CLAUDE.md before making any changes.
-
-    This is a real-world production application. As such, make sure to think carefully, use TODO lists, and plan carefully before making changes.
-  EOT
 }
 
 resource "coder_script" "boundary_config_setup" {
@@ -939,76 +1004,64 @@ resource "coder_script" "boundary_config_setup" {
 }
 
 module "claude-code" {
-  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.9.2"
-  enable_boundary     = true
-  agent_id            = coder_agent.dev.id
-  workdir             = local.repo_dir
-  claude_code_version = "latest"
-  model               = "opus"
-  order               = 999
-  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
-  agentapi_version    = "latest"
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/claude-code/coder"
+  version           = "5.2.0"
+  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
+  anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  mcp               = <<-EOF
+    {
+      "mcpServers": {
+        "playwright": {
+          "command": "npx",
+          "args": ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
+        }
+      }
+    }
+  EOF
+}
 
-  system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_task.me.prompt
-  post_install_script = <<-EOT
-    cd $HOME/coder
-    claude mcp add playwright npx -- @playwright/mcp@latest --headless --isolated --no-sandbox
+resource "coder_app" "claude" {
+  agent_id     = coder_agent.dev.id
+  slug         = "claude"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s claude claude
   EOT
 }
 
-resource "coder_ai_task" "task" {
-  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  app_id = module.claude-code[count.index].task_app_id
-}
-
-resource "coder_app" "develop_sh" {
-  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  agent_id     = coder_agent.dev.id
-  slug         = "develop-sh"
-  display_name = "develop.sh"
-  icon         = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
-  command      = "screen -x develop_sh"
-  share        = "authenticated"
-  open_in      = "tab"
-  order        = 0
-}
-
-resource "coder_script" "develop_sh" {
-  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  display_name       = "develop.sh"
-  agent_id           = coder_agent.dev.id
-  run_on_start       = true
-  start_blocks_login = false
-  icon               = "${data.coder_workspace.me.access_url}/emojis/1f4bb.png" // 💻
-  script             = <<-EOT
-    #!/usr/bin/env bash
-    set -eux -o pipefail
-
-    trap 'coder exp sync complete develop-sh' EXIT
-    coder exp sync want develop-sh install-deps
-    coder exp sync start develop-sh
-
-    cd "${local.repo_dir}" && screen -dmS develop_sh /bin/sh -c 'while true; do ./scripts/develop.sh --; echo "develop.sh exited with code $? restarting in 30s"; sleep 30; done'
+module "codex" {
+  source            = "dev.registry.coder.com/coder-labs/codex/coder"
+  version           = "5.2.0"
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
+  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
+  openai_api_key    = data.coder_parameter.enable_ai_gateway.value ? "" : var.openai_api_key
+  mcp               = <<-EOT
+    [mcp_servers.playwright]
+    command = "npx"
+    args = ["--", "@playwright/mcp@0.0.75", "--headless", "--isolated", "--no-sandbox"]
+    type = "stdio"
   EOT
 }
 
-resource "coder_app" "preview" {
-  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+resource "coder_app" "codex" {
   agent_id     = coder_agent.dev.id
-  slug         = "preview"
-  display_name = "Preview"
-  icon         = "${data.coder_workspace.me.access_url}/emojis/1f50e.png" // 🔎
-  url          = "http://localhost:8080"
-  share        = "authenticated"
-  subdomain    = true
-  open_in      = "tab"
-  order        = 1
-  healthcheck {
-    url       = "http://localhost:8080/healthz"
-    interval  = 5
-    threshold = 15
-  }
+  slug         = "codex"
+  display_name = "Codex"
+  icon         = "/icon/openai-codex.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s codex codex
+  EOT
 }

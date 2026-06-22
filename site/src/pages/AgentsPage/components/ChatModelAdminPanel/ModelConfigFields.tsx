@@ -49,8 +49,8 @@ const unsetSelectValue = "__unset__";
 const shortLabelOverrides: Record<string, string> = {
 	"cost.input_price_per_million_tokens": "Input",
 	"cost.output_price_per_million_tokens": "Output",
-	"cost.cache_read_price_per_million_tokens": "Cache Read",
-	"cost.cache_write_price_per_million_tokens": "Cache Write",
+	"cost.cache_read_price_per_million_tokens": "Cache read",
+	"cost.cache_write_price_per_million_tokens": "Cache write",
 };
 
 /**
@@ -99,8 +99,8 @@ function snakeToPrettyLabel(field: FieldSchema): string {
 	if (shortLabelOverrides[field.json_name]) {
 		return shortLabelOverrides[field.json_name];
 	}
-	return field.json_name
-		.split(/[._]/)
+	const words = field.json_name.split(/[._]/);
+	return words
 		.map((word) => word.charAt(0).toUpperCase() + word.slice(1))
 		.join(" ");
 }
@@ -149,7 +149,7 @@ const FieldLabel: FC<{
 		{description && (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<InfoIcon className="h-3 w-3 text-content-secondary" />
+					<InfoIcon className="size-3 text-content-secondary" />
 				</TooltipTrigger>
 				<TooltipContent side="top" className="max-w-[240px]">
 					{description}

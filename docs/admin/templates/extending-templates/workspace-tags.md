@@ -37,7 +37,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
   `feature_cache_enabled`
 
 Review the
-[full template example](https://github.com/coder/coder/tree/main/examples/workspace-tags)
+[full template example](../../../../examples/workspace-tags)
 using `coder_workspace_tags` and `coder_parameter`s.
 
 ## How it Works

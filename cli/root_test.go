@@ -22,8 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/serpent"
 )
 
@@ -98,6 +98,10 @@ func TestCommandHelp(t *testing.T) {
 			Name: "coder exp sync status --help",
 			Cmd:  []string{"exp", "sync", "status", "--help"},
 		},
+		clitest.CommandHelpCase{
+			Name: "coder exp sync list --help",
+			Cmd:  []string{"exp", "sync", "list", "--help"},
+		},
 	))
 }
 
@@ -164,9 +168,9 @@ func TestRoot(t *testing.T) {
 		t.Parallel()
 
 		var url string
-		var called int64
+		var called atomic.Int64
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			atomic.AddInt64(&called, 1)
+			called.Add(1)
 			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
 			assert.Equal(t, "Dean was Here!", r.Header.Get("Cool-Header"))
 			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
@@ -193,7 +197,7 @@ func TestRoot(t *testing.T) {
 		err := inv.Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "unexpected status code 410")
-		require.EqualValues(t, 1, atomic.LoadInt64(&called), "called exactly once")
+		require.EqualValues(t, 1, called.Load(), "called exactly once")
 	})
 }
 
@@ -217,7 +221,7 @@ func TestDERPHeaders(t *testing.T) {
 	t.Cleanup(func() {
 		_ = provisionerCloser.Close()
 	})
-	client := codersdk.New(serverURL)
+	client := codersdk.New(serverURL, codersdk.WithHTTPClient(coderdtest.NewIsolatedHTTPClient(serverURL)))
 	t.Cleanup(func() {
 		cancelFunc()
 		_ = provisionerCloser.Close()
@@ -238,7 +242,7 @@ func TestDERPHeaders(t *testing.T) {
 			"Cool-Header":       "Dean was Here!",
 			"X-Process-Testing": "very-wow",
 		}
-		derpCalled int64
+		derpCalled atomic.Int64
 	)
 	setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/derp") {
@@ -252,7 +256,7 @@ func TestDERPHeaders(t *testing.T) {
 			if ok {
 				// Only increment if all the headers are set, because the agent
 				// calls derp also.
-				atomic.AddInt64(&derpCalled, 1)
+				derpCalled.Add(1)
 			}
 		}
 
@@ -275,10 +279,7 @@ func TestDERPHeaders(t *testing.T) {
 	}
 	inv, root := clitest.New(t, args...)
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t)
-	inv.Stdin = pty.Input()
-	inv.Stderr = pty.Output()
-	inv.Stdout = pty.Output()
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	cmdDone := tGo(t, func() {
@@ -286,10 +287,10 @@ func TestDERPHeaders(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	pty.ExpectMatch("pong from " + workspace.Name)
+	stdout.ExpectMatch(ctx, "pong from "+workspace.Name)
 	<-cmdDone
 
-	require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called at least once")
+	require.Greater(t, derpCalled.Load(), int64(0), "expected /derp to be called at least once")
 }
 
 func TestHandlersOK(t *testing.T) {

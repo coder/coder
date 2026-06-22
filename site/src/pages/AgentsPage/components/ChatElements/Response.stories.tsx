@@ -39,13 +39,6 @@ func ValidateToken(token string) error {
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
 	component: Response,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		children: sampleMarkdown,
 	},
@@ -59,6 +52,100 @@ export const MarkdownAndLinks: Story = {};
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /func ValidateToken/, {
+			highlighted: true,
+		});
+	},
+};
+
+const singleLineCodeBlockMarkdown = `
+\`\`\`
+07c3697 feat: update agent skills
+\`\`\`
+`;
+
+const findCodeBlockHost = async (canvasElement: HTMLElement, text: RegExp) => {
+	let host: HTMLElement | undefined;
+	await waitFor(() => {
+		const hosts = Array.from(
+			canvasElement.querySelectorAll("diffs-container"),
+		).filter(
+			(element): element is HTMLElement => element instanceof HTMLElement,
+		);
+		host = hosts.find((element) => {
+			text.lastIndex = 0;
+			return text.test(element.shadowRoot?.textContent ?? "");
+		});
+		expect(host).toBeDefined();
+	});
+
+	if (!host) {
+		throw new Error("Expected fenced code to render inside FileViewer.");
+	}
+	return host;
+};
+
+const expectCodeBlock = async (
+	canvasElement: HTMLElement,
+	text: RegExp,
+	options: { highlighted?: boolean } = {},
+) => {
+	const host = await findCodeBlockHost(canvasElement, text);
+	expect(host).toBeInTheDocument();
+	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
+	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
+
+	expect(canvasElement.textContent ?? "").not.toContain("```");
+
+	const shadowRoot = host.shadowRoot;
+	if (!shadowRoot) {
+		throw new Error("Expected FileViewer to render code in its shadow root.");
+	}
+
+	if (options.highlighted) {
+		await waitFor(() => {
+			const token = shadowRoot.querySelector("span[style*='color']");
+			expect(token).toBeInTheDocument();
+		});
+	}
+
+	return host;
+};
+
+export const SingleLineFencedBlock: Story = {
+	args: {
+		children: singleLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /07c3697 feat/);
+	},
+};
+
+const longLineCodeBlockMarkdown = [
+	"```ts",
+	'const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };',
+	"```",
+	"",
+].join("\n");
+
+export const LongLineFencedBlock: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		viewport.scrollLeft = 200;
+		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
 	},
 };
 
@@ -124,22 +211,17 @@ export const StreamingInlineMarkdown: Story = {
 };
 
 // Verifies that an incomplete fenced code block in streaming mode
-// renders inside a code element rather than showing raw backticks.
-// The FileViewer renders a <diffs-container> web component whose
-// content lives in Shadow DOM, so we assert on DOM structure rather
-// than text content inside the web component.
+// renders as code rather than showing raw backticks.
 export const StreamingCodeFence: Story = {
 	args: {
 		children: "```ts\nconst x = 1",
 		streaming: true,
 	},
 	play: async ({ canvasElement }) => {
-		// The code fence should be parsed into a FileViewer (web component),
-		// not rendered as raw backtick text.
-		await waitFor(() => {
-			const viewer = canvasElement.querySelector("diffs-container");
-			expect(viewer).toBeInTheDocument();
+		await expectCodeBlock(canvasElement, /const x = 1/, {
+			highlighted: true,
 		});
+
 		// The raw triple-backtick should not appear as visible text.
 		const bodyText = canvasElement.textContent ?? "";
 		expect(bodyText).not.toContain("```");

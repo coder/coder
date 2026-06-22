@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"net/http"
 	"net/url"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -52,7 +54,13 @@ const (
 	prometheusContainerName = "coder-prometheus"
 	// defaultPrometheusPort avoids 2112 (agent prometheus) and
 	// 2113 (agent debug) already bound inside Coder workspaces.
-	defaultPrometheusPort  = "2114"
+	defaultPrometheusPort = "2114"
+	// portOffsetBuckets keeps the offset below 1000 while leaving
+	// enough hash buckets for common multi-worktree use.
+	portOffsetBuckets = 50
+	// portOffsetStep avoids overlap between the default API and proxy
+	// ports when two worktrees land in adjacent buckets.
+	portOffsetStep         = 20
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
@@ -62,6 +70,24 @@ const (
 )
 
 func main() {
+	// Pre-parse --env-file before serpent runs so that variables from
+	// the file are visible to serpent's Env-tag resolution for other
+	// options. The flag is also registered in the serpent OptionSet
+	// below for --help discoverability.
+	envFile, err := parseEnvFileFlag()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "develop: %v\n", err)
+		os.Exit(1)
+	}
+	if envFile != "" {
+		n, err := loadEnvFile(envFile)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "develop: error loading env file %s: %v\n", envFile, err)
+			os.Exit(1)
+		}
+		_, _ = fmt.Fprintf(os.Stderr, "develop: loaded %d variable(s) from %s\n", n, envFile)
+	}
+
 	var cfg devConfig
 
 	cmd := &serpent.Command{
@@ -97,6 +123,13 @@ func main() {
 				Value:       serpent.Int64Of(&cfg.coderMetricsPort),
 			},
 			{
+				Flag:        "port-offset",
+				Env:         "CODER_DEV_PORT_OFFSET",
+				Default:     "false",
+				Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
+				Value:       serpent.BoolOf(&cfg.portOffsetEnabled),
+			},
+			{
 				Flag:        "prometheus-server",
 				Env:         "CODER_DEV_PROMETHEUS_SERVER",
 				Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
@@ -128,14 +161,20 @@ func main() {
 				Value:       serpent.BoolOf(&cfg.useProxy),
 			},
 			{
-				Flag:        "multi-organization",
-				Description: "Create a second organization.",
-				Value:       serpent.BoolOf(&cfg.multiOrg),
-			},
-			{
 				Flag:        "debug",
 				Description: "Run under Delve debugger.",
 				Value:       serpent.BoolOf(&cfg.debug),
+			},
+			{
+				Flag:        "skip-setup",
+				Env:         "CODER_DEV_SKIP_SETUP",
+				Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
+				Value:       serpent.BoolOf(&cfg.skipSetup),
+			},
+			{
+				Flag:        "multi-organization",
+				Description: "Create a second organization.",
+				Value:       serpent.BoolOf(&cfg.multiOrg),
 			},
 			{
 				Flag:        "starter-template",
@@ -162,22 +201,29 @@ func main() {
 				Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
 				Value:       serpent.BoolOf(&cfg.dbContinue),
 			},
+			{
+				Flag:        "env-file",
+				Env:         "CODER_DEV_ENV_FILE",
+				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
+				Value:       serpent.StringOf(&cfg.envFile),
+			},
 		},
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
+			cfg.portExplicit = portExplicitFromInvocation(inv)
 
 			logger := slog.Make(sloghuman.Sink(inv.Stderr))
-			if err := cfg.validate(); err != nil {
+			if err := cfg.resolveEnv(); err != nil {
 				return err
 			}
-			if err := cfg.resolveEnv(); err != nil {
+			if err := cfg.validate(); err != nil {
 				return err
 			}
 			return develop(inv.Context(), logger, &cfg)
 		},
 	}
 
-	err := cmd.Invoke(os.Args[1:]...).WithOS().Run()
+	err = cmd.Invoke(os.Args[1:]...).WithOS().Run()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -185,27 +231,124 @@ func main() {
 }
 
 type devConfig struct {
-	apiPort          int64
-	webPort          int64
-	proxyPort        int64
-	coderMetricsPort int64
-	prometheusServer bool
-	agpl             bool
-	accessURL        string
-	password         string
-	useProxy         bool
-	multiOrg         bool
-	debug            bool
-	starterTemplate  string
-	dbRollback       bool
-	dbReset          bool
-	dbContinue       bool
-	projectRoot      string
-	binaryPath       string
-	configDir        string
-	childEnv         []string
+	apiPort           int64
+	webPort           int64
+	proxyPort         int64
+	coderMetricsPort  int64
+	portOffsetEnabled bool
+	prometheusServer  bool
+	agpl              bool
+	accessURL         string
+	password          string
+	useProxy          bool
+	debug             bool
+	skipSetup         bool
+	multiOrg          bool
+	starterTemplate   string
+	dbRollback        bool
+	dbReset           bool
+	dbContinue        bool
+	// envFile is populated by serpent for --help output; actual loading
+	// uses parseEnvFileFlag() before serpent runs.
+	envFile           string
+	projectRoot       string
+	binaryPath        string
+	configDir         string
+	childEnv          []string
+	portExplicit      portExplicit
+	portOffset        int
+	apiPortSource     portSource
+	webPortSource     portSource
+	proxyPortSource   portSource
+	metricsPortSource portSource
 	// Extra args after flags forwarded to "coder server".
 	serverExtraArgs []string
+}
+
+type portExplicit struct {
+	api     bool
+	web     bool
+	proxy   bool
+	metrics bool
+}
+
+type portSource string
+
+const (
+	portSourceDefault  portSource = "default"
+	portSourceExplicit portSource = "explicit"
+	portSourceOffset   portSource = "offset"
+)
+
+func portExplicitFromInvocation(inv *serpent.Invocation) portExplicit {
+	return portExplicit{
+		api:     isPortExplicit(inv, "port", "CODER_DEV_PORT"),
+		web:     isPortExplicit(inv, "web-port", "CODER_DEV_WEB_PORT"),
+		proxy:   isPortExplicit(inv, "proxy-port", "CODER_DEV_PROXY_PORT"),
+		metrics: isPortExplicit(inv, "prometheus-port", "CODER_DEV_PROMETHEUS_PORT"),
+	}
+}
+
+func isPortExplicit(inv *serpent.Invocation, flagName, envName string) bool {
+	if flag := inv.ParsedFlags().Lookup(flagName); flag != nil && flag.Changed {
+		return true
+	}
+	if val, ok := inv.Environ.Lookup(envName); ok && val != "" {
+		return true
+	}
+	for _, opt := range inv.Command.Options {
+		if opt.Flag == flagName {
+			return opt.ValueSource == serpent.ValueSourceFlag ||
+				opt.ValueSource == serpent.ValueSourceEnv
+		}
+	}
+	return false
+}
+
+// portOffset returns a deterministic offset in [0, 1000) derived from the
+// worktree path. Successive callers with the same projectRoot get the same
+// offset; different projectRoots get different offsets with high probability.
+func portOffset(projectRoot string) int {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(projectRoot))
+	bucket := h.Sum64() % uint64(portOffsetBuckets)
+	return int(bucket) * portOffsetStep //nolint:gosec // Bucket is less than portOffsetBuckets.
+}
+
+func (c *devConfig) applyPortOffset() {
+	c.portOffset = 0
+	if !c.portOffsetEnabled {
+		return
+	}
+	c.portOffset = portOffset(c.projectRoot)
+	if c.portExplicit.api {
+		c.apiPortSource = portSourceExplicit
+	} else {
+		c.apiPortSource = c.applyDefaultPortOffset(&c.apiPort)
+	}
+	if c.portExplicit.web {
+		c.webPortSource = portSourceExplicit
+	} else {
+		c.webPortSource = c.applyDefaultPortOffset(&c.webPort)
+	}
+	if c.portExplicit.proxy {
+		c.proxyPortSource = portSourceExplicit
+	} else {
+		c.proxyPortSource = c.applyDefaultPortOffset(&c.proxyPort)
+	}
+	if c.portExplicit.metrics {
+		c.metricsPortSource = portSourceExplicit
+	} else {
+		c.metricsPortSource = c.applyDefaultPortOffset(&c.coderMetricsPort)
+	}
+}
+
+func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
+	if c.portOffset == 0 {
+		return portSourceDefault
+	}
+	*port += int64(c.portOffset)
+	return portSourceOffset
 }
 
 func (c *devConfig) validate() error {
@@ -286,10 +429,6 @@ func (c *devConfig) validate() error {
 // resolveEnv sets defaults, unsets leaked credentials, resolves
 // filesystem paths, and computes the child process environment.
 func (c *devConfig) resolveEnv() error {
-	if strings.Contains(c.accessURL, "%d") {
-		c.accessURL = fmt.Sprintf(c.accessURL, c.apiPort)
-	}
-
 	// Prevent inherited credentials from leaking into child
 	// processes or being picked up by config reads.
 	_ = os.Unsetenv("CODER_SESSION_TOKEN")
@@ -303,6 +442,11 @@ func (c *devConfig) resolveEnv() error {
 	c.binaryPath = filepath.Join(c.projectRoot, "build",
 		fmt.Sprintf("coder_%s_%s", runtime.GOOS, runtime.GOARCH))
 	c.configDir = filepath.Join(c.projectRoot, ".coderv2")
+
+	c.applyPortOffset()
+	if strings.Contains(c.accessURL, "%d") {
+		c.accessURL = fmt.Sprintf(c.accessURL, c.apiPort)
+	}
 
 	// Compute once, reused by cmd().
 	c.childEnv = filterEnv(os.Environ(), "CODER_SESSION_TOKEN", "CODER_URL")
@@ -319,8 +463,46 @@ func (c *devConfig) cmd(ctx context.Context, bin string, args ...string) *exec.C
 	return cmd
 }
 
-// filterEnv returns env with any variables whose key matches
-// exclude removed.
+// parseEnvFileFlag extracts the --env-file value from os.Args and
+// CODER_DEV_ENV_FILE before serpent runs, so that loaded variables
+// are visible to serpent's Env-tag resolution for other options.
+func parseEnvFileFlag() (string, error) {
+	for i, arg := range os.Args[1:] {
+		if arg == "--env-file" {
+			if i+2 >= len(os.Args) {
+				return "", xerrors.New("--env-file requires a value")
+			}
+			return os.Args[i+2], nil
+		}
+		if v, ok := strings.CutPrefix(arg, "--env-file="); ok {
+			return v, nil
+		}
+	}
+	return os.Getenv("CODER_DEV_ENV_FILE"), nil
+}
+
+// loadEnvFile reads the file at path using godotenv and sets any variables
+// not already present in the process environment. It returns the number of
+// variables set.
+func loadEnvFile(path string) (int, error) {
+	vars, err := godotenv.Read(path)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	for key, val := range vars {
+		if _, exists := os.LookupEnv(key); exists {
+			continue
+		}
+		if err := os.Setenv(key, val); err != nil {
+			return n, err
+		}
+		n++
+	}
+	return n, nil
+}
+
+// filterEnv returns env with any variables whose key matches exclude removed.
 func filterEnv(env []string, exclude ...string) []string {
 	out := make([]string, 0, len(env))
 	for _, e := range env {
@@ -469,24 +651,6 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 		return err
 	}
 
-	client, err := setupFirstUser(ctx, logger, cfg, apiURL)
-	if err != nil {
-		return xerrors.Errorf("setup: %w", err)
-	}
-
-	if cfg.multiOrg {
-		if err := setupMultiOrg(ctx, logger, cfg, client, group); err != nil {
-			logger.Warn(ctx, "multi-org setup failed, continuing",
-				slog.Error(err))
-		}
-	}
-
-	if cfg.starterTemplate != "" {
-		if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
-			logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
-		}
-	}
-
 	// Update migration tracking after the server has applied
 	// any new migrations. This keeps the cache current so the
 	// next run detects mismatches correctly.
@@ -495,10 +659,30 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 			slog.Error(err))
 	}
 
-	if cfg.useProxy {
-		if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
-			logger.Warn(ctx, "proxy setup failed, continuing",
-				slog.Error(err))
+	if !cfg.skipSetup {
+		client, err := setupFirstUser(ctx, logger, cfg, apiURL)
+		if err != nil {
+			return xerrors.Errorf("setup: %w", err)
+		}
+
+		if cfg.multiOrg {
+			if err := setupMultiOrg(ctx, logger, cfg, client, group); err != nil {
+				logger.Warn(ctx, "multi-org setup failed, continuing",
+					slog.Error(err))
+			}
+		}
+
+		if cfg.starterTemplate != "" {
+			if err := setupStarterTemplate(ctx, logger, cfg, client); err != nil {
+				logger.Warn(ctx, "starter template setup failed, continuing", slog.Error(err))
+			}
+		}
+
+		if cfg.useProxy {
+			if err := setupWorkspaceProxy(ctx, cfg, client, group); err != nil {
+				logger.Warn(ctx, "proxy setup failed, continuing",
+					slog.Error(err))
+			}
 		}
 	}
 
@@ -587,9 +771,12 @@ func startServer(cfg *devConfig, group *procGroup) error {
 		"server",
 		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
 		"--swagger-enable",
-		"--access-url", cfg.accessURL,
 		"--dangerous-allow-cors-requests=true",
 		"--enable-terraform-debug-mode",
+	}
+	if cfg.accessURL != "" {
+		// Setting access url to `""` enables a `try.coder.app` url
+		serverArgs = append(serverArgs, "--access-url", cfg.accessURL)
 	}
 	if cfg.coderMetricsPort != 0 {
 		serverArgs = append(serverArgs,
@@ -1111,6 +1298,28 @@ func prometheusBannerEntry(cfg *devConfig, prometheusServerStarted bool) (label 
 	}
 }
 
+func portBannerLine(label string, port int64, source portSource, offset int) string {
+	portValue := strconv.FormatInt(port, 10)
+	if port == 0 {
+		portValue = "disabled"
+	}
+	if source == "" {
+		return fmt.Sprintf("%s: %s", label, portValue)
+	}
+	return fmt.Sprintf("%s: %s (%s)", label, portValue, portSourceLabel(source, offset))
+}
+
+func portSourceLabel(source portSource, offset int) string {
+	switch source {
+	case portSourceExplicit:
+		return fmt.Sprintf("explicit, offset +%d skipped", offset)
+	case portSourceOffset:
+		return fmt.Sprintf("offset +%d", offset)
+	default:
+		return fmt.Sprintf("default, offset +%d", offset)
+	}
+}
+
 func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
 	ifaces := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
@@ -1143,6 +1352,12 @@ func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, promet
 	line(
 		"",
 		indent("Coder is now running in development mode."),
+		"",
+		"Effective ports:",
+		indent(portBannerLine("API", cfg.apiPort, cfg.apiPortSource, cfg.portOffset)),
+		indent(portBannerLine("Web UI", cfg.webPort, cfg.webPortSource, cfg.portOffset)),
+		indent(portBannerLine("Proxy", cfg.proxyPort, cfg.proxyPortSource, cfg.portOffset)),
+		indent(portBannerLine("Coder metrics", cfg.coderMetricsPort, cfg.metricsPortSource, cfg.portOffset)),
 		"",
 		"API:",
 	)

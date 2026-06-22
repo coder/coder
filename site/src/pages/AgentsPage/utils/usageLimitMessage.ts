@@ -1,39 +1,23 @@
+import type * as TypesGen from "#/api/typesGenerated";
 import { formatCostMicros } from "#/utils/currency";
 
-/**
- * Shape of structured usage-limit fields added to 409 responses
- * from chat endpoints.
- */
-interface UsageLimitData {
-	spent_micros?: number;
-	limit_micros?: number;
-	resets_at?: string; // RFC3339
-}
-
-/**
- * Known provider failure kinds surfaced in chat retry/error events.
- */
-export type ChatProviderFailureKind =
-	| "generic"
-	| "overloaded"
-	| "rate_limit"
-	| "timeout"
-	| "startup_timeout"
-	| "auth"
-	| "config"
-	| "usage_limit";
+type UsageLimitData = Partial<
+	Pick<
+		TypesGen.ChatUsageLimitExceededResponse,
+		"spent_micros" | "limit_micros" | "resets_at"
+	>
+>;
 
 /**
  * Typed classification for errors surfaced in the agent detail view.
  * - "usage_limit": the user hit a spending cap (409 + valid usage data).
- * - other kinds come from normalized stream/provider failures such as
- *   "generic", "overloaded", "rate_limit", "timeout",
- *   "startup_timeout", "auth", and "config".
+ * - other kinds come from normalized stream/provider failures.
+ *   See ChatErrorKind for the full set.
  */
 export type ChatDetailError = {
 	message: string;
 	detail?: string;
-	kind: ChatProviderFailureKind | (string & {});
+	kind: TypesGen.ChatErrorKind;
 	provider?: string;
 	retryable?: boolean;
 	statusCode?: number;
@@ -81,11 +65,11 @@ function formatResetDate(isoString: string): string {
 }
 
 /**
- * Runtime guard that validates whether an unknown value has the shape
- * of structured usage-limit fields from a 409 response.
- * All three fields must be present with correct types.
+ * Runtime guard for the structured 409 usage-limit response.
  */
-export function isUsageLimitData(value: unknown): value is UsageLimitData {
+export function isChatUsageLimitExceededResponse(
+	value: unknown,
+): value is TypesGen.ChatUsageLimitExceededResponse {
 	if (value == null || typeof value !== "object") {
 		return false;
 	}

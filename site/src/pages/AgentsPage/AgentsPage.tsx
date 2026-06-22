@@ -5,7 +5,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useNavigate, useParams } from "react-router";
+import {
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -20,8 +25,10 @@ import {
 	chatsByWorkspaceKeyPrefix,
 	infiniteChats,
 	invalidateChatListQueries,
+	mergeWatchedChatIntoCaches,
 	pinChat,
 	prependToInfiniteChatsCache,
+	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
 	removeChildFromParentInCache,
@@ -29,20 +36,27 @@ import {
 	unarchiveChat,
 	unpinChat,
 	updateChatTitle,
-	updateChildInParentCache,
 	updateInfiniteChatsCache,
+	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import { workspaceById } from "#/api/queries/workspaces";
+import {
+	invalidateWorkspaceMutationQueries,
+	workspaceById,
+} from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -50,48 +64,43 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
 } from "./utils/usageLimitMessage";
 
-// Shallow-compare two ChatDiffStatus objects by their meaningful
-// fields, ignoring refreshed_at/stale_at which change on every poll.
-function diffStatusEqual(
-	a: TypesGen.ChatDiffStatus | undefined,
-	b: TypesGen.ChatDiffStatus | undefined,
-): boolean {
-	if (a === b) return true;
-	if (!a || !b) return false;
-	return (
-		a.url === b.url &&
-		a.pull_request_state === b.pull_request_state &&
-		a.pull_request_title === b.pull_request_title &&
-		a.pull_request_draft === b.pull_request_draft &&
-		a.changes_requested === b.changes_requested &&
-		a.additions === b.additions &&
-		a.deletions === b.deletions &&
-		a.changed_files === b.changed_files &&
-		a.pr_number === b.pr_number &&
-		a.approved === b.approved &&
-		a.commits === b.commits
-	);
-}
-
 export type { AgentsOutletContext } from "./AgentsPageView";
+
+const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"diff_status_change",
+	"status_change",
+]);
+
+export const shouldInvalidateFilteredChatList = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
-	const { permissions } = useAuthenticated();
-	const { appearance } = useDashboard();
+	const { permissions, user } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useState<"active" | "archived">(
-		"active",
+	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
+		searchParams,
+		setSearchParams,
 	);
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -136,15 +145,28 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
+	const archivedFilter = sidebarFilters.archiveStatus === "archived";
+	const chatStatusFilter =
+		sidebarFilters.chatStatuses.length === 1
+			? sidebarFilters.chatStatuses[0]
+			: undefined;
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({ archived: archivedFilter === "archived" }),
+		infiniteChats({
+			archived: archivedFilter,
+			prStatuses: sidebarFilters.prStatuses,
+			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
+		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
-	// subscribe to the same queries independently — react-query
+	// subscribe to the same queries independently, and react-query
 	// deduplicates the requests.
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
+	const personalModelOverridesQuery = useQuery(
+		userChatPersonalModelOverrides(),
+	);
 	const [chatErrorReasons, setChatErrorReasons] = useState<
 		Record<string, ChatDetailError>
 	>({});
@@ -187,6 +209,8 @@ const AgentsPage: FC = () => {
 		...archiveChatBase,
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -209,6 +233,8 @@ const AgentsPage: FC = () => {
 			),
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
@@ -216,6 +242,10 @@ const AgentsPage: FC = () => {
 			});
 			await queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			await invalidateWorkspaceMutationQueries(queryClient, {
+				organizationName,
+				username: user.username,
 			});
 		},
 		onError: (error) => {
@@ -267,6 +297,7 @@ const AgentsPage: FC = () => {
 			toast.error(getErrorMessage(error, "Failed to generate new title."));
 		},
 	});
+	const proposeTitleMutation = useMutation(proposeChatTitle(queryClient));
 	const renameTitleMutation = useMutation({
 		...updateChatTitle(queryClient),
 		onError: (error: unknown) => {
@@ -342,7 +373,7 @@ const AgentsPage: FC = () => {
 					: undefined,
 			)
 		) {
-			navigate("/agents");
+			navigate({ pathname: "/agents", search: location.search });
 		}
 	};
 
@@ -356,9 +387,23 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
 				() =>
-					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-						?.created_at,
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
+				() =>
+					readInfiniteChatsCache(queryClient)?.find(
+						(chat) => chat.id === chatId,
+					)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -459,7 +504,7 @@ const AgentsPage: FC = () => {
 		return promise;
 	};
 	const requestProposeTitle = async (chatId: string): Promise<string> => {
-		const result = await API.experimental.proposeChatTitle(chatId);
+		const result = await proposeTitleMutation.mutateAsync(chatId);
 		return result.title;
 	};
 	const requestRenameTitle = async (chatId: string, title: string) => {
@@ -475,7 +520,7 @@ const AgentsPage: FC = () => {
 		if (!agentId) {
 			localStorage.removeItem(emptyInputStorageKey);
 		}
-		navigate("/agents");
+		navigate({ pathname: "/agents", search: location.search });
 	};
 
 	useEffect(() => {
@@ -500,6 +545,7 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
+		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -513,13 +559,9 @@ const AgentsPage: FC = () => {
 					}
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
-					// Read the previous status from the infinite chat list
-					// cache before we write the update below. The per-chat
-					// query cache (chatKey) only exists for chats the user
-					// has opened, so reading from the list cache ensures
-					// prevStatus is available for background agents too.
+					// The old membership is only available before the cache write below.
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(c) => c.id === updatedChat.id,
+						(chat) => chat.id === updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
@@ -549,7 +591,7 @@ const AgentsPage: FC = () => {
 						return;
 					}
 					if (chatEvent.kind === "diff_status_change") {
-						// Only refetch the diff file contents — the chat's
+						// Only refetch the diff file contents. The chat's
 						// diff_status field is already written into the
 						// chatKey and infinite-list caches below.
 						void queryClient.invalidateQueries({
@@ -557,14 +599,8 @@ const AgentsPage: FC = () => {
 							exact: true,
 						});
 					}
-					// Scope field updates by event kind so that
-					// status_change events (which may carry a stale title
-					// snapshot from before async title generation
-					// finished) don't clobber a title_change that already
-					// landed.
-					const isTitleEvent = chatEvent.kind === "title_change";
-					const isStatusEvent = chatEvent.kind === "status_change";
-					const isDiffStatusEvent = chatEvent.kind === "diff_status_change";
+					// Merge watch payloads by event kind so stale field
+					// snapshots do not clobber fresher cached metadata.
 
 					// Cancel in-flight list and per-chat refetches so
 					// they cannot overwrite the cache update below with
@@ -587,11 +623,6 @@ const AgentsPage: FC = () => {
 						});
 					}
 
-					// For "created" events, use a cross-page existence
-					// check and prepend only to the first page.
-					// updateInfiniteChatsCache runs the updater per
-					// page, so a naive prepend would duplicate the
-					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
 							// Child chat: add to its parent's children
@@ -604,119 +635,17 @@ const AgentsPage: FC = () => {
 							);
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
+							void invalidateChatListQueries(queryClient);
 						}
 					} else {
-						// Build a field updater shared between root and
-						// child cache update paths.
-						const applyFields = (c: TypesGen.Chat): TypesGen.Chat => {
-							const nextStatus = isStatusEvent ? updatedChat.status : c.status;
-							const nextTitle = isTitleEvent ? updatedChat.title : c.title;
-							const nextDiffStatus = isDiffStatusEvent
-								? updatedChat.diff_status
-								: c.diff_status;
-							const nextWorkspaceId =
-								updatedChat.workspace_id ?? c.workspace_id;
-							const nextBuildId = updatedChat.build_id ?? c.build_id;
-							const nextUpdatedAt =
-								c.updated_at > updatedChat.updated_at
-									? c.updated_at
-									: updatedChat.updated_at;
-							// The server's pubsub path does not compute
-							// has_unread (it always sends false). For
-							// status_change events on non-active chats,
-							// optimistically mark as unread since the
-							// assistant produced new output.
-							const nextHasUnread =
-								isStatusEvent && updatedChat.id !== activeChatIDRef.current
-									? true
-									: c.has_unread;
-							if (
-								nextStatus === c.status &&
-								nextTitle === c.title &&
-								diffStatusEqual(nextDiffStatus, c.diff_status) &&
-								nextWorkspaceId === c.workspace_id &&
-								nextBuildId === c.build_id &&
-								nextHasUnread === c.has_unread
-							) {
-								return c;
-							}
-							return {
-								...c,
-								status: nextStatus,
-								title: nextTitle,
-								diff_status: nextDiffStatus,
-								workspace_id: nextWorkspaceId,
-								build_id: nextBuildId,
-								updated_at: nextUpdatedAt,
-								has_unread: nextHasUnread,
-							};
-						};
-
-						// Try root-level update first.
-						updateInfiniteChatsCache(queryClient, (chats) => {
-							let didUpdate = false;
-							const nextChats = chats.map((c) => {
-								if (c.id !== updatedChat.id) return c;
-								const result = applyFields(c);
-								if (result !== c) didUpdate = true;
-								return result;
-							});
-							return didUpdate ? nextChats : chats;
+						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
+							eventKind: chatEvent.kind,
+							activeChatId: activeChatIDRef.current,
 						});
-
-						// Also update inside parent's children array
-						// in case the event targets a child chat.
-						updateChildInParentCache(queryClient, applyFields, updatedChat.id);
+						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
+							void invalidateChatListQueries(queryClient);
+						}
 					}
-					queryClient.setQueryData<TypesGen.Chat | undefined>(
-						chatKey(updatedChat.id),
-						(previousChat) => {
-							if (!previousChat) {
-								return previousChat;
-							}
-							// Only create a new object if a field actually
-							// changed. Returning the same reference prevents
-							// react-query from notifying subscribers, avoiding
-							// unnecessary re-renders of AgentChatPage during
-							// streaming when repeated status_change events
-							// carry the same "running" status.
-							const nextStatus = isStatusEvent
-								? updatedChat.status
-								: previousChat.status;
-							const nextTitle = isTitleEvent
-								? updatedChat.title
-								: previousChat.title;
-							const nextDiffStatus = isDiffStatusEvent
-								? updatedChat.diff_status
-								: previousChat.diff_status;
-							const nextWorkspaceId =
-								updatedChat.workspace_id ?? previousChat.workspace_id;
-							const nextBuildId = updatedChat.build_id ?? previousChat.build_id;
-							const nextUpdatedAt =
-								previousChat.updated_at > updatedChat.updated_at
-									? previousChat.updated_at
-									: updatedChat.updated_at;
-
-							if (
-								nextStatus === previousChat.status &&
-								nextTitle === previousChat.title &&
-								diffStatusEqual(nextDiffStatus, previousChat.diff_status) &&
-								nextWorkspaceId === previousChat.workspace_id &&
-								nextBuildId === previousChat.build_id
-							) {
-								return previousChat;
-							}
-							return {
-								...previousChat,
-								status: nextStatus,
-								title: nextTitle,
-								diff_status: nextDiffStatus,
-								workspace_id: nextWorkspaceId,
-								build_id: nextBuildId,
-								updated_at: nextUpdatedAt,
-							};
-						},
-					);
 				});
 				return ws;
 			},
@@ -728,6 +657,7 @@ const AgentsPage: FC = () => {
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
+		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -749,10 +679,12 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
-				logoUrl={appearance.logo_url}
 				handleNewAgent={handleNewAgent}
+				isSearchDialogOpen={isSearchDialogOpen}
+				onSearchDialogOpenChange={setIsSearchDialogOpen}
 				isCreating={false}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
@@ -776,12 +708,15 @@ const AgentsPage: FC = () => {
 				onRenameTitle={requestRenameTitle}
 				regeneratingTitleChatIds={regeneratingTitleChatIds}
 				onToggleSidebarCollapsed={handleToggleSidebarCollapsed}
+				isPersonalModelOverridesEnabled={
+					personalModelOverridesQuery.data?.enabled
+				}
 				isAgentsAdmin={isAgentsAdmin}
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
-				archivedFilter={archivedFilter}
-				onArchivedFilterChange={setArchivedFilter}
+				sidebarFilters={sidebarFilters}
+				onSidebarFiltersChange={setSidebarFilters}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

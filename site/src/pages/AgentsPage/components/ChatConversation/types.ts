@@ -1,11 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ReconnectSchedule } from "#/utils/reconnectingWebSocket";
-import type { ChatProviderFailureKind } from "../../utils/usageLimitMessage";
 
 export type ParsedToolCall = {
 	id: string;
 	name: string;
 	args?: unknown;
+	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 };
 
@@ -26,6 +26,7 @@ export type MergedTool = {
 	status: "completed" | "error" | "running";
 	mcpServerConfigId?: string;
 	modelIntent?: string;
+	parsedCommands?: readonly string[][];
 	/** Set when a process_signal killed/terminated this process. */
 	killedBySignal?: "kill" | "terminate";
 };
@@ -70,7 +71,7 @@ export type ReconnectState = ReconnectSchedule;
 export type RetryState = {
 	attempt: number;
 	error: string;
-	kind: ChatProviderFailureKind | (string & {});
+	kind: TypesGen.ChatErrorKind;
 	provider?: string;
 	delayMs?: number;
 	retryingAt?: string;
@@ -81,6 +82,7 @@ type StreamToolCall = {
 	name: string;
 	args?: unknown;
 	argsRaw?: string;
+	parsedCommands?: readonly string[][];
 	mcpServerConfigId?: string;
 	modelIntent?: string;
 };
@@ -91,6 +93,8 @@ type StreamToolResult = {
 	result?: unknown;
 	resultRaw?: string;
 	isError: boolean;
+	/** True while result deltas are still accumulating before the final result. */
+	isStreaming?: boolean;
 	mcpServerConfigId?: string;
 };
 

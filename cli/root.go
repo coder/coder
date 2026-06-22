@@ -27,7 +27,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/mattn/go-isatty"
 	"github.com/mitchellh/go-wordwrap"
 	"golang.org/x/mod/semver"
@@ -164,7 +163,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.promptExample(),
 		r.rptyCommand(),
 		r.syncCommand(),
-		r.agentsCommand(),
 	}
 }
 
@@ -345,10 +343,11 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 					// support links.
 					return
 				}
-				if cmd.Name() == "boundary" {
-					// The boundary command is integrated from the boundary package
-					// and has YAML-only options (e.g., allowlist from config file)
-					// that don't have flags or env vars.
+				if cmd.Name() == "agent-firewall" || cmd.Name() == "boundary" {
+					// The agent-firewall command (and its "boundary" alias) is
+					// integrated from the boundary package and has YAML-only
+					// options (e.g., allowlist from config file) that don't
+					// have flags or env vars.
 					return
 				}
 				merr = errors.Join(
@@ -808,27 +807,23 @@ func (r *RootCmd) HeaderTransport(ctx context.Context, serverURL *url.URL) (*cod
 }
 
 func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*http.Client, error) {
-	transport := http.DefaultTransport
-
-	// Apply custom TLS config if specified
-	if r.tlsConfig != nil {
-		// Clone the default transport and apply TLS config
-		defaultTransport, ok := http.DefaultTransport.(*http.Transport)
-		if !ok {
-			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
-		}
-		customTransport := defaultTransport.Clone()
-		customTransport.TLSClientConfig = r.tlsConfig
-		transport = customTransport
+	baseTransport, err := newHTTPTransport(r.tlsConfig)
+	if err != nil {
+		return nil, err
 	}
+	transport := baseTransport
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
 	if !r.noVersionCheck {
+		buildInfoTransport, err := newHTTPTransport(r.tlsConfig)
+		if err != nil {
+			return nil, err
+		}
 		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL)
+			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: buildInfoTransport}))
 			return basicClient.BuildInfo(ctx)
 		})
 	}
@@ -846,6 +841,25 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	return &http.Client{
 		Transport: headerTransport,
 	}, nil
+}
+
+func newHTTPTransport(tlsConfig *tls.Config) (http.RoundTripper, error) {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		if tlsConfig != nil {
+			return nil, xerrors.New("cannot apply TLS config: http.DefaultTransport is not *http.Transport")
+		}
+		return http.DefaultTransport, nil
+	}
+
+	// Clone http.DefaultTransport for each CLI client. Parallel tests and
+	// embedded callers may close idle connections on their own clients, and
+	// sharing the process-global transport can interrupt in-flight requests.
+	transport := defaultTransport.Clone()
+	if tlsConfig != nil {
+		transport.TLSClientConfig = tlsConfig
+	}
+	return transport, nil
 }
 
 func (r *RootCmd) createUnauthenticatedClient(ctx context.Context, serverURL *url.URL, inv *serpent.Invocation) (*codersdk.Client, error) {
@@ -1071,36 +1085,6 @@ func (o *OrganizationContext) Selected(inv *serpent.Invocation, client *codersdk
 	return codersdk.Organization{}, xerrors.Errorf("Must select an organization with --org=<org_name>. Choose from: %s", strings.Join(validOrgs, ", "))
 }
 
-func splitNamedWorkspace(identifier string) (owner string, workspaceName string, err error) {
-	parts := strings.Split(identifier, "/")
-
-	switch len(parts) {
-	case 1:
-		owner = codersdk.Me
-		workspaceName = parts[0]
-	case 2:
-		owner = parts[0]
-		workspaceName = parts[1]
-	default:
-		return "", "", xerrors.Errorf("invalid workspace name: %q", identifier)
-	}
-	return owner, workspaceName, nil
-}
-
-// namedWorkspace fetches and returns a workspace by an identifier, which may be either
-// a bare name (for a workspace owned by the current user) or a "user/workspace" combination,
-// where user is either a username or UUID.
-func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier string) (codersdk.Workspace, error) {
-	if uid, err := uuid.Parse(identifier); err == nil {
-		return client.Workspace(ctx, uid)
-	}
-	owner, name, err := splitNamedWorkspace(identifier)
-	if err != nil {
-		return codersdk.Workspace{}, err
-	}
-	return client.WorkspaceByOwnerAndName(ctx, owner, name, codersdk.WorkspaceOptions{})
-}
-
 func initAppearance(ctx context.Context, client *codersdk.Client) codersdk.AppearanceConfig {
 	// best effort
 	cfg, _ := client.Appearance(ctx)
@@ -1304,6 +1288,12 @@ func (e *exitError) Error() string {
 
 func (e *exitError) Unwrap() error {
 	return e.err
+}
+
+// ExitCode returns the OS exit code that the CLI will use when this error is
+// returned from a command handler.
+func (e *exitError) ExitCode() int {
+	return e.code
 }
 
 // ExitError returns an error that will cause the CLI to exit with the given

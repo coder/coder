@@ -67,6 +67,7 @@ type Options struct {
 	BrowserOnly                bool
 	EntitlementsUpdateInterval time.Duration
 	SCIMAPIKey                 []byte
+	UseLegacySCIM              bool
 	UserWorkspaceQuota         int
 	ProxyHealthInterval        time.Duration
 	LicenseOptions             *LicenseOptions
@@ -108,8 +109,9 @@ func NewWithAPI(t *testing.T, options *Options) (
 		AuditLogging:               options.AuditLogging,
 		BrowserOnly:                options.BrowserOnly,
 		SCIMAPIKey:                 options.SCIMAPIKey,
+		UseLegacySCIM:              options.UseLegacySCIM,
 		DERPServerRelayAddress:     serverURL.String(),
-		DERPServerRegionID:         oop.BaseDERPMap.RegionIDs()[0],
+		DERPServerRegionID:         int(oop.DeploymentValues.DERP.Server.RegionID.Value()),
 		ReplicaSyncUpdateInterval:  options.ReplicaSyncUpdateInterval,
 		ReplicaErrorGracePeriod:    options.ReplicaErrorGracePeriod,
 		Options:                    oop,

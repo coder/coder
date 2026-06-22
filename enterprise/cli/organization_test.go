@@ -16,8 +16,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestCreateOrganizationRoles(t *testing.T) {
@@ -138,13 +138,13 @@ func TestShowOrganizations(t *testing.T) {
 
 		inv, root := clitest.New(t, "organizations", "show", "--only-id", "--org="+first.OrganizationID.String())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch(first.OrganizationID.String())
+		stdout.ExpectMatch(ctx, first.OrganizationID.String())
 	})
 
 	t.Run("UsingFlag", func(t *testing.T) {
@@ -179,13 +179,13 @@ func TestShowOrganizations(t *testing.T) {
 
 		inv, root := clitest.New(t, "organizations", "show", "selected", "--only-id", "-O=bar")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		errC := make(chan error)
 		go func() {
 			errC <- inv.Run()
 		}()
 		require.NoError(t, <-errC)
-		pty.ExpectMatch(orgs["bar"].ID.String())
+		stdout.ExpectMatch(ctx, orgs["bar"].ID.String())
 	})
 }
 

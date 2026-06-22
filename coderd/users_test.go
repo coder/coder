@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -231,6 +232,59 @@ func TestPostLogin(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	// "hunter2" was the input of the previous hardcoded simulated hash, which
+	// an empty stored hash wrongly matched; this is a regression test.
+	t.Run("NonexistentUser401", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "does-not-exist@coder.com",
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+	})
+
+	// Attempting built-in login as an SSO user returns a 401 to avoid
+	// divulging login type.
+	t.Run("SSOReturns401", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// An SSO user has no password hash stored. Create one directly in the
+		// database since the API requires OIDC to be configured. dbgen.User
+		// substitutes a random hash for an empty one, so clear it explicitly.
+		ssoUser := dbgen.User(t, db, database.User{
+			Email:     "sso-user@coder.com",
+			LoginType: database.LoginTypeOIDC,
+		})
+		//nolint:gocritic // Test setup requires a system context to clear the hash.
+		err := db.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             ssoUser.ID,
+			HashedPassword: []byte{},
+		})
+		require.NoError(t, err)
+
+		anonClient := codersdk.New(client.URL)
+		_, err = anonClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    ssoUser.Email,
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+		// The login type must not be leaked.
+		require.NotContains(t, apiErr.Message, string(codersdk.LoginTypeOIDC))
 	})
 
 	t.Run("Suspended", func(t *testing.T) {
@@ -941,8 +995,9 @@ func TestPostUsers(t *testing.T) {
 
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
-			"email": email,
-			"sub":   uuid.NewString(),
+			"email":          email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")
@@ -1517,6 +1572,57 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
 	})
 
+	t.Run("UserAdminCannotResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := userAdmin.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "user-admin should not be able to reset owner password")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
+	})
+
+	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherOwner, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "another-owner@coder.com",
+			Username:        "another-owner",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserRoles(ctx, anotherOwner.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOwner().String()},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, anotherOwner.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "owner should be able to reset another owner's password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "another-owner@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "other owner should login with the new password")
+	})
+
 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
 		t.Parallel()
 
@@ -1818,6 +1924,365 @@ func TestUserTerminalFont(t *testing.T) {
 	})
 }
 
+func TestUserThemeMode(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	t.Run("defaults to empty", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		initial, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		// A fresh user has never written any theme_* key. The GET handler
+		// should return empty strings rather than error out.
+		require.Equal(t, codersdk.ThemeModeUnset, initial.ThemeMode)
+		require.Equal(t, "", initial.ThemeLight)
+		require.Equal(t, "", initial.ThemeDark)
+	})
+
+	t.Run("sync mode roundtrip", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThemeModeSync, updated.ThemeMode)
+		require.Equal(t, "light-tritan", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+
+		// Fetched values should match.
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThemeModeSync, fetched.ThemeMode)
+		require.Equal(t, "light-tritan", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+	})
+
+	t.Run("sync mode accepts any concrete theme per slot", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "dark-tritan",
+			ThemeDark:       "light-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThemeModeSync, updated.ThemeMode)
+		require.Equal(t, "dark-tritan", updated.ThemeLight)
+		require.Equal(t, "light-tritan", updated.ThemeDark)
+	})
+
+	t.Run("empty theme_mode is accepted for back-compat", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// A concrete legacy preference plus an unset mode is enough for
+		// modern clients to treat the user as single mode. The server does
+		// not write the new fields for old clients because doing so would
+		// erase existing sync settings.
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "dark", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeUnset, updated.ThemeMode)
+		require.Equal(t, "", updated.ThemeLight)
+		require.Equal(t, "", updated.ThemeDark)
+	})
+
+	t.Run("omitted theme fields preserve sync settings", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "dark", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSync, updated.ThemeMode)
+		require.Equal(t, "light-tritan", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "dark", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSync, fetched.ThemeMode)
+		require.Equal(t, "light-tritan", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("single mode with omitted slots preserves sync settings", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			ThemeMode:       codersdk.ThemeModeSingle,
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "dark", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, updated.ThemeMode)
+		require.Equal(t, "light-tritan", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "dark", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, fetched.ThemeMode)
+		require.Equal(t, "light-tritan", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("single mode with explicit slots updates slots", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light-tritan",
+			ThemeMode:       codersdk.ThemeModeSingle,
+			ThemeLight:      "dark-tritan",
+			ThemeDark:       "light-protan-deuter",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "light-tritan", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, updated.ThemeMode)
+		require.Equal(t, "dark-tritan", updated.ThemeLight)
+		require.Equal(t, "light-protan-deuter", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "light-tritan", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, fetched.ThemeMode)
+		require.Equal(t, "dark-tritan", fetched.ThemeLight)
+		require.Equal(t, "light-protan-deuter", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("single mode with one explicit slot updates only that slot", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "light",
+			ThemeMode:       codersdk.ThemeModeSingle,
+			ThemeLight:      "light-protan-deuter",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "light", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, updated.ThemeMode)
+		require.Equal(t, "light-protan-deuter", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "light", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeSingle, fetched.ThemeMode)
+		require.Equal(t, "light-protan-deuter", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("legacy auto with omitted theme_mode clears mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark-tritan",
+			ThemeMode:       codersdk.ThemeModeSync,
+			ThemeLight:      "light-tritan",
+			ThemeDark:       "dark-tritan",
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "auto",
+			TerminalFont:    codersdk.TerminalFontFiraCode,
+		})
+		require.NoError(t, err)
+		require.Equal(t, "auto", updated.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeUnset, updated.ThemeMode)
+		require.Equal(t, "light-tritan", updated.ThemeLight)
+		require.Equal(t, "dark-tritan", updated.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, updated.TerminalFont)
+
+		fetched, err := client.GetUserAppearanceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, "auto", fetched.ThemePreference)
+		require.Equal(t, codersdk.ThemeModeUnset, fetched.ThemeMode)
+		require.Equal(t, "light-tritan", fetched.ThemeLight)
+		require.Equal(t, "dark-tritan", fetched.ThemeDark)
+		require.Equal(t, codersdk.TerminalFontFiraCode, fetched.TerminalFont)
+	})
+
+	t.Run("invalid theme_mode is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+			ThemePreference: "dark",
+			ThemeMode:       codersdk.ThemeMode("wizard"),
+			TerminalFont:    codersdk.TerminalFontGeistMono,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+	})
+
+	t.Run("invalid theme slots are rejected", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, tc := range []struct {
+			name       string
+			themeMode  codersdk.ThemeMode
+			themeLight string
+			themeDark  string
+		}{
+			{
+				name:       "arbitrary light slot",
+				themeMode:  codersdk.ThemeModeSync,
+				themeLight: "../../etc/passwd",
+				themeDark:  "dark",
+			},
+			{
+				name:       "arbitrary dark slot",
+				themeMode:  codersdk.ThemeModeSync,
+				themeLight: "light",
+				themeDark:  "xss-payload",
+			},
+			{
+				name:       "empty light slot in sync mode",
+				themeMode:  codersdk.ThemeModeSync,
+				themeLight: "",
+				themeDark:  "dark",
+			},
+			{
+				name:       "empty dark slot in sync mode",
+				themeMode:  codersdk.ThemeModeSync,
+				themeLight: "light",
+				themeDark:  "",
+			},
+			{
+				name:       "arbitrary light slot in single mode",
+				themeMode:  codersdk.ThemeModeSingle,
+				themeLight: "../../etc/passwd",
+			},
+			{
+				name:      "arbitrary dark slot with omitted mode",
+				themeDark: "xss-payload",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := client.UpdateUserAppearanceSettings(ctx, codersdk.Me, codersdk.UpdateUserAppearanceSettingsRequest{
+					ThemePreference: "dark",
+					ThemeMode:       tc.themeMode,
+					ThemeLight:      tc.themeLight,
+					ThemeDark:       tc.themeDark,
+					TerminalFont:    codersdk.TerminalFontGeistMono,
+				})
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			})
+		}
+	})
+}
+
 func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 	t.Parallel()
 
@@ -1852,7 +2317,7 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// When: user dismisses the task notification alert
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
@@ -1870,19 +2335,350 @@ func TestUserTaskNotificationAlertDismissed(t *testing.T) {
 
 		// Given: user has dismissed the task notification alert
 		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: true,
+			TaskNotificationAlertDismissed: ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
 		// When: the task notification alert dismissal is cleared
 		// (e.g., when user enables a task notification in the UI settings)
 		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-			TaskNotificationAlertDismissed: false,
+			TaskNotificationAlertDismissed: ptr.Ref(false),
 		})
 		require.NoError(t, err)
 
 		// Then: the setting is updated to false
 		require.False(t, updated.TaskNotificationAlertDismissed)
+	})
+}
+
+func TestThinkingDisplayMode(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	t.Run("defaults to auto", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAuto, settings.ThinkingDisplayMode)
+	})
+
+	t.Run("round-trips a valid mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysCollapsed,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysCollapsed, updated.ThinkingDisplayMode)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysCollapsed, settings.ThinkingDisplayMode)
+	})
+
+	t.Run("rejects invalid mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: "bogus",
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("empty mode preserves stored value", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		// Set a non-default mode.
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModePreview,
+		})
+		require.NoError(t, err)
+
+		// Send an update that omits thinking_display_mode (zero value).
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			TaskNotificationAlertDismissed: ptr.Ref(true),
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
+	})
+}
+
+func TestAgentChatSendShortcutPreference(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	requireValidationField := func(t *testing.T, err error, field string) {
+		t.Helper()
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, field, sdkErr.Validations[0].Field)
+	}
+
+	t.Run("defaults to enter", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutEnter, settings.AgentChatSendShortcut)
+	})
+
+	t.Run("round-trips shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcutModifierEnter,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, updated.AgentChatSendShortcut)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, settings.AgentChatSendShortcut)
+	})
+
+	t.Run("rejects invalid shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcut("bogus"),
+		})
+		requireValidationField(t, err, "agent_chat_send_shortcut")
+	})
+
+	t.Run("updates preserve stored shortcut", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			AgentChatSendShortcut: codersdk.AgentChatSendShortcutModifierEnter,
+			ThinkingDisplayMode:   codersdk.ThinkingDisplayModePreview,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode: codersdk.ThinkingDisplayModeAlwaysExpanded,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModeAlwaysExpanded, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentChatSendShortcutModifierEnter, updated.AgentChatSendShortcut)
+	})
+}
+
+func TestAgentDisplayModePreferences(t *testing.T) {
+	t.Parallel()
+
+	adminClient := coderdtest.New(t, nil)
+	firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+	requireValidationField := func(t *testing.T, err error, field string) {
+		t.Helper()
+
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, field, sdkErr.Validations[0].Field)
+	}
+
+	t.Run("defaults shell tools to always collapsed", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.ShellToolDisplayMode)
+		require.Empty(t, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("round-trips shell tool display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, mode := range []codersdk.AgentDisplayMode{
+			codersdk.AgentDisplayModeAlwaysExpanded,
+			codersdk.AgentDisplayModeAlwaysCollapsed,
+		} {
+			updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+				ShellToolDisplayMode: mode,
+			})
+			require.NoError(t, err)
+			require.Equal(t, mode, updated.ShellToolDisplayMode)
+
+			settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, mode, settings.ShellToolDisplayMode)
+		}
+	})
+
+	t.Run("round-trips code diff display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, mode := range []codersdk.AgentDisplayMode{
+			codersdk.AgentDisplayModeAlwaysExpanded,
+			codersdk.AgentDisplayModeAlwaysCollapsed,
+		} {
+			updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+				CodeDiffDisplayMode: mode,
+			})
+			require.NoError(t, err)
+			require.Equal(t, mode, updated.CodeDiffDisplayMode)
+
+			settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+			require.NoError(t, err)
+			require.Equal(t, mode, settings.CodeDiffDisplayMode)
+		}
+	})
+
+	t.Run("updates preserve stored display modes", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ThinkingDisplayMode:  codersdk.ThinkingDisplayModePreview,
+			ShellToolDisplayMode: codersdk.AgentDisplayModeAlwaysCollapsed,
+			CodeDiffDisplayMode:  codersdk.AgentDisplayModeAlwaysExpanded,
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+			ShellToolDisplayMode: codersdk.AgentDisplayModeAlwaysExpanded,
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, updated.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.ShellToolDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, updated.CodeDiffDisplayMode)
+
+		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ThinkingDisplayModePreview, settings.ThinkingDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.ShellToolDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysExpanded, settings.CodeDiffDisplayMode)
+	})
+
+	t.Run("rejects invalid shell tool display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, tt := range []struct {
+			name string
+			mode codersdk.AgentDisplayMode
+		}{
+			{
+				name: "bogus",
+				mode: codersdk.AgentDisplayMode("bogus"),
+			},
+			{
+				name: "thinking preview",
+				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+					ShellToolDisplayMode: tt.mode,
+				})
+				requireValidationField(t, err, "shell_tool_display_mode")
+			})
+		}
+	})
+
+	t.Run("rejects invalid code diff display mode", func(t *testing.T) {
+		t.Parallel()
+
+		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+
+		for _, tt := range []struct {
+			name string
+			mode codersdk.AgentDisplayMode
+		}{
+			{
+				name: "bogus",
+				mode: codersdk.AgentDisplayMode("bogus"),
+			},
+			{
+				name: "thinking preview",
+				mode: codersdk.AgentDisplayMode(codersdk.ThinkingDisplayModePreview),
+			},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
+					CodeDiffDisplayMode: tt.mode,
+				})
+				requireValidationField(t, err, "code_diff_display_mode")
+			})
+		}
 	})
 }
 

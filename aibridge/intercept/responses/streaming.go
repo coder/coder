@@ -16,10 +16,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -37,23 +37,19 @@ type StreamingResponsesInterceptor struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingResponsesInterceptor {
 	return &StreamingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
-			id:             id,
-			providerName:   providerName,
-			reqPayload:     reqPayload,
-			cfg:            cfg,
-			clientHeaders:  clientHeaders,
-			authHeaderName: authHeaderName,
-			tracer:         tracer,
-			credential:     cred,
+			id:            id,
+			reqPayload:    reqPayload,
+			cfg:           cfg,
+			cred:          cred,
+			clientHeaders: clientHeaders,
+			tracer:        tracer,
 		},
 	}
 }
@@ -76,6 +72,7 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
 	if err := i.validateRequest(ctx, w); err != nil {
@@ -103,41 +100,108 @@ func (i *StreamingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r 
 		i.logger.Warn(ctx, "failed to get user prompt", slog.Error(err))
 	}
 	shouldLoop := true
-	srv := i.newResponsesService()
+	srv := i.newResponsesService(ctx)
+
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
 
 	for shouldLoop {
 		shouldLoop = false
 
-		respCopy = responseCopier{}
-		opts := i.requestOptions(&respCopy)
-
-		// TODO(ssncferreira): inject actor headers directly in the client-header
-		//   middleware instead of using SDK options.
-		if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
-			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
+		// A pool credential advances its failover walker. An iteration is an
+		// agentic continuation or a failover retry after the previous key was
+		// marked. BYOK has no pool and runs as a single attempt.
+		var walker *keypool.Walker
+		cp, isPool := intercept.AsCentralizedPool(i.cred)
+		if isPool {
+			walker = cp.Pool.Walker()
 		}
-		stream := i.newStream(ctx, srv, opts)
+
+		// Failover sub-loop: try keys until a stream starts
+		// successfully or we hit a non-recoverable error.
+		var stream *ssestream.Stream[responses.ResponseStreamEventUnion]
+		var startErr error
+		for {
+			respCopy = responseCopier{}
+			opts := i.requestOptions(&respCopy)
+
+			// TODO(ssncferreira): inject actor headers directly in the client-header
+			//   middleware instead of using SDK options.
+			if actor := aibcontext.ActorFromContext(r.Context()); actor != nil && i.cfg.SendActorHeaders {
+				opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
+			}
+
+			var currentPoolKey *keypool.Key
+			if isPool && walker != nil {
+				key, keyPoolErr := cp.NextKey(walker)
+				if keyPoolErr != nil {
+					// Pool exhausted: write the error directly. In
+					// agentic mode the inner loop buffers events
+					// instead of streaming them downstream, so the
+					// SSE connection has not been opened yet.
+					totalKeyAttempts += walker.Attempts()
+					i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
+					return xerrors.Errorf("key pool exhausted: %w", keyPoolErr)
+				}
+
+				i.logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+				currentPoolKey = key
+				opts = append(opts,
+					option.WithAPIKey(key.Value()),
+					// Disable SDK retries because the failover
+					// loop handles retries via key rotation.
+					option.WithMaxRetries(0),
+				)
+			}
+
+			stream = i.newStream(ctx, srv, opts)
+			if upstreamErr := stream.Err(); upstreamErr != nil {
+				// Pre-stream failure of this attempt. For
+				// centralized requests, mark the key and
+				// retry with the next one.
+				if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, upstreamErr) {
+					stream.Close()
+					continue
+				}
+				// Non-key error: stop trying and let the
+				// existing handling below report it.
+				startErr = upstreamErr
+				break
+			}
+			// Stream started successfully: commit to this key.
+			break
+		}
+
+		if isPool {
+			totalKeyAttempts += walker.Attempts()
+		}
 
 		// func scope to defer steam.Close()
 		err := func() error {
 			defer stream.Close()
 
-			if upstreamErr := stream.Err(); upstreamErr != nil {
+			if startErr != nil {
 				// events stream should never be initialized
 				if events.IsStreaming() {
 					i.logger.Warn(ctx, "event stream was initialized when no response was received from upstream")
-					return upstreamErr
+					return startErr
 				}
 
 				// no response received from upstream (eg. client/connection error), return custom error
 				if !respCopy.responseReceived.Load() {
-					i.sendCustomErr(ctx, w, http.StatusInternalServerError, upstreamErr)
-					return upstreamErr
+					i.sendCustomErr(ctx, w, http.StatusInternalServerError, startErr)
+					return startErr
 				}
 
 				// forward received response as-is
 				err := respCopy.forwardResp(w)
-				return errors.Join(upstreamErr, err)
+				return errors.Join(startErr, err)
 			}
 
 			for stream.Next() {

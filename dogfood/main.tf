@@ -51,6 +51,13 @@ variable "CODER_DOGFOOD_ANTHROPIC_API_KEY" {
   sensitive   = true
 }
 
+variable "CODER_DOGFOOD_OPENAI_API_KEY" {
+  type        = string
+  description = "The API key that workspaces will use to authenticate with the OpenAI API."
+  default     = ""
+  sensitive   = true
+}
+
 resource "coderd_template" "dogfood" {
   name            = var.CODER_TEMPLATE_NAME
   display_name    = "Write Coder on Coder"
@@ -67,6 +74,10 @@ resource "coderd_template" "dogfood" {
         {
           name  = "anthropic_api_key"
           value = var.CODER_DOGFOOD_ANTHROPIC_API_KEY
+        },
+        {
+          name  = "openai_api_key"
+          value = var.CODER_DOGFOOD_OPENAI_API_KEY
         }
       ]
     }
@@ -94,8 +105,8 @@ resource "coderd_template" "dogfood" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }
 
 resource "coderd_template" "vscode_coder" {
@@ -141,8 +152,8 @@ resource "coderd_template" "vscode_coder" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }
 
 resource "coderd_template" "envbuilder_dogfood" {
@@ -187,6 +198,6 @@ resource "coderd_template" "envbuilder_dogfood" {
   deprecation_message            = null
   failure_ttl_ms                 = 604800000
   require_active_version         = true
-  time_til_dormant_autodelete_ms = 7776000000
-  time_til_dormant_ms            = 8640000000
+  time_til_dormant_autodelete_ms = 2592000000 # 30 days
+  time_til_dormant_ms            = 2592000000 # 30 days
 }

@@ -1,25 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import { ModelSelector, type ModelSelectorOption } from "./ModelSelector";
+import { MockModelSelectorOption } from "./modelSelectorFixtures";
 
 const openAIModels: ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o",
-		provider: "openai",
 		model: "gpt-4o",
 		displayName: "GPT-4o",
 		contextLimit: 128_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "openai/gpt-4o-mini",
-		provider: "openai",
 		model: "gpt-4o-mini",
 		displayName: "GPT-4o Mini",
 		contextLimit: 128_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "openai/o3-mini",
-		provider: "openai",
 		model: "o3-mini",
 		displayName: "o3-mini",
 		contextLimit: 200_000,
@@ -28,6 +29,7 @@ const openAIModels: ModelSelectorOption[] = [
 
 const anthropicModels: ModelSelectorOption[] = [
 	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-sonnet-4",
 		provider: "anthropic",
 		model: "claude-sonnet-4-20250514",
@@ -35,6 +37,7 @@ const anthropicModels: ModelSelectorOption[] = [
 		contextLimit: 200_000,
 	},
 	{
+		...MockModelSelectorOption,
 		id: "anthropic/claude-haiku-3.5",
 		provider: "anthropic",
 		model: "claude-3-5-haiku-20241022",
@@ -48,13 +51,6 @@ const allModels: ModelSelectorOption[] = [...openAIModels, ...anthropicModels];
 const meta: Meta<typeof ModelSelector> = {
 	title: "pages/AgentsPage/ChatElements/ModelSelector",
 	component: ModelSelector,
-	decorators: [
-		(Story) => (
-			<div className="w-72 rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		options: openAIModels,
 		value: "",

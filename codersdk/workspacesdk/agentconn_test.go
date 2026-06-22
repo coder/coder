@@ -1,52 +1,66 @@
-//nolint:testpackage // This test exercises the internal query builder directly because agent requests need a live tailnet connection.
-package workspacesdk
+package workspacesdk_test
 
 import (
-	neturl "net/url"
+	"context"
+	"net/netip"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/coder/v2/testutil"
 )
 
-func TestAgentAPIPath(t *testing.T) {
-	t.Parallel()
+// TestAgentConn_DialBoundedByRequestContext verifies that the
+// transport dial behind the agent HTTP API stops when the request
+// context ends. http.Transport detaches dial contexts from the
+// request context so a pending dial can outlive its request and
+// serve future ones, but the agent API client is request-scoped
+// with keep-alives disabled, so a detached dial can never be
+// reused. If the transport does not re-link cancellation, the dial
+// goroutine stays blocked in AwaitReachable pinging an unreachable
+// agent forever, even after the tailnet conn is closed, and leaks.
+//
+//nolint:paralleltest // goleak.IgnoreCurrent requires this test to run non-parallel.
+func TestAgentConn_DialBoundedByRequestContext(t *testing.T) {
+	// goleak.IgnoreCurrent snapshots running goroutines, so this
+	// test must not run in parallel with other tests.
+	logger := testutil.Logger(t)
 
-	t.Run("encodes reserved query characters", func(t *testing.T) {
-		t.Parallel()
+	// Snapshot before the tailnet conn exists so everything spawned
+	// below, including the transport dial goroutine, is verified.
+	ignoreCurrent := goleak.IgnoreCurrent()
 
-		path := "/tmp/a&b ?#%c.md"
-		got := agentAPIPath("/api/v0/resolve-path", neturl.Values{
-			"path": []string{path},
-		})
-
-		parsed, err := neturl.Parse(got)
-		require.NoError(t, err)
-		require.Equal(t, "/api/v0/resolve-path", parsed.Path)
-		require.Equal(t, path, parsed.Query().Get("path"))
+	tailnetConn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Logger:    logger.Named("client"),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tailnetConn.Close()
 	})
 
-	t.Run("preserves all query values", func(t *testing.T) {
-		t.Parallel()
-
-		got := agentAPIPath("/api/v0/read-file-lines", neturl.Values{
-			"path":               []string{"/tmp/plan v1#.md"},
-			"offset":             []string{"10"},
-			"limit":              []string{"20"},
-			"max_file_size":      []string{"30"},
-			"max_line_bytes":     []string{"40"},
-			"max_response_lines": []string{"50"},
-			"max_response_bytes": []string{"60"},
-		})
-
-		parsed, err := neturl.Parse(got)
-		require.NoError(t, err)
-		require.Equal(t, "/api/v0/read-file-lines", parsed.Path)
-		require.Equal(t, "/tmp/plan v1#.md", parsed.Query().Get("path"))
-		require.Equal(t, "10", parsed.Query().Get("offset"))
-		require.Equal(t, "20", parsed.Query().Get("limit"))
-		require.Equal(t, "30", parsed.Query().Get("max_file_size"))
-		require.Equal(t, "40", parsed.Query().Get("max_line_bytes"))
-		require.Equal(t, "50", parsed.Query().Get("max_response_lines"))
-		require.Equal(t, "60", parsed.Query().Get("max_response_bytes"))
+	conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
+		AgentID: uuid.New(),
 	})
+
+	// No agent exists, so the transport dial blocks in
+	// AwaitReachable until the request context expires. The timeout
+	// only needs to be long enough for the dial goroutine to start;
+	// its expiry is the behavior under test.
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.IntervalSlow)
+	defer cancel()
+	_, err = conn.ListeningPorts(ctx)
+	require.Error(t, err)
+
+	// Close the conn like test teardown would. The conn's own
+	// goroutines exit on close; the dial goroutine must have already
+	// exited when the request context expired.
+	err = tailnetConn.Close()
+	require.NoError(t, err)
+
+	goleak.VerifyNone(t, ignoreCurrent)
 }

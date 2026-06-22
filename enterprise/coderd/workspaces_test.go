@@ -653,6 +653,72 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
 	})
 
+	// FailureTTLStopOK verifies that a workspace whose latest build is a failed
+	// stop is retried by issuing another stop after the failure TTL elapses.
+	t.Run("FailureTTLStopOK", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ticker = make(chan time.Time)
+			statCh = make(chan autobuild.Stats)
+			logger = slogtest.Make(t, &slogtest.Options{
+				// We ignore errors here since we expect to fail
+				// builds.
+				IgnoreErrors: true,
+			})
+			failureTTL = time.Minute
+		)
+
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				Logger:                   &logger,
+				AutobuildTicker:          ticker,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		// The start build succeeds, but the stop build fails. This leaves the
+		// workspace's latest build as a failed stop.
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:         echo.ParseComplete,
+			ProvisionPlan: echo.PlanComplete,
+			ProvisionApplyMap: map[proto.WorkspaceTransition][]*proto.Response{
+				proto.WorkspaceTransition_START: echo.ApplyComplete,
+				proto.WorkspaceTransition_STOP:  echo.ApplyFailed,
+			},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.FailureTTLMillis = ptr.Ref[int64](failureTTL.Milliseconds())
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		stopBuild, err := client.CreateWorkspaceBuild(ctx, ws.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition: codersdk.WorkspaceTransitionStop,
+		})
+		require.NoError(t, err)
+		build := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, stopBuild.ID)
+		require.Equal(t, codersdk.WorkspaceStatusFailed, build.Status)
+		require.Equal(t, codersdk.WorkspaceTransitionStop, build.Transition)
+		tickTime := build.Job.CompletedAt.Add(failureTTL * 2)
+
+		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
+		require.NoError(t, err)
+		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
+		ticker <- tickTime
+		stats := <-statCh
+		// Expect the workspace to be stopped again for breaching failure TTL.
+		require.Len(t, stats.Transitions, 1)
+		require.Equal(t, stats.Transitions[ws.ID], database.WorkspaceTransitionStop)
+	})
+
 	t.Run("FailureTTLTooEarly", func(t *testing.T) {
 		t.Parallel()
 
@@ -784,7 +850,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		}).Do().Template
 
 		template := coderdtest.UpdateTemplateMeta(t, client, tpl.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 
 		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -1260,7 +1326,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.Len(t, stats.Transitions, 0)
 
 		_, err = anotherClient.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: dormantTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(dormantTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1315,7 +1381,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
 
 		// Assert that autostart works when the workspace isn't dormant..
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1334,7 +1400,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Now that we've validated that the workspace is eligible for autostart
 		// lets cause it to become dormant.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
+			TimeTilDormantMillis: ptr.Ref(inactiveTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1433,7 +1499,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Enable auto-deletion for the template.
 		_, err = templateAdmin.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			TimeTilDormantAutoDeleteMillis: transitionTTL.Milliseconds(),
+			TimeTilDormantAutoDeleteMillis: ptr.Ref(transitionTTL.Milliseconds()),
 		})
 		require.NoError(t, err)
 
@@ -1518,7 +1584,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		require.NoError(t, err)
 
 		// Kick of an autostart build.
-		tickTime := sched.Next(ws.LatestBuild.CreatedAt)
+		tickTime := coderdtest.NextAutostartTick(t, ws)
 		p, err := coderdtest.GetProvisionerForTags(db, time.Now(), ws.OrganizationID, nil)
 		require.NoError(t, err)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime)
@@ -1538,19 +1604,19 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// Update the template to require the promoted version.
 		_, err = client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
-			RequireActiveVersion: true,
-			AllowUserAutostart:   true,
+			RequireActiveVersion: ptr.Ref(true),
+			AllowUserAutostart:   ptr.Ref(true),
 		})
 		require.NoError(t, err)
 
 		// Reset the workspace to the stopped state so we can try
 		// to autostart again.
-		coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop, func(req *codersdk.CreateWorkspaceBuildRequest) {
 			req.TemplateVersionID = ws.LatestBuild.TemplateVersionID
 		})
 
 		// Force an autostart transition again.
-		tickTime2 := sched.Next(firstBuild.CreatedAt)
+		tickTime2 := coderdtest.NextAutostartTick(t, ws)
 		coderdtest.UpdateProvisionerLastSeenAt(t, db, p.ID, tickTime2)
 		tickCh <- tickTime2
 		stats = <-statsCh
@@ -1832,7 +1898,7 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		templateTTL = 72 * time.Hour.Milliseconds()
 		ctx := testutil.Context(t, testutil.WaitShort)
 		template = coderdtest.UpdateTemplateMeta(t, client, template.ID, codersdk.UpdateTemplateMeta{
-			DefaultTTLMillis: templateTTL,
+			DefaultTTLMillis: ptr.Ref(templateTTL),
 		})
 		workspace, err := client.Workspace(ctx, workspace.ID)
 		require.NoError(t, err)
@@ -4068,7 +4134,7 @@ func TestResolveAutostart(t *testing.T) {
 	defer cancel()
 
 	_, err := ownerClient.UpdateTemplateMeta(ctx, version1.Template.ID, codersdk.UpdateTemplateMeta{
-		RequireActiveVersion: true,
+		RequireActiveVersion: ptr.Ref(true),
 	})
 	require.NoError(t, err)
 

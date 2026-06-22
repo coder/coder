@@ -20,3 +20,13 @@ export const WithImage: Story = {
 		src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
 	},
 };
+
+export const WithLongTitle: Story = {
+	args: {
+		truncate: true,
+		title: "a-workspace-with-an-unreasonably-long-name-that-should-be-clipped",
+		subtitle:
+			"and-an-even-longer-organization-or-template-subtitle-that-truncates",
+	},
+	decorators: [(Story) => <div style={{ maxWidth: 240 }}>{Story()}</div>],
+};

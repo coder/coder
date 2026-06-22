@@ -1,0 +1,128 @@
+{
+  "id": "code-server",
+  "display_name": "code-server",
+  "description": "VS Code in the browser",
+  "icon": "/icon/code.svg",
+  "category": "IDE",
+  "tags": [
+    "ide",
+    "web",
+    "code-server"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [
+    "vscode-web"
+  ],
+  "pinned_version": "1.5.0",
+  "variables": [
+    {
+      "name": "additional_args",
+      "type": "string",
+      "description": "Additional command-line arguments to pass to code-server (e.g., '--disable-workspace-trust').",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "auto_install_extensions",
+      "type": "bool",
+      "description": "Automatically install recommended extensions when code-server starts.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "extensions_dir",
+      "type": "string",
+      "description": "Override the directory to store extensions in.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "The folder to open in code-server.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "install_version",
+      "type": "string",
+      "description": "The version of code-server to install.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "offline",
+      "type": "bool",
+      "description": "Just run code-server in the background, don't fetch it from GitHub",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "open_in",
+      "type": "string",
+      "description": "Determines where the app will be opened. Valid values are `\"tab\"` and `\"slim-window\" (default)`.\n`\"tab\"` opens in a new tab in the same browser window.\n`\"slim-window\"` opens a new browser window without navigation controls.\n",
+      "default": "slim-window",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port to run code-server on.",
+      "default": 13337,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "use_cached",
+      "type": "bool",
+      "description": "Uses cached copy code-server in the background, otherwise fetched it from GitHub",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "use_cached_extensions",
+      "type": "bool",
+      "description": "Uses cached copy of extensions, otherwise do a forced upgrade",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "workspace",
+      "type": "string",
+      "description": "The path to a `.code-workspace` file to open in code-server. Mutually exclusive with `folder`.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

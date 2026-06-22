@@ -3,6 +3,7 @@ package chatloop
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -101,7 +102,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Subsystem: metricsSubsystem,
 			Name:      "stream_retries_total",
 			Help:      "Total LLM stream retries.",
-		}, []string{"provider", "model", "kind"}),
+		}, []string{"provider", "model", "kind", "chain_broken"}),
 		StreamBufferDroppedTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: metricsNamespace,
 			Subsystem: metricsSubsystem,
@@ -140,12 +141,19 @@ func (m *Metrics) RecordCompaction(provider, model string, compacted bool, err e
 
 // RecordStreamRetry increments stream_retries_total. The caller
 // must obtain classified via chaterror.Classify (non-empty Kind).
-// No-op when m is nil.
+// No-op when m is nil. The chain_broken label is "true" for chain
+// anchor failures (e.g. OpenAI previous_response_id 404) recovered
+// by the chatloop, and "false" otherwise.
 func (m *Metrics) RecordStreamRetry(provider, model string, classified chaterror.ClassifiedError) {
 	if m == nil {
 		return
 	}
-	m.StreamRetriesTotal.WithLabelValues(provider, model, classified.Kind).Inc()
+	m.StreamRetriesTotal.WithLabelValues(
+		provider,
+		model,
+		string(classified.Kind),
+		strconv.FormatBool(classified.ChainBroken),
+	).Inc()
 }
 
 // RecordToolError increments tool_errors_total for the given

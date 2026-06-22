@@ -192,6 +192,10 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 		testName := s.T().Name()
 		names := strings.Split(testName, "/")
 		methodName := names[len(names)-1]
+		// Repeated subtests get "#NN" suffixes; count them under the base method.
+		if baseMethodName, _, ok := strings.Cut(methodName, "#"); ok {
+			methodName = baseMethodName
+		}
 		s.methodAccounting[methodName]++
 
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
@@ -242,6 +246,7 @@ func (s *MethodTestSuite) SubtestWithDB(db database.Store, testCaseF func(db dat
 			slice.Contains([]string{
 				"GetAuthorizedWorkspaces",
 				"GetAuthorizedTemplates",
+				"GetDefaultChatModelConfig",
 			}, methodName) {
 			// Some methods do not make RBAC assertions because they use
 			// SQL. We still want to test that they return an error if the

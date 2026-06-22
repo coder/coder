@@ -31,7 +31,7 @@ import (
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMember
-// @Router /organizations/{organization}/members/{user} [post]
+// @Router /api/v2/organizations/{organization}/members/{user} [post]
 // @Deprecated use POST /organizations/{organization}/members instead
 func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -101,7 +101,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 // @Param organization path string true "Organization ID"
 // @Param request body codersdk.AddOrganizationMembersRequest true "Add members request"
 // @Success 201 {array} codersdk.OrganizationMember
-// @Router /organizations/{organization}/members [post]
+// @Router /api/v2/organizations/{organization}/members [post]
 func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -230,7 +230,7 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 // @Param organization path string true "Organization ID"
 // @Param user path string true "User ID, name, or me"
 // @Success 204
-// @Router /organizations/{organization}/members/{user} [delete]
+// @Router /api/v2/organizations/{organization}/members/{user} [delete]
 func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -287,7 +287,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 // @Param user path string true "User ID, name, or me"
 // @Success 200 {object} codersdk.OrganizationMemberWithUserData
 // @Produce json
-// @Router /organizations/{organization}/members/{user} [get]
+// @Router /api/v2/organizations/{organization}/members/{user} [get]
 func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -345,7 +345,7 @@ func (api *API) organizationMember(rw http.ResponseWriter, r *http.Request) {
 // @Tags Members
 // @Param organization path string true "Organization ID"
 // @Success 200 {object} []codersdk.OrganizationMemberWithUserData
-// @Router /organizations/{organization}/members [get]
+// @Router /api/v2/organizations/{organization}/members [get]
 func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -405,7 +405,7 @@ func (api *API) listMembers(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit, if 0 returns all members"
 // @Param offset query int false "Page offset"
 // @Success 200 {object} []codersdk.PaginatedMembersResponse
-// @Router /organizations/{organization}/paginated-members [get]
+// @Router /api/v2/organizations/{organization}/paginated-members [get]
 func (api *API) paginatedMembers(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx          = r.Context()
@@ -536,7 +536,7 @@ func getAISeatSetByUserIDs(ctx context.Context, db database.Store, userIDs []uui
 // @Param user path string true "User ID, name, or me"
 // @Param request body codersdk.UpdateRoles true "Update roles request"
 // @Success 200 {object} codersdk.OrganizationMember
-// @Router /organizations/{organization}/members/{user}/roles [put]
+// @Router /api/v2/organizations/{organization}/members/{user}/roles [put]
 func (api *API) putMemberRoles(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

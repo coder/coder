@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared/constant"
@@ -22,10 +26,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -37,47 +41,47 @@ const (
 )
 
 type responsesInterceptionBase struct {
-	id           uuid.UUID
-	providerName string
-	// clientHeaders are the original HTTP headers from the client request.
-	clientHeaders  http.Header
-	authHeaderName string
-	reqPayload     RequestPayload
+	id         uuid.UUID
+	reqPayload RequestPayload
 
-	cfg      config.OpenAI
+	cfg  intercept.Config
+	cred intercept.Credential
+
+	// clientHeaders are the original HTTP headers from the client request.
+	clientHeaders http.Header
+
+	logger slog.Logger
+	tracer trace.Tracer
+
 	recorder recorder.Recorder
 	mcpProxy mcp.ServerProxier
-
-	logger     slog.Logger
-	tracer     trace.Tracer
-	credential intercept.CredentialInfo
 }
 
-func (i *responsesInterceptionBase) newResponsesService() responses.ResponseService {
-	opts := []option.RequestOption{option.WithBaseURL(i.cfg.BaseURL), option.WithAPIKey(i.cfg.Key)}
-	if i.cfg.MaxRetries != nil {
-		opts = append(opts, option.WithMaxRetries(*i.cfg.MaxRetries))
+// newResponsesService builds the SDK service used for upstream calls.
+func (i *responsesInterceptionBase) newResponsesService(ctx context.Context) responses.ResponseService {
+	var opts []option.RequestOption
+	// Only BYOK sets its credential here. Centralized keys are injected
+	// per-attempt in the failover loop.
+	if byok, ok := intercept.AsBYOK(i.cred); ok {
+		i.logger.Debug(ctx, "using byok auth",
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+		)
+		opts = append(opts, option.WithAPIKey(byok.Secret))
 	}
-
-	// Add extra headers if configured.
-	// Some providers require additional headers that are not added by the SDK.
-	// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-	for key, value := range i.cfg.ExtraHeaders {
-		opts = append(opts, option.WithHeader(key, value))
-	}
+	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.authHeaderName)
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
 			return next(req)
 		}))
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.providerName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
@@ -88,8 +92,8 @@ func (i *responsesInterceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *responsesInterceptionBase) Credential() intercept.CredentialInfo {
-	return i.credential
+func (i *responsesInterceptionBase) Credential() intercept.Credential {
+	return i.cred
 }
 
 func (i *responsesInterceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
@@ -111,7 +115,7 @@ func (i *responsesInterceptionBase) baseTraceAttributes(r *http.Request, streami
 		attribute.String(tracing.RequestPath, r.URL.Path),
 		attribute.String(tracing.InterceptionID, i.id.String()),
 		attribute.String(tracing.InitiatorID, aibcontext.ActorIDFromContext(r.Context())),
-		attribute.String(tracing.Provider, i.providerName),
+		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
 	}
@@ -125,6 +129,53 @@ func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.
 	}
 
 	return nil
+}
+
+// writeUpstreamError marshals and writes a given error.
+func (i *responsesInterceptionBase) writeUpstreamError(w http.ResponseWriter, oaiErr *intercept.ResponseError) {
+	if oaiErr == nil {
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	// Set Retry-After when a cooldown is configured.
+	if oaiErr.RetryAfter > 0 {
+		w.Header().Set("Retry-After", strconv.Itoa(int(math.Ceil(oaiErr.RetryAfter.Seconds()))))
+	}
+	w.WriteHeader(oaiErr.StatusCode)
+
+	out, err := json.Marshal(oaiErr)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to marshal upstream error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", oaiErr)))
+		// Response has to match expected format.
+		_, _ = w.Write([]byte(`{
+	"error": {
+		"type": "error",
+		"message":"error marshaling upstream error",
+		"code": "server_error"
+	}
+}`))
+	} else {
+		_, _ = w.Write(out)
+	}
+}
+
+// For centralized requests, markKeyOnError extracts an OpenAI
+// SDK error from err and marks the key based on its status
+// code. Returns true if the status was a key-specific failover
+// trigger so callers can retry with the next key.
+func (i *responsesInterceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
+	cp, ok := intercept.AsCentralizedPool(i.cred)
+	if !ok {
+		return false
+	}
+	var apiErr *openai.Error
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return cp.Pool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
+	)
 }
 
 // sendCustomErr sends custom responses.Error error to the client
@@ -252,7 +303,7 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 
 	// Keeping logic consistent with chat completions
 	// Input *includes* the cached tokens, so we subtract them here to reflect actual input token usage.
-	inputNonCacheTokens := usage.InputTokens - usage.InputTokensDetails.CachedTokens
+	inputNonCacheTokens := max(0, usage.InputTokens-usage.InputTokensDetails.CachedTokens)
 
 	if err := i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
 		InterceptionID:       i.ID().String(),
@@ -261,7 +312,6 @@ func (i *responsesInterceptionBase) recordTokenUsage(ctx context.Context, respon
 		Output:               usage.OutputTokens,
 		CacheReadInputTokens: usage.InputTokensDetails.CachedTokens,
 		ExtraTokenTypes: map[string]int64{
-			"input_cached":     usage.InputTokensDetails.CachedTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
 			"output_reasoning": usage.OutputTokensDetails.ReasoningTokens,
 			"total_tokens":     usage.TotalTokens,
 		},
@@ -378,6 +428,11 @@ func (r *responseCopier) forwardResp(w http.ResponseWriter) error {
 	}
 
 	w.Header().Set("Content-Type", r.responseHeaders.Get("Content-Type"))
+	// Preserve the upstream retry-after header so clients can honor it on
+	// rate-limited or unavailable responses.
+	if retryAfter := r.responseHeaders.Get("Retry-After"); retryAfter != "" {
+		w.Header().Set("Retry-After", retryAfter)
+	}
 	w.WriteHeader(r.responseStatus)
 
 	b, err := r.readAll()

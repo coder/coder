@@ -99,7 +99,7 @@
 							// "@mui/material/Snackbar": "Use components/GlobalSnackbar instead.",
 							// "@mui/material/Stack": "Use Tailwind flex utilities instead (e.g., <div className='flex flex-col gap-4'>).",
 							// "@mui/material/styles": "Use Tailwind CSS instead.",
-							// "@mui/material/SvgIcon": "Use lucide-react icons instead.",
+							"@mui/material/SvgIcon": "Use lucide-react icons instead.",
 							"@mui/material/Switch": "Use shadcn/ui Switch component instead.",
 							"@mui/material/Table": "Import from components/Table/Table instead.",
 							"@mui/material/TableRow": "Import from components/Table/Table instead.",
@@ -135,7 +135,8 @@
 				}
 			},
 			"complexity": {
-				"noImportantStyles": "off" // TODO: check and fix !important styles
+				"noImportantStyles": "off", // TODO: check and fix !important styles
+				"useLiteralKeys": "off"
 			}
 		}
 	},
@@ -146,5 +147,19 @@
 			"tailwindDirectives": true
 		}
 	},
+	"overrides": [
+		{
+			// Generated Go types can produce empty interfaces; the
+			// safe fix conflicts with noBannedTypes.
+			"includes": ["**/typesGenerated.ts"],
+			"linter": {
+				"rules": {
+					"suspicious": {
+						"noEmptyInterface": "off"
+					}
+				}
+			}
+		}
+	],
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json"
 }

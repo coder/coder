@@ -98,12 +98,6 @@ const installScriptLogSource: WorkspaceAgentLogSource = {
 	display_name: "Install Script",
 };
 
-const startupScriptLogSource: WorkspaceAgentLogSource = {
-	...M.MockWorkspaceAgentLogSource,
-	id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-	display_name: "Startup Script",
-};
-
 const tabbedLogs = [
 	{
 		id: 100,
@@ -165,7 +159,7 @@ export const Example: Story = {};
 export const BunchOfApps: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				M.MockWorkspaceApp,
 				M.MockWorkspaceApp,
@@ -195,6 +189,42 @@ export const Connecting: Story = {
 	},
 };
 
+export const ConnectingWithStartupLogs: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgentConnecting,
+			logs_length: 1,
+		},
+		initialMetadata: [],
+	},
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify([
+					{
+						id: 1,
+						level: "info",
+						output: "starting up",
+						source_id: M.MockWorkspaceAgentLogSource.id,
+						created_at: fixedLogTimestamp,
+					},
+				]),
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Agent is connecting (hasConnectivityIssues=true) but no script has failed.
+		// Old code snapped to the Startup Script tab; the fix keeps us on All Logs.
+		const allLogsTab = await canvas.findByRole("tab", { name: "All Logs" });
+		await waitFor(() =>
+			expect(allLogsTab).toHaveAttribute("data-state", "active"),
+		);
+	},
+};
+
 export const Timeout: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentTimeout,
@@ -203,7 +233,10 @@ export const Timeout: Story = {
 
 export const Starting: Story = {
 	args: {
-		agent: M.MockWorkspaceAgentStarting,
+		agent: {
+			...M.MockWorkspaceAgentStarting,
+			logs_length: logs.length,
+		},
 	},
 };
 
@@ -233,37 +266,126 @@ export const StartError: Story = {
 	args: {
 		agent: M.MockWorkspaceAgentStartError,
 	},
-};
-
-export const StartErrorWithTimings: Story = {
+	parameters: {
+		webSocket: [
+			{
+				event: "message",
+				data: JSON.stringify(
+					M.MockWorkspaceAgentStartError.log_sources.flatMap((l, i) => {
+						return [
+							{
+								id: i,
+								level: "info",
+								output: `running '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+							{
+								id: i + 100,
+								level: "error",
+								output: `stderr from '${l.display_name}' script`,
+								source_id: l.id,
+								created_at: fixedLogTimestamp,
+							},
+						];
+					}),
+				),
+			},
+		],
+	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		const scriptTab = await canvas.findByRole("tab", {
+		// MockWorkspaceAgentStartError ships with a Startup Script whose script
+		// has exit_code: 1, so the auto-select should land us there.
+		const startupScriptTab = await canvas.findByRole("tab", {
 			name: "Startup Script",
 		});
 		await waitFor(() =>
-			expect(scriptTab).toHaveAttribute("data-state", "active"),
+			expect(startupScriptTab).toHaveAttribute("data-state", "active"),
 		);
 	},
+};
+
+export const StartErrorWithoutFailedSourceLogs: Story = {
 	args: {
-		agent: {
-			...M.MockWorkspaceAgentStartError,
-			logs_length: 2,
-			log_sources: [startupScriptLogSource],
-		},
-		agentScriptTimings: [
+		agent: M.MockWorkspaceAgentStartError,
+	},
+	parameters: {
+		// Send log entries only for the OK script, mirroring the case where a
+		// failed script never emitted any output. The selected tab must not be
+		// initialized to a source that has no rendered tab.
+		webSocket: [
 			{
-				display_name: "Startup Script",
-				exit_code: 1,
-				stage: "start",
-				status: "exit_failure",
-				started_at: "2021-05-05T00:00:00.000Z",
-				ended_at: "2021-05-05T00:00:01.000Z",
-				workspace_agent_id: M.MockWorkspaceAgentStartError.id,
-				workspace_agent_name: M.MockWorkspaceAgentStartError.name,
+				event: "message",
+				data: JSON.stringify(
+					M.MockWorkspaceAgentStartError.log_sources
+						.filter((source) => {
+							const script = M.MockWorkspaceAgentStartError.scripts.find(
+								(s) => s.log_source_id === source.id,
+							);
+							return !script?.exit_code && script?.status === "ok";
+						})
+						.flatMap((source, i) => [
+							{
+								id: i,
+								level: "info",
+								output: `output from '${source.display_name}'`,
+								source_id: source.id,
+								created_at: fixedLogTimestamp,
+							},
+						]),
+				),
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Wait for a non-failed source tab to render, confirming logs streamed in.
+		await canvas.findByRole("tab", { name: "coder" });
+
+		// All Logs must stay active because no failed source has rendered logs.
+		const allLogsTab = canvas.getByRole("tab", { name: "All Logs" });
+		await waitFor(() =>
+			expect(allLogsTab).toHaveAttribute("data-state", "active"),
+		);
+	},
+};
+
+const NON_STARTUP_SCRIPT_SOURCE_ID = "install-script-source-id";
+
+export const NonStartupScriptError: Story = {
+	args: {
+		agent: {
+			...M.MockWorkspaceAgent,
+			logs_length: 2,
+			scripts: [
+				// Startup Script succeeded.
+				{
+					...M.MockWorkspaceAgent.scripts[0],
+					exit_code: 0,
+					status: "ok",
+				},
+				// A non-startup script failed; that's the tab we should auto-select.
+				{
+					...M.MockWorkspaceAgent.scripts[0],
+					id: "install-script-id",
+					log_source_id: NON_STARTUP_SCRIPT_SOURCE_ID,
+					exit_code: 1,
+					status: "exit_failure",
+					display_name: "Install Script",
+				},
+			],
+			log_sources: [
+				...M.MockWorkspaceAgent.log_sources,
+				{
+					...M.MockWorkspaceAgent.log_sources[0],
+					id: NON_STARTUP_SCRIPT_SOURCE_ID,
+					display_name: "Install Script",
+				},
+			],
+		},
 	},
 	parameters: {
 		webSocket: [
@@ -271,22 +393,34 @@ export const StartErrorWithTimings: Story = {
 				event: "message",
 				data: JSON.stringify([
 					{
-						id: 200,
+						id: 1,
 						level: "info",
-						output: "startup: preparing workspace",
+						output: "startup ok",
 						source_id: M.MockWorkspaceAgentLogSource.id,
 						created_at: fixedLogTimestamp,
 					},
 					{
-						id: 201,
+						id: 2,
 						level: "error",
-						output: "startup script: command not found",
-						source_id: startupScriptLogSource.id,
+						output: "install failed",
+						source_id: NON_STARTUP_SCRIPT_SOURCE_ID,
 						created_at: fixedLogTimestamp,
 					},
 				]),
 			},
 		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Startup Script is OK; only Install Script failed. The auto-select must
+		// follow the failure, not the position or display name.
+		const installScriptTab = await canvas.findByRole("tab", {
+			name: "Install Script",
+		});
+		await waitFor(() =>
+			expect(installScriptTab).toHaveAttribute("data-state", "active"),
+		);
 	},
 };
 
@@ -357,7 +491,7 @@ export const Deprecated: Story = {
 export const HideApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,
@@ -371,7 +505,7 @@ export const HideApp: Story = {
 export const GroupApp: Story = {
 	args: {
 		agent: {
-			...M.MockWorkspaceAgent,
+			...M.MockWorkspaceAgentReady,
 			apps: [
 				{
 					...M.MockWorkspaceApp,

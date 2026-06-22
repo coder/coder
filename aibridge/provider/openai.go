@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -14,10 +12,12 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/chatcompletions"
 	"github.com/coder/coder/v2/aibridge/intercept/responses"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/tracing"
 	"github.com/coder/coder/v2/aibridge/utils"
 )
@@ -46,19 +46,6 @@ func NewOpenAI(cfg config.OpenAI) *OpenAI {
 	if cfg.BaseURL == "" {
 		cfg.BaseURL = "https://api.openai.com/v1/"
 	}
-	if cfg.Key == "" {
-		cfg.Key = os.Getenv("OPENAI_API_KEY")
-	}
-	if cfg.APIDumpDir == "" {
-		cfg.APIDumpDir = os.Getenv("BRIDGE_DUMP_DIR")
-	}
-	if cfg.MaxRetries == nil {
-		if v := os.Getenv("OPENAI_MAX_RETRIES"); v != "" {
-			if n, err := strconv.Atoi(v); err == nil {
-				cfg.MaxRetries = &n
-			}
-		}
-	}
 	if cfg.CircuitBreaker != nil {
 		cfg.CircuitBreaker.OpenErrorResponse = openAIOpenErrorResponse
 	}
@@ -76,6 +63,8 @@ func (*OpenAI) Type() string {
 func (p *OpenAI) Name() string {
 	return p.cfg.Name
 }
+
+func (*OpenAI) Enabled() bool { return true }
 
 func (p *OpenAI) RoutePrefix() string {
 	// Route prefix includes version to match default OpenAI base URL.
@@ -114,21 +103,17 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 
 	var interceptor intercept.Interceptor
 
-	cfg := p.cfg
-	// At this point the request contains only LLM provider headers. Any
-	// Coder-specific authentication has already been stripped.
-	//
-	// In centralized mode Authorization is absent, so cfg keeps the
-	// centralized key unchanged.
-	//
-	// In BYOK mode the user's credential is in Authorization. Replace
-	// the centralized key with it so it is forwarded upstream.
-	credKind := intercept.CredentialKindCentralized
-	if token := utils.ExtractBearerToken(r.Header.Get("Authorization")); token != "" {
-		cfg.Key = token
-		credKind = intercept.CredentialKindBYOK
+	cfg := intercept.Config{
+		ProviderName:     p.Name(),
+		BaseURL:          p.cfg.BaseURL,
+		APIDumpDir:       p.cfg.APIDumpDir,
+		SendActorHeaders: p.cfg.SendActorHeaders,
 	}
-	cred := intercept.NewCredentialInfo(credKind, cfg.Key)
+	cred, err := p.resolveCredential(r)
+	if err != nil {
+		span.SetStatus(codes.Error, err.Error())
+		return nil, xerrors.Errorf("resolve credential: %w", err)
+	}
 
 	path := strings.TrimPrefix(r.URL.Path, p.RoutePrefix())
 	switch path {
@@ -139,9 +124,9 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 		}
 
 		if req.Stream {
-			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewStreamingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = chatcompletions.NewBlockingInterceptor(id, &req, cfg, cred, r.Header, tracer)
 		}
 
 	case routeResponses:
@@ -154,9 +139,9 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 			return nil, xerrors.Errorf("unmarshal request body: %w", err)
 		}
 		if reqPayload.Stream() {
-			interceptor = responses.NewStreamingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewStreamingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		} else {
-			interceptor = responses.NewBlockingInterceptor(id, reqPayload, p.Name(), cfg, r.Header, p.AuthHeader(), tracer, cred)
+			interceptor = responses.NewBlockingInterceptor(id, reqPayload, cfg, cred, r.Header, tracer)
 		}
 
 	default:
@@ -167,6 +152,21 @@ func (p *OpenAI) CreateInterceptor(_ http.ResponseWriter, r *http.Request, trace
 	return interceptor, nil
 }
 
+// resolveCredential determines the upstream credential for a request. At this
+// point the request contains only LLM provider headers. Any Coder-specific
+// authentication has already been stripped. A BYOK token, if present, arrives
+// in the Authorization header. Otherwise the request uses the provider's
+// centralized key pool with failover, which must be configured.
+func (p *OpenAI) resolveCredential(r *http.Request) (intercept.Credential, error) {
+	if token := utils.ExtractBearerToken(r.Header.Get(intercept.AuthHeaderAuthorization)); token != "" {
+		return intercept.BYOK{Secret: token, Header: intercept.AuthHeaderAuthorization}, nil
+	}
+	if p.cfg.KeyPool == nil {
+		return nil, ErrNoCredential
+	}
+	return &intercept.CentralizedPool{Pool: p.cfg.KeyPool, Header: p.AuthHeader()}, nil
+}
+
 func (p *OpenAI) BaseURL() string {
 	return p.cfg.BaseURL
 }
@@ -175,18 +175,24 @@ func (*OpenAI) AuthHeader() string {
 	return "Authorization"
 }
 
-func (p *OpenAI) InjectAuthHeader(headers *http.Header) {
-	if headers == nil {
-		headers = &http.Header{}
-	}
+func (p *OpenAI) KeyPool() *keypool.Pool {
+	return p.cfg.KeyPool
+}
 
-	// BYOK: if the request already carries user-supplied credentials,
-	// do not overwrite them with the centralized key.
-	if headers.Get("Authorization") != "" {
-		return
+func (p *OpenAI) KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig {
+	return keypool.KeyFailoverConfig{
+		Pool:   p.cfg.KeyPool,
+		Logger: logger,
+		IsBYOK: func(r *http.Request) bool {
+			return r.Header.Get("Authorization") != ""
+		},
+		InjectAuthKey: func(h *http.Header, key string) {
+			h.Set("Authorization", "Bearer "+key)
+		},
+		BuildKeyPoolResponse: func(keyPoolErr *keypool.Error) *http.Response {
+			return intercept.ResponseErrorFromKeyPool(keyPoolErr).ToResponse()
+		},
 	}
-
-	headers.Set(p.AuthHeader(), "Bearer "+p.cfg.Key)
 }
 
 func (p *OpenAI) CircuitBreakerConfig() *config.CircuitBreaker {

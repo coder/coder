@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/coder/coder/v2/aibridge/keypool"
+)
 
 const (
 	ProviderAnthropic = "anthropic"
@@ -8,23 +12,17 @@ const (
 	ProviderCopilot   = "copilot"
 )
 
+// Anthropic carries configuration for an Anthropic provider.
 type Anthropic struct {
 	// Name is the provider instance name. If empty, defaults to "anthropic".
-	Name             string
-	BaseURL          string
-	Key              string
+	Name    string
+	BaseURL string
+	// KeyPool holds the centralized keys, with automatic key failover. BYOK
+	// credentials are resolved per request from the incoming headers.
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	ExtraHeaders     map[string]string
-	// BYOKBearerToken is set in BYOK mode when the user authenticates
-	// with a access token. When set, the access token is used for upstream
-	// LLM requests instead of the API key.
-	BYOKBearerToken string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type AWSBedrock struct {
@@ -37,19 +35,17 @@ type AWSBedrock struct {
 	BaseURL string
 }
 
+// OpenAI carries configuration for an OpenAI provider.
 type OpenAI struct {
 	// Name is the provider instance name. If empty, defaults to "openai".
-	Name             string
-	BaseURL          string
-	Key              string
+	Name    string
+	BaseURL string
+	// KeyPool holds the centralized keys, with automatic key failover. BYOK
+	// credentials are resolved per request from the incoming headers.
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	ExtraHeaders     map[string]string
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 type Copilot struct {
@@ -58,10 +54,6 @@ type Copilot struct {
 	BaseURL        string
 	APIDumpDir     string
 	CircuitBreaker *CircuitBreaker
-	// MaxRetries controls the number of automatic retries the SDK will perform
-	// on transient errors. If nil, the SDK default (2) is used.
-	// Set to 0 to disable retries entirely.
-	MaxRetries *int
 }
 
 // CircuitBreaker holds configuration for circuit breakers.

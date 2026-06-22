@@ -8,24 +8,29 @@ You can install and run Coder using the official Docker images published on
 - Docker. See the
   [official installation documentation](https://docs.docker.com/install/).
 
-- A Linux machine. For macOS devices, start Coder using the
-  [standalone binary](./cli.md).
+- A Linux host.
 
 - 2 CPU cores and 4 GB memory free on your machine.
+
+> [!IMPORTANT]
+> This guide is for **Linux** hosts only. The `getent` and `--group-add`
+> Docker socket patterns used below are Linux-specific and do not translate
+> cleanly to macOS Docker runtimes. For macOS, install Coder using the
+> [standalone binary](./cli.md) instead.
 
 <div class="tabs">
 
 ## Install Coder via `docker compose`
 
 Coder publishes a
-[docker compose example](https://github.com/coder/coder/blob/main/compose.yaml)
+[docker compose example](../../compose.yaml)
 which includes a PostgreSQL container and volume.
 
 1. Make sure you have [Docker Compose](https://docs.docker.com/compose/install/)
    installed.
 
 1. Download the
-   [`docker-compose.yaml`](https://github.com/coder/coder/blob/main/compose.yaml)
+   [`docker-compose.yaml`](../../compose.yaml)
    file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker`
@@ -95,6 +100,19 @@ Replace `ghcr.io/coder/coder:latest` in the `docker run` command in the
 [steps above](#install-coder-via-docker-run) with `ghcr.io/coder/coder-preview:latest`.
 
 ## Troubleshooting
+
+### Cannot connect to the Docker daemon
+
+If you see an error like:
+
+```text
+Error: Error pinging Docker server: Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?
+```
+
+Docker is not installed or not running on the host. Install Docker and start the
+daemon before creating a workspace from a Docker-based template. Refer to the
+[quickstart troubleshooting](../tutorials/quickstart.md#cannot-connect-to-the-docker-daemon)
+for platform-specific steps.
 
 ### Docker-based workspace is stuck in "Connecting..."
 

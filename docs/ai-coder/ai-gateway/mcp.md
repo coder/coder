@@ -1,7 +1,17 @@
 # MCP
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
+<!-- -->
+
 > [!WARNING]
-> Injected MCP in AI Gateway is deprecated and will be removed in a future release.
+> Injected MCP in AI Gateway is deprecated.
+> It remains functional and will not be removed until
+> the new implementation is released. Only critical
+> security-related patches will be made.
 
 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) is a mechanism for connecting AI applications to external systems.
 
@@ -58,12 +68,12 @@ If a model decides to invoke a tool and it has a `bmcp_` suffix and AI Gateway h
 
 In contrast, tools which are defined by the client (i.e. the [`Bash` tool](https://docs.claude.com/en/docs/claude-code/settings#tools-available-to-claude) defined by _Claude Code_) cannot be invoked by AI Gateway, and the tool call from the model will be relayed to the client, after which it will invoke the tool.
 
-If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS=true` set, Coder's MCP tools will be injected into intercepted requests.
+If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS=true` set, Coder's MCP tools will be injected into intercepted requests.
 
 ### Troubleshooting
 
 - **Too many tools**: should you receive an error like `Invalid 'tools': array too long. Expected an array with maximum length 128, but got an array with length 132 instead`, you can reduce the number by filtering out tools using the allow/deny patterns documented in the [MCP](#mcp) section.
 
-- **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AIBRIDGE_INJECT_CODER_MCP_TOOLS` is set to `true`.
+- **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
 
 - **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth/index.md) app; when this is the case, no attempt is made to connect to the MCP server.

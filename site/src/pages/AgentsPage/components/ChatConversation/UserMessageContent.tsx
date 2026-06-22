@@ -1,7 +1,12 @@
 import { type FC, Fragment } from "react";
 import { cn } from "#/utils/cn";
 import { Message, MessageContent } from "../ChatElements";
-import { FileReferenceChip } from "../ChatMessageInput/FileReferenceNode";
+import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
+import {
+	hasInlineContentAfter,
+	hasInlineContentBefore,
+	type InlinePart,
+} from "../ChatMessageInput/fileReferenceDisplay";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
@@ -11,7 +16,22 @@ import type {
 	UserInlineRenderBlock,
 } from "./messageHelpers";
 
-const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
+const getInlineParts = (
+	blocks: readonly UserInlineRenderBlock[],
+): InlinePart[] => {
+	return blocks.map((block) => {
+		if (block.type === "file-reference") {
+			return { type: "file-reference" };
+		}
+		return { type: "text", text: block.text };
+	});
+};
+
+const renderUserInlineBlock = (
+	inlineParts: readonly InlinePart[],
+	block: UserInlineRenderBlock,
+	index: number,
+) => {
 	if (block.type === "response") {
 		return <Fragment key={index}>{block.text}</Fragment>;
 	}
@@ -22,8 +42,18 @@ const renderUserInlineBlock = (block: UserInlineRenderBlock, index: number) => {
 			fileName={block.file_name}
 			startLine={block.start_line}
 			endLine={block.end_line}
-			className="mx-1"
+			className={cn(
+				hasInlineContentBefore(inlineParts, index) && "ml-1",
+				hasInlineContentAfter(inlineParts, index) && "mr-1",
+			)}
 		/>
+	);
+};
+
+const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+	const inlineParts = getInlineParts(blocks);
+	return blocks.map((block, index) =>
+		renderUserInlineBlock(inlineParts, block, index),
 	);
 };
 
@@ -43,7 +73,7 @@ export const UserMessageContent: FC<{
 	onTextFileClick,
 }) => {
 	return (
-		<Message className="w-full max-w-none">
+		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
 				className={cn(
 					"rounded-lg border border-solid border-border-default bg-surface-secondary px-3 py-2 font-sans shadow-sm transition-shadow",
@@ -61,9 +91,7 @@ export const UserMessageContent: FC<{
 							{displayState.hasUserMessageBody && (
 								<span className="min-w-0 flex-1">
 									{displayState.userInlineContent.length > 0
-										? displayState.userInlineContent.map((block, index) =>
-												renderUserInlineBlock(block, index),
-											)
+										? renderUserInlineContent(displayState.userInlineContent)
 										: markdown || ""}
 								</span>
 							)}

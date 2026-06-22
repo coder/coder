@@ -5,45 +5,28 @@ import {
 	ConversationItem,
 	Message,
 	MessageContent,
-	Response,
 	Shimmer,
 } from "../ChatElements";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
+import { ToolIcon } from "../ChatElements/tools/ToolIcon";
 import { ChatStatusCallout } from "./ChatStatusCallout";
 import { BlockList } from "./ConversationTimeline";
 import type { LiveStatusModel } from "./liveStatusModel";
-import type { MergedTool, RenderBlock, StreamState } from "./types";
+import { shouldShowGenericThinking } from "./streamingActivity";
+import type { MergedTool, StreamState } from "./types";
 
-const hasTransientLiveStatus = (liveStatus: LiveStatusModel): boolean =>
-	liveStatus.phase === "starting" ||
-	liveStatus.phase === "retrying" ||
-	liveStatus.phase === "reconnecting";
+const hasCalloutLiveStatus = (liveStatus: LiveStatusModel): boolean =>
+	liveStatus.phase === "retrying" || liveStatus.phase === "reconnecting";
 
-/**
- * True when the block list contains at least one text or reasoning
- * block. Tool-call and other non-text blocks don't count because
- * they don't replace the "Thinking..." placeholder visually.
- */
-const hasTextOrReasoningBlock = (blocks: readonly RenderBlock[]): boolean =>
-	blocks.some((b) => b.type === "response" || b.type === "thinking");
-
-/**
- * Stateless "Thinking..." shimmer used during the streaming phase
- * when no text or reasoning blocks have arrived yet. Unlike the
- * `StartingPlaceholder` in `ChatStatusCallout`, this has no
- * delayed-startup timer — the streaming phase is transient and
- * will be replaced as soon as real content arrives.
- */
-const StreamingThinkingPlaceholder: FC = () => (
-	<div className="relative">
-		<Response aria-hidden className="invisible select-none">
-			Thinking...
-		</Response>
-		<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-			<Shimmer as="div" className="text-[13px] leading-relaxed">
-				Thinking...
-			</Shimmer>
-		</div>
+const LiveActivitySlot: FC = () => (
+	<div
+		data-testid="live-activity-slot"
+		className="flex h-6 items-center gap-2 text-content-secondary"
+	>
+		<ToolIcon name="thinking" isError={false} />
+		<Shimmer as="span" className="text-[13px] leading-6">
+			Thinking
+		</Shimmer>
 	</div>
 );
 
@@ -54,7 +37,6 @@ export const StreamingOutput: FC<{
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	urlTransform?: UrlTransform;
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 }> = ({
@@ -64,7 +46,6 @@ export const StreamingOutput: FC<{
 	subagentVariants,
 	subagentStatusOverrides,
 	liveStatus,
-	startingResetKey,
 	urlTransform,
 	mcpServers,
 }) => {
@@ -77,21 +58,11 @@ export const StreamingOutput: FC<{
 		liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
 	const blocks = shouldShowBlocks ? (streamState?.blocks ?? []) : [];
 
-	// During streaming, keep showing the "Thinking..." indicator
-	// until text or reasoning blocks arrive. This bridges the
-	// visual gap between the "starting" phase placeholder and the
-	// first visible content, preventing the indicator from
-	// flickering away when only tool-call parts (or whitespace-
-	// only text deltas) have been received so far.
-	const needsStreamingThinking =
-		isStreaming && !hasTextOrReasoningBlock(blocks);
-
-	const shouldShowStatusCallout =
-		hasTransientLiveStatus(liveStatus) || needsStreamingThinking;
-
-	if (!shouldShowBlocks && !shouldShowStatusCallout) {
-		return null;
-	}
+	const showActivity = shouldShowGenericThinking({
+		liveStatus,
+		streamState,
+		streamTools,
+	});
 
 	const conversationItemProps = { role: "assistant" as const };
 
@@ -99,7 +70,7 @@ export const StreamingOutput: FC<{
 		<ConversationItem {...conversationItemProps}>
 			<Message className="w-full">
 				<MessageContent className="whitespace-normal">
-					<div className="space-y-3">
+					<div className="relative flex flex-col gap-2 overflow-visible">
 						{shouldShowBlocks && (
 							<BlockList
 								blocks={blocks}
@@ -113,13 +84,10 @@ export const StreamingOutput: FC<{
 								mcpServers={mcpServers}
 							/>
 						)}
-						{needsStreamingThinking && <StreamingThinkingPlaceholder />}
-						{!needsStreamingThinking && hasTransientLiveStatus(liveStatus) && (
-							<ChatStatusCallout
-								status={liveStatus}
-								startingResetKey={startingResetKey}
-							/>
+						{hasCalloutLiveStatus(liveStatus) && (
+							<ChatStatusCallout status={liveStatus} />
 						)}
+						{showActivity && <LiveActivitySlot />}
 					</div>
 				</MessageContent>
 			</Message>

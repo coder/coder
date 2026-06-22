@@ -34,6 +34,8 @@ import type { FC, PropsWithChildren } from "react";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
 	selectChatStatus,
@@ -191,38 +193,26 @@ const createMockSocket = (): MockSocket => {
 	};
 };
 
-const createTestQueryClient = (): QueryClient =>
-	new QueryClient({
-		defaultOptions: {
-			queries: {
-				retry: false,
-				gcTime: 0,
-				refetchOnWindowFocus: false,
-				networkMode: "offlineFirst",
-			},
-		},
-	});
+const createWrapper =
+	(queryClient: QueryClient): FC<PropsWithChildren> =>
+	({ children }) => (
+		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+	);
 
-const makeChat = (chatID: string): TypesGen.Chat => ({
+const buildChat = (chatID: string): TypesGen.Chat => ({
+	...MockChat,
 	id: chatID,
-	organization_id: "test-org-id",
 	owner_id: "owner-1",
+	owner_username: "owner",
+	owner_name: undefined,
 	last_model_config_id: "model-1",
-	mcp_server_ids: [],
-	labels: {},
 	title: "test",
 	status: "running",
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
-	archived: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_error: null,
-	children: [],
 });
 
-const makeMessage = (
+const buildMessage = (
 	chatID: string,
 	id: number,
 	role: TypesGen.ChatMessageRole,
@@ -235,7 +225,20 @@ const makeMessage = (
 	content: [{ type: "text", text }],
 });
 
-const makeQueuedMessage = (
+const buildMessageWithContent = (
+	chatID: string,
+	id: number,
+	role: TypesGen.ChatMessageRole,
+	content: readonly TypesGen.ChatMessagePart[],
+): TypesGen.ChatMessage => ({
+	id,
+	chat_id: chatID,
+	created_at: "2025-01-01T00:00:00.000Z",
+	role,
+	content,
+});
+
+const buildQueuedMessage = (
 	chatID: string,
 	id: number,
 	text: string,
@@ -266,14 +269,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -282,7 +283,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -342,19 +343,24 @@ describe("useChatStore", () => {
 		});
 	});
 
-	it("clears stream state when a new durable message arrives", async () => {
-		immediateAnimationFrame();
+	it("keeps create_workspace durable call without result after preview_reset", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
 
-		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const newMessage = makeMessage(chatID, 2, "assistant", "done");
+		const chatID = "chat-preview-reset-create-workspace";
+		const existingMessage = buildMessage(chatID, 1, "user", "create workspace");
+		const assistantMessage = buildMessageWithContent(chatID, 2, "assistant", [
+			{
+				type: "tool-call",
+				tool_call_id: "create-workspace-1",
+				tool_name: "create_workspace",
+				args: { name: "dev" },
+			},
+		]);
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -363,7 +369,535 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					part: {
+						type: "tool-call",
+						tool_call_id: "create-workspace-1",
+						tool_name: "create_workspace",
+						args: { name: "dev" },
+					},
+				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(
+				result.current.streamState?.toolCalls["create-workspace-1"]?.name,
+			).toBe("create_workspace");
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "message", chat_id: chatID, message: assistantMessage },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.messagesByID.get(2)?.content).toEqual(
+				assistantMessage.content,
+			);
+		});
+	});
+
+	it("clears stream state when preview_reset arrives after durable tool result", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-preview-reset-tool-result";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const assistantMessage = buildMessageWithContent(chatID, 2, "assistant", [
+			{
+				type: "tool-call",
+				tool_call_id: "tool-1",
+				tool_name: "read_template",
+				args: { template_id: "template-1" },
+			},
+		]);
+		const toolMessage = buildMessageWithContent(chatID, 3, "tool", [
+			{
+				type: "tool-result",
+				tool_call_id: "tool-1",
+				tool_name: "read_template",
+				result: { name: "Template" },
+			},
+		]);
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					part: {
+						type: "tool-call",
+						tool_call_id: "tool-1",
+						tool_name: "read_template",
+						args: { template_id: "template-1" },
+					},
+				},
+			});
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.toolCalls["tool-1"]?.name).toBe(
+				"read_template",
+			);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "message", chat_id: chatID, message: assistantMessage },
+				{ type: "preview_reset", chat_id: chatID },
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						part: {
+							type: "tool-result",
+							tool_call_id: "tool-1",
+							tool_name: "read_template",
+							result: { name: "Template" },
+						},
+					},
+				},
+				{ type: "message", chat_id: chatID, message: toolMessage },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+			expect(result.current.streamState).toBeNull();
+		});
+	});
+
+	it("preview_reset discards pending buffered parts", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-preview-reset-buffer";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "stale" },
+					},
+				},
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		expect(result.current.streamState).toBeNull();
+	});
+
+	it("keeps only post-reset parts after preview_reset in one batch", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+
+		const chatID = "chat-preview-reset-post-part";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const durableMessage = buildMessage(chatID, 2, "assistant", "done");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "stale" },
+					},
+				},
+				{ type: "message", chat_id: chatID, message: durableMessage },
+				{ type: "preview_reset", chat_id: chatID },
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "fresh" },
+					},
+				},
+			]);
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(1);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "fresh" },
+			]);
+		});
+	});
+
+	it("replaces messages after history_reset", async () => {
+		const chatID = "chat-history-reset";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "stale prompt"),
+		];
+		const replacementMessage = buildMessage(chatID, 1, "user", "new prompt");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [...initialMessages].reverse(),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		act(() => {
+			mockSocket.emitDataBatch([
+				{
+					type: "message_part",
+					chat_id: chatID,
+					message_part: {
+						role: "assistant",
+						part: { type: "text", text: "stale" },
+					},
+				},
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacementMessage },
+				// The server always emits preview_reset after a history
+				// change in the same sync; it terminates the replacement run.
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1]);
+			expect(result.current.messagesByID.get(1)?.content).toEqual(
+				replacementMessage.content,
+			);
+			expect(result.current.streamState).toBeNull();
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			1,
+		]);
+	});
+
+	it("buffers a history_reset replacement split across WS frames", async () => {
+		const chatID = "chat-history-reset-split";
+		const initialMessages = [
+			buildMessage(chatID, 1, "user", "old prompt"),
+			buildMessage(chatID, 2, "assistant", "old answer"),
+			buildMessage(chatID, 3, "user", "stale prompt"),
+		];
+		const replacementOne = buildMessage(chatID, 1, "user", "new prompt");
+		const replacementTwo = buildMessage(chatID, 2, "assistant", "new answer");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = new QueryClient({
+			defaultOptions: {
+				queries: {
+					retry: false,
+					gcTime: Number.POSITIVE_INFINITY,
+					refetchOnWindowFocus: false,
+					networkMode: "offlineFirst",
+				},
+			},
+		});
+		queryClient.setQueryData(chatMessagesKey(chatID), {
+			pages: [
+				{
+					messages: [...initialMessages].reverse(),
+					queued_messages: [],
+					has_more: false,
+				},
+			],
+			pageParams: [undefined],
+		});
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: initialMessages,
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: initialMessages,
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					messagesByID: useChatSelector(store, selectMessagesByID),
+					orderedMessageIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+		});
+
+		// Frame 1: history_reset plus only part of the replacement
+		// history. The conversation must not blank or truncate while
+		// the rest of the run is in flight.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "history_reset", chat_id: chatID },
+				{ type: "message", chat_id: chatID, message: replacementOne },
+			]);
+		});
+		expect(result.current.orderedMessageIDs).toEqual([1, 2, 3]);
+
+		// Frame 2: the rest of the replacement, terminated by the
+		// preview_reset the server emits in the same sync.
+		act(() => {
+			mockSocket.emitDataBatch([
+				{ type: "message", chat_id: chatID, message: replacementTwo },
+				{ type: "preview_reset", chat_id: chatID },
+			]);
+		});
+
+		await waitFor(() => {
+			expect(result.current.orderedMessageIDs).toEqual([1, 2]);
+			expect(result.current.messagesByID.get(1)?.content).toEqual(
+				replacementOne.content,
+			);
+			expect(result.current.messagesByID.get(2)?.content).toEqual(
+				replacementTwo.content,
+			);
+		});
+
+		const cached = queryClient.getQueryData<{
+			pages: TypesGen.ChatMessagesResponse[];
+			pageParams: unknown[];
+		}>(chatMessagesKey(chatID));
+		expect(cached?.pages[0]?.messages.map((message) => message.id)).toEqual([
+			2, 1,
+		]);
+	});
+
+	it("clears stream state when a new durable message arrives", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-1";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const newMessage = buildMessage(chatID, 2, "assistant", "done");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -421,15 +955,13 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "assistant", "old");
-		const updatedMessage = makeMessage(chatID, 1, "assistant", "updated");
+		const existingMessage = buildMessage(chatID, 1, "assistant", "old");
+		const updatedMessage = buildMessage(chatID, 1, "assistant", "updated");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -438,7 +970,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -496,7 +1028,7 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
@@ -532,7 +1064,7 @@ describe("useChatStore", () => {
 			const { store } = useChatStore({
 				chatID,
 				chatMessages: [existingMessage],
-				chatRecord: makeChat(chatID),
+				chatRecord: buildChat(chatID),
 				chatMessagesData: {
 					messages: [existingMessage],
 					queued_messages: [],
@@ -590,14 +1122,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -606,7 +1136,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -665,14 +1195,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -681,7 +1209,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -731,7 +1259,14 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState).toBeNull();
+			// Stream state is preserved after status=pending (the
+			// durable message event handles cleanup via
+			// needsStreamReset). Only new message_parts should be
+			// blocked by the shouldApplyMessagePart gate.
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "first" },
+			]);
 		});
 
 		act(() => {
@@ -749,27 +1284,30 @@ describe("useChatStore", () => {
 		});
 
 		await waitFor(() => {
-			expect(result.current.streamState).toBeNull();
+			// The late message_part should not be applied because
+			// shouldApplyMessagePart gates on pending/waiting.
+			// Stream state still shows the original "first".
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "first" },
+			]);
 		});
 	});
 
 	it("does not restore stale queued messages after a stream queue_update", async () => {
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 		const initialOptions = {
 			chatID,
 			chatMessages: [existingMessage],
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
@@ -829,15 +1367,13 @@ describe("useChatStore", () => {
 
 	it("corrects stale queued messages from cache when switching back to a chat", async () => {
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -847,7 +1383,7 @@ describe("useChatStore", () => {
 		const staleOptions = {
 			chatID,
 			chatMessages: [existingMessage],
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: [existingMessage],
 				queued_messages: [queuedMessage],
@@ -900,8 +1436,8 @@ describe("useChatStore", () => {
 
 	it("writes queue_update snapshots into the chat query cache", async () => {
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
@@ -927,9 +1463,7 @@ describe("useChatStore", () => {
 			pageParams: [undefined],
 		});
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -938,7 +1472,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [queuedMessage],
 					setChatErrorReason,
@@ -975,7 +1509,7 @@ describe("useChatStore", () => {
 
 	it("writes WebSocket message events into the chat query cache", async () => {
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
@@ -999,9 +1533,7 @@ describe("useChatStore", () => {
 			pageParams: [undefined],
 		});
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1010,7 +1542,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: initialChatMessagesData,
 					chatQueuedMessages: [],
 					setChatErrorReason,
@@ -1027,7 +1559,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		const newMessage = makeMessage(chatID, 2, "assistant", "hi there");
+		const newMessage = buildMessage(chatID, 2, "assistant", "hi there");
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -1063,7 +1595,7 @@ describe("useChatStore", () => {
 
 		// Emitting the same message ID with different content should
 		// update the cached entry (content-update path).
-		const revised = makeMessage(chatID, 2, "assistant", "revised");
+		const revised = buildMessage(chatID, 2, "assistant", "revised");
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -1084,8 +1616,8 @@ describe("useChatStore", () => {
 
 		const chatID1 = "chat-1";
 		const chatID2 = "chat-2";
-		const msg1 = makeMessage(chatID1, 1, "user", "hello");
-		const msg2 = makeMessage(chatID2, 10, "user", "world");
+		const msg1 = buildMessage(chatID1, 1, "user", "hello");
+		const msg2 = buildMessage(chatID2, 10, "user", "world");
 
 		const mockSocket1 = createMockSocket();
 		const mockSocket2 = createMockSocket();
@@ -1098,16 +1630,14 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
-			chatRecord: makeChat(chatID1),
+			chatRecord: buildChat(chatID1),
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
@@ -1156,7 +1686,7 @@ describe("useChatStore", () => {
 			...initialOptions,
 			chatID: chatID2,
 			chatMessages: [msg2],
-			chatRecord: makeChat(chatID2),
+			chatRecord: buildChat(chatID2),
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
@@ -1177,15 +1707,13 @@ describe("useChatStore", () => {
 	it("ignores queue_update events for other chats", async () => {
 		const chatID = "chat-1";
 		const otherChatID = "chat-2";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
-		const queuedMessage = makeQueuedMessage(chatID, 10, "queued");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const queuedMessage = buildQueuedMessage(chatID, 10, "queued");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1194,7 +1722,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [queuedMessage],
@@ -1234,14 +1762,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-1";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1250,7 +1776,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -1294,7 +1820,7 @@ describe("useChatStore", () => {
 
 		// A message event with a mismatched chat_id should be ignored
 		// and should NOT trigger scheduleStreamReset.
-		const mismatchedMessage = makeMessage(
+		const mismatchedMessage = buildMessage(
 			"chat-2",
 			99,
 			"assistant",
@@ -1318,7 +1844,12 @@ describe("useChatStore", () => {
 
 		// A message event with the correct chat_id should be processed
 		// and trigger scheduleStreamReset, clearing stream state.
-		const matchingMessage = makeMessage(chatID, 2, "assistant", "correct chat");
+		const matchingMessage = buildMessage(
+			chatID,
+			2,
+			"assistant",
+			"correct chat",
+		);
 		act(() => {
 			mockSocket.emitData({
 				type: "message",
@@ -1336,14 +1867,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-raf";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1352,7 +1881,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -1401,7 +1930,7 @@ describe("useChatStore", () => {
 				{
 					type: "message",
 					chat_id: chatID,
-					message: makeMessage(chatID, 2, "assistant", "done"),
+					message: buildMessage(chatID, 2, "assistant", "done"),
 				},
 				{
 					type: "message_part",
@@ -1426,8 +1955,8 @@ describe("useChatStore", () => {
 
 		const chatID1 = "chat-1";
 		const chatID2 = "chat-2";
-		const msg1 = makeMessage(chatID1, 1, "user", "hello");
-		const msg2 = makeMessage(chatID2, 10, "user", "world");
+		const msg1 = buildMessage(chatID1, 1, "user", "hello");
+		const msg2 = buildMessage(chatID2, 10, "user", "world");
 
 		const mockSocket1 = createMockSocket();
 		const mockSocket2 = createMockSocket();
@@ -1439,16 +1968,14 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
-			chatRecord: makeChat(chatID1),
+			chatRecord: buildChat(chatID1),
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [] as TypesGen.ChatQueuedMessage[],
@@ -1497,7 +2024,7 @@ describe("useChatStore", () => {
 			...initialOptions,
 			chatID: chatID2,
 			chatMessages: [msg2],
-			chatRecord: makeChat(chatID2),
+			chatRecord: buildChat(chatID2),
 			chatMessagesData: {
 				messages: [msg2],
 				queued_messages: [],
@@ -1517,8 +2044,8 @@ describe("useChatStore", () => {
 
 		const chatID1 = "chat-1";
 		const chatID2 = "chat-2";
-		const msg1 = makeMessage(chatID1, 1, "user", "first");
-		const queuedMsg = makeQueuedMessage(chatID1, 10, "queued");
+		const msg1 = buildMessage(chatID1, 1, "user", "first");
+		const queuedMsg = buildQueuedMessage(chatID1, 10, "queued");
 
 		const mockSocket1 = createMockSocket();
 		const mockSocket2 = createMockSocket();
@@ -1530,16 +2057,14 @@ describe("useChatStore", () => {
 			.mockReturnValueOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
 		const initialOptions = {
 			chatID: chatID1,
 			chatMessages: [msg1] as TypesGen.ChatMessage[],
-			chatRecord: makeChat(chatID1),
+			chatRecord: buildChat(chatID1),
 			chatMessagesData: {
 				messages: [msg1],
 				queued_messages: [queuedMsg],
@@ -1575,7 +2100,7 @@ describe("useChatStore", () => {
 			...initialOptions,
 			chatID: chatID2,
 			chatMessages: [],
-			chatRecord: makeChat(chatID2),
+			chatRecord: buildChat(chatID2),
 			chatMessagesData: {
 				messages: [],
 				queued_messages: [],
@@ -1600,9 +2125,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1611,7 +2134,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -1670,9 +2193,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1681,7 +2202,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -1749,9 +2270,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1760,7 +2279,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -1793,9 +2312,6 @@ describe("useChatStore", () => {
 			expect(result.current.streamError).toEqual({
 				kind: "generic",
 				message: "Chat processing failed.",
-				provider: undefined,
-				retryable: false,
-				statusCode: undefined,
 			});
 		});
 	});
@@ -1808,9 +2324,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1819,7 +2333,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -1874,9 +2388,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1885,7 +2397,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -1957,9 +2469,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -1968,7 +2478,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2044,9 +2554,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2055,7 +2563,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2107,9 +2615,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturnOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2118,7 +2624,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2188,9 +2694,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2199,7 +2703,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2265,9 +2769,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2276,7 +2778,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2344,16 +2846,14 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: { ...makeChat(chatID), status: "completed" },
+					chatRecord: { ...buildChat(chatID), status: "completed" },
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2393,16 +2893,14 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		renderHook(
 			() =>
 				useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2441,21 +2939,19 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-catchup";
-		const msg = makeMessage(chatID, 42, "assistant", "hello");
+		const msg = buildMessage(chatID, 42, "assistant", "hello");
 		const watchMock = vi.mocked(watchChat);
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		renderHook(
 			() =>
 				useChatStore({
 					chatID,
 					chatMessages: [msg],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [msg],
 						queued_messages: [],
@@ -2500,7 +2996,7 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-reconnect-dedup";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const watchMock = vi.mocked(watchChat);
 
 		// Return a fresh MockSocket for each connection attempt
@@ -2509,9 +3005,7 @@ describe("useChatStore", () => {
 		const sockets = mockWatchChatWithFreshSockets(watchMock);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2520,7 +3014,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -2634,9 +3128,7 @@ describe("useChatStore", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2645,7 +3137,7 @@ describe("useChatStore", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -2684,17 +3176,15 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-edit-truncation";
-		const msg1 = makeMessage(chatID, 1, "user", "first");
-		const msg2 = makeMessage(chatID, 2, "assistant", "second");
-		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const msg1 = buildMessage(chatID, 1, "user", "first");
+		const msg2 = buildMessage(chatID, 2, "assistant", "second");
+		const msg3 = buildMessage(chatID, 3, "user", "third");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -2704,7 +3194,7 @@ describe("useChatStore", () => {
 		const initialOptions = {
 			chatID,
 			chatMessages: initialMessages,
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: noQueued,
@@ -2754,28 +3244,26 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-queue-promote";
-		const msg1 = makeMessage(chatID, 1, "user", "hello");
-		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
+		const msg1 = buildMessage(chatID, 1, "user", "hello");
+		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
 		// The promoted message that will arrive via WebSocket.
-		const promotedMsg = makeMessage(chatID, 3, "user", "follow-up");
+		const promotedMsg = buildMessage(chatID, 3, "user", "follow-up");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		const queuedMsg = makeQueuedMessage(chatID, 10, "follow-up");
+		const queuedMsg = buildQueuedMessage(chatID, 10, "follow-up");
 		const initialMessages = [msg1, msg2];
 
 		const initialOptions = {
 			chatID,
 			chatMessages: initialMessages,
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [queuedMsg],
@@ -2865,26 +3353,24 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-promote-stream";
-		const msg1 = makeMessage(chatID, 1, "user", "hello");
-		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
+		const msg1 = buildMessage(chatID, 1, "user", "hello");
+		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
-		const queuedMsg = makeQueuedMessage(chatID, 10, "follow-up");
+		const queuedMsg = buildQueuedMessage(chatID, 10, "follow-up");
 		const initialMessages = [msg1, msg2];
 
 		const initialOptions = {
 			chatID,
 			chatMessages: initialMessages,
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [queuedMsg],
@@ -2936,7 +3422,7 @@ describe("useChatStore", () => {
 		// message because it only checked `changed`, and with
 		// immediateAnimationFrame the RAF fires synchronously,
 		// wiping the stream state that was just built.
-		const promotedUser = makeMessage(chatID, 3, "user", "follow-up");
+		const promotedUser = buildMessage(chatID, 3, "user", "follow-up");
 
 		act(() => {
 			mockSocket.emitDataBatch([
@@ -2970,14 +3456,12 @@ describe("useChatStore", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-stale-rest-status";
-		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		// Start with a "running" chatRecord so the WS opens.
 		const { result, rerender } = renderHook(
@@ -3002,7 +3486,7 @@ describe("useChatStore", () => {
 			{
 				wrapper,
 				initialProps: {
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 				},
 			},
 		);
@@ -3027,13 +3511,184 @@ describe("useChatStore", () => {
 
 		// Simulate a stale REST refetch returning "pending".
 		rerender({
-			chatRecord: { ...makeChat(chatID), status: "pending" },
+			chatRecord: { ...buildChat(chatID), status: "pending" },
 		});
 
 		// The store must ignore the stale REST value because the
 		// WS already delivered a status event for this chat.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
+		});
+	});
+
+	it("preserves stream state when status transitions to waiting", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-preserve-stream";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Build up stream state with a message_part.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "thinking..." },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "thinking..." },
+			]);
+		});
+
+		// Deliver a status=waiting event (interrupt). Stream state
+		// should be preserved so the user continues to see the
+		// partial response until the durable message arrives.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "thinking..." },
+			]);
+		});
+	});
+
+	it("clears stream state when durable message follows waiting status", async () => {
+		immediateAnimationFrame();
+
+		const chatID = "chat-durable-clears";
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
+		const mockSocket = createMockSocket();
+		mockWatchChatReturn(mockSocket);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+		const setChatErrorReason = vi.fn();
+		const clearChatErrorReason = vi.fn();
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatID,
+					chatMessages: [existingMessage],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [existingMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason,
+					clearChatErrorReason,
+				});
+				return {
+					streamState: useChatSelector(store, selectStreamState),
+					orderedIDs: useChatSelector(store, selectOrderedMessageIDs),
+				};
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
+		});
+
+		// Build up stream state.
+		act(() => {
+			mockSocket.emitData({
+				type: "message_part",
+				chat_id: chatID,
+				message_part: {
+					role: "assistant",
+					part: { type: "text", text: "partial response" },
+				},
+			});
+		});
+
+		await waitFor(() => {
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial response" },
+			]);
+		});
+
+		// Deliver status=waiting (interrupt). Stream state should be
+		// preserved so the user continues to see the partial response
+		// until the durable message arrives.
+		act(() => {
+			mockSocket.emitData({
+				type: "status",
+				chat_id: chatID,
+				status: { status: "waiting" },
+			});
+		});
+
+		// Stream state must still be present after the status change.
+		await waitFor(() => {
+			expect(result.current.streamState).not.toBeNull();
+			expect(result.current.streamState?.blocks).toEqual([
+				{ type: "response", text: "partial response" },
+			]);
+		});
+
+		// Now deliver the durable assistant message. This should
+		// clear stream state via the needsStreamReset path.
+		act(() => {
+			mockSocket.emitData({
+				type: "message",
+				chat_id: chatID,
+				message: buildMessage(chatID, 2, "assistant", "partial response"),
+			});
+		});
+
+		// Stream state should now be null and the durable message
+		// should be in the message store.
+		await waitFor(() => {
+			expect(result.current.streamState).toBeNull();
+			expect(result.current.orderedIDs).toContain(2);
 		});
 	});
 });
@@ -3044,14 +3699,12 @@ describe("thinking indicator event ordering", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-thinking-parts-before-status";
-		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3060,7 +3713,7 @@ describe("thinking indicator event ordering", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatRecord: { ...buildChat(chatID), status: "running" },
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -3085,7 +3738,7 @@ describe("thinking indicator event ordering", () => {
 
 		// Server sends message_part BEFORE status:running in the same
 		// WebSocket frame. This is the event ordering that previously
-		// caused the "Thinking..." indicator to be skipped.
+		// caused the Thinking indicator to be skipped.
 		act(() => {
 			mockSocket.emitDataBatch([
 				{
@@ -3105,7 +3758,7 @@ describe("thinking indicator event ordering", () => {
 
 		// After the batch, the status should be "running" but stream
 		// parts should NOT have been applied yet (deferred to
-		// setTimeout). This is the window where "Thinking..." shows.
+		// setTimeout). This is the window where the Thinking indicator shows.
 		await waitFor(() => {
 			expect(result.current.chatStatus).toBe("running");
 			expect(result.current.streamState).toBeNull();
@@ -3129,14 +3782,12 @@ describe("thinking indicator event ordering", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-thinking-status-before-parts";
-		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3145,7 +3796,7 @@ describe("thinking indicator event ordering", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatRecord: { ...buildChat(chatID), status: "running" },
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -3209,14 +3860,12 @@ describe("thinking indicator event ordering", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-thinking-discard-pending";
-		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3225,7 +3874,7 @@ describe("thinking indicator event ordering", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: { ...makeChat(chatID), status: "running" },
+					chatRecord: { ...buildChat(chatID), status: "running" },
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -3299,13 +3948,11 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const initialChat = makeChat(chatID);
+		const initialChat = buildChat(chatID);
 		// Seed the chats list so updateSidebarChat can find it.
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3364,12 +4011,10 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const initialChat = makeChat(chatID);
+		const initialChat = buildChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3405,7 +4050,7 @@ describe("updateSidebarChat via stream events", () => {
 				type: "message",
 				chat_id: chatID,
 				message: {
-					...makeMessage(chatID, 42, "assistant", "hello"),
+					...buildMessage(chatID, 42, "assistant", "hello"),
 					created_at: messageTimestamp,
 				},
 			});
@@ -3437,12 +4082,10 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const initialChat = makeChat(chatID);
+		const initialChat = buildChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3502,13 +4145,11 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const activeChat = makeChat(chatID);
-		const otherChat = makeChat(otherChatID);
+		const activeChat = buildChat(chatID);
+		const otherChat = buildChat(otherChatID);
 		seedInfiniteChats(queryClient, [activeChat, otherChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3576,12 +4217,10 @@ describe("updateSidebarChat via stream events", () => {
 			},
 		});
 		const futureTimestamp = "2099-01-01T00:00:00.000Z";
-		const initialChat = { ...makeChat(chatID), updated_at: futureTimestamp };
+		const initialChat = { ...buildChat(chatID), updated_at: futureTimestamp };
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3618,7 +4257,7 @@ describe("updateSidebarChat via stream events", () => {
 				type: "message",
 				chat_id: chatID,
 				message: {
-					...makeMessage(chatID, 99, "assistant", "old message"),
+					...buildMessage(chatID, 99, "assistant", "old message"),
 					created_at: "2020-01-01T00:00:00.000Z",
 				},
 			});
@@ -3647,12 +4286,10 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const initialChat = makeChat(chatID);
+		const initialChat = buildChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3713,12 +4350,10 @@ describe("updateSidebarChat via stream events", () => {
 				},
 			},
 		});
-		const initialChat = makeChat(chatID);
+		const initialChat = buildChat(chatID);
 		seedInfiniteChats(queryClient, [initialChat]);
 
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -3767,21 +4402,19 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-b1-overlap";
-		const userMsg = makeMessage(chatID, 1, "user", "hello");
+		const userMsg = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -3831,7 +4464,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			mockSocket.emitData({
 				type: "message",
 				chat_id: chatID,
-				message: makeMessage(chatID, 2, "assistant", "response"),
+				message: buildMessage(chatID, 2, "assistant", "response"),
 			});
 		});
 
@@ -3848,14 +4481,12 @@ describe("stream-to-durable transition (Bug 1)", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-b1-atomic";
-		const userMsg = makeMessage(chatID, 1, "user", "hi");
+		const userMsg = buildMessage(chatID, 1, "user", "hi");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		// Track every snapshot emitted to subscribers.
 		const snapshots: Array<{
@@ -3868,7 +4499,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -3920,7 +4551,7 @@ describe("stream-to-durable transition (Bug 1)", () => {
 			mockSocket.emitData({
 				type: "message",
 				chat_id: chatID,
-				message: makeMessage(chatID, 2, "assistant", "hello"),
+				message: buildMessage(chatID, 2, "assistant", "hello"),
 			});
 		});
 
@@ -3942,21 +4573,19 @@ describe("partsBuf cleanup on reconnect (Bug 2)", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-b2-reconnect";
-		const userMsg = makeMessage(chatID, 1, "user", "test");
+		const userMsg = buildMessage(chatID, 1, "user", "test");
 		const mockSocket1 = createMockSocket();
 		mockWatchChatReturnOnce(mockSocket1);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const { result } = renderHook(
 			() => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [userMsg],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [userMsg],
 						queued_messages: [],
@@ -4055,9 +4684,9 @@ describe("store/cache desync protection", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-send-desync";
-		const msg1 = makeMessage(chatID, 1, "user", "hello");
-		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
-		const msg3 = makeMessage(chatID, 3, "user", "follow-up");
+		const msg1 = buildMessage(chatID, 1, "user", "hello");
+		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
+		const msg3 = buildMessage(chatID, 3, "user", "follow-up");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
@@ -4073,15 +4702,13 @@ describe("store/cache desync protection", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const initialMessages = [msg1, msg2];
 		const initialOptions = {
 			chatID,
 			chatMessages: initialMessages,
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: initialMessages,
 				queued_messages: [],
@@ -4122,8 +4749,8 @@ describe("store/cache desync protection", () => {
 
 		// Genuine refetch: new object refs for msg1 and msg2,
 		// msg3 absent from the fetched set.
-		const msg1New = makeMessage(chatID, 1, "user", "hello");
-		const msg2New = makeMessage(chatID, 2, "assistant", "hi");
+		const msg1New = buildMessage(chatID, 1, "user", "hello");
+		const msg2New = buildMessage(chatID, 2, "assistant", "hi");
 		rerender({
 			...initialOptions,
 			chatMessages: [msg1New, msg2New],
@@ -4146,9 +4773,9 @@ describe("store/cache desync protection", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-edit-truncation";
-		const msg1 = makeMessage(chatID, 1, "user", "hello");
-		const msg2 = makeMessage(chatID, 2, "assistant", "hi");
-		const msg3 = makeMessage(chatID, 3, "user", "more");
+		const msg1 = buildMessage(chatID, 1, "user", "hello");
+		const msg2 = buildMessage(chatID, 2, "assistant", "hi");
+		const msg3 = buildMessage(chatID, 3, "user", "more");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
@@ -4164,14 +4791,12 @@ describe("store/cache desync protection", () => {
 			],
 			pageParams: [undefined],
 		});
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 
 		const initialOptions = {
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: [msg1, msg2, msg3],
 				queued_messages: [],
@@ -4201,7 +4826,7 @@ describe("store/cache desync protection", () => {
 		});
 
 		// Simulate edit truncation: rerender with only msg1.
-		const msg1New = makeMessage(chatID, 1, "user", "hello");
+		const msg1New = buildMessage(chatID, 1, "user", "hello");
 		rerender({
 			...initialOptions,
 			chatMessages: [msg1New],
@@ -4224,26 +4849,24 @@ describe("store/cache desync protection", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-local-edit-sync";
-		const msg1 = makeMessage(chatID, 1, "user", "first");
-		const msg2 = makeMessage(chatID, 2, "assistant", "second");
-		const msg3 = makeMessage(chatID, 3, "user", "third");
+		const msg1 = buildMessage(chatID, 1, "user", "first");
+		const msg2 = buildMessage(chatID, 2, "assistant", "second");
+		const msg3 = buildMessage(chatID, 3, "user", "third");
 		const optimisticReplacement = {
 			...msg3,
 			content: [{ type: "text" as const, text: "edited draft" }],
 		};
-		const authoritativeReplacement = makeMessage(chatID, 9, "user", "edited");
+		const authoritativeReplacement = buildMessage(chatID, 9, "user", "edited");
 
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper: FC<PropsWithChildren> = ({ children }) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const initialOptions = {
 			chatID,
 			chatMessages: [msg1, msg2, msg3],
-			chatRecord: makeChat(chatID),
+			chatRecord: buildChat(chatID),
 			chatMessagesData: {
 				messages: [msg1, msg2, msg3],
 				queued_messages: [],
@@ -4320,9 +4943,7 @@ describe("parse errors", () => {
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4331,7 +4952,7 @@ describe("parse errors", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [],
 						queued_messages: [],
@@ -4370,14 +4991,12 @@ describe("parse errors", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-parse-no-corrupt";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4386,7 +5005,7 @@ describe("parse errors", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],
@@ -4446,14 +5065,12 @@ describe("parse errors", () => {
 		immediateAnimationFrame();
 
 		const chatID = "chat-parse-recover";
-		const existingMessage = makeMessage(chatID, 1, "user", "hello");
+		const existingMessage = buildMessage(chatID, 1, "user", "hello");
 		const mockSocket = createMockSocket();
 		mockWatchChatReturn(mockSocket);
 
 		const queryClient = createTestQueryClient();
-		const wrapper = ({ children }: PropsWithChildren) => (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-		);
+		const wrapper = createWrapper(queryClient);
 		const setChatErrorReason = vi.fn();
 		const clearChatErrorReason = vi.fn();
 
@@ -4462,7 +5079,7 @@ describe("parse errors", () => {
 				const { store } = useChatStore({
 					chatID,
 					chatMessages: [existingMessage],
-					chatRecord: makeChat(chatID),
+					chatRecord: buildChat(chatID),
 					chatMessagesData: {
 						messages: [existingMessage],
 						queued_messages: [],

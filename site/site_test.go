@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 
+	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -38,6 +40,82 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type staticAppearanceFetcher struct {
+	cfg codersdk.AppearanceConfig
+}
+
+func (f staticAppearanceFetcher) Fetch(context.Context) (codersdk.AppearanceConfig, error) {
+	return f.cfg, nil
+}
+
+func TestInjectionAppearanceEscapesMetaAttributes(t *testing.T) {
+	t.Parallel()
+
+	const (
+		applicationName = `Coder"><script>alert(1)</script>`
+		logoURL         = `https://example.com/logo.png"><img src=x onerror=alert(1)>`
+	)
+
+	tests := []struct {
+		name          string
+		authenticated bool
+	}{
+		{
+			name: "unauthenticated",
+		},
+		{
+			name:          "authenticated",
+			authenticated: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			siteFS := fstest.MapFS{
+				"index.html": &fstest.MapFile{
+					Data: []byte(`<meta name="application-name" content="{{ .ApplicationName }}" /><meta property="logo-url" content="{{ .LogoURL }}" />`),
+				},
+			}
+			db, _ := dbtestutil.NewDB(t)
+			var appearanceFetcher atomic.Pointer[appearance.Fetcher]
+			fetcher := appearance.Fetcher(staticAppearanceFetcher{cfg: codersdk.AppearanceConfig{
+				ApplicationName: applicationName,
+				LogoURL:         logoURL,
+			}})
+			appearanceFetcher.Store(&fetcher)
+			handler, err := site.New(&site.Options{
+				Telemetry:         telemetry.NewNoop(),
+				Database:          db,
+				SiteFS:            siteFS,
+				AppearanceFetcher: &appearanceFetcher,
+			})
+			require.NoError(t, err)
+
+			r := httptest.NewRequest("GET", "/", nil)
+			if tt.authenticated {
+				user := dbgen.User(t, db, database.User{})
+				_, token := dbgen.APIKey(t, db, database.APIKey{
+					UserID:    user.ID,
+					ExpiresAt: time.Now().Add(time.Hour),
+				})
+				r.Header.Set(codersdk.SessionTokenHeader, token)
+			}
+			rw := httptest.NewRecorder()
+
+			handler.ServeHTTP(rw, r)
+			require.Equal(t, http.StatusOK, rw.Code)
+			body := rw.Body.String()
+
+			require.True(t, strings.Contains(body, html.EscapeString(applicationName)), "application name must be HTML escaped")
+			require.True(t, strings.Contains(body, html.EscapeString(logoURL)), "logo URL must be HTML escaped")
+			require.False(t, strings.Contains(body, applicationName), "raw application name must not be rendered")
+			require.False(t, strings.Contains(body, logoURL), "raw logo URL must not be rendered")
+		})
+	}
+}
 
 func TestInjection(t *testing.T) {
 	t.Parallel()
@@ -81,6 +159,72 @@ func TestInjection(t *testing.T) {
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 
+func TestInjectionUserAppearance(t *testing.T) {
+	t.Parallel()
+
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .UserAppearance }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	handler, err := site.New(&site.Options{
+		Telemetry: telemetry.NewNoop(),
+		Database:  db,
+		SiteFS:    siteFS,
+	})
+	require.NoError(t, err)
+
+	user := dbgen.User(t, db, database.User{})
+	ctx := context.Background()
+	_, err = db.UpdateUserThemePreference(ctx, database.UpdateUserThemePreferenceParams{
+		UserID:          user.ID,
+		ThemePreference: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeMode(ctx, database.UpdateUserThemeModeParams{
+		UserID:    user.ID,
+		ThemeMode: string(codersdk.ThemeModeSync),
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeLight(ctx, database.UpdateUserThemeLightParams{
+		UserID:     user.ID,
+		ThemeLight: "light-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserThemeDark(ctx, database.UpdateUserThemeDarkParams{
+		UserID:    user.ID,
+		ThemeDark: "dark-tritan",
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateUserTerminalFont(ctx, database.UpdateUserTerminalFontParams{
+		UserID:       user.ID,
+		TerminalFont: string(codersdk.TerminalFontFiraCode),
+	})
+	require.NoError(t, err)
+	_, token := dbgen.APIKey(t, db, database.APIKey{
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(time.Hour),
+	})
+
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set(codersdk.SessionTokenHeader, token)
+	rw := httptest.NewRecorder()
+
+	handler.ServeHTTP(rw, r)
+	require.Equal(t, http.StatusOK, rw.Code)
+	var got codersdk.UserAppearanceSettings
+	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.UserAppearanceSettings{
+		ThemePreference: "dark-tritan",
+		ThemeMode:       codersdk.ThemeModeSync,
+		ThemeLight:      "light-tritan",
+		ThemeDark:       "dark-tritan",
+		TerminalFont:    codersdk.TerminalFontFiraCode,
+	}, got)
+}
+
 func TestRenderPermissionsResolvesMe(t *testing.T) {
 	t.Parallel()
 
@@ -102,9 +246,13 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// GIVEN: a user with the agents-access role.
-	userWithRole := dbgen.User(t, db, database.User{
-		RBACRoles: []string{"agents-access"},
+	// GIVEN: a user with the agents-access role at the org level.
+	org := dbgen.Organization(t, db, database.Organization{})
+	userWithRole := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		OrganizationID: org.ID,
+		UserID:         userWithRole.ID,
+		Roles:          []string{rbac.RoleAgentsAccess()},
 	})
 	_, tokenWithRole := dbgen.APIKey(t, db, database.APIKey{
 		UserID:    userWithRole.ID,
@@ -119,9 +267,8 @@ func TestRenderPermissionsResolvesMe(t *testing.T) {
 	require.Equal(t, http.StatusOK, rw.Code)
 
 	// THEN: the SSR-rendered permissions include createChat = true
-	// because the "me" sentinel in permissions.json was resolved to
-	// the actor's ID, and the agents-access role grants user-scoped
-	// chat create permission.
+	// because the agents-access role grants org-scoped chat create
+	// permission, and the any_org check picks it up.
 	var permsWithRole codersdk.AuthorizationResponse
 	err = json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &permsWithRole)
 	require.NoError(t, err)

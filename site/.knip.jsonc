@@ -7,6 +7,7 @@
 		"./test/**/*.ts",
 		"./e2e/**/*.ts"
 	],
+	"tags": ["-lintignore"],
 	"ignore": [
 		"**/*Generated.ts",
 		"src/api/chatModelOptions.ts",
@@ -22,6 +23,7 @@
 	"ignoreBinaries": ["protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
+		"@coder/pixel-storybook",
 		"@types/react-virtualized-auto-sizer",
 		"ts-proto"
 	]

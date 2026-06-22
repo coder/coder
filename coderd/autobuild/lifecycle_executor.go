@@ -382,8 +382,12 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							Old: wsOld.WorkspaceTable(),
 							New: wsNew,
 						}
-						// To keep the `ws` accurate without doing a sql fetch
+						// To keep the `ws` accurate without doing a sql fetch.
+						// deleting_at is computed atomically inside the UPDATE from
+						// the workspace's template_id, so it reflects the auto-delete
+						// deadline the database persisted.
 						ws.DormantAt = wsNew.DormantAt
+						ws.DeletingAt = wsNew.DeletingAt
 
 						shouldNotifyDormancy = true
 
@@ -422,6 +426,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					Isolation:    sql.LevelRepeatableRead,
 					TxIdentifier: "lifecycle",
 				})
+				// A concurrent build (e.g. from the API or another lifecycle
+				// executor) may have already inserted a build with the same
+				// number. This is a benign race; the other actor's build
+				// will take effect. Clear the error so downstream checks
+				// (audit, notification, stats) treat this as a no-op.
+				if database.IsUniqueViolation(err, database.UniqueWorkspaceBuildsWorkspaceIDBuildNumberKey) {
+					log.Info(e.ctx, "skipping workspace: concurrent build already inserted", slog.Error(err))
+					err = nil
+					// Reset notification flags set before builder.Build.
+					// The build was rolled back, so this executor did not
+					// perform the transition. The concurrent actor handles
+					// both the build and any notifications. Without these
+					// resets, downstream code would send duplicate or
+					// incorrect notifications.
+					didAutoUpdate = false
+					shouldNotifyTaskPause = false
+				}
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.
@@ -467,16 +488,22 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					}
 				}
 				if shouldNotifyDormancy {
-					dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
+					labels := map[string]string{
+						"name":   ws.Name,
+						"reason": "inactivity exceeded the dormancy threshold",
+					}
+					// DeletingAt is set by the UPDATE only when the template's
+					// time_til_dormant_autodelete is non-zero, so skip the label when
+					// auto-delete is disabled so the body omits the deletion
+					// timeline.
+					if ws.DeletingAt.Valid {
+						labels["timeTilDelete"] = humanize.Time(ws.DeletingAt.Time)
+					}
 					_, err = e.notificationsEnqueuer.Enqueue(
 						e.ctx,
 						ws.OwnerID,
 						notifications.TemplateWorkspaceDormant,
-						map[string]string{
-							"name":           ws.Name,
-							"reason":         "inactivity exceeded the dormancy threshold",
-							"timeTilDormant": humanize.Time(dormantTime),
-						},
+						labels,
 						"lifecycle_executor",
 						ws.ID,
 						ws.OwnerID,
@@ -559,7 +586,7 @@ func getNextTransition(
 		return database.WorkspaceTransitionStop, database.BuildReasonAutostop, nil
 	case isEligibleForAutostart(user, ws, latestBuild, latestJob, templateSchedule, currentTick):
 		return database.WorkspaceTransitionStart, database.BuildReasonAutostart, nil
-	case isEligibleForFailedStop(latestBuild, latestJob, templateSchedule, currentTick):
+	case isEligibleForFailedCleanup(latestBuild, latestJob, templateSchedule, currentTick):
 		// Use task-specific reason for AI task workspaces.
 		if ws.TaskID.Valid {
 			return database.WorkspaceTransitionStop, database.BuildReasonTaskAutoPause, nil
@@ -671,14 +698,17 @@ func isEligibleForDelete(ws database.Workspace, templateSchedule schedule.Templa
 	return eligible
 }
 
-// isEligibleForFailedStop returns true if the workspace is eligible to be stopped
-// due to a failed build.
-func isEligibleForFailedStop(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
-	// If the template has specified a failure TLL.
+// isEligibleForFailedCleanup returns true if the workspace is eligible to be
+// stopped due to a failed build. A failed start is cleaned up by stopping it,
+// and a failed stop is retried by issuing another stop. In both cases the
+// remediation is a stop build.
+func isEligibleForFailedCleanup(build database.WorkspaceBuild, job database.ProvisionerJob, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	// If the template has specified a failure TTL.
 	return templateSchedule.FailureTTL > 0 &&
 		// And the job resulted in failure.
 		job.JobStatus == database.ProvisionerJobStatusFailed &&
-		build.Transition == database.WorkspaceTransitionStart &&
+		(build.Transition == database.WorkspaceTransitionStart ||
+			build.Transition == database.WorkspaceTransitionStop) &&
 		// And sufficient time has elapsed since the job has completed.
 		job.CompletedAt.Valid &&
 		currentTick.Sub(job.CompletedAt.Time) > templateSchedule.FailureTTL
