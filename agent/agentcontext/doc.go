@@ -18,7 +18,12 @@
 //     to coderd without coupling this package to any particular
 //     drpc client version.
 //
-// The package is purely additive: existing agent code paths
-// (agent/agentcontextconfig and agent/x/agentmcp) continue to
-// operate unchanged.
+// Live MCP server tool lists are produced by this package's own
+// self-contained MCP runner: it connects to the MCP servers declared in
+// the .mcp.json files the resolver discovers, lists their tools, and
+// surfaces them as KindMCPServer resources so MCP servers and their
+// tools are pushed to coderd alongside instruction files and skills.
+// This runs independently of agent/x/agentmcp, which owns the agent's
+// MCP HTTP proxy; the two MCP paths share no state and both continue to
+// operate unchanged during the rollout.
 package agentcontext

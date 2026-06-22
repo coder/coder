@@ -1530,6 +1530,7 @@
 						},
 						{
 							"title": "Agents",
+							"description": "REST endpoints for the workspace agent daemon (`coder_agent`).",
 							"path": "./reference/api/agents.md"
 						},
 						{
@@ -1554,6 +1555,7 @@
 						},
 						{
 							"title": "Chats",
+							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
 							"path": "./reference/api/chats.md",
 							"state": ["early access"]
 						},

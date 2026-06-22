@@ -25,6 +25,13 @@ import (
 // Claude config files into snapshots and breaks every
 // Len(Resources, N) assertion.
 func TestMain(m *testing.M) {
+	// The MCP runner re-execs this test binary as a fake stdio MCP
+	// server (TEST_MCP_FAKE_SERVER=1). Serve and exit before any test
+	// setup runs.
+	if maybeServeFakeMCPServer() {
+		os.Exit(0)
+	}
+
 	home, err := os.MkdirTemp("", "agentcontext-test-home-")
 	if err != nil {
 		panic(err)
@@ -394,4 +401,39 @@ func TestManager_SubscribeBroadcastOnChange(t *testing.T) {
 	case <-time.After(testutil.WaitShort):
 		t.Fatal("expected subscriber to be notified")
 	}
+}
+
+// TestManager_MCPResourcesAppliesToSnapshot verifies that MCP resources
+// supplied via the resolver contribute KindMCPServer resources (with
+// their tools) to the resolved snapshot.
+func TestManager_MCPResourcesAppliesToSnapshot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+		Resolver: &agentcontext.Resolver{
+			MCPResources: func() []agentcontext.Resource {
+				return []agentcontext.Resource{{
+					ID:     "mcp_server:fs",
+					Kind:   agentcontext.KindMCPServer,
+					Source: "fs",
+					Name:   "fs",
+					Status: agentcontext.StatusOK,
+					Tools:  []agentcontext.MCPTool{{Name: "read", Description: "Read"}},
+				}}
+			},
+		},
+	})
+
+	snap := m.Snapshot()
+	var found bool
+	for _, r := range snap.Resources {
+		if r.Kind == agentcontext.KindMCPServer && r.Source == "fs" {
+			found = true
+			require.Len(t, r.Tools, 1)
+			require.Equal(t, "read", r.Tools[0].Name)
+		}
+	}
+	require.True(t, found, "expected MCP server resource in snapshot")
 }
