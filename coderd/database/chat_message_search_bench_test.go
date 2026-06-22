@@ -14,12 +14,12 @@ import (
 
 	"github.com/brianvoe/gofakeit/v7"
 	"github.com/google/uuid"
-	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 )
 
 func BenchmarkChatMessageSearchIndex(b *testing.B) {
@@ -134,6 +134,7 @@ func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.
 	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: provider.Provider})
 	for userIndex := range config.Users {
 		owner := dbgen.User(t, db, database.User{})
+		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
 		for chatIndex := range config.ChatsPerUser {
 			absoluteChatIndex := chatOffset + userIndex*config.ChatsPerUser + chatIndex
 			chat := dbgen.Chat(t, db, database.Chat{
@@ -143,45 +144,77 @@ func seedChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.
 				Title:             fmt.Sprintf("benchmark chat %d %s", absoluteChatIndex, chatSearchSeedText(faker, absoluteChatIndex)),
 			})
 
-			for messageIndex := range config.MessagesPerChat {
-				absoluteIndex := absoluteChatIndex*config.MessagesPerChat + messageIndex
-				role := database.ChatMessageRoleUser
-				if messageIndex%2 == 1 {
-					role = database.ChatMessageRoleAssistant
-				}
-
-				visibility := database.ChatMessageVisibilityBoth
-				if messageIndex%53 == 52 {
-					visibility = database.ChatMessageVisibilityModel
-				}
-
-				message := dbgen.ChatMessage(t, db, database.ChatMessage{
-					ChatID:     chat.ID,
-					CreatedBy:  uuid.NullUUID{UUID: chat.OwnerID, Valid: true},
-					Role:       role,
-					Visibility: visibility,
-					Content:    chatSearchTextContent(t, chatSearchSeedText(faker, absoluteIndex)),
-				})
-
-				if messageIndex%97 == 96 {
-					err := db.SoftDeleteChatMessageByID(ctx, message.ID)
-					require.NoError(t, err)
-				}
-			}
+			params := chatMessageBatchParams(faker, chat, owner.ID, apiKey.ID, modelConfig.ID, absoluteChatIndex, config.MessagesPerChat)
+			_, err := db.InsertChatMessages(ctx, params)
+			require.NoError(t, err)
 		}
 		t.Logf("user: %d chats:%d messages:%d", userIndex, config.ChatsPerUser, config.MessagesPerChat)
 	}
 }
 
-func chatSearchTextContent(t testing.TB, text string) pqtype.NullRawMessage {
-	t.Helper()
+// chatMessageBatchParams builds a single InsertChatMessages call for an entire
+// chat, alternating user and assistant roles and reserving a slice of messages
+// as model-only to mirror hidden content that the partial index excludes.
+func chatMessageBatchParams(faker *gofakeit.Faker, chat database.Chat, ownerID uuid.UUID, apiKeyID string, modelConfigID uuid.UUID, chatIndex, messagesPerChat int) database.InsertChatMessagesParams {
+	params := database.InsertChatMessagesParams{
+		ChatID:              chat.ID,
+		CreatedBy:           make([]uuid.UUID, messagesPerChat),
+		APIKeyID:            make([]string, messagesPerChat),
+		ModelConfigID:       make([]uuid.UUID, messagesPerChat),
+		Role:                make([]database.ChatMessageRole, messagesPerChat),
+		Content:             make([]string, messagesPerChat),
+		ContentVersion:      make([]int16, messagesPerChat),
+		Visibility:          make([]database.ChatMessageVisibility, messagesPerChat),
+		InputTokens:         make([]int64, messagesPerChat),
+		OutputTokens:        make([]int64, messagesPerChat),
+		TotalTokens:         make([]int64, messagesPerChat),
+		ReasoningTokens:     make([]int64, messagesPerChat),
+		CacheCreationTokens: make([]int64, messagesPerChat),
+		CacheReadTokens:     make([]int64, messagesPerChat),
+		ContextLimit:        make([]int64, messagesPerChat),
+		Compressed:          make([]bool, messagesPerChat),
+		TotalCostMicros:     make([]int64, messagesPerChat),
+		RuntimeMs:           make([]int64, messagesPerChat),
+		ProviderResponseID:  make([]string, messagesPerChat),
+	}
 
+	for messageIndex := range messagesPerChat {
+		absoluteIndex := chatIndex*messagesPerChat + messageIndex
+		role := database.ChatMessageRoleUser
+		createdBy := ownerID
+		keyID := apiKeyID
+		if messageIndex%2 == 1 {
+			role = database.ChatMessageRoleAssistant
+			// Assistant turns have no creator or API key.
+			createdBy = uuid.Nil
+			keyID = ""
+		}
+
+		visibility := database.ChatMessageVisibilityBoth
+		if messageIndex%53 == 52 {
+			visibility = database.ChatMessageVisibilityModel
+		}
+
+		params.CreatedBy[messageIndex] = createdBy
+		params.APIKeyID[messageIndex] = keyID
+		params.ModelConfigID[messageIndex] = modelConfigID
+		params.Role[messageIndex] = role
+		params.Content[messageIndex] = chatSearchTextContentJSON(chatSearchSeedText(faker, absoluteIndex))
+		params.ContentVersion[messageIndex] = chatprompt.CurrentContentVersion
+		params.Visibility[messageIndex] = visibility
+	}
+
+	return params
+}
+
+func chatSearchTextContentJSON(text string) string {
 	raw, err := json.Marshal([]map[string]string{
 		{"type": "text", "text": text},
 	})
-	require.NoError(t, err)
-
-	return pqtype.NullRawMessage{RawMessage: raw, Valid: true}
+	if err != nil {
+		panic(err)
+	}
+	return string(raw)
 }
 
 func chatSearchSeedText(faker *gofakeit.Faker, index int) string {
