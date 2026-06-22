@@ -98,11 +98,6 @@ export function deepGet(obj: unknown, path: string[]): unknown {
 const hasObjectKeys = (value: Record<string, unknown>): boolean =>
 	Object.keys(value).length > 0;
 
-/**
- * Shared `visible_when` predicate used by both the rendering layer
- * and the form → config builder so a field that is hidden in the UI
- * is never serialized into the API payload.
- */
 export const isVisibleWhenSatisfied = (
 	field: FieldSchema,
 	readSiblingValue: (jsonName: string) => unknown,

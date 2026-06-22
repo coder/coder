@@ -562,7 +562,6 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 	const fieldValueByName = (jsonName: string): unknown =>
 		getIn(form.values, `config.${toFormFieldKey(resolved, jsonName)}`);
 
-	// visible_when: keep the field hidden until its named sibling boolean is on.
 	const isFieldVisible = (field: FieldSchema): boolean =>
 		isVisibleWhenSatisfied(field, fieldValueByName);
 
@@ -585,7 +584,9 @@ export const ModelConfigFields: FC<ModelConfigFieldsProps> = ({
 							errorKey={errorKey}
 							form={form}
 							fieldErrors={fieldErrors}
-							disabled={disabled || isFieldConflictDisabled(field, fieldValueByName)}
+							disabled={
+								disabled || isFieldConflictDisabled(field, fieldValueByName)
+							}
 						/>
 					</div>
 				);

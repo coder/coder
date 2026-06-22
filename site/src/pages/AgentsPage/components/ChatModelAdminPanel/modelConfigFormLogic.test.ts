@@ -1270,7 +1270,8 @@ describe("hasFieldValue", () => {
 describe("isFieldConflictDisabled", () => {
 	const makeReader =
 		(values: Record<string, unknown>): ((jsonName: string) => unknown) =>
-		(jsonName: string): unknown => values[jsonName];
+		(jsonName: string): unknown =>
+			values[jsonName];
 
 	const field = (overrides: Partial<FieldSchema> = {}): FieldSchema => ({
 		json_name: "field_a",

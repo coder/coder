@@ -15,16 +15,15 @@ import (
 
 // SchemaField describes a single form field in the generated schema.
 type SchemaField struct {
-	JSONName    string   `json:"json_name"`
-	GoName      string   `json:"go_name"`
-	Type        string   `json:"type"`
-	Description string   `json:"description,omitempty"`
-	Label       string   `json:"label,omitempty"`
-	Required    bool     `json:"required"`
-	Enum        []string `json:"enum,omitempty"`
-	InputType   string   `json:"input_type"`
-	Hidden      bool     `json:"hidden,omitempty"`
-	// VisibleWhen names a sibling boolean field that gates this field's visibility.
+	JSONName      string   `json:"json_name"`
+	GoName        string   `json:"go_name"`
+	Type          string   `json:"type"`
+	Description   string   `json:"description,omitempty"`
+	Label         string   `json:"label,omitempty"`
+	Required      bool     `json:"required"`
+	Enum          []string `json:"enum,omitempty"`
+	InputType     string   `json:"input_type"`
+	Hidden        bool     `json:"hidden,omitempty"`
 	VisibleWhen   string   `json:"visible_when,omitempty"`
 	ConflictsWith []string `json:"conflicts_with,omitempty"`
 }
@@ -95,10 +94,6 @@ func main() {
 	_, _ = fmt.Println(string(out))
 }
 
-// validateFieldReferences fails generation if any field's
-// `visible_when` or `conflicts_with` tag names a sibling that does
-// not exist in the same group, catching typos in the struct tags
-// before they reach the frontend.
 func validateFieldReferences(group string, fg FieldGroup) error {
 	names := make(map[string]bool, len(fg.Fields))
 	for _, f := range fg.Fields {
