@@ -510,7 +510,12 @@ func wrapStreamSeq(
 		// If the stream already received a finish chunk, let
 		// finalize handle it; it has the real response payload
 		// and usage data that we would otherwise clobber.
-		if finalized || streamComplete.Load() {
+		// Deferred handles have no step to interrupt and no
+		// heartbeat to stop; the normal finalize path calls
+		// captureDeferredError, which uses stepFinalizeContext
+		// to survive cancellation. Letting the safety net set
+		// finalized=true here would suppress that capture.
+		if finalized || streamComplete.Load() || handle.deferred {
 			return
 		}
 		finalized = true
@@ -681,7 +686,7 @@ func wrapObjectStreamSeq(
 	stop := context.AfterFunc(ctx, func() {
 		mu.Lock()
 		defer mu.Unlock()
-		if finalized || streamComplete.Load() {
+		if finalized || streamComplete.Load() || handle.deferred {
 			return
 		}
 		finalized = true

@@ -1069,16 +1069,16 @@ const AgentChatPage: FC = () => {
 	// Surface the Debug tab whenever a chat has captured debug runs, even
 	// when full debug logging is off (errors are captured by default). This
 	// existence check shares the Debug panel's query key, so react-query
-	// dedupes them. To avoid polling every idle chat every few seconds, it
-	// fetches once on mount and only keeps polling while a turn is in flight
-	// (or just errored) and no run has been found yet; the Debug panel keeps
-	// its own polling while open.
+	// dedupes them. To avoid polling idle chats, it fetches once on mount
+	// and only polls while a turn is in flight and no run has been found.
+	// Terminal states (error/completed/interrupted) do not poll: a
+	// non-generic error never creates a run, and polling it would loop
+	// indefinitely. The Debug panel keeps its own polling while open.
 	const chatTurnInFlight =
 		liveChatStatus === "pending" ||
 		liveChatStatus === "running" ||
 		liveChatStatus === "interrupting" ||
-		liveChatStatus === "requires_action" ||
-		liveChatStatus === "error";
+		liveChatStatus === "requires_action";
 	const chatDebugRunsQuery = useQuery({
 		...chatDebugRuns(agentId ?? ""),
 		enabled: Boolean(agentId),

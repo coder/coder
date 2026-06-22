@@ -234,7 +234,7 @@ func beginStep(
 		if !hasErrorRunEnsurer(ctx) {
 			return nil, ctx
 		}
-		return &stepHandle{deferred: true, svc: svc, opts: opts, sink: &attemptSink{}}, ctx
+		return &stepHandle{deferred: true, svc: svc, opts: opts}, ctx
 	}
 
 	rc, ok := RunFromContext(ctx)

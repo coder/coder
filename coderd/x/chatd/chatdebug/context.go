@@ -19,28 +19,23 @@ type (
 	}
 )
 
-// errorRunEnsurer lazily creates a debug run the first time an error
-// worth persisting is observed. It exists so the default (errors-only)
-// recording level does not create a run for every turn; a run is
-// materialized only when a qualifying error actually occurs. The create
-// func is invoked at most once and its result is cached, so multiple
-// failing steps in a turn share a single run.
+// errorRunEnsurer lazily creates a debug run on the first qualifying
+// error, so error-free turns write nothing. sync.OnceValues memoizes
+// the create func so multiple failing steps in a turn share one run.
 type errorRunEnsurer struct {
-	once   sync.Once
-	create func() (*RunContext, bool)
-	rc     *RunContext
-	ok     bool
+	get func() (*RunContext, bool)
 }
 
 // WithErrorRunEnsurer stores a lazy run creator in ctx. create is
-// invoked at most once, on the first ensureErrorRun call, and may return
-// ok=false to signal the run could not be created (in which case nothing
-// is persisted).
+// invoked at most once on the first ensureErrorRun call, and may
+// return ok=false to signal the run could not be created.
 func WithErrorRunEnsurer(ctx context.Context, create func() (*RunContext, bool)) context.Context {
 	if create == nil {
 		panic("chatdebug: nil error run ensurer")
 	}
-	return context.WithValue(ctx, errorEnsurerKey{}, &errorRunEnsurer{create: create})
+	return context.WithValue(ctx, errorEnsurerKey{}, &errorRunEnsurer{
+		get: sync.OnceValues(create),
+	})
 }
 
 // ensureErrorRun returns the lazily-created run context from ctx,
@@ -51,10 +46,7 @@ func ensureErrorRun(ctx context.Context) (*RunContext, bool) {
 	if !ok {
 		return nil, false
 	}
-	ensurer.once.Do(func() {
-		ensurer.rc, ensurer.ok = ensurer.create()
-	})
-	return ensurer.rc, ensurer.ok
+	return ensurer.get()
 }
 
 // hasErrorRunEnsurer reports whether ctx carries a lazy run ensurer.

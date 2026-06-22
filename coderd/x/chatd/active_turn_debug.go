@@ -22,9 +22,10 @@ type runnerDebugTurn struct {
 	service     *chatdebug.Service
 
 	// errorsOnly marks a turn running under the default (errors-only)
-	// recording level, where the run is materialized lazily on the first
+	// recording level, where the run is lazily created on the first
 	// qualifying error via lazyCreateRun.
-	errorsOnly  bool
+	errorsOnly bool
+	// pendingChat holds the chat for deferred CreateRun (RootChatID, ParentChatID).
 	pendingChat database.Chat
 
 	created   bool

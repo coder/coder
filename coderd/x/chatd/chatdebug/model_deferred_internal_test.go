@@ -2,6 +2,7 @@ package chatdebug
 
 import (
 	"context"
+	"runtime"
 	"testing"
 
 	"charm.land/fantasy"
@@ -254,7 +255,7 @@ func TestDeferred_RunCreatedAtMostOnce(t *testing.T) {
 		},
 	}
 	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{inner: inner, svc: svc, opts: RecorderOptions{ChatID: chatID}}
+	model := &debugModel{inner: inner, svc: svc, opts: RecorderOptions{ChatID: chatID, FullRecording: false}}
 
 	var createCalls int
 	ctx := WithErrorRunEnsurer(context.Background(), func() (*RunContext, bool) {
@@ -267,4 +268,56 @@ func TestDeferred_RunCreatedAtMostOnce(t *testing.T) {
 	_, err = model.Generate(ctx, fantasy.Call{})
 	require.Error(t, err)
 	require.Equal(t, 1, createCalls)
+}
+
+// TestDeferred_StreamErrorCapturedUnderCanceledContext guards that a generic
+// stream error is still captured when the context is canceled before the
+// stream completes. The AfterFunc safety net must not suppress the
+// deferred capture by setting finalized=true before the normal finalize
+// closure runs captureDeferredError.
+func TestDeferred_StreamErrorCapturedUnderCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	chatID := uuid.New()
+	runID := uuid.New()
+	expectDeferredErrorStep(t, db, runID, chatID)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	proceed := make(chan struct{})
+	inner := &chattest.FakeModel{
+		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			return func(yield func(fantasy.StreamPart) bool) {
+				// Cancel before yielding the error part so the AfterFunc
+				// safety net fires while the iterator is still running.
+				cancel()
+				go func() {
+					<-ctx.Done()
+					runtime.Gosched()
+					close(proceed)
+				}()
+				<-proceed
+				yield(fantasy.StreamPart{
+					Type:  fantasy.StreamPartTypeError,
+					Error: xerrors.New("boom: unexpected provider failure"),
+				})
+			}, nil
+		},
+	}
+	svc := NewService(db, testutil.Logger(t), nil)
+	model := &debugModel{
+		inner: inner,
+		svc:   svc,
+		opts:  RecorderOptions{ChatID: chatID, FullRecording: false},
+	}
+	ctx = WithErrorRunEnsurer(ctx, func() (*RunContext, bool) {
+		return &RunContext{RunID: runID, ChatID: chatID, Kind: KindChatTurn}, true
+	})
+
+	stream, err := model.Stream(ctx, fantasy.Call{})
+	require.NoError(t, err)
+	for range stream {
+	}
 }
