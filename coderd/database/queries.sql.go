@@ -27695,6 +27695,33 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 	return i, err
 }
 
+const hasTemplateVersionsUsingCachedModuleFileInOrg = `-- name: HasTemplateVersionsUsingCachedModuleFileInOrg :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_version_terraform_values tvtv
+	JOIN template_versions tv
+		ON tv.id = tvtv.template_version_id
+	WHERE tvtv.cached_module_files = $1::uuid
+		AND tv.organization_id = $2::uuid
+)
+`
+
+type HasTemplateVersionsUsingCachedModuleFileInOrgParams struct {
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+// Reports whether the given file is referenced as cached module files by any
+// template version in the given organization. Used to authorize provisioner
+// module-file downloads so a daemon cannot read another organization's cached
+// Terraform module source.
+func (q *sqlQuerier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasTemplateVersionsUsingCachedModuleFileInOrg, arg.FileID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
 INSERT INTO
 	template_version_terraform_values (

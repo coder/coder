@@ -5697,6 +5697,16 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	// This is an internal cross-table guard used to authorize provisioner
+	// module-file downloads. Tenant isolation comes from the organization_id
+	// filter in the query itself; only system-level actors may call it.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return false, err
+	}
+	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
+}
+
 func (q *querier) HydrateAgentChatsContext(ctx context.Context, arg database.HydrateAgentChatsContextParams) error {
 	// System-level operation: an agent context push fans hydration out
 	// across every not-yet-pinned chat for the agent, so it authorizes at
