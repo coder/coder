@@ -206,11 +206,15 @@ export const InvalidRetentionMinDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "0");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Retention period must be at least 1 day."),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -228,11 +232,15 @@ export const InvalidRetentionMaxDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "9999");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Must not exceed 3650 days (~10 years)."),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -500,11 +508,15 @@ export const InvalidAutoArchiveMinDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "0");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Auto-archive period must be at least 1 day."),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -520,11 +532,15 @@ export const InvalidAutoArchiveMaxDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "9999");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Must not exceed 3650 days (~10 years)."),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -542,11 +558,15 @@ export const InvalidDebugRetentionMinDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "0");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Debug retention period must be at least 1 day."),
+			).toBeInTheDocument();
 		});
 	},
 };
@@ -564,11 +584,15 @@ export const InvalidDebugRetentionMaxDisablesSave: Story = {
 
 		await userEvent.clear(input);
 		await userEvent.type(input, "9999");
+		await userEvent.tab();
 
 		const saveButton = within(form).getByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+			expect(
+				canvas.getByText("Must not exceed 3650 days (~10 years)."),
+			).toBeInTheDocument();
 		});
 	},
 };

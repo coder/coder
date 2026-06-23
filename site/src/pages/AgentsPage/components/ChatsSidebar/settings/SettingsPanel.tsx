@@ -215,9 +215,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={RefreshCwIcon}
 						label="Lifecycle"
-						active={settingsSection === "lifecycle"}
+						active={false}
 						to="/ai/settings/lifecycle"
-						state={location.state}
+						trailingIcon={ArrowUpRightIcon}
 					/>
 				</nav>
 			)}

@@ -25,7 +25,7 @@ interface RetentionPeriodSettingsProps {
 // Keep in sync with retentionDaysMaximum in coderd/exp_chats.go.
 const DAYS_MIN = 1;
 const DAYS_MAX = 3650;
-// Keep in sync with DefaultChatRetentionDays in api/typesGenerated.
+// Matches SQL COALESCE default in GetChatRetentionDays.
 const DEFAULT_RETENTION_DAYS = 30;
 
 const validationSchema = Yup.object({
