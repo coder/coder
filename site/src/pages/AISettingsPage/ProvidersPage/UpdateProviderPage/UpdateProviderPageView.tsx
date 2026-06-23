@@ -158,7 +158,7 @@ const UpdateProviderPageView: React.FC = () => {
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}
 						<a
-							href="/agents/settings/models"
+							href="/ai/settings/models"
 							className="text-content-link no-underline hover:underline"
 						>
 							Model settings
