@@ -227,18 +227,18 @@ func TestParseSecretsFileYAMLAliasBomb(t *testing.T) {
 	// Classic nested alias bomb: each anchor references the previous one
 	// nine times, so resolving the last alias would expand to 9^9 nodes.
 	var bomb strings.Builder
-	bomb.WriteString("a: &a \"lol\"\n")
+	_, _ = bomb.WriteString("a: &a \"lol\"\n")
 	prev := "a"
 	for i := 0; i < 9; i++ {
 		cur := fmt.Sprintf("l%d", i)
-		bomb.WriteString(cur + ": &" + cur + " [")
+		_, _ = bomb.WriteString(cur + ": &" + cur + " [")
 		for j := 0; j < 9; j++ {
 			if j > 0 {
-				bomb.WriteByte(',')
+				_ = bomb.WriteByte(',')
 			}
-			bomb.WriteString("*" + prev)
+			_, _ = bomb.WriteString("*" + prev)
 		}
-		bomb.WriteString("]\n")
+		_, _ = bomb.WriteString("]\n")
 		prev = cur
 	}
 
