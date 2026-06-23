@@ -181,6 +181,45 @@ func TestAddMembers(t *testing.T) {
 		require.Contains(t, ids, user2.ID)
 	})
 
+	t.Run("DeletedUser", func(t *testing.T) {
+		t.Parallel()
+		owner, db := coderdtest.NewWithDatabase(t, nil)
+		first := coderdtest.CreateFirstUser(t, owner)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		secondOrg := dbgen.Organization(t, db, database.Organization{})
+
+		_, deletedUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+		_, liveUser := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID)
+
+		// Soft-delete the first user so GetUsersByIDs returns them
+		// with Deleted=true.
+		// nolint:gocritic // must be an owner to delete the user
+		require.NoError(t, owner.DeleteUser(ctx, deletedUser.ID))
+
+		// Batch-add the deleted user alongside a live user. The
+		// handler must reject the whole request with 400 because
+		// deleted users cannot be added to an organization.
+		// nolint:gocritic // must be an owner to add members
+		_, err := owner.PostOrganizationMembers(ctx, secondOrg.ID, codersdk.AddOrganizationMembersRequest{
+			UserIDs: []uuid.UUID{deletedUser.ID, liveUser.ID},
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Deleted users cannot be added")
+
+		// Confirm the live user was not inserted: the rejection
+		// happens before the batch insert runs.
+		allMembers, err := owner.OrganizationMembers(ctx, secondOrg.ID)
+		require.NoError(t, err)
+		for _, m := range allMembers {
+			require.NotEqual(t, liveUser.ID, m.UserID, "live user should not be added when the batch contains a deleted user")
+		}
+	})
+
 	t.Run("AuditLogsOnlyForNewMembers", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
