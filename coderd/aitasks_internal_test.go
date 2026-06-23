@@ -254,7 +254,9 @@ func TestTaskAppHTTPClient_RejectsRedirect(t *testing.T) {
 		return (&net.Dialer{}).DialContext(ctx, network, addr)
 	})
 
-	resp, err := client.Get(app.URL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, app.URL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

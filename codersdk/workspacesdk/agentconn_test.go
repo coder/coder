@@ -110,16 +110,17 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-			t.Cleanup(cancel)
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitMedium)
 
 			clientID := uuid.New()
 			attackerID := uuid.New()
 			victimID := uuid.New()
-			clientConn, _ := newRedirectTestTailnetConn(t, derpMap, clientID, "client")
-			attackerConn, attackerIP := newRedirectTestTailnetConn(t, derpMap, attackerID, "attacker")
-			victimConn, victimIP := newRedirectTestTailnetConn(t, derpMap, victimID, "victim")
-			coordinateRedirectTestTailnet(t, map[uuid.UUID]*tailnet.Conn{
+			clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+			attackerConn, attackerIP := newTailnetConn(t, derpMap, attackerID, "attacker")
+			victimConn, victimIP := newTailnetConn(t, derpMap, victimID, "victim")
+			stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
 				clientID:   clientConn,
 				attackerID: attackerConn,
 				victimID:   victimConn,
@@ -136,14 +137,14 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 				victimHit.Store(true)
 				rw.WriteHeader(http.StatusOK)
 			})
-			serveRedirectTestTailnetHTTP(t, victimConn, victimRouter)
+			serveTailnetHTTP(t, victimConn, victimRouter)
 
 			victimBaseURL := fmt.Sprintf("http://[%s]:%d", victimIP, workspacesdk.AgentHTTPAPIServerPort)
 			attackerRouter := http.NewServeMux()
 			attackerRouter.HandleFunc("/", func(rw http.ResponseWriter, r *http.Request) {
 				http.Redirect(rw, r, victimBaseURL+r.URL.RequestURI(), tc.status)
 			})
-			serveRedirectTestTailnetHTTP(t, attackerConn, attackerRouter)
+			serveTailnetHTTP(t, attackerConn, attackerRouter)
 
 			require.True(t, clientConn.AwaitReachable(ctx, attackerIP))
 			require.True(t, clientConn.AwaitReachable(ctx, victimIP))
@@ -159,7 +160,7 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 	}
 }
 
-func newRedirectTestTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {
+func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {
 	t.Helper()
 
 	addr := tailnet.TailscaleServicePrefix.AddrFromUUID(id)
@@ -177,13 +178,13 @@ func newRedirectTestTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.
 	return conn, addr
 }
 
-func serveRedirectTestTailnetHTTP(t *testing.T, conn *tailnet.Conn, handler http.Handler) {
+func serveTailnetHTTP(t *testing.T, conn *tailnet.Conn, handler http.Handler) {
 	t.Helper()
 
 	ln, err := conn.Listen("tcp", fmt.Sprintf(":%d", workspacesdk.AgentHTTPAPIServerPort))
 	require.NoError(t, err)
 
-	server := &http.Server{Handler: handler}
+	server := &http.Server{Handler: handler, ReadHeaderTimeout: testutil.WaitShort}
 	t.Cleanup(func() {
 		assert.NoError(t, server.Close())
 		assert.NoError(t, ln.Close())
@@ -197,7 +198,10 @@ func serveRedirectTestTailnetHTTP(t *testing.T, conn *tailnet.Conn, handler http
 	}()
 }
 
-func coordinateRedirectTestTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
+// stitchTailnet cross-programs every conn's node into every other conn, the
+// N-peer analog of tailnet's stitch test helper, so the peers can reach each
+// other without a coordinator.
+func stitchTailnet(t *testing.T, conns map[uuid.UUID]*tailnet.Conn) {
 	t.Helper()
 
 	sendNode := func(srcID uuid.UUID, node *tailnet.Node) {
