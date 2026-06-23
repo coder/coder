@@ -234,9 +234,25 @@ jobs:
             echo "No changed Markdown files under docs/ on disk; skipping Vale."
             exit 0
           fi
-          echo "::add-matcher::.github/vale-problem-matcher.json"
-          printf '%s\n' "$files" | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=line
-          echo "::remove-matcher owner=vale::"
+          # Vale's --output=line strips per-finding severity, so the
+          # previous problem-matcher approach collapsed every finding to
+          # a single hard-coded severity. Use --output=JSON instead and
+          # emit GitHub workflow commands directly so error/warning/
+          # suggestion render with their actual Vale severities. URL-
+          # encode message bodies for `%`, `\r`, and `\n` per the
+          # GitHub Actions workflow command spec. See DOCS-426.
+          printf '%s\n' "$files" \
+            | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=JSON \
+            | jq -r '
+                to_entries[]
+                | .key as $file
+                | .value[]
+                | (if .Severity == "suggestion" then "notice"
+                   elif .Severity == "warning" then "warning"
+                   else "error" end) as $level
+                | (.Message | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A")) as $msg
+                | "::\($level) file=\($file),line=\(.Line),col=\(.Span[0]),title=\(.Check)::\($msg)"
+              '
 
       - name: Save Vale styles
         # Only the default branch is trusted to write the cache, so PR
