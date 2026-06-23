@@ -401,19 +401,25 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
 }
 
+// agentMCPToolContext specifies an mcp_server tool to seed into an agent's
+// pushed context snapshot.
+type agentMCPToolContext struct {
+	AgentID         uuid.UUID
+	ServerName      string
+	ToolName        string
+	ToolDescription string
+}
+
 // seedAgentMCPToolContext upserts an mcp_server context snapshot and resource
 // for the agent, mirroring what PushContextState writes, so a chat bound to the
 // agent hydrates a pinned, execution-ready MCP tool. The model-facing tool name
-// is "<serverName>__<toolName>". It seeds the raw store directly so unit tests
+// is "<ServerName>__<ToolName>". It seeds the raw store directly so unit tests
 // can exercise pinned MCP execution without a live agent connection.
 func seedAgentMCPToolContext(
 	ctx context.Context,
 	t *testing.T,
 	db database.Store,
-	agentID uuid.UUID,
-	serverName string,
-	toolName string,
-	toolDescription string,
+	tool agentMCPToolContext,
 ) {
 	t.Helper()
 
@@ -426,19 +432,19 @@ func seedAgentMCPToolContext(
 	require.NoError(t, err)
 
 	body, err := protojson.Marshal(&agentproto.MCPServerBody{
-		ServerName: serverName,
+		ServerName: tool.ServerName,
 		Tools: []*agentproto.MCPTool{{
-			Name:        toolName,
-			Description: toolDescription,
+			Name:        tool.ToolName,
+			Description: tool.ToolDescription,
 			InputSchema: schema,
 		}},
 	})
 	require.NoError(t, err)
 
 	now := dbtime.Now()
-	hash := []byte(serverName + ":" + toolName)
+	hash := []byte(tool.ServerName + ":" + tool.ToolName)
 	_, err = db.UpsertWorkspaceAgentContextSnapshot(ctx, database.UpsertWorkspaceAgentContextSnapshotParams{
-		WorkspaceAgentID: agentID,
+		WorkspaceAgentID: tool.AgentID,
 		Version:          1,
 		AggregateHash:    hash,
 		ReceivedAt:       now,
@@ -446,8 +452,8 @@ func seedAgentMCPToolContext(
 	require.NoError(t, err)
 
 	_, err = db.UpsertWorkspaceAgentContextResource(ctx, database.UpsertWorkspaceAgentContextResourceParams{
-		WorkspaceAgentID: agentID,
-		Source:           serverName,
+		WorkspaceAgentID: tool.AgentID,
+		Source:           tool.ServerName,
 		BodyKind:         database.WorkspaceAgentContextBodyKindMcpServer,
 		Body:             body,
 		ContentHash:      hash,

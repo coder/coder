@@ -1387,8 +1387,12 @@ func TestPlanModeRootChatAllowsApprovedExternalMCPTools(t *testing.T) {
 	// Workspace MCP tools now come from the agent's pinned snapshot, not live
 	// discovery. Seed the workspace MCP server so chats bound to the agent
 	// hydrate the "workspace-plan-mcp__echo" tool.
-	seedAgentMCPToolContext(ctx, t, db, dbAgent.ID,
-		"workspace-plan-mcp", "echo", "Workspace echo tool")
+	seedAgentMCPToolContext(ctx, t, db, agentMCPToolContext{
+		AgentID:         dbAgent.ID,
+		ServerName:      "workspace-plan-mcp",
+		ToolName:        "echo",
+		ToolDescription: "Workspace echo tool",
+	})
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
@@ -6329,7 +6333,12 @@ func TestActiveServer_ToolErrorRecordsMetric(t *testing.T) {
 					Times(1)
 			},
 			seedContext: func(ctx context.Context, t *testing.T, db database.Store, agentID uuid.UUID) {
-				seedAgentMCPToolContext(ctx, t, db, agentID, "dynamic", "error_tool", "dynamic error tool")
+				seedAgentMCPToolContext(ctx, t, db, agentMCPToolContext{
+					AgentID:         agentID,
+					ServerName:      "dynamic",
+					ToolName:        "error_tool",
+					ToolDescription: "dynamic error tool",
+				})
 			},
 		},
 		{
