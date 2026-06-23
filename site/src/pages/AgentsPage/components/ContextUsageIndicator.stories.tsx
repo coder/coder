@@ -42,13 +42,18 @@ export const Clean: Story = {
 		// The list is driven by the pinned resources.
 		expect(body.getByText("AGENTS.md")).toBeVisible();
 		expect(body.getByText("deploy")).toBeVisible();
-		// MCP configs are listed by file basename and servers by name.
+		// MCP configs are listed by full path (so multiple .mcp.json files stay
+		// distinct) and servers by name.
 		expect(body.getByText("MCP")).toBeVisible();
-		expect(body.getByText(".mcp.json")).toBeVisible();
+		expect(body.getByText("/home/coder/.mcp.json")).toBeVisible();
 		expect(body.getByText("github")).toBeVisible();
 		// MCP server tools are listed under their server.
 		expect(body.getByText("search_issues")).toBeVisible();
 		expect(body.getByText("create_issue")).toBeVisible();
+		// Each populated category shows its total context size.
+		expect(body.getByText("(0.2 KiB)")).toBeVisible(); // context files
+		expect(body.getByText("(0.1 KiB)")).toBeVisible(); // skills
+		expect(body.getByText("(0.7 KiB)")).toBeVisible(); // MCP
 		// Invalid resources are surfaced as issues with their error, not
 		// silently dropped.
 		expect(body.getByText("Issues")).toBeVisible();
@@ -128,6 +133,44 @@ export const MultipleContextRoots: Story = {
 		expect(body.getByText("deploy")).toBeVisible();
 		expect(body.getByText("migrate")).toBeVisible();
 		expect(body.getByText("review")).toBeVisible();
+	},
+};
+
+// Multiple .mcp.json files: each config is listed by its full path so the two
+// otherwise-identical .mcp.json files stay disambiguated.
+export const MultipleMcpConfigs: Story = {
+	args: {
+		usage: {
+			usedTokens: 20_000,
+			contextLimitTokens: 200_000,
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/home/coder/.mcp.json",
+						kind: "mcp_config",
+						size_bytes: 184,
+						status: "ok",
+					},
+					{
+						source: "/home/coder/project/.mcp.json",
+						kind: "mcp_config",
+						size_bytes: 256,
+						status: "ok",
+					},
+				],
+			},
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const button = within(canvasElement).getByRole("button");
+		await userEvent.hover(button);
+		const body = within(document.body);
+		await waitFor(() =>
+			expect(body.getByText("/home/coder/.mcp.json")).toBeVisible(),
+		);
+		// The two configs are distinguishable by their full path.
+		expect(body.getByText("/home/coder/project/.mcp.json")).toBeVisible();
 	},
 };
 

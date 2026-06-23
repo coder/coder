@@ -173,9 +173,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={BoxesIcon}
 						label="Models"
-						active={settingsSection === "models"}
-						to="/agents/settings/models"
-						state={location.state}
+						active={false}
+						to="/ai/settings/models"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={ServerIcon}

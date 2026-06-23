@@ -1,4 +1,8 @@
-import type { ChatModelConfig, ChatProviderConfig } from "#/api/typesGenerated";
+import type {
+	ChatModelConfig,
+	ChatModelProvider,
+	ChatProviderConfig,
+} from "#/api/typesGenerated";
 import { MOCK_TIMESTAMP } from "./chatEntities";
 
 export const MockChatModelConfig: ChatModelConfig = {
@@ -27,4 +31,10 @@ export const MockChatProviderConfig: ChatProviderConfig = {
 	source: "database",
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatModelProvider: ChatModelProvider = {
+	provider: "openai",
+	available: true,
+	models: [],
 };

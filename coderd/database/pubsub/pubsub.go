@@ -421,9 +421,9 @@ func (p *PGPubsub) listen() {
 }
 
 func (p *PGPubsub) listenReceive(notif *pq.Notification) {
-	sizeLabel := messageSizeNormal
-	if len(notif.Extra) >= colossalThreshold {
-		sizeLabel = messageSizeColossal
+	sizeLabel := MessageSizeNormal
+	if len(notif.Extra) >= ColossalThreshold {
+		sizeLabel = MessageSizeColossal
 	}
 	p.messagesTotal.WithLabelValues(sizeLabel).Inc()
 	p.receivedBytesTotal.Add(float64(len(notif.Extra)))
@@ -614,10 +614,14 @@ var (
 // notify limit. If we see a lot of colossal packets that's an indication that
 // we might be trying to send too much data over the pubsub and are in danger of
 // failing to publish.
+//
+// These are exported so other pubsub implementations (e.g. the NATS
+// pubsub) classify message size identically, keeping the messages_total
+// "size" label consistent across backends.
 const (
-	colossalThreshold   = 7600
-	messageSizeNormal   = "normal"
-	messageSizeColossal = "colossal"
+	ColossalThreshold   = 7600
+	MessageSizeNormal   = "normal"
+	MessageSizeColossal = "colossal"
 )
 
 // Describe implements, along with Collect, the prometheus.Collector interface

@@ -2,7 +2,7 @@
   description = "Development environments on your infrastructure";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
@@ -107,6 +107,47 @@
           subPackages = [ "cmd/protoc-gen-go" ];
           vendorHash = null;
         };
+
+        # Keep protoc aligned with mise.toml so local Nix shells use
+        # the same codegen tool version as CI and release workflows,
+        # regardless of nixpkgs channel defaults.
+        protobuf_23_4 =
+          let
+            releases = {
+              x86_64-linux = {
+                platform = "linux-x86_64";
+                hash = "sha256-BQLyhqye2GC2KaeWWhRSex8t0THkKD+iPC1/GEZyqpo=";
+              };
+              aarch64-linux = {
+                platform = "linux-aarch_64";
+                hash = "sha256-HHdQtuA4MFtaf8PQzaHr798Qak8wp4e/gm7S/EfDln0=";
+              };
+              aarch64-darwin = {
+                platform = "osx-aarch_64";
+                hash = "sha256-jHr66GJraBHntYl9FtlAwtv1Cx4TXtlYoB22VmvdpyY=";
+              };
+              x86_64-darwin = {
+                platform = "osx-x86_64";
+                hash = "sha256-B+X9zxsHCNM2fcXm640TXefkB9dTFskxVc/YqzYu7IA=";
+              };
+            };
+            target = releases.${system} or null;
+          in
+          if target != null then
+            pkgs.runCommand "protobuf-23.4" {
+              nativeBuildInputs = [ pkgs.unzip ];
+              src = pkgs.fetchurl {
+                url = "https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-${target.platform}.zip";
+                hash = target.hash;
+              };
+            } ''
+              mkdir -p "$out"
+              cd "$out"
+              unzip "$src"
+              chmod +x "$out/bin/protoc"
+            ''
+          else
+            throw "protobuf 23.4 is not defined for ${system}";
 
         # Custom sqlc build from coder/sqlc fork to fix ambiguous column bug, see:
         # - https://github.com/coder/sqlc/pull/1
@@ -263,7 +304,7 @@
             pnpm
             postgresql_16
             proto_gen_go_1_30
-            protobuf_23
+            protobuf_23_4
             ripgrep
             shellcheck
             (pinnedPkgs.shfmt)

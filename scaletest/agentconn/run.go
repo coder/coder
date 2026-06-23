@@ -214,7 +214,7 @@ func verifyConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Age
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
-	client := agentHTTPClient(conn)
+	client := conn.AppHTTPClient()
 	for i := 0; i < verifyConnectionAttempts; i++ {
 		_, _ = fmt.Fprintf(logs, "\tVerify connection attempt %d/%d...\n", i+1, verifyConnectionAttempts)
 		verifyCtx, cancel := context.WithTimeout(ctx, defaultRequestTimeout)
@@ -258,7 +258,7 @@ func performInitialConnections(ctx context.Context, logs io.Writer, conn workspa
 	defer span.End()
 
 	_, _ = fmt.Fprintln(logs, "Performing initial service connections...")
-	client := agentHTTPClient(conn)
+	client := conn.AppHTTPClient()
 	for i, connSpec := range specs {
 		_, _ = fmt.Fprintf(logs, "\t%d. %s\n", i, connSpec.URL)
 
@@ -292,7 +292,7 @@ func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Agent
 	defer span.End()
 
 	eg, egCtx := errgroup.WithContext(ctx)
-	client := agentHTTPClient(conn)
+	client := conn.AppHTTPClient()
 	if len(specs) > 0 {
 		_, _ = fmt.Fprintln(logs, "\nStarting connection loops...")
 	}
@@ -361,27 +361,4 @@ func holdConnection(ctx context.Context, logs io.Writer, conn workspacesdk.Agent
 	}
 
 	return nil
-}
-
-func agentHTTPClient(conn workspacesdk.AgentConn) *http.Client {
-	return &http.Client{
-		Transport: &http.Transport{
-			DisableKeepAlives: true,
-			DialContext: func(ctx context.Context, _ string, addr string) (net.Conn, error) {
-				_, port, err := net.SplitHostPort(addr)
-				if err != nil {
-					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
-				}
-
-				portUint, err := strconv.ParseUint(port, 10, 16)
-				if err != nil {
-					return nil, xerrors.Errorf("parse port %q: %w", port, err)
-				}
-
-				// Addr doesn't matter here, besides the port. DialContext will
-				// automatically choose the right IP to dial.
-				return conn.DialContext(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", portUint))
-			},
-		},
-	}
 }

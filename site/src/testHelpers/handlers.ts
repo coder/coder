@@ -335,6 +335,16 @@ export const handlers = [
 		return HttpResponse.json([MockGroup]);
 	}),
 
+	http.get("/api/v2/organizations/:organizationId/groups/ai/spend", () => {
+		return HttpResponse.json([
+			{
+				group_id: MockGroup.id,
+				current_spend_micros: 25_492_000_000,
+				spend_limit_micros: null,
+			},
+		]);
+	}),
+
 	http.post("/api/v2/organizations/:organizationId/groups", () => {
 		return HttpResponse.json(M.MockGroup, { status: 201 });
 	}),

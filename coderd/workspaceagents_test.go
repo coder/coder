@@ -3464,6 +3464,7 @@ func TestReinit(t *testing.T) {
 				InitiatorID:       claimerID,
 				Transition:        database.WorkspaceTransitionStart,
 			}).
+			MarkPrebuiltWorkspaceClaim().
 			WithAgent()
 		if !complete {
 			builder = builder.Starting()
@@ -3560,6 +3561,52 @@ func TestReinit(t *testing.T) {
 		require.Equal(t, r.Workspace.ID, reinitEvent.WorkspaceID)
 		require.Equal(t, agentsdk.ReinitializeReasonPrebuildClaimed, reinitEvent.Reason)
 		require.Equal(t, user.UserID, reinitEvent.OwnerID)
+	})
+
+	// Verifies that the durable claim check only applies while the
+	// latest build is the claim build. A workspace that was claimed
+	// in the past and has since had user-initiated builds must get a
+	// 409 instead of another reinit, otherwise its agent would be
+	// restarted on every /reinit reconnection for the rest of the
+	// workspace's life.
+	t.Run("workspace claimed in the past gets 409", func(t *testing.T) {
+		t.Parallel()
+
+		db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   ps,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		// Create an unclaimed prebuild (build 1, completed) and claim
+		// it (build 2, completed).
+		r := setupPrebuildWorkspace(t, db, user.OrganizationID)
+		claimPrebuild(t, db, sqlDB, r.Workspace, user.UserID, r.TemplateVersion.ID, true)
+
+		// A later build initiated by the owner (e.g. a restart) means
+		// the claim has already been handled.
+		ws := r.Workspace
+		ws.OwnerID = user.UserID
+		laterR := dbfake.WorkspaceBuild(t, db, ws).
+			Seed(database.WorkspaceBuild{
+				TemplateVersionID: r.TemplateVersion.ID,
+				BuildNumber:       3,
+				InitiatorID:       user.UserID,
+				Transition:        database.WorkspaceTransitionStart,
+			}).
+			WithAgent().
+			Do()
+
+		agentCtx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(laterR.AgentToken))
+
+		// WaitForReinit should return an error wrapping a 409.
+		_, err := agentClient.WaitForReinit(agentCtx)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
 	})
 
 	// Verifies that when the claim build completed with an error,

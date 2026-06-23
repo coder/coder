@@ -25,6 +25,7 @@ func TestCompose(t *testing.T) {
 		require.NotEmpty(t, result.MainTF)
 		require.Contains(t, string(result.MainTF), `resource "coder_agent" "main"`)
 		require.Empty(t, result.ModulesTF)
+		require.NotEmpty(t, result.Readme, "compose should include base README")
 	})
 
 	t.Run("BaseWithModuleAndVariableOverride", func(t *testing.T) {
@@ -93,7 +94,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "git-clone",
 					Variables: map[string]string{
-						"url": `"https://github.com/coder/coder"`,
+						"url": "https://github.com/coder/coder",
 					},
 				},
 			},
@@ -178,7 +179,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"nonexistent_var": `"value"`,
+						"nonexistent_var": "value",
 					},
 				},
 			},
@@ -216,7 +217,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"folder": `"${var.evil}"`,
+						"folder": "${var.evil}",
 					},
 				},
 			},
@@ -237,7 +238,8 @@ func TestCompose(t *testing.T) {
 			},
 		})
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "render module")
+		require.Contains(t, err.Error(), `variable "url"`)
+		require.Contains(t, err.Error(), "is required")
 	})
 }
 
@@ -262,6 +264,7 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Contains(t, files, "main.tf")
 		require.NotContains(t, files, "modules.tf")
+		require.NotContains(t, files, "README.md")
 		require.Equal(t, "resource {}", files["main.tf"])
 	})
 
@@ -277,8 +280,24 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Contains(t, files, "main.tf")
 		require.Contains(t, files, "modules.tf")
+		require.NotContains(t, files, "README.md")
 		require.Equal(t, "resource {}", files["main.tf"])
 		require.Equal(t, "module {}", files["modules.tf"])
+	})
+
+	t.Run("IncludesReadme", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			Readme: []byte("# My Template\n"),
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "README.md")
+		require.Equal(t, "# My Template\n", files["README.md"])
 	})
 
 	t.Run("RoundTrip", func(t *testing.T) {
@@ -298,6 +317,7 @@ func TestBundleTar(t *testing.T) {
 		files := extractTar(t, data)
 		require.Equal(t, string(result.MainTF), files["main.tf"])
 		require.Equal(t, string(result.ModulesTF), files["modules.tf"])
+		require.Equal(t, string(result.Readme), files["README.md"])
 	})
 
 	t.Run("ReproducibleArchive", func(t *testing.T) {
