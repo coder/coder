@@ -391,9 +391,6 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AgentSettingsModelsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsModelsPage"),
-);
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
@@ -831,7 +828,10 @@ export const router = createBrowserRouter(
 							path="providers"
 							element={<Navigate to="/ai/settings" replace />}
 						/>
-						<Route path="models" element={<AgentSettingsModelsPage />} />
+						<Route
+							path="models"
+							element={<Navigate to="/ai/settings/models" replace />}
+						/>
 						<Route
 							path="mcp-servers"
 							element={<AgentSettingsMCPServersPage />}
