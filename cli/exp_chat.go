@@ -87,6 +87,40 @@ func resolveContextSourcePath(p string) (string, error) {
 	return abs, nil
 }
 
+// contextResourceFromSource reports whether a resolved snapshot resource was
+// contributed by the source at srcPath. A resource matches when the agent
+// attributed it to that user source (SourcePath), or when its own path lies at
+// or under the source root. The path-containment fallback is what makes
+// `show` useful for built-in and working-directory roots: the agent
+// deduplicates overlapping scan roots and attributes a resource to the first
+// (built-in / working-dir) root, leaving SourcePath empty, so matching on
+// SourcePath alone reports zero resources for an overlapping source. MCP
+// servers are keyed by a server name rather than a filesystem path, so they
+// are matched only by SourcePath.
+func contextResourceFromSource(res agentsocket.ContextResource, srcPath string) bool {
+	if srcPath == "" {
+		return false
+	}
+	if res.SourcePath == srcPath {
+		return true
+	}
+	if res.Kind == "mcp_server" || res.Source == "" {
+		return false
+	}
+	return res.Source == srcPath || posixPathWithin(res.Source, srcPath)
+}
+
+// posixPathWithin reports whether p is a descendant of dir using POSIX path
+// semantics. Agent context paths are absolute POSIX paths even when the CLI
+// runs on a Windows host, so this avoids host-OS filepath separators.
+func posixPathWithin(p, dir string) bool {
+	dir = strings.TrimRight(dir, "/")
+	if dir == "" {
+		return false
+	}
+	return strings.HasPrefix(p, dir+"/")
+}
+
 // dialAgentContextSocket connects to the workspace agent's local IPC socket.
 // It is only reachable from inside the workspace.
 func dialAgentContextSocket(ctx context.Context, socketPath string) (*agentsocket.Client, error) {
@@ -178,7 +212,7 @@ func (*RootCmd) chatContextShowCommand(socketPath *string) *serpent.Command {
 			}
 			resources := make([]agentsocket.ContextResource, 0, len(snap.Resources))
 			for _, res := range snap.Resources {
-				if res.SourcePath == src.Path {
+				if contextResourceFromSource(res, src.Path) {
 					resources = append(resources, res)
 				}
 			}
