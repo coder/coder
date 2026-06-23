@@ -125,7 +125,7 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			require.Equal(t, uint16(tls.VersionTLS12), cfg.MinVersion)
+			require.Equal(t, uint16(tls.VersionTLS13), cfg.MinVersion)
 			require.Equal(t, tls.RequireAndVerifyClientCert, cfg.ClientAuth)
 			require.NotNil(t, cfg.RootCAs)
 			require.NotNil(t, cfg.ClientCAs)

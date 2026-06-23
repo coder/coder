@@ -146,6 +146,6 @@ func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 		RootCAs:    caPool,
 		ClientCAs:  caPool,
 		ClientAuth: tls.RequireAndVerifyClientCert,
-		MinVersion: tls.VersionTLS12,
+		MinVersion: tls.VersionTLS13,
 	}, nil
 }
