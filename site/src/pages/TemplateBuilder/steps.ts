@@ -1,6 +1,6 @@
 import type { TemplateBuilderWizardState } from "./wizardState";
 
-type StepId =
+export type StepId =
 	| "base-infra"
 	| "base-parameters"
 	| "module-select"

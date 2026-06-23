@@ -1,6 +1,7 @@
 import type {
 	TemplateBuilderComposeModule,
 	TemplateBuilderComposeRequest,
+	TemplateBuilderCreateTemplateRequest,
 	TemplateBuilderModule,
 } from "#/api/typesGenerated";
 
@@ -32,8 +33,10 @@ export type TemplateBuilderWizardState = {
 	baseVariableValues: Record<string, string>;
 	modules: TemplateBuilderComposeModule[];
 	organizationId?: string;
+	name: string;
 	displayName: string;
 	description: string;
+	icon: string;
 	selectedBase: SelectedBaseMeta | null;
 	selectedModules: SelectedModuleMeta[];
 };
@@ -42,8 +45,10 @@ export const initialWizardState: TemplateBuilderWizardState = {
 	baseTemplateId: null,
 	baseVariableValues: {},
 	modules: [],
+	name: "",
 	displayName: "",
 	description: "",
+	icon: "",
 	selectedBase: null,
 	selectedModules: [],
 };
@@ -63,7 +68,7 @@ export type WizardAction =
 	  }
 	| {
 			type: "SET_CUSTOMIZATION";
-			field: "organizationId" | "displayName" | "description";
+			field: "organizationId" | "name" | "displayName" | "description" | "icon";
 			value: string;
 	  }
 	| { type: "RESET" };
@@ -147,5 +152,22 @@ export const toComposeRequest = (
 				? state.baseVariableValues
 				: undefined,
 		modules: state.modules,
+	};
+};
+
+/**
+ * Project wizard state into the API request shape for the
+ * create-template endpoint.
+ */
+export const toCreateTemplateRequest = (
+	state: TemplateBuilderWizardState,
+): TemplateBuilderCreateTemplateRequest => {
+	return {
+		...toComposeRequest(state),
+		organization_id: state.organizationId ?? "",
+		name: state.name,
+		display_name: state.displayName || undefined,
+		description: state.description || undefined,
+		icon: state.icon || undefined,
 	};
 };
