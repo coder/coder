@@ -85,6 +85,33 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	}, nil
 }
 
+// hydrateAgentChatsFromSnapshot stamps every chat bound to agentID that still
+// carries a NULL pinned hash with the agent's latest pushed snapshot and copies
+// that snapshot's resources. It runs in one repeatable-read transaction so a
+// concurrent push cannot commit between the hash read and the resource copy and
+// leave a chat stamped with one snapshot's hash but another snapshot's
+// resources. It is the shared core of first-time pinning: idempotent because
+// HydrateAgentChatsContext only touches NULL-hash chats (a concurrent push that
+// already hydrated the chat is not clobbered), and snapshot-gated so it does
+// nothing when the agent has not pushed yet, never stamping empty state that
+// would keep a later push from hydrating.
+func (p *Server) hydrateAgentChatsFromSnapshot(ctx context.Context, agentID uuid.UUID) error {
+	return database.ReadModifyUpdate(p.db, func(tx database.Store) error {
+		aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, tx, agentID)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return nil
+		}
+		return tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+			AgentID:       agentID,
+			AggregateHash: aggregateHash,
+			ContextError:  snapshotError,
+		})
+	})
+}
+
 // hydrateChatContextOnCreate pins a newly created chat to its agent's latest
 // context snapshot when one already exists. Best-effort: a chat whose agent
 // has not pushed yet is hydrated later by that agent's next push. Failures
@@ -98,29 +125,34 @@ func (p *Server) hydrateChatContextOnCreate(ctx context.Context, chat database.C
 	}
 	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
 	ctx = dbauthz.AsChatd(ctx)
-
-	// Read the snapshot hash and copy the agent's resources in one
-	// repeatable-read transaction so a concurrent push cannot commit between
-	// the two and leave the chat stamped with one snapshot's hash but another
-	// snapshot's resources. The NULL-hash guard inside the statement still
-	// keeps a concurrent push that already hydrated the chat from being
-	// clobbered.
-	if err := database.ReadModifyUpdate(p.db, func(tx database.Store) error {
-		aggregateHash, snapshotError, ok, err := latestAgentSnapshot(ctx, tx, chat.AgentID.UUID)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return nil
-		}
-		return tx.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
-			AgentID:       chat.AgentID.UUID,
-			AggregateHash: aggregateHash,
-			ContextError:  snapshotError,
-		})
-	}); err != nil {
+	if err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID); err != nil {
 		p.logger.Warn(ctx, "hydrate chat context on create",
 			slog.F("chat_id", chat.ID), slog.Error(err))
+	}
+}
+
+// ensureChatContextPinnedOnFirstTurn pins a chat to its freshly bound agent's
+// latest pushed snapshot when the chat is still unpinned. API-created chats
+// carry no agent at create, so hydrateChatContextOnCreate is a no-op for them;
+// they bind their agent lazily on the first turn. Without this, such a chat
+// reads empty pinned context on its first turn whenever the agent pushed before
+// the chat existed, because that push could not hydrate a chat that did not yet
+// exist. It reuses the create-path hydration, which is idempotent and
+// snapshot-gated, so it never clobbers an already-pinned chat and never stamps
+// empty state. The NULL-hash gate also leaves dirtied chats alone: their stale
+// pinned hash is non-NULL until the refresh endpoint re-pins. Best-effort:
+// failures are logged and swallowed so they never fail the turn.
+func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat database.Chat) {
+	if !chat.AgentID.Valid || chat.ContextAggregateHash != nil {
+		return
+	}
+	//nolint:gocritic // Chatd stamps chats it does not own as the daemon subject.
+	ctx = dbauthz.AsChatd(ctx)
+	if err := p.hydrateAgentChatsFromSnapshot(ctx, chat.AgentID.UUID); err != nil {
+		p.logger.Warn(ctx, "ensure chat context pinned on first turn",
+			slog.F("chat_id", chat.ID),
+			slog.F("agent_id", chat.AgentID.UUID),
+			slog.Error(err))
 	}
 }
 

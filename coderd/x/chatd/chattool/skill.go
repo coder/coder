@@ -135,57 +135,6 @@ func renderSkillIndex(entries []skillIndexEntry, opts skillIndexFormatOptions) s
 	return b.String()
 }
 
-// LoadSkillBody reads the full skill meta file for a discovered
-// skill and lists the supporting files in its directory.
-func LoadSkillBody(
-	ctx context.Context,
-	conn workspacesdk.AgentConn,
-	skill SkillMeta,
-	metaFile string,
-) (SkillContent, error) {
-	metaPath := path.Join(skill.Dir, metaFile)
-
-	reader, _, err := conn.ReadFile(
-		ctx, metaPath, 0, maxSkillMetaBytes+1,
-	)
-	if err != nil {
-		return SkillContent{}, xerrors.Errorf(
-			"read skill body: %w", err,
-		)
-	}
-	raw, err := io.ReadAll(io.LimitReader(reader, maxSkillMetaBytes+1))
-	reader.Close()
-	if err != nil {
-		return SkillContent{}, xerrors.Errorf(
-			"read skill body bytes: %w", err,
-		)
-	}
-
-	if int64(len(raw)) > maxSkillMetaBytes {
-		raw = raw[:maxSkillMetaBytes]
-	}
-
-	_, _, body, err := workspacesdk.ParseSkillFrontmatter(string(raw))
-	if err != nil {
-		return SkillContent{}, xerrors.Errorf(
-			"parse skill frontmatter: %w", err,
-		)
-	}
-
-	// List supporting files so the model knows what it can
-	// request via read_skill_file.
-	files, err := listSkillFiles(ctx, conn, skill.Dir, metaFile)
-	if err != nil {
-		return SkillContent{}, err
-	}
-
-	return SkillContent{
-		SkillMeta: skill,
-		Body:      body,
-		Files:     files,
-	}, nil
-}
-
 // listSkillFiles lists the supporting files in a skill directory,
 // excluding the skill meta file itself. Directory entries are
 // suffixed with "/" so the model can tell them apart from files.
@@ -524,30 +473,11 @@ func readWorkspaceSkillBody(
 		return SkillContent{}, skillNotFoundResponse(requestedName), true
 	}
 
-	// Pinned path: the SKILL.md body travels in the workspace context
-	// snapshot, so it is served without dialing the workspace.
-	if len(skill.Meta) > 0 {
-		content, err := loadPinnedWorkspaceSkillContent(ctx, options, skill)
-		if err != nil {
-			return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
-		}
-		return content, fantasy.ToolResponse{}, false
-	}
-
-	// Legacy path: read the SKILL.md body live over the workspace
-	// connection for agents that have not pushed context.
-	if options.GetWorkspaceConn == nil {
-		return SkillContent{}, fantasy.NewTextErrorResponse(
-			"workspace connection resolver is not configured",
-		), true
-	}
-
-	conn, err := options.GetWorkspaceConn(ctx)
-	if err != nil {
-		return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
-	}
-
-	content, err := LoadSkillBody(ctx, conn, skill, cmp.Or(skill.MetaFile, DefaultSkillMetaFile))
+	// The SKILL.md body travels in the workspace context snapshot, so it
+	// is served from the pin without dialing the workspace. The supporting
+	// file list is still a best-effort live lookup; see
+	// loadPinnedWorkspaceSkillContent.
+	content, err := loadPinnedWorkspaceSkillContent(ctx, options, skill)
 	if err != nil {
 		return SkillContent{}, fantasy.NewTextErrorResponse(err.Error()), true
 	}

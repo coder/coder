@@ -208,7 +208,6 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
 	// Pinned workspace-context state for the chat, surfaced by the
 	// context indicator (dirty marker and pinned resources).
 	chatContext?: TypesGen.ChatContext;
@@ -265,7 +264,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	lastInjectedContext,
 	chatContext,
 	workspaceOptions,
 	chatOrganizationId,
@@ -305,11 +303,10 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 
 	const rawUsage = getLatestContextUsage(messages);
 	const latestContextUsage =
-		rawUsage || lastInjectedContext || chatContext
+		rawUsage || chatContext
 			? {
 					...(rawUsage ?? {}),
 					compressionThreshold,
-					lastInjectedContext,
 					context: chatContext,
 				}
 			: rawUsage;
