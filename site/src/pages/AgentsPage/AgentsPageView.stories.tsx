@@ -33,7 +33,6 @@ import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
-import AgentSettingsInstructionsPage from "./AgentSettingsInstructionsPage";
 import AgentSettingsLifecyclePage from "./AgentSettingsLifecyclePage";
 import AgentSettingsPage from "./AgentSettingsPage";
 import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
@@ -208,7 +207,7 @@ const agentsRouting = {
 				{ path: "compaction", element: <AgentSettingsCompactionPage /> },
 				{
 					path: "instructions",
-					element: <AgentSettingsInstructionsPage />,
+					element: <Navigate to="/ai/settings/instructions" replace />,
 				},
 				{ path: "experiments", element: <AgentSettingsExperimentsPage /> },
 				{ path: "lifecycle", element: <AgentSettingsLifecyclePage /> },

@@ -62,23 +62,21 @@ export const PlanModeInstructionsSettings: FC<
 		isAnyPromptSaving || !hasLoadedPlanModeInstructions;
 
 	return (
-		<form className="space-y-2" onSubmit={form.handleSubmit}>
-			<div className="flex items-center gap-2">
-				<h3 className="m-0 text-[13px] font-semibold text-content-primary">
-					Plan mode instructions
-				</h3>
-			</div>
-			<p className="!mt-0.5 m-0 text-xs text-content-secondary">
-				Custom instructions applied when the agent enters planning mode. These
-				supplement the built-in planning behavior.
-			</p>
+		<form className="flex flex-col" onSubmit={form.handleSubmit}>
+			<label
+				className="mb-2 font-sans text-sm font-bold leading-6 text-content-primary"
+				htmlFor="plan_mode_instructions"
+			>
+				Additional Plan mode instructions
+			</label>
 			<TextareaAutosize
 				className={cn(
-					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+					"max-h-[240px] w-full resize-none rounded-lg border border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
 					isPlanModeInstructionsOverflowing &&
 						"overflow-y-auto [scrollbar-width:thin]",
 				)}
-				placeholder="Additional instructions for planning mode"
+				id="plan_mode_instructions"
+				placeholder="Add additional guidance"
 				name="plan_mode_instructions"
 				value={form.values.plan_mode_instructions}
 				onChange={form.handleChange}

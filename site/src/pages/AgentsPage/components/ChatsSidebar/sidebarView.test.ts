@@ -60,10 +60,14 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("returns the instructions admin settings section", () => {
+	it("falls through moved admin sections to the user settings panel", () => {
 		expect(sidebarViewFromPath("/agents/settings/instructions")).toEqual({
-			panel: "settings-admin",
+			panel: "settings",
 			section: "instructions",
+		});
+		expect(sidebarViewFromPath("/agents/settings/models")).toEqual({
+			panel: "settings",
+			section: "models",
 		});
 	});
 

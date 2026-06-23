@@ -370,9 +370,7 @@ const AgentSettingsGeneralPage = lazy(
 const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
-const AgentSettingsInstructionsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsInstructionsPage"),
-);
+
 const AgentSettingsExperimentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
 );
@@ -449,6 +447,9 @@ const AISettingsGatewayKeysPage = lazy(
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
+);
+const AISettingsInstructionsPage = lazy(
+	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
 );
 const AISettingsAddModelPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/AddModelPage/AddModelPage"),
@@ -731,6 +732,10 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexPage />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route
+							path="instructions"
+							element={<AISettingsInstructionsPage />}
+						/>
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
 							path="models/:modelId"
@@ -803,7 +808,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="instructions"
-							element={<AgentSettingsInstructionsPage />}
+							element={<Navigate to="/ai/settings/instructions" replace />}
 						/>
 						<Route
 							path="experiments"

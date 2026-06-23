@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
-	AgentSettingsInstructionsPageView,
-	type AgentSettingsInstructionsPageViewProps,
-} from "./AgentSettingsInstructionsPageView";
+	InstructionsPageView,
+	type InstructionsPageViewProps,
+} from "./InstructionsPageView";
 
 const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant.";
 
-const baseArgs: AgentSettingsInstructionsPageViewProps = {
+const baseArgs: InstructionsPageViewProps = {
 	systemPromptData: {
 		system_prompt: "Always explain tradeoffs before proposing a change.",
 		include_default_system_prompt: true,
@@ -26,13 +26,13 @@ const baseArgs: AgentSettingsInstructionsPageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsInstructionsPageView",
-	component: AgentSettingsInstructionsPageView,
+	title: "pages/AISettingsPage/InstructionsPage/InstructionsPageView",
+	component: InstructionsPageView,
 	args: baseArgs,
-} satisfies Meta<typeof AgentSettingsInstructionsPageView>;
+} satisfies Meta<typeof InstructionsPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsInstructionsPageView>;
+type Story = StoryObj<typeof InstructionsPageView>;
 
 export const Default: Story = {};
 
@@ -57,10 +57,10 @@ export const AdminWithDefaultToggleOn: Story = {
 		);
 		expect(promptInput).toBeInTheDocument();
 		expect(
-			canvas.getByText(/built-in Coder Agents prompt is prepended/i),
+			canvas.getByText("Additional system instructions"),
 		).toBeInTheDocument();
 
-		await userEvent.click(canvas.getByRole("button", { name: "Preview" }));
+		await userEvent.click(canvas.getByRole("button", { name: "View prompt" }));
 		expect(await body.findByText("Default System Prompt")).toBeInTheDocument();
 		expect(body.getByText(mockDefaultSystemPrompt)).toBeInTheDocument();
 		await userEvent.keyboard("{Escape}");
@@ -100,7 +100,7 @@ export const AdminWithDefaultToggleOff: Story = {
 			await canvas.findByDisplayValue("You are a custom assistant."),
 		).toBeInTheDocument();
 		expect(
-			canvas.getByText(/only the additional instructions below are used/i),
+			canvas.getByText("Additional system instructions"),
 		).toBeInTheDocument();
 	},
 };
@@ -117,7 +117,7 @@ export const InvisibleUnicodeWarningSystemPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("System instructions");
+		await canvas.findByText("Additional system instructions");
 		const alert = await canvas.findByText(/invisible Unicode/);
 		expect(alert).toBeInTheDocument();
 		expect(alert.textContent).toContain("4");
@@ -138,7 +138,7 @@ export const NoWarningForCleanPrompt: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("System instructions");
+		await canvas.findByText("Additional system instructions");
 		await canvas.findByDisplayValue("You are a helpful coding assistant.");
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
 	},
@@ -150,8 +150,8 @@ export const SavesPlanModeInstructions: Story = {
 	},
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
-		const textarea = await canvas.findByPlaceholderText(
-			"Additional instructions for planning mode",
+		const textarea = await canvas.findByLabelText(
+			"Additional Plan mode instructions",
 		);
 
 		await userEvent.clear(textarea);

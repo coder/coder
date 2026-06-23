@@ -7,10 +7,8 @@ type SidebarView =
 const ADMIN_SETTINGS_SECTIONS = new Set([
 	"agents",
 	"templates",
-	"models",
 	"mcp-servers",
 	"spend",
-	"instructions",
 	"experiments",
 	"lifecycle",
 ]);

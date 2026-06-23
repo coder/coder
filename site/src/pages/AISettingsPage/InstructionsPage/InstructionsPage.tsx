@@ -8,9 +8,10 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsInstructionsPageView } from "./AgentSettingsInstructionsPageView";
+import { pageTitle } from "#/utils/page";
+import { InstructionsPageView } from "./InstructionsPageView";
 
-const AgentSettingsInstructionsPage: FC = () => {
+const InstructionsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 
@@ -31,7 +32,9 @@ const AgentSettingsInstructionsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsInstructionsPageView
+			<title>{pageTitle("Instructions", "AI Settings")}</title>
+
+			<InstructionsPageView
 				systemPromptData={systemPromptQuery.data}
 				planModeInstructionsData={planModeInstructionsQuery.data}
 				onSaveSystemPrompt={saveSystemPromptMutation.mutate}
@@ -49,4 +52,4 @@ const AgentSettingsInstructionsPage: FC = () => {
 	);
 };
 
-export default AgentSettingsInstructionsPage;
+export default InstructionsPage;
