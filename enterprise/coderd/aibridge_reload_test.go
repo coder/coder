@@ -1,7 +1,6 @@
 package coderd_test
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,19 +8,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/cli"
-	"github.com/coder/coder/v2/coderd"
-	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
@@ -52,60 +43,6 @@ func newMockUpstream(t *testing.T, name string) *mockUpstream {
 	return m
 }
 
-// startTestAIBridgeDaemon wires an in-process aibridged daemon onto
-// the supplied API and subscribes it to ai_providers change events.
-// This mirrors what cli/server.go does in production so /api/v2/ai-gateway
-// requests dispatch through the real pool and reloader.
-func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
-	t.Helper()
-
-	ctx := context.Background()
-	logger := slogtest.Make(t, nil).Named("aibridged").Leveled(slog.LevelDebug)
-	cfg := api.DeploymentValues.AI.BridgeConfig
-	tracer := otel.Tracer("aibridge-reload-test")
-
-	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger, nil)
-	require.NoError(t, err)
-
-	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), nil, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
-
-	metrics := aibridged.NewMetrics(prometheus.NewRegistry())
-	reloader := &testPoolReloader{pool: pool, db: api.Database, cfg: cfg, logger: logger.Named("reloader"), metrics: metrics}
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
-	require.NoError(t, err)
-	t.Cleanup(unsubscribe)
-
-	srv, err := aibridged.New(ctx, pool, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
-		return api.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = srv.Close() })
-
-	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
-	return metrics
-}
-
-type testPoolReloader struct {
-	pool    *aibridged.CachedBridgePool
-	db      database.Store
-	cfg     codersdk.AIBridgeConfig
-	logger  slog.Logger
-	metrics *aibridged.Metrics
-}
-
-func (r *testPoolReloader) Reload(ctx context.Context) error {
-	defer r.metrics.RecordReloadAttempt()
-	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
-	if err != nil {
-		return err
-	}
-	r.pool.ReplaceProviders(providers)
-	r.metrics.RecordReloadSuccess(outcomes)
-	return nil
-}
-
 // TestAIBridgeProviderHotReload exercises the end-to-end CRUD ->
 // reload -> routing path: every provider mutation made through codersdk
 // must, within a short window, change the routing observed at
@@ -131,7 +68,7 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 		},
 	})
 
-	metrics := startTestAIBridgeDaemon(t, api.AGPL)
+	metrics := coderdtest.StartTestAIBridgeDaemon(t, api.AGPL)
 
 	// requireProviderStatus polls until the provider_info series for
 	// (name, status) settles to value 1. Reloads happen via pubsub, so
