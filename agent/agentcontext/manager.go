@@ -2,7 +2,6 @@ package agentcontext
 
 import (
 	"context"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -157,7 +156,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 
 	for _, s := range opts.InitialSources {
-		canonical, err := CanonicalizePath(s.Path)
+		identity, err := lexicalPath(s.Path)
 		if err != nil {
 			// Initial sources may not exist yet at boot
 			// time; log and skip rather than abort the
@@ -168,7 +167,7 @@ func NewManager(opts ManagerOptions) *Manager {
 				slog.Error(err))
 			continue
 		}
-		m.addCanonicalSourceLocked(canonical)
+		m.addSourceLocked(identity)
 	}
 
 	// First snapshot is computed eagerly. The push protocol
@@ -278,10 +277,10 @@ func (m *Manager) Sources() []Source {
 }
 
 // HasSource reports whether path matches an existing source
-// after canonicalization. Returns the canonical path on
-// success.
+// after resolving it to its lexical identity. Returns the
+// lexical identity path on success.
 func (m *Manager) HasSource(path string) (canonical string, ok bool) {
-	c, err := CanonicalizePath(path)
+	c, err := lexicalPath(path)
 	if err != nil {
 		return "", false
 	}
@@ -291,41 +290,49 @@ func (m *Manager) HasSource(path string) (canonical string, ok bool) {
 	return c, ok
 }
 
-// AddSource adds a new source. The path is canonicalized and
-// validated against the AllowedRoots set. AddSource is
-// idempotent.
+// AddSource adds a new source. The path is validated against
+// the AllowedRoots set using its resolved (symlink-followed)
+// form, but it is identified and stored by its lexical path so
+// the source listing reflects the configured path and stays
+// stable across symlink-target changes. AddSource is idempotent.
 func (m *Manager) AddSource(s Source) (Source, error) {
-	canonical, err := CanonicalizePath(s.Path)
+	identity, err := lexicalPath(s.Path)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
 	}
-	if err := ValidateSourcePath(canonical, m.effectiveAllowedRoots()); err != nil {
+	// Validate the resolved path so a symlink cannot escape the
+	// allowed roots, even though identity is the lexical path.
+	resolved, err := CanonicalizePath(s.Path)
+	if err != nil {
+		return Source{}, xerrors.Errorf("canonicalize: %w", err)
+	}
+	if err := ValidateSourcePath(resolved, m.effectiveAllowedRoots()); err != nil {
 		return Source{}, err
 	}
 
 	m.mu.Lock()
-	if idx, ok := m.resolvedSourceIndexLocked(canonical); ok {
+	if idx, ok := m.sourceIndex[identity]; ok {
 		out := m.sources[idx]
 		m.mu.Unlock()
 		return out, nil
 	}
-	m.sourceIndex[canonical] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: canonical})
+	m.sourceIndex[identity] = len(m.sources)
+	m.sources = append(m.sources, Source{Path: identity})
 	m.mu.Unlock()
 
 	m.signal()
-	return Source{Path: canonical}, nil
+	return Source{Path: identity}, nil
 }
 
-// SeedSources canonicalizes and inserts a batch of trusted
-// sources without applying AllowedRoots validation. It is the
+// SeedSources resolves and inserts a batch of trusted sources
+// without applying AllowedRoots validation. It is the
 // late-binding equivalent of ManagerOptions.InitialSources for
 // callers that need the working directory to resolve relative
 // paths but only learn the working directory after Run has
 // started. Paths that fail canonicalization are silently
 // skipped, matching the boot-time seeding contract. SeedSources
-// is idempotent: previously seeded canonical paths are
-// deduplicated via the existing source index.
+// is idempotent: previously seeded sources are deduplicated by
+// their lexical identity.
 //
 // AddSource is the correct entry point for untrusted HTTP
 // callers; this method exists only for the agent's manifest-
@@ -338,7 +345,7 @@ func (m *Manager) SeedSources(sources []Source) {
 	m.mu.Lock()
 	changed := false
 	for _, s := range sources {
-		canonical, err := CanonicalizePath(s.Path)
+		identity, err := lexicalPath(s.Path)
 		if err != nil {
 			m.logger.Warn(context.Background(),
 				"skipping invalid seeded source",
@@ -346,7 +353,7 @@ func (m *Manager) SeedSources(sources []Source) {
 				slog.Error(err))
 			continue
 		}
-		if m.addCanonicalSourceLocked(canonical) {
+		if m.addSourceLocked(identity) {
 			changed = true
 		}
 	}
@@ -357,10 +364,11 @@ func (m *Manager) SeedSources(sources []Source) {
 }
 
 // RemoveSource removes the source matching path. Path is
-// canonicalized before matching. Returns ErrSourceNotFound when
-// no such source exists or when the path cannot be canonicalized.
+// resolved to its lexical identity before matching. Returns
+// ErrSourceNotFound when no such source exists or when the path
+// cannot be canonicalized.
 func (m *Manager) RemoveSource(path string) error {
-	canonical, err := CanonicalizePath(path)
+	identity, err := lexicalPath(path)
 	if err != nil {
 		// A path that does not canonicalize cannot match any
 		// existing source. Mirror HasSource semantics by
@@ -370,7 +378,7 @@ func (m *Manager) RemoveSource(path string) error {
 	}
 
 	m.mu.Lock()
-	idx, ok := m.sourceIndex[canonical]
+	idx, ok := m.sourceIndex[identity]
 	if !ok {
 		m.mu.Unlock()
 		return ErrSourceNotFound
@@ -378,7 +386,7 @@ func (m *Manager) RemoveSource(path string) error {
 	// O(n) compaction is fine for the typical handful of
 	// user-added sources.
 	m.sources = append(m.sources[:idx], m.sources[idx+1:]...)
-	delete(m.sourceIndex, canonical)
+	delete(m.sourceIndex, identity)
 	for i := idx; i < len(m.sources); i++ {
 		m.sourceIndex[m.sources[i].Path] = i
 	}
@@ -388,43 +396,15 @@ func (m *Manager) RemoveSource(path string) error {
 	return nil
 }
 
-// resolvedSourceIndexLocked returns the index of an existing source that
-// refers to the same path as canonical, matching first by exact canonical
-// path and then by resolved filesystem identity. The identity fallback
-// collapses a symlink and its target (or a path canonicalized before vs
-// after its symlink target existed) onto a single source, so the source
-// list never reports the same directory twice. A path that does not exist
-// yet cannot be compared by identity, so it registers as-is. m.mu must be
-// held.
-func (m *Manager) resolvedSourceIndexLocked(canonical string) (int, bool) {
-	if idx, ok := m.sourceIndex[canonical]; ok {
-		return idx, true
-	}
-	info, err := os.Stat(canonical)
-	if err != nil {
-		return 0, false
-	}
-	for i, s := range m.sources {
-		existing, err := os.Stat(s.Path)
-		if err != nil {
-			continue
-		}
-		if os.SameFile(info, existing) {
-			return i, true
-		}
-	}
-	return 0, false
-}
-
-// addCanonicalSourceLocked appends a canonical source unless it duplicates an
-// existing one by exact path or resolved filesystem identity. It reports
-// whether a new source was added. m.mu must be held.
-func (m *Manager) addCanonicalSourceLocked(canonical string) bool {
-	if _, ok := m.resolvedSourceIndexLocked(canonical); ok {
+// addSourceLocked appends a source identified by its lexical path unless an
+// identical identity is already registered. It reports whether a new source
+// was added. m.mu must be held.
+func (m *Manager) addSourceLocked(identity string) bool {
+	if _, ok := m.sourceIndex[identity]; ok {
 		return false
 	}
-	m.sourceIndex[canonical] = len(m.sources)
-	m.sources = append(m.sources, Source{Path: canonical})
+	m.sourceIndex[identity] = len(m.sources)
+	m.sources = append(m.sources, Source{Path: identity})
 	return true
 }
 

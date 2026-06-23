@@ -8,15 +8,14 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// CanonicalizePath produces the canonical form of a user-
-// supplied path. The result is absolute, has ~ expanded, has
-// path-traversal segments collapsed, and has symlinks resolved
-// when the target exists. The path is left lexically clean if
-// it does not yet exist (so adding a not-yet-created directory
-// remains possible).
-//
-// CanonicalizePath returns the original input when it is empty.
-func CanonicalizePath(raw string) (string, error) {
+// lexicalPath produces the lexically clean, absolute form of a
+// user-supplied path. The result is absolute, has ~ expanded,
+// and has path-traversal segments collapsed, but symlinks are
+// NOT resolved. It is the stable identity used to deduplicate
+// and display context sources: a source keeps the path the
+// operator configured, and that identity does not change when a
+// symlink target is created or removed later.
+func lexicalPath(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return "", xerrors.New("path is empty")
@@ -44,7 +43,25 @@ func CanonicalizePath(raw string) (string, error) {
 		return "", xerrors.Errorf("path %q is not absolute", raw)
 	}
 
-	cleaned := filepath.Clean(raw)
+	return filepath.Clean(raw), nil
+}
+
+// CanonicalizePath produces the canonical form of a user-
+// supplied path. The result is absolute, has ~ expanded, has
+// path-traversal segments collapsed, and has symlinks resolved
+// when the target exists. The path is left lexically clean if
+// it does not yet exist (so adding a not-yet-created directory
+// remains possible).
+//
+// Symlink resolution makes the result time-dependent, so
+// CanonicalizePath is used for security validation (enforcing a
+// path's real target is inside an allowed root), not for source
+// identity. Use lexicalPath for identity.
+func CanonicalizePath(raw string) (string, error) {
+	cleaned, err := lexicalPath(raw)
+	if err != nil {
+		return "", err
+	}
 	if resolved, err := filepath.EvalSymlinks(cleaned); err == nil {
 		return resolved, nil
 	}

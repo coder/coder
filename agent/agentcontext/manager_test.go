@@ -171,13 +171,19 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 	require.Len(t, sources, 1)
 }
 
-// TestManager_AddSourceDedupesByResolvedIdentity guards the duplicate-source
-// bug: a path added before its symlink target exists canonicalizes to the
-// lexical link path, while the same directory added later (once the target
-// exists) canonicalizes to the resolved target. The two distinct path strings
-// denote one inode, so the source list must collapse them to a single entry.
-func TestManager_AddSourceDedupesByResolvedIdentity(t *testing.T) {
+// TestManager_SourceIdentityIsLexicalAndStable guards the duplicate-source
+// bug: source identity is the lexical (configured) path, not the
+// symlink-resolved path. The same configured path is seeded at boot (before a
+// startup script creates the symlink target) and again once the target
+// exists. Resolving symlinks would yield two different strings for one
+// directory and list it twice; the lexical identity is stable across the
+// target's existence, so the source list collapses to a single entry that
+// keeps the path the operator configured.
+func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
 	root := testutil.TempDirResolved(t)
 	target := filepath.Join(root, "target")
 	link := filepath.Join(root, "link")
@@ -188,19 +194,20 @@ func TestManager_AddSourceDedupesByResolvedIdentity(t *testing.T) {
 		AllowedRoots: []string{root},
 	})
 
-	// The symlink target does not exist yet, so canonicalization keeps the
-	// lexical link path.
+	// The symlink target does not exist yet. Identity is the lexical link
+	// path, not the resolved target.
 	added1, err := m.AddSource(agentcontext.Source{Path: link})
 	require.NoError(t, err)
 	require.Equal(t, link, added1.Path)
 
-	// Create the target so the symlink resolves, then add it directly. It is
-	// the same inode as the link, so it must not register a second source.
+	// Create the target so the symlink now resolves, then add the same
+	// configured path again. Identity is lexical and therefore unchanged, so
+	// it must not register a second source.
 	require.NoError(t, os.MkdirAll(target, 0o755))
-	added2, err := m.AddSource(agentcontext.Source{Path: target})
+	added2, err := m.AddSource(agentcontext.Source{Path: link})
 	require.NoError(t, err)
 	require.Equal(t, link, added2.Path,
-		"expected the target to collapse onto the existing link source")
+		"expected the source identity to stay the lexical link path")
 
 	require.Len(t, m.Sources(), 1)
 }
