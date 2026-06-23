@@ -10,6 +10,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/fixtures"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
@@ -158,7 +159,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			)
 
 			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL,
-				withCustomProvider(mustNewAnthropic(config.Anthropic{
+				withCustomProvider(aibridgetest.MustNewAnthropicProvider(config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
 				}, nil)),
@@ -232,7 +233,7 @@ func TestKeyPool_StateSharing(t *testing.T) {
 			name:         "anthropic",
 			providerName: config.ProviderAnthropic,
 			newProvider: func(baseURL string, pool *keypool.Pool) aibridge.Provider {
-				return mustNewAnthropic(config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
+				return aibridgetest.MustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
 			},
 			upstreamResponses: []testutil.UpstreamResponse{
 				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),
