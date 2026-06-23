@@ -38,7 +38,7 @@ type CreateAIGatewayKeyResponse struct {
 
 // CreateAIGatewayKey creates a new AI Gateway key.
 func (c *Client) CreateAIGatewayKey(ctx context.Context, req CreateAIGatewayKeyRequest) (CreateAIGatewayKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/aibridge/keys", req)
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/ai-gateway/keys", req)
 	if err != nil {
 		return CreateAIGatewayKeyResponse{}, xerrors.Errorf("make request: %w", err)
 	}
@@ -53,7 +53,7 @@ func (c *Client) CreateAIGatewayKey(ctx context.Context, req CreateAIGatewayKeyR
 
 // ListAIGatewayKeys lists all AI Gateway keys.
 func (c *Client) ListAIGatewayKeys(ctx context.Context) ([]AIGatewayKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/aibridge/keys", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/keys", nil)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
 	}
@@ -69,7 +69,7 @@ func (c *Client) ListAIGatewayKeys(ctx context.Context) ([]AIGatewayKey, error) 
 // DeleteAIGatewayKey deletes an AI Gateway key by ID.
 func (c *Client) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete,
-		fmt.Sprintf("/api/v2/aibridge/keys/%s", id.String()), nil)
+		fmt.Sprintf("/api/v2/ai-gateway/keys/%s", id.String()), nil)
 	if err != nil {
 		return xerrors.Errorf("make request: %w", err)
 	}
