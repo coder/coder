@@ -4,8 +4,10 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import { API } from "#/api/api";
+import { API, type GroupMemberAISpend } from "#/api/api";
 import {
+	getGroupByIdQueryKey,
+	getGroupMembersAISpendQueryKey,
 	getGroupMembersQueryKey,
 	getGroupQueryKey,
 	getGroupsForUserQueryKey,
@@ -14,13 +16,15 @@ import {
 } from "#/api/queries/groups";
 import { organizationMembersKey } from "#/api/queries/organizations";
 import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
-import type { UserAIBudgetOverride } from "#/api/typesGenerated";
+import type { ReducedUser, UserAIBudgetOverride } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockGroup,
+	MockGroup2,
 	MockGroupWithoutMembers,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserMember,
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
@@ -234,10 +238,133 @@ export const FiltersByMembers: Story = {
 
 const mockOwnerOverride: UserAIBudgetOverride = {
 	user_id: MockUserOwner.id,
-	group_id: MockGroup.id,
+	group_id: MockGroup2.id,
 	spend_limit_micros: 12_000_000_000,
 	created_at: "2026-01-01T00:00:00Z",
 	updated_at: "2026-01-01T00:00:00Z",
+};
+
+// Defaults to an override charged to the page's group; pass overrides per case.
+const memberSpend = (
+	userId: string,
+	overrides: Partial<GroupMemberAISpend> = {},
+): GroupMemberAISpend => ({
+	user_id: userId,
+	current_spend_micros: 1_345_000_000,
+	spend_limit_micros: 9_000_000_000,
+	effective_group_id: MockGroupWithoutMembers.id,
+	limit_source: "override",
+	...overrides,
+});
+
+const memberWithoutSpend: ReducedUser = {
+	...MockUserMember,
+	id: "no-spend-user",
+	username: "no-spend",
+};
+
+const aiSpendQuery = (data: GroupMemberAISpend[]) => ({
+	key: getGroupMembersAISpendQueryKey(MockGroupWithoutMembers.id),
+	data,
+});
+
+export const WithMemberAISpend: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: [...MockGroup.members, memberWithoutSpend],
+				count: MockGroup.members.length + 1,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			// memberWithoutSpend is omitted to exercise the missing-spend "-" fallback.
+			aiSpendQuery([
+				memberSpend(MockUserOwner.id, { spend_limit_micros: null }),
+				memberSpend(MockUserMember.id, {
+					current_spend_micros: 5_492_000_000,
+					spend_limit_micros: 7_000_000_000,
+					limit_source: "group",
+				}),
+			]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
+		await expect(await canvas.findByText("Budget type")).toBeInTheDocument();
+		// Override source, no limit.
+		await expect(
+			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
+		).toHaveTextContent("$1,345 / unlimited USD");
+		await expect(await canvas.findByText("Individual")).toBeInTheDocument();
+		// Group source, finite limit.
+		await expect(
+			await canvas.findByTestId(`member-ai-budget-${MockUserMember.id}`),
+		).toHaveTextContent("$5,492 / $7,000 USD");
+		await expect(await canvas.findByText("Group")).toBeInTheDocument();
+		// No spend reported for this member.
+		await expect(
+			await canvas.findByTestId(`member-ai-budget-${memberWithoutSpend.id}`),
+		).toHaveTextContent("-");
+	},
+};
+
+export const WithMemberAISpendLoading: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: MockGroup.members,
+				count: MockGroup.members.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getGroupMembersAISpend").mockImplementation(
+			() => new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
+		// Skeletons render while spend loads, so no amount is shown yet.
+		await expect(
+			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
+		).not.toHaveTextContent("$");
+	},
+};
+
+export const WithMemberAISpendEffectiveGroupMismatch: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery([
+				memberSpend(MockUserOwner.id, {
+					effective_group_id: "other-group-id",
+					limit_source: "group",
+				}),
+			]),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Off the effective group: spend shows without a limit, and no budget type.
+		const cell = await canvas.findByTestId(
+			`member-ai-budget-${MockUserOwner.id}`,
+		);
+		await expect(cell).toHaveTextContent("$1,345");
+		await expect(cell).not.toHaveTextContent("USD");
+		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
+	},
 };
 
 export const OpenAIBudgetFromMemberMenu: Story = {
@@ -251,6 +378,13 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 				count: MockGroup.members.length,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			aiSpendQuery([
+				memberSpend(MockUserOwner.id, { effective_group_id: MockGroup2.id }),
+			]),
+			{
+				key: getGroupByIdQueryKey(MockGroup2.id, { exclude_members: true }),
+				data: MockGroup2,
+			},
 			{
 				key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id),
 				data: mockOwnerOverride,
@@ -263,7 +397,7 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 				data: [MockGroup],
 			},
 			{
-				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				key: groupAIBudget(MockGroup2.id).queryKey,
 				data: null,
 			},
 		],
@@ -281,5 +415,6 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 		await expect(
 			await body.findByText("Custom monthly budget"),
 		).toBeInTheDocument();
+		await expect(await body.findByText("developer")).toBeInTheDocument();
 	},
 };

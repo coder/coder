@@ -208,6 +208,16 @@ export type OrganizationGroupAISpend = Readonly<{
 	spend_limit_micros: number | null;
 }>;
 
+// TODO(AIGOV-291): replace with the generated type from typesGenerated.ts once
+// the GET /groups/{group}/members/ai/spend endpoint exists in the backend.
+export type GroupMemberAISpend = Readonly<{
+	user_id: string;
+	current_spend_micros: number;
+	spend_limit_micros: number | null;
+	effective_group_id: string | null;
+	limit_source: "group" | "override" | null;
+}>;
+
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
@@ -2243,6 +2253,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getGroupById = async (
+		groupId: string,
+		req: TypesGen.GroupRequest,
+		signal?: AbortSignal,
+	): Promise<TypesGen.Group> => {
+		const url = getURLWithSearchParams(`/api/v2/groups/${groupId}`, req);
+		const response = await this.axios.get(url, { signal });
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
@@ -2341,6 +2361,15 @@ class ApiMethods {
 
 	deleteGroupAIBudget = async (groupId: string): Promise<void> => {
 		await this.axios.delete(`/api/v2/groups/${groupId}/ai/budget`);
+	};
+
+	getGroupMembersAISpend = async (
+		groupId: string,
+	): Promise<GroupMemberAISpend[]> => {
+		const response = await this.axios.get(
+			`/api/v2/groups/${groupId}/members/ai/spend`,
+		);
+		return response.data;
 	};
 
 	getWorkspaceQuota = async (

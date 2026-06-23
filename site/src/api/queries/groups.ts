@@ -1,5 +1,9 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import { API, type OrganizationGroupAISpend } from "#/api/api";
+import {
+	API,
+	type GroupMemberAISpend,
+	type OrganizationGroupAISpend,
+} from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
@@ -56,6 +60,22 @@ const getRootGroupQueryKey = (organization: string, groupName: string) => [
 	"group",
 	groupName,
 ];
+
+export const getGroupByIdQueryKey = (groupId: string, req: GroupRequest) => [
+	"group",
+	groupId,
+	req,
+];
+
+export const groupById = (
+	groupId: string,
+	req: GroupRequest,
+): UseQueryOptions<Group> => {
+	return {
+		queryKey: getGroupByIdQueryKey(groupId, req),
+		queryFn: ({ signal }) => API.getGroupById(groupId, req, signal),
+	};
+};
 
 export const getGroupQueryKey = (
 	organization: string,
@@ -295,6 +315,20 @@ export const saveGroupAIBudget = (
 				queryKey: getGroupAIBudgetQueryKey(groupId),
 			}),
 	};
+};
+
+export const getGroupMembersAISpendQueryKey = (groupId: string) => [
+	"group",
+	groupId,
+	"members",
+	"aiSpend",
+];
+
+export const groupMembersAISpend = (groupId: string) => {
+	return {
+		queryKey: getGroupMembersAISpendQueryKey(groupId),
+		queryFn: () => API.getGroupMembersAISpend(groupId),
+	} satisfies UseQueryOptions<GroupMemberAISpend[]>;
 };
 
 const invalidateGroup = (
