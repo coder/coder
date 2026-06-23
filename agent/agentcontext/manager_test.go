@@ -502,3 +502,39 @@ func TestManager_WalkUpReadsAncestorInstructionFiles(t *testing.T) {
 		filepath.Join(cwd, "AGENTS.md"),
 	}, sources)
 }
+
+// TestManager_UserSourceDoesNotWalkUp confirms an explicitly added
+// source is scanned at exactly that directory. Walk-up to the
+// project (.git) root applies only to the working directory, so
+// adding a subdirectory such as ./site inside a repo scans ./site
+// itself and does not pull in the repo-root instruction files.
+func TestManager_UserSourceDoesNotWalkUp(t *testing.T) {
+	t.Parallel()
+	// repo is a git project with a root AGENTS.md and a nested
+	// site/AGENTS.md. The user adds the site subdirectory directly.
+	repo := testutil.TempDirResolved(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
+	mustWriteFile(t, filepath.Join(repo, "AGENTS.md"), "root rules")
+	site := filepath.Join(repo, "site")
+	mustWriteFile(t, filepath.Join(site, "AGENTS.md"), "site rules")
+
+	// The working directory is unrelated and contributes nothing,
+	// isolating the user-source behavior under test.
+	wd := testutil.TempDirResolved(t)
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:     func() string { return wd },
+		InitialSources: []agentcontext.Source{{Path: site}},
+	})
+
+	snap := m.Snapshot()
+	var sources []string
+	for _, r := range snap.Resources {
+		if r.Kind == agentcontext.KindInstructionFile {
+			sources = append(sources, r.Source)
+		}
+	}
+	// Only the added subdirectory's AGENTS.md is present; the
+	// repo-root AGENTS.md is absent, proving no walk-up occurred.
+	require.Equal(t, []string{filepath.Join(site, "AGENTS.md")}, sources)
+}
