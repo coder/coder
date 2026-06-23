@@ -1,5 +1,6 @@
 import {
 	FileIcon,
+	FolderIcon,
 	PlugIcon,
 	TriangleAlertIcon,
 	WrenchIcon,
@@ -27,7 +28,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { isMobileViewport } from "#/utils/mobile";
-import { getPathBasename } from "../utils/path";
+import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 export interface AgentContextUsage {
@@ -47,10 +48,12 @@ export interface AgentContextUsage {
 
 // Normalized popover entries, sourced from the chat's pinned context
 // resources.
-type ContextFileItem = { readonly path: string };
+type ContextFileItem = { readonly path: string; readonly dir: string };
 type ContextSkillItem = {
+	readonly source: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly dir: string;
 };
 type ContextMcpItem = {
 	readonly name: string;
@@ -109,12 +112,52 @@ const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	return "text-content-secondary/60";
 };
 
+// A set of context resources that share a parent directory. Lists are grouped
+// by directory so resources pulled from different roots (for example a
+// repo-root AGENTS.md and a nested one) stay distinguishable instead of
+// collapsing to identical basenames.
+type DirectoryGroup<T> = {
+	readonly dir: string;
+	readonly items: readonly T[];
+};
+
+// Group items by their precomputed dir, preserving first-seen order so the
+// popover layout stays stable across renders.
+const groupByDirectory = <T extends { readonly dir: string }>(
+	items: readonly T[],
+): readonly DirectoryGroup<T>[] => {
+	const order: string[] = [];
+	const byDir = new Map<string, T[]>();
+	for (const item of items) {
+		const existing = byDir.get(item.dir);
+		if (existing) {
+			existing.push(item);
+		} else {
+			byDir.set(item.dir, [item]);
+			order.push(item.dir);
+		}
+	}
+	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
+};
+
 const RING_SIZE = 18;
 const RING_STROKE = 2.5;
 
 // Delay before the popover closes after the mouse leaves, giving
 // the user time to move into the popover content.
 const HOVER_CLOSE_DELAY_MS = 150;
+
+// Dimmed directory header shown above a group of context resources when a
+// section spans more than one directory.
+const ContextDirLabel: FC<{ dir: string }> = ({ dir }) => (
+	<span
+		className="flex items-center gap-1 text-[11px] text-content-secondary"
+		title={dir}
+	>
+		<FolderIcon className="size-3 shrink-0" />
+		<span className="truncate">{dir}</span>
+	</span>
+);
 
 export const ContextUsageIndicator: FC<{
 	usage: AgentContextUsage | null;
@@ -176,15 +219,20 @@ export const ContextUsageIndicator: FC<{
 			(resource) =>
 				resource.kind === "instruction_file" && resource.status === "ok",
 		)
-		.map((resource) => ({ path: resource.source }))
+		.map((resource) => ({
+			path: resource.source,
+			dir: getPathDirname(resource.source),
+		}))
 		// Drop entries with no usable path so an empty marker never renders as a
 		// nameless "Context files" row.
 		.filter((file) => file.path.trim().length > 0);
 	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
 		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
 		.map((resource) => ({
+			source: resource.source,
 			name: resource.skill_name || getPathBasename(resource.source),
 			description: resource.skill_description,
+			dir: getPathDirname(resource.source),
 		}))
 		// Drop entries with no usable name so an empty skill marker never renders
 		// as a blank row.
@@ -230,6 +278,11 @@ export const ContextUsageIndicator: FC<{
 		mcpItems.length > 0 ||
 		issueItems.length > 0;
 
+	// Group files and skills by directory so every context root is labeled,
+	// keeping resources pulled from different directories distinguishable.
+	const fileGroups = groupByDirectory(fileItems);
+	const skillGroups = groupByDirectory(skillItems);
+
 	const ariaLabel = hasPercent
 		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
 		: isDirty
@@ -260,12 +313,27 @@ export const ContextUsageIndicator: FC<{
 							<span className="font-medium text-content-primary">
 								Context files
 							</span>
-							{fileItems.map((file) => (
-								<div key={file.path} className="flex items-center gap-1.5">
-									<FileIcon className="size-3 shrink-0" />
-									<span className="truncate" title={file.path}>
-										{getPathBasename(file.path)}
-									</span>
+							{fileGroups.map((group) => (
+								<div key={group.dir} className="flex flex-col gap-1">
+									{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+									<div
+										className={cn(
+											"flex flex-col",
+											group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
+										)}
+									>
+										{group.items.map((file) => (
+											<div
+												key={file.path}
+												className="flex items-center gap-1.5"
+											>
+												<FileIcon className="size-3 shrink-0" />
+												<span className="truncate" title={file.path}>
+													{getPathBasename(file.path)}
+												</span>
+											</div>
+										))}
+									</div>
 								</div>
 							))}
 						</div>
@@ -274,31 +342,43 @@ export const ContextUsageIndicator: FC<{
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">Skills</span>
 							<TooltipProvider delayDuration={300}>
-								{skillItems.map((skill) => {
-									const row = (
-										<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
-											<ZapIcon className="size-3 shrink-0" />
-											<span className="truncate">{skill.name}</span>
+								{skillGroups.map((group) => (
+									<div key={group.dir} className="flex flex-col gap-1">
+										{group.dir !== "" && <ContextDirLabel dir={group.dir} />}
+										<div
+											className={cn(
+												"flex flex-col",
+												group.dir !== "" ? "ml-3.5 gap-0.5" : "gap-1",
+											)}
+										>
+											{group.items.map((skill) => {
+												const row = (
+													<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
+														<ZapIcon className="size-3 shrink-0" />
+														<span className="truncate">{skill.name}</span>
+													</div>
+												);
+												if (!skill.description) {
+													return <div key={skill.source}>{row}</div>;
+												}
+												return (
+													<Tooltip key={skill.source}>
+														<TooltipTrigger asChild>
+															<div className="cursor-default">{row}</div>
+														</TooltipTrigger>
+														<TooltipContent
+															side="right"
+															sideOffset={4}
+															className="max-w-48 text-xs"
+														>
+															{skill.description}
+														</TooltipContent>
+													</Tooltip>
+												);
+											})}
 										</div>
-									);
-									if (!skill.description) {
-										return <div key={skill.name}>{row}</div>;
-									}
-									return (
-										<Tooltip key={skill.name}>
-											<TooltipTrigger asChild>
-												<div className="cursor-default">{row}</div>
-											</TooltipTrigger>
-											<TooltipContent
-												side="right"
-												sideOffset={4}
-												className="max-w-48 text-xs"
-											>
-												{skill.description}
-											</TooltipContent>
-										</Tooltip>
-									);
-								})}
+									</div>
+								))}
 							</TooltipProvider>
 						</div>
 					)}
