@@ -31,6 +31,7 @@ import {
 	proposeChatTitle,
 	readInfiniteChatsCache,
 	regenerateChatTitle,
+	removeChatFromUnreadChatListCache,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	unarchiveChat,
@@ -545,7 +546,10 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
-		void invalidateChatListQueries(queryClient);
+		// Drop the now-read chat from the unread (has_unread:true) filter
+		// cache so it leaves the unread view without a refetch. Window
+		// focus remains the backstop for any other drift.
+		removeChatFromUnreadChatListCache(queryClient, agentId);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({

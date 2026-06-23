@@ -482,6 +482,54 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
+ * Predicate that matches only the unread-filter (has_unread:true)
+ * sidebar chat-list queries. The filter object lives at queryKey[1]
+ * (see infiniteChatsKey), so this narrows isChatListQuery to queries
+ * whose filter has chatStatus === "unread".
+ */
+const isUnreadChatListQuery = (query: {
+	queryKey: readonly unknown[];
+}): boolean => {
+	if (!isChatListQuery(query)) return false;
+	const segment = query.queryKey[1];
+	return (
+		typeof segment === "object" &&
+		segment !== null &&
+		"chatStatus" in segment &&
+		segment.chatStatus === "unread"
+	);
+};
+
+/**
+ * Removes a chat from every unread-filter (has_unread:true) infinite
+ * chat-list cache so a chat that was just read leaves the unread view
+ * without a refetch. Other filter caches keep the chat (its has_unread
+ * flag is cleared separately). Returns a new reference only for caches
+ * that actually changed.
+ */
+export const removeChatFromUnreadChatListCache = (
+	queryClient: QueryClient,
+	chatId: string,
+) => {
+	queryClient.setQueriesData<InfiniteChatsCacheData>(
+		{ queryKey: chatsKey, predicate: isUnreadChatListQuery },
+		(prev) => {
+			if (!prev?.pages) return prev;
+			let changed = false;
+			const nextPages = prev.pages.map((page) => {
+				const filtered = page.filter((c) => c.id !== chatId);
+				if (filtered.length !== page.length) {
+					changed = true;
+					return filtered;
+				}
+				return page;
+			});
+			return changed ? { ...prev, pages: nextPages } : prev;
+		},
+	);
+};
+
+/**
  * Predicate that matches chat-list queries performing a regular
  * refetch (window-focus, invalidation, mount) but not a
  * fetchNextPage or fetchPreviousPage. During pagination fetches

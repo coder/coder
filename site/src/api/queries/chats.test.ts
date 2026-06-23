@@ -39,6 +39,7 @@ import {
 	promoteChatQueuedMessage,
 	proposeChatTitle,
 	regenerateChatTitle,
+	removeChatFromUnreadChatListCache,
 	removeChildFromParentInCache,
 	reorderPinnedChat,
 	setChatGroupRole,
@@ -2695,5 +2696,66 @@ describe("chat ACL query factories", () => {
 		expect(queryClient.getQueryState(chatACLKey(chatId))?.isInvalidated).toBe(
 			true,
 		);
+	});
+});
+
+describe("removeChatFromUnreadChatListCache", () => {
+	it("removes the chat from the unread-filter cache, keeping other chats", () => {
+		const queryClient = createTestQueryClient();
+		const readChat = makeChat("chat-read", { has_unread: false });
+		const otherChat = makeChat("chat-other", { has_unread: true });
+		seedInfiniteChats(queryClient, [readChat, otherChat], {
+			chatStatus: "unread",
+		});
+
+		removeChatFromUnreadChatListCache(queryClient, readChat.id);
+
+		const remaining = readInfiniteChats(queryClient, { chatStatus: "unread" });
+		expect(remaining?.map((c) => c.id)).toEqual(["chat-other"]);
+	});
+
+	it("leaves non-unread chat-list caches untouched", () => {
+		const queryClient = createTestQueryClient();
+		const readChat = makeChat("chat-read", { has_unread: false });
+		const otherChat = makeChat("chat-other", { has_unread: true });
+		// Unread-filter cache: the read chat should be removed.
+		seedInfiniteChats(queryClient, [readChat, otherChat], {
+			chatStatus: "unread",
+		});
+		// Default (no filter) and read-filter caches: untouched.
+		seedInfiniteChats(queryClient, [readChat, otherChat], { archived: false });
+		seedInfiniteChats(queryClient, [readChat, otherChat], {
+			chatStatus: "read",
+		});
+
+		removeChatFromUnreadChatListCache(queryClient, readChat.id);
+
+		expect(
+			readInfiniteChats(queryClient, { chatStatus: "unread" })?.map(
+				(c) => c.id,
+			),
+		).toEqual(["chat-other"]);
+		expect(
+			readInfiniteChats(queryClient, { archived: false })?.map((c) => c.id),
+		).toEqual(["chat-read", "chat-other"]);
+		expect(
+			readInfiniteChats(queryClient, { chatStatus: "read" })?.map((c) => c.id),
+		).toEqual(["chat-read", "chat-other"]);
+	});
+
+	it("is a no-op when the chat is absent (preserves the cache reference)", () => {
+		const queryClient = createTestQueryClient();
+		const otherChat = makeChat("chat-other", { has_unread: true });
+		seedInfiniteChats(queryClient, [otherChat], { chatStatus: "unread" });
+		const before = queryClient.getQueryData(
+			infiniteChatsKey({ chatStatus: "unread" }),
+		);
+
+		removeChatFromUnreadChatListCache(queryClient, "chat-missing");
+
+		const after = queryClient.getQueryData(
+			infiniteChatsKey({ chatStatus: "unread" }),
+		);
+		expect(after).toBe(before);
 	});
 });
