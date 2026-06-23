@@ -40,8 +40,7 @@ To configure Coder Agents:
 1. Navigate to **Admin settings** > **AI** and select **Providers**.
 1. Add or update a provider with its credentials and upstream endpoint, then
    save it.
-1. Navigate to the **Agents** page, open **Settings** > **Manage Agents**, and
-   select **Models**.
+1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Click **Add** and configure at least one model with its identifier, display
    name, and context limit.
 1. Click the **star icon** next to a model to set it as the default.
@@ -217,8 +216,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Agents** > **Settings** >
-  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
+- Setting per-model token pricing under **Admin settings** > **AI** >
+  **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group

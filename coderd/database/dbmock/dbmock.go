@@ -2533,10 +2533,10 @@ func (mr *MockStoreMockRecorder) GetBoundaryLogByID(ctx, id any) *gomock.Call {
 }
 
 // GetBoundarySessionByID mocks base method.
-func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+func (m *MockStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.GetBoundarySessionByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBoundarySessionByID", ctx, id)
-	ret0, _ := ret[0].(database.BoundarySession)
+	ret0, _ := ret[0].(database.GetBoundarySessionByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -9634,21 +9634,6 @@ func (m *MockStore) UpdateChatLabelsByID(ctx context.Context, arg database.Updat
 func (mr *MockStoreMockRecorder) UpdateChatLabelsByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLabelsByID", reflect.TypeOf((*MockStore)(nil).UpdateChatLabelsByID), ctx, arg)
-}
-
-// UpdateChatLastInjectedContext mocks base method.
-func (m *MockStore) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateChatLastInjectedContext", ctx, arg)
-	ret0, _ := ret[0].(database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateChatLastInjectedContext indicates an expected call of UpdateChatLastInjectedContext.
-func (mr *MockStoreMockRecorder) UpdateChatLastInjectedContext(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateChatLastInjectedContext", reflect.TypeOf((*MockStore)(nil).UpdateChatLastInjectedContext), ctx, arg)
 }
 
 // UpdateChatLastModelConfigByID mocks base method.

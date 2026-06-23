@@ -30,7 +30,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"testing"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -1115,7 +1114,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// In-memory aibridge daemon. Registered on coderd so chatd can
 			// dispatch LLM requests via the in-process transport without
-			// crossing the gated /api/v2/aibridge HTTP route. The HTTP route
+			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
 			// in AGPL builds it does not exist at all. The daemon starts here
 			// unconditionally when the bridge feature is enabled by config so
@@ -2400,10 +2399,10 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// in CI and cause flaky tests.
 	maxAttempts := 1
 	_, err = cfg.PostgresPort().Read()
-	// Important: if retryPortDiscovery is changed to not include testing.Testing(),
+	// Important: if retryPortDiscovery is changed to not include flag.Lookup("test.v") != nil,
 	// the retry logic below also needs to be updated to ensure we don't delete an
 	// existing database
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && testing.Testing()
+	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
 	if retryPortDiscovery {
 		maxAttempts = 10
 	}

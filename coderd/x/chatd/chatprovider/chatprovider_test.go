@@ -290,6 +290,60 @@ func TestResolveUserProviderKeys(t *testing.T) {
 	}
 }
 
+func TestProviderAPIKeysEmpty_RegionCountsAsConfigured(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, (chatprovider.ProviderAPIKeys{}).Empty())
+	require.False(t, (chatprovider.ProviderAPIKeys{
+		RegionByProvider: map[string]string{
+			fantasybedrock.Name: "us-east-1",
+		},
+	}).Empty())
+}
+
+func TestMergeProviderAPIKeys_PreservesProviderRegions(t *testing.T) {
+	t.Parallel()
+
+	merged := chatprovider.MergeProviderAPIKeys(
+		chatprovider.ProviderAPIKeys{
+			RegionByProvider: map[string]string{
+				"BEDROCK": "us-east-1",
+			},
+		},
+		[]chatprovider.ConfiguredProvider{{
+			ProviderID: uuid.New(),
+			Provider:   fantasybedrock.Name,
+			Region:     "eu-central-1",
+		}},
+	)
+
+	require.Equal(t, "eu-central-1", merged.Region(fantasybedrock.Name))
+	require.False(t, merged.Empty())
+}
+
+func TestResolveUserProviderKeys_PreservesProviderRegions(t *testing.T) {
+	t.Parallel()
+
+	keys, availability := chatprovider.ResolveUserProviderKeys(
+		chatprovider.ProviderAPIKeys{
+			RegionByProvider: map[string]string{
+				"BEDROCK": "us-east-1",
+			},
+		},
+		[]chatprovider.ConfiguredProvider{{
+			ProviderID:           uuid.New(),
+			Provider:             fantasybedrock.Name,
+			Region:               "eu-central-1",
+			CentralAPIKeyEnabled: true,
+		}},
+		nil,
+	)
+
+	require.Equal(t, "eu-central-1", keys.Region(fantasybedrock.Name))
+	require.True(t, keys.HasProvider(fantasybedrock.Name))
+	require.Equal(t, chatprovider.ProviderAvailability{Available: true}, availability[fantasybedrock.Name])
+}
+
 type roundTripperFunc func(*http.Request) (*http.Response, error)
 
 func (fn roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -741,6 +795,21 @@ func TestPruneDisabledProviderKeys(t *testing.T) {
 			},
 		},
 		{
+			name: "DisabledProviderRegionsRemoved",
+			keys: chatprovider.ProviderAPIKeys{
+				RegionByProvider: map[string]string{
+					fantasybedrock.Name: "us-east-2",
+					fantasyopenai.Name:  "us-east-1",
+				},
+			},
+			enabledProviders: enabledProviders(fantasybedrock.Name),
+			want: chatprovider.ProviderAPIKeys{
+				RegionByProvider: map[string]string{
+					fantasybedrock.Name: "us-east-2",
+				},
+			},
+		},
+		{
 			name: "OpenAIDisabledClearsLegacyField",
 			keys: chatprovider.ProviderAPIKeys{
 				OpenAI:    "sk-openai",
@@ -1059,12 +1128,12 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
-	t.Setenv("AWS_REGION", "us-east-2")
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
 	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
 
 	type requestCapture struct {
+		Path             string
 		Authorization    string
 		AnthropicVersion string
 		XAPIKey          string
@@ -1077,6 +1146,7 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 		body, err := io.ReadAll(r.Body)
 
 		requests <- requestCapture{
+			Path:             r.URL.Path,
 			Authorization:    r.Header.Get("Authorization"),
 			AnthropicVersion: r.Header.Get("Anthropic-Version"),
 			XAPIKey:          r.Header.Get("X-Api-Key"),
@@ -1098,6 +1168,9 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 			},
 			BaseURLByProvider: map[string]string{
 				fantasybedrock.Name: server.URL,
+			},
+			RegionByProvider: map[string]string{
+				fantasybedrock.Name: "us-east-2",
 			},
 		},
 		chatprovider.UserAgent(),
@@ -1121,6 +1194,7 @@ func TestModelFromConfig_BedrockStripsAnthropicHeaders(t *testing.T) {
 
 	got := testutil.TryReceive(ctx, t, requests)
 	require.NoError(t, got.ReadError)
+	require.Equal(t, "/model/us.anthropic.claude-opus-4-6-v1/invoke", got.Path)
 	require.Empty(t, got.AnthropicVersion)
 	require.Empty(t, got.XAPIKey)
 	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")
@@ -1133,7 +1207,6 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	t.Setenv("ANTHROPIC_API_KEY", "anthropic-env-key")
-	t.Setenv("AWS_REGION", "us-east-2")
 	t.Setenv("AWS_ACCESS_KEY_ID", "test-access-key")
 	t.Setenv("AWS_SECRET_ACCESS_KEY", "test-secret-key")
 	t.Setenv("AWS_SESSION_TOKEN", "test-session-token")
@@ -1162,6 +1235,7 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 
 		if err := writeBedrockAnthropicStream(w,
 			`{"type":"message_start","message":{}}`,
+			`{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}`,
 			`{"type":"message_stop"}`,
 		); err != nil {
 			t.Errorf("write bedrock stream: %v", err)
@@ -1171,13 +1245,16 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 
 	model, err := chatprovider.ModelFromConfig(
 		fantasybedrock.Name,
-		"anthropic.claude-opus-4-6-v1",
+		"global.anthropic.claude-opus-4-6-v1",
 		chatprovider.ProviderAPIKeys{
 			ByProvider: map[string]string{
 				fantasybedrock.Name: "",
 			},
 			BaseURLByProvider: map[string]string{
 				fantasybedrock.Name: server.URL,
+			},
+			RegionByProvider: map[string]string{
+				fantasybedrock.Name: "us-east-2",
 			},
 		},
 		chatprovider.UserAgent(),
@@ -1201,12 +1278,11 @@ func TestModelFromConfig_BedrockStreamingHeaders(t *testing.T) {
 
 	for part := range stream {
 		require.NotEqual(t, fantasy.StreamPartTypeError, part.Type)
-		break
 	}
 
 	got := testutil.TryReceive(ctx, t, requests)
 	require.NoError(t, got.ReadError)
-	require.Equal(t, "/model/us.anthropic.claude-opus-4-6-v1/invoke-with-response-stream", got.Path)
+	require.Equal(t, "/model/global.anthropic.claude-opus-4-6-v1/invoke-with-response-stream", got.Path)
 	require.Empty(t, got.Accept)
 	require.Equal(t, "application/json", got.BedrockAccept)
 	require.Contains(t, got.Authorization, "AWS4-HMAC-SHA256")

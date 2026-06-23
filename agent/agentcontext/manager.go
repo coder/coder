@@ -35,9 +35,16 @@ type ManagerOptions struct {
 	// directly; production callers leave it unset.
 	AllowedRoots []string
 	// Resolver, when non-nil, replaces the default resolver.
-	// Tests use this to inject MCP providers and tighten
-	// caps.
+	// Tests use this to inject MCP resources (via
+	// Resolver.MCPResources) and tighten caps.
 	Resolver *Resolver
+	// MCPCatalog, when non-nil, supplies the per-server MCP snapshot
+	// the Manager surfaces as KindMCPServer resources on every
+	// resolve. The agent injects the shared MCP engine's catalog here
+	// so discovery and execution use one set of server connections.
+	// It is ignored when the resolver already has an MCP provider
+	// (e.g. a test injecting one via Resolver).
+	MCPCatalog func() []MCPServerStatus
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -135,6 +142,19 @@ func NewManager(opts ManagerOptions) *Manager {
 		runStartedCh: make(chan struct{}),
 	}
 
+	// Surface the shared MCP engine's catalog as KindMCPServer
+	// resources unless the resolver already has a provider (tests
+	// inject one via Resolver). The engine owns the connection
+	// lifecycle and notifies this Manager via Trigger when its
+	// catalog changes (see agent wiring). The provider must be wired
+	// before the eager first resolve below so the seam is present
+	// from the first snapshot.
+	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
+		resolver.MCPResources = func() []Resource {
+			return buildMCPServerResources(opts.MCPCatalog())
+		}
+	}
+
 	for _, s := range opts.InitialSources {
 		canonical, err := CanonicalizePath(s.Path)
 		if err != nil {
@@ -188,7 +208,6 @@ func (m *Manager) Run(ctx context.Context) error {
 		Logger:   m.logger.Named("watcher"),
 		Clock:    m.clock,
 		Debounce: m.debounce,
-		MaxDepth: m.resolver.MaxDepth,
 		OnChange: m.signal,
 	})
 	if err != nil {
@@ -522,6 +541,13 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
+			// The working directory is a single scan root. The
+			// resolver reads its top-level instruction files and
+			// .mcp.json plus the fixed skill containers under it;
+			// it neither descends into subdirectories nor climbs
+			// to parent directories. Additional directories are
+			// added explicitly as Sources or via the seeding env
+			// vars.
 			out = append(out, ScanRoot{Path: wd})
 		}
 	}

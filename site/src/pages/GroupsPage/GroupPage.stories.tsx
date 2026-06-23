@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { spyOn, userEvent, within } from "storybook/test";
+import { expect, spyOn, userEvent, within } from "storybook/test";
 import {
 	reactRouterOutlet,
 	reactRouterParameters,
@@ -8,22 +8,29 @@ import { API } from "#/api/api";
 import {
 	getGroupMembersQueryKey,
 	getGroupQueryKey,
+	getGroupsForUserQueryKey,
+	groupAIBudget,
 	groupPermissionsKey,
 } from "#/api/queries/groups";
 import { organizationMembersKey } from "#/api/queries/organizations";
+import { getUserAIBudgetOverrideQueryKey } from "#/api/queries/users";
+import type { UserAIBudgetOverride } from "#/api/typesGenerated";
 import {
 	MockDefaultOrganization,
 	MockGroup,
 	MockGroupWithoutMembers,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockUserOwner,
 } from "#/testHelpers/entities";
+import { withDashboardProvider } from "#/testHelpers/storybook";
 import GroupMembersPage from "./GroupMembersPage";
 import GroupPage from "./GroupPage";
 
 const meta: Meta<typeof GroupPage> = {
 	title: "pages/OrganizationGroupsPage/GroupPage",
 	component: GroupPage,
+	decorators: [withDashboardProvider],
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: {
@@ -222,5 +229,57 @@ export const FiltersByMembers: Story = {
 		await userEvent.click(
 			await canvas.findByRole("button", { name: "Add users" }),
 		);
+	},
+};
+
+const mockOwnerOverride: UserAIBudgetOverride = {
+	user_id: MockUserOwner.id,
+	group_id: MockGroup.id,
+	spend_limit_micros: 12_000_000_000,
+	created_at: "2026-01-01T00:00:00Z",
+	updated_at: "2026-01-01T00:00:00Z",
+};
+
+export const OpenAIBudgetFromMemberMenu: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: MockGroup.members,
+				count: MockGroup.members.length,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			{
+				key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id),
+				data: mockOwnerOverride,
+			},
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup],
+			},
+			{
+				key: groupAIBudget(MockGroupWithoutMembers.id).queryKey,
+				data: null,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getAllByRole("button", { name: "Open menu" })[0],
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "AI Budget" }),
+		);
+		await expect(
+			await body.findByText("Custom monthly budget"),
+		).toBeInTheDocument();
 	},
 };

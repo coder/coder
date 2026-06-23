@@ -1378,7 +1378,7 @@ func (m queryMetricsStore) GetBoundaryLogByID(ctx context.Context, id uuid.UUID)
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.BoundarySession, error) {
+func (m queryMetricsStore) GetBoundarySessionByID(ctx context.Context, id uuid.UUID) (database.GetBoundarySessionByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetBoundarySessionByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetBoundarySessionByID").Observe(time.Since(start).Seconds())
@@ -5111,14 +5111,6 @@ func (m queryMetricsStore) UpdateChatLabelsByID(ctx context.Context, arg databas
 	r0, r1 := m.s.UpdateChatLabelsByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatLabelsByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLabelsByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateChatLastInjectedContext(ctx context.Context, arg database.UpdateChatLastInjectedContextParams) (database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatLastInjectedContext(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatLastInjectedContext").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatLastInjectedContext").Inc()
 	return r0, r1
 }
 

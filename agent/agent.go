@@ -495,7 +495,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}, a.contextConfig)
-	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
+	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
 	// watcher, and pusher. It coexists with contextConfigAPI
@@ -513,8 +513,19 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// The manager surfaces MCP servers and their tools as
+		// KindMCPServer resources by reading the shared MCP engine's
+		// catalog (a.mcpManager). That engine owns the single set of
+		// MCP server connections used for both discovery and tool-call
+		// execution, so each declared server is launched once.
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			return mcpCatalogToContext(a.mcpManager.Catalog())
+		},
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
+	// Re-resolve and re-push KindMCPServer resources whenever the MCP
+	// engine's catalog changes (startup connect, .mcp.json edits).
+	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -554,6 +565,7 @@ func (a *agent) initSocketServer() {
 	server, err := agentsocket.NewServer(
 		a.logger.Named("socket"),
 		agentsocket.WithPath(a.socketPath),
+		agentsocket.WithContextManager(a.contextManager),
 	)
 	if err != nil {
 		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
@@ -1544,7 +1556,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				a.mcpManager.MarkStartupSettled()
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
@@ -2277,26 +2288,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(sdkManifest); err != nil {
 		a.logger.Error(a.hardCtx, "write debug manifest", slog.Error(err))
-	}
-}
-
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	logPath := filepath.Join(a.logDir, "coder-agent.log")
-	f, err := os.Open(logPath)
-	if err != nil {
-		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-		return
-	}
-	defer f.Close()
-
-	// Limit to 10MiB.
-	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
-	if err != nil && !errors.Is(err, io.EOF) {
-		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		return
 	}
 }
 

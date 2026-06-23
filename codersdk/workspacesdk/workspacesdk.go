@@ -300,6 +300,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			<-controller.Closed()
 			return conn.Close()
 		},
+		Logger: options.Logger,
 	})
 
 	if !agentConn.AwaitReachable(dialCtx) {

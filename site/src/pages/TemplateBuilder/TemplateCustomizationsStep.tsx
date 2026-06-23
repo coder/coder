@@ -6,7 +6,11 @@ import { IconField } from "#/components/IconField/IconField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
-import type { TemplateBuilderWizardState } from "./wizardState";
+import { Textarea } from "#/components/Textarea/Textarea";
+import type {
+	SelectedBaseMeta,
+	TemplateBuilderWizardState,
+} from "./wizardState";
 
 interface TemplateCustomizationsStepProps {
 	state: TemplateBuilderWizardState;
@@ -43,75 +47,109 @@ export const TemplateCustomizationsStep: FC<
 	};
 
 	return (
-		<div>
-			<h2 className="text-lg font-semibold mb-1">Template details</h2>
-			<p className="text-sm text-content-secondary mb-4">
-				Configure your new template.
+		<div className="border border-border border-solid p-6 rounded-lg">
+			<h2 className="text-lg font-semibold mb-1">Customizations</h2>
+			<p className="text-sm text-content-secondary mb-6">
+				Add additional configurations.
 			</p>
 
-			<div className="flex flex-col gap-6">
-				{orgOptions.length > 1 && (
+			<div className="flex gap-8">
+				{/* Base template card */}
+				{state.selectedBase && <BaseTemplateCard base={state.selectedBase} />}
+
+				{/* Two-column form grid */}
+				<div className="grid grid-cols-2 gap-x-6 gap-y-6 content-start">
+					{/* Left column */}
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="organization">Organization</Label>
-						<OrganizationAutocomplete
-							id="organization"
-							required
-							value={selectedOrg}
-							onChange={handleOrgChange}
-							options={orgOptions}
+						<Label htmlFor="template-display-name">Display name</Label>
+						<Input
+							id="template-display-name"
+							value={state.displayName}
+							onChange={(e) => onChangeField("displayName", e.target.value)}
+							placeholder="My Template"
 						/>
 					</div>
-				)}
 
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="template-name">
-						Name
-						<span className="text-xs font-bold text-content-destructive ml-1">
-							*
-						</span>
-					</Label>
-					<Input
-						id="template-name"
-						value={state.name}
-						onChange={(e) => onChangeField("name", e.target.value)}
-						placeholder="my-template"
-						aria-required
-					/>
-				</div>
+					{/* Right column */}
+					{orgOptions.length > 0 && (
+						<div className="flex flex-col gap-2">
+							<Label htmlFor="organization">
+								Organization
+								<span className="text-xs font-bold text-content-destructive ml-1">
+									*
+								</span>
+							</Label>
+							<OrganizationAutocomplete
+								id="organization"
+								required
+								value={selectedOrg}
+								onChange={handleOrgChange}
+								options={orgOptions}
+							/>
+						</div>
+					)}
 
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="template-display-name">Display name</Label>
-					<Input
-						id="template-display-name"
-						value={state.displayName}
-						onChange={(e) => onChangeField("displayName", e.target.value)}
-						placeholder="My Template"
-					/>
-				</div>
+					{/* Left column */}
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="template-description">Description</Label>
+						<Textarea
+							id="template-description"
+							value={state.description}
+							onChange={(e) => onChangeField("description", e.target.value)}
+							placeholder="Describe what this template is for"
+							rows={3}
+						/>
+						<p className="text-xs text-content-secondary">
+							Used by both humans and Agents to identify templates.
+						</p>
 
-				<div className="flex flex-col gap-2">
-					<Label htmlFor="template-description">Description</Label>
-					<textarea
-						id="template-description"
-						value={state.description}
-						onChange={(e) => onChangeField("description", e.target.value)}
-						placeholder="Describe what this template is for"
-						rows={3}
-						className="flex w-full rounded-md border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-content-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link disabled:cursor-not-allowed disabled:opacity-50"
-					/>
-				</div>
+						<IconField
+							value={state.icon}
+							onChange={(e) => {
+								const target = e.target as HTMLInputElement;
+								onChangeField("icon", target.value);
+							}}
+							onPickEmoji={(value) => onChangeField("icon", value)}
+						/>
+					</div>
 
-				<div className="flex flex-col gap-2">
-					<IconField
-						value={state.icon}
-						onChange={(e) => {
-							const target = e.target as HTMLInputElement;
-							onChangeField("icon", target.value);
-						}}
-						onPickEmoji={(value) => onChangeField("icon", value)}
-					/>
+					{/* Right column */}
+					<div className="flex flex-col gap-2">
+						<Label htmlFor="template-name">
+							ID
+							<span className="text-xs font-bold text-content-destructive ml-1">
+								*
+							</span>
+						</Label>
+						<Input
+							id="template-name"
+							value={state.name}
+							onChange={(e) => onChangeField("name", e.target.value)}
+							placeholder="my-template"
+							aria-required
+						/>
+						<p className="text-xs text-content-secondary">
+							Used to identify the template in URLs and the API.
+						</p>
+					</div>
 				</div>
 			</div>
+		</div>
+	);
+};
+
+const BaseTemplateCard: FC<{ base: SelectedBaseMeta }> = ({ base }) => {
+	return (
+		<div className="w-56 shrink-0 rounded-lg bg-surface-secondary p-4 self-start">
+			{base.iconUrl && (
+				<div className="w-10 h-10 rounded-md bg-surface-tertiary flex items-center justify-center mb-3">
+					<img src={base.iconUrl} alt="" className="w-6 h-6" />
+				</div>
+			)}
+			<p className="text-sm font-medium text-content-primary">{base.name}</p>
+			<p className="text-xs text-content-secondary mt-1">
+				Preset based on base template
+			</p>
 		</div>
 	);
 };

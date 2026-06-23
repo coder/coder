@@ -137,6 +137,13 @@ jobs:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}
 
   audit-docs-paths:
+    # Disabled by default: this audit fetches a config file from a private
+    # upstream source and the workflow currently lacks the credentials to
+    # read it. Pending provisioning of a dedicated GitHub App with the
+    # required cross-repo Contents: Read. To re-enable once the App
+    # credentials are in place, set the repository variable
+    # AUDIT_DOCS_PATHS_ENABLED to 'true'.
+    if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -169,7 +176,7 @@ jobs:
         if: steps.check-script.outputs.skip != 'true'
         run: |
           curl -sfL \
-            https://raw.githubusercontent.com/coder/coder.com/main/redirects.json \
+            https://raw.githubusercontent.com/coder/coder.com/refs/heads/main/redirects.json \
             -o /tmp/redirects.json
 
       - name: Audit TS/TSX docs paths against redirects
