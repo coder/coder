@@ -355,11 +355,39 @@ func parseJSONSecrets(content string) ([]secretEntry, error) {
 // null) are rejected so a secret value is never silently type-coerced;
 // users who want such a value must quote it. Nested mappings and
 // sequences are rejected. Duplicate keys are preserved by the node
-// decoder and caught by the shared duplicate check.
+// decoder and caught by the shared duplicate check. A multi-document
+// stream is rejected (rather than silently importing only the first
+// document) so no secrets are dropped without warning.
 func parseYAMLSecrets(content string) ([]secretEntry, error) {
+	dec := yaml.NewDecoder(strings.NewReader(content))
+
 	var root yaml.Node
-	if err := yaml.Unmarshal([]byte(content), &root); err != nil {
+	if err := dec.Decode(&root); err != nil {
+		// An empty document or comments-only file decodes to nothing.
+		if errors.Is(err, io.EOF) {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("invalid YAML: %w", err)
+	}
+
+	// Reject any additional documents. yaml.Unmarshal reads only the
+	// first document and silently drops the rest, which would lose
+	// secrets without warning; mirror the JSON parser's trailing-data
+	// rejection instead. A bare trailing "---" separator (or a
+	// comments-only tail) decodes to a null document that carries no
+	// secrets and is allowed.
+	for {
+		var extra yaml.Node
+		err := dec.Decode(&extra)
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			return nil, xerrors.Errorf("invalid YAML: %w", err)
+		}
+		if yamlDocumentHasContent(extra) {
+			return nil, xerrors.New("YAML content must be a single document mapping secret names to string values")
+		}
 	}
 
 	// An empty document or comments-only file decodes to a zero node.
@@ -387,4 +415,21 @@ func parseYAMLSecrets(content string) ([]secretEntry, error) {
 		entries = append(entries, secretEntry{key: keyNode.Value, value: valNode.Value, line: keyNode.Line})
 	}
 	return entries, nil
+}
+
+// yamlDocumentHasContent reports whether a decoded YAML document node
+// carries data. A bare trailing "---" separator, or a comments-only
+// tail, decodes to a document whose only child is a null scalar; that
+// loses no secrets and is allowed. Any other node (a mapping, sequence,
+// or non-null scalar) is a real second document that would otherwise be
+// dropped, so the caller rejects it.
+func yamlDocumentHasContent(doc yaml.Node) bool {
+	if doc.Kind == 0 || len(doc.Content) == 0 {
+		return false
+	}
+	child := doc.Content[0]
+	if child.Kind == yaml.ScalarNode && child.Tag == "!!null" {
+		return false
+	}
+	return true
 }

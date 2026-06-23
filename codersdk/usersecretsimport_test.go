@@ -14,8 +14,10 @@ import (
 // TestParseSecretsFileEnv covers the dotenv parsing rules end-to-end:
 // comments, blank lines, the export prefix, single and double quotes,
 // double-quote escapes, '=' inside a value, surrounding whitespace, an
-// inline '#' kept literally, and non-ASCII values. It also asserts the
-// flat mapping invariant Name == EnvName == KEY and Value == VALUE.
+// inline '#' kept literally, non-ASCII values, "export" as part of a
+// key name (not the prefix), and a value that is exactly '='. It also
+// asserts the flat mapping invariant Name == EnvName == KEY and
+// Value == VALUE.
 func TestParseSecretsFileEnv(t *testing.T) {
 	t.Parallel()
 
@@ -33,6 +35,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		"EQ_IN_VALUE=a=b=c",
 		"HASH=value # kept literal",
 		"UNICODE=héllo 世界 café",
+		"exportFOO=literal-key",
+		"EQ_ONLY_VALUE==",
 		"EMPTY_VAL=",
 	}, "\n")
 
@@ -49,6 +53,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		{Name: "EQ_IN_VALUE", EnvName: "EQ_IN_VALUE", Value: "a=b=c"},
 		{Name: "HASH", EnvName: "HASH", Value: "value # kept literal"},
 		{Name: "UNICODE", EnvName: "UNICODE", Value: "héllo 世界 café"},
+		{Name: "exportFOO", EnvName: "exportFOO", Value: "literal-key"},
+		{Name: "EQ_ONLY_VALUE", EnvName: "EQ_ONLY_VALUE", Value: "="},
 		{Name: "EMPTY_VAL", EnvName: "EMPTY_VAL", Value: ""},
 	}
 	require.Equal(t, want, reqs)
@@ -237,6 +243,37 @@ func TestParseSecretsFileYAMLAliasBomb(t *testing.T) {
 			assert.Contains(t, err.Error(), "must be a string")
 		})
 	}
+}
+
+// TestParseSecretsFileYAMLMultiDocument verifies that a multi-document
+// YAML stream is rejected rather than silently importing only the first
+// document and dropping the rest. A bare trailing "---" separator with
+// no content is harmless and must still parse.
+func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
+	t.Parallel()
+
+	t.Run("SecondMappingRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: \"1\"\n---\nB: \"2\"\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "single document")
+	})
+
+	t.Run("SecondScalarRejected", func(t *testing.T) {
+		t.Parallel()
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: \"1\"\n---\nplain\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "single document")
+	})
+
+	t.Run("TrailingSeparatorAllowed", func(t *testing.T) {
+		t.Parallel()
+		reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: \"1\"\n---\n")
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.CreateUserSecretRequest{
+			{Name: "A", EnvName: "A", Value: "1"},
+		}, reqs)
+	})
 }
 
 func TestParseSecretsFileGeneralErrors(t *testing.T) {
