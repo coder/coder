@@ -3,7 +3,10 @@ import { MonitorDotIcon } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import {
+	MockChatContextClean,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import { withProxyProvider } from "#/testHelpers/storybook";
@@ -1188,32 +1191,12 @@ export const WithContextUsage: Story = {
 	},
 };
 
-/** Tooltip includes loaded AGENTS.md files and discovered skills. */
+/** Tooltip lists the chat's pinned context resources. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {
 			...baseContextUsage,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/.claude/docs/WORKFLOWS.md",
-					context_file_truncated: true,
-				},
-				{
-					type: "skill" as const,
-					skill_name: "pull-requests",
-					skill_description: "Guide for creating and updating pull requests",
-				},
-				{
-					type: "skill" as const,
-					skill_name: "deep-review",
-					skill_description: "Multi-reviewer code review",
-				},
-			] as TypesGen.ChatMessagePart[],
+			context: MockChatContextClean,
 		},
 	},
 };
@@ -1228,12 +1211,6 @@ export const ContextNearLimit: Story = {
 			outputTokens: 20_000,
 			cacheReadTokens: 4_000,
 			compressionThreshold: 90,
-			lastInjectedContext: [
-				{
-					type: "context-file" as const,
-					context_file_path: "/home/coder/project/AGENTS.md",
-				},
-			] as TypesGen.ChatMessagePart[],
 		},
 	},
 };

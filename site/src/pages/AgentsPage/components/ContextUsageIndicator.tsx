@@ -11,7 +11,6 @@ import type {
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
 	ChatContextTool,
-	ChatMessagePart,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
@@ -41,18 +40,14 @@ export interface AgentContextUsage {
 	readonly reasoningTokens?: number;
 	// Percentage (0-100) at which the context will be compacted.
 	readonly compressionThreshold?: number;
-	// Last injected context parts (AGENTS.md files and skills). Used as a
-	// fallback to list the context when the chat's pinned resources have not
-	// loaded yet.
-	readonly lastInjectedContext?: readonly ChatMessagePart[];
 	// Pinned workspace-context state: the resources the chat is built from and
 	// whether they have drifted from the agent's latest snapshot.
 	readonly context?: ChatContext;
 }
 
-// Normalized popover entries, sourced from either the chat's pinned context
-// resources or, as a fallback, the last injected context parts.
-type ContextFileItem = { readonly path: string; readonly truncated?: boolean };
+// Normalized popover entries, sourced from the chat's pinned context
+// resources.
+type ContextFileItem = { readonly path: string };
 type ContextSkillItem = {
 	readonly name: string;
 	readonly description?: string;
@@ -175,80 +170,48 @@ export const ContextUsageIndicator: FC<{
 	const hasContextError = contextError !== "";
 	const pinnedResources = context?.resources;
 
-	// Drive the listed context from the chat's pinned resources, falling back
-	// to the last injected context parts while the pin has not loaded.
-	const usePinned = (pinnedResources?.length ?? 0) > 0;
-	const fileItems: readonly ContextFileItem[] = (
-		usePinned
-			? (pinnedResources ?? [])
-					.filter(
-						(resource) =>
-							resource.kind === "instruction_file" && resource.status === "ok",
-					)
-					.map((resource) => ({ path: resource.source }))
-			: (usage?.lastInjectedContext ?? [])
-					.filter((part) => part.type === "context-file")
-					.map((part) => ({
-						path: part.context_file_path,
-						truncated: part.context_file_truncated,
-					}))
-	)
-		// Drop entries with no usable path. The injected-context fallback can
-		// carry an empty context-file marker, which would otherwise render as a
+	// Drive the listed context from the chat's pinned resources.
+	const fileItems: readonly ContextFileItem[] = (pinnedResources ?? [])
+		.filter(
+			(resource) =>
+				resource.kind === "instruction_file" && resource.status === "ok",
+		)
+		.map((resource) => ({ path: resource.source }))
+		// Drop entries with no usable path so an empty marker never renders as a
 		// nameless "Context files" row.
 		.filter((file) => file.path.trim().length > 0);
-	const skillItems: readonly ContextSkillItem[] = (
-		usePinned
-			? (pinnedResources ?? [])
-					.filter(
-						(resource) => resource.kind === "skill" && resource.status === "ok",
-					)
-					.map((resource) => ({
-						name: resource.skill_name || getPathBasename(resource.source),
-						description: resource.skill_description,
-					}))
-			: (usage?.lastInjectedContext ?? [])
-					.filter((part) => part.type === "skill")
-					.map((part) => ({
-						name: part.skill_name,
-						description: part.skill_description,
-					}))
-	)
+	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
+		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
+		.map((resource) => ({
+			name: resource.skill_name || getPathBasename(resource.source),
+			description: resource.skill_description,
+		}))
 		// Drop entries with no usable name so an empty skill marker never renders
 		// as a blank row.
 		.filter((skill) => skill.name.trim().length > 0);
-	// MCP configs/servers are only ever surfaced from the chat's pinned
-	// resources; there is no injected-context fallback for them. An MCP server's
-	// source is its server name, while an MCP config's source is its file path.
-	const mcpItems: readonly ContextMcpItem[] = (
-		usePinned
-			? (pinnedResources ?? [])
-					.filter(
-						(resource) =>
-							(resource.kind === "mcp_config" ||
-								resource.kind === "mcp_server") &&
-							resource.status === "ok",
-					)
-					.map((resource) => ({
-						name:
-							resource.kind === "mcp_server"
-								? resource.source
-								: getPathBasename(resource.source),
-						source: resource.source,
-						tools: resource.tools ?? [],
-					}))
-			: []
-	)
+	// An MCP server's source is its server name, while an MCP config's source is
+	// its file path.
+	const mcpItems: readonly ContextMcpItem[] = (pinnedResources ?? [])
+		.filter(
+			(resource) =>
+				(resource.kind === "mcp_config" || resource.kind === "mcp_server") &&
+				resource.status === "ok",
+		)
+		.map((resource) => ({
+			name:
+				resource.kind === "mcp_server"
+					? resource.source
+					: getPathBasename(resource.source),
+			source: resource.source,
+			tools: resource.tools ?? [],
+		}))
 		// Drop entries with no usable name so an empty MCP marker never renders as
 		// a blank row.
 		.filter((mcp) => mcp.name.trim().length > 0);
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
-	// visible rather than a silent omission. Pinned-only; the injected-context
-	// fallback has no status.
-	const issueItems: readonly ContextIssueItem[] = (
-		usePinned ? (pinnedResources ?? []) : []
-	)
+	// visible rather than a silent omission.
+	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
 		.filter((resource) => resource.status !== "ok")
 		.map((resource) => ({
 			name:
@@ -303,11 +266,6 @@ export const ContextUsageIndicator: FC<{
 									<span className="truncate" title={file.path}>
 										{getPathBasename(file.path)}
 									</span>
-									{file.truncated && (
-										<span className="shrink-0 text-content-warning">
-											(truncated)
-										</span>
-									)}
 								</div>
 							))}
 						</div>

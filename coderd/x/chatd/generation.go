@@ -69,12 +69,6 @@ type generationPrepared struct {
 	Cleanup func()
 
 	Debug *generationDebug
-
-	// WorkspaceContextEligible reports whether the current turn is allowed
-	// by policy to inject workspace context. The decision helper combines
-	// this fact with committed chat metadata and history to decide whether
-	// the persist_workspace_context action should run.
-	WorkspaceContextEligible bool
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -94,16 +88,6 @@ type generationDebug struct {
 	ModelConfig         database.ChatModelConfig
 }
 
-type workspaceContextBuildInput struct {
-	Chat           database.Chat
-	Messages       []database.ChatMessage
-	ActiveAPIKeyID string
-}
-
-type workspaceContextBuildResult struct {
-	Messages []chatstate.Message
-}
-
 // generationOutcome describes a completed generation outcome.
 type generationOutcome struct {
 	Chat              database.Chat
@@ -117,12 +101,11 @@ type generationOutcome struct {
 type generationActionKind string
 
 const (
-	generationActionExecuteLocalTools       generationActionKind = "execute_local_tools"
-	generationActionEnterRequiresAction     generationActionKind = "enter_requires_action"
-	generationActionFinishTurn              generationActionKind = "finish_turn"
-	generationActionCompact                 generationActionKind = "compact"
-	generationActionGenerateAssistant       generationActionKind = "generate_assistant"
-	generationActionPersistWorkspaceContext generationActionKind = "persist_workspace_context"
+	generationActionExecuteLocalTools   generationActionKind = "execute_local_tools"
+	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
+	generationActionFinishTurn          generationActionKind = "finish_turn"
+	generationActionCompact             generationActionKind = "compact"
+	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
 )
 
 type generationFinishReason string
@@ -193,34 +176,6 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
-	workspaceContextEligible   bool
-}
-
-// shouldPersistWorkspaceContext reports whether the committed chat
-// state and history indicate that the persistWorkspaceContext
-// generation action should run before the next assistant call. The
-// decision uses two facts:
-//   - chat metadata says a workspace and selected agent are attached;
-//   - committed history either has no context-file marker for the
-//     currently selected workspace agent, or the latest non-sentinel
-//     marker points to a different agent.
-//
-// The decision is intentionally pure so generation can choose the
-// action without dialing the workspace. Once the action commits a
-// context-file marker for the agent (with or without content), this
-// helper returns false on the next pass and the loop is broken.
-func shouldPersistWorkspaceContext(chat database.Chat, messages []database.ChatMessage) bool {
-	if !chat.WorkspaceID.Valid || !chat.AgentID.Valid {
-		return false
-	}
-	if hasPersistedContextFileForAgent(messages, chat.AgentID.UUID) {
-		return false
-	}
-	persistedAgentID, found := contextFileAgentIDFromMessages(messages)
-	if !found {
-		return true
-	}
-	return persistedAgentID != chat.AgentID.UUID
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -261,9 +216,6 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	}
 	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
-	}
-	if input.workspaceContextEligible && shouldPersistWorkspaceContext(input.chat, input.messages) {
-		return generationDecision{kind: generationActionPersistWorkspaceContext}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
 	if input.compactionEnabled && input.compactionNeeded {
@@ -382,7 +334,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     prepared.ContextLimitFallback,
-				workspaceContextEligible:   prepared.WorkspaceContextEligible,
 			})
 		})
 		if err != nil {
@@ -415,8 +366,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
 			actionErr = s.generateCompaction(ctx, machine, input, prepared)
-		case generationActionPersistWorkspaceContext:
-			actionErr = s.persistWorkspaceContext(ctx, machine, input, prepared.Chat)
 		default:
 			return s.finishGenerationError(ctx, machine, input, 0, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 		}
@@ -803,77 +752,6 @@ func compactionModel(opts chatloop.GenerateCompactionOptions) string {
 		return ""
 	}
 	return opts.Model.Model()
-}
-
-// persistWorkspaceContext is the generation action that commits durable
-// workspace context messages (e.g. AGENTS.md, workspace skills) into
-// chat history. It records a generation attempt, calls the injected
-// workspace context builder without holding the DB lock, then commits
-// the returned messages fenced to the attempt. If context cannot be
-// fetched, it commits a marker for the selected agent so the generation
-// loop can continue.
-func (s *taskStarter) persistWorkspaceContext(
-	ctx context.Context,
-	machine *chatstate.ChatMachine,
-	input chatWorkerTaskStartInput,
-	locked database.Chat,
-) error {
-	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  input.ChatID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return taskRetryableError{err: xerrors.Errorf("load chat messages for workspace context: %w", err)}
-	}
-	attempt, _, _, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
-	if err != nil {
-		return xerrors.Errorf("beginGenerationAttempt: %w", err)
-	}
-	defer closeEpisode()
-	modelOpts := modelBuildOptionsFromMessages(messages)
-	result, err := s.server.buildWorkspaceContext(ctx, workspaceContextBuildInput{
-		Chat:           locked,
-		Messages:       messages,
-		ActiveAPIKeyID: modelOpts.ActiveAPIKeyID,
-	})
-	if err != nil {
-		s.opts.Logger.Warn(ctx, "failed to build workspace context, committing marker",
-			slog.F("chat_id", input.ChatID),
-			slog.F("worker_id", input.WorkerID),
-			slogError(err),
-		)
-		marker, err := workspaceContextMarkerMessage(locked, modelOpts.ActiveAPIKeyID)
-		if err != nil {
-			return xerrors.Errorf("build workspace context marker: %w", err)
-		}
-		result.Messages = []chatstate.Message{marker}
-	}
-	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionPersistWorkspaceContext, stepMessagesForCommit{
-		Messages:       result.Messages,
-		VisibleIndexes: visibleMessageIndexes(result.Messages),
-	})
-}
-
-// workspaceContextMarkerMessage builds an empty context-file sentinel
-// for the chat's selected agent. Committing this marker lets the
-// generation loop proceed when the agent is unreachable.
-func workspaceContextMarkerMessage(chat database.Chat, activeAPIKeyID string) (chatstate.Message, error) {
-	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:               codersdk.ChatMessagePartTypeContextFile,
-		ContextFileAgentID: chat.AgentID,
-	}})
-	if err != nil {
-		return chatstate.Message{}, xerrors.Errorf("marshal workspace context marker: %w", err)
-	}
-	modelConfigID := chat.LastModelConfigID
-	return chatstate.Message{
-		Role:           database.ChatMessageRoleUser,
-		Content:        content,
-		Visibility:     database.ChatMessageVisibilityBoth,
-		ModelConfigID:  uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
-		ContentVersion: chatprompt.CurrentContentVersion,
-		APIKeyID:       sql.NullString{String: activeAPIKeyID, Valid: activeAPIKeyID != ""},
-	}, nil
 }
 
 func (s *taskStarter) beginGenerationAttempt(
