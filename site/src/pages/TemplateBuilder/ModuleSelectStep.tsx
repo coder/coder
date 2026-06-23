@@ -1,6 +1,5 @@
 import { type FC, type PropsWithChildren, useMemo, useState } from "react";
 import { useQuery } from "react-query";
-import uFuzzy from "ufuzzy";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
 import type {
 	TemplateBuilderComposeModule,
@@ -10,6 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { useFuzzySearch } from "#/hooks/useFuzzySearch";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,
@@ -52,14 +52,6 @@ const ModuleName: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-const fuzzyFinder = new uFuzzy({
-	intraMode: 1,
-	intraIns: 1,
-	intraSub: 1,
-	intraTrn: 1,
-	intraDel: 1,
-});
-
 const ConflictWarning: FC<ModuleConflict> = ({ moduleA, moduleB }) => {
 	return (
 		<div>
@@ -79,27 +71,12 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
-	const searchText = moduleSearchText.trim();
 
-	const searchedModules = useMemo(() => {
-		if (!searchText) {
-			return modules;
-		}
-
-		const [map, info, sorted] = fuzzyFinder.search(
-			// Search several string fields by concatenating them together
-			// https://github.com/leeoniya/uFuzzy/issues/7
-			modules.map((module) => `${module.display_name}|${module.description}`),
-			searchText,
-		);
-
-		// We hit an invalid state somehow
-		if (!map || !info || !sorted) {
-			return [];
-		}
-
-		return sorted.map((i) => modules[info.idx[i]]);
-	}, [modules, searchText]);
+	const searchedModules = useFuzzySearch({
+		allItems: modules,
+		searchText: moduleSearchText,
+		searchProperties: ["display_name", "description"],
+	});
 
 	const selectedSet = useMemo(
 		() => new Set(selectedModuleIds),
