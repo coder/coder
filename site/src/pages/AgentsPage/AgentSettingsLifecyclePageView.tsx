@@ -1,10 +1,14 @@
 import type { FC } from "react";
 import type { UseMutateFunction } from "react-query";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { AutoArchiveSettings } from "./components/AutoArchiveSettings";
 import { DebugRetentionSettings } from "./components/DebugRetentionSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
-import { SectionHeader } from "./components/SectionHeader";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
 
 export interface AgentSettingsLifecyclePageViewProps {
@@ -83,43 +87,47 @@ export const AgentSettingsLifecyclePageView: FC<
 	isSaveAutoArchiveDaysError,
 }) => {
 	return (
-		<div className="flex flex-col gap-8">
-			<SectionHeader
-				label="Lifecycle"
-				description="Control workspace lifecycle and conversation retention."
-			/>
-			<WorkspaceAutostopSettings
-				workspaceTTLData={workspaceTTLData}
-				isWorkspaceTTLLoading={isWorkspaceTTLLoading}
-				isWorkspaceTTLLoadError={isWorkspaceTTLLoadError}
-				onSaveWorkspaceTTL={onSaveWorkspaceTTL}
-				isSavingWorkspaceTTL={isSavingWorkspaceTTL}
-				isSaveWorkspaceTTLError={isSaveWorkspaceTTLError}
-			/>
-			<AutoArchiveSettings
-				autoArchiveDaysData={autoArchiveDaysData}
-				isAutoArchiveDaysLoading={isAutoArchiveDaysLoading}
-				isAutoArchiveDaysLoadError={isAutoArchiveDaysLoadError}
-				onSaveAutoArchiveDays={onSaveAutoArchiveDays}
-				isSavingAutoArchiveDays={isSavingAutoArchiveDays}
-				isSaveAutoArchiveDaysError={isSaveAutoArchiveDaysError}
-			/>
-			<RetentionPeriodSettings
-				retentionDaysData={retentionDaysData}
-				isRetentionDaysLoading={isRetentionDaysLoading}
-				isRetentionDaysLoadError={isRetentionDaysLoadError}
-				onSaveRetentionDays={onSaveRetentionDays}
-				isSavingRetentionDays={isSavingRetentionDays}
-				isSaveRetentionDaysError={isSaveRetentionDaysError}
-			/>
-			<DebugRetentionSettings
-				debugRetentionDaysData={debugRetentionDaysData}
-				isDebugRetentionDaysLoading={isDebugRetentionDaysLoading}
-				isDebugRetentionDaysLoadError={isDebugRetentionDaysLoadError}
-				onSaveDebugRetentionDays={onSaveDebugRetentionDays}
-				isSavingDebugRetentionDays={isSavingDebugRetentionDays}
-				isSaveDebugRetentionDaysError={isSaveDebugRetentionDaysError}
-			/>
+		<div className="flex max-w-[1100px] flex-col gap-4">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Lifecycle</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Control workspace lifecycle and conversation retention.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<div className="flex flex-col gap-8">
+				<WorkspaceAutostopSettings
+					workspaceTTLData={workspaceTTLData}
+					isWorkspaceTTLLoading={isWorkspaceTTLLoading}
+					isWorkspaceTTLLoadError={isWorkspaceTTLLoadError}
+					onSaveWorkspaceTTL={onSaveWorkspaceTTL}
+					isSavingWorkspaceTTL={isSavingWorkspaceTTL}
+					isSaveWorkspaceTTLError={isSaveWorkspaceTTLError}
+				/>
+				<AutoArchiveSettings
+					autoArchiveDaysData={autoArchiveDaysData}
+					isAutoArchiveDaysLoading={isAutoArchiveDaysLoading}
+					isAutoArchiveDaysLoadError={isAutoArchiveDaysLoadError}
+					onSaveAutoArchiveDays={onSaveAutoArchiveDays}
+					isSavingAutoArchiveDays={isSavingAutoArchiveDays}
+					isSaveAutoArchiveDaysError={isSaveAutoArchiveDaysError}
+				/>
+				<RetentionPeriodSettings
+					retentionDaysData={retentionDaysData}
+					isRetentionDaysLoading={isRetentionDaysLoading}
+					isRetentionDaysLoadError={isRetentionDaysLoadError}
+					onSaveRetentionDays={onSaveRetentionDays}
+					isSavingRetentionDays={isSavingRetentionDays}
+					isSaveRetentionDaysError={isSaveRetentionDaysError}
+				/>
+				<DebugRetentionSettings
+					debugRetentionDaysData={debugRetentionDaysData}
+					isDebugRetentionDaysLoading={isDebugRetentionDaysLoading}
+					isDebugRetentionDaysLoadError={isDebugRetentionDaysLoadError}
+					onSaveDebugRetentionDays={onSaveDebugRetentionDays}
+					isSavingDebugRetentionDays={isSavingDebugRetentionDays}
+					isSaveDebugRetentionDaysError={isSaveDebugRetentionDaysError}
+				/>
+			</div>
 		</div>
 	);
 };

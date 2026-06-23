@@ -731,6 +731,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexPage />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
 							path="models/:modelId"
@@ -809,7 +810,10 @@ export const router = createBrowserRouter(
 							path="experiments"
 							element={<AgentSettingsExperimentsPage />}
 						/>
-						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
+						<Route
+							path="lifecycle"
+							element={<Navigate to="/ai/settings/lifecycle" replace />}
+						/>
 						<Route
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}

@@ -12,6 +12,7 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { AgentSettingsLifecyclePageView } from "./AgentSettingsLifecyclePageView";
 
 const AgentSettingsLifecyclePage: FC = () => {
@@ -48,6 +49,7 @@ const AgentSettingsLifecyclePage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
+			<title>{pageTitle("Lifecycle", "AI Settings")}</title>
 			<AgentSettingsLifecyclePageView
 				workspaceTTLData={workspaceTTLQuery.data}
 				isWorkspaceTTLLoading={workspaceTTLQuery.isLoading}
