@@ -6,7 +6,7 @@ import { TableCell, TableRow } from "#/components/Table/Table";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { cn } from "#/utils/cn";
 import { MCPServerIcon } from "./MCPServerIcon";
-import { authTypeLabel, availabilityLabel } from "./mcpServerFormLogic";
+import { AUTH_TYPE_LABELS, AVAILABILITY_LABELS } from "./mcpServerFormLogic";
 
 interface MCPServerRowProps {
 	server: TypesGen.MCPServerConfig;
@@ -37,10 +37,10 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 				</div>
 			</TableCell>
 			<TableCell className="w-1/5 text-sm">
-				{authTypeLabel(server.auth_type)}
+				{AUTH_TYPE_LABELS[server.auth_type] ?? server.auth_type}
 			</TableCell>
 			<TableCell className="w-1/5 text-sm">
-				{availabilityLabel(server.availability)}
+				{AVAILABILITY_LABELS[server.availability] ?? server.availability}
 			</TableCell>
 			<TableCell className="w-32">
 				<Badge variant="default">{enabled ? "Enabled" : "Disabled"}</Badge>

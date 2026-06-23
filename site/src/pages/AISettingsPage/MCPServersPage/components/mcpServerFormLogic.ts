@@ -15,6 +15,10 @@ export const AUTH_TYPE_OPTIONS = [
 	{ value: "user_oidc", label: "User OIDC identity" },
 ] as const;
 
+export const AUTH_TYPE_LABELS = Object.fromEntries(
+	AUTH_TYPE_OPTIONS.map(({ value, label }) => [value, label]),
+) as Record<string, string>;
+
 export const AVAILABILITY_OPTIONS = [
 	{
 		value: "force_on",
@@ -32,6 +36,10 @@ export const AVAILABILITY_OPTIONS = [
 		description: "Available but users must opt in.",
 	},
 ] as const;
+
+export const AVAILABILITY_LABELS = Object.fromEntries(
+	AVAILABILITY_OPTIONS.map(({ value, label }) => [value, label]),
+) as Record<string, string>;
 
 export interface MCPServerFormValues {
 	displayName: string;
@@ -69,22 +77,7 @@ export const slugify = (value: string): string =>
 		.replace(/[^a-z0-9-]+/g, "-")
 		.replace(/^-+|-+$/g, "");
 
-const splitList = (value: string): string[] =>
-	value
-		.split(",")
-		.map((item) => item.trim())
-		.filter(Boolean);
-
-const joinList = (arr: readonly string[] | undefined): string =>
-	arr?.join(", ") ?? "";
-
-export const authTypeLabel = (value: string): string =>
-	AUTH_TYPE_OPTIONS.find((option) => option.value === value)?.label ?? value;
-
-export const availabilityLabel = (value: string): string =>
-	AVAILABILITY_OPTIONS.find((option) => option.value === value)?.label ?? value;
-
-export const buildInitialValues = (
+export const buildInitialMCPServerFormValues = (
 	server?: TypesGen.MCPServerConfig,
 ): MCPServerFormValues => ({
 	displayName: server?.display_name ?? "",
@@ -109,8 +102,8 @@ export const buildInitialValues = (
 	modelIntent: server?.model_intent ?? false,
 	allowInPlanMode: server?.allow_in_plan_mode ?? false,
 	forwardCoderHeaders: server?.forward_coder_headers ?? false,
-	toolAllowList: joinList(server?.tool_allow_list),
-	toolDenyList: joinList(server?.tool_deny_list),
+	toolAllowList: server?.tool_allow_list.join(", ") ?? "",
+	toolDenyList: server?.tool_deny_list.join(", ") ?? "",
 	customHeaders: [],
 	customHeadersTouched: false,
 });
@@ -119,25 +112,24 @@ export const canSubmitMCPServerForm = (
 	values: MCPServerFormValues,
 	isDisabled: boolean,
 ): boolean =>
+	!isDisabled &&
 	values.displayName.trim() !== "" &&
 	values.slug.trim() !== "" &&
-	values.url.trim() !== "" &&
-	!isDisabled;
+	values.url.trim() !== "";
 
-export const buildCreateRequest = (
+export const buildCreateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
 ): TypesGen.CreateMCPServerConfigRequest => {
-	const effectiveOAuth2Secret =
-		values.oauth2SecretTouched &&
-		values.oauth2ClientSecret !== SECRET_PLACEHOLDER
-			? values.oauth2ClientSecret
-			: undefined;
-	const effectiveApiKeyValue =
-		values.apiKeyTouched && values.apiKeyValue !== SECRET_PLACEHOLDER
-			? values.apiKeyValue
-			: undefined;
+	const toolAllowList = values.toolAllowList
+		.split(",")
+		.map((tool) => tool.trim())
+		.filter(Boolean);
+	const toolDenyList = values.toolDenyList
+		.split(",")
+		.map((tool) => tool.trim())
+		.filter(Boolean);
 
-	return {
+	const request: TypesGen.CreateMCPServerConfigRequest = {
 		display_name: values.displayName.trim(),
 		slug: values.slug.trim(),
 		description: values.description.trim(),
@@ -150,37 +142,61 @@ export const buildCreateRequest = (
 		model_intent: values.modelIntent,
 		allow_in_plan_mode: values.allowInPlanMode,
 		forward_coder_headers: values.forwardCoderHeaders,
-		...(values.authType === "oauth2" && {
+		tool_allow_list: toolAllowList,
+		tool_deny_list: toolDenyList,
+	};
+
+	if (values.authType === "oauth2") {
+		const oauth2ClientSecret =
+			values.oauth2SecretTouched &&
+			values.oauth2ClientSecret !== SECRET_PLACEHOLDER
+				? values.oauth2ClientSecret
+				: undefined;
+
+		return {
+			...request,
 			oauth2_client_id: values.oauth2ClientID.trim(),
-			oauth2_client_secret: effectiveOAuth2Secret,
+			oauth2_client_secret: oauth2ClientSecret,
 			oauth2_auth_url: values.oauth2AuthURL.trim() || undefined,
 			oauth2_token_url: values.oauth2TokenURL.trim() || undefined,
 			oauth2_scopes: values.oauth2Scopes.trim() || undefined,
-		}),
-		...(values.authType === "api_key" && {
+		};
+	}
+
+	if (values.authType === "api_key") {
+		const apiKeyValue =
+			values.apiKeyTouched && values.apiKeyValue !== SECRET_PLACEHOLDER
+				? values.apiKeyValue
+				: undefined;
+
+		return {
+			...request,
 			api_key_header: values.apiKeyHeader.trim() || undefined,
-			api_key_value: effectiveApiKeyValue,
-		}),
-		...(values.authType === "custom_headers" &&
-			values.customHeadersTouched && {
-				custom_headers: Object.fromEntries(
-					values.customHeaders
-						.filter((header) => header.key.trim() !== "")
-						.map((header) => [header.key.trim(), header.value]),
-				),
-			}),
-		tool_allow_list: splitList(values.toolAllowList),
-		tool_deny_list: splitList(values.toolDenyList),
-	};
+			api_key_value: apiKeyValue,
+		};
+	}
+
+	if (values.authType === "custom_headers" && values.customHeadersTouched) {
+		return {
+			...request,
+			custom_headers: Object.fromEntries(
+				values.customHeaders
+					.map(({ key, value }) => [key.trim(), value] as const)
+					.filter(([key]) => key !== ""),
+			),
+		};
+	}
+
+	return request;
 };
 
-export const buildUpdateRequest = (
+export const buildUpdateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
 ): TypesGen.UpdateMCPServerConfigRequest => {
-	const req = buildCreateRequest(values);
+	const request = buildCreateMCPServerConfigRequest(values);
 	return {
-		...req,
-		tool_allow_list: req.tool_allow_list ? [...req.tool_allow_list] : undefined,
-		tool_deny_list: req.tool_deny_list ? [...req.tool_deny_list] : undefined,
+		...request,
+		tool_allow_list: [...(request.tool_allow_list ?? [])],
+		tool_deny_list: [...(request.tool_deny_list ?? [])],
 	};
 };

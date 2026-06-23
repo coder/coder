@@ -6,9 +6,9 @@ import { MCPServerFormDialogs } from "./MCPServerFormDialogs";
 import { MCPServerFormFields } from "./MCPServerFormFields";
 import { MCPServerFormHeader } from "./MCPServerFormHeader";
 import {
-	buildCreateRequest,
-	buildInitialValues,
-	buildUpdateRequest,
+	buildCreateMCPServerConfigRequest,
+	buildInitialMCPServerFormValues,
+	buildUpdateMCPServerConfigRequest,
 	canSubmitMCPServerForm,
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
@@ -46,13 +46,16 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const form = useFormik<MCPServerFormValues>({
-		initialValues: buildInitialValues(server),
+		initialValues: buildInitialMCPServerFormValues(server),
 		onSubmit: async (values) => {
 			if (isSaving) return;
 			if (server) {
-				await onUpdateServer(server.id, buildUpdateRequest(values));
+				await onUpdateServer(
+					server.id,
+					buildUpdateMCPServerConfigRequest(values),
+				);
 			} else {
-				await onCreateServer(buildCreateRequest(values));
+				await onCreateServer(buildCreateMCPServerConfigRequest(values));
 			}
 		},
 	});
