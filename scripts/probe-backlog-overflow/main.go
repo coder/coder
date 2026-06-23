@@ -30,12 +30,13 @@ type outcome struct {
 }
 
 func (o outcome) class() string {
-	switch {
-	case o.err == nil:
+	if o.err == nil {
 		return "success"
-	case errors.Is(o.err, syscall.ECONNREFUSED):
+	}
+	if matchAny(o.err, refusedErrnos) {
 		return "refused"
-	case errors.Is(o.err, syscall.ECONNRESET):
+	}
+	if matchAny(o.err, resetErrnos) {
 		return "reset"
 	}
 	// Timeout detection has to cover three flavors that Go's net package
@@ -54,6 +55,26 @@ func (o outcome) class() string {
 		return "timeout"
 	}
 	return "other"
+}
+
+func matchAny(err error, targets []error) bool {
+	for _, t := range targets {
+		if errors.Is(err, t) {
+			return true
+		}
+	}
+	return false
+}
+
+// unwrapErrno walks the err chain looking for a syscall.Errno leaf and
+// returns it (0 if none found). Useful for diagnosing whether a
+// classification miss is a constant-mismatch bug.
+func unwrapErrno(err error) syscall.Errno {
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		return errno
+	}
+	return 0
 }
 
 func main() {
@@ -105,13 +126,13 @@ func main() {
 	fmt.Printf("wall time: %v\n\n", wallTime)
 
 	buckets := map[string][]time.Duration{}
-	samples := map[string]string{}
+	samples := map[string]error{}
 	for _, r := range results {
 		c := r.class()
 		buckets[c] = append(buckets[c], r.elapsed)
 		if r.err != nil {
 			if _, ok := samples[c]; !ok {
-				samples[c] = r.err.Error()
+				samples[c] = r.err
 			}
 		}
 	}
@@ -130,8 +151,11 @@ func main() {
 	if len(samples) > 0 {
 		fmt.Println("\nerror samples (first occurrence per class):")
 		for _, c := range classes {
-			if s, ok := samples[c]; ok {
-				fmt.Printf("  [%-7s] %s\n", c, s)
+			if e, ok := samples[c]; ok {
+				fmt.Printf("  [%-7s] %s\n", c, e.Error())
+				if errno := unwrapErrno(e); errno != 0 {
+					fmt.Printf("            errno=%d  (%T)\n", uintptr(errno), errno)
+				}
 			}
 		}
 	}
