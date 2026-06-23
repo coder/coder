@@ -23,6 +23,11 @@ interface RetentionPeriodSettingsProps {
 }
 
 // Keep in sync with retentionDaysMaximum in coderd/exp_chats.go.
+const DAYS_MIN = 1;
+const DAYS_MAX = 3650;
+// Keep in sync with DefaultChatRetentionDays in api/typesGenerated.
+const DEFAULT_RETENTION_DAYS = 30;
+
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	retention_days: Yup.number().when("enabled", {
@@ -30,8 +35,8 @@ const validationSchema = Yup.object({
 		then: (schema) =>
 			schema
 				.integer("Retention days must be a whole number.")
-				.min(1, "Retention period must be at least 1 day.")
-				.max(3650, "Must not exceed 3650 days (~10 years).")
+				.min(DAYS_MIN, "Retention period must be at least 1 day.")
+				.max(DAYS_MAX, "Must not exceed 3650 days (~10 years).")
 				.required("Retention days is required."),
 	}),
 });
@@ -45,12 +50,14 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 	isSaveRetentionDaysError,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
-	const serverRetentionDays = retentionDaysData?.retention_days ?? 30;
+	const serverRetentionDays =
+		retentionDaysData?.retention_days ?? DEFAULT_RETENTION_DAYS;
 
 	const form = useFormik({
 		initialValues: {
 			enabled: serverRetentionDays > 0,
-			retention_days: serverRetentionDays > 0 ? serverRetentionDays : 30,
+			retention_days:
+				serverRetentionDays > 0 ? serverRetentionDays : DEFAULT_RETENTION_DAYS,
 		},
 		enableReinitialize: true,
 		validationSchema,
@@ -93,10 +100,14 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 							<p className="m-0">{fieldError}</p>
 						)}
 						{isSaveRetentionDaysError && (
-							<p className="m-0">Failed to save retention setting.</p>
+							<p className="m-0">
+								Failed to save conversation retention setting.
+							</p>
 						)}
 						{isRetentionDaysLoadError && (
-							<p className="m-0">Failed to load retention setting.</p>
+							<p className="m-0">
+								Failed to load conversation retention setting.
+							</p>
 						)}
 					</>
 				) : undefined
@@ -108,8 +119,14 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 				onChange={form.handleChange}
 				onBlur={form.handleBlur}
 				label="Conversation retention period in days"
-				disabled={isSavingRetentionDays || isRetentionDaysLoading}
+				disabled={
+					!form.values.enabled ||
+					isSavingRetentionDays ||
+					isRetentionDaysLoading
+				}
 				error={Boolean(fieldError)}
+				min={DAYS_MIN}
+				max={DAYS_MAX}
 			/>
 		</LifecycleSettingLayout>
 	);

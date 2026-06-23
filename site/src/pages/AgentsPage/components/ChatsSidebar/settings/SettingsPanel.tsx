@@ -216,7 +216,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						icon={RefreshCwIcon}
 						label="Lifecycle"
 						active={settingsSection === "lifecycle"}
-						to="/agents/settings/lifecycle"
+						to="/ai/settings/lifecycle"
 						state={location.state}
 					/>
 				</nav>

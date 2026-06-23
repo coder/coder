@@ -24,6 +24,9 @@ interface DebugRetentionSettingsProps {
 }
 
 // Keep in sync with chatDebugRetentionDaysMaximum in coderd/exp_chats.go.
+const DAYS_MIN = 1;
+const DAYS_MAX = 3650;
+
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	debug_retention_days: Yup.number().when("enabled", {
@@ -31,8 +34,8 @@ const validationSchema = Yup.object({
 		then: (schema) =>
 			schema
 				.integer("Debug retention days must be a whole number.")
-				.min(1, "Debug retention period must be at least 1 day.")
-				.max(3650, "Must not exceed 3650 days (~10 years).")
+				.min(DAYS_MIN, "Debug retention period must be at least 1 day.")
+				.max(DAYS_MAX, "Must not exceed 3650 days (~10 years).")
 				.required("Debug retention days is required."),
 	}),
 });
@@ -124,8 +127,14 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 				onChange={form.handleChange}
 				onBlur={form.handleBlur}
 				label="Chat debug data retention period in days"
-				disabled={isSavingDebugRetentionDays || isDebugRetentionDaysLoading}
+				disabled={
+					!form.values.enabled ||
+					isSavingDebugRetentionDays ||
+					isDebugRetentionDaysLoading
+				}
 				error={Boolean(fieldError)}
+				min={DAYS_MIN}
+				max={DAYS_MAX}
 			/>
 		</LifecycleSettingLayout>
 	);

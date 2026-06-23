@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from "react";
+import type { FC, FormEventHandler, ReactNode } from "react";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -18,7 +18,7 @@ interface LifecycleSettingLayoutProps {
 	isSaving: boolean;
 	isSavedVisible: boolean;
 	saveDisabled: boolean;
-	onSubmit: () => void;
+	onSubmit: FormEventHandler<HTMLFormElement>;
 }
 
 export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
@@ -37,7 +37,7 @@ export const LifecycleSettingLayout: FC<LifecycleSettingLayoutProps> = ({
 	onSubmit,
 }) => {
 	return (
-		<form className="flex items-start gap-3" onSubmit={onSubmit}>
+		<form className="flex items-start gap-3" onSubmit={onSubmit} noValidate>
 			<Switch
 				checked={checked}
 				onCheckedChange={onCheckedChange}
@@ -87,6 +87,8 @@ interface DaysFieldProps {
 	label: string;
 	disabled?: boolean;
 	error?: boolean;
+	min: number;
+	max: number;
 }
 
 export const DaysField: FC<DaysFieldProps> = ({
@@ -97,6 +99,8 @@ export const DaysField: FC<DaysFieldProps> = ({
 	label,
 	disabled,
 	error,
+	min,
+	max,
 }) => {
 	return (
 		<label
@@ -110,8 +114,8 @@ export const DaysField: FC<DaysFieldProps> = ({
 			<input
 				type="number"
 				name={name}
-				min={1}
-				max={3650}
+				min={min}
+				max={max}
 				step={1}
 				aria-label={label}
 				value={value}

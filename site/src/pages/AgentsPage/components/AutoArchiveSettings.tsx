@@ -24,6 +24,10 @@ interface AutoArchiveSettingsProps {
 }
 
 // Keep in sync with autoArchiveDaysMaximum in coderd/exp_chats.go.
+const DAYS_MIN = 1;
+const DAYS_MAX = 3650;
+const ENABLE_DEFAULT_DAYS = 90;
+
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	auto_archive_days: Yup.number().when("enabled", {
@@ -31,13 +35,11 @@ const validationSchema = Yup.object({
 		then: (schema) =>
 			schema
 				.integer("Auto-archive days must be a whole number.")
-				.min(1, "Auto-archive period must be at least 1 day.")
-				.max(3650, "Must not exceed 3650 days (~10 years).")
+				.min(DAYS_MIN, "Auto-archive period must be at least 1 day.")
+				.max(DAYS_MAX, "Must not exceed 3650 days (~10 years).")
 				.required("Auto-archive days is required."),
 	}),
 });
-
-const ENABLE_DEFAULT_DAYS = 90;
 
 export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 	autoArchiveDaysData,
@@ -115,8 +117,14 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 				onChange={form.handleChange}
 				onBlur={form.handleBlur}
 				label="Auto-archive period in days"
-				disabled={isSavingAutoArchiveDays || isAutoArchiveDaysLoading}
+				disabled={
+					!form.values.enabled ||
+					isSavingAutoArchiveDays ||
+					isAutoArchiveDaysLoading
+				}
 				error={Boolean(fieldError)}
+				min={DAYS_MIN}
+				max={DAYS_MAX}
 			/>
 		</LifecycleSettingLayout>
 	);
