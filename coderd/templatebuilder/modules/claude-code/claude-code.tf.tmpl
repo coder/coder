@@ -2,6 +2,7 @@
 variable "claude_code_oauth_token" {
   description = "OAuth token passed to Claude Code via the CLAUDE_CODE_OAUTH_TOKEN env var. Generate one with `claude setup-token`."
   type        = string
+  default     = ""
   sensitive   = true
 }
 module "claude-code" {

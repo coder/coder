@@ -26,6 +26,7 @@ curl -X GET http://coder-server:8080/api/v2/templatebuilder/bases \
       "id": "string",
       "name": "string",
       "os": "string",
+      "prerequisites": "string",
       "variables": [
         {
           "default": [

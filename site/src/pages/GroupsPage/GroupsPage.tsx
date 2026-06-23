@@ -4,7 +4,10 @@ import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
-import { groupsByOrganization } from "#/api/queries/groups";
+import {
+	groupsByOrganization,
+	organizationGroupsAISpend,
+} from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
@@ -14,6 +17,7 @@ import {
 	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
@@ -21,8 +25,13 @@ import { useGroupsSettings } from "./GroupsPageProvider";
 import { GroupsPageView } from "./GroupsPageView";
 
 const GroupsPage: FC = () => {
-	const { template_rbac: groupsEnabled } = useFeatureVisibility();
+	const { template_rbac: groupsEnabled, aibridge } = useFeatureVisibility();
+	const { experiments } = useDashboard();
 	const { organization, showOrganizations } = useGroupsSettings();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(aibridge) && experiments.includes("ai-gateway-cost-control");
 	const groupsQuery = useQuery({
 		...groupsByOrganization(organization?.name ?? ""),
 		enabled: Boolean(organization),
@@ -30,6 +39,10 @@ const GroupsPage: FC = () => {
 	const permissionsQuery = useQuery({
 		...organizationsPermissions([organization?.id ?? ""]),
 		enabled: Boolean(organization),
+	});
+	const aiSpendQuery = useQuery({
+		...organizationGroupsAISpend(organization?.name ?? ""),
+		enabled: Boolean(organization) && groupsEnabled && aibridgeVisible,
 	});
 
 	useEffect(() => {
@@ -53,6 +66,17 @@ const GroupsPage: FC = () => {
 			);
 		}
 	}, [permissionsQuery.error]);
+
+	useEffect(() => {
+		if (aiSpendQuery.error) {
+			toast.error(
+				getErrorMessage(aiSpendQuery.error, "Unable to load AI budget."),
+				{
+					description: getErrorDetail(aiSpendQuery.error),
+				},
+			);
+		}
+	}, [aiSpendQuery.error]);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -102,6 +126,11 @@ const GroupsPage: FC = () => {
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
 				groupsEnabled={groupsEnabled}
+				aiBudget={
+					aibridgeVisible
+						? { spend: aiSpendQuery.data, isLoading: aiSpendQuery.isLoading }
+						: undefined
+				}
 			/>
 		</div>
 	);

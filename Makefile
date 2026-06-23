@@ -825,6 +825,35 @@ lint/typos:
 	typos --config .github/workflows/typos.toml
 .PHONY: lint/typos
 
+# Vale (prose linter).
+#
+# Invoked through `mise exec` like actionlint and zizmor above, so the
+# version pinned in mise.toml ("aqua:errata-ai/vale") is the single source
+# of truth and mise downloads the right OS/arch build. Always pass the full
+# aqua key: the bare `vale` short name ignores the pin and resolves to the
+# latest release.
+
+# `vale sync` pulls the packages listed in .vale.ini's Packages directive
+# into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
+# sync idempotent across `make lint/prose` calls and lets warm checkouts
+# skip the re-sync entirely. Make rebuilds this target when `.vale.ini`
+# changes.
+docs/.style/.vale-synced: .vale.ini
+	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale sync
+	@touch $@
+
+# Vale exits non-zero only on error-level alerts. `--no-exit` keeps the
+# target green while the un-overridden Google error-level rules still
+# produce a baseline error count; real failures (bad config, missing
+# files) still propagate. Once the baseline error count reaches zero, drop
+# `--no-exit` and surface error-level violations as real failures. See
+# DOCS-40.
+lint/prose: docs/.style/.vale-synced
+	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale --no-exit docs/
+.PHONY: lint/prose
+
 # pre-commit and pre-push mirror CI checks locally.
 #
 # pre-commit runs checks that don't need external services (Docker,
@@ -967,6 +996,7 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/install/releases/feature-stages.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -1044,6 +1074,7 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/install/releases/feature-stages.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1275,6 +1306,17 @@ docs/reference/cli/index.md: node_modules/.installed examples/examples.gen.json 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go | _gen _gen/bin/auditdocgen
 	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
 		_gen/bin/auditdocgen --audit-doc-file="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
+docs/install/releases/feature-stages.md: \
+	node_modules/.installed \
+	scripts/release/docs_update_feature_stages.sh \
+	codersdk/deployment.go \
+	docs/manifest.json | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
 		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"

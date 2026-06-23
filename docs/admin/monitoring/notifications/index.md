@@ -51,6 +51,7 @@ These notifications are sent to users themselves:
 These notifications are sent to the workspace owner:
 
 - Workspace automatic build failure
+- Workspace autostop reminder
 - Workspace created
 - Workspace deleted
 - Workspace manual build failure

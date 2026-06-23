@@ -35,6 +35,7 @@ describe("shouldSkip", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(noParams)).toBe(true);
@@ -46,6 +47,7 @@ describe("shouldSkip", () => {
 				id: "aws-linux",
 				name: "AWS Linux",
 				hasParameters: true,
+				hasPrerequisites: false,
 			},
 		});
 		expect(stepById("base-parameters").shouldSkip(withParams)).toBe(false);
@@ -137,6 +139,7 @@ describe("findNextVisibleIndex", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		// From base-infra (index 0), next visible should be module-select (index 2).
@@ -160,6 +163,7 @@ describe("findNextVisibleIndex", () => {
 				id: "aws-linux",
 				name: "AWS Linux",
 				hasParameters: true,
+				hasPrerequisites: false,
 			},
 			selectedModules: [
 				{
@@ -186,6 +190,7 @@ describe("findPrevVisibleIndex", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		});
 		// From module-select (index 2), prev visible should be base-infra (index 0).
@@ -220,6 +225,7 @@ describe("nearestVisible", () => {
 				id: "docker",
 				name: "Docker",
 				hasParameters: false,
+				hasPrerequisites: false,
 			},
 		};
 		// Index 1 (base-parameters) is skipped, nearest backward is 0 (base-infra).
