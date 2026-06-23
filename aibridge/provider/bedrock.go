@@ -63,6 +63,13 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 		return nil, "", xerrors.Errorf("failed to load AWS Bedrock config: %w", err)
 	}
 
+	// Assuming a role calls STS, which needs a region to resolve its endpoint.
+	// The region may come from the config or the AWS environment; if neither
+	// supplies one, fail here.
+	if cfg.RoleARN != "" && base.Region == "" {
+		return nil, "", xerrors.New("region is required to assume a role: set it explicitly or via the AWS environment")
+	}
+
 	// The base identity signs Bedrock requests directly unless a target role is
 	// configured, in which case it signs the AssumeRole call and the resulting
 	// temporary credentials sign Bedrock requests. The default credential chain

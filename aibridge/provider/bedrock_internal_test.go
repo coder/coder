@@ -294,3 +294,40 @@ func TestBuildBedrockCredentialsAssumeRoleRefreshesOnExpiry(t *testing.T) {
 	require.Equal(t, int64(2), stsCalls.Load(),
 		"expired credentials should trigger a fresh AssumeRole on the next retrieval")
 }
+
+// TestBuildBedrockCredentialsAssumeRoleRequiresRegion verifies that configuring
+// a role without a resolvable region fails at construction. STS needs a region
+// to resolve its endpoint.
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRoleRequiresRegion(t *testing.T) {
+	// Ensure no region resolves from the environment, shared config, or IMDS,
+	// so base.Region ends up empty.
+	t.Setenv("AWS_REGION", "")
+	t.Setenv("AWS_DEFAULT_REGION", "")
+	t.Setenv("AWS_PROFILE", "")
+	t.Setenv("AWS_CONFIG_FILE", "/dev/null")
+	t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null")
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+
+	_, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		BaseURL: "https://bedrock-runtime.example.com",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
+	})
+	require.ErrorContains(t, err, "region is required to assume a role")
+}
+
+// TestBuildBedrockCredentialsAssumeRoleRegionFromEnv verifies that a role
+// configured without an explicit region resolves it from the AWS environment
+// (AWS_REGION here).
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRoleRegionFromEnv(t *testing.T) {
+	t.Setenv("AWS_REGION", "us-west-2")
+
+	// BaseURL set with no explicit region: the region comes from AWS_REGION.
+	_, region, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		BaseURL: "https://bedrock-runtime.example.com",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "us-west-2", region)
+}
