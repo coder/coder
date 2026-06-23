@@ -492,7 +492,7 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 
 	// Share one SSH client across subtests, but run each variable in a
 	// fresh session so a single closed channel cannot fail the others.
-	sshClient, err := conn.SSHClientOnPort(ctx, workspacesdk.AgentSSHPort)
+	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sshClient.Close()
