@@ -101,3 +101,46 @@ func TestBaseTemplateFS(t *testing.T) {
 		require.Contains(t, err.Error(), "unknown base template")
 	})
 }
+
+func TestBaseReadme(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownBasesHaveReadme", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			readme := templatebuilder.BaseReadme(id)
+			require.NotEmpty(t, readme, "base %q should have a README", id)
+		}
+	})
+
+	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.BaseReadme("nonexistent"))
+	})
+}
+
+func TestBasePrerequisites(t *testing.T) {
+	t.Parallel()
+
+	t.Run("KnownBasesHavePrerequisites", func(t *testing.T) {
+		t.Parallel()
+		for _, id := range templatebuilder.BaseTemplateIDs() {
+			prereqs := templatebuilder.BasePrerequisites(id)
+			require.NotEmpty(t, prereqs, "base %q should have prerequisites", id)
+			require.Contains(t, prereqs, "## Prerequisites",
+				"base %q prerequisites should contain the heading", id)
+		}
+	})
+
+	t.Run("AWSLinuxIncludesPermissions", func(t *testing.T) {
+		t.Parallel()
+		prereqs := templatebuilder.BasePrerequisites("aws-linux")
+		require.Contains(t, prereqs, "## Required permissions / policy",
+			"AWS Linux prerequisites should include the permissions section")
+	})
+
+	t.Run("UnknownReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		require.Empty(t, templatebuilder.BasePrerequisites("nonexistent"))
+	})
+}
