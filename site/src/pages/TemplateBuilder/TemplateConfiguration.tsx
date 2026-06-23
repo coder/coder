@@ -1,18 +1,17 @@
-import type { ReactNode } from "react";
+import type { PropsWithChildren } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type TemplateConfigurationProps = {
+type TemplateConfigurationProps = PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 	fields?: ConfigurationFieldDefinition[];
-	children?: ReactNode;
-};
+}>;
 
 export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 	name,
