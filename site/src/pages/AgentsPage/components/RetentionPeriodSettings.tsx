@@ -22,6 +22,7 @@ interface RetentionPeriodSettingsProps {
 	isSaveRetentionDaysError: boolean;
 }
 
+// Keep in sync with retentionDaysMaximum in coderd/exp_chats.go.
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	retention_days: Yup.number().when("enabled", {
@@ -67,6 +68,10 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 	});
 
 	const fieldError = form.errors.retention_days;
+	const hasError =
+		(Boolean(fieldError) && Boolean(form.touched.retention_days)) ||
+		isSaveRetentionDaysError ||
+		isRetentionDaysLoadError;
 
 	return (
 		<LifecycleSettingLayout
@@ -82,17 +87,19 @@ export const RetentionPeriodSettings: FC<RetentionPeriodSettingsProps> = ({
 			saveDisabled={isSavingRetentionDays || !form.dirty || Boolean(fieldError)}
 			onSubmit={form.handleSubmit}
 			error={
-				<>
-					{fieldError && form.touched.retention_days && (
-						<p className="m-0">{fieldError}</p>
-					)}
-					{isSaveRetentionDaysError && (
-						<p className="m-0">Failed to save retention setting.</p>
-					)}
-					{isRetentionDaysLoadError && (
-						<p className="m-0">Failed to load retention setting.</p>
-					)}
-				</>
+				hasError ? (
+					<>
+						{fieldError && form.touched.retention_days && (
+							<p className="m-0">{fieldError}</p>
+						)}
+						{isSaveRetentionDaysError && (
+							<p className="m-0">Failed to save retention setting.</p>
+						)}
+						{isRetentionDaysLoadError && (
+							<p className="m-0">Failed to load retention setting.</p>
+						)}
+					</>
+				) : undefined
 			}
 		>
 			<DaysField

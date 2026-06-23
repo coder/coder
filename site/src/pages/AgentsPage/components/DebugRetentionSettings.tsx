@@ -23,6 +23,7 @@ interface DebugRetentionSettingsProps {
 	isSaveDebugRetentionDaysError: boolean;
 }
 
+// Keep in sync with chatDebugRetentionDaysMaximum in coderd/exp_chats.go.
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	debug_retention_days: Yup.number().when("enabled", {
@@ -77,6 +78,10 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 	});
 
 	const fieldError = form.errors.debug_retention_days;
+	const hasError =
+		(Boolean(fieldError) && Boolean(form.touched.debug_retention_days)) ||
+		isSaveDebugRetentionDaysError ||
+		isDebugRetentionDaysLoadError;
 
 	return (
 		<LifecycleSettingLayout
@@ -94,17 +99,23 @@ export const DebugRetentionSettings: FC<DebugRetentionSettingsProps> = ({
 			}
 			onSubmit={form.handleSubmit}
 			error={
-				<>
-					{fieldError && form.touched.debug_retention_days && (
-						<p className="m-0">{fieldError}</p>
-					)}
-					{isSaveDebugRetentionDaysError && (
-						<p className="m-0">Failed to save chat debug retention setting.</p>
-					)}
-					{isDebugRetentionDaysLoadError && (
-						<p className="m-0">Failed to load chat debug retention setting.</p>
-					)}
-				</>
+				hasError ? (
+					<>
+						{fieldError && form.touched.debug_retention_days && (
+							<p className="m-0">{fieldError}</p>
+						)}
+						{isSaveDebugRetentionDaysError && (
+							<p className="m-0">
+								Failed to save chat debug retention setting.
+							</p>
+						)}
+						{isDebugRetentionDaysLoadError && (
+							<p className="m-0">
+								Failed to load chat debug retention setting.
+							</p>
+						)}
+					</>
+				) : undefined
 			}
 		>
 			<DaysField

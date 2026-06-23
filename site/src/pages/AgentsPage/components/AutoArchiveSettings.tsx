@@ -23,6 +23,7 @@ interface AutoArchiveSettingsProps {
 	isSaveAutoArchiveDaysError: boolean;
 }
 
+// Keep in sync with autoArchiveDaysMaximum in coderd/exp_chats.go.
 const validationSchema = Yup.object({
 	enabled: Yup.boolean().required(),
 	auto_archive_days: Yup.number().when("enabled", {
@@ -72,6 +73,10 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 	});
 
 	const fieldError = form.errors.auto_archive_days;
+	const hasError =
+		(Boolean(fieldError) && Boolean(form.touched.auto_archive_days)) ||
+		isSaveAutoArchiveDaysError ||
+		isAutoArchiveDaysLoadError;
 
 	return (
 		<LifecycleSettingLayout
@@ -89,17 +94,19 @@ export const AutoArchiveSettings: FC<AutoArchiveSettingsProps> = ({
 			}
 			onSubmit={form.handleSubmit}
 			error={
-				<>
-					{fieldError && form.touched.auto_archive_days && (
-						<p className="m-0">{fieldError}</p>
-					)}
-					{isSaveAutoArchiveDaysError && (
-						<p className="m-0">Failed to save auto-archive setting.</p>
-					)}
-					{isAutoArchiveDaysLoadError && (
-						<p className="m-0">Failed to load auto-archive setting.</p>
-					)}
-				</>
+				hasError ? (
+					<>
+						{fieldError && form.touched.auto_archive_days && (
+							<p className="m-0">{fieldError}</p>
+						)}
+						{isSaveAutoArchiveDaysError && (
+							<p className="m-0">Failed to save auto-archive setting.</p>
+						)}
+						{isAutoArchiveDaysLoadError && (
+							<p className="m-0">Failed to load auto-archive setting.</p>
+						)}
+					</>
+				) : undefined
 			}
 		>
 			<DaysField

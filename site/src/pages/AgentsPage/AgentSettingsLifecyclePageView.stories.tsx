@@ -193,7 +193,7 @@ export const DirtyDebugRetentionInput: Story = {
 	},
 };
 
-export const InvalidRetentionDisablesSave: Story = {
+export const InvalidRetentionMinDisablesSave: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const input = await canvas.findByLabelText(
@@ -211,6 +211,230 @@ export const InvalidRetentionDisablesSave: Story = {
 		await waitFor(() => {
 			expect(input).toBeInvalid();
 			expect(saveButton).toBeDisabled();
+		});
+	},
+};
+
+export const InvalidRetentionMaxDisablesSave: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText(
+			"Conversation retention period in days",
+		);
+		const form = input.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error("Expected retention input to live inside a form.");
+		}
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "9999");
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(input).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+		});
+	},
+};
+
+export const InvalidAutostopMaxDisablesSave: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const input = await canvas.findByLabelText("Autostop fallback");
+		const form = input.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error("Expected autostop input to live inside a form.");
+		}
+
+		await userEvent.clear(input);
+		await userEvent.type(input, "721");
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		await waitFor(() => {
+			expect(input).toBeInvalid();
+			expect(saveButton).toBeDisabled();
+			expect(canvas.getByText(/must not exceed 30 days/i)).toBeInTheDocument();
+		});
+	},
+};
+
+export const AutostopSaveError: Story = {
+	args: {
+		isSaveWorkspaceTTLError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save autostop setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const AutostopLoadError: Story = {
+	args: {
+		workspaceTTLData: undefined,
+		isWorkspaceTTLLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load autostop setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const AutoArchiveSaveError: Story = {
+	args: {
+		isSaveAutoArchiveDaysError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save auto-archive setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const AutoArchiveLoadError: Story = {
+	args: {
+		autoArchiveDaysData: undefined,
+		isAutoArchiveDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load auto-archive setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const RetentionSaveError: Story = {
+	args: {
+		isSaveRetentionDaysError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const RetentionLoadError: Story = {
+	args: {
+		retentionDaysData: undefined,
+		isRetentionDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const DebugRetentionSaveError: Story = {
+	args: {
+		isSaveDebugRetentionDaysError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to save chat debug retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const DebugRetentionLoadError: Story = {
+	args: {
+		debugRetentionDaysData: undefined,
+		isDebugRetentionDaysLoadError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByText("Failed to load chat debug retention setting."),
+		).toBeInTheDocument();
+	},
+};
+
+export const DirtyAutoArchiveToggleOff: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable auto-archive",
+		});
+		const form = toggle.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error("Expected auto-archive toggle to live inside a form.");
+		}
+
+		await userEvent.click(toggle);
+		expect(args.onSaveAutoArchiveDays).not.toHaveBeenCalled();
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeEnabled();
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveAutoArchiveDays).toHaveBeenCalledWith(
+				{ auto_archive_days: 0 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const DirtyRetentionToggleOff: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable conversation retention",
+		});
+		const form = toggle.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error("Expected retention toggle to live inside a form.");
+		}
+
+		await userEvent.click(toggle);
+		expect(args.onSaveRetentionDays).not.toHaveBeenCalled();
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeEnabled();
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveRetentionDays).toHaveBeenCalledWith(
+				{ retention_days: 0 },
+				expect.anything(),
+			);
+		});
+	},
+};
+
+export const DirtyDebugRetentionToggleOff: Story = {
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const toggle = await canvas.findByRole("switch", {
+			name: "Enable chat debug data retention",
+		});
+		const form = toggle.closest("form");
+		if (!(form instanceof HTMLFormElement)) {
+			throw new Error("Expected debug retention toggle to live inside a form.");
+		}
+
+		await userEvent.click(toggle);
+		expect(args.onSaveDebugRetentionDays).not.toHaveBeenCalled();
+
+		const saveButton = within(form).getByRole("button", { name: "Save" });
+		expect(saveButton).toBeEnabled();
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveDebugRetentionDays).toHaveBeenCalledWith(
+				{ debug_retention_days: 0 },
+				expect.anything(),
+			);
 		});
 	},
 };

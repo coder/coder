@@ -80,6 +80,8 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 	};
 
 	const fieldError = form.errors.workspace_ttl_ms;
+	const hasError =
+		Boolean(fieldError) || isSaveWorkspaceTTLError || isWorkspaceTTLLoadError;
 
 	return (
 		<LifecycleSettingLayout
@@ -95,15 +97,17 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 			saveDisabled={isSavingWorkspaceTTL || !form.dirty || Boolean(fieldError)}
 			onSubmit={form.handleSubmit}
 			error={
-				<>
-					{fieldError && <p className="m-0">{fieldError}</p>}
-					{isSaveWorkspaceTTLError && (
-						<p className="m-0">Failed to save autostop setting.</p>
-					)}
-					{isWorkspaceTTLLoadError && (
-						<p className="m-0">Failed to load autostop setting.</p>
-					)}
-				</>
+				hasError ? (
+					<>
+						{fieldError && <p className="m-0">{fieldError}</p>}
+						{isSaveWorkspaceTTLError && (
+							<p className="m-0">Failed to save autostop setting.</p>
+						)}
+						{isWorkspaceTTLLoadError && (
+							<p className="m-0">Failed to load autostop setting.</p>
+						)}
+					</>
+				) : undefined
 			}
 		>
 			<DurationField
