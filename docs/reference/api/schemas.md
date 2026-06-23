@@ -4997,12 +4997,12 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name                         | Type                                                                          | Required | Restrictions | Description |
-|------------------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              |             |
-| `template_version_id`        | string                                                                        | false    |              |             |
-| `template_version_preset_id` | string                                                                        | false    |              |             |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |             |
+| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                       |
+|------------------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are applied to the child build. Parameters not listed here fall back to their values from the previous build, matching normal build behavior.                                                                                                               |
+| `template_version_id`        | string                                                                        | false    |              | Template version ID pins the child build to a specific template version. Pinning requires permission to update the template, since the active version may change before the child build runs. When empty, the child build uses the template's active version at the time it runs. |
+| `template_version_preset_id` | string                                                                        | false    |              | Template version preset ID selects a preset for the child build. It requires TemplateVersionID to also be set.                                                                                                                                                                    |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              | Transition must be "start". The parent build's transition must be "stop".                                                                                                                                                                                                         |
 
 #### Enumerated Values
 

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -68,6 +69,7 @@ func TestPostWorkspaceBuildsOnSuccessRestart(t *testing.T) {
 	// THEN: the server persists the child start build intent.
 	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, sqlDB, stopBuild.ID)
 	require.NoError(t, err)
+	require.Equal(t, "pending", orchestration.Status)
 	require.Equal(t, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransition(orchestration.ChildTransition))
 	require.True(t, orchestration.ChildTemplateVersionID.Valid)
 	require.Equal(t, template.ActiveVersionID, orchestration.ChildTemplateVersionID.UUID)
@@ -81,6 +83,59 @@ func TestPostWorkspaceBuildsOnSuccessRestart(t *testing.T) {
 	require.ElementsMatch(t, []codersdk.WorkspaceBuildParameter{
 		{Name: paramName, Value: "baz"},
 	}, childRichParameterValues)
+}
+
+func TestPostWorkspaceBuildsOnSuccessUnpinnedChildNoParams(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a running workspace owned by a non-template-admin.
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Database:                 db,
+		Pubsub:                   ps,
+		IncludeProvisionerDaemon: true,
+	})
+	first := coderdtest.CreateFirstUser(t, client)
+	userClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+	version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+	template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+	initialBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+	require.Equal(t, codersdk.WorkspaceStatusRunning, initialBuild.Status)
+
+	// WHEN: the non-template-admin queues a stop build with an unpinned
+	// on_success start build that supplies no parameters, reason, or log level.
+	ctx := testutil.Context(t, testutil.WaitLong)
+	stopBuild, err := userClient.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStop,
+		OnSuccess: &codersdk.CreateWorkspaceBuildOnSuccessRequest{
+			Transition: codersdk.WorkspaceTransitionStart,
+		},
+	})
+	// THEN: the request is permitted without template-update privileges,
+	// because no durable template version pin is requested.
+	require.NoError(t, err)
+	require.Equal(t, codersdk.WorkspaceTransitionStop, stopBuild.Transition)
+
+	// THEN: the persisted child build intent leaves the optional fields unset.
+	orchestration, err := dbtestutil.GetWorkspaceBuildOrchestrationByParentBuildID(ctx, sqlDB, stopBuild.ID)
+	require.NoError(t, err)
+	require.Equal(t, "pending", orchestration.Status)
+	require.Equal(t, workspace.ID, orchestration.WorkspaceID)
+	require.Equal(t, codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransition(orchestration.ChildTransition))
+	require.False(t, orchestration.ChildTemplateVersionID.Valid)
+	require.False(t, orchestration.ChildTemplateVersionPresetID.Valid)
+	require.False(t, orchestration.ChildReason.Valid)
+	require.Empty(t, orchestration.ChildLogLevel)
+
+	// THEN: nil parameters are coerced to an empty JSON array, not null, to
+	// satisfy the database CHECK constraint.
+	require.JSONEq(t, "[]", string(orchestration.ChildRichParameterValues))
+	var childRichParameterValues []codersdk.WorkspaceBuildParameter
+	require.NoError(t, json.Unmarshal(orchestration.ChildRichParameterValues, &childRichParameterValues))
+	require.Empty(t, childRichParameterValues)
 }
 
 func TestPostWorkspaceBuildsOnSuccessPinnedChildVersionRequiresTemplateUpdate(t *testing.T) {
@@ -110,10 +165,12 @@ func TestPostWorkspaceBuildsOnSuccessPinnedChildVersionRequiresTemplateUpdate(t 
 	})
 	require.Error(t, err)
 
-	// THEN: the API rejects the durable child version pin.
+	// THEN: the API rejects the durable child version pin and explains the
+	// missing template update permission.
 	var apiErr *codersdk.Error
 	require.ErrorAs(t, err, &apiErr)
 	require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+	require.Contains(t, apiErr.Response.Detail, "template update permission")
 
 	// THEN: no new workspace build is created.
 	builds, err := userClient.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{WorkspaceID: workspace.ID})
@@ -126,8 +183,9 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		request codersdk.CreateWorkspaceBuildRequest
+		name        string
+		request     codersdk.CreateWorkspaceBuildRequest
+		wantMessage string
 	}{
 		{
 			name: "ParentMustBeStop",
@@ -137,8 +195,11 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 					Transition: codersdk.WorkspaceTransitionStart,
 				},
 			},
+			wantMessage: "OnSuccess is only permitted when stopping a workspace.",
 		},
 		{
+			// The oneof=start struct tag on OnSuccess.Transition rejects this
+			// during httpapi.Read, before the explicit check is reached.
 			name: "ChildMustBeStart",
 			request: codersdk.CreateWorkspaceBuildRequest{
 				Transition: codersdk.WorkspaceTransitionStop,
@@ -146,6 +207,7 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 					Transition: codersdk.WorkspaceTransitionStop,
 				},
 			},
+			wantMessage: "Validation failed.",
 		},
 		{
 			name: "ParentDryRunRejected",
@@ -156,6 +218,7 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 					Transition: codersdk.WorkspaceTransitionStart,
 				},
 			},
+			wantMessage: "OnSuccess cannot be set alongside DryRun.",
 		},
 		{
 			name: "ParentOrphanRejected",
@@ -166,6 +229,7 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 					Transition: codersdk.WorkspaceTransitionStart,
 				},
 			},
+			wantMessage: "OnSuccess cannot be set alongside Orphan.",
 		},
 		{
 			name: "ParentProvisionerStateRejected",
@@ -176,6 +240,18 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 					Transition: codersdk.WorkspaceTransitionStart,
 				},
 			},
+			wantMessage: "OnSuccess cannot be set alongside ProvisionerState.",
+		},
+		{
+			name: "ChildPresetWithoutVersionRejected",
+			request: codersdk.CreateWorkspaceBuildRequest{
+				Transition: codersdk.WorkspaceTransitionStop,
+				OnSuccess: &codersdk.CreateWorkspaceBuildOnSuccessRequest{
+					Transition:              codersdk.WorkspaceTransitionStart,
+					TemplateVersionPresetID: uuid.New(),
+				},
+			},
+			wantMessage: "OnSuccess TemplateVersionPresetID requires TemplateVersionID.",
 		},
 	}
 
@@ -200,6 +276,7 @@ func TestPostWorkspaceBuildsOnSuccessValidation(t *testing.T) {
 			var apiErr *codersdk.Error
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+			require.Contains(t, apiErr.Message, tt.wantMessage)
 		})
 	}
 }

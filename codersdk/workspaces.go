@@ -142,11 +142,28 @@ type CreateWorkspaceBuildRequest struct {
 	OnSuccess *CreateWorkspaceBuildOnSuccessRequest `json:"on_success,omitempty"`
 }
 
+// CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
+// runs after the parent build succeeds. It currently supports
+// restarting a workspace: the parent build must be a "stop" and this
+// child build a "start". The child build inherits LogLevel and Reason
+// from the parent CreateWorkspaceBuildRequest.
 type CreateWorkspaceBuildOnSuccessRequest struct {
-	TemplateVersionID       uuid.UUID                 `json:"template_version_id,omitempty" format:"uuid"`
-	Transition              WorkspaceTransition       `json:"transition" validate:"oneof=start,required"`
-	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// TemplateVersionID pins the child build to a specific template
+	// version. Pinning requires permission to update the template,
+	// since the active version may change before the child build
+	// runs. When empty, the child build uses the template's active
+	// version at the time it runs.
+	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" format:"uuid"`
+	// Transition must be "start". The parent build's transition must
+	// be "stop".
+	Transition WorkspaceTransition `json:"transition" validate:"oneof=start,required"`
+	// RichParameterValues are applied to the child build. Parameters
+	// not listed here fall back to their values from the previous
+	// build, matching normal build behavior.
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// TemplateVersionPresetID selects a preset for the child build.
+	// It requires TemplateVersionID to also be set.
+	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 type WorkspaceOptions struct {

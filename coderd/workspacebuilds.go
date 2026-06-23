@@ -510,21 +510,22 @@ func (api *API) postWorkspaceBuildsInternal(
 		}
 
 		if createBuild.OnSuccess != nil {
-			childBuild := createBuild.OnSuccess
-			now := dbtime.Now()
+			onSuccessReq := createBuild.OnSuccess
+			// Reuse the parent build's timestamps so the orchestration row and
+			// the parent build agree on created_at.
 			_, err = tx.InsertWorkspaceBuildOrchestration(ctx, database.InsertWorkspaceBuildOrchestrationParams{
 				ID:              uuid.New(),
-				CreatedAt:       now,
-				UpdatedAt:       now,
+				CreatedAt:       workspaceBuild.CreatedAt,
+				UpdatedAt:       workspaceBuild.UpdatedAt,
 				ParentBuildID:   workspaceBuild.ID,
-				ChildTransition: database.WorkspaceTransition(childBuild.Transition),
+				ChildTransition: database.WorkspaceTransition(onSuccessReq.Transition),
 				ChildTemplateVersionID: uuid.NullUUID{
-					UUID:  childBuild.TemplateVersionID,
-					Valid: childBuild.TemplateVersionID != uuid.Nil,
+					UUID:  onSuccessReq.TemplateVersionID,
+					Valid: onSuccessReq.TemplateVersionID != uuid.Nil,
 				},
 				ChildTemplateVersionPresetID: uuid.NullUUID{
-					UUID:  childBuild.TemplateVersionPresetID,
-					Valid: childBuild.TemplateVersionPresetID != uuid.Nil,
+					UUID:  onSuccessReq.TemplateVersionPresetID,
+					Valid: onSuccessReq.TemplateVersionPresetID != uuid.Nil,
 				},
 				ChildRichParameterValues: childParameterValuesJSON,
 				ChildLogLevel:            string(createBuild.LogLevel),
@@ -535,9 +536,13 @@ func (api *API) postWorkspaceBuildsInternal(
 			})
 			if err != nil {
 				if dbauthz.IsNotAuthorizedError(err) {
+					detail := "Queuing the follow-up workspace build requires permission to start the workspace."
+					if onSuccessReq.TemplateVersionID != uuid.Nil {
+						detail = "Pinning a template version on the follow-up build requires template update permission. Omit template_version_id to use the active version."
+					}
 					return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
 						Message: "Unauthorized to queue follow-up workspace build.",
-						Detail:  "You do not have permission to queue this follow-up workspace build.",
+						Detail:  detail,
 					})
 				}
 				api.Logger.Error(ctx, "failed to queue follow-up workspace build",
@@ -689,6 +694,11 @@ func validateCreateWorkspaceBuildOnSuccess(createBuild codersdk.CreateWorkspaceB
 	if len(createBuild.ProvisionerState) > 0 {
 		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "OnSuccess cannot be set alongside ProvisionerState.",
+		})
+	}
+	if onSuccess.TemplateVersionPresetID != uuid.Nil && onSuccess.TemplateVersionID == uuid.Nil {
+		return httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+			Message: "OnSuccess TemplateVersionPresetID requires TemplateVersionID.",
 		})
 	}
 
