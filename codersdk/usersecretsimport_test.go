@@ -1,6 +1,7 @@
 package codersdk_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -184,6 +185,56 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 			_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, tt.content)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.errMsg)
+		})
+	}
+}
+
+// TestParseSecretsFileYAMLAliasBomb is a regression guard against
+// YAML alias-expansion ("billion laughs") resource exhaustion. Two
+// properties keep an alias bomb cheap: yaml.v3 decodes into a
+// yaml.Node without resolving aliases (so nothing expands in memory),
+// and the parser only accepts scalar string values, so any sequence,
+// mapping, or alias node at the top level is rejected outright. The
+// inputs below stay well under MaxSecretsFileBytes yet would expand
+// to an enormous structure if aliases were ever resolved; each must
+// return a parse error quickly rather than hang or exhaust memory.
+func TestParseSecretsFileYAMLAliasBomb(t *testing.T) {
+	t.Parallel()
+
+	// Classic nested alias bomb: each anchor references the previous one
+	// nine times, so resolving the last alias would expand to 9^9 nodes.
+	var bomb strings.Builder
+	bomb.WriteString("a: &a \"lol\"\n")
+	prev := "a"
+	for i := 0; i < 9; i++ {
+		cur := fmt.Sprintf("l%d", i)
+		bomb.WriteString(cur + ": &" + cur + " [")
+		for j := 0; j < 9; j++ {
+			if j > 0 {
+				bomb.WriteByte(',')
+			}
+			bomb.WriteString("*" + prev)
+		}
+		bomb.WriteString("]\n")
+		prev = cur
+	}
+
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{name: "NestedSequences", content: bomb.String()},
+		// Top-level value is an alias node (not a scalar), which must be
+		// rejected even though the anchor it points at is a scalar.
+		{name: "AliasToScalar", content: "a: &a \"x\"\nb: *a\n"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Less(t, len(tc.content), codersdk.MaxSecretsFileBytes)
+			_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, tc.content)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "must be a string")
 		})
 	}
 }
