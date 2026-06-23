@@ -134,7 +134,6 @@ const OrganizationMembersPage: FC = () => {
 				showAISeatColumn={showAISeatColumn}
 				addMembers={async (users: User[]) => {
 					await addMembersMutation.mutateAsync(users.map((user) => user.id));
-					void membersQuery.refetch();
 				}}
 				onEditMemberRoles={setMemberToEditRoles}
 				isUpdatingMemberRoles={updateMemberRolesMutation.isPending}

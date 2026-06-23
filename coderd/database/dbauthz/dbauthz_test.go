@@ -2495,7 +2495,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		)
 	}))
 	s.Run("InsertOrganizationMembersBatch", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{}})
+		o := testutil.Fake(s.T(), faker, database.Organization{DefaultOrgMemberRoles: []string{codersdk.RoleOrganizationAdmin}})
 		u1 := testutil.Fake(s.T(), faker, database.User{})
 		u2 := testutil.Fake(s.T(), faker, database.User{})
 		arg := database.InsertOrganizationMembersBatchParams{

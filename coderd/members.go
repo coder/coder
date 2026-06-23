@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/searchquery"
-	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -110,52 +109,25 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		auditor      = api.Auditor.Load()
 	)
 
-	sw, ok := rw.(*tracing.StatusWriter)
-	if !ok {
-		httpapi.InternalServerError(rw, xerrors.New("developer error: http.ResponseWriter is not *tracing.StatusWriter"))
-		return
-	}
-
 	var req codersdk.AddOrganizationMembersRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
-	// auditMembers is populated after the transaction succeeds and
-	// read by the deferred audit closure once the final response
-	// status is known. usersByID maps each user ID to its database
-	// row so we can look up usernames for audit entries. On
-	// early-return error paths the slice stays nil, so no audit
-	// events are emitted.
-	var auditMembers []database.OrganizationMember
-	var usersByID map[uuid.UUID]database.User
-	defer func() {
-		for _, member := range auditMembers {
-			audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
-				Audit:          *auditor,
-				Log:            api.Logger,
-				UserID:         apiKey.UserID,
-				OrganizationID: organization.ID,
-				RequestID:      httpmw.RequestID(r),
-				Action:         database.AuditActionCreate,
-				IP:             r.RemoteAddr,
-				Status:         sw.Status,
-				Old:            database.AuditableOrganizationMember{},
-				New:            member.Auditable(usersByID[member.UserID].Username),
-			})
-		}
-	}()
-
 	// Resolve all users in a single query. The request context
 	// (not AsSystemRestricted) is used so dbauthz enforces read
 	// permission on each target user.
 	users, err := api.Database.GetUsersByIDs(ctx, req.UserIDs)
+	if httpapi.IsUnauthorizedError(err) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 
-	usersByID = make(map[uuid.UUID]database.User, len(users))
+	usersByID := make(map[uuid.UUID]database.User, len(users))
 	for _, u := range users {
 		usersByID[u.ID] = u
 	}
@@ -186,10 +158,21 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Validate OIDC org-sync constraints for all users before
-	// starting the transaction.
-	for _, user := range users {
-		if !api.manualOrganizationMembership(ctx, rw, user) {
+	// Validate OIDC org-sync constraints for all users. Resolve the feature flag
+	// once outside the loop, and report every offending user together so the
+	// caller can fix the request in a single round-trip.
+	if api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
+		var oidcUsernames []string
+		for _, user := range users {
+			if user.LoginType == database.LoginTypeOIDC {
+				oidcUsernames = append(oidcUsernames, user.Username)
+			}
+		}
+		if len(oidcUsernames) > 0 {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for these users. Have the users re-login to refresh their organizations.",
+				Detail:  fmt.Sprintf("Users %v are OIDC users and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", oidcUsernames),
+			})
 			return
 		}
 	}
@@ -214,9 +197,24 @@ func (api *API) postOrganizationMembers(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Populate the audit slice so the deferred closure emits
-	// events with the real response status code.
-	auditMembers = allMembers
+	// Emit audit events synchronously once the insert succeeds. The response
+	// status is fixed at 201 from this point, so we record it directly instead
+	// of routing through a deferred closure that would otherwise have to
+	// observe the final HTTP status.
+	for _, member := range allMembers {
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.AuditableOrganizationMember]{
+			Audit:          *auditor,
+			Log:            api.Logger,
+			UserID:         apiKey.UserID,
+			OrganizationID: organization.ID,
+			RequestID:      httpmw.RequestID(r),
+			Action:         database.AuditActionCreate,
+			IP:             r.RemoteAddr,
+			Status:         http.StatusCreated,
+			Old:            database.AuditableOrganizationMember{},
+			New:            member.Auditable(usersByID[member.UserID].Username),
+		})
+	}
 
 	resp, err := convertOrganizationMembers(ctx, api.Database, allMembers)
 	if err != nil {
