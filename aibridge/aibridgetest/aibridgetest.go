@@ -2,16 +2,18 @@ package aibridgetest
 
 import (
 	"context"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge"
 )
 
-// MustNewAnthropicProvider builds an Anthropic provider for tests, panicking if
-// credential resolution fails.
-func MustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
+// NewAnthropicProvider builds an Anthropic provider for tests, failing the test
+// if credential resolution fails.
+func NewAnthropicProvider(t testing.TB, cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
+	t.Helper()
 	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
-	if err != nil {
-		panic("build anthropic provider: " + err.Error())
-	}
+	require.NoError(t, err)
 	return p
 }

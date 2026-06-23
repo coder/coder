@@ -505,7 +505,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 			KeyPool:        singleKeyPool(t, config.ProviderOpenAI, "test-key"),
 			CircuitBreaker: cbConfig,
 		}),
-		aibridgetest.MustNewAnthropicProvider(aibridge.AnthropicConfig{
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
 			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
