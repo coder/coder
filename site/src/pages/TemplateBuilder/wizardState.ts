@@ -15,6 +15,7 @@ export type SelectedBaseMeta = {
 	iconUrl?: string;
 	os?: string;
 	hasParameters: boolean;
+	hasPrerequisites: boolean;
 };
 
 /**
