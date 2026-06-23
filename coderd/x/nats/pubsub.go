@@ -17,8 +17,42 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
 
-// DefaultMaxPending is the per-client outbound pending byte budget.
-const DefaultMaxPending int64 = 128 << 20
+// DefaultServerMaxPendingBytes caps how many bytes the embedded NATS server will
+// hold in memory for a single client connection while waiting to write
+// them out to that connection. Each message the server needs to deliver
+// to a connection is queued in that connection's outbound buffer until
+// the socket can accept it; if the consumer reads slower than messages
+// arrive, the buffer grows. When it exceeds this cap, NATS declares the
+// connection a slow consumer and drops messages rather than buffer
+// without bound.
+//
+// The connection that fills this buffer in practice is the subscribe
+// connection: the server writes every message bound for a replica's
+// local subscribers out over its subscribe connection pool, which
+// defaults to a single connection. In a cluster, cross-node fan-out
+// therefore concentrates all of a replica's inbound deliveries on that
+// one connection's outbound buffer. Benchmarking high-fanout cluster
+// workloads (10 subjects, 10 publishers, 50 subscribers) showed the 128
+// MiB default overflowing and dropping 10-15% of deliveries, while 256
+// MiB and above dropped none; 512 MiB is chosen for headroom.
+//
+// This is a ceiling, not a reservation: the buffer grows only with
+// actual backlog, so a connection that keeps up holds nearly nothing and
+// raising the cap costs memory only during the overload bursts it
+// absorbs.
+const DefaultServerMaxPendingBytes int64 = 512 << 20
+
+// DefaultClientMaxPendingBytes is the pending byte limit applied via
+// SetPendingLimits to each coalesced *natsgo.Subscription when
+// PendingLimits.Bytes is zero. Unlike DefaultServerMaxPendingBytes,
+// which bounds the server-side outbound buffer for a whole connection,
+// this bounds the nats.go client's per-subscription pending buffer:
+// messages the client has received from the server but the
+// subscription's async message handler has not yet dispatched. When
+// that handler falls behind and the buffer overflows, NATS marks the
+// subscription a slow consumer and drops messages, which the package
+// surfaces as pubsub.ErrDroppedMessages.
+const DefaultClientMaxPendingBytes = 512 * 1024 * 1024
 
 const (
 	defaultClusterName   = "coder"
@@ -31,9 +65,9 @@ var errClosed = xerrors.New("nats pubsub closed")
 // PendingLimits configures per-subscription NATS pending limits set
 // via SetPendingLimits on each *natsgo.Subscription.
 type PendingLimits struct {
-	// Msgs is the per-subscription pending message limit. Positive
-	// values also set each local listener queue capacity.
-	// Zero uses the package default. Negative disables this limit.
+	// Msgs is the per-subscription pending message limit. Zero or
+	// negative disables the message limit, leaving the byte limit
+	// (PendingLimits.Bytes) as the only per-subscription bound.
 	Msgs int
 
 	// Bytes is the per-subscription pending byte limit.
@@ -202,7 +236,7 @@ func defaultPendingLimits(in PendingLimits) PendingLimits {
 		out.Msgs = -1
 	}
 	if out.Bytes == 0 {
-		out.Bytes = 512 * 1024 * 1024
+		out.Bytes = DefaultClientMaxPendingBytes
 	}
 	return out
 }

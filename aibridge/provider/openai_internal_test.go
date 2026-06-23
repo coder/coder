@@ -198,15 +198,19 @@ func TestOpenAI_TypeAndName(t *testing.T) {
 	}
 }
 
-func TestOpenAI_CreateInterceptor(t *testing.T) {
+func TestOpenAI_CreateInterceptor_Credential(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name               string
-		route              string
-		requestBody        string
-		responseBody       string
-		setHeaders         map[string]string
+		name         string
+		route        string
+		requestBody  string
+		responseBody string
+		pool         bool // provider has a centralized "centralized-key" pool
+		setHeaders   map[string]string
+		// wantErr, when set, means CreateInterceptor must fail with it. The
+		// remaining expectations are then ignored.
+		wantErr            error
 		wantAuthorization  string
 		wantCredentialKind intercept.CredentialKind
 		wantCredentialHint string
@@ -216,6 +220,7 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			route:              routeChatCompletions,
 			requestBody:        `{"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "stream": false}`,
 			responseBody:       chatCompletionResponse,
+			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
 			wantAuthorization:  "Bearer user-token",
 			wantCredentialKind: intercept.CredentialKindBYOK,
@@ -226,18 +231,20 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			route:              routeChatCompletions,
 			requestBody:        `{"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "stream": false}`,
 			responseBody:       chatCompletionResponse,
+			pool:               true,
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor; set
-			// by the key failover loop during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the
+			// hint is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
 		},
 		{
 			name:               "Responses_BYOK",
 			route:              routeResponses,
 			requestBody:        `{"model": "gpt-5", "input": "hello", "stream": false}`,
 			responseBody:       responsesAPIResponse,
+			pool:               true,
 			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
 			wantAuthorization:  "Bearer user-token",
 			wantCredentialKind: intercept.CredentialKindBYOK,
@@ -248,12 +255,13 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			route:              routeResponses,
 			requestBody:        `{"model": "gpt-5", "input": "hello", "stream": false}`,
 			responseBody:       responsesAPIResponse,
+			pool:               true,
 			setHeaders:         map[string]string{},
 			wantAuthorization:  "Bearer centralized-key",
 			wantCredentialKind: intercept.CredentialKindCentralized,
-			// Centralized hint is empty at CreateInterceptor; set
-			// by the key failover loop during ProcessRequest.
-			wantCredentialHint: "",
+			// The pool hasn't handed out a key at CreateInterceptor, so the
+			// hint is a placeholder until the failover loop selects one.
+			wantCredentialHint: "<failover key>",
 		},
 		// X-Api-Key should not appear in production since clients use Authorization,
 		// but ensure it is stripped if it does arrive.
@@ -262,6 +270,7 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			route:        routeChatCompletions,
 			requestBody:  `{"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "stream": false}`,
 			responseBody: chatCompletionResponse,
+			pool:         true,
 			setHeaders: map[string]string{
 				"Authorization": "Bearer user-token",
 				"X-Api-Key":     "some-key",
@@ -275,6 +284,7 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			route:        routeResponses,
 			requestBody:  `{"model": "gpt-5", "input": "hello", "stream": false}`,
 			responseBody: responsesAPIResponse,
+			pool:         true,
 			setHeaders: map[string]string{
 				"Authorization": "Bearer user-token",
 				"X-Api-Key":     "some-key",
@@ -282,6 +292,27 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			wantAuthorization:  "Bearer user-token",
 			wantCredentialKind: intercept.CredentialKindBYOK,
 			wantCredentialHint: "us...en",
+		},
+		{
+			// BYOK authenticates even with no centralized pool.
+			name:               "ChatCompletions_BYOK_WithoutPool",
+			route:              routeChatCompletions,
+			requestBody:        `{"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "stream": false}`,
+			responseBody:       chatCompletionResponse,
+			pool:               false,
+			setHeaders:         map[string]string{"Authorization": "Bearer user-token"},
+			wantAuthorization:  "Bearer user-token",
+			wantCredentialKind: intercept.CredentialKindBYOK,
+			wantCredentialHint: "us...en",
+		},
+		{
+			// No centralized keys and no Authorization: cannot authenticate.
+			name:        "ChatCompletions_NoCredential",
+			route:       routeChatCompletions,
+			requestBody: `{"model": "gpt-4", "messages": [{"role": "user", "content": "hello"}], "stream": false}`,
+			pool:        false,
+			setHeaders:  map[string]string{},
+			wantErr:     ErrNoCredential,
 		},
 	}
 
@@ -300,10 +331,11 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			}))
 			t.Cleanup(mockUpstream.Close)
 
-			provider := NewOpenAI(config.OpenAI{
-				BaseURL: mockUpstream.URL,
-				Key:     "centralized-key",
-			})
+			ocfg := config.OpenAI{BaseURL: mockUpstream.URL}
+			if tc.pool {
+				ocfg.KeyPool = testutil.SingleKeyPool(config.ProviderOpenAI, "centralized-key")
+			}
+			provider := NewOpenAI(ocfg)
 
 			req := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+tc.route, bytes.NewBufferString(tc.requestBody))
 			for k, v := range tc.setHeaders {
@@ -312,19 +344,22 @@ func TestOpenAI_CreateInterceptor(t *testing.T) {
 			w := httptest.NewRecorder()
 
 			interceptor, err := provider.CreateInterceptor(w, req, testTracer)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				require.Nil(t, interceptor)
+				return
+			}
 			require.NoError(t, err)
 			require.NotNil(t, interceptor)
 
 			cred := interceptor.Credential()
-			assert.Equal(t, tc.wantCredentialKind, cred.Kind, "credential kind mismatch")
-			assert.Equal(t, tc.wantCredentialHint, cred.Hint, "credential hint mismatch")
+			assert.Equal(t, tc.wantCredentialKind, cred.Kind(), "credential kind mismatch")
+			assert.Equal(t, tc.wantCredentialHint, cred.Hint(), "credential hint mismatch")
 
-			logger := slog.Make()
-			interceptor.Setup(logger, &testutil.MockRecorder{}, nil)
+			interceptor.Setup(slog.Make(), &testutil.MockRecorder{}, nil)
 
 			processReq := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+tc.route, nil)
-			err = interceptor.ProcessRequest(w, processReq)
-			require.NoError(t, err)
+			require.NoError(t, interceptor.ProcessRequest(w, processReq))
 
 			assert.Equal(t, tc.wantAuthorization, receivedHeaders.Get("Authorization"))
 			assert.Empty(t, receivedHeaders.Get("X-Api-Key"), "X-Api-Key must not be set upstream")
@@ -463,7 +498,7 @@ func TestOpenAI_KeyFailoverConfig(t *testing.T) {
 func BenchmarkOpenAI_CreateInterceptor_ChatCompletions(b *testing.B) {
 	provider := NewOpenAI(config.OpenAI{
 		BaseURL: "https://api.openai.com/v1/",
-		Key:     "test-key",
+		KeyPool: testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 	})
 
 	tracer := noop.NewTracerProvider().Tracer("test")
@@ -501,7 +536,7 @@ func BenchmarkOpenAI_CreateInterceptor_ChatCompletions(b *testing.B) {
 func BenchmarkOpenAI_CreateInterceptor_Responses(b *testing.B) {
 	provider := NewOpenAI(config.OpenAI{
 		BaseURL: "https://api.openai.com/v1/",
-		Key:     "test-key",
+		KeyPool: testutil.SingleKeyPool(config.ProviderOpenAI, "test-key"),
 	})
 
 	tracer := noop.NewTracerProvider().Tracer("test")

@@ -8,7 +8,7 @@ import type {
  * UI-only metadata for the selected base template.
  * Kept separate from the API request payload.
  */
-type SelectedBaseMeta = {
+export type SelectedBaseMeta = {
 	id: string;
 	name: string;
 	iconUrl?: string;
@@ -20,7 +20,7 @@ type SelectedBaseMeta = {
  * UI-only metadata for a selected module.
  * Kept separate from the API request payload.
  */
-type SelectedModuleMeta = {
+export type SelectedModuleMeta = {
 	id: string;
 	name: string;
 	iconUrl: string;
@@ -142,6 +142,10 @@ export const toComposeRequest = (
 ): TemplateBuilderComposeRequest => {
 	return {
 		base_template_id: state.baseTemplateId ?? "",
+		base_variable_values:
+			Object.keys(state.baseVariableValues).length > 0
+				? state.baseVariableValues
+				: undefined,
 		modules: state.modules,
 	};
 };

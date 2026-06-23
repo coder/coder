@@ -60,7 +60,7 @@ var preferredTitleModels = []struct {
 	{fantasyopenai.Name, "gpt-4o-mini"},
 	{fantasygoogle.Name, "gemini-2.5-flash"},
 	{fantasyazure.Name, "gpt-4o-mini"},
-	{fantasybedrock.Name, "anthropic.claude-haiku-4-5-20251001-v1:0"},
+	{fantasybedrock.Name, "global.anthropic.claude-haiku-4-5-20251001-v1:0"},
 	{fantasyopenrouter.Name, "anthropic/claude-3.5-haiku"},
 	{fantasyvercel.Name, "anthropic/claude-haiku-4.5"},
 }
@@ -169,7 +169,7 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 	// Detach from the request lifetime so title generation can finish
 	// even after the create response is written.
 	titleCtx := context.WithoutCancel(ctx)
-	p.inflight.Go(func() {
+	if err := p.goInflight(func() {
 		modelOpts := modelBuildOptionsFromMessages(messages)
 		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
 		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
@@ -193,7 +193,13 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			logger,
 			p.existingDebugService(),
 		)
-	})
+	}); err != nil {
+		logger.Error(titleCtx, "failed to schedule automatic chat title generation",
+			slog.F("chat_id", chat.ID),
+			slog.F("owner_id", chat.OwnerID),
+			slog.Error(err),
+		)
+	}
 }
 
 // maybeGenerateChatTitle generates an AI title for the chat when

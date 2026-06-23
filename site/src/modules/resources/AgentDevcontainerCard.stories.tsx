@@ -137,6 +137,20 @@ export const NoContainerOrAgentOrName: Story = {
 	},
 };
 
+export const NoContainerOrAgentOrNameWithLongConfigPath: Story = {
+	args: {
+		devcontainer: {
+			...MockWorkspaceAgentDevcontainer,
+			config_path:
+				"/home/coder/repos/coder/coder/.claude/worktrees/i-waited-for-some-things-and-i-got-some-banana-bread-at-work-today-dude/.devcontainer/devcontainer.json",
+			container: undefined,
+			agent: undefined,
+			name: "",
+		},
+		subAgents: [],
+	},
+};
+
 export const NoSubAgent: Story = {
 	args: {
 		devcontainer: {

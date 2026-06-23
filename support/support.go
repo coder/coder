@@ -33,6 +33,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 )
 
+const supportBundleAgentLogLookback = 24 * time.Hour
+
 // Bundle is a set of information discovered about a deployment.
 // Even though we do attempt to sanitize data, it may still contain
 // sensitive information and should thus be treated as secret.
@@ -665,7 +667,7 @@ func connectedAgentInfo(ctx context.Context, client *codersdk.Client, log slog.L
 	})
 
 	eg.Go(func() error {
-		logBytes, err := conn.DebugLogs(ctx)
+		logBytes, err := conn.DebugLogs(ctx, workspacesdk.WithLogsAfter(time.Now().Add(-supportBundleAgentLogLookback)))
 		if err != nil {
 			return xerrors.Errorf("fetch coder agent logs: %w", err)
 		}

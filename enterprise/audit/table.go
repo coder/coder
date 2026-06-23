@@ -130,6 +130,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"use_classic_parameter_flow":        ActionTrack,
 		"cors_behavior":                     ActionTrack,
 		"disable_module_cache":              ActionTrack,
+		"time_til_autostop_notify":          ActionTrack,
 	},
 	&database.TemplateVersion{}: {
 		"id":                      ActionTrack,
@@ -213,6 +214,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"template_version_preset_id": ActionIgnore, // Never changes.
 		"has_ai_task":                ActionIgnore, // Never changes.
 		"has_external_agent":         ActionIgnore, // Never changes.
+		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,
@@ -464,7 +466,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"group_acl":                   ActionTrack,
 		"pin_order":                   ActionTrack,
 		"last_read_message_id":        ActionIgnore, // User-scoped read cursor.
-		"last_injected_context":       ActionIgnore, // Internal lifecycle.
 		"context_aggregate_hash":      ActionIgnore, // Agent-pushed context snapshot state.
 		"context_dirty_since":         ActionIgnore, // Agent-pushed context snapshot state.
 		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.

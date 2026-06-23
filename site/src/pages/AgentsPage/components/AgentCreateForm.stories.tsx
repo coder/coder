@@ -11,6 +11,7 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -47,14 +48,10 @@ const modelOptions = [
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
 	id: modelConfigID,
-	provider: "openai",
 	model: "gpt-4o",
 	display_name: "GPT-4o",
-	enabled: true,
-	is_default: false,
-	context_limit: 200_000,
-	compression_threshold: 70,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	...overrides,

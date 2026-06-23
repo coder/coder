@@ -218,12 +218,13 @@ func AIProvider(t testing.TB, db database.Store, seed database.AIProvider, munge
 		displayName = sql.NullString{String: name, Valid: true}
 	}
 	params := database.InsertAIProviderParams{
-		ID:            id,
-		Type:          provType,
-		Name:          name,
-		DisplayName:   displayName,
-		Enabled:       takeFirst(seed.Enabled, true),
-		BaseUrl:       takeFirst(seed.BaseUrl, "https://api.example.com/"),
+		ID:          id,
+		Type:        provType,
+		Name:        name,
+		DisplayName: displayName,
+		Enabled:     takeFirst(seed.Enabled, true),
+		// Use an unsupported scheme so leaked test provider calls fail immediately without retries.
+		BaseUrl:       takeFirst(seed.BaseUrl, "invalid://test.invalid/"),
 		Settings:      seed.Settings,
 		SettingsKeyID: seed.SettingsKeyID,
 	}
@@ -480,6 +481,7 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) []database.BoundaryLog {
 	ids := make([]uuid.UUID, 0, len(seed))
 	sessionID := seed[0].SessionID
+	ownerID := seed[0].OwnerID.UUID
 	sequenceNumbers := make([]int32, 0, len(seed))
 	capturedAt := make([]time.Time, 0, len(seed))
 	createdAt := make([]time.Time, 0, len(seed))
@@ -501,6 +503,7 @@ func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) 
 	logs, err := db.InsertBoundaryLogs(genCtx, database.InsertBoundaryLogsParams{
 		ID:             ids,
 		SessionID:      sessionID,
+		OwnerID:        ownerID,
 		SequenceNumber: sequenceNumbers,
 		CapturedAt:     capturedAt,
 		CreatedAt:      createdAt,

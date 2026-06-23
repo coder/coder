@@ -318,6 +318,34 @@ func TestRecordTokenUsage(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Upstream violates the invariant that InputTokens includes
+			// CachedTokens. Input must clamp to 0 so it never panics a
+			// Prometheus counter when used as an increment.
+			name: "cached_tokens_exceed_input_tokens_clamps_to_zero",
+			response: &oairesponses.Response{
+				ID: "resp_clamp",
+				Usage: oairesponses.ResponseUsage{
+					InputTokens:  10,
+					OutputTokens: 20,
+					TotalTokens:  30,
+					InputTokensDetails: oairesponses.ResponseUsageInputTokensDetails{
+						CachedTokens: 40,
+					},
+				},
+			},
+			expected: &recorder.TokenUsageRecord{
+				InterceptionID:       id.String(),
+				MsgID:                "resp_clamp",
+				Input:                0, // max(0, 10 input - 40 cached)
+				Output:               20,
+				CacheReadInputTokens: 40,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     30,
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -445,7 +473,7 @@ func TestMarkKeyOnError(t *testing.T) {
 			key, keyPoolErr := pool.Walker().Next()
 			require.Nil(t, keyPoolErr)
 
-			base := &responsesInterceptionBase{cfg: config.OpenAI{KeyPool: pool}, logger: slog.Make()}
+			base := &responsesInterceptionBase{cred: &intercept.CentralizedPool{Pool: pool}, logger: slog.Make()}
 
 			got := base.markKeyOnError(context.Background(), key, tc.err)
 			assert.Equal(t, tc.expectedReturn, got)

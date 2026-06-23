@@ -41,6 +41,7 @@ type BaseManifest struct {
 	DisplayName    string             `json:"display_name"`
 	OS             string             `json:"os"`
 	DefaultContext BaseDefaultContext `json:"default_context"`
+	Variables      []ModuleVariable   `json:"variables"`
 }
 
 // BaseDefaultContext holds default render values stored in base.json.
@@ -190,6 +191,17 @@ func BaseTemplateIDs() []string {
 		ids = append(ids, id)
 	}
 	return ids
+}
+
+// BaseVariables returns the user-facing variables for a given base
+// template ID. Computed variables are excluded. Returns nil if the
+// base is unknown or has no variables.
+func BaseVariables(exampleID string) []ModuleVariable {
+	bases, err := loadBases()
+	if err != nil || bases[exampleID] == nil {
+		return nil
+	}
+	return bases[exampleID].Manifest.Variables
 }
 
 // BaseTemplateFS returns a filesystem rooted at the given base template

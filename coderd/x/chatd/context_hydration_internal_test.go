@@ -83,3 +83,71 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 		})
 	})
 }
+
+// TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An
+// API-created chat carries no agent at create, binds its agent on the first
+// turn, and must pin the agent's already-pushed snapshot then. This is the
+// mechanism that lets a workspace created mid-turn have its context pinned on
+// the next turn: the agent pushes its snapshot before the chat is bound to it,
+// so HydrateAgentChatsContext on that push cannot reach the chat, and the
+// rebind-only binding does not pin a first-time agent.
+func TestEnsureChatContextPinnedOnFirstTurn(t *testing.T) {
+	t.Parallel()
+
+	t.Run("PinsWhenUnpinnedAndSnapshotExists", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+
+		agentID := uuid.New()
+		chat := database.Chat{ID: uuid.New(), AgentID: uuid.NullUUID{UUID: agentID, Valid: true}}
+		snapshot := database.WorkspaceAgentContextSnapshot{
+			WorkspaceAgentID: agentID,
+			AggregateHash:    []byte{0x0a, 0x0b},
+		}
+
+		db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+		db.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
+			Return(snapshot, nil)
+		// The guarded agent-scoped stamp, not an unconditional SetChatContextSnapshot,
+		// so a concurrent push that already hydrated the chat wins.
+		db.EXPECT().HydrateAgentChatsContext(gomock.Any(), database.HydrateAgentChatsContextParams{
+			AgentID:       agentID,
+			AggregateHash: snapshot.AggregateHash,
+			ContextError:  snapshot.SnapshotError,
+		}).Return(nil)
+
+		server.ensureChatContextPinnedOnFirstTurn(ctx, chat)
+	})
+
+	t.Run("SkipsWhenAlreadyPinned", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		// A non-NULL pinned hash means the chat is already pinned (or dirty
+		// awaiting refresh); the hook must touch the database zero times so it
+		// never clobbers existing bodies or a dirty chat's stale hash.
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+
+		server.ensureChatContextPinnedOnFirstTurn(ctx, database.Chat{
+			ID:                   uuid.New(),
+			AgentID:              uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ContextAggregateHash: []byte{0x01},
+		})
+	})
+
+	t.Run("SkipsWhenAgentless", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctrl := gomock.NewController(t)
+		// No agent bound yet: the hook must touch the database zero times.
+		db := dbmock.NewMockStore(ctrl)
+		server := &Server{db: db, logger: slogtest.Make(t, nil)}
+
+		server.ensureChatContextPinnedOnFirstTurn(ctx, database.Chat{ID: uuid.New()})
+	})
+}
