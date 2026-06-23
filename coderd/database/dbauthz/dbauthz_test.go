@@ -6802,33 +6802,33 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(user.ID).Asserts(user, policy.ActionUpdate, group, policy.ActionUpdate).Returns(override)
 	}))
 
-	s.Run("GetUserSpendSince", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetUserAISpendSince", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		user := testutil.Fake(s.T(), faker, database.User{})
-		arg := database.GetUserSpendSinceParams{
+		arg := database.GetUserAISpendSinceParams{
 			UserID:           user.ID,
 			EffectiveGroupID: uuid.New(),
 			PeriodStart:      time.Now().UTC().Truncate(24 * time.Hour),
 		}
-		row := testutil.Fake(s.T(), faker, database.GetUserSpendSinceRow{UserID: user.ID, EffectiveGroupID: arg.EffectiveGroupID, PeriodStart: arg.PeriodStart})
+		row := testutil.Fake(s.T(), faker, database.GetUserAISpendSinceRow{UserID: user.ID, EffectiveGroupID: arg.EffectiveGroupID, PeriodStart: arg.PeriodStart})
 		dbm.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil).AnyTimes()
-		dbm.EXPECT().GetUserSpendSince(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		dbm.EXPECT().GetUserAISpendSince(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
-	s.Run("UpsertUserDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.UpsertUserDailySpendParams{
+	s.Run("UpsertUserAIDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpsertUserAIDailySpendParams{
 			UserID:           uuid.New(),
 			EffectiveGroupID: uuid.New(),
 			Day:              time.Now().UTC().Truncate(24 * time.Hour),
 			CostMicros:       1000,
 		}
 		row := testutil.Fake(s.T(), faker, database.AIUserDailySpend{UserID: arg.UserID, EffectiveGroupID: arg.EffectiveGroupID, Day: arg.Day})
-		dbm.EXPECT().UpsertUserDailySpend(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		dbm.EXPECT().UpsertUserAIDailySpend(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionUpdate).Returns(row)
 	}))
 
-	s.Run("NegativeCost/UpsertUserDailySpend", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpsertUserDailySpendParams{
+	s.Run("NegativeCost/UpsertUserAIDailySpend", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertUserAIDailySpendParams{
 			UserID:           uuid.New(),
 			EffectiveGroupID: uuid.New(),
 			Day:              time.Now().UTC().Truncate(24 * time.Hour),

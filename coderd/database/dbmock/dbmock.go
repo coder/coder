@@ -5862,6 +5862,21 @@ func (mr *MockStoreMockRecorder) GetUserAISeatStates(ctx, userIds any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAISeatStates", reflect.TypeOf((*MockStore)(nil).GetUserAISeatStates), ctx, userIds)
 }
 
+// GetUserAISpendSince mocks base method.
+func (m *MockStore) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAISpendSince", ctx, arg)
+	ret0, _ := ret[0].(database.GetUserAISpendSinceRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAISpendSince indicates an expected call of GetUserAISpendSince.
+func (mr *MockStoreMockRecorder) GetUserAISpendSince(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAISpendSince", reflect.TypeOf((*MockStore)(nil).GetUserAISpendSince), ctx, arg)
+}
+
 // GetUserActivityInsights mocks base method.
 func (m *MockStore) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -6205,21 +6220,6 @@ func (m *MockStore) GetUserSkillByUserIDAndName(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) GetUserSkillByUserIDAndName(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSkillByUserIDAndName", reflect.TypeOf((*MockStore)(nil).GetUserSkillByUserIDAndName), ctx, arg)
-}
-
-// GetUserSpendSince mocks base method.
-func (m *MockStore) GetUserSpendSince(ctx context.Context, arg database.GetUserSpendSinceParams) (database.GetUserSpendSinceRow, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetUserSpendSince", ctx, arg)
-	ret0, _ := ret[0].(database.GetUserSpendSinceRow)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetUserSpendSince indicates an expected call of GetUserSpendSince.
-func (mr *MockStoreMockRecorder) GetUserSpendSince(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserSpendSince", reflect.TypeOf((*MockStore)(nil).GetUserSpendSince), ctx, arg)
 }
 
 // GetUserStatusCounts mocks base method.
@@ -11996,6 +11996,21 @@ func (mr *MockStoreMockRecorder) UpsertUserAIBudgetOverride(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserAIBudgetOverride", reflect.TypeOf((*MockStore)(nil).UpsertUserAIBudgetOverride), ctx, arg)
 }
 
+// UpsertUserAIDailySpend mocks base method.
+func (m *MockStore) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertUserAIDailySpend", ctx, arg)
+	ret0, _ := ret[0].(database.AIUserDailySpend)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertUserAIDailySpend indicates an expected call of UpsertUserAIDailySpend.
+func (mr *MockStoreMockRecorder) UpsertUserAIDailySpend(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserAIDailySpend", reflect.TypeOf((*MockStore)(nil).UpsertUserAIDailySpend), ctx, arg)
+}
+
 // UpsertUserAIProviderKey mocks base method.
 func (m *MockStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	m.ctrl.T.Helper()
@@ -12037,21 +12052,6 @@ func (m *MockStore) UpsertUserChatPersonalModelOverride(ctx context.Context, arg
 func (mr *MockStoreMockRecorder) UpsertUserChatPersonalModelOverride(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserChatPersonalModelOverride", reflect.TypeOf((*MockStore)(nil).UpsertUserChatPersonalModelOverride), ctx, arg)
-}
-
-// UpsertUserDailySpend mocks base method.
-func (m *MockStore) UpsertUserDailySpend(ctx context.Context, arg database.UpsertUserDailySpendParams) (database.AIUserDailySpend, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertUserDailySpend", ctx, arg)
-	ret0, _ := ret[0].(database.AIUserDailySpend)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpsertUserDailySpend indicates an expected call of UpsertUserDailySpend.
-func (mr *MockStoreMockRecorder) UpsertUserDailySpend(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertUserDailySpend", reflect.TypeOf((*MockStore)(nil).UpsertUserDailySpend), ctx, arg)
 }
 
 // UpsertWebpushVAPIDKeys mocks base method.

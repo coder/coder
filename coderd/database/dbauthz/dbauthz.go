@@ -4871,6 +4871,13 @@ func (q *querier) GetUserAISeatStates(ctx context.Context, userIDs []uuid.UUID) 
 	return q.db.GetUserAISeatStates(ctx, userIDs)
 }
 
+func (q *querier) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
+		return database.GetUserAISpendSinceRow{}, err
+	}
+	return q.db.GetUserAISpendSince(ctx, arg)
+}
+
 func (q *querier) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	// Used by insights endpoints. Need to check both for auditors and for regular users with template acl perms.
 	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceTemplate); err != nil {
@@ -5091,13 +5098,6 @@ func (q *querier) GetUserSkillByUserIDAndName(ctx context.Context, arg database.
 		return database.UserSkill{}, err
 	}
 	return q.db.GetUserSkillByUserIDAndName(ctx, arg)
-}
-
-func (q *querier) GetUserSpendSince(ctx context.Context, arg database.GetUserSpendSinceParams) (database.GetUserSpendSinceRow, error) {
-	if _, err := q.GetUserByID(ctx, arg.UserID); err != nil { // AuthZ check
-		return database.GetUserSpendSinceRow{}, err
-	}
-	return q.db.GetUserSpendSince(ctx, arg)
 }
 
 func (q *querier) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
@@ -8910,6 +8910,20 @@ func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.U
 	return q.db.UpsertUserAIBudgetOverride(ctx, arg)
 }
 
+func (q *querier) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	// Reject negative deltas. The schema CHECK only fires when the result
+	// goes negative, so a negative cost_micros on an existing row would
+	// silently reduce accumulated spend and corrupt budget enforcement.
+	if arg.CostMicros < 0 {
+		return database.AIUserDailySpend{}, xerrors.Errorf("cost_micros must be non-negative, got %d", arg.CostMicros)
+	}
+	// Daily spend writes are made by the aibridged process.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
+		return database.AIUserDailySpend{}, err
+	}
+	return q.db.UpsertUserAIDailySpend(ctx, arg)
+}
+
 func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	u, err := q.db.GetUserByID(ctx, arg.UserID)
 	if err != nil {
@@ -8941,20 +8955,6 @@ func (q *querier) UpsertUserChatPersonalModelOverride(ctx context.Context, arg d
 		return err
 	}
 	return q.db.UpsertUserChatPersonalModelOverride(ctx, arg)
-}
-
-func (q *querier) UpsertUserDailySpend(ctx context.Context, arg database.UpsertUserDailySpendParams) (database.AIUserDailySpend, error) {
-	// Reject negative deltas. The schema CHECK only fires when the result
-	// goes negative, so a negative cost_micros on an existing row would
-	// silently reduce accumulated spend and corrupt budget enforcement.
-	if arg.CostMicros < 0 {
-		return database.AIUserDailySpend{}, xerrors.Errorf("cost_micros must be non-negative, got %d", arg.CostMicros)
-	}
-	// Daily spend writes are made by the aibridged process.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
-		return database.AIUserDailySpend{}, err
-	}
-	return q.db.UpsertUserDailySpend(ctx, arg)
 }
 
 func (q *querier) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {

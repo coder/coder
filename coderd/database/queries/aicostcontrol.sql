@@ -80,7 +80,7 @@ ORDER BY
 	gaib.group_id ASC
 LIMIT 1;
 
--- name: UpsertUserDailySpend :one
+-- name: UpsertUserAIDailySpend :one
 -- Adds cost_micros to the spend for (user_id, effective_group_id, day).
 -- The day parameter is normalized to its UTC calendar day before storage.
 INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
@@ -89,7 +89,7 @@ ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
 	spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros
 RETURNING *;
 
--- name: GetUserSpendSince :one
+-- name: GetUserAISpendSince :one
 -- Total spend for (user_id, effective_group_id) on or after period_start.
 -- The period_start parameter is normalized to its UTC calendar day.
 SELECT

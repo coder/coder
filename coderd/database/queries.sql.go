@@ -2546,7 +2546,7 @@ func (q *sqlQuerier) GetUserAIBudgetOverride(ctx context.Context, userID uuid.UU
 	return i, err
 }
 
-const getUserSpendSince = `-- name: GetUserSpendSince :one
+const getUserAISpendSince = `-- name: GetUserAISpendSince :one
 SELECT
 	$1::uuid AS user_id,
 	$2::uuid AS effective_group_id,
@@ -2558,13 +2558,13 @@ WHERE user_id = $1
 	AND day >= (($3::timestamptz) AT TIME ZONE 'UTC')::date
 `
 
-type GetUserSpendSinceParams struct {
+type GetUserAISpendSinceParams struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
 	PeriodStart      time.Time `db:"period_start" json:"period_start"`
 }
 
-type GetUserSpendSinceRow struct {
+type GetUserAISpendSinceRow struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
 	PeriodStart      time.Time `db:"period_start" json:"period_start"`
@@ -2573,9 +2573,9 @@ type GetUserSpendSinceRow struct {
 
 // Total spend for (user_id, effective_group_id) on or after period_start.
 // The period_start parameter is normalized to its UTC calendar day.
-func (q *sqlQuerier) GetUserSpendSince(ctx context.Context, arg GetUserSpendSinceParams) (GetUserSpendSinceRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserSpendSince, arg.UserID, arg.EffectiveGroupID, arg.PeriodStart)
-	var i GetUserSpendSinceRow
+func (q *sqlQuerier) GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAISpendSince, arg.UserID, arg.EffectiveGroupID, arg.PeriodStart)
+	var i GetUserAISpendSinceRow
 	err := row.Scan(
 		&i.UserID,
 		&i.EffectiveGroupID,
@@ -2668,7 +2668,7 @@ func (q *sqlQuerier) UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertU
 	return i, err
 }
 
-const upsertUserDailySpend = `-- name: UpsertUserDailySpend :one
+const upsertUserAIDailySpend = `-- name: UpsertUserAIDailySpend :one
 INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
 VALUES ($1, $2, (($3::timestamptz) AT TIME ZONE 'UTC')::date, $4)
 ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
@@ -2676,7 +2676,7 @@ ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
 RETURNING user_id, effective_group_id, day, spend_micros
 `
 
-type UpsertUserDailySpendParams struct {
+type UpsertUserAIDailySpendParams struct {
 	UserID           uuid.UUID `db:"user_id" json:"user_id"`
 	EffectiveGroupID uuid.UUID `db:"effective_group_id" json:"effective_group_id"`
 	Day              time.Time `db:"day" json:"day"`
@@ -2685,8 +2685,8 @@ type UpsertUserDailySpendParams struct {
 
 // Adds cost_micros to the spend for (user_id, effective_group_id, day).
 // The day parameter is normalized to its UTC calendar day before storage.
-func (q *sqlQuerier) UpsertUserDailySpend(ctx context.Context, arg UpsertUserDailySpendParams) (AIUserDailySpend, error) {
-	row := q.db.QueryRowContext(ctx, upsertUserDailySpend,
+func (q *sqlQuerier) UpsertUserAIDailySpend(ctx context.Context, arg UpsertUserAIDailySpendParams) (AIUserDailySpend, error) {
+	row := q.db.QueryRowContext(ctx, upsertUserAIDailySpend,
 		arg.UserID,
 		arg.EffectiveGroupID,
 		arg.Day,

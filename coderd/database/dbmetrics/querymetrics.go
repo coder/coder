@@ -3137,6 +3137,14 @@ func (m queryMetricsStore) GetUserAISeatStates(ctx context.Context, userIds []uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserAISpendSince(ctx context.Context, arg database.GetUserAISpendSinceParams) (database.GetUserAISpendSinceRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserAISpendSince(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserAISpendSince").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserAISpendSince").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserActivityInsights(ctx context.Context, arg database.GetUserActivityInsightsParams) ([]database.GetUserActivityInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserActivityInsights(ctx, arg)
@@ -3318,14 +3326,6 @@ func (m queryMetricsStore) GetUserSkillByUserIDAndName(ctx context.Context, arg 
 	r0, r1 := m.s.GetUserSkillByUserIDAndName(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetUserSkillByUserIDAndName").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSkillByUserIDAndName").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetUserSpendSince(ctx context.Context, arg database.GetUserSpendSinceParams) (database.GetUserSpendSinceRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetUserSpendSince(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserSpendSince").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUserSpendSince").Inc()
 	return r0, r1
 }
 
@@ -6417,6 +6417,14 @@ func (m queryMetricsStore) UpsertUserAIBudgetOverride(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpsertUserAIDailySpend(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertUserAIDailySpend").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserAIDailySpend").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {
 	start := time.Now()
 	r0, r1 := m.s.UpsertUserAIProviderKey(ctx, arg)
@@ -6439,14 +6447,6 @@ func (m queryMetricsStore) UpsertUserChatPersonalModelOverride(ctx context.Conte
 	m.queryLatencies.WithLabelValues("UpsertUserChatPersonalModelOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserChatPersonalModelOverride").Inc()
 	return r0
-}
-
-func (m queryMetricsStore) UpsertUserDailySpend(ctx context.Context, arg database.UpsertUserDailySpendParams) (database.AIUserDailySpend, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertUserDailySpend(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertUserDailySpend").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserDailySpend").Inc()
-	return r0, r1
 }
 
 func (m queryMetricsStore) UpsertWebpushVAPIDKeys(ctx context.Context, arg database.UpsertWebpushVAPIDKeysParams) error {
