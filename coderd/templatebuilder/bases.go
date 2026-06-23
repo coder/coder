@@ -174,9 +174,24 @@ func DefaultBaseRenderContext(exampleID string) BaseRenderContext {
 	if err != nil || bases[exampleID] == nil {
 		return BaseRenderContext{}
 	}
-	dc := bases[exampleID].Manifest.DefaultContext
+	base := bases[exampleID]
+	dc := base.Manifest.DefaultContext
+
+	// Populate Variables from manifest defaults so that Go template
+	// rendering succeeds even without caller-supplied values.
+	vars := make(map[string]string, len(base.Manifest.Variables))
+	for _, v := range base.Manifest.Variables {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
+			vars[v.Name] = string(v.Default)
+		}
+	}
+
 	return BaseRenderContext{
 		ContainerImage: dc.ContainerImage,
+		Variables:      vars,
 	}
 }
 
