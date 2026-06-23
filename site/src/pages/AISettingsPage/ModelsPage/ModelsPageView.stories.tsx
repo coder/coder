@@ -23,7 +23,11 @@ const meta: Meta<typeof ModelsPageView> = {
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/ai/settings/models" },
-			routing: [{ path: "/ai/settings/models", useStoryElement: true }],
+			routing: [
+				{ path: "/ai/settings/models", useStoryElement: true },
+				{ path: "/ai/settings/models/add", useStoryElement: true },
+				{ path: "/ai/settings/models/:modelId", useStoryElement: true },
+			],
 		}),
 	},
 };
@@ -34,6 +38,9 @@ type Story = StoryObj<typeof ModelsPageView>;
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByRole("button", { name: /add model/i }),
+		).toBeInTheDocument();
 		await expect(canvas.getByText("GPT-5")).toBeInTheDocument();
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
 		await expect(canvas.getAllByText("OpenAI").length).toBeGreaterThan(0);
