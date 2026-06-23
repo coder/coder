@@ -1386,7 +1386,18 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 // scoped to a single request: its transport cancels in-flight dials
 // once reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
+	// agentAddr is the only address this client is ever allowed to dial. It is
+	// derived from the intended AgentID rather than any request URL, so a
+	// redirect (or any other attacker-controlled host) can never retarget the
+	// request at a different agent on the shared tailnet.
+	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
 	return &http.Client{
+		// Never follow redirects. A malicious agent could otherwise return a
+		// 3xx that bounces the request to another agent. Combined with the
+		// pinned dial below, this keeps every request on the intended agent.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
@@ -1396,14 +1407,19 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 					return nil, xerrors.Errorf("network must be tcp")
 				}
 
+				// Reject any request whose host or port is not the intended
+				// agent's HTTP API. apiRequest always sets the host to the
+				// agent address, so a mismatch here only comes from an
+				// attacker-controlled URL or redirect.
 				host, port, err := net.SplitHostPort(addr)
 				if err != nil {
 					return nil, xerrors.Errorf("split host port %q: %w", addr, err)
 				}
-
-				// Verify that the port is TailnetStatisticsPort.
 				if port != strconv.Itoa(AgentHTTPAPIServerPort) {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
+				}
+				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
+					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
 				}
 
 				// http.Transport detaches ctx from the request context so
@@ -1422,12 +1438,8 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 				}
 
-				ipAddr, err := netip.ParseAddr(host)
-				if err != nil {
-					return nil, xerrors.Errorf("parse host addr: %w", err)
-				}
-
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
+				// Always dial the pinned agent address, never the request host.
+				conn, err := c.Conn.DialContextTCP(ctx, agentAddr)
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}
