@@ -212,8 +212,6 @@ Coder Desktop has three components that write logs: the app (UI), the VPN servic
     C:\Program Files\Coder Desktop\coder-desktop-service.log
     ```
 
-    The path is configurable via the `Serilog:WriteTo:0:Args:path` registry value under `HKEY_LOCAL_MACHINE\SOFTWARE\Coder Desktop\Vpn`.
-
 3. File sync (Mutagen) daemon log, if you use file sync:
 
     ```powershell
