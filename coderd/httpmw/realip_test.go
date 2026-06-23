@@ -744,3 +744,86 @@ func TestApplicationProxy(t *testing.T) {
 		})
 	}
 }
+
+// TestExtractRealIPSpoofedXForwardedFor is a regression test for an IP-spoofing
+// vulnerability. When a request arrives from a trusted proxy, X-Forwarded-For was
+// parsed left-to-right, so the leftmost (client-controlled) value was accepted as
+// the real IP. Because reverse proxies append the peer that connected to them, the
+// leftmost value is the part a client can forge. An attacker could prepend an
+// arbitrary address to X-Forwarded-For to spoof the IP used for per-IP login rate
+// limiting and audit log source addresses. The real client is the rightmost address
+// that is not a trusted origin.
+func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
+	t.Parallel()
+
+	const (
+		spoofedAddr = "1.2.3.4"
+		realClient  = "203.0.113.5"
+	)
+
+	// Trust a realistic proxy range (not 0.0.0.0/0) so that a spoofed
+	// public-client address falls outside the trusted set.
+	newConfig := func() *httpmw.RealIPConfig {
+		return &httpmw.RealIPConfig{
+			TrustedOrigins: []*net.IPNet{
+				{
+					IP:   net.ParseIP("10.0.0.0"),
+					Mask: net.CIDRMask(8, 32),
+				},
+			},
+			TrustedHeaders: []string{"X-Forwarded-For"},
+		}
+	}
+
+	cases := []struct {
+		name          string
+		xForwardedFor string
+	}{
+		{
+			// A single trusted proxy appends the real client to whatever the
+			// client claimed, so the leftmost value is attacker-controlled.
+			name:          "single-proxy",
+			xForwardedFor: spoofedAddr + ", " + realClient,
+		},
+		{
+			// A chain of trusted proxies appends each hop. The rightmost
+			// untrusted address (the real client) must win, skipping the
+			// trusted inner-proxy hop.
+			name:          "chained-proxies",
+			xForwardedFor: spoofedAddr + ", " + realClient + ", 10.0.0.2",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Direct call to ExtractRealIPAddress.
+			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+			req.RemoteAddr = "10.0.0.1" // trusted proxy peer
+			req.Header.Set("X-Forwarded-For", tc.xForwardedFor)
+
+			addr, err := httpmw.ExtractRealIPAddress(newConfig(), req)
+			require.NoError(t, err)
+			require.Equal(t, realClient, addr.String(),
+				"must use the real client IP, not the spoofed leftmost value")
+			require.NotEqual(t, spoofedAddr, addr.String(),
+				"spoofed leftmost X-Forwarded-For value must be ignored")
+
+			// Middleware rewrites RemoteAddr to the same value that
+			// httprate.KeyByIP (rate limiting) and audit.InitRequest consume.
+			mwReq := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
+			mwReq.RemoteAddr = "10.0.0.1"
+			mwReq.Header.Set("X-Forwarded-For", tc.xForwardedFor)
+
+			handlerCalled := false
+			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				handlerCalled = true
+				require.Equal(t, realClient, r.RemoteAddr,
+					"middleware must set RemoteAddr to the real client IP")
+			})
+			httpmw.ExtractRealIP(newConfig())(next).ServeHTTP(httptest.NewRecorder(), mwReq)
+			require.True(t, handlerCalled, "expected handler to be invoked")
+		})
+	}
+}
