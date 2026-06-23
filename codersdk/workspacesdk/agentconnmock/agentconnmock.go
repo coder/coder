@@ -17,19 +17,18 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-	ssh "golang.org/x/crypto/ssh"
-	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
-	ipnstate "tailscale.com/ipn/ipnstate"
-	speedtest "tailscale.com/net/speedtest"
-
 	slog "cdr.dev/slog/v3"
 	codersdk "github.com/coder/coder/v2/codersdk"
 	healthsdk "github.com/coder/coder/v2/codersdk/healthsdk"
 	workspacesdk "github.com/coder/coder/v2/codersdk/workspacesdk"
 	wsjson "github.com/coder/coder/v2/codersdk/wsjson"
 	tailnet "github.com/coder/coder/v2/tailnet"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
+	ssh "golang.org/x/crypto/ssh"
+	gonet "gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
+	ipnstate "tailscale.com/ipn/ipnstate"
+	speedtest "tailscale.com/net/speedtest"
 )
 
 // MockAgentConn is a mock of AgentConn interface.
@@ -280,21 +279,6 @@ func (m *MockAgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceA
 func (mr *MockAgentConnMockRecorder) ListContainers(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListContainers", reflect.TypeOf((*MockAgentConn)(nil).ListContainers), ctx)
-}
-
-// ListMCPTools mocks base method.
-func (m *MockAgentConn) ListMCPTools(ctx context.Context) (workspacesdk.ListMCPToolsResponse, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListMCPTools", ctx)
-	ret0, _ := ret[0].(workspacesdk.ListMCPToolsResponse)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListMCPTools indicates an expected call of ListMCPTools.
-func (mr *MockAgentConnMockRecorder) ListMCPTools(ctx any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMCPTools", reflect.TypeOf((*MockAgentConn)(nil).ListMCPTools), ctx)
 }
 
 // ListProcesses mocks base method.

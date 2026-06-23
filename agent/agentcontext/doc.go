@@ -18,12 +18,12 @@
 //     to coderd without coupling this package to any particular
 //     drpc client version.
 //
-// Live MCP server tool lists are produced by this package's own
-// self-contained MCP runner: it connects to the MCP servers declared in
-// the .mcp.json files the resolver discovers, lists their tools, and
-// surfaces them as KindMCPServer resources so MCP servers and their
-// tools are pushed to coderd alongside instruction files and skills.
-// This runs independently of agent/x/agentmcp, which owns the agent's
-// MCP HTTP proxy; the two MCP paths share no state and both continue to
-// operate unchanged during the rollout.
+// Live MCP server tool lists come from the shared MCP engine in
+// agent/x/agentmcp, which owns the single set of MCP server connections
+// used for both tool discovery and tool-call execution. This package
+// reads that engine's catalog through the injected MCPCatalog option and
+// surfaces the servers and their tools as KindMCPServer resources, so
+// MCP servers are pushed to coderd alongside instruction files and
+// skills. The engine notifies this package through the Manager's Trigger
+// when its catalog changes, driving a re-resolve and re-push.
 package agentcontext

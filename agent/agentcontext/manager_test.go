@@ -25,13 +25,6 @@ import (
 // Claude config files into snapshots and breaks every
 // Len(Resources, N) assertion.
 func TestMain(m *testing.M) {
-	// The MCP runner re-execs this test binary as a fake stdio MCP
-	// server (TEST_MCP_FAKE_SERVER=1). Serve and exit before any test
-	// setup runs.
-	if maybeServeFakeMCPServer() {
-		os.Exit(0)
-	}
-
 	home, err := os.MkdirTemp("", "agentcontext-test-home-")
 	if err != nil {
 		panic(err)

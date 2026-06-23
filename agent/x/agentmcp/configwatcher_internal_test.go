@@ -3,8 +3,6 @@ package agentmcp
 import (
 	"context"
 	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -32,13 +30,13 @@ import (
 // fsnotify-backed watcher, the manager picks up the late file
 // without external prompting.
 
-// awaitTools polls cachedTools until the predicate succeeds or
+// awaitTools polls flatTools until the predicate succeeds or
 // the context expires. It avoids time.Sleep loops in callers.
 func awaitTools(ctx context.Context, t *testing.T, m *Manager, pred func([]workspacesdk.MCPToolInfo) bool) []workspacesdk.MCPToolInfo {
 	t.Helper()
 	var final []workspacesdk.MCPToolInfo
 	testutil.Eventually(ctx, t, func(context.Context) bool {
-		final = m.cachedTools()
+		final = m.flatTools()
 		return pred(final)
 	}, testutil.IntervalFast)
 	return final
@@ -69,12 +67,11 @@ func TestWatcher_LateFileTriggersReload(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	// First Reload arms the watcher but finds nothing on disk.
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
-	require.Empty(t, m.cachedTools(), "manager should start with no tools")
+	require.Empty(t, m.flatTools(), "manager should start with no tools")
 
 	// Write the file after the manager has already settled. The
 	// watcher must observe the Create event, debounce it, and
@@ -110,11 +107,10 @@ func TestWatcher_RewriteTriggersReload(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
-	tools := m.cachedTools()
+	tools := m.flatTools()
 	require.Len(t, tools, 1)
 	assert.Contains(t, tools[0].Name, "srv")
 
@@ -149,18 +145,17 @@ func TestWatcher_RemovalTransitionsToEmpty(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
-	require.Len(t, m.cachedTools(), 1)
+	require.Len(t, m.flatTools(), 1)
 
 	require.NoError(t, os.Remove(configPath))
 
 	awaitTools(ctx, t, m, func(tools []workspacesdk.MCPToolInfo) bool {
 		return len(tools) == 0
 	})
-	assert.Empty(t, m.cachedTools())
+	assert.Empty(t, m.flatTools())
 }
 
 // TestWatcher_DebouncesBurst uses the quartz mock clock to
@@ -249,7 +244,6 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	for range 5 {
 		m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 		useFastDebounce(t, m)
-		m.MarkStartupSettled()
 		require.NoError(t, m.Reload(ctx, []string{configPath}))
 		require.NoError(t, m.Close())
 
@@ -262,13 +256,14 @@ func TestWatcher_CloseStopsGoroutine(t *testing.T) {
 	}
 }
 
-// TestWatcher_DualAgentHTTPNoStall mimics the dual-agent
+// TestWatcher_DualAgentLateConfigWarmsCatalog mimics the dual-agent
 // workspace scenario from workspace-otto-aa16: the inner sandbox
-// agent calls MarkStartupSettled and Reload while the host agent
-// has not yet written ~/.mcp.json. Once the file appears, an
-// HTTP request to /tools must return the MCP tools quickly
-// instead of triggering a multi-second "reload canceled" stall.
-func TestWatcher_DualAgentHTTPNoStall(t *testing.T) {
+// agent Reloads while the host agent has not yet written
+// ~/.mcp.json. Once the file appears, the config watcher must pick
+// it up and warm the catalog so the tools surface without a
+// multi-second "reload canceled" stall, and reading the catalog
+// must never block on an in-flight reload.
+func TestWatcher_DualAgentLateConfigWarmsCatalog(t *testing.T) {
 	t.Parallel()
 
 	if os.Getenv("TEST_MCP_FAKE_SERVER") == "1" {
@@ -283,40 +278,28 @@ func TestWatcher_DualAgentHTTPNoStall(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	// First Reload races ahead of the host agent: empty config.
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
-	require.Empty(t, m.cachedTools())
+	require.Empty(t, m.flatTools())
 
-	api := NewAPI(logger, m, func() []string { return []string{configPath} })
-
-	// Host agent writes the file later.
+	// Host agent writes the file later. The watcher must pick it up
+	// and warm the catalog.
 	_, entry := fakeMCPServerConfig(t, "srv")
 	writeMCPConfig(t, dir, map[string]mcpServerEntry{"srv": entry})
 
-	// Wait for the watcher to pick up the file so we know the
-	// cache is warm before issuing the HTTP request.
-	awaitTools(ctx, t, m, func(tools []workspacesdk.MCPToolInfo) bool {
+	tools := awaitTools(ctx, t, m, func(tools []workspacesdk.MCPToolInfo) bool {
 		return len(tools) == 1
 	})
+	require.Len(t, tools, 1)
+	assert.Contains(t, tools[0].Name, "echo")
 
-	req := httptest.NewRequest(http.MethodGet, "/tools", nil).WithContext(ctx)
-	rec := httptest.NewRecorder()
-
+	// Reading the catalog never blocks on a reload.
 	start := time.Now()
-	api.Routes().ServeHTTP(rec, req)
-	elapsed := time.Since(start)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Less(t, elapsed, testutil.WaitShort,
-		"warm HTTP request should not stall on watcher reload; took %s", elapsed)
-
-	var resp workspacesdk.ListMCPToolsResponse
-	require.NoError(t, json.NewDecoder(rec.Body).Decode(&resp))
-	require.Len(t, resp.Tools, 1)
-	assert.Contains(t, resp.Tools[0].Name, "echo")
+	_ = m.Catalog()
+	require.Less(t, time.Since(start), testutil.WaitShort,
+		"reading the catalog must not block on watcher reload")
 }
 
 // TestWatcher_LateParentDirTriggersReload exercises the
@@ -343,11 +326,10 @@ func TestWatcher_LateParentDirTriggersReload(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	require.NoError(t, m.Reload(ctx, []string{configPath}))
-	require.Empty(t, m.cachedTools())
+	require.Empty(t, m.flatTools())
 
 	// Create the missing parent directory. fsnotify will deliver
 	// a Create event on root; handleEvent must release the root
@@ -389,7 +371,6 @@ func TestWatcher_SharedParentRefcount(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 	t.Cleanup(func() { _ = m.Close() })
 
 	// First Reload arms both paths, sharing the dir watch.
@@ -464,7 +445,6 @@ func TestWatcher_CloseDoesNotStallOnInFlightReload(t *testing.T) {
 
 	m := NewManager(ctx, logger, agentexec.DefaultExecer, nil)
 	useFastDebounce(t, m)
-	m.MarkStartupSettled()
 
 	// Arm the watcher with an initial empty Reload. We install the
 	// hook after this so the first connectAll (with empty

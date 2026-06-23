@@ -9,7 +9,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/quartz"
 )
 
@@ -39,18 +38,13 @@ type ManagerOptions struct {
 	// Tests use this to inject MCP resources (via
 	// Resolver.MCPResources) and tighten caps.
 	Resolver *Resolver
-	// MCPExecer, when non-nil, enables the self-contained MCP
-	// runner: the Manager connects to the MCP servers declared
-	// in the .mcp.json files it discovers, lists their tools,
-	// and surfaces them as KindMCPServer resources in every
-	// snapshot. The runner uses this Execer to launch stdio MCP
-	// servers. It is ignored when the resolver already has an
-	// MCP provider (e.g. a test injecting one via Resolver).
-	MCPExecer agentexec.Execer
-	// MCPUpdateEnv optionally enriches the environment handed to
-	// stdio MCP servers (typically the agent's per-command env).
-	// Used only when MCPExecer is set; may be nil.
-	MCPUpdateEnv func([]string) ([]string, error)
+	// MCPCatalog, when non-nil, supplies the per-server MCP snapshot
+	// the Manager surfaces as KindMCPServer resources on every
+	// resolve. The agent injects the shared MCP engine's catalog here
+	// so discovery and execution use one set of server connections.
+	// It is ignored when the resolver already has an MCP provider
+	// (e.g. a test injecting one via Resolver).
+	MCPCatalog func() []MCPServerStatus
 	// Debounce overrides the watcher's debounce window.
 	Debounce time.Duration
 }
@@ -73,11 +67,7 @@ type Manager struct {
 	workingDir   func() string
 	allowedRoots []string
 	resolver     *Resolver
-	// mcpRunner, when non-nil, owns the agent's self-contained
-	// MCP connection lifecycle and feeds the resolver's MCP
-	// provider. runMCPSync (started by Run) drives its reloads.
-	mcpRunner *mcpRunner
-	debounce  time.Duration
+	debounce     time.Duration
 
 	mu      sync.Mutex
 	sources []Source
@@ -152,17 +142,16 @@ func NewManager(opts ManagerOptions) *Manager {
 		runStartedCh: make(chan struct{}),
 	}
 
-	// Enable the self-contained MCP runner unless the resolver
-	// already has a provider (tests inject one via Resolver). The
-	// runner connects to the .mcp.json servers the resolver
-	// discovers and surfaces their tools as KindMCPServer
-	// resources; runMCPSync (started in Run) drives its reloads.
-	// The provider must be wired before the eager first resolve
-	// below so the seam is present from the first snapshot.
-	if resolver.MCPResources == nil && opts.MCPExecer != nil {
-		m.mcpRunner = newMCPRunner(m.logger.Named("mcp"), opts.MCPExecer, opts.MCPUpdateEnv, m.Trigger)
+	// Surface the shared MCP engine's catalog as KindMCPServer
+	// resources unless the resolver already has a provider (tests
+	// inject one via Resolver). The engine owns the connection
+	// lifecycle and notifies this Manager via Trigger when its
+	// catalog changes (see agent wiring). The provider must be wired
+	// before the eager first resolve below so the seam is present
+	// from the first snapshot.
+	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
 		resolver.MCPResources = func() []Resource {
-			return buildMCPServerResources(m.mcpRunner.Servers())
+			return buildMCPServerResources(opts.MCPCatalog())
 		}
 	}
 
@@ -235,14 +224,6 @@ func (m *Manager) Run(ctx context.Context) error {
 	watcher.Sync(ctx, roots)
 
 	defer watcher.Close()
-
-	// Drive MCP server reloads from discovered .mcp.json files for
-	// the lifetime of Run. Started here (not in NewManager) so it
-	// runs alongside the trigger loop that consumes its re-resolve
-	// signals.
-	if m.mcpRunner != nil {
-		go m.runMCPSync(ctx)
-	}
 
 	for {
 		select {

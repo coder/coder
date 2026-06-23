@@ -495,7 +495,7 @@ func (a *agent) init() {
 		}
 		return ""
 	}, a.contextConfig)
-	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
+	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
 
 	// agentcontext.Manager is the new consolidated resolver,
 	// watcher, and pusher. It coexists with contextConfigAPI
@@ -513,16 +513,19 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
-		// The manager runs its own self-contained MCP runner: it
-		// connects to the .mcp.json servers it discovers, lists
-		// their tools, and pushes them to coderd as KindMCPServer
-		// resources. This is independent of a.mcpManager, which
-		// serves the agent's MCP HTTP API; the two MCP paths share
-		// no state during the rollout.
-		MCPExecer:    a.execer,
-		MCPUpdateEnv: a.updateCommandEnv,
+		// The manager surfaces MCP servers and their tools as
+		// KindMCPServer resources by reading the shared MCP engine's
+		// catalog (a.mcpManager). That engine owns the single set of
+		// MCP server connections used for both discovery and tool-call
+		// execution, so each declared server is launched once.
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			return mcpCatalogToContext(a.mcpManager.Catalog())
+		},
 	})
 	a.contextAPI = agentcontext.NewAPI(a.contextManager)
+	// Re-resolve and re-push KindMCPServer resources whenever the MCP
+	// engine's catalog changes (startup connect, .mcp.json edits).
+	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -1553,7 +1556,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				a.mcpManager.MarkStartupSettled()
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
