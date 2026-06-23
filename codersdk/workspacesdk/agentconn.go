@@ -66,6 +66,7 @@ type AgentConn interface {
 	DebugMagicsock(ctx context.Context) ([]byte, error)
 	DebugManifest(ctx context.Context) ([]byte, error)
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
+	AppHTTPClient() *http.Client
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
 	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
@@ -121,6 +122,7 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
+	Logger    slog.Logger
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -330,6 +332,24 @@ func (c *agentConn) DialContext(ctx context.Context, network string, addr string
 		return c.Conn.DialContextUDP(ctx, ipp)
 	default:
 		return nil, xerrors.Errorf("unknown network %q", network)
+	}
+}
+
+// AppHTTPClient returns an HTTP client for reaching HTTP apps served by this
+// workspace agent. Redirects are blocked to prevent misuse.
+func (c *agentConn) AppHTTPClient() *http.Client {
+	return &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			// Disable keep-alives so these short-lived clients don't leave
+			// idle connections (and their goroutines) lingering after they're
+			// discarded.
+			DisableKeepAlives: true,
+			// Host locked to agent, port from URL.
+			DialContext: c.DialContext,
+		},
 	}
 }
 
@@ -1224,7 +1244,12 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 // apiClient returns an HTTP client that can be used to make
 // requests to the workspace agent's HTTP API server.
 func (c *agentConn) apiClient() *http.Client {
+	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
 	return &http.Client{
+		// Redirects are blocked to prevent misuse.
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{
 			// Disable keep alives as we're usually only making a single
 			// request, and this triggers goleak in tests
@@ -1244,16 +1269,21 @@ func (c *agentConn) apiClient() *http.Client {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 
+				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
+					c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
+						slog.F("agent_id", c.opts.AgentID),
+						slog.F("request_host", host),
+						slog.F("intended_agent_addr", agentAddr.Addr()),
+					)
+					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
+				}
+
 				if !c.AwaitReachable(ctx) {
 					return nil, xerrors.Errorf("workspace agent not reachable in time: %v", ctx.Err())
 				}
 
-				ipAddr, err := netip.ParseAddr(host)
-				if err != nil {
-					return nil, xerrors.Errorf("parse host addr: %w", err)
-				}
-
-				conn, err := c.Conn.DialContextTCP(ctx, netip.AddrPortFrom(ipAddr, AgentHTTPAPIServerPort))
+				// Always dial the pinned agent address, never the request host.
+				conn, err := c.Conn.DialContextTCP(ctx, agentAddr)
 				if err != nil {
 					return nil, xerrors.Errorf("dial http api: %w", err)
 				}
