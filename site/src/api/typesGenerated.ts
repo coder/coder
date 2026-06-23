@@ -5144,6 +5144,17 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	readonly Gets: ResourceIdType;
 }
 
+// From codersdk/usersecretsimport.go
+/**
+ * ImportUserSecretsRequest is the payload for the bulk secret import
+ * endpoint. Content is the raw file contents and Format selects the
+ * parser used to interpret it.
+ */
+export interface ImportUserSecretsRequest {
+	readonly format: SecretsFileFormat;
+	readonly content: string;
+}
+
 // From codersdk/inboxnotification.go
 export interface InboxNotification {
 	readonly id: string;
@@ -5452,6 +5463,18 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/usersecretsimport.go
+/**
+ * MaxSecretsFileBytes bounds the raw size of an uploaded secrets file
+ * before any parsing happens. It is a defensive limit against
+ * decompression-style and resource-exhaustion attacks (huge files,
+ * deeply nested YAML, "billion laughs"). 1 MiB is far larger than any
+ * realistic secrets file: the per-user value budget is only 200 KiB
+ * (MaxUserSecretsTotalValueBytes), so a valid import can never need
+ * more than a few hundred KiB of content.
+ */
+export const MaxSecretsFileBytes = 1048576; // 1 MiB
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -7515,6 +7538,11 @@ export interface STUNReport {
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
 }
+
+// From codersdk/usersecretsimport.go
+export type SecretsFileFormat = "env" | "json" | "yaml";
+
+export const SecretsFileFormats: SecretsFileFormat[] = ["env", "json", "yaml"];
 
 // From serpent/serpent.go
 /**
@@ -9746,6 +9774,42 @@ export interface UserSecret {
 	readonly created_at: string;
 	readonly updated_at: string;
 }
+
+// From codersdk/usersecretvalidation.go
+/**
+ * JSON field names for user secret validation errors. They match the
+ * CreateUserSecretRequest struct tags and are shared by the HTTP
+ * handlers (single create and batch import) and any future CLI so the
+ * error fields stay consistent across entry points.
+ */
+export const UserSecretEnvNameField = "env_name";
+
+// From codersdk/usersecretvalidation.go
+/**
+ * JSON field names for user secret validation errors. They match the
+ * CreateUserSecretRequest struct tags and are shared by the HTTP
+ * handlers (single create and batch import) and any future CLI so the
+ * error fields stay consistent across entry points.
+ */
+export const UserSecretFilePathField = "file_path";
+
+// From codersdk/usersecretvalidation.go
+/**
+ * JSON field names for user secret validation errors. They match the
+ * CreateUserSecretRequest struct tags and are shared by the HTTP
+ * handlers (single create and batch import) and any future CLI so the
+ * error fields stay consistent across entry points.
+ */
+export const UserSecretNameField = "name";
+
+// From codersdk/usersecretvalidation.go
+/**
+ * JSON field names for user secret validation errors. They match the
+ * CreateUserSecretRequest struct tags and are shared by the HTTP
+ * handlers (single create and batch import) and any future CLI so the
+ * error fields stay consistent across entry points.
+ */
+export const UserSecretValueField = "value";
 
 // From codersdk/userskills.go
 /**

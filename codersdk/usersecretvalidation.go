@@ -209,6 +209,45 @@ var (
 	}
 )
 
+// JSON field names for user secret validation errors. They match the
+// CreateUserSecretRequest struct tags and are shared by the HTTP
+// handlers (single create and batch import) and any future CLI so the
+// error fields stay consistent across entry points.
+const (
+	UserSecretNameField     = "name"
+	UserSecretValueField    = "value"
+	UserSecretEnvNameField  = "env_name"
+	UserSecretFilePathField = "file_path"
+)
+
+// ValidateCreateUserSecretRequest validates a single create-secret
+// request and returns field-level ValidationErrors keyed by JSON field
+// name. It is the transport-agnostic validation reused by the HTTP
+// handlers and by a future `coder secret` CLI.
+//
+// The "value is required" rule lives here rather than in
+// UserSecretValueValid because an empty value is syntactically valid
+// (no null bytes, within the size cap) but is not permitted at create
+// time. Keeping it here means every create path enforces it identically.
+func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationError {
+	var validations []ValidationError
+	if err := UserSecretNameValid(req.Name); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretNameField, Detail: err.Error()})
+	}
+	if req.Value == "" {
+		validations = append(validations, ValidationError{Field: UserSecretValueField, Detail: "Value is required."})
+	} else if err := UserSecretValueValid(req.Value); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretValueField, Detail: err.Error()})
+	}
+	if err := UserSecretEnvNameValid(req.EnvName); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretEnvNameField, Detail: err.Error()})
+	}
+	if err := UserSecretFilePathValid(req.FilePath); err != nil {
+		validations = append(validations, ValidationError{Field: UserSecretFilePathField, Detail: err.Error()})
+	}
+	return validations
+}
+
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.
 func UserSecretNameValid(s string) error {

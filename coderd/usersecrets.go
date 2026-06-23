@@ -97,6 +97,151 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
 }
 
+// userSecretBatchError carries the index of the entry whose insert
+// failed inside the import transaction so the handler can attribute
+// the underlying violation to the right entry after the transaction
+// rolls back. It unwraps to the underlying database error so the
+// existing conflict and limit mappers keep working.
+type userSecretBatchError struct {
+	index int
+	err   error
+}
+
+func (e *userSecretBatchError) Error() string { return e.err.Error() }
+func (e *userSecretBatchError) Unwrap() error { return e.err }
+
+// @Summary Import user secrets from a file
+// @ID import-user-secrets-from-a-file
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Secrets
+// @Param user path string true "User ID, username, or me"
+// @Param request body codersdk.ImportUserSecretsRequest true "Import secrets request"
+// @Success 201 {array} codersdk.UserSecret
+// @Router /api/v2/users/{user}/secrets/batch [post]
+func (api *API) postUserSecretsBatch(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	user := httpmw.UserParam(r)
+
+	var req codersdk.ImportUserSecretsRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	reqs, err := codersdk.ParseSecretsFile(req.Format, req.Content)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to parse secrets file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Validate every entry and accumulate all errors so the caller can
+	// fix the whole file in one round-trip instead of one error at a
+	// time. Each field is prefixed with the entry index, e.g.
+	// "secrets[2].env_name".
+	var validations []codersdk.ValidationError
+	for i, sreq := range reqs {
+		for _, v := range codersdk.ValidateCreateUserSecretRequest(sreq) {
+			validations = append(validations, codersdk.ValidationError{
+				Field:  fmt.Sprintf("secrets[%d].%s", i, v.Field),
+				Detail: v.Detail,
+			})
+		}
+	}
+	if len(validations) > 0 {
+		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+		return
+	}
+
+	// Insert atomically. The per-user-limit trigger fires per row, and
+	// any unique or limit violation aborts the whole transaction, so a
+	// failed import creates nothing.
+	var created []database.UserSecret
+	err = api.Database.InTx(func(tx database.Store) error {
+		// Reset on entry so a transaction retry does not accumulate rows
+		// from a previous attempt.
+		created = created[:0]
+		for i, sreq := range reqs {
+			s, txErr := tx.CreateUserSecret(ctx, database.CreateUserSecretParams{
+				ID:          uuid.New(),
+				UserID:      user.ID,
+				Name:        sreq.Name,
+				Description: sreq.Description,
+				Value:       sreq.Value,
+				ValueKeyID:  sql.NullString{},
+				EnvName:     sreq.EnvName,
+				FilePath:    sreq.FilePath,
+			})
+			if txErr != nil {
+				return &userSecretBatchError{index: i, err: txErr}
+			}
+			created = append(created, s)
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		index := -1
+		underlying := err
+		var batchErr *userSecretBatchError
+		if errors.As(err, &batchErr) {
+			index = batchErr.index
+			underlying = batchErr.err
+		}
+
+		if conflicts := userSecretConflictValidationErrors(underlying); len(conflicts) > 0 {
+			if index >= 0 {
+				for i := range conflicts {
+					conflicts[i].Field = fmt.Sprintf("secrets[%d].%s", index, conflicts[i].Field)
+				}
+			}
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, conflicts)
+			return
+		}
+		if resp, ok := userSecretLimitResponse(underlying); ok {
+			if index >= 0 {
+				resp.Detail = fmt.Sprintf("Entry secrets[%d] (%q): %s", index, reqs[index].Name, resp.Detail)
+			}
+			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
+			return
+		}
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error importing secrets.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	// Emit audit logs only after the transaction commits. A rolled-back
+	// batch produces zero rows and must produce zero audit logs, so this
+	// runs strictly on the success path. One create log is emitted per
+	// secret because database.UserSecret is registered as auditable.
+	auditor := api.Auditor.Load()
+	requestID := httpmw.RequestID(r)
+	for _, secret := range created {
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.UserSecret]{
+			Audit:     *auditor,
+			Log:       api.Logger,
+			UserID:    user.ID,
+			RequestID: requestID,
+			Status:    http.StatusCreated,
+			IP:        r.RemoteAddr,
+			UserAgent: r.UserAgent(),
+			Action:    database.AuditActionCreate,
+			New:       secret,
+			Old:       database.UserSecret{},
+		})
+	}
+
+	out := make([]codersdk.UserSecret, 0, len(created))
+	for _, secret := range created {
+		out = append(out, db2sdk.UserSecretFromFull(secret))
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, out)
+}
+
 // @Summary List user secrets
 // @ID list-user-secrets
 // @Security CoderSessionToken
@@ -322,20 +467,12 @@ func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter
 	})
 }
 
+// createUserSecretValidationErrors validates a create request by
+// delegating to the shared codersdk validator so the single-create
+// handler, the batch import handler, and a future CLI all enforce the
+// same rules.
 func createUserSecretValidationErrors(req codersdk.CreateUserSecretRequest) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	validations = appendUserSecretValidationError(validations, userSecretNameField, codersdk.UserSecretNameValid(req.Name))
-	if req.Value == "" {
-		validations = append(validations, codersdk.ValidationError{
-			Field:  userSecretValueField,
-			Detail: "Value is required.",
-		})
-	} else {
-		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(req.Value))
-	}
-	validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(req.EnvName))
-	validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(req.FilePath))
-	return validations
+	return codersdk.ValidateCreateUserSecretRequest(req)
 }
 
 func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {
