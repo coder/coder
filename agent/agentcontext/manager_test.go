@@ -437,3 +437,68 @@ func TestManager_MCPResourcesAppliesToSnapshot(t *testing.T) {
 	}
 	require.True(t, found, "expected MCP server resource in snapshot")
 }
+
+func TestProjectChain_WalksUpToGitRoot(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
+	cwd := filepath.Join(root, "a", "b")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+
+	require.Equal(t, []string{
+		root,
+		filepath.Join(root, "a"),
+		cwd,
+	}, agentcontext.ProjectChainForTest(cwd))
+}
+
+func TestProjectChain_GitFileBoundaryIsHonored(t *testing.T) {
+	t.Parallel()
+	// A worktree or submodule has .git as a file, not a directory.
+	root := testutil.TempDirResolved(t)
+	require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: elsewhere"), 0o600))
+	cwd := filepath.Join(root, "sub")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+
+	require.Equal(t, []string{root, cwd}, agentcontext.ProjectChainForTest(cwd))
+}
+
+func TestProjectChain_NoGitFallsBackToWorkingDir(t *testing.T) {
+	t.Parallel()
+	cwd := filepath.Join(testutil.TempDirResolved(t), "x", "y")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+
+	require.Equal(t, []string{cwd}, agentcontext.ProjectChainForTest(cwd))
+}
+
+// TestManager_WalkUpReadsAncestorInstructionFiles confirms the
+// Manager scans every directory from the git root down to the
+// working directory, and ignores instruction files in sibling
+// subtrees that are not on the chain.
+func TestManager_WalkUpReadsAncestorInstructionFiles(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
+	mustWriteFile(t, filepath.Join(root, "AGENTS.md"), "root rules")
+	cwd := filepath.Join(root, "service")
+	require.NoError(t, os.MkdirAll(cwd, 0o755))
+	mustWriteFile(t, filepath.Join(cwd, "AGENTS.md"), "service rules")
+	// A sibling subtree is not on the root->cwd chain.
+	mustWriteFile(t, filepath.Join(root, "other", "AGENTS.md"), "other rules")
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return cwd },
+	})
+
+	snap := m.Snapshot()
+	var sources []string
+	for _, r := range snap.Resources {
+		if r.Kind == agentcontext.KindInstructionFile {
+			sources = append(sources, r.Source)
+		}
+	}
+	require.ElementsMatch(t, []string{
+		filepath.Join(root, "AGENTS.md"),
+		filepath.Join(cwd, "AGENTS.md"),
+	}, sources)
+}

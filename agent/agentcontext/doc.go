@@ -6,16 +6,18 @@
 // "RFC: Workspace Context Sources for Coder Agents". It owns:
 //
 //   - User-declared scan roots (Sources) layered on top of
-//     built-in defaults.
-//   - A resolver that classifies files under each scan root into
-//     typed Resources (instruction files, skills, MCP configs,
-//     MCP servers). Instruction files (AGENTS.md, CLAUDE.md,
-//     .cursorrules) are recognized only at the top level of a
-//     scan root, mirroring codex, which does not descend into
-//     subdirectories to collect nested instruction files. Skills
-//     and MCP configs are discovered recursively.
-//   - A unified recursive fsnotify watcher that signals a
-//     re-resolve when any recognized file changes.
+//     built-in defaults, plus the project ancestor chain from the
+//     git root down to the working directory.
+//   - A resolver that classifies files at fixed locations under
+//     each scan root into typed Resources (instruction files,
+//     skills, MCP configs, MCP servers). Discovery mirrors codex:
+//     instruction files (AGENTS.md, CLAUDE.md, .cursorrules) and
+//     .mcp.json are read only at a scan root's top level, skills
+//     only from fixed container directories (skills, .agents/skills,
+//     .claude/skills, .codex/skills), and the resolver never walks
+//     the working directory tree downward.
+//   - A fixed-location fsnotify watcher that signals a re-resolve
+//     when any recognized file changes.
 //   - An HTTP API at /api/v0/context/sources for source CRUD
 //     and /api/v0/context/resync for synchronous push barriers.
 //   - A Pusher abstraction so the latest Snapshot can be shipped

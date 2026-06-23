@@ -351,23 +351,48 @@ func TestResolver_CountCapExcludes(t *testing.T) {
 	require.Equal(t, 2, excluded)
 }
 
-func TestResolver_SkipsVendorAndNodeModules(t *testing.T) {
+// TestResolver_MCPConfigOnlyAtScanRoot verifies that .mcp.json is
+// recognized only at a scan root's top level. A nested config is
+// ignored because the resolver no longer walks the tree.
+func TestResolver_MCPConfigOnlyAtScanRoot(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	// MCP configs are discovered recursively, so they exercise
-	// the skip-dir logic that instruction files (top-level only)
-	// no longer reach. Configs under node_modules/ and vendor/
-	// must be ignored while one in an ordinary subdirectory is
-	// still found.
+	mustWriteFile(t, filepath.Join(dir, ".mcp.json"), `{"mcpServers": {}}`)
 	mustWriteFile(t, filepath.Join(dir, "sub", ".mcp.json"), `{"mcpServers": {}}`)
-	mustWriteFile(t, filepath.Join(dir, "node_modules", "deep", ".mcp.json"), `{"mcpServers": {}}`)
-	mustWriteFile(t, filepath.Join(dir, "vendor", ".mcp.json"), `{"mcpServers": {}}`)
 
 	r := &agentcontext.Resolver{}
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, filepath.Join(dir, "sub", ".mcp.json"), snap.Resources[0].Source)
+	require.Equal(t, agentcontext.KindMCPConfig, snap.Resources[0].Kind)
+	require.Equal(t, filepath.Join(dir, ".mcp.json"), snap.Resources[0].Source)
+}
+
+// TestResolver_SkillsOnlyFromFixedContainers verifies skills are
+// discovered from the fixed container locations (skills,
+// .agents/skills, .claude/skills, .codex/skills) and never from an
+// arbitrary skills/ directory nested elsewhere in the tree.
+func TestResolver_SkillsOnlyFromFixedContainers(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteSkill(t, filepath.Join(dir, "skills"), "water-plants", "p")
+	mustWriteSkill(t, filepath.Join(dir, ".agents", "skills"), "make-coffee", "c")
+	mustWriteSkill(t, filepath.Join(dir, ".claude", "skills"), "fold-laundry", "l")
+	mustWriteSkill(t, filepath.Join(dir, ".codex", "skills"), "walk-dog", "d")
+	// A skills/ directory buried under an arbitrary path is not a
+	// fixed container location and must be ignored.
+	mustWriteSkill(t, filepath.Join(dir, "pkg", "skills"), "buried", "b")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	var names []string
+	for _, res := range snap.Resources {
+		require.Equal(t, agentcontext.KindSkill, res.Kind)
+		names = append(names, filepath.Base(res.Source))
+	}
+	require.ElementsMatch(t,
+		[]string{"water-plants", "make-coffee", "fold-laundry", "walk-dog"}, names)
 }
 
 func TestResolver_UserSourceAttribution(t *testing.T) {
