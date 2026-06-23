@@ -343,7 +343,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 				}
 
 				bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-					withCustomProvider(aibridgetest.MustNewAnthropicProvider(anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+					withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
 				)
 
 				// Make API call to aibridge for Anthropic /v1/messages, which will be routed via AWS Bedrock.
@@ -473,7 +473,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 					}
 
 					bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
-						withCustomProvider(aibridgetest.MustNewAnthropicProvider(anthropicCfg(upstream.URL, apiKey), bCfg)),
+						withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bCfg)),
 					)
 
 					reqBody, err := sjson.SetBytes(fix.Request(), "stream", streaming)
@@ -627,7 +627,7 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		bCfg.Region = region
 
 		bridgeServer := newBridgeTestServer(ctx, t, mockEgressProxy.URL,
-			withCustomProvider(aibridgetest.MustNewAnthropicProvider(anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(mockEgressProxy.URL, apiKey), bCfg)),
 		)
 
 		// Sends a bridge request through a mock egress proxy that
@@ -2282,7 +2282,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return aibridgetest.MustNewAnthropicProvider(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: true,
@@ -2293,7 +2293,7 @@ func TestActorHeaders(t *testing.T) {
 			createProviderFn: func(url, key string, sendHeaders bool) aibridge.Provider {
 				cfg := anthropicCfg(url, key)
 				cfg.SendActorHeaders = sendHeaders
-				return aibridgetest.MustNewAnthropicProvider(cfg, nil)
+				return aibridgetest.NewAnthropicProvider(t, cfg, nil)
 			},
 			fixture:   fixtures.AntSimple,
 			streaming: false,

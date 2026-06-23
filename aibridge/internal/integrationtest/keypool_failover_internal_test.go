@@ -159,7 +159,7 @@ func TestAnthropic_KeyFailover(t *testing.T) {
 			)
 
 			bridgeServer := newBridgeTestServer(t.Context(), t, upstream.URL,
-				withCustomProvider(aibridgetest.MustNewAnthropicProvider(config.Anthropic{
+				withCustomProvider(aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL: upstream.URL,
 					KeyPool: pool,
 				}, nil)),
@@ -233,7 +233,7 @@ func TestKeyPool_StateSharing(t *testing.T) {
 			name:         "anthropic",
 			providerName: config.ProviderAnthropic,
 			newProvider: func(baseURL string, pool *keypool.Pool) aibridge.Provider {
-				return aibridgetest.MustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{BaseURL: baseURL, KeyPool: pool}, nil)
 			},
 			upstreamResponses: []testutil.UpstreamResponse{
 				testutil.NewErrorResponse(http.StatusTooManyRequests, "60"),
