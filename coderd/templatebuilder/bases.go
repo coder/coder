@@ -17,12 +17,14 @@ import (
 type BaseOS string
 
 const (
-	BaseOSLinux BaseOS = "linux"
+	BaseOSLinux   BaseOS = "linux"
+	BaseOSWindows BaseOS = "windows"
 )
 
 // validBaseOS maps base.json os strings to their typed equivalents.
 var validBaseOS = map[string]BaseOS{
-	"linux": BaseOSLinux,
+	"linux":   BaseOSLinux,
+	"windows": BaseOSWindows,
 }
 
 //go:embed bases
