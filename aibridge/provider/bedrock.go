@@ -67,7 +67,7 @@ func buildBedrockCredentials(ctx context.Context, cfg config.AWSBedrock) (aws.Cr
 	// The region may come from the config or the AWS environment; if neither
 	// supplies one, fail here.
 	if cfg.RoleARN != "" && base.Region == "" {
-		return nil, "", xerrors.New("region is required to assume a role: set it explicitly or via the AWS environment")
+		return nil, "", xerrors.New("region is required to assume a role, but was not specified")
 	}
 
 	// The base identity signs Bedrock requests directly unless a target role is
