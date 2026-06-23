@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"maps"
+	"slices"
 	"time"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -41,6 +42,10 @@ type ComposeResult struct {
 	// Readme is the full README.md content from the base template.
 	// Empty when the base has no README.
 	Readme []byte
+	// StaticFiles holds non-template files from the base directory
+	// (e.g. cloud-init .tftpl files). Keys are paths relative to the
+	// base directory.
+	StaticFiles map[string][]byte
 }
 
 // Compose renders a base template and selected modules into Terraform
@@ -52,10 +57,13 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
+	staticFiles := BaseStaticFiles(req.BaseTemplateID)
+
 	if len(req.Modules) == 0 {
 		return &ComposeResult{
-			MainTF: formatHCL(mainTF),
-			Readme: []byte(BaseReadme(req.BaseTemplateID)),
+			MainTF:      formatHCL(mainTF),
+			Readme:      []byte(BaseReadme(req.BaseTemplateID)),
+			StaticFiles: staticFiles,
 		}, nil
 	}
 
@@ -80,9 +88,10 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	result := &ComposeResult{
-		MainTF:    formatHCL(mainTF),
-		ModulesTF: formatHCL(modulesTF),
-		Readme:    []byte(BaseReadme(req.BaseTemplateID)),
+		MainTF:      formatHCL(mainTF),
+		ModulesTF:   formatHCL(modulesTF),
+		Readme:      []byte(BaseReadme(req.BaseTemplateID)),
+		StaticFiles: staticFiles,
 	}
 	return result, nil
 }
@@ -347,6 +356,18 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 	if len(result.Readme) > 0 {
 		if err := writeTarFile(tw, "README.md", result.Readme); err != nil {
 			return nil, xerrors.Errorf("write README.md to tar: %w", err)
+		}
+	}
+
+	// Write static files in sorted order for reproducible archives.
+	names := make([]string, 0, len(result.StaticFiles))
+	for name := range result.StaticFiles {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+	for _, name := range names {
+		if err := writeTarFile(tw, name, result.StaticFiles[name]); err != nil {
+			return nil, xerrors.Errorf("write %s to tar: %w", name, err)
 		}
 	}
 

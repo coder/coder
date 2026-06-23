@@ -66,6 +66,18 @@ func TestCompose(t *testing.T) {
 		require.Contains(t, string(result.ModulesTF), `coder_agent.dev.id`)
 	})
 
+	t.Run("AWSLinuxStaticFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "aws-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, result.StaticFiles, "aws-linux should have static files")
+		require.Contains(t, result.StaticFiles, "cloud-init/cloud-config.yaml.tftpl")
+		require.Contains(t, result.StaticFiles, "cloud-init/userdata.sh.tftpl")
+	})
+
 	t.Run("SensitiveVariable", func(t *testing.T) {
 		t.Parallel()
 		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
@@ -145,6 +157,16 @@ func TestCompose(t *testing.T) {
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "conflicts with")
+	})
+
+	t.Run("DockerNoStaticFiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "docker",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+		require.Empty(t, result.StaticFiles, "docker should have no static files")
 	})
 
 	t.Run("UnknownBase", func(t *testing.T) {
@@ -318,6 +340,44 @@ func TestBundleTar(t *testing.T) {
 		require.Equal(t, string(result.MainTF), files["main.tf"])
 		require.Equal(t, string(result.ModulesTF), files["modules.tf"])
 		require.Equal(t, string(result.Readme), files["README.md"])
+	})
+
+	t.Run("StaticFilesInTar", func(t *testing.T) {
+		t.Parallel()
+		result := &templatebuilder.ComposeResult{
+			MainTF: []byte("resource {}"),
+			StaticFiles: map[string][]byte{
+				"cloud-init/config.yaml.tftpl": []byte("cloud config"),
+				"cloud-init/userdata.sh.tftpl": []byte("userdata"),
+			},
+		}
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "cloud-init/config.yaml.tftpl")
+		require.Contains(t, files, "cloud-init/userdata.sh.tftpl")
+		require.Equal(t, "cloud config", files["cloud-init/config.yaml.tftpl"])
+		require.Equal(t, "userdata", files["cloud-init/userdata.sh.tftpl"])
+	})
+
+	t.Run("AWSLinuxRoundTrip", func(t *testing.T) {
+		t.Parallel()
+		result, err := templatebuilder.Compose(templatebuilder.ComposeRequest{
+			BaseTemplateID: "aws-linux",
+			RegistryURL:    "https://registry.coder.com",
+		})
+		require.NoError(t, err)
+
+		data, err := templatebuilder.BundleTar(result)
+		require.NoError(t, err)
+
+		files := extractTar(t, data)
+		require.Contains(t, files, "main.tf")
+		require.Contains(t, files, "README.md")
+		require.Contains(t, files, "cloud-init/cloud-config.yaml.tftpl")
+		require.Contains(t, files, "cloud-init/userdata.sh.tftpl")
 	})
 
 	t.Run("ReproducibleArchive", func(t *testing.T) {
