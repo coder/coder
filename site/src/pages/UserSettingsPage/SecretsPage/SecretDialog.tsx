@@ -36,9 +36,9 @@ import {
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
-	secretsFileFormatFromFilename,
 	type SecretFieldErrors,
 	type SecretFormValues,
+	secretsFileFormatFromFilename,
 } from "./secretForm";
 
 type SecretDialogProps = {
