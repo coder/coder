@@ -24,13 +24,13 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
-import { cn } from "#/utils/cn";
-import { formatCostMicros } from "#/utils/currency";
 import {
 	getSeverity,
 	severityTextClassName,
 	type UsageSeverity,
-} from "#/utils/usage";
+} from "#/utils/budget";
+import { cn } from "#/utils/cn";
+import { formatCostMicros } from "#/utils/currency";
 import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 import { SvgRingProgress } from "./SvgRingProgress";
 

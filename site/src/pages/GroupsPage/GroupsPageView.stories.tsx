@@ -100,6 +100,9 @@ export const WithAIBudgets: Story = {
 			"$10 / $50 USD",
 		);
 		await expect(
+			await canvas.findByTestId("group-ai-warning"),
+		).toHaveTextContent("$46 / $50 USD");
+		await expect(
 			await canvas.findByTestId("group-ai-at-limit"),
 		).toHaveTextContent("$50 / $50 USD");
 		await expect(
@@ -117,6 +120,36 @@ export const WithAIBudgetsLoading: Story = {
 		canCreateGroup: true,
 		groupsEnabled: true,
 		aiBudget: { spend: undefined, isLoading: true },
+	},
+};
+
+// Failed spend request falls back to "-" per group.
+export const WithAIBudgetsError: Story = {
+	args: {
+		groups: [aiGroup("ai-error", "Spend failed to load")],
+		canCreateGroup: true,
+		groupsEnabled: true,
+		aiBudget: { spend: undefined, isLoading: false },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(await canvas.findByTestId("group-ai-error")).toHaveTextContent(
+			"-",
+		);
+	},
+};
+
+// AI Bridge hidden: no AI budget column.
+export const WithoutAIBudgetColumn: Story = {
+	args: {
+		groups: [aiGroup("ai-hidden", "No AI column")],
+		canCreateGroup: true,
+		groupsEnabled: true,
+		aiBudget: undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
 	},
 };
 

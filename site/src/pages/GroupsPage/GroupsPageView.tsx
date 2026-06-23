@@ -25,9 +25,9 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
+import { getSeverity, severityTextClassName } from "#/utils/budget";
 import { microsToDollars, usdBudgetFormatter } from "#/utils/currency";
 import { docs } from "#/utils/docs";
-import { getSeverity, severityTextClassName } from "#/utils/usage";
 
 type GroupsPageViewProps = {
 	groups: Group[] | undefined;
@@ -235,22 +235,23 @@ const GroupAIBudgetCell: FC<{
 
 	const { current_spend_micros, spend_limit_micros } = aiSpend;
 
+	if (spend_limit_micros === null) {
+		return (
+			<span className="whitespace-nowrap">
+				{formatBudgetUSD(current_spend_micros)}{" "}
+				<span className="text-content-disabled">/ unlimited USD</span>
+			</span>
+		);
+	}
+
+	const severity = getSeverity(current_spend_micros, spend_limit_micros);
 	return (
 		<span className="whitespace-nowrap">
-			<span
-				className={severityTextClassName(
-					spend_limit_micros === null
-						? "normal"
-						: getSeverity(current_spend_micros, spend_limit_micros),
-				)}
-			>
+			<span className={severityTextClassName(severity)}>
 				{formatBudgetUSD(current_spend_micros)}
 			</span>{" "}
-			/{" "}
-			{spend_limit_micros === null
-				? "unlimited"
-				: formatBudgetUSD(spend_limit_micros)}{" "}
-			USD
+			/ {formatBudgetUSD(spend_limit_micros)}{" "}
+			<span className="text-content-disabled">USD</span>
 		</span>
 	);
 };
