@@ -1982,13 +1982,6 @@ func TestWatchChats(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
 
-		lastInjectedContext, err := json.Marshal([]codersdk.ChatMessagePart{{
-			Type:             codersdk.ChatMessagePartTypeSkill,
-			SkillName:        "large-skill",
-			SkillDescription: strings.Repeat("x", 9000),
-		}})
-		require.NoError(t, err)
-
 		// Insert a chat and a diff status row.
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    user.OrganizationID,
@@ -1996,20 +1989,9 @@ func TestWatchChats(t *testing.T) {
 			LastModelConfigID: modelConfig.ID,
 			Title:             "diff status watch test",
 		})
-		chat, err = db.UpdateChatLastInjectedContext(
-			dbauthz.AsChatd(ctx),
-			database.UpdateChatLastInjectedContextParams{
-				ID: chat.ID,
-				LastInjectedContext: pqtype.NullRawMessage{
-					RawMessage: lastInjectedContext,
-					Valid:      true,
-				},
-			},
-		)
-		require.NoError(t, err)
 		refreshedAt := time.Now().UTC().Truncate(time.Second)
 		staleAt := refreshedAt.Add(time.Hour)
-		_, err = db.UpsertChatDiffStatusReference(
+		_, err := db.UpsertChatDiffStatusReference(
 			dbauthz.AsSystemRestricted(ctx),
 			database.UpsertChatDiffStatusReferenceParams{
 				ChatID:          chat.ID,
@@ -2034,10 +2016,6 @@ func TestWatchChats(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
-
-		storedChat, err := client.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotEmpty(t, storedChat.LastInjectedContext)
 
 		// Open the watch WebSocket.
 		conn, err := client.Dial(ctx, "/api/experimental/chats/watch", nil)
@@ -2069,7 +2047,6 @@ func TestWatchChats(t *testing.T) {
 		require.EqualValues(t, 42, ds.Additions)
 		require.EqualValues(t, 7, ds.Deletions)
 		require.EqualValues(t, 5, ds.ChangedFiles)
-		require.Empty(t, received.Chat.LastInjectedContext)
 	})
 	t.Run("ArchiveAndUnarchiveEmitEventsForDescendants", func(t *testing.T) {
 		t.Parallel()
@@ -10844,7 +10821,7 @@ func TestChatSystemPrompt(t *testing.T) {
 	const workspaceAwareness = `No workspace is attached to this chat yet.
 Do not create or start a workspace by default. Many requests can be completed using the conversation, provider tools such as web_search when available, or configured external MCP tools.
 Workspace tools such as execute, read_file, write_file, and edit_files require an attached workspace. Only call create_workspace or start_workspace when the user explicitly asks for a workspace-backed task, or when the task cannot be completed without inspecting, editing, or running files in a workspace.
-If a workspace is needed, use list_templates and read_template as needed before create_workspace.`
+If a workspace is needed, use list_templates before create_workspace and follow its next_step. Call read_template only when you need template parameter or preset details.`
 
 	updateChatSystemPrompt := func(t *testing.T, ctx context.Context, req codersdk.UpdateChatSystemPromptRequest) {
 		t.Helper()

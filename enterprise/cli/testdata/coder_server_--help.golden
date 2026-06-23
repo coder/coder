@@ -10,6 +10,9 @@ SUBCOMMANDS:
                                 email and password and adds it to every
                                 organization.
     dbcrypt                     Manage database encryption.
+    fix-oidc-links              Reset OIDC linked IDs that do not match the
+                                expected issuer, allowing users to
+                                re-authenticate.
     postgres-builtin-serve      Run the built-in PostgreSQL deployment.
     postgres-builtin-url        Output the connection URL for the built-in
                                 PostgreSQL deployment.
@@ -909,7 +912,7 @@ TEMPLATE BUILDER OPTIONS:
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
-      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The base URL of the module registry used by the template builder for
           module source paths.
 
@@ -979,6 +982,10 @@ These options are only available in the Enterprise Edition.
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
+
+      --scim-use-legacy bool, $CODER_SCIM_USE_LEGACY (default: true)
+          Use the legacy SCIM implementation instead of the SCIM 2.0 handler.
+          This is provided for backward compatibility for existing users.
 
 ———
 Run `coder --help` for a list of global options.

@@ -144,6 +144,54 @@ url = "https://github.com/crate-ci/typos/releases/download/v1.46.1/typos-v1.46.1
 checksum = "sha256:a7b042fc79bf7b73b00ece054ec3109858e001136c2642f28004544b571d37a2"
 url = "https://github.com/crate-ci/typos/releases/download/v1.46.1/typos-v1.46.1-x86_64-pc-windows-msvc.zip"
 
+[[tools."aqua:errata-ai/vale"]]
+version = "3.7.1"
+backend = "aqua:errata-ai/vale"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-arm64"]
+checksum = "sha256:c485582de0dea90cded2e4b5c560d6129b3b2f160139af2195020a284f8a1670"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_arm64.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-arm64-musl"]
+checksum = "sha256:c485582de0dea90cded2e4b5c560d6129b3b2f160139af2195020a284f8a1670"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_arm64.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-x64"]
+checksum = "sha256:ba4924bf2c5884499f09b02a6eb3318b29df40a3e81701c0804b9b1aefcd9483"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-x64-baseline"]
+checksum = "sha256:ba4924bf2c5884499f09b02a6eb3318b29df40a3e81701c0804b9b1aefcd9483"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-x64-musl"]
+checksum = "sha256:ba4924bf2c5884499f09b02a6eb3318b29df40a3e81701c0804b9b1aefcd9483"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.linux-x64-musl-baseline"]
+checksum = "sha256:ba4924bf2c5884499f09b02a6eb3318b29df40a3e81701c0804b9b1aefcd9483"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Linux_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.macos-arm64"]
+checksum = "sha256:88c9e562bc0bb614f11fa2933a430ca087f9e4d949bd3968f49258617765c79f"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_macOS_arm64.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.macos-x64"]
+checksum = "sha256:878775cbebffe93ad2381779e964428f38822dfba32625885d899a0cef429d8b"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_macOS_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.macos-x64-baseline"]
+checksum = "sha256:878775cbebffe93ad2381779e964428f38822dfba32625885d899a0cef429d8b"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_macOS_64-bit.tar.gz"
+
+[tools."aqua:errata-ai/vale"."platforms.windows-x64"]
+checksum = "sha256:9f14a2552c9efe65e0ab5ef8e45cf01ce89733b436687d68faef7b147c5cfc71"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Windows_64-bit.zip"
+
+[tools."aqua:errata-ai/vale"."platforms.windows-x64-baseline"]
+checksum = "sha256:9f14a2552c9efe65e0ab5ef8e45cf01ce89733b436687d68faef7b147c5cfc71"
+url = "https://github.com/vale-cli/vale/releases/download/v3.7.1/vale_3.7.1_Windows_64-bit.zip"
+
 [[tools."aqua:jj-vcs/jj"]]
 version = "0.41.0"
 backend = "aqua:jj-vcs/jj"

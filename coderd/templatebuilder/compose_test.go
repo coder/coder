@@ -93,7 +93,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "git-clone",
 					Variables: map[string]string{
-						"url": `"https://github.com/coder/coder"`,
+						"url": "https://github.com/coder/coder",
 					},
 				},
 			},
@@ -178,7 +178,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"nonexistent_var": `"value"`,
+						"nonexistent_var": "value",
 					},
 				},
 			},
@@ -216,7 +216,7 @@ func TestCompose(t *testing.T) {
 				{
 					ID: "code-server",
 					Variables: map[string]string{
-						"folder": `"${var.evil}"`,
+						"folder": "${var.evil}",
 					},
 				},
 			},

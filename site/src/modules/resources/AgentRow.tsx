@@ -80,6 +80,7 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { canShowPortForwarding } from "./usePortsData";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
@@ -451,15 +452,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
-					{proxy.preferredWildcardHostname !== "" &&
-						agent.display_apps.includes("port_forwarding_helper") && (
-							<PortForwardButton
-								host={proxy.preferredWildcardHostname}
-								workspace={workspace}
-								agent={agent}
-								template={template}
-							/>
-						)}
+					{canShowPortForwarding(agent, proxy.preferredWildcardHostname) && (
+						<PortForwardButton
+							host={proxy.preferredWildcardHostname}
+							workspace={workspace}
+							agent={agent}
+							template={template}
+						/>
+					)}
 				</div>
 			</header>
 

@@ -1025,6 +1025,12 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Platform Controls",
 							"description": "How platform teams control agent behavior, models, and policies",
 							"path": "./ai-coder/agents/platform-controls/index.md",
@@ -1515,8 +1521,8 @@
 							"path": "./reference/api/general.md"
 						},
 						{
-							"title": "AI Bridge",
-							"path": "./reference/api/aibridge.md"
+							"title": "AI Gateway",
+							"path": "./reference/api/aigateway.md"
 						},
 						{
 							"title": "AI Providers",
@@ -1524,6 +1530,7 @@
 						},
 						{
 							"title": "Agents",
+							"description": "REST endpoints for the workspace agent daemon (`coder_agent`).",
 							"path": "./reference/api/agents.md"
 						},
 						{
@@ -1548,6 +1555,7 @@
 						},
 						{
 							"title": "Chats",
+							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
 							"path": "./reference/api/chats.md",
 							"state": ["early access"]
 						},

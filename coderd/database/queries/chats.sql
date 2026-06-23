@@ -29,7 +29,6 @@ chats_expanded AS (
         updated_chats.agent_id,
         updated_chats.pin_order,
         updated_chats.last_read_message_id,
-        updated_chats.last_injected_context,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
         updated_chats.plan_mode,
@@ -96,7 +95,6 @@ chats_expanded AS (
         updated_chats.agent_id,
         updated_chats.pin_order,
         updated_chats.last_read_message_id,
-        updated_chats.last_injected_context,
         updated_chats.dynamic_tools,
         updated_chats.organization_id,
         updated_chats.plan_mode,
@@ -762,7 +760,6 @@ chats_expanded AS (
         inserted_chat.agent_id,
         inserted_chat.pin_order,
         inserted_chat.last_read_message_id,
-        inserted_chat.last_injected_context,
         inserted_chat.dynamic_tools,
         inserted_chat.organization_id,
         inserted_chat.plan_mode,
@@ -911,7 +908,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -978,7 +974,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1043,7 +1038,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1108,7 +1102,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1173,7 +1166,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1237,7 +1229,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1301,73 +1292,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
-        updated_chat.dynamic_tools,
-        updated_chat.organization_id,
-        updated_chat.plan_mode,
-        updated_chat.client_type,
-        updated_chat.last_turn_summary,
-        updated_chat.snapshot_version,
-        updated_chat.history_version,
-        updated_chat.queue_version,
-        updated_chat.generation_attempt,
-        updated_chat.retry_state,
-        updated_chat.retry_state_version,
-        updated_chat.runner_id,
-        updated_chat.requires_action_deadline_at,
-        COALESCE(root.user_acl, updated_chat.user_acl) AS user_acl,
-        COALESCE(root.group_acl, updated_chat.group_acl) AS group_acl,
-        owner.username AS owner_username,
-        owner.name AS owner_name,
-        updated_chat.context_aggregate_hash,
-        updated_chat.context_dirty_since,
-        updated_chat.context_dirty_resources,
-        updated_chat.context_error
-    FROM
-        updated_chat
-    LEFT JOIN chats root ON root.id = COALESCE(updated_chat.root_chat_id, updated_chat.parent_chat_id)
-    JOIN visible_users owner ON owner.id = updated_chat.owner_id
-)
-SELECT *
-FROM chats_expanded;
-
--- name: UpdateChatLastInjectedContext :one
-WITH updated_chat AS (
--- Updates the cached injected context parts (AGENTS.md +
--- skills) on the chat row. Called only when context changes
--- (first workspace attach or agent change). updated_at is
--- intentionally not touched to avoid reordering the chat list.
-UPDATE chats SET
-    last_injected_context = sqlc.narg('last_injected_context')::jsonb
-WHERE
-    id = @id::uuid
-RETURNING *
-),
-chats_expanded AS (
-    SELECT
-        updated_chat.id,
-        updated_chat.owner_id,
-        updated_chat.workspace_id,
-        updated_chat.title,
-        updated_chat.status,
-        updated_chat.worker_id,
-        updated_chat.started_at,
-        updated_chat.heartbeat_at,
-        updated_chat.created_at,
-        updated_chat.updated_at,
-        updated_chat.parent_chat_id,
-        updated_chat.root_chat_id,
-        updated_chat.last_model_config_id,
-        updated_chat.archived,
-        updated_chat.last_error,
-        updated_chat.mode,
-        updated_chat.mcp_server_ids,
-        updated_chat.labels,
-        updated_chat.build_id,
-        updated_chat.agent_id,
-        updated_chat.pin_order,
-        updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1449,7 +1373,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1493,16 +1416,43 @@ WHERE id = @id::uuid;
 
 -- name: HydrateAgentChatsContext :exec
 -- Stamps the pinned hash and error on every not-yet-hydrated chat for
--- an agent (context_aggregate_hash IS NULL). Runs as a side effect of
--- an agent push so chats created before the agent was ready pick up the
--- snapshot without a dirty event. Does not bump updated_at.
-UPDATE chats
-SET
-    context_aggregate_hash = @aggregate_hash,
-    context_error = @context_error
-WHERE agent_id = @agent_id::uuid
-    AND archived = false
-    AND context_aggregate_hash IS NULL;
+-- an agent (context_aggregate_hash IS NULL) and copies the agent's
+-- current context resources onto those chats in the same statement, so
+-- a chat's pinned hash and pinned bodies are always written together.
+-- Runs as a side effect of an agent push and of chat-create hydration,
+-- so chats created before the agent was ready pick up the snapshot
+-- without a dirty event. The ON CONFLICT upsert is defensive: a
+-- not-yet-hydrated chat has no pinned rows, so it normally inserts.
+-- Does not bump chats.updated_at; the resource upsert's ON CONFLICT branch
+-- sets chat_context_resources.updated_at on the rows it rewrites.
+WITH hydrated AS (
+    UPDATE chats
+    SET
+        context_aggregate_hash = @aggregate_hash,
+        context_error = @context_error
+    WHERE agent_id = @agent_id::uuid
+        AND archived = false
+        AND context_aggregate_hash IS NULL
+    RETURNING id
+)
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM hydrated
+CROSS JOIN workspace_agent_context_resources r
+WHERE r.workspace_agent_id = @agent_id::uuid
+ON CONFLICT (chat_id, source) DO UPDATE SET
+    body_kind = EXCLUDED.body_kind,
+    body = EXCLUDED.body,
+    content_hash = EXCLUDED.content_hash,
+    size_bytes = EXCLUDED.size_bytes,
+    status = EXCLUDED.status,
+    error = EXCLUDED.error,
+    source_path = EXCLUDED.source_path,
+    updated_at = now();
 
 -- name: MarkChatsContextDirtyByAgent :many
 -- Flips active, already-hydrated chats for an agent to dirty when the
@@ -1519,6 +1469,34 @@ WHERE agent_id = @agent_id::uuid
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
+
+-- name: InsertAgentContextResourcesIntoChat :exec
+-- Copies an agent's current context resources onto a single chat. Pair
+-- with DeleteChatContextResourcesByChatID (clear-then-copy, in a
+-- transaction) to re-pin a chat to its agent's latest snapshot from the
+-- refresh endpoint and on agent rebinding.
+INSERT INTO chat_context_resources (
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+)
+SELECT
+    @chat_id::uuid, r.source, r.body_kind, r.body, r.content_hash,
+    r.size_bytes, r.status, r.error, r.source_path
+FROM workspace_agent_context_resources r
+WHERE r.workspace_agent_id = @agent_id::uuid;
+
+-- name: DeleteChatContextResourcesByChatID :exec
+-- Clears a chat's pinned context resources. Used as the first half of a
+-- clear-then-copy re-pin, and on its own when the chat's current agent
+-- has no snapshot.
+DELETE FROM chat_context_resources
+WHERE chat_id = @chat_id::uuid;
+
+-- name: ListChatContextResourcesByChatID :many
+-- Lists a chat's pinned context resources, ordered deterministically by
+-- source.
+SELECT * FROM chat_context_resources
+WHERE chat_id = @chat_id::uuid
+ORDER BY source ASC;
 
 -- name: LinkChatFiles :one
 -- LinkChatFiles inserts file associations into the chat_file_links
@@ -1611,7 +1589,6 @@ chats_expanded AS (
         acquired_chats.agent_id,
         acquired_chats.pin_order,
         acquired_chats.last_read_message_id,
-        acquired_chats.last_injected_context,
         acquired_chats.dynamic_tools,
         acquired_chats.organization_id,
         acquired_chats.plan_mode,
@@ -1680,7 +1657,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -1749,7 +1725,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -2025,7 +2000,6 @@ chats_expanded AS (
         locked_chat.agent_id,
         locked_chat.pin_order,
         locked_chat.last_read_message_id,
-        locked_chat.last_injected_context,
         locked_chat.dynamic_tools,
         locked_chat.organization_id,
         locked_chat.plan_mode,
@@ -2086,7 +2060,6 @@ chats_expanded AS (
         shared_chat.agent_id,
         shared_chat.pin_order,
         shared_chat.last_read_message_id,
-        shared_chat.last_injected_context,
         shared_chat.dynamic_tools,
         shared_chat.organization_id,
         shared_chat.plan_mode,
@@ -2551,8 +2524,7 @@ WHERE id = @id::uuid;
 -- name: DeleteOldChats :execrows
 -- Deletes chats that have been archived for longer than the given
 -- threshold. Active (non-archived) chats are never deleted.
--- Related chat_messages, chat_diff_statuses, and
--- chat_queued_messages are removed via ON DELETE CASCADE.
+-- All chat-scoped child tables are removed via ON DELETE CASCADE.
 -- Parent/root references on child chats are SET NULL.
 WITH deletable AS (
     SELECT id
@@ -2767,7 +2739,6 @@ chats_expanded AS (
         bumped_chat.agent_id,
         bumped_chat.pin_order,
         bumped_chat.last_read_message_id,
-        bumped_chat.last_injected_context,
         bumped_chat.dynamic_tools,
         bumped_chat.organization_id,
         bumped_chat.plan_mode,
@@ -2839,7 +2810,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,
@@ -2903,7 +2873,6 @@ chats_expanded AS (
         updated_chat.agent_id,
         updated_chat.pin_order,
         updated_chat.last_read_message_id,
-        updated_chat.last_injected_context,
         updated_chat.dynamic_tools,
         updated_chat.organization_id,
         updated_chat.plan_mode,

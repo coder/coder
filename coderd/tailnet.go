@@ -298,6 +298,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (works
 	conn = workspacesdk.NewAgentConn(s.conn, workspacesdk.AgentConnOptions{
 		AgentID:   agentID,
 		CloseFunc: func() error { return workspacesdk.ErrSkipClose },
+		Logger:    s.logger,
 	})
 
 	// Since we now have an open conn, be careful to close it if we error

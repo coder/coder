@@ -720,17 +720,15 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		PlanMode:          database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true},
 		MCPServerIDs:      []uuid.UUID{uuid.New()},
 		Labels:            database.StringMap{"env": "prod"},
-		LastInjectedContext: pqtype.NullRawMessage{
-			// Use a context-file part to verify internal
-			// fields are not present (they are stripped at
-			// write time by chatd, not at read time).
-			RawMessage: json.RawMessage(`[{"type":"context-file","context_file_path":"/AGENTS.md"}]`),
-			Valid:      true,
-		},
 		DynamicTools: pqtype.NullRawMessage{
 			RawMessage: json.RawMessage(`[{"name":"tool1","description":"test tool","inputSchema":{"type":"object"}}]`),
 			Valid:      true,
 		},
+		// Pinned-context columns drive codersdk.Chat.Context. Set all of
+		// them so the converted sub-struct's fields are non-zero too.
+		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
+		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
+		ContextError:         "context boom",
 	}
 	// Only ChatID is needed here. This test checks that
 	// Chat.DiffStatus is non-nil, not that every DiffStatus

@@ -1,8 +1,9 @@
 # Database Encryption
 
-By default, Coder stores external user tokens in plaintext in the database.
-Database Encryption allows Coder administrators to encrypt these tokens at-rest,
-preventing attackers with database access from using them to impersonate users.
+By default, Coder stores external user tokens and other sensitive values in
+plaintext in the database. Database Encryption allows Coder administrators to
+encrypt these values at-rest, preventing attackers with database access from
+reading or misusing them.
 
 ## How it works
 

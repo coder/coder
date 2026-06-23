@@ -1,9 +1,9 @@
 # Models
 
 Administrators configure LLM providers from **Admin settings** > **AI** and
-Coder Agents models from the **Agents** settings page. Providers, models, and
-centrally managed credentials are deployment-wide settings managed by platform
-teams. Developers select from the set of models that an administrator has
+Coder Agents models from **Admin settings** > **AI** > **Models**. Providers,
+models, and centrally managed credentials are deployment-wide settings managed
+by platform teams. Developers select from the set of models that an administrator has
 enabled.
 
 Optionally, administrators can enable AI Gateway Bring Your Own Key (BYOK)
@@ -49,9 +49,8 @@ settings page.
    [endpoint/base URL](#endpointbase-url-for-openai-compatible-providers).
 1. Click **Save**.
 
-After saving a provider, add an Agents model for it from **Agents** >
-**Settings** > **Manage Agents** > **Models**. For provider-specific setup,
-including AWS Bedrock, see
+After saving a provider, add an Agents model for it from **Admin settings** >
+**AI** > **Models**. For provider-specific setup, including AWS Bedrock, see
 [AI Gateway provider configuration](../ai-gateway/providers.md#provider-types).
 
 ## Endpoint/base URL for OpenAI-compatible providers
@@ -122,7 +121,7 @@ generation parameters, and provider-specific options.
 
 ### Add a model
 
-1. Open **Settings** > **Manage Agents** and select the **Models** tab.
+1. Navigate to **Admin settings** > **AI** > **Models**.
 1. Click **Add** and select the provider for the new model.
 1. Enter the **Model Identifier**, the exact model string your provider
    expects (e.g., `claude-opus-4-6`, `gpt-5.3-codex`).

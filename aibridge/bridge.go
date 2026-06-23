@@ -253,12 +253,16 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		cred := interceptor.Credential()
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
 		ctx = tracing.WithInterceptionAttributesInContext(ctx, traceAttrs)
-		// Attach the interception ID to the context so every log line
-		// emitted with this context can be correlated to the interception.
-		ctx = slog.With(ctx, slog.F("interception_id", interceptor.ID()))
+		// Attach the interception ID and credential kind to the context so every
+		// log line emitted with it can be correlated to the interception.
+		ctx = slog.With(ctx,
+			slog.F("interception_id", interceptor.ID()),
+			slog.F("credential_kind", string(cred.Kind())),
+		)
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
@@ -270,7 +274,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		asyncRecorder.WithClient(string(client))
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
-		cred := interceptor.Credential()
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
 			ID:                    interceptor.ID().String(),
 			InitiatorID:           actor.ID,
@@ -282,8 +285,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			Client:                string(client),
 			ClientSessionID:       sessionID,
 			CorrelatingToolCallID: interceptor.CorrelatingToolCallID(),
-			CredentialKind:        string(cred.Kind),
-			CredentialHint:        cred.Hint,
+			CredentialKind:        string(cred.Kind()),
+			CredentialHint:        cred.Hint(),
 		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
 			logger.Warn(ctx, "failed to record interception", slog.Error(err))
@@ -297,19 +300,12 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			slog.F("provider", p.Name()),
 			slog.F("user_agent", r.UserAgent()),
 			slog.F("streaming", interceptor.Streaming()),
-			slog.F("credential_kind", string(cred.Kind)),
 		)
 
-		// Log BYOK credentials. Centralized credentials are set by
-		// the key failover loop.
-		credLogFields := []slog.Field{}
-		if cred.Kind == intercept.CredentialKindBYOK {
-			credLogFields = append(credLogFields,
-				slog.F("credential_hint", cred.Hint),
-				slog.F("credential_length", cred.Length),
-			)
-		}
-		log.Debug(ctx, "interception started", credLogFields...)
+		log.Debug(ctx, "interception started",
+			slog.F("credential_hint", cred.Hint()),
+			slog.F("credential_length", cred.Length()),
+		)
 		if m != nil {
 			m.InterceptionsInflight.WithLabelValues(p.Name(), interceptor.Model(), route).Add(1)
 			defer func() {
@@ -321,26 +317,25 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		execErr := cbs.Execute(route, interceptor.Model(), w, func(rw http.ResponseWriter) error {
 			return interceptor.ProcessRequest(rw, r)
 		})
-		// For centralized, the hint now reflects the last attempted
-		// key from the failover loop.
-		credHint := interceptor.Credential().Hint
-		credLen := interceptor.Credential().Length
+		// For a centralized pool, the hint now reflects the last key the
+		// failover loop attempted.
+		credCtx := intercept.WithCredentialInfo(ctx, cred)
 		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
 			}
 			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
-			log.Warn(ctx, "interception failed", slog.Error(execErr), slog.F("credential_hint", credHint), slog.F("credential_length", credLen))
+			log.Warn(credCtx, "interception failed", slog.Error(execErr))
 		} else {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
 			}
-			log.Debug(ctx, "interception ended", slog.F("credential_hint", credHint), slog.F("credential_length", credLen))
+			log.Debug(credCtx, "interception ended")
 		}
 
 		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
 			ID:             interceptor.ID().String(),
-			CredentialHint: credHint,
+			CredentialHint: cred.Hint(),
 		})
 
 		// Ensure all recording have completed before completing request.

@@ -589,6 +589,15 @@ var AIBudgetPolicies = []string{
 	string(AIBudgetPolicyHighest),
 }
 
+// NewAIBudgetPolicyFromString converts s to an AIBudgetPolicy, falling back to
+// AIBudgetPolicyHighest when s is empty or not a recognized policy.
+func NewAIBudgetPolicyFromString(s string) AIBudgetPolicy {
+	if slices.Contains(AIBudgetPolicies, s) {
+		return AIBudgetPolicy(s)
+	}
+	return AIBudgetPolicyHighest
+}
+
 // AIBudgetPeriod determines when accumulated AI spend resets to zero,
 // aligned to UTC calendar boundaries.
 type AIBudgetPeriod string
@@ -956,6 +965,8 @@ type OIDCConfig struct {
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
+
+	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -2994,6 +3005,23 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			// So hide it, and only surface it to the small number of users that need it.
 			Hidden: true,
 		},
+		{
+			Name: "OIDC Auto Repair Links",
+			Description: "OIDC based users require the IdP issuer and subject in the claims to be static. " +
+				"If a new provider is configured, this option is required to be 'true'. It will reset any existing users to the " +
+				"previous provider, and match by email on their next login.",
+			Required:   false,
+			Default:    "true",
+			Flag:       "oidc-repair-links",
+			Env:        "CODER_OIDC_REPAIR_LINKS",
+			YAML:       "oidc-repair-links",
+			Value:      &c.OIDC.AutoRepairLinks,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// This flag should be removed after validation in real deployments. Leaving it
+			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -3557,7 +3585,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
 			Flag:        "scim-use-legacy",
 			Env:         "CODER_SCIM_USE_LEGACY",
-			Hidden:      true,
+			YAML:        "scimUseLegacy",
 			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
 			Default:     "true",
 			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
@@ -4748,7 +4776,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     "https://registry.coder.com",
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -5126,6 +5154,7 @@ const (
 	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
 	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
 	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
+	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5150,6 +5179,8 @@ func (e Experiment) DisplayName() string {
 		return "Gateway Accounts (minimum implicit member)"
 	case ExperimentAIGatewayCostControl:
 		return "AI Gateway Cost Control"
+	case ExperimentAgentAppTabs:
+		return "Coder Agents App and Port Tabs"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5170,6 +5201,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentMinimumImplicitMember,
 	ExperimentAIGatewayCostControl,
+	ExperimentAgentAppTabs,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

@@ -97,7 +97,7 @@ func TestMergeModuleVariables(t *testing.T) {
 	t.Run("CallerProvidesRequired", func(t *testing.T) {
 		t.Parallel()
 		merged, err := mergeModuleVariables(manifest, map[string]string{
-			"required_no_default": `"value"`,
+			"required_no_default": "value",
 		})
 		require.NoError(t, err)
 		require.Equal(t, `"value"`, merged["required_no_default"])
@@ -153,11 +153,11 @@ func TestMergeModuleVariables(t *testing.T) {
 	t.Run("InvalidStringValueRejected", func(t *testing.T) {
 		t.Parallel()
 		_, err := mergeModuleVariables(manifest, map[string]string{
-			"optional_no_default": "unquoted",
+			"optional_no_default": "${var.foo}",
 		})
 		require.Error(t, err)
 		require.Contains(t, err.Error(), `variable "optional_no_default"`)
-		require.Contains(t, err.Error(), "quoted string")
+		require.Contains(t, err.Error(), "interpolation")
 	})
 
 	t.Run("NullAcceptedForAnyType", func(t *testing.T) {
@@ -189,28 +189,17 @@ func TestValidateStringValue(t *testing.T) {
 		value   string
 		wantErr string
 	}{
-		{"ValidEmpty", `""`, ""},
-		{"ValidSimple", `"hello"`, ""},
-		{"ValidPath", `"/home/coder"`, ""},
-		{"ValidURL", `"https://github.com/coder/coder"`, ""},
-		{"ValidLiteralBackslashN", `"line\\nbreak"`, ""},
-		{"ValidEscapedQuote", `"say \"hi\""`, ""},
-		{"ValidEscapedBackslash", `"path\\to\\file"`, ""},
+		{"ValidEmpty", "", ""},
+		{"ValidSimple", "hello", ""},
+		{"ValidPath", "/home/coder", ""},
+		{"ValidURL", "https://github.com/coder/coder", ""},
+		{"ValidWithQuotes", `say "hi"`, ""},
+		{"ValidWithNewlines", "line\nbreak", ""},
+		{"ValidWithBackslash", `path\to\file`, ""},
 
-		{"RejectedUnquoted", "hello", "quoted string"},
-		{"RejectedMissingOpenQuote", `hello"`, "quoted string"},
-		{"RejectedMissingCloseQuote", `"hello`, "quoted string"},
-		{"RejectedEmpty", "", "quoted string"},
-		{"RejectedSingleChar", `"`, "quoted string"},
-		{"RejectedUnescapedNewline", "\"line\nbreak\"", "unescaped newlines"},
-		{"RejectedCarriageReturn", "\"line\rbreak\"", "unescaped newlines"},
-		{"RejectedUnescapedQuote", `"say "hi""`, "unescaped quotes"},
-		{"RejectedHCLInterpolation", `"${var.foo}"`, "interpolation"},
-		{"RejectedHCLDirective", `"%{if true}yes%{endif}"`, "interpolation"},
-		{"RejectedOverlong", `"` + strings.Repeat("a", maxStringValueLen) + `"`, "maximum length"},
-		{"RejectedTrailingBackslash", `"test\"`, "trailing backslash"},
-		{"RejectedTrailingBackslashOnly", `"\"`, "trailing backslash"},
-		{"ValidEvenTrailingBackslashes", `"test\\\\"`, ""},
+		{"RejectedHCLInterpolation", "${var.foo}", "interpolation"},
+		{"RejectedHCLDirective", "%{if true}yes%{endif}", "interpolation"},
+		{"RejectedOverlong", strings.Repeat("a", maxStringValueLen+1), "maximum length"},
 	}
 
 	for _, tc := range tests {
@@ -313,7 +302,7 @@ func TestValidateVariableValue(t *testing.T) {
 	t.Run("UnsupportedTypeRejected", func(t *testing.T) {
 		t.Parallel()
 		v := ModuleVariable{Name: "test", Type: "list"}
-		err := validateVariableValue(v, `"val"`)
+		err := validateVariableValue(v, "val")
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "unsupported variable type")
 	})

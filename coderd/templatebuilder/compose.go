@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/json"
+	"maps"
 	"regexp"
 	"strings"
 	"time"
@@ -21,6 +22,9 @@ var numberPattern = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
 // ComposeRequest describes which base template and modules to render.
 type ComposeRequest struct {
 	BaseTemplateID string
+	// BaseVariableValues maps base template variable names to their
+	// user-supplied values.
+	BaseVariableValues map[string]string
 	// RegistryURL is the module registry base URL from the deployment
 	// config (CODER_TEMPLATE_BUILDER_REGISTRY_URL).
 	RegistryURL string
@@ -49,7 +53,7 @@ type ComposeResult struct {
 // source files. It extracts the coder_agent resource name from the
 // rendered base HCL and wires it into each module block.
 func Compose(req ComposeRequest) (*ComposeResult, error) {
-	mainTF, err := renderBase(req.BaseTemplateID)
+	mainTF, err := renderBase(req.BaseTemplateID, req.BaseVariableValues)
 	if err != nil {
 		return nil, err
 	}
@@ -93,9 +97,14 @@ func formatHCL(src []byte) []byte {
 	return hclwrite.Format(src)
 }
 
-// renderBase renders the base template for the given example ID.
-func renderBase(baseTemplateID string) ([]byte, error) {
+// renderBase renders the base template for the given example ID,
+// merging any user-supplied variable values into the render context.
+func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, error) {
 	renderCtx := DefaultBaseRenderContext(baseTemplateID)
+	if renderCtx.Variables == nil {
+		renderCtx.Variables = make(map[string]string)
+	}
+	maps.Copy(renderCtx.Variables, baseVars)
 	mainTF, err := RenderBaseTemplate(baseTemplateID, "main.tf.tmpl", renderCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("render base template: %w", err)
@@ -235,15 +244,17 @@ func mergeModuleVariables(manifest ModuleManifest, callerVars map[string]string)
 		// missingkey=error surfaces the omission at render time.
 	}
 
-	// Overlay validated caller values.
+	// Overlay validated caller values, converting to HCL literals.
 	for k, val := range callerVars {
-		merged[k] = val
+		merged[k] = toHCLLiteral(allowedVars[k], val)
 	}
 	return merged, nil
 }
 
-// validateVariableValue checks that value is a valid HCL literal for the
-// variable's declared type. The literal "null" is accepted for any type.
+// validateVariableValue checks that the caller-supplied value is valid for
+// the variable's declared type. String values are plain text (not
+// pre-quoted); quoting for HCL happens later in toHCLLiteral.
+// The literal "null" is accepted for any type.
 func validateVariableValue(v ModuleVariable, value string) error {
 	if value == "null" {
 		return nil
@@ -260,45 +271,55 @@ func validateVariableValue(v ModuleVariable, value string) error {
 	}
 }
 
-// validateStringValue checks that value is a valid quoted HCL string literal.
-// It must start and end with '"', contain no unescaped newlines or quotes,
-// and must not contain HCL interpolation/directive markers.
+// toHCLLiteral converts a validated caller value into an HCL literal.
+// The literal "null" is passed through for any type. Strings are wrapped
+// in quotes with interior characters escaped; bools and numbers are
+// already valid HCL literals.
+func toHCLLiteral(v ModuleVariable, value string) string {
+	if value == "null" {
+		return value
+	}
+	if v.Type == "string" {
+		return hclQuote(value)
+	}
+	return value
+}
+
+// validateStringValue checks that a raw (unquoted) string value is safe
+// to embed in an HCL quoted string. It rejects HCL interpolation/directive
+// markers and values that exceed the maximum length.
 func validateStringValue(value string) error {
 	if len(value) > maxStringValueLen {
 		return xerrors.Errorf("value exceeds maximum length of %d bytes", maxStringValueLen)
 	}
-	if len(value) < 2 || value[0] != '"' || value[len(value)-1] != '"' {
-		return xerrors.New("must be a quoted string (e.g. \"value\")")
-	}
-
-	inner := value[1 : len(value)-1]
-
-	if strings.Contains(inner, "${") || strings.Contains(inner, "%{") {
+	if strings.Contains(value, "${") || strings.Contains(value, "%{") {
 		return xerrors.New("must not contain HCL interpolation or directive sequences")
 	}
+	return nil
+}
 
-	// Walk the inner content to reject unescaped newlines and quotes.
-	for i := 0; i < len(inner); i++ {
-		ch := inner[i]
-		if ch == '\\' {
-			i++
-			if i >= len(inner) {
-				// Trailing backslash with no character to escape.
-				// In HCL this would escape the closing quote delimiter,
-				// producing an unterminated string.
-				return xerrors.New("must not end with a trailing backslash")
-			}
-			continue
-		}
-		if ch == '"' {
-			return xerrors.New("must not contain unescaped quotes")
-		}
-		if ch == '\n' || ch == '\r' {
-			return xerrors.New("must not contain unescaped newlines")
+// hclQuote wraps a raw string in HCL double-quotes, escaping backslashes,
+// double-quotes, and newlines so the result is a valid HCL string literal.
+func hclQuote(s string) string {
+	var b strings.Builder
+	b.Grow(len(s) + 2)
+	_, _ = b.WriteRune('"')
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '\\':
+			_, _ = b.WriteString("\\\\")
+		case '"':
+			_, _ = b.WriteString("\\\"")
+		case '\n':
+			_, _ = b.WriteString("\\n")
+		case '\r':
+			_, _ = b.WriteString("\\r")
+		default:
+			_ = b.WriteByte(s[i])
 		}
 	}
-
-	return nil
+	_, _ = b.WriteRune('"')
+	return b.String()
 }
 
 // validateNumberValue checks that value is a valid HCL number literal.
