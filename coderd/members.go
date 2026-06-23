@@ -24,7 +24,7 @@ import (
 )
 
 // @Summary Add organization member (deprecated)
-// @ID add-organization-member
+// @ID add-organization-member-deprecated
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Members

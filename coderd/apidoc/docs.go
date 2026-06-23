@@ -5144,7 +5144,7 @@ const docTemplate = `{
                     "Members"
                 ],
                 "summary": "Add organization member (deprecated)",
-                "operationId": "add-organization-member",
+                "operationId": "add-organization-member-deprecated",
                 "deprecated": true,
                 "parameters": [
                     {
