@@ -1274,6 +1274,14 @@ func buildAIBridgeThread(
 		if prompts := promptsByInterception[rootIntc.ID]; len(prompts) > 0 {
 			thread.Prompt = &prompts[0].Prompt
 		}
+		if rootIntc.AgentFirewallSessionID.Valid {
+			id := rootIntc.AgentFirewallSessionID.UUID
+			thread.AgentFirewallSessionID = &id
+		}
+		if rootIntc.AgentFirewallSequenceNumber.Valid {
+			n := rootIntc.AgentFirewallSequenceNumber.Int32
+			thread.AgentFirewallSequenceNumber = &n
+		}
 	}
 
 	// Compute thread time bounds from interceptions.
@@ -1742,17 +1750,6 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 				MimeType:       row.Mimetype,
 				CreatedAt:      row.CreatedAt,
 			})
-		}
-	}
-	if c.LastInjectedContext.Valid {
-		var parts []codersdk.ChatMessagePart
-		// Internal fields are stripped at write time in
-		// chatd.updateLastInjectedContext, so no
-		// StripInternal call is needed here. Unmarshal
-		// errors are suppressed — the column is written by
-		// us with a known schema.
-		if err := json.Unmarshal(c.LastInjectedContext.RawMessage, &parts); err == nil {
-			chat.LastInjectedContext = parts
 		}
 	}
 	// Report pinned-context state when the chat is context-tracked

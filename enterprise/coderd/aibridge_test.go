@@ -45,6 +45,20 @@ func aibridgeOpts(t *testing.T) *coderdenttest.Options {
 	}
 }
 
+// auditLogsByAction indexes audit rows by their action so callers can assert
+// on a specific entry without relying on row order, which GetAuditLogsOffset
+// does not guarantee. It requires every action among the rows to be unique.
+func auditLogsByAction(t *testing.T, rows []database.GetAuditLogsOffsetRow) map[database.AuditAction]database.AuditLog {
+	t.Helper()
+	byAction := make(map[database.AuditAction]database.AuditLog, len(rows))
+	for _, r := range rows {
+		_, dup := byAction[r.AuditLog.Action]
+		require.Falsef(t, dup, "duplicate audit action %q: helper assumes distinct actions", r.AuditLog.Action)
+		byAction[r.AuditLog.Action] = r.AuditLog
+	}
+	return byAction
+}
+
 func TestAIBridgeListSessions(t *testing.T) {
 	t.Parallel()
 
@@ -1232,7 +1246,7 @@ func TestAIBridgeRouting(t *testing.T) {
 	}{
 		{
 			name:         "StablePrefix",
-			path:         "/api/v2/aibridge/openai/v1/chat/completions",
+			path:         "/api/v2/ai-gateway/openai/v1/chat/completions",
 			expectedPath: "/openai/v1/chat/completions",
 		},
 	}
@@ -1290,7 +1304,7 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Make requests up to the limit - should succeed.
 	for range 2 {
@@ -1350,7 +1364,7 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Start a request that will block.
 	done := make(chan struct{})
@@ -1455,6 +1469,53 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, "byok", res.Threads[0].CredentialKind)
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
+	})
+
+	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fwSessionID := uuid.New()
+
+		// Thread with firewall correlation on the root interception.
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "fw-session", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		}, &rootEndedAt)
+
+		// Thread without firewall correlation in the same session.
+		noFWEndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "openai",
+			Model:           "gpt-4",
+			StartedAt:       now.Add(time.Minute),
+			ClientSessionID: sql.NullString{String: "fw-session", Valid: true},
+		}, &noFWEndedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "fw-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "fw-session", res.ID)
+		require.Len(t, res.Threads, 2)
+
+		// First thread has firewall correlation.
+		require.Equal(t, root.ID, res.Threads[0].ID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSessionID)
+		require.Equal(t, fwSessionID, *res.Threads[0].AgentFirewallSessionID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSequenceNumber)
+		require.Equal(t, int32(5), *res.Threads[0].AgentFirewallSequenceNumber)
+
+		// Second thread has no firewall correlation.
+		require.Nil(t, res.Threads[1].AgentFirewallSessionID)
+		require.Nil(t, res.Threads[1].AgentFirewallSequenceNumber)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
@@ -1965,7 +2026,7 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			reqURL := client.URL.String() + "/api/v2/aibridge/test"
+			reqURL := client.URL.String() + "/api/v2/ai-gateway/test"
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
 			require.NoError(t, err)
 			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
@@ -2214,9 +2275,11 @@ func TestGroupAIBudget(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		upsertLog := rows[1].AuditLog
-		deleteLog := rows[0].AuditLog
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, group.ID, upsertLog.ResourceID)
@@ -2501,9 +2564,11 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		upsertLog := rows[1].AuditLog
-		deleteLog := rows[0].AuditLog
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, targetUser.ID, upsertLog.ResourceID)

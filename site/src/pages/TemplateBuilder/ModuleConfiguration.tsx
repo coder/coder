@@ -1,4 +1,5 @@
 import { TrashIcon } from "lucide-react";
+import type { PropsWithChildren } from "react";
 import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
@@ -6,14 +7,14 @@ import {
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type ModuleConfigurationProps = {
+type ModuleConfigurationProps = PropsWithChildren<{
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
-};
+}>;
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	name,
@@ -22,6 +23,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	detailsUrl,
 	onRemove,
 	fields,
+	children,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -77,6 +79,8 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 					))}
 				</div>
 			)}
+
+			{children}
 		</section>
 	);
 };

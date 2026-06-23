@@ -51,7 +51,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { BackButton } from "./BackButton";
-import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderForm";
+import { ProviderField as Field } from "./ChatModelAdminPanel/ProviderField";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { SectionHeader } from "./SectionHeader";
 

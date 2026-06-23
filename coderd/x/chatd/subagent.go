@@ -1029,27 +1029,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	}
 	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
 
-	copiedContextParts, err := copyParentContextMessages(ctx, p.logger, p.db, parent)
-	if err != nil {
-		return database.Chat{}, xerrors.Errorf("copy parent context messages: %w", err)
-	}
-	var lastInjectedContext pqtype.NullRawMessage
-	if len(copiedContextParts) > 0 {
-		filteredContent, err := chatprompt.MarshalParts(copiedContextParts)
-		if err != nil {
-			return database.Chat{}, xerrors.Errorf("marshal copied context parts: %w", err)
-		}
-		initialMessages = append(initialMessages, userMessageWithAPIKeyID(
-			filteredContent,
-			modelConfigID,
-			parent.OwnerID,
-			childAPIKeyID,
-		))
-		lastInjectedContext, err = BuildLastInjectedContext(FilterContextPartsToLatestAgent(copiedContextParts))
-		if err != nil {
-			return database.Chat{}, xerrors.Errorf("build inherited injected context: %w", err)
-		}
-	}
+	// The child shares the parent's workspace and agent, so it inherits
+	// workspace context the same way a top-level chat does: pinned from the
+	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
+	// parent's context is not copied into child history.
 	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID))
 
 	publisher := p.pubsub
@@ -1073,10 +1056,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 			RawMessage: labelsJSON,
 			Valid:      true,
 		},
-		DynamicTools:        pqtype.NullRawMessage{},
-		ClientType:          parent.ClientType,
-		InitialMessages:     initialMessages,
-		LastInjectedContext: lastInjectedContext,
+		DynamicTools:    pqtype.NullRawMessage{},
+		ClientType:      parent.ClientType,
+		InitialMessages: initialMessages,
 	})
 	if err != nil {
 		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
@@ -1084,56 +1066,14 @@ func (p *Server) createChildSubagentChatWithOptions(
 
 	child := result.Chat
 
+	// Pin the child to its agent's latest context snapshot, mirroring the
+	// top-level create path. The child shares the parent's workspace agent,
+	// so this reproduces the parent's workspace context without copying it
+	// through chat history.
+	p.hydrateChatContextOnCreate(ctx, child)
+
 	p.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
 	return child, nil
-}
-
-// copyParentContextMessages reads persisted context-file and skill
-// messages from the parent chat. This ensures sub-agents inherit the
-// same instruction and skill context as their parent without
-// independently re-fetching from the agent.
-func copyParentContextMessages(
-	ctx context.Context,
-	logger slog.Logger,
-	store database.Store,
-	parent database.Chat,
-) ([]codersdk.ChatMessagePart, error) {
-	parentMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  parent.ID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return nil, xerrors.Errorf("get parent messages: %w", err)
-	}
-
-	var copiedParts []codersdk.ChatMessagePart
-	for _, msg := range parentMessages {
-		if !msg.Content.Valid {
-			continue
-		}
-		var parts []codersdk.ChatMessagePart
-		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
-			logger.Warn(ctx, "failed to unmarshal parent context message",
-				slog.F("parent_chat_id", parent.ID),
-				slog.F("message_id", msg.ID),
-				slog.Error(err),
-			)
-			continue
-		}
-
-		messageContextParts := FilterContextParts(parts, true)
-		if len(messageContextParts) == 0 {
-			continue
-		}
-		copiedParts = append(copiedParts, messageContextParts...)
-	}
-	if len(copiedParts) == 0 {
-		return nil, nil
-	}
-
-	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
-
-	return copiedParts, nil
 }
 
 func (p *Server) sendSubagentMessage(

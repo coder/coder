@@ -2129,6 +2129,6 @@ Disable the template builder feature for guided template creation. When disabled
 | Type        | <code>string</code>                               |
 | Environment | <code>$CODER_TEMPLATE_BUILDER_REGISTRY_URL</code> |
 | YAML        | <code>templateBuilder.registryURL</code>          |
-| Default     | <code>https://registry.coder.com</code>           |
+| Default     | <code>registry.coder.com</code>                   |
 
 The base URL of the module registry used by the template builder for module source paths.

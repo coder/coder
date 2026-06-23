@@ -2,6 +2,7 @@
 variable "api_key" {
   description = "API key for the selected AI provider. This will be set as the appropriate environment variable based on the provider."
   type        = string
+  default     = ""
   sensitive   = true
 }
 module "aider" {

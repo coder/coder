@@ -55,3 +55,12 @@ The OIDC issuer URL. The canonical issuer is resolved via OIDC discovery.
 | Environment | <code>$CODER_FIX_OIDC_LINKS_DRY_RUN</code> |
 
 Print analysis only, do not modify the database.
+
+### --force-reset-all
+
+|             |                                                    |
+|-------------|----------------------------------------------------|
+| Type        | <code>bool</code>                                  |
+| Environment | <code>$CODER_FIX_OIDC_LINKS_FORCE_RESET_ALL</code> |
+
+Reset all OIDC linked IDs, not just those with a mismatched issuer. Mutually exclusive with --issuer-url.
