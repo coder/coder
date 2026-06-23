@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/prebuilds"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -1537,14 +1538,13 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// This workspace was a prebuild that got claimed. Check if
-		// the claim build completed successfully before sending
-		// reinit. We assume the latest build is the claim build
-		// (build 2). If a third build (e.g. a restart) starts
-		// between the claim and the agent's reconnection, this
-		// would check that build instead. The window is extremely
-		// small in practice, and a restart would trigger its own
-		// reinit path.
+		// This workspace was a prebuild that got claimed. The seeded
+		// reinit below recovers a claim event that was missed while
+		// the agent's /reinit connection was down. It only applies
+		// while the latest build is the claim build itself, which the
+		// build's provisioner job input records, mirroring the check
+		// the provisioner server uses when publishing the claim
+		// event.
 		latestBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil {
 			log.Error(ctx, "failed to get latest workspace build", slog.Error(err))
@@ -1557,43 +1557,73 @@ func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
 			httpapi.InternalServerError(rw, xerrors.New("failed to get provisioner job"))
 			return
 		}
-
-		if job.CompletedAt.Valid && !job.Error.Valid {
-			// Claim build succeeded — cancel the pubsub
-			// subscription (no longer needed) and swap in a
-			// pre-seeded channel so the transmitter delivers
-			// exactly one reinit event.
-			cancelSub()
-			seeded := make(chan agentsdk.ReinitializationEvent, 1)
-			seeded <- agentsdk.ReinitializationEvent{
-				WorkspaceID: workspace.ID,
-				Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
-				OwnerID:     workspace.OwnerID,
-			}
-			reinitEvents = seeded
-		} else if job.CompletedAt.Valid && job.Error.Valid {
-			// Claim build failed permanently. Return 409 so the
-			// agent treats this as terminal and stops retrying
-			// (WaitForReinitLoop exits on any 409).
-			cancelSub()
-			log.Warn(ctx, "claim build failed",
-				slog.F("job_id", job.ID),
-				slog.F("error", job.Error.String))
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Claim build failed permanently.",
-				Detail:  job.Error.String,
-			})
+		var jobInput provisionerdserver.WorkspaceProvisionJob
+		if err := json.Unmarshal(job.Input, &jobInput); err != nil {
+			log.Error(ctx, "failed to unmarshal provisioner job input", slog.Error(err))
+			httpapi.InternalServerError(rw, xerrors.New("failed to unmarshal provisioner job input"))
 			return
 		}
 
-		// Claim build still in progress — fall through to the
-		// transmitter. The pubsub subscription (set up above)
-		// will deliver the event when the build completes
-		// successfully. Note: FailJob does not publish a claim
-		// event, so a failed in-progress build will leave the
-		// agent blocking here until it disconnects and
-		// reconnects (at which point the durable check above
-		// handles it).
+		switch {
+		case jobInput.PrebuiltWorkspaceBuildStage.IsPrebuiltWorkspaceClaim():
+			if job.CompletedAt.Valid && !job.Error.Valid {
+				// Claim build succeeded: cancel the pubsub
+				// subscription (no longer needed) and swap in a
+				// pre-seeded channel so the transmitter delivers
+				// exactly one reinit event.
+				cancelSub()
+				seeded := make(chan agentsdk.ReinitializationEvent, 1)
+				seeded <- agentsdk.ReinitializationEvent{
+					WorkspaceID: workspace.ID,
+					Reason:      agentsdk.ReinitializeReasonPrebuildClaimed,
+					OwnerID:     workspace.OwnerID,
+				}
+				reinitEvents = seeded
+			} else if job.CompletedAt.Valid && job.Error.Valid {
+				// Claim build failed permanently. Return 409 so the
+				// agent treats this as terminal and stops retrying
+				// (WaitForReinitLoop exits on any 409).
+				cancelSub()
+				log.Warn(ctx, "claim build failed",
+					slog.F("job_id", job.ID),
+					slog.F("error", job.Error.String))
+				httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+					Message: "Claim build failed permanently.",
+					Detail:  job.Error.String,
+				})
+				return
+			}
+			// Claim build still in progress: proceed to the
+			// transmitter below. The pubsub subscription (set up
+			// above) will deliver the event when the build completes
+			// successfully. Note: FailJob does not publish a claim
+			// event, so a failed in-progress build will leave the
+			// agent blocking here until it disconnects and
+			// reconnects (at which point the durable check above
+			// handles it).
+		case latestBuild.InitiatorID == database.PrebuildsSystemUserID:
+			// The workspace owner has changed but the claim build has
+			// not been created yet. Proceed to the transmitter below;
+			// the pubsub subscription set up above delivers the claim
+			// event once the claim build completes.
+		default:
+			// The latest build is a user-initiated build other than
+			// the claim build, so the claim has already been handled.
+			// Re-sending the reinit event here would needlessly
+			// restart the agent of a long-claimed workspace on every
+			// reconnection. Return 409 so the agent stops polling,
+			// the same as a regular workspace.
+			log.Debug(ctx, "prebuild claim already handled, stopping reinit polling",
+				slog.F("job_id", job.ID),
+				slog.F("latest_build_id", latestBuild.ID),
+				slog.F("latest_build_number", latestBuild.BuildNumber))
+			cancelSub()
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Workspace is not a prebuilt workspace waiting to be claimed.",
+				Detail:  "The prebuild claim for this workspace has already been handled by an earlier build.",
+			})
+			return
+		}
 	}
 
 	transmitter := agentsdk.NewSSEAgentReinitTransmitter(log, rw, r)
