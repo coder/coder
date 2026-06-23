@@ -1596,7 +1596,7 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 			return fail(xerrors.Errorf("authorize module file: %w", err))
 		}
 		if !ok {
-			s.Logger.Debug(ctx, "module file download rejected: file not referenced by any template version in daemon org",
+			s.Logger.Warn(ctx, "module file download rejected: file not referenced by any template version in daemon org",
 				slog.F("file_id", fid),
 				slog.F("organization_id", s.OrganizationID),
 			)
