@@ -161,13 +161,16 @@ func TestImportUserSecretsConflict(t *testing.T) {
 }
 
 // TestImportUserSecretsLimits exercises each per-user cap. A cap
-// tripped mid-batch must roll back the entire import.
+// tripped mid-batch must roll back the entire import: zero rows are
+// created and, because audit logs are emitted only after the
+// transaction commits, zero audit logs are written.
 func TestImportUserSecretsLimits(t *testing.T) {
 	t.Parallel()
 
 	t.Run("CountLimit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -175,6 +178,7 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		for i := 0; i < codersdk.MaxUserSecretsPerUserCount+1; i++ {
 			fmt.Fprintf(&sb, "COUNT_%03d=x\n", i)
 		}
+		auditor.ResetLogs()
 		_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
 			Format:  codersdk.SecretsFileFormatEnv,
 			Content: sb.String(),
@@ -184,11 +188,13 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		listed, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Empty(t, listed)
+		assert.Empty(t, auditor.AuditLogs())
 	})
 
 	t.Run("EnvBytesLimit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -198,6 +204,7 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		content := fmt.Sprintf("ENV_A=%s\nENV_B=%s\n",
 			strings.Repeat("a", codersdk.MaxUserSecretValueBytes-16),
 			strings.Repeat("a", 1024))
+		auditor.ResetLogs()
 		_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
 			Format:  codersdk.SecretsFileFormatEnv,
 			Content: content,
@@ -207,11 +214,13 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		listed, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Empty(t, listed)
+		assert.Empty(t, auditor.AuditLogs())
 	})
 
 	t.Run("TotalBytesLimit", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
 
@@ -243,6 +252,10 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		before, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
 
+		// Reset after the prefill (which legitimately emits create audit
+		// logs) so the assertion below only sees logs from the rolled-back
+		// import.
+		auditor.ResetLogs()
 		_, err = client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
 			Format:  codersdk.SecretsFileFormatEnv,
 			Content: "OVERFLOW=x",
@@ -252,6 +265,7 @@ func TestImportUserSecretsLimits(t *testing.T) {
 		after, err := client.UserSecrets(ctx, codersdk.Me)
 		require.NoError(t, err)
 		assert.Len(t, after, len(before))
+		assert.Empty(t, auditor.AuditLogs())
 	})
 }
 
@@ -278,4 +292,33 @@ func TestImportUserSecretsParseErrors(t *testing.T) {
 			assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		})
 	}
+}
+
+// TestImportUserSecretsDuplicateWithinFile verifies a file that repeats
+// a key is rejected at parse time, before any row is inserted: the
+// endpoint returns 400, no secrets are created, and no audit log is
+// written.
+func TestImportUserSecretsDuplicateWithinFile(t *testing.T) {
+	t.Parallel()
+	auditor := audit.NewMock()
+	client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+	_ = coderdtest.CreateFirstUser(t, client)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	auditor.ResetLogs()
+
+	_, err := client.ImportUserSecrets(ctx, codersdk.Me, codersdk.ImportUserSecretsRequest{
+		Format:  codersdk.SecretsFileFormatEnv,
+		Content: "DUP=a\nDUP=b\n",
+	})
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	assert.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	assert.Contains(t, sdkErr.Response.Detail, "duplicate key")
+
+	// Nothing is inserted and nothing is audited because the duplicate
+	// is caught before the transaction runs.
+	listed, err := client.UserSecrets(ctx, codersdk.Me)
+	require.NoError(t, err)
+	assert.Empty(t, listed)
+	assert.Empty(t, auditor.AuditLogs())
 }

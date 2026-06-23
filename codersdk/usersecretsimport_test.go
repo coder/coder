@@ -12,12 +12,12 @@ import (
 )
 
 // TestParseSecretsFileEnv covers the dotenv parsing rules end-to-end:
-// comments, blank lines, the export prefix, single and double quotes,
-// double-quote escapes, '=' inside a value, surrounding whitespace, an
-// inline '#' kept literally, non-ASCII values, "export" as part of a
-// key name (not the prefix), and a value that is exactly '='. It also
-// asserts the flat mapping invariant Name == EnvName == KEY and
-// Value == VALUE.
+// comments, blank lines, the export prefix (with a space or a tab),
+// single and double quotes, double-quote escapes, '=' inside a value,
+// surrounding whitespace and tabs, an inline '#' kept literally,
+// non-ASCII values, "export" as part of a key name (not the prefix),
+// and a value that is exactly '='. It also asserts the flat mapping
+// invariant Name == EnvName == KEY and Value == VALUE.
 func TestParseSecretsFileEnv(t *testing.T) {
 	t.Parallel()
 
@@ -38,6 +38,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		"exportFOO=literal-key",
 		"EQ_ONLY_VALUE==",
 		"EMPTY_VAL=",
+		"TABBED=\t tab trimmed \t",
+		"export\tTAB_EXPORT=via-tab",
 	}, "\n")
 
 	reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, content)
@@ -56,6 +58,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		{Name: "exportFOO", EnvName: "exportFOO", Value: "literal-key"},
 		{Name: "EQ_ONLY_VALUE", EnvName: "EQ_ONLY_VALUE", Value: "="},
 		{Name: "EMPTY_VAL", EnvName: "EMPTY_VAL", Value: ""},
+		{Name: "TABBED", EnvName: "TABBED", Value: "tab trimmed"},
+		{Name: "TAB_EXPORT", EnvName: "TAB_EXPORT", Value: "via-tab"},
 	}
 	require.Equal(t, want, reqs)
 }
@@ -106,6 +110,18 @@ func TestParseSecretsFileEnvDuplicateCitesLine(t *testing.T) {
 	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, "DUP=a\nDUP=b")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate key")
+	assert.Contains(t, err.Error(), "line 2")
+}
+
+// TestParseSecretsFileEnvMissingEqualsCitesLine confirms the missing
+// '=' error reports the offending line for the env format, not just
+// line 1.
+func TestParseSecretsFileEnvMissingEqualsCitesLine(t *testing.T) {
+	t.Parallel()
+
+	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, "OK=value\nNOEQUALS\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no '='")
 	assert.Contains(t, err.Error(), "line 2")
 }
 
@@ -183,6 +199,7 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 		{name: "SequenceValue", content: "LIST:\n  - a\n  - b", errMsg: "nested mapping or sequence"},
 		{name: "IntValue", content: "PORT: 8080", errMsg: "must be a string"},
 		{name: "BoolValue", content: "FLAG: true", errMsg: "must be a string"},
+		{name: "NullValue", content: "KEY: null", errMsg: "must be a string"},
 		{name: "DuplicateKey", content: "DUP: a\nDUP: b", errMsg: "duplicate key"},
 	}
 	for _, tt := range tests {
