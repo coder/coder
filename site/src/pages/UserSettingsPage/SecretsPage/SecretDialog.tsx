@@ -1,11 +1,19 @@
 import { type FormikTouched, useFormik } from "formik";
 import { type FC, type ReactNode, useState } from "react";
+import {
+	type FieldError,
+	getErrorMessage,
+	isApiError,
+	isApiErrorResponse,
+} from "#/api/errors";
 import type {
 	CreateUserSecretRequest,
+	ImportUserSecretsRequest,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
@@ -14,6 +22,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { FileUpload } from "#/components/FileUpload/FileUpload";
 import { FormField } from "#/components/FormField/FormField";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
@@ -21,11 +30,13 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { Textarea } from "#/components/Textarea/Textarea";
 import { cn } from "#/utils/cn";
 import { getFormHelpers } from "#/utils/formUtils";
+import { DividerWithText } from "./DividerWithText";
 import {
 	buildCreateUserSecretRequest,
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
+	secretsFileFormatFromFilename,
 	type SecretFieldErrors,
 	type SecretFormValues,
 } from "./secretForm";
@@ -43,6 +54,7 @@ type SecretDialogProps = {
 		name: string,
 		request: UpdateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
+	onImportSecrets: (request: ImportUserSecretsRequest) => Promise<UserSecret[]>;
 };
 
 const emptyValues: SecretFormValues = {
@@ -64,6 +76,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 	onClose,
 	onCreateSecret,
 	onUpdateSecret,
+	onImportSecrets,
 }) => {
 	const isEdit = Boolean(secret);
 	const initialValues = secret
@@ -76,6 +89,9 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			}
 		: emptyValues;
 	const [clearValueRequested, setClearValueRequested] = useState(false);
+	const [importFile, setImportFile] = useState<File | undefined>(undefined);
+	const [isImporting, setIsImporting] = useState(false);
+	const [importError, setImportError] = useState<unknown>(undefined);
 
 	const form = useFormik<SecretFormValues>({
 		initialValues,
@@ -111,8 +127,43 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 
 	const closeDialog = () => {
 		setClearValueRequested(false);
+		setImportFile(undefined);
+		setImportError(undefined);
+		setIsImporting(false);
 		form.resetForm();
 		onClose();
+	};
+
+	const handleImportFile = (file: File) => {
+		setImportError(undefined);
+		setImportFile(file);
+
+		const format = secretsFileFormatFromFilename(file.name);
+		if (!format) {
+			setImportError({
+				message: "Unsupported file type. Import a .env, .json, or .yml file.",
+			});
+			return;
+		}
+
+		setIsImporting(true);
+		const reader = new FileReader();
+		reader.onload = async () => {
+			const content = typeof reader.result === "string" ? reader.result : "";
+			try {
+				await onImportSecrets({ format, content });
+				closeDialog();
+			} catch (error) {
+				setImportError(error);
+			} finally {
+				setIsImporting(false);
+			}
+		};
+		reader.onerror = () => {
+			setImportError({ message: "Failed to read the selected file." });
+			setIsImporting(false);
+		};
+		reader.readAsText(file);
 	};
 
 	const request = secret
@@ -121,7 +172,7 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 			})
 		: undefined;
 	const hasUpdate = request ? Object.keys(request).length > 0 : false;
-	const isBusy = isSubmitting || form.isSubmitting;
+	const isBusy = isSubmitting || form.isSubmitting || isImporting;
 	const confirmDisabled =
 		isBusy || !form.isValid || (secret ? !hasUpdate : !form.dirty);
 	const getFieldHelpers = getFormHelpers(form);
@@ -193,6 +244,25 @@ export const SecretDialog: FC<SecretDialogProps> = ({
 						</>
 					) : (
 						<>
+							<div className="flex flex-col gap-3">
+								<FileUpload
+									isUploading={isImporting}
+									file={importFile}
+									onUpload={handleImportFile}
+									onRemove={() => {
+										setImportFile(undefined);
+										setImportError(undefined);
+									}}
+									removeLabel="Remove file"
+									title="Import secrets from a file"
+									description="Import a single or multiple secrets at once with a .env, .json, or .yml file."
+									extensions={["env", "json", "yaml", "yml"]}
+								/>
+								{importError !== undefined && (
+									<ImportSecretsError error={importError} />
+								)}
+							</div>
+							<DividerWithText>or add individually</DividerWithText>
 							<SecretFields
 								getFieldHelpers={getFieldHelpers}
 								showRequiredLabels
@@ -464,4 +534,47 @@ function touchedFromFieldErrors(
 	return Object.fromEntries(
 		Object.keys(fieldErrors).map((field) => [field, true]),
 	) as FormikTouched<SecretFormValues>;
+}
+
+type ImportSecretsErrorProps = {
+	error: unknown;
+};
+
+// ImportSecretsError surfaces bulk import failures. Per-entry validation
+// errors are listed with the field path (for example secrets[1].env_name)
+// so the user can see which entry failed; other failures fall back to the
+// shared ErrorAlert for the message and detail.
+const ImportSecretsError: FC<ImportSecretsErrorProps> = ({ error }) => {
+	const validations = getImportSecretValidations(error);
+	if (validations.length === 0) {
+		return <ErrorAlert error={error} />;
+	}
+
+	return (
+		<Alert severity="error" prominent>
+			<AlertTitle>
+				{getErrorMessage(error, "Failed to import secrets.")}
+			</AlertTitle>
+			<AlertDescription>
+				<ul className="m-0 flex list-disc flex-col gap-1 pl-5">
+					{validations.map((validation) => (
+						<li key={validation.field}>
+							<span className="font-semibold">{validation.field}</span>
+							<span className="block">{validation.detail}</span>
+						</li>
+					))}
+				</ul>
+			</AlertDescription>
+		</Alert>
+	);
+};
+
+function getImportSecretValidations(error: unknown): FieldError[] {
+	if (isApiError(error)) {
+		return error.response.data.validations ?? [];
+	}
+	if (isApiErrorResponse(error)) {
+		return error.validations ?? [];
+	}
+	return [];
 }

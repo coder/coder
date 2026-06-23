@@ -2,10 +2,15 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type {
 	CreateUserSecretRequest,
+	ImportUserSecretsRequest,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
-import { MockUserSecrets, mockApiError } from "#/testHelpers/entities";
+import {
+	MockImportedUserSecrets,
+	MockUserSecrets,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { SAVED_SECRET_VALUE_DISPLAY } from "./SecretDialog";
 import { SecretsPageView } from "./SecretsPageView";
 
@@ -26,6 +31,7 @@ const meta: Meta<typeof SecretsPageView> = {
 		onRefresh: fn(),
 		onCreateSecret: fn(),
 		onUpdateSecret: fn(),
+		onImportSecrets: fn(),
 		onDeleteSecret: fn(),
 	},
 };
@@ -42,6 +48,9 @@ type UpdateSecretMock = ReturnType<
 >;
 type DeleteSecretMock = ReturnType<
 	typeof fn<(secret: UserSecret) => Promise<void> | void>
+>;
+type ImportSecretsMock = ReturnType<
+	typeof fn<(request: ImportUserSecretsRequest) => Promise<UserSecret[]>>
 >;
 
 const waitForDialogToClose = async (body: ReturnType<typeof within>) => {
@@ -593,5 +602,103 @@ export const CreateMutationErrorDisplay: Story = {
 		await user.click(dialog.getByRole("button", { name: "Cancel" }));
 		await waitForDialogToClose(body);
 		expectNoValueField(body);
+	},
+};
+
+export const ImportSecretsFromFileSubmit: Story = {
+	args: {
+		onImportSecrets: fn<
+			(request: ImportUserSecretsRequest) => Promise<UserSecret[]>
+		>(async () => MockImportedUserSecrets),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
+		onImportSecrets.mockClear();
+		const user = userEvent.setup({ applyAccept: false });
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await user.upload(
+			dialog.getByTestId("file-upload"),
+			new File(["A=1\nB=2"], "secrets.env", { type: "text/plain" }),
+		);
+
+		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
+		expect(onImportSecrets).toHaveBeenCalledWith({
+			format: "env",
+			content: "A=1\nB=2",
+		});
+		await waitForDialogToClose(body);
+	},
+};
+
+export const ImportSecretsValidationError: Story = {
+	args: {
+		onImportSecrets: fn<
+			(request: ImportUserSecretsRequest) => Promise<UserSecret[]>
+		>(async () => {
+			throw mockApiError({
+				message: "Validation failed.",
+				validations: [
+					{
+						field: "secrets[1].env_name",
+						detail: "PATH is a reserved environment variable name",
+					},
+				],
+			});
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
+		onImportSecrets.mockClear();
+		const user = userEvent.setup({ applyAccept: false });
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await user.upload(
+			dialog.getByTestId("file-upload"),
+			new File(["PATH=/usr/bin"], "secrets.env", { type: "text/plain" }),
+		);
+
+		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
+		await expect(await dialog.findByText("secrets[1].env_name")).toBeVisible();
+		await expect(
+			dialog.getByText("PATH is a reserved environment variable name"),
+		).toBeVisible();
+		await expect(
+			dialog.getByRole("heading", { name: "Add secret" }),
+		).toBeVisible();
+	},
+};
+
+export const ImportSecretsUnsupportedFile: Story = {
+	args: {
+		onImportSecrets: fn<
+			(request: ImportUserSecretsRequest) => Promise<UserSecret[]>
+		>(async () => MockImportedUserSecrets),
+	},
+	play: async ({ canvasElement, args }) => {
+		const onImportSecrets = args.onImportSecrets as ImportSecretsMock;
+		onImportSecrets.mockClear();
+		const user = userEvent.setup({ applyAccept: false });
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+
+		await user.click(canvas.getByRole("button", { name: "Add secret" }));
+		const dialog = within(await body.findByRole("dialog"));
+		await user.upload(
+			dialog.getByTestId("file-upload"),
+			new File(["not a secret"], "bad.txt", { type: "text/plain" }),
+		);
+
+		const importError = await dialog.findByText(
+			"Unsupported file type. Import a .env, .json, or .yml file.",
+		);
+		await waitFor(() => expect(importError).toBeVisible());
+		expect(onImportSecrets).not.toHaveBeenCalled();
 	},
 };

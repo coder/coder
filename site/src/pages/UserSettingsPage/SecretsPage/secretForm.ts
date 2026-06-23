@@ -6,6 +6,7 @@ import {
 } from "#/api/errors";
 import type {
 	CreateUserSecretRequest,
+	SecretsFileFormat,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -26,6 +27,26 @@ interface SecretFormErrors {
 	fieldErrors: SecretFieldErrors;
 	formError?: string;
 }
+
+// secretsFileFormatFromFilename derives the import file format from a
+// filename extension. The server performs the actual parsing; the client
+// only selects the format so it can send the raw file contents. Returns
+// undefined when the extension is not a supported secrets file format.
+export const secretsFileFormatFromFilename = (
+	filename: string,
+): SecretsFileFormat | undefined => {
+	const lowerName = filename.toLowerCase();
+	if (lowerName.endsWith(".env")) {
+		return "env";
+	}
+	if (lowerName.endsWith(".json")) {
+		return "json";
+	}
+	if (lowerName.endsWith(".yaml") || lowerName.endsWith(".yml")) {
+		return "yaml";
+	}
+	return undefined;
+};
 
 export const getCreateSecretRequiredFieldErrors = (
 	values: Pick<SecretFormValues, "name" | "value">,
