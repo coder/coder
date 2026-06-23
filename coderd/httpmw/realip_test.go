@@ -745,14 +745,12 @@ func TestApplicationProxy(t *testing.T) {
 	}
 }
 
-// TestExtractRealIPSpoofedXForwardedFor is a regression test for an IP-spoofing
-// vulnerability. When a request arrives from a trusted proxy, X-Forwarded-For was
-// parsed left-to-right, so the leftmost (client-controlled) value was accepted as
-// the real IP. Because reverse proxies append the peer that connected to them, the
-// leftmost value is the part a client can forge. An attacker could prepend an
-// arbitrary address to X-Forwarded-For to spoof the IP used for per-IP login rate
-// limiting and audit log source addresses. The real client is the rightmost address
-// that is not a trusted origin.
+// TestExtractRealIPSpoofedXForwardedFor verifies that a client cannot control
+// the resolved real IP by setting X-Forwarded-For. Reverse proxies append the
+// peer that connected to them, so a client can set the leftmost entries to
+// arbitrary values, while trusted proxies append the real client to the right.
+// The resolved address must therefore be the rightmost entry that is not a
+// trusted origin, not the leftmost (client-supplied) entry.
 func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
 	t.Parallel()
 
@@ -776,22 +774,38 @@ func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
 	}
 
 	cases := []struct {
-		name          string
-		xForwardedFor string
+		name string
+		// xForwardedFor holds one entry per physical X-Forwarded-For header
+		// line. Multiple entries exercise the case where a proxy appends its
+		// hop as a separate header field rather than to the existing value.
+		xForwardedFor []string
 	}{
 		{
 			// A single trusted proxy appends the real client to whatever the
 			// client claimed, so the leftmost value is attacker-controlled.
 			name:          "single-proxy",
-			xForwardedFor: spoofedAddr + ", " + realClient,
+			xForwardedFor: []string{spoofedAddr + ", " + realClient},
 		},
 		{
 			// A chain of trusted proxies appends each hop. The rightmost
 			// untrusted address (the real client) must win, skipping the
 			// trusted inner-proxy hop.
 			name:          "chained-proxies",
-			xForwardedFor: spoofedAddr + ", " + realClient + ", 10.0.0.2",
+			xForwardedFor: []string{spoofedAddr + ", " + realClient + ", 10.0.0.2"},
 		},
+		{
+			// A proxy may append its hop as a separate header line. Per
+			// RFC 7230 these are equivalent to a single comma-joined value,
+			// so the spoofed first line must not be trusted on its own.
+			name:          "multiple-header-lines",
+			xForwardedFor: []string{spoofedAddr, realClient + ", 10.0.0.2"},
+		},
+	}
+
+	setXFF := func(req *http.Request, lines []string) {
+		// Assign directly to preserve multiple header lines; Header.Set would
+		// collapse them into a single value.
+		req.Header["X-Forwarded-For"] = lines
 	}
 
 	for _, tc := range cases {
@@ -801,7 +815,7 @@ func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
 			// Direct call to ExtractRealIPAddress.
 			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
 			req.RemoteAddr = "10.0.0.1" // trusted proxy peer
-			req.Header.Set("X-Forwarded-For", tc.xForwardedFor)
+			setXFF(req, tc.xForwardedFor)
 
 			addr, err := httpmw.ExtractRealIPAddress(newConfig(), req)
 			require.NoError(t, err)
@@ -814,7 +828,7 @@ func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
 			// httprate.KeyByIP (rate limiting) and audit.InitRequest consume.
 			mwReq := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
 			mwReq.RemoteAddr = "10.0.0.1"
-			mwReq.Header.Set("X-Forwarded-For", tc.xForwardedFor)
+			setXFF(mwReq, tc.xForwardedFor)
 
 			handlerCalled := false
 			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {

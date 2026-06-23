@@ -70,7 +70,17 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 	}
 
 	for _, trustedHeader := range config.TrustedHeaders {
-		addr := extractForwardedAddress(config, req.Header.Get(trustedHeader))
+		// X-Forwarded-For is a list-valued header. Per RFC 7230, multiple
+		// field lines with the same name are equivalent to a single
+		// comma-separated value. Join them so a client cannot hide a spoofed
+		// address in the first field line, which Header.Get would return on
+		// its own. Other forwarding headers carry a single edge-proxy value,
+		// so use Header.Get to preserve their first-value semantics.
+		value := req.Header.Get(trustedHeader)
+		if http.CanonicalHeaderKey(trustedHeader) == headerXForwardedFor {
+			value = strings.Join(req.Header.Values(trustedHeader), ",")
+		}
+		addr := extractForwardedAddress(config, value)
 		if addr != nil {
 			return addr, nil
 		}
@@ -208,11 +218,12 @@ func getRemoteAddress(address string) net.IP {
 
 // extractForwardedAddress parses a comma-separated forwarding header value and
 // returns the rightmost address that is not a trusted origin. Reverse proxies
-// append the peer that connected to them, so the rightmost untrusted address is
-// the real client; any values a client prepends to spoof its address sit to the
-// left of the addresses inserted by trusted proxies and are ignored. If every
-// parsed address is a trusted origin, the leftmost address is returned. It
-// returns nil when no address can be parsed.
+// append the peer that connected to them, so when every trusted proxy hop is
+// listed in TrustedOrigins, the rightmost untrusted address is the real client;
+// any values a client prepends to spoof its address sit to the left of the
+// addresses inserted by trusted proxies and are ignored. If every parsed address
+// is a trusted origin, the leftmost address is returned. It returns nil when no
+// address can be parsed.
 func extractForwardedAddress(config *RealIPConfig, value string) net.IP {
 	parts := strings.Split(value, ",")
 	var leftmost net.IP
