@@ -171,6 +171,40 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 	require.Len(t, sources, 1)
 }
 
+// TestManager_AddSourceDedupesByResolvedIdentity guards the duplicate-source
+// bug: a path added before its symlink target exists canonicalizes to the
+// lexical link path, while the same directory added later (once the target
+// exists) canonicalizes to the resolved target. The two distinct path strings
+// denote one inode, so the source list must collapse them to a single entry.
+func TestManager_AddSourceDedupesByResolvedIdentity(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	target := filepath.Join(root, "target")
+	link := filepath.Join(root, "link")
+	require.NoError(t, os.Symlink(target, link))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return root },
+		AllowedRoots: []string{root},
+	})
+
+	// The symlink target does not exist yet, so canonicalization keeps the
+	// lexical link path.
+	added1, err := m.AddSource(agentcontext.Source{Path: link})
+	require.NoError(t, err)
+	require.Equal(t, link, added1.Path)
+
+	// Create the target so the symlink resolves, then add it directly. It is
+	// the same inode as the link, so it must not register a second source.
+	require.NoError(t, os.MkdirAll(target, 0o755))
+	added2, err := m.AddSource(agentcontext.Source{Path: target})
+	require.NoError(t, err)
+	require.Equal(t, link, added2.Path,
+		"expected the target to collapse onto the existing link source")
+
+	require.Len(t, m.Sources(), 1)
+}
+
 func TestManager_RemoveSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()

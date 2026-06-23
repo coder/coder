@@ -2,6 +2,7 @@ package agentcontext
 
 import (
 	"context"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -167,11 +168,7 @@ func NewManager(opts ManagerOptions) *Manager {
 				slog.Error(err))
 			continue
 		}
-		if _, ok := m.sourceIndex[canonical]; ok {
-			continue
-		}
-		m.sourceIndex[canonical] = len(m.sources)
-		m.sources = append(m.sources, Source{Path: canonical})
+		m.addCanonicalSourceLocked(canonical)
 	}
 
 	// First snapshot is computed eagerly. The push protocol
@@ -307,8 +304,8 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 	}
 
 	m.mu.Lock()
-	if _, ok := m.sourceIndex[canonical]; ok {
-		out := m.sources[m.sourceIndex[canonical]]
+	if idx, ok := m.resolvedSourceIndexLocked(canonical); ok {
+		out := m.sources[idx]
 		m.mu.Unlock()
 		return out, nil
 	}
@@ -349,12 +346,9 @@ func (m *Manager) SeedSources(sources []Source) {
 				slog.Error(err))
 			continue
 		}
-		if _, ok := m.sourceIndex[canonical]; ok {
-			continue
+		if m.addCanonicalSourceLocked(canonical) {
+			changed = true
 		}
-		m.sourceIndex[canonical] = len(m.sources)
-		m.sources = append(m.sources, Source{Path: canonical})
-		changed = true
 	}
 	m.mu.Unlock()
 	if changed {
@@ -392,6 +386,46 @@ func (m *Manager) RemoveSource(path string) error {
 
 	m.signal()
 	return nil
+}
+
+// resolvedSourceIndexLocked returns the index of an existing source that
+// refers to the same path as canonical, matching first by exact canonical
+// path and then by resolved filesystem identity. The identity fallback
+// collapses a symlink and its target (or a path canonicalized before vs
+// after its symlink target existed) onto a single source, so the source
+// list never reports the same directory twice. A path that does not exist
+// yet cannot be compared by identity, so it registers as-is. m.mu must be
+// held.
+func (m *Manager) resolvedSourceIndexLocked(canonical string) (int, bool) {
+	if idx, ok := m.sourceIndex[canonical]; ok {
+		return idx, true
+	}
+	info, err := os.Stat(canonical)
+	if err != nil {
+		return 0, false
+	}
+	for i, s := range m.sources {
+		existing, err := os.Stat(s.Path)
+		if err != nil {
+			continue
+		}
+		if os.SameFile(info, existing) {
+			return i, true
+		}
+	}
+	return 0, false
+}
+
+// addCanonicalSourceLocked appends a canonical source unless it duplicates an
+// existing one by exact path or resolved filesystem identity. It reports
+// whether a new source was added. m.mu must be held.
+func (m *Manager) addCanonicalSourceLocked(canonical string) bool {
+	if _, ok := m.resolvedSourceIndexLocked(canonical); ok {
+		return false
+	}
+	m.sourceIndex[canonical] = len(m.sources)
+	m.sources = append(m.sources, Source{Path: canonical})
+	return true
 }
 
 // Snapshot returns the latest Snapshot. The returned value is
