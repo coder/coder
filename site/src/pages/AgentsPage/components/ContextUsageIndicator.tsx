@@ -9,6 +9,7 @@ import {
 import { type FC, useRef, useState } from "react";
 import type {
 	ChatContext,
+	ChatContextResource,
 	ChatContextResourceKind,
 	ChatContextResourceStatus,
 	ChatContextTool,
@@ -27,6 +28,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
+import { formatKiB } from "#/utils/fileSize";
 import { isMobileViewport } from "#/utils/mobile";
 import { getPathBasename, getPathDirname } from "../utils/path";
 import { SvgRingProgress } from "./SvgRingProgress";
@@ -55,7 +57,10 @@ type ContextSkillItem = {
 	readonly description?: string;
 	readonly dir: string;
 };
-type ContextMcpItem = {
+// MCP configs are file-backed (shown by full path), while MCP servers are
+// keyed by name and carry their tools.
+type ContextMcpConfigItem = { readonly source: string };
+type ContextMcpServerItem = {
 	readonly name: string;
 	readonly source: string;
 	readonly tools: readonly ChatContextTool[];
@@ -98,6 +103,30 @@ const formatTokenCountCompact = (value: number | undefined): string => {
 	}
 	return String(value);
 };
+
+// Sum the byte size of the OK resources in the given kinds so each popover
+// section can show how much context it costs. Non-OK resources are excluded
+// because they are not injected into the prompt.
+const sumResourceBytes = (
+	resources: readonly ChatContextResource[],
+	kinds: readonly ChatContextResourceKind[],
+): number =>
+	resources.reduce(
+		(total, resource) =>
+			resource.status === "ok" && kinds.includes(resource.kind)
+				? total + (resource.size_bytes ?? 0)
+				: total,
+		0,
+	);
+
+// Dimmed "(N.N KiB)" size suffix for a section header, omitted when the
+// section has no measurable size.
+const SectionSize: FC<{ bytes: number }> = ({ bytes }) =>
+	bytes > 0 ? (
+		<span className="ml-1 font-normal text-content-secondary">
+			{`(${formatKiB(bytes)})`}
+		</span>
+	) : null;
 
 const getIndicatorToneClassName = (percentUsed: number | null): string => {
 	if (percentUsed === null) {
@@ -237,25 +266,32 @@ export const ContextUsageIndicator: FC<{
 		// Drop entries with no usable name so an empty skill marker never renders
 		// as a blank row.
 		.filter((skill) => skill.name.trim().length > 0);
-	// An MCP server's source is its server name, while an MCP config's source is
-	// its file path.
-	const mcpItems: readonly ContextMcpItem[] = (pinnedResources ?? [])
+	// MCP configs are shown by their full path so multiple .mcp.json files
+	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
+	// are keyed by name and carry their tools.
+	const mcpConfigItems: readonly ContextMcpConfigItem[] = (
+		pinnedResources ?? []
+	)
 		.filter(
-			(resource) =>
-				(resource.kind === "mcp_config" || resource.kind === "mcp_server") &&
-				resource.status === "ok",
+			(resource) => resource.kind === "mcp_config" && resource.status === "ok",
+		)
+		.map((resource) => ({ source: resource.source }))
+		.filter((config) => config.source.trim().length > 0);
+	const mcpServerItems: readonly ContextMcpServerItem[] = (
+		pinnedResources ?? []
+	)
+		.filter(
+			(resource) => resource.kind === "mcp_server" && resource.status === "ok",
 		)
 		.map((resource) => ({
-			name:
-				resource.kind === "mcp_server"
-					? resource.source
-					: getPathBasename(resource.source),
+			name: resource.source,
 			source: resource.source,
 			tools: resource.tools ?? [],
 		}))
 		// Drop entries with no usable name so an empty MCP marker never renders as
 		// a blank row.
-		.filter((mcp) => mcp.name.trim().length > 0);
+		.filter((server) => server.name.trim().length > 0);
+	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
 	// Pinned resources the agent could not use (invalid skill, unreadable or
 	// oversize file) are surfaced as issues with their error so the failure is
 	// visible rather than a silent omission.
@@ -275,8 +311,16 @@ export const ContextUsageIndicator: FC<{
 	const hasContextList =
 		fileItems.length > 0 ||
 		skillItems.length > 0 ||
-		mcpItems.length > 0 ||
+		hasMcp ||
 		issueItems.length > 0;
+	const fileBytes = sumResourceBytes(pinnedResources ?? [], [
+		"instruction_file",
+	]);
+	const skillBytes = sumResourceBytes(pinnedResources ?? [], ["skill"]);
+	const mcpBytes = sumResourceBytes(pinnedResources ?? [], [
+		"mcp_config",
+		"mcp_server",
+	]);
 
 	// Group files and skills by directory so every context root is labeled,
 	// keeping resources pulled from different directories distinguishable.
@@ -311,7 +355,8 @@ export const ContextUsageIndicator: FC<{
 					{fileItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
-								Context files
+								<span>Context files</span>
+								<SectionSize bytes={fileBytes} />
 							</span>
 							{fileGroups.map((group) => (
 								<div key={group.dir} className="flex flex-col gap-1">
@@ -340,7 +385,10 @@ export const ContextUsageIndicator: FC<{
 					)}
 					{skillItems.length > 0 && (
 						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">Skills</span>
+							<span className="font-medium text-content-primary">
+								<span>Skills</span>
+								<SectionSize bytes={skillBytes} />
+							</span>
 							<TooltipProvider delayDuration={300}>
 								{skillGroups.map((group) => (
 									<div key={group.dir} className="flex flex-col gap-1">
@@ -382,11 +430,24 @@ export const ContextUsageIndicator: FC<{
 							</TooltipProvider>
 						</div>
 					)}
-					{mcpItems.length > 0 && (
+					{hasMcp && (
 						<div className="flex flex-col gap-1">
-							<span className="font-medium text-content-primary">MCP</span>
+							<span className="font-medium text-content-primary">
+								<span>MCP</span>
+								<SectionSize bytes={mcpBytes} />
+							</span>
 							<TooltipProvider delayDuration={300}>
-								{mcpItems.map((mcp) => (
+								{mcpConfigItems.map((config) => (
+									<div
+										key={config.source}
+										className="flex items-center gap-1.5"
+										title={config.source}
+									>
+										<FileIcon className="size-3 shrink-0" />
+										<span className="truncate">{config.source}</span>
+									</div>
+								))}
+								{mcpServerItems.map((mcp) => (
 									<div key={mcp.source} className="flex flex-col gap-0.5">
 										<div
 											className="flex items-center gap-1.5"
