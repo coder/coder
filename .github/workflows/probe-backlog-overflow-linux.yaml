@@ -1,0 +1,63 @@
+name: probe-backlog-overflow-linux
+
+# Diagnostic for PLAT-307. Measures Linux TCP accept-queue overflow behavior.
+# See scripts/probe-backlog-overflow/README.md.
+
+on:
+  push:
+    branches:
+      - probe/tcp-backlog-overflow-linux
+  workflow_dispatch:
+    inputs:
+      backlog:
+        description: "listen() backlog hint"
+        required: false
+        default: "1"
+      dials:
+        description: "concurrent dials"
+        required: false
+        default: "200"
+      timeout:
+        description: "per-dial timeout"
+        required: false
+        default: "6s"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: probe (linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Kernel TCP sysctls
+        run: |
+          set -x
+          uname -a
+          cat /proc/sys/net/ipv4/tcp_abort_on_overflow
+          cat /proc/sys/net/core/somaxconn
+          cat /proc/sys/net/ipv4/tcp_max_syn_backlog
+          cat /proc/sys/net/ipv4/tcp_syn_retries
+
+      - name: Run probe (default config)
+        run: |
+          go run ./scripts/probe-backlog-overflow \
+            -backlog "${{ inputs.backlog || '1' }}" \
+            -dials   "${{ inputs.dials   || '200' }}" \
+            -timeout "${{ inputs.timeout || '6s' }}"
+
+      - name: Run probe (backlog=8, more dials)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        run: |
+          go run ./scripts/probe-backlog-overflow \
+            -backlog 8 \
+            -dials   500 \
+            -timeout 6s
