@@ -20,7 +20,7 @@ jobs:
     if: github.event_name == 'push' && github.ref_name == 'main'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -46,7 +46,7 @@ jobs:
       - name: Sync issues
         id: sync
         if: steps.version.outputs.skip != 'true'
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@3b634623620454bac33390451a1dd15ba78e3dc4 # v0.14.4
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
@@ -59,7 +59,7 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.ref_name, 'release/')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -72,7 +72,7 @@ jobs:
 
       - name: Sync issues
         id: sync
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@3b634623620454bac33390451a1dd15ba78e3dc4 # v0.14.4
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: sync
@@ -89,7 +89,7 @@ jobs:
       github.event.created == true
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
@@ -100,7 +100,7 @@ jobs:
 
       - name: Move to Code Freeze
         id: update
-        uses: linear/linear-release-action@0353b5fa8c00326913966f00557d68f8f30b8b6b # v0.7.0
+        uses: linear/linear-release-action@3b634623620454bac33390451a1dd15ba78e3dc4 # v0.14.4
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           command: update
