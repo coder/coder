@@ -123,7 +123,7 @@ export const WorkspaceAutostopSettings: FC<WorkspaceAutostopSettingsProps> = ({
 					!form.values.enabled || isSavingWorkspaceTTL || isWorkspaceTTLLoading
 				}
 				error={Boolean(fieldError)}
-				className="w-[330px]"
+				className="w-fit"
 			/>
 		</LifecycleSettingLayout>
 	);
