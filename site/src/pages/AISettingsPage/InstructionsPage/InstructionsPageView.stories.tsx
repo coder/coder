@@ -17,12 +17,10 @@ const baseArgs: InstructionsPageViewProps = {
 		plan_mode_instructions:
 			"Use a numbered checklist for implementation plans.",
 	},
-	onSaveSystemPrompt: fn(),
-	isSavingSystemPrompt: false,
-	isSaveSystemPromptError: false,
-	onSavePlanModeInstructions: fn(),
-	isSavingPlanModeInstructions: false,
-	isSavePlanModeInstructionsError: false,
+	onSaveSystemPrompt: fn(async () => undefined),
+	onSavePlanModeInstructions: fn(async () => undefined),
+	isSaving: false,
+	isSaveError: false,
 };
 
 const meta = {
@@ -69,11 +67,7 @@ export const AdminWithDefaultToggleOn: Story = {
 		});
 
 		await userEvent.click(toggle);
-		const promptForm = promptInput.closest("form");
-		if (!(promptForm instanceof HTMLFormElement)) {
-			throw new Error("Expected system prompt textarea to live inside a form.");
-		}
-		const saveButton = within(promptForm).getByRole("button", {
+		const saveButton = canvas.getByRole("button", {
 			name: "Save",
 		});
 		await waitFor(() => {
@@ -157,13 +151,7 @@ export const SavesPlanModeInstructions: Story = {
 		await userEvent.clear(textarea);
 		await userEvent.type(textarea, "Always produce a concise plan first.");
 
-		const planModeForm = textarea.closest("form");
-		if (!(planModeForm instanceof HTMLFormElement)) {
-			throw new Error(
-				"Expected plan mode instructions textarea to live inside a form.",
-			);
-		}
-		const saveButton = within(planModeForm).getByRole("button", {
+		const saveButton = canvas.getByRole("button", {
 			name: "Save",
 		});
 		await waitFor(() => {
@@ -172,10 +160,9 @@ export const SavesPlanModeInstructions: Story = {
 		await userEvent.click(saveButton);
 
 		await waitFor(() => {
-			expect(args.onSavePlanModeInstructions).toHaveBeenCalledWith(
-				{ plan_mode_instructions: "Always produce a concise plan first." },
-				expect.anything(),
-			);
+			expect(args.onSavePlanModeInstructions).toHaveBeenCalledWith({
+				plan_mode_instructions: "Always produce a concise plan first.",
+			});
 		});
 	},
 };

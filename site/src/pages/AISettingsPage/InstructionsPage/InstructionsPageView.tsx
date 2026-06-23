@@ -1,44 +1,100 @@
+import { useFormik } from "formik";
 import type { FC } from "react";
-import type { UseMutateFunction } from "react-query";
+import { useState } from "react";
+import TextareaAutosize from "react-textarea-autosize";
 import type * as TypesGen from "#/api/typesGenerated";
-import { PlanModeInstructionsSettings } from "./components/PlanModeInstructionsSettings";
-import { SystemInstructionsSettings } from "./components/SystemInstructionsSettings";
+import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Button } from "#/components/Button/Button";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { Switch } from "#/components/Switch/Switch";
+import { TextPreviewDialog } from "#/pages/AgentsPage/components/TextPreviewDialog";
+import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 export interface InstructionsPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
 	planModeInstructionsData:
 		| TypesGen.ChatPlanModeInstructionsResponse
 		| undefined;
-	onSaveSystemPrompt: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatSystemPromptRequest,
-		unknown
-	>;
-	isSavingSystemPrompt: boolean;
-	isSaveSystemPromptError: boolean;
-	onSavePlanModeInstructions: UseMutateFunction<
-		void,
-		Error,
-		TypesGen.UpdateChatPlanModeInstructionsRequest,
-		unknown
-	>;
-	isSavingPlanModeInstructions: boolean;
-	isSavePlanModeInstructionsError: boolean;
+	onSaveSystemPrompt: (
+		req: TypesGen.UpdateChatSystemPromptRequest,
+	) => Promise<void> | void;
+	onSavePlanModeInstructions: (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+	) => Promise<void> | void;
+	isSaving: boolean;
+	isSaveError: boolean;
 }
 
 export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
 	onSaveSystemPrompt,
-	isSavingSystemPrompt,
-	isSaveSystemPromptError,
 	onSavePlanModeInstructions,
-	isSavingPlanModeInstructions,
-	isSavePlanModeInstructionsError,
+	isSaving,
+	isSaveError,
 }) => {
-	const isAnyPromptSaving =
-		isSavingSystemPrompt || isSavingPlanModeInstructions;
+	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
+		useState(false);
+	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
+		useState(false);
+	const [
+		isPlanModeInstructionsOverflowing,
+		setIsPlanModeInstructionsOverflowing,
+	] = useState(false);
+
+	const hasLoadedInstructions =
+		systemPromptData !== undefined && planModeInstructionsData !== undefined;
+	const defaultSystemPrompt = systemPromptData?.default_system_prompt ?? "";
+	const initialValues = {
+		system_prompt: systemPromptData?.system_prompt ?? "",
+		include_default_system_prompt:
+			systemPromptData?.include_default_system_prompt ?? false,
+		plan_mode_instructions:
+			planModeInstructionsData?.plan_mode_instructions ?? "",
+	};
+
+	const form = useFormik({
+		enableReinitialize: true,
+		initialValues,
+		onSubmit: async (values, { resetForm }) => {
+			const saves: Array<Promise<void> | void> = [];
+
+			if (
+				values.system_prompt !== initialValues.system_prompt ||
+				values.include_default_system_prompt !==
+					initialValues.include_default_system_prompt
+			) {
+				saves.push(
+					onSaveSystemPrompt({
+						system_prompt: values.system_prompt,
+						include_default_system_prompt: values.include_default_system_prompt,
+					}),
+				);
+			}
+
+			if (
+				values.plan_mode_instructions !== initialValues.plan_mode_instructions
+			) {
+				saves.push(
+					onSavePlanModeInstructions({
+						plan_mode_instructions: values.plan_mode_instructions,
+					}),
+				);
+			}
+
+			await Promise.all(saves);
+			resetForm({ values });
+		},
+	});
+
+	const systemInvisibleCharCount = countInvisibleCharacters(
+		form.values.system_prompt,
+	);
+	const planModeInvisibleCharCount = countInvisibleCharacters(
+		form.values.plan_mode_instructions,
+	);
+	const isDisabled = isSaving || !hasLoadedInstructions;
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-8">
@@ -51,21 +107,131 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					deployment.
 				</p>
 			</div>
-			<div className="flex flex-col gap-8">
-				<SystemInstructionsSettings
-					systemPromptData={systemPromptData}
-					onSaveSystemPrompt={onSaveSystemPrompt}
-					isSavingSystemPrompt={isSavingSystemPrompt}
-					isSaveSystemPromptError={isSaveSystemPromptError}
-					isAnyPromptSaving={isAnyPromptSaving}
+
+			<form
+				className="flex flex-col rounded-lg border border-solid border-border p-6"
+				onSubmit={form.handleSubmit}
+			>
+				<div className="flex items-center gap-2 font-sans text-sm font-normal leading-6 text-content-primary">
+					<Switch
+						checked={form.values.include_default_system_prompt}
+						onCheckedChange={(checked) =>
+							form.setFieldValue("include_default_system_prompt", checked)
+						}
+						aria-label="Include Coder Agents default system prompt"
+						disabled={isDisabled}
+					/>
+					<div className="flex min-w-0 items-center gap-1.5">
+						<span>Include Coder Agents default system prompt.</span>
+						<Button
+							size="xs"
+							variant="subtle"
+							type="button"
+							onClick={() => setShowDefaultPromptPreview(true)}
+							disabled={!systemPromptData}
+							className="min-w-0 px-0 font-sans text-sm font-normal leading-6 text-content-link hover:text-content-link"
+						>
+							View prompt
+						</Button>
+					</div>
+				</div>
+
+				<label
+					className="mt-4 mb-2 font-sans text-sm font-bold leading-6 text-content-primary"
+					htmlFor="system_prompt"
+				>
+					Additional system instructions
+				</label>
+				<TextareaAutosize
+					className={cn(
+						"max-h-[240px] w-full resize-none rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+						isSystemPromptOverflowing &&
+							"overflow-y-auto [scrollbar-width:thin]",
+					)}
+					id="system_prompt"
+					placeholder="Add additional guidance"
+					name="system_prompt"
+					value={form.values.system_prompt}
+					onChange={form.handleChange}
+					onHeightChange={(height) =>
+						setIsSystemPromptOverflowing(height >= 240)
+					}
+					disabled={isDisabled}
+					minRows={1}
 				/>
-				<PlanModeInstructionsSettings
-					planModeInstructionsData={planModeInstructionsData}
-					onSavePlanModeInstructions={onSavePlanModeInstructions}
-					isSavePlanModeInstructionsError={isSavePlanModeInstructionsError}
-					isAnyPromptSaving={isAnyPromptSaving}
+				{systemInvisibleCharCount > 0 && (
+					<Alert severity="warning" className="mt-2">
+						<AlertDescription>
+							This text contains {systemInvisibleCharCount} invisible Unicode{" "}
+							{systemInvisibleCharCount !== 1 ? "characters" : "character"} that
+							could hide content. These will be stripped on save.
+						</AlertDescription>
+					</Alert>
+				)}
+
+				<label
+					className="mt-8 mb-2 font-sans text-sm font-bold leading-6 text-content-primary"
+					htmlFor="plan_mode_instructions"
+				>
+					Additional Plan mode instructions
+				</label>
+				<TextareaAutosize
+					className={cn(
+						"max-h-[240px] w-full resize-none rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
+						isPlanModeInstructionsOverflowing &&
+							"overflow-y-auto [scrollbar-width:thin]",
+					)}
+					id="plan_mode_instructions"
+					placeholder="Add additional guidance"
+					name="plan_mode_instructions"
+					value={form.values.plan_mode_instructions}
+					onChange={form.handleChange}
+					onHeightChange={(height) =>
+						setIsPlanModeInstructionsOverflowing(height >= 240)
+					}
+					disabled={isDisabled}
+					minRows={4}
+					maxRows={12}
 				/>
-			</div>
+				{planModeInvisibleCharCount > 0 && (
+					<Alert severity="warning" className="mt-2">
+						<AlertDescription>
+							This text contains {planModeInvisibleCharCount} invisible Unicode{" "}
+							{planModeInvisibleCharCount !== 1 ? "characters" : "character"}{" "}
+							that could hide content. These will be stripped on save.
+						</AlertDescription>
+					</Alert>
+				)}
+
+				{isSaveError && (
+					<p className="m-0 mt-4 text-xs text-content-destructive">
+						Failed to save instructions.
+					</p>
+				)}
+
+				<div className="mt-8 flex justify-end gap-4">
+					<Button
+						variant="outline"
+						type="button"
+						onClick={() => form.resetForm()}
+						disabled={isDisabled || !form.dirty}
+					>
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isDisabled || !form.dirty}>
+						{isSaving && <Spinner loading className="h-4 w-4" />}
+						Save
+					</Button>
+				</div>
+			</form>
+
+			{showDefaultPromptPreview && (
+				<TextPreviewDialog
+					content={defaultSystemPrompt}
+					fileName="Default System Prompt"
+					onClose={() => setShowDefaultPromptPreview(false)}
+				/>
+			)}
 		</div>
 	);
 };

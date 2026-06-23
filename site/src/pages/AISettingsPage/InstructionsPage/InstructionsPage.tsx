@@ -37,14 +37,16 @@ const InstructionsPage: FC = () => {
 			<InstructionsPageView
 				systemPromptData={systemPromptQuery.data}
 				planModeInstructionsData={planModeInstructionsQuery.data}
-				onSaveSystemPrompt={saveSystemPromptMutation.mutate}
-				isSavingSystemPrompt={saveSystemPromptMutation.isPending}
-				isSaveSystemPromptError={saveSystemPromptMutation.isError}
-				onSavePlanModeInstructions={savePlanModeInstructionsMutation.mutate}
-				isSavingPlanModeInstructions={
+				onSaveSystemPrompt={saveSystemPromptMutation.mutateAsync}
+				onSavePlanModeInstructions={
+					savePlanModeInstructionsMutation.mutateAsync
+				}
+				isSaving={
+					saveSystemPromptMutation.isPending ||
 					savePlanModeInstructionsMutation.isPending
 				}
-				isSavePlanModeInstructionsError={
+				isSaveError={
+					saveSystemPromptMutation.isError ||
 					savePlanModeInstructionsMutation.isError
 				}
 			/>
