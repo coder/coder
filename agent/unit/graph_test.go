@@ -244,16 +244,14 @@ func TestGraphThreadSafety(t *testing.T) {
 		barrier := make(chan struct{})
 		// Launch writers
 		for i := 0; i < numWriters; i++ {
-			wg.Add(1)
-			go func(writerID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-barrier
 				for j := 0; j < operationsPerWriter; j++ {
-					from := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j)}
-					to := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", writerID, j+1)}
+					from := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", i, j)}
+					to := &testGraphVertex{Name: fmt.Sprintf("writer-%d-%d", i, j+1)}
 					graph.AddEdge(from, to, testEdgeCompleted)
 				}
-			}(i)
+			})
 		}
 
 		// Launch readers
@@ -263,20 +261,18 @@ func TestGraphThreadSafety(t *testing.T) {
 		}, numReaders)
 
 		for i := 0; i < numReaders; i++ {
-			wg.Add(1)
-			go func(readerID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-barrier
 				defer func() {
 					if r := recover(); r != nil {
-						readerResults[readerID].panicked = true
+						readerResults[i].panicked = true
 					}
 				}()
 
 				readCount := 0
 				for j := 0; j < operationsPerReader; j++ {
 					// Create a test vertex and read
-					testUnit := &testGraphVertex{Name: fmt.Sprintf("test-reader-%d-%d", readerID, j)}
+					testUnit := &testGraphVertex{Name: fmt.Sprintf("test-reader-%d-%d", i, j)}
 					forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 					reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
@@ -285,8 +281,8 @@ func TestGraphThreadSafety(t *testing.T) {
 					_ = reverseEdges
 					readCount++
 				}
-				readerResults[readerID].readCount = readCount
-			}(i)
+				readerResults[i].readCount = readCount
+			})
 		}
 
 		close(barrier)
@@ -324,13 +320,11 @@ func TestGraphThreadSafety(t *testing.T) {
 
 		// Launch goroutines trying to add D→A (creates cycle)
 		for i := 0; i < numGoroutines; i++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-barrier
 				err := graph.AddEdge(unitD, unitA, testEdgeCompleted)
-				cycleErrors[goroutineID] = err
-			}(i)
+				cycleErrors[i] = err
+			})
 		}
 
 		close(barrier)
@@ -370,28 +364,24 @@ func TestGraphThreadSafety(t *testing.T) {
 		// Launch readers calling ToDOT
 		dotErrors := make([]error, numReaders)
 		for i := 0; i < numReaders; i++ {
-			wg.Add(1)
-			go func(readerID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-barrier
-				dot, err := graph.ToDOT(fmt.Sprintf("test-%d", readerID))
-				dotErrors[readerID] = err
+				dot, err := graph.ToDOT(fmt.Sprintf("test-%d", i))
+				dotErrors[i] = err
 				if err == nil {
-					dotResults[readerID] = dot
+					dotResults[i] = dot
 				}
-			}(i)
+			})
 		}
 
 		// Launch writers adding edges
 		for i := 0; i < numWriters; i++ {
-			wg.Add(1)
-			go func(writerID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				<-barrier
-				from := &testGraphVertex{Name: fmt.Sprintf("writer-dot-%d", writerID)}
-				to := &testGraphVertex{Name: fmt.Sprintf("writer-dot-target-%d", writerID)}
+				from := &testGraphVertex{Name: fmt.Sprintf("writer-dot-%d", i)}
+				to := &testGraphVertex{Name: fmt.Sprintf("writer-dot-target-%d", i)}
 				graph.AddEdge(from, to, testEdgeCompleted)
-			}(i)
+			})
 		}
 
 		close(barrier)
@@ -418,9 +408,7 @@ func BenchmarkGraph_ConcurrentMixedOperations(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		// Launch goroutines performing random operations
 		for j := 0; j < numGoroutines; j++ {
-			wg.Add(1)
-			go func(goroutineID int) {
-				defer wg.Done()
+			wg.Go(func() {
 				operationCount := 0
 
 				for operationCount < 50 {
@@ -428,7 +416,7 @@ func BenchmarkGraph_ConcurrentMixedOperations(b *testing.B) {
 
 					if operation < 0.6 { // 60% reads
 						// Read operation
-						testUnit := &testGraphVertex{Name: fmt.Sprintf("bench-read-%d-%d", goroutineID, operationCount)}
+						testUnit := &testGraphVertex{Name: fmt.Sprintf("bench-read-%d-%d", j, operationCount)}
 						forwardEdges := graph.GetForwardAdjacentVertices(testUnit)
 						reverseEdges := graph.GetReverseAdjacentVertices(testUnit)
 
@@ -437,14 +425,14 @@ func BenchmarkGraph_ConcurrentMixedOperations(b *testing.B) {
 						_ = reverseEdges
 					} else { // 40% writes
 						// Write operation
-						from := &testGraphVertex{Name: fmt.Sprintf("bench-write-%d-%d", goroutineID, operationCount)}
-						to := &testGraphVertex{Name: fmt.Sprintf("bench-write-target-%d-%d", goroutineID, operationCount)}
+						from := &testGraphVertex{Name: fmt.Sprintf("bench-write-%d-%d", j, operationCount)}
+						to := &testGraphVertex{Name: fmt.Sprintf("bench-write-target-%d-%d", j, operationCount)}
 						graph.AddEdge(from, to, testEdgeCompleted)
 					}
 
 					operationCount++
 				}
-			}(j)
+			})
 		}
 
 		wg.Wait()

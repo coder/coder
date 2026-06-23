@@ -473,12 +473,10 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			responses := make(chan int, totalRequests)
 
 			for i := 0; i < totalRequests; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					status := doRequest()
 					responses <- status
-				}()
+				})
 			}
 
 			wg.Wait()

@@ -964,13 +964,11 @@ func TestProcessOutput(t *testing.T) {
 			codes [2]int
 		)
 		for i := range 2 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				w := getOutputWithWait(t, handler, id)
 				codes[i] = w.Code
 				_ = json.NewDecoder(w.Body).Decode(&resps[i])
-			}()
+			})
 		}
 
 		// Signal the process to exit so both waiters unblock.
