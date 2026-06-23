@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/coder/coder/v2/coderd/aibridge"
+	"golang.org/x/xerrors"
 )
 
 // RecordedRequest captures metadata from a single request that passed
@@ -85,7 +86,12 @@ type mockRoundTripper struct {
 }
 
 func (rt mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+	// Mirror the real aibridged transport: a delegated API key must be
+	// on the context, otherwise aibridged has no identity to act under.
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
+	if !ok {
+		return nil, xerrors.New("mock aibridged transport requires WithDelegatedAPIKeyID on the request context")
+	}
 	rt.factory.mu.Lock()
 	rt.factory.requests = append(rt.factory.requests, RecordedRequest{
 		Request:      req.Clone(req.Context()),
