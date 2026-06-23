@@ -1471,6 +1471,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1793,8 +1794,7 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)

@@ -239,7 +239,7 @@ eval $(./setup-test-app.sh)
 ./cleanup-test-app.sh
 ```
 
-For more details on testing, see the [OAuth2 test scripts README](https://github.com/coder/coder/blob/main/scripts/oauth2/README.md).
+For more details on testing, see the [OAuth2 test scripts README](../../../scripts/oauth2/README.md).
 
 ## Common Issues
 

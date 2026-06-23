@@ -203,6 +203,19 @@ export interface AIBridgeThread {
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
+	/**
+	 * AgentFirewallSessionID links this thread to an agent firewall
+	 * confinement session. Nil when the request did not pass through
+	 * the agent firewall.
+	 */
+	readonly agent_firewall_session_id?: string;
+	/**
+	 * AgentFirewallSequenceNumber is the firewall sequence number from
+	 * the root interception. Used to determine the position of this
+	 * LLM request in the firewall event stream. Nil when the request
+	 * did not pass through the agent firewall.
+	 */
+	readonly agent_firewall_sequence_number?: number;
 }
 
 // From codersdk/aibridge.go
@@ -1026,6 +1039,23 @@ export const AgentDisplayModes: AgentDisplayMode[] = [
 
 // From codersdk/agentfirewall.go
 /**
+ * AgentFirewallLog represents a single audit event from an agent firewall proxy.
+ */
+export interface AgentFirewallLog {
+	readonly id: string;
+	readonly session_id: string;
+	readonly sequence_number: number;
+	readonly allowed: boolean;
+	readonly created_at: string;
+	readonly proto: string;
+	readonly method: string;
+	readonly detail: string;
+	readonly matched_rule: string | null;
+	readonly captured_at?: string;
+}
+
+// From codersdk/agentfirewall.go
+/**
  * AgentFirewallSession represents a firewall session for a workspace agent.
  */
 export interface AgentFirewallSession {
@@ -1034,6 +1064,37 @@ export interface AgentFirewallSession {
 	readonly owner_id: string;
 	readonly confined_process: string;
 	readonly started_at: string;
+}
+
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSessionLogsParams are query parameters for listing
+ * agent firewall session logs.
+ */
+export interface AgentFirewallSessionLogsParams {
+	/**
+	 * SeqAfter is an inclusive lower bound on sequence_number.
+	 * Only logs with sequence_number >= SeqAfter are returned.
+	 */
+	readonly seq_after?: number;
+	/**
+	 * SeqBefore is an exclusive upper bound on sequence_number.
+	 * Only logs with sequence_number < SeqBefore are returned.
+	 */
+	readonly seq_before?: number;
+	/**
+	 * Limit caps the number of returned rows. Defaults to 100.
+	 */
+	readonly limit?: number;
+}
+
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSessionLogsResponse is the response for
+ * GET /api/v2/agent-firewall/sessions/{id}/logs.
+ */
+export interface AgentFirewallSessionLogsResponse {
+	readonly results: readonly AgentFirewallLog[];
 }
 
 // From codersdk/workspacebuilds.go
@@ -1509,13 +1570,6 @@ export interface Chat {
 	 */
 	readonly has_unread: boolean;
 	/**
-	 * LastInjectedContext holds the most recently persisted
-	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes, on first workspace
-	 * attach or agent change.
-	 */
-	readonly last_injected_context?: readonly ChatMessagePart[];
-	/**
 	 * Context reports the chat's pinned workspace-context state and
 	 * whether it has drifted from the agent's latest pushed snapshot.
 	 * Nil when the chat has no pinned context yet.
@@ -1626,6 +1680,13 @@ export interface ChatContext {
 	 * (empty when healthy).
 	 */
 	readonly error?: string;
+	/**
+	 * Resources is the chat's pinned context (instruction files and
+	 * skills) the prompt is built from, metadata only (no bodies). It is
+	 * populated only on the single-chat GET response; list and watch
+	 * payloads leave it nil to stay lightweight.
+	 */
+	readonly resources?: readonly ChatContextResource[];
 }
 
 // From codersdk/chats.go
@@ -1648,6 +1709,95 @@ export interface ChatContextFilePart {
 	 * re-persisted with fresh content.
 	 */
 	readonly context_file_agent_id?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatContextResource is one pinned workspace-context resource the chat's
+ * prompt is built from. It is metadata only; bodies are omitted. Reported
+ * only on the single-chat GET response.
+ */
+export interface ChatContextResource {
+	/**
+	 * Source is the resource locator: the canonical file path for an
+	 * instruction file, the skill directory for a skill, the file path for
+	 * an MCP config, or the server name for an MCP server.
+	 */
+	readonly source: string;
+	readonly kind: ChatContextResourceKind;
+	/**
+	 * SizeBytes is the original payload size in bytes.
+	 */
+	readonly size_bytes: number;
+	/**
+	 * SkillName and SkillDescription are populated only for skill kinds.
+	 */
+	readonly skill_name?: string;
+	readonly skill_description?: string;
+	/**
+	 * Tools lists the tools exposed by an MCP server. Populated only for the
+	 * mcp_server kind; nil otherwise.
+	 */
+	readonly tools?: readonly ChatContextTool[];
+	/**
+	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
+	 * oversize, excluded) are still reported so the UI can surface why a
+	 * resource was dropped from the prompt instead of silently omitting it;
+	 * their body-specific fields (skill name, tools) are empty.
+	 */
+	readonly status: ChatContextResourceStatus;
+	/**
+	 * Error explains a non-ok Status; empty when healthy. May also carry a
+	 * non-fatal warning when Status is ok.
+	 */
+	readonly error?: string;
+}
+
+// From codersdk/chats.go
+export type ChatContextResourceKind =
+	| "instruction_file"
+	| "mcp_config"
+	| "mcp_server"
+	| "skill";
+
+export const ChatContextResourceKinds: ChatContextResourceKind[] = [
+	"instruction_file",
+	"mcp_config",
+	"mcp_server",
+	"skill",
+];
+
+// From codersdk/chats.go
+export type ChatContextResourceStatus =
+	| "excluded"
+	| "invalid"
+	| "ok"
+	| "oversize"
+	| "unreadable";
+
+export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
+	"excluded",
+	"invalid",
+	"ok",
+	"oversize",
+	"unreadable",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+ * single-chat GET response. Metadata only; the input schema is omitted.
+ */
+export interface ChatContextTool {
+	/**
+	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * stripped, so it reads as the server exposes it.
+	 */
+	readonly name: string;
+	/**
+	 * Description is the tool's human-readable summary; may be empty.
+	 */
+	readonly description?: string;
 }
 
 // From codersdk/chats.go
