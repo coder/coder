@@ -306,23 +306,22 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		asyncRecorder.WithClient(string(client))
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
-			if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
-				ID:                          interceptor.ID().String(),
-				InitiatorID:                 actor.ID,
-				Metadata:                    actor.Metadata,
-				Model:                       interceptor.Model(),
-				Provider:                    p.Type(),
-				ProviderName:                p.Name(),
-				UserAgent:                   r.UserAgent(),
-				Client:                      string(client),
-				ClientSessionID:             sessionID,
-				CorrelatingToolCallID:       interceptor.CorrelatingToolCallID(),
-				AgentFirewallSessionID:      agentFirewallSessionID,
-				AgentFirewallSequenceNumber: agentFirewallSeqNumber,
-				CredentialKind:              string(cred.Kind()),
-				CredentialHint:              cred.Hint(),
-			}); err != nil {
-
+		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
+			ID:                          interceptor.ID().String(),
+			InitiatorID:                 actor.ID,
+			Metadata:                    actor.Metadata,
+			Model:                       interceptor.Model(),
+			Provider:                    p.Type(),
+			ProviderName:                p.Name(),
+			UserAgent:                   r.UserAgent(),
+			Client:                      string(client),
+			ClientSessionID:             sessionID,
+			CorrelatingToolCallID:       interceptor.CorrelatingToolCallID(),
+			AgentFirewallSessionID:      agentFirewallSessionID,
+			AgentFirewallSequenceNumber: agentFirewallSeqNumber,
+			CredentialKind:              string(cred.Kind()),
+			CredentialHint:              cred.Hint(),
+		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
 			logger.Warn(ctx, "failed to record interception", slog.Error(err))
 			http.Error(w, "failed to record interception", http.StatusInternalServerError)
