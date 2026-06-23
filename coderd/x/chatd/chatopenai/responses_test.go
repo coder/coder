@@ -844,7 +844,8 @@ func chainModeUserMessage(text string) database.ChatMessage {
 func chainModeSkillOnlyUserMessage() database.ChatMessage {
 	msg := chattest.ChatMessageWithParts([]codersdk.ChatMessagePart{
 		{
-			Type:            codersdk.ChatMessagePartTypeContextFile,
+			Type: codersdk.ChatMessagePartTypeContextFile,
+			// Keep this in sync with chatd.AgentChatContextSentinelPath.
 			ContextFilePath: ".coder/agent-chat-context-sentinel",
 			ContextFileAgentID: uuid.NullUUID{
 				UUID:  uuid.New(),
