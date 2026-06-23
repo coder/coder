@@ -70,6 +70,12 @@ func ResetMismatchedOIDCLinks(ctx context.Context, db database.Store, expectedIs
 	return count, nil
 }
 
+// UnmatchableIssuer is a synthetic issuer value that no real OIDC linked_id
+// will ever start with. Passing it to AnalyzeOIDCLinks or
+// ResetMismatchedOIDCLinks causes every link to be treated as "mismatched",
+// which effectively resets all of them.
+const UnmatchableIssuer = "00000000-0000-0000-0000-000000000000"
+
 // ResolveIssuer uses OIDC discovery to fetch the canonical issuer string
 // from the provider's .well-known/openid-configuration endpoint.
 // This does not require OIDC client credentials.
