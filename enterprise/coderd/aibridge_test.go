@@ -45,6 +45,20 @@ func aibridgeOpts(t *testing.T) *coderdenttest.Options {
 	}
 }
 
+// auditLogsByAction indexes audit rows by their action so callers can assert
+// on a specific entry without relying on row order, which GetAuditLogsOffset
+// does not guarantee. It requires every action among the rows to be unique.
+func auditLogsByAction(t *testing.T, rows []database.GetAuditLogsOffsetRow) map[database.AuditAction]database.AuditLog {
+	t.Helper()
+	byAction := make(map[database.AuditAction]database.AuditLog, len(rows))
+	for _, r := range rows {
+		_, dup := byAction[r.AuditLog.Action]
+		require.Falsef(t, dup, "duplicate audit action %q: helper assumes distinct actions", r.AuditLog.Action)
+		byAction[r.AuditLog.Action] = r.AuditLog
+	}
+	return byAction
+}
+
 func TestAIBridgeListSessions(t *testing.T) {
 	t.Parallel()
 
@@ -2261,9 +2275,11 @@ func TestGroupAIBudget(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		upsertLog := rows[1].AuditLog
-		deleteLog := rows[0].AuditLog
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, group.ID, upsertLog.ResourceID)
@@ -2548,9 +2564,11 @@ func TestUserAIBudgetOverride(t *testing.T) {
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		upsertLog := rows[1].AuditLog
-		deleteLog := rows[0].AuditLog
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, targetUser.ID, upsertLog.ResourceID)
