@@ -19,8 +19,11 @@ const baseArgs: InstructionsPageViewProps = {
 	},
 	onSaveSystemPrompt: fn(async () => undefined),
 	onSavePlanModeInstructions: fn(async () => undefined),
+	onResetSystemPromptSave: fn(),
+	onResetPlanModeInstructionsSave: fn(),
 	isSaving: false,
-	isSaveError: false,
+	isSaveSystemPromptError: false,
+	isSavePlanModeInstructionsError: false,
 };
 
 const meta = {
@@ -118,9 +121,6 @@ export const InvisibleUnicodeWarningSystemPrompt: Story = {
 	},
 };
 
-// The deleted combined story covered both prompt editors on one page. After
-// the split, this story covers the system prompt half and the General page
-// stories cover the personal instructions half.
 export const NoWarningForCleanPrompt: Story = {
 	args: {
 		systemPromptData: {
@@ -135,6 +135,45 @@ export const NoWarningForCleanPrompt: Story = {
 		await canvas.findByText("Additional system instructions");
 		await canvas.findByDisplayValue("You are a helpful coding assistant.");
 		expect(canvas.queryByText(/invisible Unicode/)).toBeNull();
+	},
+};
+
+export const SavesSystemPrompt: Story = {
+	args: {
+		systemPromptData: {
+			system_prompt: "",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		},
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const textarea = await canvas.findByLabelText(
+			"Additional system instructions",
+		);
+
+		await userEvent.type(textarea, "Always explain tradeoffs first.");
+		await userEvent.click(
+			canvas.getByRole("switch", {
+				name: "Include Coder Agents default system prompt",
+			}),
+		);
+
+		const saveButton = canvas.getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "Always explain tradeoffs first.",
+				include_default_system_prompt: true,
+			});
+		});
+		expect(args.onSavePlanModeInstructions).not.toHaveBeenCalled();
 	},
 };
 
@@ -164,5 +203,6 @@ export const SavesPlanModeInstructions: Story = {
 				plan_mode_instructions: "Always produce a concise plan first.",
 			});
 		});
+		expect(args.onSaveSystemPrompt).not.toHaveBeenCalled();
 	},
 };

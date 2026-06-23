@@ -41,12 +41,14 @@ const InstructionsPage: FC = () => {
 				onSavePlanModeInstructions={
 					savePlanModeInstructionsMutation.mutateAsync
 				}
+				onResetSystemPromptSave={saveSystemPromptMutation.reset}
+				onResetPlanModeInstructionsSave={savePlanModeInstructionsMutation.reset}
 				isSaving={
 					saveSystemPromptMutation.isPending ||
 					savePlanModeInstructionsMutation.isPending
 				}
-				isSaveError={
-					saveSystemPromptMutation.isError ||
+				isSaveSystemPromptError={saveSystemPromptMutation.isError}
+				isSavePlanModeInstructionsError={
 					savePlanModeInstructionsMutation.isError
 				}
 			/>

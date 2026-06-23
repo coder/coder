@@ -2,14 +2,21 @@ import { useFormik } from "formik";
 import type { FC } from "react";
 import { useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
+import { toast } from "sonner";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
+import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
 import { TextPreviewDialog } from "#/pages/AgentsPage/components/TextPreviewDialog";
-import { cn } from "#/utils/cn";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
+
+const TEXTAREA_MAX_ROWS = 9;
 
 export interface InstructionsPageViewProps {
 	systemPromptData: TypesGen.ChatSystemPromptResponse | undefined;
@@ -22,8 +29,11 @@ export interface InstructionsPageViewProps {
 	onSavePlanModeInstructions: (
 		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
 	) => Promise<void> | void;
+	onResetSystemPromptSave: () => void;
+	onResetPlanModeInstructionsSave: () => void;
 	isSaving: boolean;
-	isSaveError: boolean;
+	isSaveSystemPromptError: boolean;
+	isSavePlanModeInstructionsError: boolean;
 }
 
 export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
@@ -31,17 +41,14 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	planModeInstructionsData,
 	onSaveSystemPrompt,
 	onSavePlanModeInstructions,
+	onResetSystemPromptSave,
+	onResetPlanModeInstructionsSave,
 	isSaving,
-	isSaveError,
+	isSaveSystemPromptError,
+	isSavePlanModeInstructionsError,
 }) => {
 	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
 		useState(false);
-	const [isSystemPromptOverflowing, setIsSystemPromptOverflowing] =
-		useState(false);
-	const [
-		isPlanModeInstructionsOverflowing,
-		setIsPlanModeInstructionsOverflowing,
-	] = useState(false);
 
 	const hasLoadedInstructions =
 		systemPromptData !== undefined && planModeInstructionsData !== undefined;
@@ -57,33 +64,35 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	const form = useFormik({
 		enableReinitialize: true,
 		initialValues,
-		onSubmit: async (values, { resetForm }) => {
-			const saves: Array<Promise<void> | void> = [];
+		onSubmit: async (values, { resetForm, setValues }) => {
+			onResetSystemPromptSave();
+			onResetPlanModeInstructionsSave();
 
-			if (
-				values.system_prompt !== initialValues.system_prompt ||
-				values.include_default_system_prompt !==
-					initialValues.include_default_system_prompt
-			) {
-				saves.push(
-					onSaveSystemPrompt({
+			try {
+				if (
+					values.system_prompt !== initialValues.system_prompt ||
+					values.include_default_system_prompt !==
+						initialValues.include_default_system_prompt
+				) {
+					await onSaveSystemPrompt({
 						system_prompt: values.system_prompt,
 						include_default_system_prompt: values.include_default_system_prompt,
-					}),
-				);
-			}
+					});
+				}
 
-			if (
-				values.plan_mode_instructions !== initialValues.plan_mode_instructions
-			) {
-				saves.push(
-					onSavePlanModeInstructions({
+				if (
+					values.plan_mode_instructions !== initialValues.plan_mode_instructions
+				) {
+					await onSavePlanModeInstructions({
 						plan_mode_instructions: values.plan_mode_instructions,
-					}),
-				);
+					});
+				}
+			} catch (error) {
+				await setValues(values, false);
+				throw error;
 			}
 
-			await Promise.all(saves);
+			toast.success("Instructions saved successfully.");
 			resetForm({ values });
 		},
 	});
@@ -98,15 +107,13 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-8">
-			<div className="flex flex-col gap-2">
-				<h1 className="m-0 font-sans text-[32px] font-semibold leading-[40px] text-content-primary">
-					Instructions
-				</h1>
-				<p className="m-0 font-sans text-sm font-normal leading-6 text-content-secondary">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Instructions</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
 					Control the system prompts and plan mode instructions used across the
 					deployment.
-				</p>
-			</div>
+				</SettingsHeaderDescription>
+			</SettingsHeader>
 
 			<form
 				className="flex flex-col rounded-lg border border-solid border-border p-6"
@@ -143,21 +150,15 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					Additional system instructions
 				</label>
 				<TextareaAutosize
-					className={cn(
-						"max-h-[240px] w-full resize-none rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
-						isSystemPromptOverflowing &&
-							"overflow-y-auto [scrollbar-width:thin]",
-					)}
+					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]"
 					id="system_prompt"
-					placeholder="Add additional guidance"
+					placeholder="Instructions appended to every agent session"
 					name="system_prompt"
 					value={form.values.system_prompt}
 					onChange={form.handleChange}
-					onHeightChange={(height) =>
-						setIsSystemPromptOverflowing(height >= 240)
-					}
 					disabled={isDisabled}
 					minRows={1}
+					maxRows={TEXTAREA_MAX_ROWS}
 				/>
 				{systemInvisibleCharCount > 0 && (
 					<Alert severity="warning" className="mt-2">
@@ -176,22 +177,15 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					Additional Plan mode instructions
 				</label>
 				<TextareaAutosize
-					className={cn(
-						"max-h-[240px] w-full resize-none rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30",
-						isPlanModeInstructionsOverflowing &&
-							"overflow-y-auto [scrollbar-width:thin]",
-					)}
+					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]"
 					id="plan_mode_instructions"
-					placeholder="Add additional guidance"
+					placeholder="Instructions applied when the agent enters plan mode"
 					name="plan_mode_instructions"
 					value={form.values.plan_mode_instructions}
 					onChange={form.handleChange}
-					onHeightChange={(height) =>
-						setIsPlanModeInstructionsOverflowing(height >= 240)
-					}
 					disabled={isDisabled}
 					minRows={4}
-					maxRows={12}
+					maxRows={TEXTAREA_MAX_ROWS}
 				/>
 				{planModeInvisibleCharCount > 0 && (
 					<Alert severity="warning" className="mt-2">
@@ -203,9 +197,14 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					</Alert>
 				)}
 
-				{isSaveError && (
+				{isSaveSystemPromptError && (
 					<p className="m-0 mt-4 text-xs text-content-destructive">
-						Failed to save instructions.
+						Failed to save system prompt.
+					</p>
+				)}
+				{isSavePlanModeInstructionsError && (
+					<p className="m-0 mt-4 text-xs text-content-destructive">
+						Failed to save plan mode instructions.
 					</p>
 				)}
 
