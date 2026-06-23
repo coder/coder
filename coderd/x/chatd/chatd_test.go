@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -78,85 +77,22 @@ func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
 	return key.ID
 }
 
-type chatAIGatewayRecordedRequest struct {
-	ProviderName  string
-	Source        aibridge.Source
-	APIKeyID      string
-	Path          string
-	Authorization string
-	XAPIKey       string
-	CoderToken    string
-}
+// chatAIGatewayRecordedRequest is an alias for chattest.RecordedRequest so
+// existing assertions keep working without per-call-site changes.
+type chatAIGatewayRecordedRequest = chattest.RecordedRequest
 
-type chatAIGatewayTestFactory struct {
-	target       *url.URL
-	transport    http.RoundTripper
-	preservePath bool
-	mu           sync.Mutex
-	requests     []chatAIGatewayRecordedRequest
-}
+// chatAIGatewayTestFactory is an alias for chattest.MockTransportFactory
+// so existing usages keep working without per-call-site changes.
+type chatAIGatewayTestFactory = chattest.MockTransportFactory
 
 func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
 	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
+	return chattest.NewMockTransportFactory(t, targetBaseURL)
 }
 
 func newChatAIGatewayPreservePathTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
 	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport, preservePath: true}
-}
-
-func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
-	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
-}
-
-func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return slices.Clone(f.requests)
-}
-
-type chatAIGatewayRoundTripper struct {
-	factory      *chatAIGatewayTestFactory
-	providerName string
-	source       aibridge.Source
-}
-
-func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
-	t.factory.mu.Lock()
-	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
-		ProviderName:  t.providerName,
-		Source:        t.source,
-		APIKeyID:      apiKeyID,
-		Path:          req.URL.Path,
-		Authorization: req.Header.Get("Authorization"),
-		XAPIKey:       req.Header.Get("X-Api-Key"),
-		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
-	})
-	t.factory.mu.Unlock()
-
-	targetURL := *t.factory.target
-	if t.factory.preservePath {
-		targetURL.Path = req.URL.Path
-	} else {
-		targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
-		if targetURL.Path == "" {
-			targetURL.Path = "/"
-		}
-	}
-	targetURL.RawQuery = req.URL.RawQuery
-
-	cloned := req.Clone(req.Context())
-	cloned.URL = &targetURL
-	cloned.Host = t.factory.target.Host
-	return t.factory.transport.RoundTrip(cloned)
+	return chattest.NewMockTransportFactoryPreservePath(t, targetBaseURL)
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
@@ -5480,7 +5416,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 	require.True(t, compressed.summaries[0].APIKeyID.Valid)
 	require.Equal(t, apiKey.ID, compressed.summaries[0].APIKeyID.String)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
@@ -9824,7 +9760,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	require.Contains(t, requests, chatAIGatewayRecordedRequest{
 		ProviderName:  provider.Name,
@@ -9908,7 +9844,7 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
