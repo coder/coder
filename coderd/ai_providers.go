@@ -191,7 +191,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	// The UI submits Bedrock as type=anthropic with a bedrock discriminator,
 	// so gate on the settings blob rather than the provider type; otherwise
 	// aibridge silently drops the provider at runtime.
-	if req.Settings.Bedrock != nil && !req.Settings.Bedrock.IsConfigured() {
+	if req.Settings.Bedrock != nil && !codersdk.IsBedrockConfigured(req.BaseURL, *req.Settings.Bedrock) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid AI provider request.",
 			Validations: []codersdk.ValidationError{{
@@ -365,7 +365,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		// The mismatch check above guarantees a non-nil Bedrock blob only
 		// survives on anthropic- or bedrock-typed providers, so any such
 		// blob must resolve to usable config regardless of the type.
-		if existing.Bedrock != nil && !existing.Bedrock.IsConfigured() {
+		if existing.Bedrock != nil && !codersdk.IsBedrockConfigured(baseURL, *existing.Bedrock) {
 			return errAIProviderBedrockSettingsRequired
 		}
 		settings, err := encodeAIProviderSettings(existing)

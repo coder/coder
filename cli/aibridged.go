@@ -327,16 +327,14 @@ func buildAIProviderKeyPool(providerName string, keys []database.AIProviderKey, 
 }
 
 // bedrockConfigFromRow returns nil when the settings have no Bedrock
-// discriminator or when the Bedrock fields are not actually configured.
-// The provider row's BaseUrl is the generic upstream endpoint and is
-// always non-empty, so it cannot serve as a Bedrock detection signal;
-// gate on the settings blob alone via [codersdk.AIProviderBedrockSettings.IsConfigured].
+// discriminator or when neither the row BaseUrl nor the Bedrock fields
+// identify usable Bedrock config.
 func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderSettings) *aibridge.AWSBedrockConfig {
 	if settings.Bedrock == nil {
 		return nil
 	}
 	bedrockSettings := *settings.Bedrock
-	if !bedrockSettings.IsConfigured() {
+	if !codersdk.IsBedrockConfigured(row.BaseUrl, bedrockSettings) {
 		return nil
 	}
 	accessKey := ptr.NilToEmpty(bedrockSettings.AccessKey)

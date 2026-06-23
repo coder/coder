@@ -319,9 +319,8 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 
 	// Legacy Anthropic + Bedrock. Anthropic is enabled if either an
 	// Anthropic key OR any Bedrock setting is explicitly configured.
-	// Detection goes through AIProviderBedrockSettings.IsConfigured()
-	// so the legacy and indexed paths agree on what counts as a
-	// Bedrock provider.
+	// Detection goes through IsBedrockConfigured so the legacy and
+	// indexed paths agree on what counts as a Bedrock provider.
 	bedrock := codersdk.NewAIProviderBedrockSettings(
 		cfg.LegacyBedrock.Region.String(),
 		cfg.LegacyBedrock.AccessKey.String(),
@@ -385,9 +384,9 @@ func providersFromEnv(ctx context.Context, cfg codersdk.AIBridgeConfig, logger s
 
 		dp.BaseURL = p.BaseURL
 		// Bedrock fields apply to Anthropic and the dedicated Bedrock
-		// type. Detection goes through
-		// AIProviderBedrockSettings.IsConfigured() so the legacy and
-		// indexed paths agree on what counts as a Bedrock provider.
+		// type. Detection goes through IsBedrockConfigured so the
+		// legacy and indexed paths agree on what counts as a Bedrock
+		// provider.
 		isBedrock := false
 		if dp.Type == database.AIProviderTypeAnthropic || dp.Type == database.AIProviderTypeBedrock {
 			var accessKey, accessKeySecret string

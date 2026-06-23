@@ -702,19 +702,16 @@ func TestAIProvidersCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("BedrockRejectsUnresolvableRegion", func(t *testing.T) {
+	t.Run("BedrockAllowsBaseURLOnlyConfig", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitLong)
-		const required = "Bedrock settings require a region or credentials"
 
-		// A provider that can't resolve a region (custom endpoint, no
-		// region, no credentials) must be rejected, otherwise aibridge
-		// silently drops it at runtime. Both request shapes must be
-		// guarded: the native type=bedrock form sends no settings, while
-		// the UI sends type=anthropic with a bedrock settings
-		// discriminator.
+		// A custom endpoint alone is usable when AWS credentials come from
+		// the default credential chain. Both request shapes must accept it:
+		// the native type=bedrock form sends no settings, while the UI sends
+		// type=anthropic with a bedrock settings discriminator.
 		cases := []struct {
 			name           string
 			providerType   codersdk.AIProviderType
@@ -733,22 +730,30 @@ func TestAIProvidersCRUD(t *testing.T) {
 
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {
-				// Create against a custom endpoint with no region or
-				// credentials is rejected.
 				//nolint:gocritic // Owner role is the audience for this endpoint.
-				_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 					Type:     tc.providerType,
 					Name:     tc.name + "-custom",
 					Enabled:  true,
 					BaseURL:  "https://bedrock.internal.example.com",
 					Settings: tc.createSettings,
 				})
-				sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-				require.Equal(t, "Invalid AI provider request.", sdkErr.Message)
-				require.Contains(t, sdkErr.Validations, codersdk.ValidationError{Field: "settings", Detail: required})
+				require.NoError(t, err)
+				require.NotNil(t, created.Settings.Bedrock)
+				require.Empty(t, created.Settings.Bedrock.Region)
 
-				// Credentials alone make a custom endpoint usable (SigV4
-				// authenticates with static credentials), so create succeeds.
+				// An unrelated PATCH must validate against the stored base URL
+				// rather than rejecting the empty region and static credentials.
+				updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+					Enabled: ptr.Ref(false),
+				})
+				require.NoError(t, err)
+				require.False(t, updated.Enabled)
+				require.NotNil(t, updated.Settings.Bedrock)
+				require.Empty(t, updated.Settings.Bedrock.Region)
+
+				// Clearing static credentials is also valid when a custom base
+				// URL remains, because AWS can resolve ambient credentials.
 				//nolint:gocritic // Owner role is the audience for this endpoint.
 				withCreds, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
 					Type:    tc.providerType,
@@ -764,10 +769,7 @@ func TestAIProvidersCRUD(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				// Clearing those credentials leaves no region and no
-				// credentials behind a custom endpoint, so the update is
-				// rejected rather than persisting an unresolvable provider.
-				_, err = client.UpdateAIProvider(ctx, withCreds.Name, codersdk.UpdateAIProviderRequest{
+				cleared, err := client.UpdateAIProvider(ctx, withCreds.Name, codersdk.UpdateAIProviderRequest{
 					Settings: &codersdk.AIProviderSettings{
 						Bedrock: &codersdk.AIProviderBedrockSettings{
 							AccessKey:       ptr.Ref(""),
@@ -775,8 +777,9 @@ func TestAIProvidersCRUD(t *testing.T) {
 						},
 					},
 				})
-				sdkErr = requireSDKError(t, err, http.StatusBadRequest)
-				require.Equal(t, required, sdkErr.Message)
+				require.NoError(t, err)
+				require.NotNil(t, cleared.Settings.Bedrock)
+				require.Empty(t, cleared.Settings.Bedrock.Region)
 			})
 		}
 	})

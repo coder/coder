@@ -159,20 +159,44 @@ func TestBuildProviders(t *testing.T) {
 
 	t.Run("LegacyBedrockWithoutAnthropicKey", func(t *testing.T) {
 		t.Parallel()
-		// Bedrock credentials alone should be enough to create an
-		// Anthropic provider. No CODER_AIBRIDGE_ANTHROPIC_KEY needed.
-		cfg := codersdk.AIBridgeConfig{}
-		cfg.LegacyBedrock.Region = serpent.String("us-west-2")
-		cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
-		cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
 
-		providers, err := buildFromEnv(t, cfg)
-		require.NoError(t, err)
-		require.Len(t, providers, 1)
+		// Bedrock config alone should be enough to create an Anthropic
+		// provider. No CODER_AIBRIDGE_ANTHROPIC_KEY needed.
+		tests := []struct {
+			name      string
+			configure func(*codersdk.AIBridgeConfig)
+		}{
+			{
+				name: "region-and-static-credentials",
+				configure: func(cfg *codersdk.AIBridgeConfig) {
+					cfg.LegacyBedrock.Region = serpent.String("us-west-2")
+					cfg.LegacyBedrock.AccessKey = serpent.String("AKID")
+					cfg.LegacyBedrock.AccessKeySecret = serpent.String("secret")
+				},
+			},
+			{
+				name: "base-url-only",
+				configure: func(cfg *codersdk.AIBridgeConfig) {
+					cfg.LegacyBedrock.BaseURL = serpent.String("https://bedrock.internal.example.com")
+				},
+			},
+		}
 
-		p := providers[0]
-		assert.Equal(t, aibridge.ProviderAnthropic, p.Type())
-		assert.Equal(t, aibridge.ProviderAnthropic, p.Name())
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				cfg := codersdk.AIBridgeConfig{}
+				tt.configure(&cfg)
+
+				providers, err := buildFromEnv(t, cfg)
+				require.NoError(t, err)
+				require.Len(t, providers, 1)
+
+				p := providers[0]
+				assert.Equal(t, aibridge.ProviderAnthropic, p.Type())
+				assert.Equal(t, aibridge.ProviderAnthropic, p.Name())
+			})
+		}
 	})
 
 	t.Run("UnknownType", func(t *testing.T) {
@@ -256,45 +280,85 @@ func TestBuildProviders(t *testing.T) {
 		assert.Nil(t, bedrockConfigFromRow(row, codersdk.AIProviderSettings{}))
 	})
 
-	t.Run("BedrockSettingsPresent", func(t *testing.T) {
+	t.Run("BedrockSettingsConfigured", func(t *testing.T) {
 		t.Parallel()
 		accessKey := "AKID"
 		secret := "secret"
 		model := "anthropic.claude-3-5-sonnet-20241022-v2:0"
 		smallModel := "anthropic.claude-3-5-haiku-20241022-v1:0"
-		row := database.AIProvider{
-			Type:    database.AIProviderTypeAnthropic,
-			Name:    "anthropic-bedrock",
-			BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
-		}
-		settings := codersdk.AIProviderSettings{
-			Bedrock: &codersdk.AIProviderBedrockSettings{
-				Region:          "us-west-2",
-				AccessKey:       &accessKey,
-				AccessKeySecret: &secret,
-				Model:           model,
-				SmallFastModel:  smallModel,
+		tests := []struct {
+			name                   string
+			row                    database.AIProvider
+			settings               codersdk.AIProviderSettings
+			expectedBaseURL        string
+			expectedRegion         string
+			expectedAccessKey      string
+			expectedAccessSecret   string
+			expectedModel          string
+			expectedSmallFastModel string
+		}{
+			{
+				name: "region-and-static-credentials",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeAnthropic,
+					Name:    "anthropic-bedrock",
+					BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
+				},
+				settings: codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{
+						Region:          "us-west-2",
+						AccessKey:       &accessKey,
+						AccessKeySecret: &secret,
+						Model:           model,
+						SmallFastModel:  smallModel,
+					},
+				},
+				expectedBaseURL:        "https://bedrock-runtime.us-west-2.amazonaws.com/",
+				expectedRegion:         "us-west-2",
+				expectedAccessKey:      accessKey,
+				expectedAccessSecret:   secret,
+				expectedModel:          model,
+				expectedSmallFastModel: smallModel,
+			},
+			{
+				name: "base-url-only",
+				row: database.AIProvider{
+					Type:    database.AIProviderTypeAnthropic,
+					Name:    "anthropic-bedrock-base-url",
+					BaseUrl: "https://bedrock.internal.example.com/",
+				},
+				settings: codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{
+						Model:          model,
+						SmallFastModel: smallModel,
+					},
+				},
+				expectedBaseURL:        "https://bedrock.internal.example.com/",
+				expectedModel:          model,
+				expectedSmallFastModel: smallModel,
 			},
 		}
-		got := bedrockConfigFromRow(row, settings)
-		require.NotNil(t, got)
-		assert.Equal(t, row.BaseUrl, got.BaseURL)
-		assert.Equal(t, "us-west-2", got.Region)
-		assert.Equal(t, accessKey, got.AccessKey)
-		assert.Equal(t, secret, got.AccessKeySecret)
-		assert.Equal(t, model, got.Model)
-		assert.Equal(t, smallModel, got.SmallFastModel)
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				got := bedrockConfigFromRow(tt.row, tt.settings)
+				require.NotNil(t, got)
+				assert.Equal(t, tt.expectedBaseURL, got.BaseURL)
+				assert.Equal(t, tt.expectedRegion, got.Region)
+				assert.Equal(t, tt.expectedAccessKey, got.AccessKey)
+				assert.Equal(t, tt.expectedAccessSecret, got.AccessKeySecret)
+				assert.Equal(t, tt.expectedModel, got.Model)
+				assert.Equal(t, tt.expectedSmallFastModel, got.SmallFastModel)
+			})
+		}
 	})
 
-	t.Run("BedrockSettingsEmpty", func(t *testing.T) {
+	t.Run("BedrockSettingsUnconfigured", func(t *testing.T) {
 		t.Parallel()
-		// A non-nil but zero-valued Bedrock settings blob should not
-		// produce a Bedrock config; the provider's generic BaseUrl is
-		// not a Bedrock detection signal.
 		row := database.AIProvider{
-			Type:    database.AIProviderTypeAnthropic,
-			Name:    "anthropic-empty-bedrock",
-			BaseUrl: "https://api.anthropic.com/",
+			Type: database.AIProviderTypeAnthropic,
+			Name: "anthropic-empty-bedrock",
 		}
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{},
