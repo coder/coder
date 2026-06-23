@@ -1,11 +1,24 @@
-import { FileIcon, ZapIcon } from "lucide-react";
+import {
+	FileIcon,
+	PlugIcon,
+	TriangleAlertIcon,
+	WrenchIcon,
+	ZapIcon,
+} from "lucide-react";
 import { type FC, useRef, useState } from "react";
-import type { ChatMessagePart } from "#/api/typesGenerated";
+import type {
+	ChatContext,
+	ChatContextResourceKind,
+	ChatContextResourceStatus,
+	ChatContextTool,
+} from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -25,11 +38,42 @@ export interface AgentContextUsage {
 	readonly cacheReadTokens?: number;
 	readonly cacheCreationTokens?: number;
 	readonly reasoningTokens?: number;
-	// Percentage (0–100) at which the context will be compacted.
+	// Percentage (0-100) at which the context will be compacted.
 	readonly compressionThreshold?: number;
-	// Last injected context parts (AGENTS.md files and skills).
-	readonly lastInjectedContext?: readonly ChatMessagePart[];
+	// Pinned workspace-context state: the resources the chat is built from and
+	// whether they have drifted from the agent's latest snapshot.
+	readonly context?: ChatContext;
 }
+
+// Normalized popover entries, sourced from the chat's pinned context
+// resources.
+type ContextFileItem = { readonly path: string };
+type ContextSkillItem = {
+	readonly name: string;
+	readonly description?: string;
+};
+type ContextMcpItem = {
+	readonly name: string;
+	readonly source: string;
+	readonly tools: readonly ChatContextTool[];
+};
+// A pinned resource the agent could not use, surfaced with its error so the
+// failure is visible instead of silent.
+type ContextIssueItem = {
+	readonly name: string;
+	readonly kind: ChatContextResourceKind;
+	readonly status: ChatContextResourceStatus;
+	readonly error: string;
+	readonly source: string;
+};
+
+// Human-readable label per resource kind, used in the issues list.
+const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
+	instruction_file: "file",
+	skill: "skill",
+	mcp_config: "MCP config",
+	mcp_server: "MCP server",
+};
 
 const hasFiniteTokenValue = (value: number | undefined): value is number =>
 	typeof value === "number" && Number.isFinite(value) && value >= 0;
@@ -72,9 +116,11 @@ const RING_STROKE = 2.5;
 // the user time to move into the popover content.
 const HOVER_CLOSE_DELAY_MS = 150;
 
-export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
-	usage,
-}) => {
+export const ContextUsageIndicator: FC<{
+	usage: AgentContextUsage | null;
+	onRefreshContext?: () => void;
+	isRefreshingContext?: boolean;
+}> = ({ usage, onRefreshContext, isRefreshingContext }) => {
 	const [open, setOpen] = useState(false);
 	const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -117,21 +163,83 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 		? Math.min(Math.max(percentUsed, 0), 100)
 		: 100;
 	const toneClassName = getIndicatorToneClassName(percentUsed);
-	const ariaLabel = hasPercent
-		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.`
-		: "Context usage";
 
-	// Extract context files and skills from lastInjectedContext.
-	const contextFiles =
-		usage?.lastInjectedContext?.filter((p) => p.type === "context-file") ?? [];
-	const skills =
-		usage?.lastInjectedContext?.filter((p) => p.type === "skill") ?? [];
-	const hasInjectedContext = contextFiles.length > 0 || skills.length > 0;
+	const context = usage?.context;
+	const isDirty = context?.dirty ?? false;
+	const contextError = context?.error ?? "";
+	const hasContextError = contextError !== "";
+	const pinnedResources = context?.resources;
+
+	// Drive the listed context from the chat's pinned resources.
+	const fileItems: readonly ContextFileItem[] = (pinnedResources ?? [])
+		.filter(
+			(resource) =>
+				resource.kind === "instruction_file" && resource.status === "ok",
+		)
+		.map((resource) => ({ path: resource.source }))
+		// Drop entries with no usable path so an empty marker never renders as a
+		// nameless "Context files" row.
+		.filter((file) => file.path.trim().length > 0);
+	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
+		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
+		.map((resource) => ({
+			name: resource.skill_name || getPathBasename(resource.source),
+			description: resource.skill_description,
+		}))
+		// Drop entries with no usable name so an empty skill marker never renders
+		// as a blank row.
+		.filter((skill) => skill.name.trim().length > 0);
+	// An MCP server's source is its server name, while an MCP config's source is
+	// its file path.
+	const mcpItems: readonly ContextMcpItem[] = (pinnedResources ?? [])
+		.filter(
+			(resource) =>
+				(resource.kind === "mcp_config" || resource.kind === "mcp_server") &&
+				resource.status === "ok",
+		)
+		.map((resource) => ({
+			name:
+				resource.kind === "mcp_server"
+					? resource.source
+					: getPathBasename(resource.source),
+			source: resource.source,
+			tools: resource.tools ?? [],
+		}))
+		// Drop entries with no usable name so an empty MCP marker never renders as
+		// a blank row.
+		.filter((mcp) => mcp.name.trim().length > 0);
+	// Pinned resources the agent could not use (invalid skill, unreadable or
+	// oversize file) are surfaced as issues with their error so the failure is
+	// visible rather than a silent omission.
+	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
+		.filter((resource) => resource.status !== "ok")
+		.map((resource) => ({
+			name:
+				resource.skill_name ||
+				getPathBasename(resource.source) ||
+				resource.source,
+			kind: resource.kind,
+			status: resource.status,
+			error: resource.error ?? "",
+			source: resource.source,
+		}))
+		.filter((issue) => issue.name.trim().length > 0);
+	const hasContextList =
+		fileItems.length > 0 ||
+		skillItems.length > 0 ||
+		mcpItems.length > 0 ||
+		issueItems.length > 0;
+
+	const ariaLabel = hasPercent
+		? `Context usage ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${isDirty ? " Context changed." : ""}`
+		: isDirty
+			? "Context usage. Context changed."
+			: "Context usage";
 
 	const panelContent = (
 		<div className="text-xs text-content-primary">
 			{hasPercent
-				? `${percentLabel} – ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
+				? `${percentLabel} - ${formatTokenCountCompact(usedTokens)} / ${formatTokenCountCompact(contextLimitTokens)} context used`
 				: "Context usage unavailable"}
 			{hasPercent &&
 				usage?.compressionThreshold !== undefined &&
@@ -140,56 +248,44 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 						{`Compacts at ${usage.compressionThreshold}%`}
 					</div>
 				)}
-			{hasInjectedContext && (
+			{hasContextList && (
 				<div
 					className={cn(
 						"flex flex-col gap-2 text-content-secondary",
 						hasPercent && "mt-2",
 					)}
 				>
-					{contextFiles.length > 0 && (
+					{fileItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">
 								Context files
 							</span>
-							{contextFiles.map((part) => {
-								if (part.type !== "context-file") return null;
-								return (
-									<div
-										key={part.context_file_path}
-										className="flex items-center gap-1.5"
-									>
-										<FileIcon className="size-3 shrink-0" />
-										<span className="truncate" title={part.context_file_path}>
-											{getPathBasename(part.context_file_path)}
-										</span>
-										{part.context_file_truncated && (
-											<span className="shrink-0 text-content-warning">
-												(truncated)
-											</span>
-										)}
-									</div>
-								);
-							})}
+							{fileItems.map((file) => (
+								<div key={file.path} className="flex items-center gap-1.5">
+									<FileIcon className="size-3 shrink-0" />
+									<span className="truncate" title={file.path}>
+										{getPathBasename(file.path)}
+									</span>
+								</div>
+							))}
 						</div>
 					)}
-					{skills.length > 0 && (
+					{skillItems.length > 0 && (
 						<div className="flex flex-col gap-1">
 							<span className="font-medium text-content-primary">Skills</span>
 							<TooltipProvider delayDuration={300}>
-								{skills.map((part) => {
-									if (part.type !== "skill") return null;
+								{skillItems.map((skill) => {
 									const row = (
 										<div className="flex items-center gap-1.5 rounded px-0.5 py-px transition-colors hover:bg-surface-tertiary">
 											<ZapIcon className="size-3 shrink-0" />
-											<span className="truncate">{part.skill_name}</span>
+											<span className="truncate">{skill.name}</span>
 										</div>
 									);
-									if (!part.skill_description) {
-										return <div key={part.skill_name}>{row}</div>;
+									if (!skill.description) {
+										return <div key={skill.name}>{row}</div>;
 									}
 									return (
-										<Tooltip key={part.skill_name}>
+										<Tooltip key={skill.name}>
 											<TooltipTrigger asChild>
 												<div className="cursor-default">{row}</div>
 											</TooltipTrigger>
@@ -198,12 +294,120 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 												sideOffset={4}
 												className="max-w-48 text-xs"
 											>
-												{part.skill_description}
+												{skill.description}
 											</TooltipContent>
 										</Tooltip>
 									);
 								})}
 							</TooltipProvider>
+						</div>
+					)}
+					{mcpItems.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="font-medium text-content-primary">MCP</span>
+							<TooltipProvider delayDuration={300}>
+								{mcpItems.map((mcp) => (
+									<div key={mcp.source} className="flex flex-col gap-0.5">
+										<div
+											className="flex items-center gap-1.5"
+											title={mcp.source}
+										>
+											<PlugIcon className="size-3 shrink-0" />
+											<span className="truncate">{mcp.name}</span>
+										</div>
+										{mcp.tools.length > 0 && (
+											<div className="ml-4 flex flex-col gap-0.5">
+												{mcp.tools.map((tool) => {
+													const row = (
+														<div className="flex items-center gap-1.5 rounded px-0.5 py-px text-content-secondary transition-colors hover:bg-surface-tertiary">
+															<WrenchIcon className="size-3 shrink-0" />
+															<span className="truncate">{tool.name}</span>
+														</div>
+													);
+													if (!tool.description) {
+														return <div key={tool.name}>{row}</div>;
+													}
+													return (
+														<Tooltip key={tool.name}>
+															<TooltipTrigger asChild>
+																<div className="cursor-default">{row}</div>
+															</TooltipTrigger>
+															<TooltipContent
+																side="right"
+																sideOffset={4}
+																className="max-w-48 text-xs"
+															>
+																{tool.description}
+															</TooltipContent>
+														</Tooltip>
+													);
+												})}
+											</div>
+										)}
+									</div>
+								))}
+							</TooltipProvider>
+						</div>
+					)}
+					{issueItems.length > 0 && (
+						<div className="flex flex-col gap-1">
+							<span className="flex items-center gap-1.5 font-medium text-content-warning">
+								<TriangleAlertIcon className="size-3 shrink-0" />
+								Issues
+							</span>
+							{issueItems.map((issue) => (
+								<div
+									key={issue.source}
+									className="flex flex-col"
+									title={issue.source}
+								>
+									<span className="truncate">
+										{issue.name}{" "}
+										<span className="text-content-secondary">
+											({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+										</span>
+									</span>
+									{issue.error && (
+										<span className="text-content-secondary">
+											{issue.error}
+										</span>
+									)}
+								</div>
+							))}
+						</div>
+					)}
+				</div>
+			)}
+			{(isDirty || hasContextError) && (
+				<div className="mt-2 flex flex-col gap-1.5 border-0 border-t border-solid border-border-default pt-2">
+					{hasContextError ? (
+						<span className="flex items-center gap-1.5 font-medium text-content-destructive">
+							<TriangleAlertIcon className="size-3 shrink-0" />
+							Context error
+						</span>
+					) : (
+						<span className="flex items-center gap-1.5 font-medium text-content-warning">
+							<TriangleAlertIcon className="size-3 shrink-0" />
+							Context changed
+						</span>
+					)}
+					{hasContextError ? (
+						<span className="text-content-secondary">{contextError}</span>
+					) : (
+						<span className="text-content-secondary">
+							The workspace context changed since this chat was pinned.
+						</span>
+					)}
+					{onRefreshContext && (
+						<div className="flex flex-wrap gap-2">
+							<Button
+								size="sm"
+								disabled={isRefreshingContext}
+								onClick={() => onRefreshContext()}
+							>
+								<Spinner loading={isRefreshingContext} />
+								Refresh context
+							</Button>
 						</div>
 					)}
 				</div>
@@ -225,6 +429,17 @@ export const ContextUsageIndicator: FC<{ usage: AgentContextUsage | null }> = ({
 				progressClassName="stroke-current"
 				className={cn("size-icon-sm", toneClassName)}
 			/>
+			{(isDirty || hasContextError) && (
+				<TriangleAlertIcon
+					aria-hidden
+					className={cn(
+						"absolute -right-0.5 -top-0.5 size-3",
+						hasContextError
+							? "text-content-destructive"
+							: "text-content-warning",
+					)}
+				/>
+			)}
 		</button>
 	);
 

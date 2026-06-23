@@ -481,6 +481,7 @@ func BoundarySession(t testing.TB, db database.Store, seed database.BoundarySess
 func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) []database.BoundaryLog {
 	ids := make([]uuid.UUID, 0, len(seed))
 	sessionID := seed[0].SessionID
+	ownerID := seed[0].OwnerID.UUID
 	sequenceNumbers := make([]int32, 0, len(seed))
 	capturedAt := make([]time.Time, 0, len(seed))
 	createdAt := make([]time.Time, 0, len(seed))
@@ -502,6 +503,7 @@ func BoundaryLogs(t testing.TB, db database.Store, seed []database.BoundaryLog) 
 	logs, err := db.InsertBoundaryLogs(genCtx, database.InsertBoundaryLogsParams{
 		ID:             ids,
 		SessionID:      sessionID,
+		OwnerID:        ownerID,
 		SequenceNumber: sequenceNumbers,
 		CapturedAt:     capturedAt,
 		CreatedAt:      createdAt,

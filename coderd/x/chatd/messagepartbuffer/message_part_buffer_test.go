@@ -291,7 +291,7 @@ func TestBuffer_SlowSubscriberClosed(t *testing.T) {
 func TestBuffer_BurstyOutputDoesNotCloseSubscriberBeforeSendTimeout(t *testing.T) {
 	t.Parallel()
 
-	buffer := messagepartbuffer.New(messagepartbuffer.Options{SubscriberChannelSize: 1})
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{})
 	defer buffer.Close()
 	key := testEpisodeKey()
 	require.NoError(t, buffer.CreateEpisode(key))

@@ -42,7 +42,7 @@ func TestRetryWrapper_ExpectedExitsDoNotRetry(t *testing.T) {
 		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
-	}, taskKindInterrupt, func(context.Context) error {
+	}, taskKindInterrupt, retryWrapperTaskInfo{}, func(context.Context) error {
 		calls++
 		return errTaskExpectedExit
 	})
@@ -67,7 +67,7 @@ func TestRetryWrapper_UnexpectedErrorsRetry(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindRequiresActionTimeout, func(context.Context) error {
+		}, taskKindRequiresActionTimeout, retryWrapperTaskInfo{}, func(context.Context) error {
 			calls++
 			if calls == 1 {
 				return xerrors.New("database unavailable")
@@ -103,7 +103,7 @@ func TestRetryWrapper_PanicsRetry(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindGeneration, func(context.Context) error {
+		}, taskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
 			calls++
 			if calls == 1 {
 				panic("database unavailable")
@@ -146,7 +146,7 @@ func TestRetryWrapper_TaskTimeoutDBQueryCancellationRetries(t *testing.T) {
 			logger:       sink.Logger(),
 			initialDelay: time.Minute,
 			maxDelay:     time.Minute,
-		}, taskKindGeneration, func(ctx context.Context) error {
+		}, taskKindGeneration, retryWrapperTaskInfo{}, func(ctx context.Context) error {
 			calls++
 			if calls == 1 {
 				close(firstCallStarted)
@@ -190,7 +190,7 @@ func TestRetryWrapper_ContextCancellationDoesNotRetryOrLog(t *testing.T) {
 		logger:       sink.Logger(),
 		initialDelay: time.Second,
 		maxDelay:     time.Second,
-	}, taskKindGeneration, func(context.Context) error {
+	}, taskKindGeneration, retryWrapperTaskInfo{}, func(context.Context) error {
 		calls++
 		return original
 	})

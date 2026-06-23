@@ -423,6 +423,7 @@ export const mergeWatchedChatSummary = (
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
+	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
 		watchedChat.updated_at,
@@ -438,6 +439,15 @@ export const mergeWatchedChatSummary = (
 	const nextDiffStatus = isDiffStatusEvent
 		? watchedChat.diff_status
 		: cachedChat.diff_status;
+	// Context drift is tracked outside chats.updated_at (it is driven by
+	// agent context pushes), so apply context_dirty payloads regardless of
+	// the summary timestamp. Merge rather than replace so the pinned
+	// resources a single-chat GET populated are preserved while the dirty
+	// flags update; the open chat refetches the full detail.
+	const nextContext =
+		isContextDirtyEvent && watchedChat.context
+			? { ...cachedChat.context, ...watchedChat.context }
+			: cachedChat.context;
 	const nextWorkspaceId = isFreshEnough
 		? (watchedChat.workspace_id ?? cachedChat.workspace_id)
 		: cachedChat.workspace_id;
@@ -471,7 +481,8 @@ export const mergeWatchedChatSummary = (
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
 		nextHasUnread === cachedChat.has_unread &&
-		nextUpdatedAt === cachedChat.updated_at
+		nextUpdatedAt === cachedChat.updated_at &&
+		nextContext === cachedChat.context
 	) {
 		return cachedChat;
 	}
@@ -487,6 +498,7 @@ export const mergeWatchedChatSummary = (
 		last_turn_summary: nextLastTurnSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
+		context: nextContext,
 	};
 };
 
@@ -1464,6 +1476,39 @@ export const interruptChat = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: () => API.experimental.interruptChat(chatId),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
+	},
+});
+
+/**
+ * Re-pins the chat to its agent's latest context snapshot, clearing the
+ * dirty marker. On success the returned chat (carrying the freshly pinned
+ * resources) is written into the open-chat cache, and the lightweight
+ * context flags are propagated across the list caches so the dirty
+ * indicator clears in the sidebar too.
+ */
+export const refreshChatContext = (
+	queryClient: QueryClient,
+	chatId: string,
+) => ({
+	mutationFn: () => API.experimental.refreshChatContext(chatId),
+	onSuccess: (updatedChat: TypesGen.Chat) => {
+		queryClient.setQueryData<TypesGen.Chat>(chatKey(chatId), (cached) =>
+			cached ? { ...cached, context: updatedChat.context } : updatedChat,
+		);
+		const applyContext = (chat: TypesGen.Chat): TypesGen.Chat =>
+			chat.id === chatId ? { ...chat, context: updatedChat.context } : chat;
+		updateInfiniteChatsCache(queryClient, (chats) => {
+			let changed = false;
+			const next = chats.map((chat) => {
+				const updated = applyContext(chat);
+				if (updated !== chat) {
+					changed = true;
+				}
+				return updated;
+			});
+			return changed ? next : chats;
+		});
+		updateChildInParentCache(queryClient, applyContext, chatId);
 	},
 });
 

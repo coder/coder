@@ -1673,6 +1673,36 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.get<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+
+		return response.data;
+	};
+
+	upsertUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+		data: TypesGen.UpsertUserAIBudgetOverrideRequest,
+	): Promise<TypesGen.UserAIBudgetOverride> => {
+		const response = await this.axios.put<TypesGen.UserAIBudgetOverride>(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+			data,
+		);
+
+		return response.data;
+	};
+
+	deleteUserAIBudgetOverride = async (
+		userId: TypesGen.User["id"],
+	): Promise<void> => {
+		await this.axios.delete(
+			`/api/v2/users/${encodeURIComponent(userId)}/ai/budget`,
+		);
+	};
+
 	activateUser = async (
 		userId: TypesGen.User["id"],
 	): Promise<TypesGen.User> => {
@@ -2152,11 +2182,14 @@ class ApiMethods {
 	};
 
 	getGroups = async (
-		options: { userId?: string } = {},
+		options: { userId?: string; organization?: string } = {},
 	): Promise<TypesGen.Group[]> => {
 		const params: Record<string, string> = {};
 		if (options.userId !== undefined) {
 			params.has_member = options.userId;
+		}
+		if (options.organization !== undefined) {
+			params.organization = options.organization;
 		}
 
 		const response = await this.axios.get("/api/v2/groups", { params });
@@ -2451,6 +2484,16 @@ class ApiMethods {
 			const response = await this.axios.get("/api/v2/templatebuilder/bases");
 			return response.data;
 		};
+
+	getTemplateBuilderModules = async (
+		base?: string,
+	): Promise<TypesGen.TemplateBuilderModulesResponse> => {
+		const params = base ? `?base=${encodeURIComponent(base)}` : "";
+		const response = await this.axios.get(
+			`/api/v2/templatebuilder/modules${params}`,
+		);
+		return response.data;
+	};
 
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
@@ -3373,6 +3416,17 @@ class ExperimentalApiMethods {
 	interruptChat = async (chatId: string): Promise<TypesGen.Chat> => {
 		const response = await this.axios.post<TypesGen.Chat>(
 			`/api/experimental/chats/${chatId}/interrupt`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * Re-pins the chat to its agent's latest context snapshot and clears
+	 * the dirty marker. Returns the updated chat.
+	 */
+	refreshChatContext = async (chatId: string): Promise<TypesGen.Chat> => {
+		const response = await this.axios.put<TypesGen.Chat>(
+			`/api/experimental/chats/${chatId}/context`,
 		);
 		return response.data;
 	};

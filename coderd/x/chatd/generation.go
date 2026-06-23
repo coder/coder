@@ -69,12 +69,6 @@ type generationPrepared struct {
 	Cleanup func()
 
 	Debug *generationDebug
-
-	// WorkspaceContextEligible reports whether the current turn is allowed
-	// by policy to inject workspace context. The decision helper combines
-	// this fact with committed chat metadata and history to decide whether
-	// the persist_workspace_context action should run.
-	WorkspaceContextEligible bool
 }
 
 // generationCompaction contains compaction inputs prepared for generation.
@@ -94,16 +88,6 @@ type generationDebug struct {
 	ModelConfig         database.ChatModelConfig
 }
 
-type workspaceContextBuildInput struct {
-	Chat           database.Chat
-	Messages       []database.ChatMessage
-	ActiveAPIKeyID string
-}
-
-type workspaceContextBuildResult struct {
-	Messages []chatstate.Message
-}
-
 // generationOutcome describes a completed generation outcome.
 type generationOutcome struct {
 	Chat              database.Chat
@@ -117,12 +101,11 @@ type generationOutcome struct {
 type generationActionKind string
 
 const (
-	generationActionExecuteLocalTools       generationActionKind = "execute_local_tools"
-	generationActionEnterRequiresAction     generationActionKind = "enter_requires_action"
-	generationActionFinishTurn              generationActionKind = "finish_turn"
-	generationActionCompact                 generationActionKind = "compact"
-	generationActionGenerateAssistant       generationActionKind = "generate_assistant"
-	generationActionPersistWorkspaceContext generationActionKind = "persist_workspace_context"
+	generationActionExecuteLocalTools   generationActionKind = "execute_local_tools"
+	generationActionEnterRequiresAction generationActionKind = "enter_requires_action"
+	generationActionFinishTurn          generationActionKind = "finish_turn"
+	generationActionCompact             generationActionKind = "compact"
+	generationActionGenerateAssistant   generationActionKind = "generate_assistant"
 )
 
 type generationFinishReason string
@@ -193,34 +176,6 @@ type generationDecisionInput struct {
 	compactionNeeded           bool
 	compactionThresholdPercent int32
 	compactionContextLimit     int64
-	workspaceContextEligible   bool
-}
-
-// shouldPersistWorkspaceContext reports whether the committed chat
-// state and history indicate that the persistWorkspaceContext
-// generation action should run before the next assistant call. The
-// decision uses two facts:
-//   - chat metadata says a workspace and selected agent are attached;
-//   - committed history either has no context-file marker for the
-//     currently selected workspace agent, or the latest non-sentinel
-//     marker points to a different agent.
-//
-// The decision is intentionally pure so generation can choose the
-// action without dialing the workspace. Once the action commits a
-// context-file marker for the agent (with or without content), this
-// helper returns false on the next pass and the loop is broken.
-func shouldPersistWorkspaceContext(chat database.Chat, messages []database.ChatMessage) bool {
-	if !chat.WorkspaceID.Valid || !chat.AgentID.Valid {
-		return false
-	}
-	if hasPersistedContextFileForAgent(messages, chat.AgentID.UUID) {
-		return false
-	}
-	persistedAgentID, found := contextFileAgentIDFromMessages(messages)
-	if !found {
-		return true
-	}
-	return persistedAgentID != chat.AgentID.UUID
 }
 
 func decideGenerationAction(input generationDecisionInput) (generationDecision, error) {
@@ -261,9 +216,6 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	}
 	if input.maxSteps > 0 && currentTurnStepCount(input.messages) >= input.maxSteps {
 		return generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonMaxSteps}, nil
-	}
-	if input.workspaceContextEligible && shouldPersistWorkspaceContext(input.chat, input.messages) {
-		return generationDecision{kind: generationActionPersistWorkspaceContext}, nil
 	}
 	compactionRequirement := compactionRequirementNotNeeded
 	if input.compactionEnabled && input.compactionNeeded {
@@ -353,7 +305,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 	for {
 		locked, messages, err := loadGenerationState(ctx, machine, input)
 		if err != nil {
-			return err
+			return xerrors.Errorf("load generation state: %w", err)
 		}
 		prepareInput := generationPrepareInput{
 			Chat:              locked,
@@ -382,7 +334,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 				compactionNeeded:           prepared.Compaction != nil && prepared.Compaction.Required,
 				compactionThresholdPercent: generationCompactionThreshold(prepared.Compaction),
 				compactionContextLimit:     prepared.ContextLimitFallback,
-				workspaceContextEligible:   prepared.WorkspaceContextEligible,
 			})
 		})
 		if err != nil {
@@ -415,8 +366,6 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 			actionErr = s.executeLocalTools(ctx, machine, input, prepared, decision)
 		case generationActionCompact:
 			actionErr = s.generateCompaction(ctx, machine, input, prepared)
-		case generationActionPersistWorkspaceContext:
-			actionErr = s.persistWorkspaceContext(ctx, machine, input, prepared.Chat)
 		default:
 			return s.finishGenerationError(ctx, machine, input, 0, xerrors.Errorf("unknown generation action %q", decision.kind), generationAttemptNotRequired)
 		}
@@ -428,15 +377,18 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 		if ctx.Err() != nil && errors.Is(actionErr, context.Canceled) {
 			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr), ctx.Err())
 		}
-		if errors.Is(actionErr, errTaskExpectedExit) || errors.Is(actionErr, chatloop.ErrInterrupted) {
-			return nil
+		if errors.Is(actionErr, chatloop.ErrInterrupted) {
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation action: %w", actionErr))
+		}
+		if errors.Is(actionErr, errTaskExpectedExit) {
+			return xerrors.Errorf("generation action: %w", actionErr)
 		}
 		classified := chaterror.Classify(actionErr)
 		if classified.Retryable {
 			action := decision.kind
 			decision, err := s.recordGenerationRetry(ctx, machine, input, classified)
 			if err != nil {
-				return err
+				return xerrors.Errorf("record generation retry: %w", err)
 			}
 			if decision.retry {
 				s.opts.Logger.Warn(ctx, "chat generation retrying",
@@ -455,7 +407,7 @@ func (s *taskStarter) StartGeneration(ctx context.Context, input chatWorkerTaskS
 					chainModeDisabled = true
 				}
 				if err := s.waitGenerationRetry(ctx, decision.delay); err != nil {
-					return err
+					return xerrors.Errorf("wait generation retry: %w", err)
 				}
 				continue
 			}
@@ -475,13 +427,13 @@ func loadGenerationState(
 	err := machine.ReadLock(ctx, func(store database.Store) error {
 		chat, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load locked chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load locked chat: %w", err)
 		}
 		if err := verifyTaskFence(chat, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		loaded, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
 			ChatID:  input.ChatID,
@@ -511,13 +463,13 @@ func (*taskStarter) recordGenerationRetry(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		decision.generationAttempt = locked.GenerationAttempt
 		if locked.GenerationAttempt <= 0 || locked.GenerationAttempt >= int64(chatretry.MaxAttempts) {
@@ -544,7 +496,10 @@ func (*taskStarter) recordGenerationRetry(
 		_, err = tx.RecordRetryState(chatstate.RecordRetryStateInput{
 			RetryState: pqtype.NullRawMessage{RawMessage: encoded, Valid: true},
 		})
-		return err
+		if err != nil {
+			return xerrors.Errorf("record retry state: %w", err)
+		}
+		return nil
 	})
 	if errors.Is(err, errRetryStateDecisionOnly) {
 		return decision, nil
@@ -643,7 +598,7 @@ func (s *taskStarter) generateAssistant(
 ) error {
 	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
-		return err
+		return xerrors.Errorf("begin generation attempt: %w", err)
 	}
 	defer closeEpisode()
 	runCtx := input.DebugTurn.Ensure(ctx, prepared.Chat, prepared.Debug)
@@ -663,7 +618,7 @@ func (s *taskStarter) generateAssistant(
 		Metrics:              s.server.metrics,
 	})
 	if err != nil {
-		return err
+		return xerrors.Errorf("generate assistant: %w", err)
 	}
 	if len(outcome.Step.Content) == 0 {
 		return s.finishGenerationTurn(ctx, machine, input, attempt, generationDecision{kind: generationActionFinishTurn, finishReason: generationFinishReasonComplete}, generationAttemptRequired)
@@ -691,7 +646,7 @@ func (s *taskStarter) executeLocalTools(
 ) error {
 	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
-		return err
+		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer closeEpisode()
 	provider := ""
@@ -720,7 +675,7 @@ func (s *taskStarter) executeLocalTools(
 		Clock:              s.opts.Clock,
 	})
 	if err != nil {
-		return err
+		return xerrors.Errorf("execute local tools: %w", err)
 	}
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:      prepared.ModelConfigID,
@@ -744,7 +699,7 @@ func (s *taskStarter) generateCompaction(
 ) error {
 	attempt, _, publish, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
 	if err != nil {
-		return err
+		return xerrors.Errorf("beginGenerationAttempt: %w", err)
 	}
 	defer closeEpisode()
 	if prepared.Compaction == nil {
@@ -755,7 +710,7 @@ func (s *taskStarter) generateCompaction(
 	outcome, err := chatloop.GenerateCompaction(ctx, compactionOpts)
 	if err != nil {
 		s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), false, err)
-		return err
+		return xerrors.Errorf("generate compaction: %w", err)
 	}
 	if strings.TrimSpace(outcome.SystemSummary) == "" || strings.TrimSpace(outcome.SummaryReport) == "" {
 		err := xerrors.New("compaction produced no summary")
@@ -779,7 +734,10 @@ func (s *taskStarter) generateCompaction(
 		VisibleIndexes: visibleMessageIndexes(messages.Messages),
 	})
 	s.server.metrics.RecordCompaction(compactionProvider(compactionOpts), compactionModel(compactionOpts), err == nil, err)
-	return err
+	if err != nil {
+		return xerrors.Errorf("commit generation step: %w", err)
+	}
+	return nil
 }
 
 func compactionProvider(opts chatloop.GenerateCompactionOptions) string {
@@ -796,55 +754,6 @@ func compactionModel(opts chatloop.GenerateCompactionOptions) string {
 	return opts.Model.Model()
 }
 
-// persistWorkspaceContext is the generation action that commits durable
-// workspace context messages (e.g. AGENTS.md, workspace skills) into
-// chat history. It records a generation attempt, calls the injected
-// workspace context builder without holding the DB lock, then commits
-// the returned messages fenced to the attempt. If the builder returns
-// no messages, the action exits as expected and the next worker task
-// re-reads the chat.
-func (s *taskStarter) persistWorkspaceContext(
-	ctx context.Context,
-	machine *chatstate.ChatMachine,
-	input chatWorkerTaskStartInput,
-	locked database.Chat,
-) error {
-	if s.server == nil {
-		return errTaskExpectedExit
-	}
-	messages, err := s.opts.Store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  input.ChatID,
-		AfterID: 0,
-	})
-	if err != nil {
-		return taskRetryableError{err: xerrors.Errorf("load chat messages for workspace context: %w", err)}
-	}
-	attempt, _, _, closeEpisode, err := s.beginGenerationAttempt(ctx, machine, input)
-	if err != nil {
-		return err
-	}
-	defer closeEpisode()
-	modelOpts := modelBuildOptionsFromMessages(messages)
-	result, err := s.server.buildWorkspaceContext(ctx, workspaceContextBuildInput{
-		Chat:           locked,
-		Messages:       messages,
-		ActiveAPIKeyID: modelOpts.ActiveAPIKeyID,
-	})
-	if err != nil {
-		if errors.Is(err, errWorkspaceContextUnavailable) {
-			// Builder reported nothing durable to commit (workspace or
-			// agent missing, unreachable, etc.). Exit the action without
-			// committing so the next worker task can re-read the chat.
-			return errTaskExpectedExit
-		}
-		return err
-	}
-	return s.commitGenerationStep(ctx, machine, input, attempt, generationActionPersistWorkspaceContext, stepMessagesForCommit{
-		Messages:       result.Messages,
-		VisibleIndexes: visibleMessageIndexes(result.Messages),
-	})
-}
-
 func (s *taskStarter) beginGenerationAttempt(
 	ctx context.Context,
 	machine *chatstate.ChatMachine,
@@ -855,17 +764,17 @@ func (s *taskStarter) beginGenerationAttempt(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		result, err := tx.RecordGenerationAttempt(chatstate.RecordGenerationAttemptInput{})
 		if err != nil {
-			return err
+			return xerrors.Errorf("tx.RecordGenerationAttempt: %w", err)
 		}
 		attempt = result.GenerationAttempt
 		committed, err = store.GetChatByID(ctx, input.ChatID)
@@ -910,17 +819,17 @@ func (s *taskStarter) commitGenerationStep(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if err := verifyGenerationFence(locked, input, attempt); err != nil {
-			return err
+			return xerrors.Errorf("verifyGenerationFence: %w", err)
 		}
 		commitResult, err := tx.CommitStep(chatstate.CommitStepInput{Messages: messages.Messages})
 		if err != nil {
-			return err
+			return xerrors.Errorf("tx.CommitStep: %w", err)
 		}
 		insertedMessages = make([]runnerActionMessage, 0, len(commitResult.InsertedMessages))
 		for _, msg := range commitResult.InsertedMessages {
@@ -952,16 +861,16 @@ func (s *taskStarter) enterRequiresAction(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		if _, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{}); err != nil {
-			return err
+			return xerrors.Errorf("tx.EnterRequiresAction: %w", err)
 		}
 		committed, err = store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -973,7 +882,7 @@ func (s *taskStarter) enterRequiresAction(
 		return normalizeTaskTransitionError(err, "enter requires action")
 	}
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindActionRequired); err != nil {
-		return err
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:           committed,
@@ -1001,21 +910,21 @@ func (s *taskStarter) finishGenerationTurn(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if attemptFence == generationAttemptRequired {
 			if err := verifyGenerationFence(locked, input, attempt); err != nil {
-				return err
+				return xerrors.Errorf("verifyGenerationFence: %w", err)
 			}
 		} else if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		finishResult, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		if err != nil {
-			return err
+			return xerrors.Errorf("tx.FinishTurn: %w", err)
 		}
 		if finishResult.PromotedMessage != nil {
 			decision.promotedMessageID = finishResult.PromotedMessage.ID
@@ -1030,7 +939,7 @@ func (s *taskStarter) finishGenerationTurn(
 	watchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), postCommitWatchPublishTimeout)
 	defer cancel()
 	if err := s.publishWatchWithRetry(watchCtx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-		return err
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	if err := s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:              committed,
@@ -1038,7 +947,7 @@ func (s *taskStarter) finishGenerationTurn(
 		WatchEventKind:    codersdk.ChatWatchEventKindStatusChange,
 		PromotedMessageID: decision.promotedMessageID,
 	}); err != nil {
-		return err
+		return xerrors.Errorf("after generation outcome: %w", err)
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return nil
@@ -1071,20 +980,20 @@ func (s *taskStarter) finishGenerationError(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		locked, err := store.GetChatByID(ctx, input.ChatID)
 		if errors.Is(err, sql.ErrNoRows) {
-			return errTaskExpectedExit
+			return errors.Join(errTaskExpectedExit, xerrors.Errorf("load chat: %w", err))
 		}
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
 		}
 		if attemptFence == generationAttemptRequired {
 			if err := verifyGenerationFence(locked, input, attempt); err != nil {
-				return err
+				return xerrors.Errorf("verifyGenerationFence: %w", err)
 			}
 		} else if err := verifyTaskFence(locked, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-			return err
+			return xerrors.Errorf("verifyTaskFence: %w", err)
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
-			return err
+			return xerrors.Errorf("tx.FinishError: %w", err)
 		}
 		committed, err = store.GetChatByID(ctx, input.ChatID)
 		if err != nil {
@@ -1097,7 +1006,7 @@ func (s *taskStarter) finishGenerationError(
 	}
 	input.DebugTurn.RecordOutcome(chatdebug.StatusError)
 	if err := s.publishWatchAndRoute(ctx, committed, codersdk.ChatWatchEventKindStatusChange); err != nil {
-		return err
+		return xerrors.Errorf("publish watch and route: %w", err)
 	}
 	return s.afterGenerationOutcome(ctx, generationOutcome{
 		Chat:           committed,
@@ -1135,10 +1044,10 @@ func (s *taskStarter) afterGenerationOutcome(ctx context.Context, outcome genera
 
 func verifyGenerationFence(chat database.Chat, input chatWorkerTaskStartInput, attempt int64) error {
 	if err := verifyTaskFence(chat, input, database.ChatStatusRunning, taskFenceOptions{requireHistory: true}); err != nil {
-		return err
+		return xerrors.Errorf("verifyTaskFence: %w", err)
 	}
 	if chat.GenerationAttempt != attempt {
-		return errTaskExpectedExit
+		return errors.Join(errTaskExpectedExit, xerrors.Errorf("generation fence mismatch: %d != %d", chat.GenerationAttempt, attempt))
 	}
 	return nil
 }

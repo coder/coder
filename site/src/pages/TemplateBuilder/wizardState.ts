@@ -20,7 +20,7 @@ export type SelectedBaseMeta = {
  * UI-only metadata for a selected module.
  * Kept separate from the API request payload.
  */
-type SelectedModuleMeta = {
+export type SelectedModuleMeta = {
 	id: string;
 	name: string;
 	iconUrl: string;
