@@ -7,9 +7,10 @@ import {
 import { templates } from "#/api/queries/templates";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsTemplatesPageView } from "./AgentSettingsTemplatesPageView";
+import { pageTitle } from "#/utils/page";
+import { TemplatesPageView } from "./TemplatesPageView";
 
-const AgentSettingsTemplatesPage: FC = () => {
+const TemplatesPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 
@@ -23,11 +24,14 @@ const AgentSettingsTemplatesPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsTemplatesPageView
+			<title>{pageTitle("Templates", "AI Settings")}</title>
+
+			<TemplatesPageView
 				templatesData={templatesQuery.data}
 				allowlistData={allowlistQuery.data}
 				isLoading={isLoading}
-				hasError={Boolean(templatesQuery.error || allowlistQuery.error)}
+				templatesError={templatesQuery.error}
+				allowlistError={allowlistQuery.error}
 				onRetry={() => {
 					void templatesQuery.refetch();
 					void allowlistQuery.refetch();
@@ -40,4 +44,4 @@ const AgentSettingsTemplatesPage: FC = () => {
 	);
 };
 
-export default AgentSettingsTemplatesPage;
+export default TemplatesPage;
