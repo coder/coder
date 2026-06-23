@@ -61,6 +61,16 @@ type Options struct {
 	BuiltinPostgres  bool
 	Tunnel           bool
 
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the server.
+	// Must be derived from the pre-WithoutSecrets DeploymentValues because the
+	// SCIM API key is annotated as a secret and is cleared before the config
+	// is handed to the telemetry reporter.
+	SCIMEnabled bool
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY. Not secret-scrubbed, but accepted alongside
+	// SCIMEnabled so both come from the same source.
+	SCIMUseLegacy bool
+
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
 }
@@ -332,6 +342,9 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	scimEnabled := r.options.SCIMEnabled
+	scimUseLegacy := r.options.SCIMUseLegacy
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -352,6 +365,8 @@ func (r *remoteReporter) deployment() error {
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
 		IDPOrgSync:      &idpOrgSync,
+		SCIMEnabled:     &scimEnabled,
+		SCIMUseLegacy:   &scimUseLegacy,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -1636,6 +1651,15 @@ type Deployment struct {
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
 	IDPOrgSync *bool `json:"idp_org_sync"`
+	// SCIMEnabled is true when CODER_SCIM_AUTH_HEADER is set on the deployment.
+	// Reports configuration state, not license entitlement. Nullable so older
+	// Coder versions that do not emit the field decode as nil.
+	SCIMEnabled *bool `json:"scim_enabled"`
+	// SCIMUseLegacy is true when the legacy SCIM handler is selected via
+	// CODER_SCIM_USE_LEGACY instead of the SCIM 2.0 handler in
+	// enterprise/coderd/scim. Nullable for the same backward compatibility
+	// reason as SCIMEnabled.
+	SCIMUseLegacy *bool `json:"scim_use_legacy"`
 }
 
 type APIKey struct {
