@@ -19,6 +19,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+// mustNewAnthropic is local rather than using aibridgetest.MustNewAnthropicProvider
+// to avoid an import cycle.
 func mustNewAnthropic(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
 	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
 	if err != nil {

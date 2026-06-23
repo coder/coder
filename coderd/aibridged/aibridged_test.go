@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -27,14 +28,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-func mustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
-	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
-	if err != nil {
-		panic("build anthropic provider: " + err.Error())
-	}
-	return p
-}
 
 // singleKeyPool builds a centralized key pool containing a single key.
 func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
@@ -667,7 +660,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
 				}),
-				mustNewAnthropicProvider(aibridge.AnthropicConfig{
+				aibridgetest.MustNewAnthropicProvider(aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
 					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
@@ -774,7 +767,7 @@ func TestRouting(t *testing.T) {
 
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL, KeyPool: singleKeyPool(t, "openai", "test-key")}),
-				mustNewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
+				aibridgetest.MustNewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)

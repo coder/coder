@@ -2,7 +2,6 @@ package aibridge_test
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,20 +15,13 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/provider"
 )
 
 var bridgeTestTracer = otel.Tracer("bridge_test")
-
-func mustNewAnthropicProvider(cfg config.Anthropic, bedrockCfg *config.AWSBedrock) aibridge.Provider {
-	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
-	if err != nil {
-		panic("build anthropic provider: " + err.Error())
-	}
-	return p
-}
 
 func TestValidateProviders(t *testing.T) {
 	t.Parallel()
@@ -45,7 +37,7 @@ func TestValidateProviders(t *testing.T) {
 			name: "all_supported_providers",
 			providers: []provider.Provider{
 				aibridge.NewOpenAIProvider(config.OpenAI{Name: "openai", BaseURL: "https://api.openai.com/v1/"}),
-				mustNewAnthropicProvider(config.Anthropic{Name: "anthropic", BaseURL: "https://api.anthropic.com/"}, nil),
+				aibridgetest.MustNewAnthropicProvider(config.Anthropic{Name: "anthropic", BaseURL: "https://api.anthropic.com/"}, nil),
 				aibridge.NewCopilotProvider(config.Copilot{Name: "copilot", BaseURL: "https://api.individual.githubcopilot.com"}),
 				aibridge.NewCopilotProvider(config.Copilot{Name: "copilot-business", BaseURL: "https://api.business.githubcopilot.com"}),
 				aibridge.NewCopilotProvider(config.Copilot{Name: "copilot-enterprise", BaseURL: "https://api.enterprise.githubcopilot.com"}),
@@ -55,7 +47,7 @@ func TestValidateProviders(t *testing.T) {
 			name: "default_names_and_base_urls",
 			providers: []provider.Provider{
 				aibridge.NewOpenAIProvider(config.OpenAI{}),
-				mustNewAnthropicProvider(config.Anthropic{}, nil),
+				aibridgetest.MustNewAnthropicProvider(config.Anthropic{}, nil),
 				aibridge.NewCopilotProvider(config.Copilot{}),
 			},
 		},
@@ -159,7 +151,7 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			name:        "anthropic_no_base_path",
 			requestPath: "/anthropic/v1/models",
 			provider: func(baseURL string) provider.Provider {
-				return mustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL}, nil)
+				return aibridgetest.MustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL}, nil)
 			},
 			expectPath: "/v1/models",
 		},
@@ -168,7 +160,7 @@ func TestPassthroughRoutesForProviders(t *testing.T) {
 			baseURLPath: "/v1",
 			requestPath: "/anthropic/v1/models",
 			provider: func(baseURL string) provider.Provider {
-				return mustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL}, nil)
+				return aibridgetest.MustNewAnthropicProvider(config.Anthropic{BaseURL: baseURL}, nil)
 			},
 			expectPath: "/v1/v1/models",
 		},
@@ -226,7 +218,7 @@ func TestRequestBodySizeLimit(t *testing.T) {
 		return aibridge.NewOpenAIProvider(config.OpenAI{Name: "openai", BaseURL: baseURL})
 	}
 	newAnthropic := func(baseURL string) provider.Provider {
-		return mustNewAnthropicProvider(config.Anthropic{Name: "anthropic", BaseURL: baseURL}, nil)
+		return aibridgetest.MustNewAnthropicProvider(config.Anthropic{Name: "anthropic", BaseURL: baseURL}, nil)
 	}
 	newCopilot := func(baseURL string) provider.Provider {
 		return aibridge.NewCopilotProvider(config.Copilot{Name: "copilot", BaseURL: baseURL})

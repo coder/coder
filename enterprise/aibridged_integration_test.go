@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
@@ -46,14 +47,6 @@ func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
 }
 
 var testTracer = otel.Tracer("aibridged_inttest")
-
-func mustNewAnthropicProvider(cfg aibridge.AnthropicConfig, bedrockCfg *aibridge.AWSBedrockConfig) aibridge.Provider {
-	p, err := aibridge.NewAnthropicProvider(context.Background(), cfg, bedrockCfg)
-	if err != nil {
-		panic("build anthropic provider: " + err.Error())
-	}
-	return p
-}
 
 // TestIntegration is not an exhaustive test against the upstream AI providers' SDKs (see coder/aibridge for those).
 // This test validates that:
@@ -512,7 +505,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 			KeyPool:        singleKeyPool(t, config.ProviderOpenAI, "test-key"),
 			CircuitBreaker: cbConfig,
 		}),
-		mustNewAnthropicProvider(aibridge.AnthropicConfig{
+		aibridgetest.MustNewAnthropicProvider(aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
 			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,
