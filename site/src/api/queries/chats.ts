@@ -91,8 +91,7 @@ export const updateInfiniteChatsCache = (
 		queryKey: readonly unknown[];
 	}) => boolean = isChatListQuery,
 ) => {
-	// Defaults to all chat-list queries; pass a narrower predicate to target a
-	// subset.
+	// Pass a narrower predicate to update only a subset of chat-list queries.
 	queryClient.setQueriesData<InfiniteChatsCacheData>(
 		{ queryKey: chatsKey, predicate },
 		(prev) => {
