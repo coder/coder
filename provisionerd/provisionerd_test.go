@@ -48,10 +48,12 @@ func closedWithin(c chan struct{}, d time.Duration) func() bool {
 }
 
 // assertAcquireNoError asserts that a send or receive on the AcquireJobWithCancel
-// stream succeeded, tolerating context.Canceled. dRPC can return context.Canceled
-// after it has successfully sent the message when the stream is canceled right
-// away, e.g. a test that closes the daemon immediately after acquisition. Any
-// other error fails the test.
+// stream succeeded, but tolerates context.Canceled. dRPC is racy and will
+// sometimes return context.Canceled even after it has successfully sent the
+// message, when the stream is canceled right away, e.g. a test that closes the
+// daemon immediately after acquisition. Swallowing it here is safe: a job that
+// was genuinely never delivered surfaces as a downstream failure when the test
+// waits on its completion signal. Any other error fails the test.
 func assertAcquireNoError(t *testing.T, err error) {
 	t.Helper()
 	if !xerrors.Is(err, context.Canceled) {
