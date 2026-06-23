@@ -8911,12 +8911,6 @@ func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.U
 }
 
 func (q *querier) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
-	// Reject negative deltas. The schema CHECK only fires when the result
-	// goes negative, so a negative cost_micros on an existing row would
-	// silently reduce accumulated spend and corrupt budget enforcement.
-	if arg.CostMicros < 0 {
-		return database.AIUserDailySpend{}, xerrors.Errorf("cost_micros must be non-negative, got %d", arg.CostMicros)
-	}
 	// Daily spend writes are made by the aibridged process.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
 		return database.AIUserDailySpend{}, err
