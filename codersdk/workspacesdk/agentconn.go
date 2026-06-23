@@ -1387,15 +1387,9 @@ func (c *agentConn) apiRequest(ctx context.Context, method, path string, body in
 // scoped to a single request: its transport cancels in-flight dials
 // once reqCtx ends.
 func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
-	// agentAddr is the only address this client is ever allowed to dial. It is
-	// derived from the intended AgentID rather than any request URL, so a
-	// redirect (or any other attacker-controlled host) can never retarget the
-	// request at a different agent on the shared tailnet.
 	agentAddr := netip.AddrPortFrom(c.agentAddress(), AgentHTTPAPIServerPort)
 	return &http.Client{
-		// Never follow redirects. A malicious agent could otherwise return a
-		// 3xx that bounces the request to another agent. Combined with the
-		// pinned dial below, this keeps every request on the intended agent.
+		// Redirects are blocked to prevent misuse.
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -1408,10 +1402,6 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 					return nil, xerrors.Errorf("network must be tcp")
 				}
 
-				// Reject any request whose host or port is not the intended
-				// agent's HTTP API. apiRequest always sets the host to the
-				// agent address, so a mismatch here only comes from an
-				// attacker-controlled URL or redirect.
 				host, port, err := net.SplitHostPort(addr)
 				if err != nil {
 					return nil, xerrors.Errorf("split host port %q: %w", addr, err)

@@ -227,14 +227,12 @@ func TestDeriveTaskCurrentState_Unit(t *testing.T) {
 	}
 }
 
-// TestTaskAppHTTPClient_RejectsRedirect verifies the client built for dialing a
-// workspace task app never follows redirects. A malicious app must not be able
-// to bounce coderd's request to a different address via a 3xx Location header.
+// TestTaskAppHTTPClient_RejectsRedirect verifies the task app client does not
+// follow redirects.
 func TestTaskAppHTTPClient_RejectsRedirect(t *testing.T) {
 	t.Parallel()
 
-	// victim stands in for a different address (e.g. a different port) that a
-	// followed redirect would reach. It must never be contacted.
+	// victim is the redirect target; it must never be contacted.
 	var victimHits atomic.Int64
 	victim := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		victimHits.Add(1)

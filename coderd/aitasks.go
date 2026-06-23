@@ -1093,12 +1093,7 @@ func (api *API) authAndDoWithTaskAppClient(
 // taskAppHTTPClient builds the HTTP client used to reach a workspace's task app
 // over its agent connection, dialing via the provided dial function.
 //
-// The client never follows redirects. The task app endpoint is served by an
-// untrusted workspace agent, and dial pins every connection to this workspace's
-// own agent (it takes only the port from the dial address), so a redirect can
-// never reach a different agent. Redirects are refused anyway so a malicious
-// agent cannot bounce the request to a different port on the same agent via a
-// 3xx Location header.
+// Redirects are blocked to prevent misuse.
 func taskAppHTTPClient(dial func(ctx context.Context, network, addr string) (net.Conn, error)) *http.Client {
 	return &http.Client{
 		CheckRedirect: func(*http.Request, []*http.Request) error {
