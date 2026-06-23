@@ -1,0 +1,64 @@
+name: probe-backlog-overflow-windows
+
+# Diagnostic for PLAT-307. Measures Windows TCP accept-queue overflow behavior.
+# See scripts/probe-backlog-overflow/README.md.
+
+on:
+  push:
+    branches:
+      - probe/tcp-backlog-overflow-windows
+  workflow_dispatch:
+    inputs:
+      backlog:
+        description: "listen() backlog hint"
+        required: false
+        default: "1"
+      dials:
+        description: "concurrent dials"
+        required: false
+        default: "200"
+      timeout:
+        description: "per-dial timeout"
+        required: false
+        default: "6s"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: probe (windows-2022)
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: TCP/IP global config
+        shell: bash
+        run: |
+          set -x
+          systeminfo | head -5 || true
+          netsh int tcp show global || true
+          netsh int ipv4 show dynamicport tcp || true
+
+      - name: Run probe (default config)
+        shell: bash
+        run: |
+          go run ./scripts/probe-backlog-overflow \
+            -backlog "${{ inputs.backlog || '1' }}" \
+            -dials   "${{ inputs.dials   || '200' }}" \
+            -timeout "${{ inputs.timeout || '6s' }}"
+
+      - name: Run probe (backlog=8, more dials)
+        if: ${{ github.event_name != 'workflow_dispatch' }}
+        shell: bash
+        run: |
+          go run ./scripts/probe-backlog-overflow \
+            -backlog 8 \
+            -dials   500 \
+            -timeout 6s
