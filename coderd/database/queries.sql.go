@@ -9352,11 +9352,11 @@ WITH hydrated AS (
     RETURNING id
 )
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, origin_kind
 )
 SELECT
     hydrated.id, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.origin_root, r.origin_kind
 FROM hydrated
 CROSS JOIN workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $1::uuid
@@ -9367,7 +9367,8 @@ ON CONFLICT (chat_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
+    origin_root = EXCLUDED.origin_root,
+    origin_kind = EXCLUDED.origin_kind,
     updated_at = now()
 `
 
@@ -9409,11 +9410,11 @@ func (q *sqlQuerier) IncrementChatGenerationAttempt(ctx context.Context, id uuid
 
 const insertAgentContextResourcesIntoChat = `-- name: InsertAgentContextResourcesIntoChat :exec
 INSERT INTO chat_context_resources (
-    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path
+    chat_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, origin_kind
 )
 SELECT
     $1::uuid, r.source, r.body_kind, r.body, r.content_hash,
-    r.size_bytes, r.status, r.error, r.source_path
+    r.size_bytes, r.status, r.error, r.origin_root, r.origin_kind
 FROM workspace_agent_context_resources r
 WHERE r.workspace_agent_id = $2::uuid
 `
@@ -9942,7 +9943,7 @@ func (q *sqlQuerier) LinkChatFiles(ctx context.Context, arg LinkChatFilesParams)
 }
 
 const listChatContextResourcesByChatID = `-- name: ListChatContextResourcesByChatID :many
-SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM chat_context_resources
+SELECT chat_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, created_at, updated_at, origin_kind FROM chat_context_resources
 WHERE chat_id = $1::uuid
 ORDER BY source ASC
 `
@@ -9967,9 +9968,10 @@ func (q *sqlQuerier) ListChatContextResourcesByChatID(ctx context.Context, chatI
 			&i.SizeBytes,
 			&i.Status,
 			&i.Error,
-			&i.SourcePath,
+			&i.OriginRoot,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OriginKind,
 		); err != nil {
 			return nil, err
 		}
@@ -31105,7 +31107,7 @@ func (q *sqlQuerier) GetLatestWorkspaceAgentContextSnapshot(ctx context.Context,
 }
 
 const listWorkspaceAgentContextResources = `-- name: ListWorkspaceAgentContextResources :many
-SELECT workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at FROM workspace_agent_context_resources
+SELECT workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, created_at, updated_at, origin_kind FROM workspace_agent_context_resources
 WHERE workspace_agent_id = $1
 ORDER BY source ASC
 `
@@ -31128,9 +31130,10 @@ func (q *sqlQuerier) ListWorkspaceAgentContextResources(ctx context.Context, wor
 			&i.SizeBytes,
 			&i.Status,
 			&i.Error,
-			&i.SourcePath,
+			&i.OriginRoot,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.OriginKind,
 		); err != nil {
 			return nil, err
 		}
@@ -31155,7 +31158,8 @@ INSERT INTO workspace_agent_context_resources (
     size_bytes,
     status,
     error,
-    source_path,
+    origin_root,
+    origin_kind,
     created_at,
     updated_at
 ) VALUES (
@@ -31169,7 +31173,8 @@ INSERT INTO workspace_agent_context_resources (
     $8,
     $9,
     $10,
-    $10
+    $11,
+    $11
 )
 ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     body_kind = EXCLUDED.body_kind,
@@ -31178,9 +31183,10 @@ ON CONFLICT (workspace_agent_id, source) DO UPDATE SET
     size_bytes = EXCLUDED.size_bytes,
     status = EXCLUDED.status,
     error = EXCLUDED.error,
-    source_path = EXCLUDED.source_path,
+    origin_root = EXCLUDED.origin_root,
+    origin_kind = EXCLUDED.origin_kind,
     updated_at = EXCLUDED.updated_at
-RETURNING workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, source_path, created_at, updated_at
+RETURNING workspace_agent_id, source, body_kind, body, content_hash, size_bytes, status, error, origin_root, created_at, updated_at, origin_kind
 `
 
 type UpsertWorkspaceAgentContextResourceParams struct {
@@ -31192,7 +31198,8 @@ type UpsertWorkspaceAgentContextResourceParams struct {
 	SizeBytes        int64                               `db:"size_bytes" json:"size_bytes"`
 	Status           WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	Error            string                              `db:"error" json:"error"`
-	SourcePath       string                              `db:"source_path" json:"source_path"`
+	OriginRoot       string                              `db:"origin_root" json:"origin_root"`
+	OriginKind       WorkspaceAgentContextOriginKind     `db:"origin_kind" json:"origin_kind"`
 	Now              time.Time                           `db:"now" json:"now"`
 }
 
@@ -31206,7 +31213,8 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 		arg.SizeBytes,
 		arg.Status,
 		arg.Error,
-		arg.SourcePath,
+		arg.OriginRoot,
+		arg.OriginKind,
 		arg.Now,
 	)
 	var i WorkspaceAgentContextResource
@@ -31219,9 +31227,10 @@ func (q *sqlQuerier) UpsertWorkspaceAgentContextResource(ctx context.Context, ar
 		&i.SizeBytes,
 		&i.Status,
 		&i.Error,
-		&i.SourcePath,
+		&i.OriginRoot,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.OriginKind,
 	)
 	return i, err
 }

@@ -14740,6 +14740,7 @@ func TestSoftDeleteWorkspaceAgentsPurgesContext(t *testing.T) {
 			ContentHash:      []byte{0x02},
 			SizeBytes:        2,
 			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			OriginKind:       database.WorkspaceAgentContextOriginKindUnspecified,
 			Now:              dbtime.Now(),
 		})
 		require.NoError(t, err)

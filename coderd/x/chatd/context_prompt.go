@@ -88,6 +88,17 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	return out
 }
 
+// mcpConfigSourceFromServerBody decodes a stored mcp_server resource body and
+// returns the path of the .mcp.json that declared the server. Returns empty
+// when the body has no config source or cannot be decoded.
+func mcpConfigSourceFromServerBody(body json.RawMessage) string {
+	var decoded agentproto.MCPServerBody
+	if err := contextBodyUnmarshalOptions.Unmarshal(body, &decoded); err != nil {
+		return ""
+	}
+	return decoded.GetConfigSource()
+}
+
 // workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
 // resources into execution-ready tool infos. Only OK mcp_server rows
 // contribute. The agent reports tool names unprefixed alongside the server
@@ -356,11 +367,13 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 			// Surface the failure (with its reason) rather than dropping it
 			// silently; the body is empty for non-OK rows.
 			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatus(r.Status),
-				Error:     r.Error,
+				Source:     r.Source,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatus(r.Status),
+				Error:      r.Error,
+				OriginRoot: r.OriginRoot,
+				OriginKind: codersdk.ChatContextResourceOriginKind(r.OriginKind),
 			})
 			continue
 		}
@@ -371,10 +384,12 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				continue
 			}
 			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
+				Source:     r.Source,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				OriginRoot: r.OriginRoot,
+				OriginKind: codersdk.ChatContextResourceOriginKind(r.OriginKind),
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
 			name, description, decoded := decodeSkillIdentity(r.Body)
@@ -388,21 +403,28 @@ func pinnedContextResources(resources []database.ChatContextResource) []codersdk
 				Status:           codersdk.ChatContextResourceStatusOK,
 				SkillName:        name,
 				SkillDescription: description,
+				OriginRoot:       r.OriginRoot,
+				OriginKind:       codersdk.ChatContextResourceOriginKind(r.OriginKind),
 			})
 		case database.WorkspaceAgentContextBodyKindMcpConfig:
 			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
+				Source:     r.Source,
+				Kind:       kind,
+				SizeBytes:  r.SizeBytes,
+				Status:     codersdk.ChatContextResourceStatusOK,
+				OriginRoot: r.OriginRoot,
+				OriginKind: codersdk.ChatContextResourceOriginKind(r.OriginKind),
 			})
 		case database.WorkspaceAgentContextBodyKindMcpServer:
 			out = append(out, codersdk.ChatContextResource{
-				Source:    r.Source,
-				Kind:      kind,
-				SizeBytes: r.SizeBytes,
-				Status:    codersdk.ChatContextResourceStatusOK,
-				Tools:     mcpToolsFromServerBody(r.Source, r.Body),
+				Source:          r.Source,
+				Kind:            kind,
+				SizeBytes:       r.SizeBytes,
+				Status:          codersdk.ChatContextResourceStatusOK,
+				Tools:           mcpToolsFromServerBody(r.Source, r.Body),
+				OriginRoot:      r.OriginRoot,
+				OriginKind:      codersdk.ChatContextResourceOriginKind(r.OriginKind),
+				MCPConfigSource: mcpConfigSourceFromServerBody(r.Body),
 			})
 		}
 	}

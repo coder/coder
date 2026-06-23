@@ -553,10 +553,20 @@ message ContextResource {
 	// for file-backed kinds, or the MCP server name for
 	// mcp_server resources.
 	string source = 1;
-	// source_path is the user-declared scan root that produced
-	// this resource (empty for built-in roots, set to the owning
-	// .mcp.json for mcp_server entries declared in a user config).
-	optional string source_path = 2;
+	// origin_root is the scan root that discovered this resource:
+	// the agent working directory, a built-in default root, or a
+	// user-declared source. It is the (lexical) path of that root,
+	// always populated for file-backed kinds (instruction_file,
+	// skill, mcp_config). For mcp_server resources it is empty; a
+	// live server links to its declaring .mcp.json via
+	// MCPServerBody.config_source instead.
+	//
+	// Renamed in place from the pre-release "source_path" field
+	// (same tag 2, same type) so an already-deployed agent that
+	// set it stays wire-compatible: such agents only ever set it
+	// to a user-declared source path, which coderd maps to
+	// origin_kind = USER_SOURCE.
+	optional string origin_root = 2;
 	// content_hash is sha256 over the original on-disk bytes (or
 	// over the agent's canonical encoding for non-file kinds).
 	bytes content_hash = 3;
@@ -567,6 +577,12 @@ message ContextResource {
 	// is not OK; may also carry a non-fatal warning when status
 	// is OK.
 	string error = 6;
+	// origin_kind classifies origin_root so consumers can tell a
+	// bespoke user-added source from a built-in default or the
+	// working directory. ORIGIN_KIND_UNSPECIFIED when pushed by an
+	// agent that predates this field; coderd backfills USER_SOURCE
+	// when only the legacy origin_root (source_path) is present.
+	OriginKind origin_kind = 17;
 
 	enum Status {
 		STATUS_UNSPECIFIED = 0;
@@ -575,6 +591,19 @@ message ContextResource {
 		UNREADABLE = 3;
 		INVALID = 4;
 		EXCLUDED = 5;
+	}
+
+	// OriginKind classifies the scan root in origin_root.
+	enum OriginKind {
+		ORIGIN_KIND_UNSPECIFIED = 0;
+		// WORKING_DIR is the agent's working directory.
+		WORKING_DIR = 1;
+		// BUILTIN is a default root layered in by the agent
+		// (e.g. ~/.coder, ~/.coder/skills).
+		BUILTIN = 2;
+		// USER_SOURCE is a scan root a user or template author
+		// added explicitly (HTTP API or CODER_AGENT_EXP_*_DIRS).
+		USER_SOURCE = 3;
 	}
 
 	// body conveys both the resource kind (via which variant is
@@ -589,8 +618,8 @@ message ContextResource {
 	}
 
 	// Reserved tags from the legacy v2.10 schema that carried
-	// id (1->renamed), kind enum, payload, description, and the
-	// removed plugin/hook/subagent/command flat fields. Keep them
+	// kind enum, payload, description, and the removed
+	// plugin/hook/subagent/command flat fields. Keep them
 	// reserved so a future renumber cannot reintroduce them.
 	reserved 7, 8, 9, 14, 15, 16;
 }
@@ -627,6 +656,14 @@ message MCPServerBody {
 	string server_name = 1;
 	string description = 2;
 	repeated MCPTool tools = 3;
+	// config_source is the absolute path of the .mcp.json that
+	// declared this server. It equals the `source` of the
+	// corresponding mcp_config ContextResource, so consumers can
+	// link a live server back to its declaring config file. When a
+	// server name is declared in multiple files the first file wins
+	// (matching the agent's dedup). Empty when pushed by an agent
+	// that predates this field or when the declaring file is unknown.
+	string config_source = 4;
 }
 
 // MCPTool mirrors the MCP server-reported tool surface. The

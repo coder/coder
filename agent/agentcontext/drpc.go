@@ -69,11 +69,12 @@ func pushRequestToProto(req *PushRequest) *agentproto.PushContextStateRequest {
 			Status:      resourceStatusToProto(r.Status),
 			SizeBytes:   r.SizeBytes,
 			Error:       r.Error,
+			OriginKind:  originKindToProto(r.OriginKind),
 		}
 		setResourceBody(entry, r)
-		if r.SourcePath != "" {
-			sp := r.SourcePath
-			entry.SourcePath = &sp
+		if r.OriginRoot != "" {
+			or := r.OriginRoot
+			entry.OriginRoot = &or
 		}
 		pb.Resources = append(pb.Resources, entry)
 	}
@@ -110,11 +111,26 @@ func setResourceBody(entry *agentproto.ContextResource, r Resource) {
 	case KindMCPServer:
 		entry.Body = &agentproto.ContextResource_McpServer{
 			McpServer: &agentproto.MCPServerBody{
-				ServerName:  serverNameOrSource(r),
-				Description: r.Description,
-				Tools:       mcpToolsToProto(r.Tools),
+				ServerName:   serverNameOrSource(r),
+				Description:  r.Description,
+				Tools:        mcpToolsToProto(r.Tools),
+				ConfigSource: r.MCPConfigSource,
 			},
 		}
+	}
+}
+
+// originKindToProto maps an OriginKind to its proto enum.
+func originKindToProto(k OriginKind) agentproto.ContextResource_OriginKind {
+	switch k {
+	case OriginWorkingDir:
+		return agentproto.ContextResource_WORKING_DIR
+	case OriginBuiltin:
+		return agentproto.ContextResource_BUILTIN
+	case OriginUserSource:
+		return agentproto.ContextResource_USER_SOURCE
+	default:
+		return agentproto.ContextResource_ORIGIN_KIND_UNSPECIFIED
 	}
 }
 

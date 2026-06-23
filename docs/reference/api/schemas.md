@@ -2020,6 +2020,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           {
             "error": "string",
             "kind": "instruction_file",
+            "mcp_config_source": "string",
+            "origin_kind": "unspecified",
+            "origin_root": "string",
             "size_bytes": 0,
             "skill_description": "string",
             "skill_name": "string",
@@ -2112,6 +2115,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       {
         "error": "string",
         "kind": "instruction_file",
+        "mcp_config_source": "string",
+        "origin_kind": "unspecified",
+        "origin_root": "string",
         "size_bytes": 0,
         "skill_description": "string",
         "skill_name": "string",
@@ -2341,6 +2347,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     {
       "error": "string",
       "kind": "instruction_file",
+      "mcp_config_source": "string",
+      "origin_kind": "unspecified",
+      "origin_root": "string",
       "size_bytes": 0,
       "skill_description": "string",
       "skill_name": "string",
@@ -2372,6 +2381,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "error": "string",
   "kind": "instruction_file",
+  "mcp_config_source": "string",
+  "origin_kind": "unspecified",
+  "origin_root": "string",
   "size_bytes": 0,
   "skill_description": "string",
   "skill_name": "string",
@@ -2388,16 +2400,19 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|---------------------|--------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
-| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
-| `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
-| `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
-| `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
-| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
-| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
-| `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+| Name                | Type                                                                             | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|---------------------|----------------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`             | string                                                                           | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)             | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_config_source` | string                                                                           | false    |              | Mcp config source is the path of the .mcp.json that declared this server. Populated only for the mcp_server kind; links the server back to its originating mcp_config resource (whose Source is the same path).                                                            |
+| `origin_kind`       | [codersdk.ChatContextResourceOriginKind](#codersdkchatcontextresourceoriginkind) | false    |              | Origin kind classifies OriginRoot. Empty (unspecified) for resources pushed by pre-origin agents.                                                                                                                                                                          |
+| `origin_root`       | string                                                                           | false    |              | Origin root is the filesystem path of the scan root that discovered this resource (the working directory, a built-in root, or a user-declared source). Empty for resources pushed by pre-origin agents.                                                                    |
+| `size_bytes`        | integer                                                                          | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `skill_description` | string                                                                           | false    |              |                                                                                                                                                                                                                                                                            |
+| `skill_name`        | string                                                                           | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `source`            | string                                                                           | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus)         | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)                    | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
 
 ## codersdk.ChatContextResourceKind
 
@@ -2412,6 +2427,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Value(s)                                                |
 |---------------------------------------------------------|
 | `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+
+## codersdk.ChatContextResourceOriginKind
+
+```json
+"unspecified"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                               |
+|--------------------------------------------------------|
+| `builtin`, `unspecified`, `user_source`, `working_dir` |
 
 ## codersdk.ChatContextResourceStatus
 
@@ -3872,6 +3901,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         {
           "error": "string",
           "kind": "instruction_file",
+          "mcp_config_source": "string",
+          "origin_kind": "unspecified",
+          "origin_root": "string",
           "size_bytes": 0,
           "skill_description": "string",
           "skill_name": "string",

@@ -114,13 +114,23 @@ message ContextResource {
   string id = 1;
   string kind = 2;
   string source = 3;
-  string source_path = 4;
+  // origin_root is the scan root that discovered the resource
+  // (working dir, built-in default, or user source). Renamed in
+  // place from the prior source_path field (same tag).
+  string origin_root = 4;
   string content_hash = 5;
   uint64 size_bytes = 6;
   string status = 7;
   string error = 8;
   string name = 9;
   string description = 10;
+  // origin_kind classifies origin_root: working_dir, builtin, or
+  // user_source (unspecified when unknown).
+  string origin_kind = 11;
+  // mcp_config_source is the .mcp.json that declared this server,
+  // set only for mcp_server resources; matches the source of the
+  // corresponding mcp_config resource.
+  string mcp_config_source = 12;
 }
 
 // ContextSnapshot is the agent's resolved context state.

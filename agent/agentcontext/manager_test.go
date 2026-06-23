@@ -99,8 +99,9 @@ func TestManager_AddSourceTriggersResolve(t *testing.T) {
 
 	found := false
 	for _, r := range snap.Resources {
-		if r.Kind == agentcontext.KindInstructionFile && r.SourcePath == src {
+		if r.Kind == agentcontext.KindInstructionFile && r.OriginRoot == src {
 			found = true
+			require.Equal(t, agentcontext.OriginUserSource, r.OriginKind)
 		}
 	}
 	require.True(t, found, "expected AGENTS.md attributed to the user source")
@@ -333,7 +334,8 @@ func TestManager_InitialSourcesSeeded(t *testing.T) {
 
 	snap := m.Snapshot()
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, src, snap.Resources[0].SourcePath)
+	require.Equal(t, src, snap.Resources[0].OriginRoot)
+	require.Equal(t, agentcontext.OriginUserSource, snap.Resources[0].OriginKind)
 }
 
 // TestManager_SeedSourcesLateBindsAfterManifest models the
@@ -367,7 +369,8 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, late, snap.Resources[0].SourcePath)
+	require.Equal(t, late, snap.Resources[0].OriginRoot)
+	require.Equal(t, agentcontext.OriginUserSource, snap.Resources[0].OriginKind)
 }
 
 func TestManager_CloseIsIdempotent(t *testing.T) {

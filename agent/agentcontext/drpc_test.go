@@ -53,7 +53,8 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				SizeBytes:   4,
 				Status:      agentcontext.StatusOK,
 				Description: "tagline",
-				SourcePath:  "/tmp",
+				OriginRoot:  "/tmp",
+				OriginKind:  agentcontext.OriginUserSource,
 			},
 			{
 				ID:        "skill:/tmp/.agents/skills/foo",
@@ -73,7 +74,8 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				Status:      agentcontext.StatusOK,
 				Name:        "code-review",
 				Description: "Critical review for Go PRs.",
-				SourcePath:  "/tmp",
+				OriginRoot:  "/tmp",
+				OriginKind:  agentcontext.OriginUserSource,
 			},
 			{
 				ID:          "mcp_config:/tmp/.mcp.json",
@@ -82,18 +84,21 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 				ContentHash: [32]byte{0x04},
 				SizeBytes:   412,
 				Status:      agentcontext.StatusOK,
-				SourcePath:  "/tmp",
+				OriginRoot:  "/tmp",
+				OriginKind:  agentcontext.OriginWorkingDir,
 			},
 			{
-				ID:          "mcp_server:github",
-				Kind:        agentcontext.KindMCPServer,
-				Source:      "github",
-				Name:        "github",
-				ContentHash: [32]byte{0x05},
-				SizeBytes:   138,
-				Status:      agentcontext.StatusOK,
-				Description: "GitHub MCP server (1 tool)",
-				SourcePath:  "/tmp/.mcp.json",
+				ID:              "mcp_server:github",
+				Kind:            agentcontext.KindMCPServer,
+				Source:          "github",
+				Name:            "github",
+				ContentHash:     [32]byte{0x05},
+				SizeBytes:       138,
+				Status:          agentcontext.StatusOK,
+				Description:     "GitHub MCP server (1 tool)",
+				OriginRoot:      "/tmp",
+				OriginKind:      agentcontext.OriginWorkingDir,
+				MCPConfigSource: "/tmp/.mcp.json",
 				Tools: []agentcontext.MCPTool{{
 					Name:        "create_issue",
 					Description: "Create a GitHub issue",
@@ -123,8 +128,9 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	instr := pb.Resources[0]
 	require.Equal(t, "/tmp/AGENTS.md", instr.Source)
 	require.Equal(t, agentproto.ContextResource_OK, instr.Status)
-	require.NotNil(t, instr.SourcePath)
-	require.Equal(t, "/tmp", *instr.SourcePath)
+	require.NotNil(t, instr.OriginRoot)
+	require.Equal(t, "/tmp", *instr.OriginRoot)
+	require.Equal(t, agentproto.ContextResource_USER_SOURCE, instr.GetOriginKind())
 	instrBody := instr.GetInstructionFile()
 	require.NotNil(t, instrBody, "instruction_file body must be set")
 	require.Equal(t, []byte("body"), instrBody.GetContent())
@@ -138,7 +144,8 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.Equal(t, agentproto.ContextResource_INVALID, invalidSkill.Status)
 	require.Equal(t, "bad frontmatter", invalidSkill.Error)
 	require.NotNil(t, invalidSkill.GetSkill(), "skill body must be set even when status != OK")
-	require.Nil(t, invalidSkill.SourcePath, "empty user source must remain optional/nil")
+	require.Nil(t, invalidSkill.OriginRoot, "empty origin root must remain optional/nil")
+	require.Equal(t, agentproto.ContextResource_ORIGIN_KIND_UNSPECIFIED, invalidSkill.GetOriginKind())
 
 	// OK skill: meta + name + description populated.
 	skill := pb.Resources[2]
@@ -160,6 +167,7 @@ func TestDRPCPusher_HappyPathSerializesAllFields(t *testing.T) {
 	require.NotNil(t, srvBody)
 	require.Equal(t, "github", srvBody.GetServerName())
 	require.Equal(t, "GitHub MCP server (1 tool)", srvBody.GetDescription())
+	require.Equal(t, "/tmp/.mcp.json", srvBody.GetConfigSource())
 	require.Len(t, srvBody.GetTools(), 1)
 	tool := srvBody.GetTools()[0]
 	require.Equal(t, "create_issue", tool.GetName())

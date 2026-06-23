@@ -459,6 +459,7 @@ func seedAgentMCPToolContext(
 		ContentHash:      hash,
 		SizeBytes:        int64(len(body)),
 		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		OriginKind:       database.WorkspaceAgentContextOriginKindUnspecified,
 		Now:              now,
 	})
 	require.NoError(t, err)
@@ -500,6 +501,7 @@ func seedAgentInstructionContext(
 		ContentHash:      hash,
 		SizeBytes:        int64(len(body)),
 		Status:           database.WorkspaceAgentContextResourceStatusOk,
+		OriginKind:       database.WorkspaceAgentContextOriginKindUnspecified,
 		Now:              now,
 	})
 	require.NoError(t, err)

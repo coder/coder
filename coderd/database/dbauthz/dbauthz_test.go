@@ -6158,6 +6158,7 @@ func (s *MethodTestSuite) TestWorkspaceAgentContext() {
 			BodyKind:         database.WorkspaceAgentContextBodyKindInstructionFile,
 			Body:             []byte(`{}`),
 			Status:           database.WorkspaceAgentContextResourceStatusOk,
+			OriginKind:       database.WorkspaceAgentContextOriginKindUnspecified,
 		}
 		dbm.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agt.ID).Return(w, nil).AnyTimes()
 		dbm.EXPECT().UpsertWorkspaceAgentContextResource(gomock.Any(), arg).Return(database.WorkspaceAgentContextResource{}, nil).AnyTimes()

@@ -15102,6 +15102,22 @@
 				"kind": {
 					"$ref": "#/definitions/codersdk.ChatContextResourceKind"
 				},
+				"mcp_config_source": {
+					"description": "MCPConfigSource is the path of the .mcp.json that declared this server.\nPopulated only for the mcp_server kind; links the server back to its\noriginating mcp_config resource (whose Source is the same path).",
+					"type": "string"
+				},
+				"origin_kind": {
+					"description": "OriginKind classifies OriginRoot. Empty (unspecified) for resources\npushed by pre-origin agents.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ChatContextResourceOriginKind"
+						}
+					]
+				},
+				"origin_root": {
+					"description": "OriginRoot is the filesystem path of the scan root that discovered this\nresource (the working directory, a built-in root, or a user-declared\nsource). Empty for resources pushed by pre-origin agents.",
+					"type": "string"
+				},
 				"size_bytes": {
 					"description": "SizeBytes is the original payload size in bytes.",
 					"type": "integer"
@@ -15142,6 +15158,16 @@
 				"ChatContextResourceKindSkill",
 				"ChatContextResourceKindMCPConfig",
 				"ChatContextResourceKindMCPServer"
+			]
+		},
+		"codersdk.ChatContextResourceOriginKind": {
+			"type": "string",
+			"enum": ["unspecified", "working_dir", "builtin", "user_source"],
+			"x-enum-varnames": [
+				"ChatContextResourceOriginKindUnspecified",
+				"ChatContextResourceOriginKindWorkingDir",
+				"ChatContextResourceOriginKindBuiltin",
+				"ChatContextResourceOriginKindUserSource"
 			]
 		},
 		"codersdk.ChatContextResourceStatus": {

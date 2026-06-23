@@ -402,10 +402,11 @@ func TestResolver_UserSourceAttribution(t *testing.T) {
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "user-added")
 
 	r := &agentcontext.Resolver{}
-	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, UserSource: dir}})
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir, Kind: agentcontext.OriginUserSource}})
 
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, dir, snap.Resources[0].SourcePath)
+	require.Equal(t, dir, snap.Resources[0].OriginRoot)
+	require.Equal(t, agentcontext.OriginUserSource, snap.Resources[0].OriginKind)
 }
 
 func TestResolver_MissingRootSilentlyIgnored(t *testing.T) {

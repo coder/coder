@@ -631,6 +631,35 @@ func TestPinnedContextResources(t *testing.T) {
 			},
 		}, out)
 	})
+
+	t.Run("PopulatesOriginAndConfigSource", func(t *testing.T) {
+		t.Parallel()
+
+		instr := instructionResource(t, "/src/AGENTS.md", "hi", database.WorkspaceAgentContextResourceStatusOk)
+		instr.OriginRoot = "/src"
+		instr.OriginKind = database.WorkspaceAgentContextOriginKindUserSource
+
+		server := mcpServerResource(t, "github", &agentproto.MCPServerBody{
+			ServerName:   "github",
+			ConfigSource: "/work/.mcp.json",
+		}, database.WorkspaceAgentContextResourceStatusOk)
+		server.OriginRoot = "/work"
+		server.OriginKind = database.WorkspaceAgentContextOriginKindWorkingDir
+
+		out := pinnedContextResources([]database.ChatContextResource{instr, server})
+		require.Len(t, out, 2)
+
+		// Instruction file carries its discovering user source.
+		require.Equal(t, "/src", out[0].OriginRoot)
+		require.Equal(t, codersdk.ChatContextResourceOriginKindUserSource, out[0].OriginKind)
+		require.Empty(t, out[0].MCPConfigSource)
+
+		// MCP server links to its declaring .mcp.json and carries the
+		// origin of the scan root that discovered that config.
+		require.Equal(t, "/work", out[1].OriginRoot)
+		require.Equal(t, codersdk.ChatContextResourceOriginKindWorkingDir, out[1].OriginKind)
+		require.Equal(t, "/work/.mcp.json", out[1].MCPConfigSource)
+	})
 }
 
 func TestContextResources(t *testing.T) {

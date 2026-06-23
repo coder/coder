@@ -1751,6 +1751,23 @@ export interface ChatContextResource {
 	 * non-fatal warning when Status is ok.
 	 */
 	readonly error?: string;
+	/**
+	 * OriginRoot is the filesystem path of the scan root that discovered this
+	 * resource (the working directory, a built-in root, or a user-declared
+	 * source). Empty for resources pushed by pre-origin agents.
+	 */
+	readonly origin_root?: string;
+	/**
+	 * OriginKind classifies OriginRoot. Empty (unspecified) for resources
+	 * pushed by pre-origin agents.
+	 */
+	readonly origin_kind?: ChatContextResourceOriginKind;
+	/**
+	 * MCPConfigSource is the path of the .mcp.json that declared this server.
+	 * Populated only for the mcp_server kind; links the server back to its
+	 * originating mcp_config resource (whose Source is the same path).
+	 */
+	readonly mcp_config_source?: string;
 }
 
 // From codersdk/chats.go
@@ -1765,6 +1782,20 @@ export const ChatContextResourceKinds: ChatContextResourceKind[] = [
 	"mcp_config",
 	"mcp_server",
 	"skill",
+];
+
+// From codersdk/chats.go
+export type ChatContextResourceOriginKind =
+	| "builtin"
+	| "unspecified"
+	| "user_source"
+	| "working_dir";
+
+export const ChatContextResourceOriginKinds: ChatContextResourceOriginKind[] = [
+	"builtin",
+	"unspecified",
+	"user_source",
+	"working_dir",
 ];
 
 // From codersdk/chats.go

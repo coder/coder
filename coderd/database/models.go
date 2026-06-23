@@ -3874,6 +3874,70 @@ func AllWorkspaceAgentContextBodyKindValues() []WorkspaceAgentContextBodyKind {
 	}
 }
 
+type WorkspaceAgentContextOriginKind string
+
+const (
+	WorkspaceAgentContextOriginKindUnspecified WorkspaceAgentContextOriginKind = "unspecified"
+	WorkspaceAgentContextOriginKindWorkingDir  WorkspaceAgentContextOriginKind = "working_dir"
+	WorkspaceAgentContextOriginKindBuiltin     WorkspaceAgentContextOriginKind = "builtin"
+	WorkspaceAgentContextOriginKindUserSource  WorkspaceAgentContextOriginKind = "user_source"
+)
+
+func (e *WorkspaceAgentContextOriginKind) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentContextOriginKind(s)
+	case string:
+		*e = WorkspaceAgentContextOriginKind(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentContextOriginKind: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentContextOriginKind struct {
+	WorkspaceAgentContextOriginKind WorkspaceAgentContextOriginKind `json:"workspace_agent_context_origin_kind"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentContextOriginKind is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentContextOriginKind) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentContextOriginKind, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentContextOriginKind.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentContextOriginKind) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentContextOriginKind), nil
+}
+
+func (e WorkspaceAgentContextOriginKind) Valid() bool {
+	switch e {
+	case WorkspaceAgentContextOriginKindUnspecified,
+		WorkspaceAgentContextOriginKindWorkingDir,
+		WorkspaceAgentContextOriginKindBuiltin,
+		WorkspaceAgentContextOriginKindUserSource:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentContextOriginKindValues() []WorkspaceAgentContextOriginKind {
+	return []WorkspaceAgentContextOriginKind{
+		WorkspaceAgentContextOriginKindUnspecified,
+		WorkspaceAgentContextOriginKindWorkingDir,
+		WorkspaceAgentContextOriginKindBuiltin,
+		WorkspaceAgentContextOriginKindUserSource,
+	}
+}
+
 type WorkspaceAgentContextResourceStatus string
 
 const (
@@ -4827,10 +4891,12 @@ type ChatContextResource struct {
 	Status WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	// Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.
 	Error string `db:"error" json:"error"`
-	// User-declared scan root that produced this resource. Empty for built-in scan roots.
-	SourcePath string    `db:"source_path" json:"source_path"`
+	// Filesystem path of the scan root that discovered this resource: the working directory, a built-in root, or a user-declared source. Empty only for rows written by pre-origin agents.
+	OriginRoot string    `db:"origin_root" json:"origin_root"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Classifies origin_root as working_dir, builtin, or user_source. unspecified only for rows written by pre-origin agents that did not report a kind.
+	OriginKind WorkspaceAgentContextOriginKind `db:"origin_kind" json:"origin_kind"`
 }
 
 type ChatDebugRun struct {
@@ -6187,10 +6253,12 @@ type WorkspaceAgentContextResource struct {
 	Status WorkspaceAgentContextResourceStatus `db:"status" json:"status"`
 	// Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.
 	Error string `db:"error" json:"error"`
-	// User-declared scan root that produced this resource. Empty for built-in scan roots.
-	SourcePath string    `db:"source_path" json:"source_path"`
+	// Filesystem path of the scan root that discovered this resource: the working directory, a built-in root, or a user-declared source. Empty only for rows written by pre-origin agents.
+	OriginRoot string    `db:"origin_root" json:"origin_root"`
 	CreatedAt  time.Time `db:"created_at" json:"created_at"`
 	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	// Classifies origin_root as working_dir, builtin, or user_source. unspecified only for rows written by pre-origin agents that did not report a kind.
+	OriginKind WorkspaceAgentContextOriginKind `db:"origin_kind" json:"origin_kind"`
 }
 
 // Latest workspace agent context snapshot received via PushContextState. One row per workspace agent, overwritten in place.

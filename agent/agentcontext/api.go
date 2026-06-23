@@ -30,16 +30,18 @@ type SourceRequest struct {
 // Payloads are omitted; clients that need the bytes go through
 // the drpc PushContextState path.
 type SnapshotResource struct {
-	ID          string `json:"id"`
-	Kind        string `json:"kind"`
-	Source      string `json:"source"`
-	SourcePath  string `json:"source_path,omitempty"`
-	ContentHash string `json:"content_hash"`
-	SizeBytes   uint64 `json:"size_bytes"`
-	Status      string `json:"status"`
-	Error       string `json:"error,omitempty"`
-	Name        string `json:"name,omitempty"`
-	Description string `json:"description,omitempty"`
+	ID              string `json:"id"`
+	Kind            string `json:"kind"`
+	Source          string `json:"source"`
+	OriginRoot      string `json:"origin_root,omitempty"`
+	OriginKind      string `json:"origin_kind,omitempty"`
+	ContentHash     string `json:"content_hash"`
+	SizeBytes       uint64 `json:"size_bytes"`
+	Status          string `json:"status"`
+	Error           string `json:"error,omitempty"`
+	Name            string `json:"name,omitempty"`
+	Description     string `json:"description,omitempty"`
+	MCPConfigSource string `json:"mcp_config_source,omitempty"`
 }
 
 // SnapshotResponse is the on-wire representation of a Snapshot
@@ -190,16 +192,18 @@ func snapshotResponse(s Snapshot) SnapshotResponse {
 	}
 	for _, r := range s.Resources {
 		out.Resources = append(out.Resources, SnapshotResource{
-			ID:          r.ID,
-			Kind:        r.Kind.String(),
-			Source:      r.Source,
-			SourcePath:  r.SourcePath,
-			ContentHash: hex.EncodeToString(r.ContentHash[:]),
-			SizeBytes:   r.SizeBytes,
-			Status:      r.Status.String(),
-			Error:       r.Error,
-			Name:        r.Name,
-			Description: r.Description,
+			ID:              r.ID,
+			Kind:            r.Kind.String(),
+			Source:          r.Source,
+			OriginRoot:      r.OriginRoot,
+			OriginKind:      r.OriginKind.String(),
+			ContentHash:     hex.EncodeToString(r.ContentHash[:]),
+			SizeBytes:       r.SizeBytes,
+			Status:          r.Status.String(),
+			Error:           r.Error,
+			Name:            r.Name,
+			Description:     r.Description,
+			MCPConfigSource: r.MCPConfigSource,
 		})
 	}
 	return out

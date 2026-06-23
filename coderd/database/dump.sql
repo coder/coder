@@ -622,6 +622,13 @@ CREATE TYPE workspace_agent_context_body_kind AS ENUM (
     'command'
 );
 
+CREATE TYPE workspace_agent_context_origin_kind AS ENUM (
+    'unspecified',
+    'working_dir',
+    'builtin',
+    'user_source'
+);
+
 CREATE TYPE workspace_agent_context_resource_status AS ENUM (
     'ok',
     'oversize',
@@ -1760,9 +1767,10 @@ CREATE TABLE chat_context_resources (
     size_bytes bigint NOT NULL,
     status workspace_agent_context_resource_status NOT NULL,
     error text DEFAULT ''::text NOT NULL,
-    source_path text DEFAULT ''::text NOT NULL,
+    origin_root text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    origin_kind workspace_agent_context_origin_kind DEFAULT 'unspecified'::workspace_agent_context_origin_kind NOT NULL
 );
 
 COMMENT ON TABLE chat_context_resources IS 'Per-chat pinned copy of the agent context resources a chat is hydrated against. Copied from workspace_agent_context_resources at chat hydration and context refresh; survives agent replacement and workspace rebuilds.';
@@ -1781,7 +1789,9 @@ COMMENT ON COLUMN chat_context_resources.status IS 'Per-resource status. ok carr
 
 COMMENT ON COLUMN chat_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
-COMMENT ON COLUMN chat_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+COMMENT ON COLUMN chat_context_resources.origin_root IS 'Filesystem path of the scan root that discovered this resource: the working directory, a built-in root, or a user-declared source. Empty only for rows written by pre-origin agents.';
+
+COMMENT ON COLUMN chat_context_resources.origin_kind IS 'Classifies origin_root as working_dir, builtin, or user_source. unspecified only for rows written by pre-origin agents that did not report a kind.';
 
 CREATE TABLE chat_debug_runs (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -3568,9 +3578,10 @@ CREATE TABLE workspace_agent_context_resources (
     size_bytes bigint NOT NULL,
     status workspace_agent_context_resource_status NOT NULL,
     error text DEFAULT ''::text NOT NULL,
-    source_path text DEFAULT ''::text NOT NULL,
+    origin_root text DEFAULT ''::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    origin_kind workspace_agent_context_origin_kind DEFAULT 'unspecified'::workspace_agent_context_origin_kind NOT NULL
 );
 
 COMMENT ON TABLE workspace_agent_context_resources IS 'Per-resource state for the latest pushed workspace agent context snapshot.';
@@ -3589,7 +3600,9 @@ COMMENT ON COLUMN workspace_agent_context_resources.status IS 'Per-resource stat
 
 COMMENT ON COLUMN workspace_agent_context_resources.error IS 'Per-resource error or warning string. Populated whenever status is non-ok; may also carry a non-fatal warning when status is ok.';
 
-COMMENT ON COLUMN workspace_agent_context_resources.source_path IS 'User-declared scan root that produced this resource. Empty for built-in scan roots.';
+COMMENT ON COLUMN workspace_agent_context_resources.origin_root IS 'Filesystem path of the scan root that discovered this resource: the working directory, a built-in root, or a user-declared source. Empty only for rows written by pre-origin agents.';
+
+COMMENT ON COLUMN workspace_agent_context_resources.origin_kind IS 'Classifies origin_root as working_dir, builtin, or user_source. unspecified only for rows written by pre-origin agents that did not report a kind.';
 
 CREATE TABLE workspace_agent_context_snapshots (
     workspace_agent_id uuid NOT NULL,

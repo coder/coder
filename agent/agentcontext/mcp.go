@@ -20,6 +20,10 @@ type MCPServerStatus struct {
 	Connected bool
 	// Err carries the connect/list failure when Connected is false.
 	Err string
+	// ConfigPath is the absolute path of the .mcp.json that declared
+	// this server (the first file when a name is declared in several).
+	// Empty when the declaring file is unknown.
+	ConfigPath string
 	// Tools is the server's tool list, with the tool names exactly
 	// as the server reported them (no server prefix), when
 	// Connected; empty otherwise.
@@ -63,13 +67,14 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 				errMsg = "failed to connect"
 			}
 			resources = append(resources, Resource{
-				ID:          resourceID(KindMCPServer, s.Name),
-				Kind:        KindMCPServer,
-				Source:      s.Name,
-				Name:        s.Name,
-				Status:      StatusUnreadable,
-				Error:       errMsg,
-				ContentHash: hashMCPServerError(s.Name, errMsg),
+				ID:              resourceID(KindMCPServer, s.Name),
+				Kind:            KindMCPServer,
+				Source:          s.Name,
+				Name:            s.Name,
+				Status:          StatusUnreadable,
+				Error:           errMsg,
+				ContentHash:     hashMCPServerError(s.Name, errMsg),
+				MCPConfigSource: s.ConfigPath,
 			})
 			continue
 		}
@@ -81,13 +86,14 @@ func buildMCPServerResources(servers []MCPServerStatus) []Resource {
 			return strings.Compare(a.Name, b.Name)
 		})
 		resources = append(resources, Resource{
-			ID:          resourceID(KindMCPServer, s.Name),
-			Kind:        KindMCPServer,
-			Source:      s.Name,
-			Name:        s.Name,
-			Status:      StatusOK,
-			ContentHash: hashMCPServer(s.Name, serverTools),
-			Tools:       serverTools,
+			ID:              resourceID(KindMCPServer, s.Name),
+			Kind:            KindMCPServer,
+			Source:          s.Name,
+			Name:            s.Name,
+			Status:          StatusOK,
+			ContentHash:     hashMCPServer(s.Name, serverTools),
+			Tools:           serverTools,
+			MCPConfigSource: s.ConfigPath,
 		})
 	}
 	if len(resources) == 0 {

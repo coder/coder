@@ -16,9 +16,10 @@ func mcpCatalogToContext(servers []agentmcp.ServerStatus) []agentcontext.MCPServ
 	out := make([]agentcontext.MCPServerStatus, 0, len(servers))
 	for _, s := range servers {
 		cs := agentcontext.MCPServerStatus{
-			Name:      s.Name,
-			Connected: s.Connected,
-			Err:       s.Err,
+			Name:       s.Name,
+			Connected:  s.Connected,
+			Err:        s.Err,
+			ConfigPath: s.ConfigPath,
 		}
 		if len(s.Tools) > 0 {
 			cs.Tools = make([]agentcontext.MCPTool, 0, len(s.Tools))

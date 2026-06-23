@@ -178,7 +178,7 @@ func (*RootCmd) chatContextShowCommand(socketPath *string) *serpent.Command {
 			}
 			resources := make([]agentsocket.ContextResource, 0, len(snap.Resources))
 			for _, res := range snap.Resources {
-				if res.SourcePath == src.Path {
+				if res.OriginRoot == src.Path {
 					resources = append(resources, res)
 				}
 			}
