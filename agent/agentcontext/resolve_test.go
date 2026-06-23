@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/agent/agentcontext"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func mustWriteFile(t *testing.T, path, content string) {
@@ -165,7 +166,7 @@ func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 		t.Skip("symlinks require admin privileges on Windows runners")
 	}
 	t.Parallel()
-	dir := t.TempDir()
+	dir := testutil.TempDirResolved(t)
 	target := filepath.Join(dir, "docs", "AGENTS.md")
 	require.NoError(t, os.MkdirAll(filepath.Dir(target), 0o755))
 	mustWriteFile(t, target, "shared monorepo guidance")
@@ -196,7 +197,7 @@ func TestResolver_SymlinkedInstructionFilesDeduplicated(t *testing.T) {
 		t.Skip("symlinks require admin privileges on Windows runners")
 	}
 	t.Parallel()
-	dir := t.TempDir()
+	dir := testutil.TempDirResolved(t)
 	agents := filepath.Join(dir, "AGENTS.md")
 	mustWriteFile(t, agents, "the one true guidance")
 	require.NoError(t, os.Symlink(agents, filepath.Join(dir, "CLAUDE.md")))
