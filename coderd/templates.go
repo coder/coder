@@ -35,6 +35,8 @@ import (
 	"github.com/coder/coder/v2/examples"
 )
 
+const defaultRequirementWeeks = 1
+
 // Returns a single template.
 //
 // @Summary Get template settings by ID
@@ -679,72 +681,47 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var (
-		validErrs                            []codersdk.ValidationError
-		autostopRequirementDaysOfWeekParsed  uint8
-		autostartRequirementDaysOfWeekParsed uint8
-	)
-	if req.DefaultTTLMillis < 0 {
+	// resolveTemplateMetaUpdate falls back to the existing template's
+	// values for any pointer field that is nil in the request, so that
+	// omitted fields are preserved instead of being overwritten with
+	// Go zero values.
+	resolved, validErrs := resolveTemplateMetaUpdate(template, scheduleOpts, req)
+
+	if resolved.defaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
 	}
-	if req.ActivityBumpMillis < 0 {
+	if resolved.activityBumpMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "activity_bump_ms", Detail: "Must be a positive integer."})
 	}
-
-	if req.AutostopRequirement == nil {
-		req.AutostopRequirement = &codersdk.TemplateAutostopRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostopRequirement.DaysOfWeek),
-			Weeks:      scheduleOpts.AutostopRequirement.Weeks,
-		}
-	}
-	if len(req.AutostopRequirement.DaysOfWeek) > 0 {
-		autostopRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostopRequirement.DaysOfWeek)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.days_of_week", Detail: err.Error()})
-		}
-	}
-	if req.AutostartRequirement == nil {
-		req.AutostartRequirement = &codersdk.TemplateAutostartRequirement{
-			DaysOfWeek: codersdk.BitmapToWeekdays(scheduleOpts.AutostartRequirement.DaysOfWeek),
-		}
-	}
-	if len(req.AutostartRequirement.DaysOfWeek) > 0 {
-		autostartRequirementDaysOfWeekParsed, err = codersdk.WeekdaysToBitmap(req.AutostartRequirement.DaysOfWeek)
-		if err != nil {
-			validErrs = append(validErrs, codersdk.ValidationError{Field: "autostart_requirement.days_of_week", Detail: err.Error()})
-		}
-	}
-	if req.AutostopRequirement.Weeks < 0 {
-		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
-	}
-	if req.AutostopRequirement.Weeks == 0 {
-		req.AutostopRequirement.Weeks = 1
-	}
-	if template.AutostopRequirementWeeks <= 0 {
-		template.AutostopRequirementWeeks = 1
-	}
-	if req.AutostopRequirement.Weeks > schedule.MaxTemplateAutostopRequirementWeeks {
+	if resolved.autostopRequirementWeeks > schedule.MaxTemplateAutostopRequirementWeeks {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: fmt.Sprintf("Must be less than %d.", schedule.MaxTemplateAutostopRequirementWeeks)})
 	}
-	// Defaults to the existing.
-	deprecationMessage := template.Deprecated
-	if req.DeprecationMessage != nil {
-		deprecationMessage = *req.DeprecationMessage
+	// AutostopRequirement.Weeks is allowed to be negative on input but is
+	// surfaced as a validation error. resolveTemplateMetaUpdate normalizes
+	// 0 -> 1 but preserves negatives so the caller can reject them.
+	if req.AutostopRequirement != nil && req.AutostopRequirement.Weeks < 0 {
+		validErrs = append(validErrs, codersdk.ValidationError{Field: "autostop_requirement.weeks", Detail: "Must be a positive integer."})
+	}
+	if template.AutostopRequirementWeeks <= 0 {
+		template.AutostopRequirementWeeks = defaultRequirementWeeks
 	}
 
 	// The minimum valid value for a dormant TTL is 1 minute. This is
 	// to ensure an uninformed user does not send an unintentionally
 	// small number resulting in potentially catastrophic consequences.
 	const minTTL = 1000 * 60
-	if req.FailureTTLMillis < 0 || (req.FailureTTLMillis > 0 && req.FailureTTLMillis < minTTL) {
+	if resolved.failureTTLMillis < 0 || (resolved.failureTTLMillis > 0 && resolved.failureTTLMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "failure_ttl_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantMillis < 0 || (req.TimeTilDormantMillis > 0 && req.TimeTilDormantMillis < minTTL) {
+	if resolved.timeTilDormantMillis < 0 || (resolved.timeTilDormantMillis > 0 && resolved.timeTilDormantMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_ms", Detail: "Value must be at least one minute."})
 	}
-	if req.TimeTilDormantAutoDeleteMillis < 0 || (req.TimeTilDormantAutoDeleteMillis > 0 && req.TimeTilDormantAutoDeleteMillis < minTTL) {
+	if resolved.timeTilDormantAutoDeleteMillis < 0 || (resolved.timeTilDormantAutoDeleteMillis > 0 && resolved.timeTilDormantAutoDeleteMillis < minTTL) {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "time_til_dormant_autodelete_ms", Detail: "Value must be at least one minute."})
 	}
+
+	// MaxPortShareLevel resolution depends on the (potentially licensed)
+	// PortSharer interface, so it stays out of the pure resolver.
 	maxPortShareLevel := template.MaxPortSharingLevel
 	if req.MaxPortShareLevel != nil && *req.MaxPortShareLevel != portSharer.ConvertMaxLevel(template.MaxPortSharingLevel) {
 		err := portSharer.ValidateTemplateMaxLevel(*req.MaxPortShareLevel)
@@ -752,19 +729,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_sharing_level", Detail: err.Error()})
 		} else {
 			maxPortShareLevel = database.AppSharingLevel(*req.MaxPortShareLevel)
-		}
-	}
-
-	corsBehavior := template.CorsBehavior
-	if req.CORSBehavior != nil && *req.CORSBehavior != "" {
-		val := database.CorsBehavior(*req.CORSBehavior)
-		if !val.Valid() {
-			validErrs = append(validErrs, codersdk.ValidationError{
-				Field:  "cors_behavior",
-				Detail: fmt.Sprintf("Invalid CORS behavior %q. Must be one of [%s]", *req.CORSBehavior, strings.Join(slice.ToStrings(database.AllCorsBehaviorValues()), ", ")),
-			})
-		} else {
-			corsBehavior = val
 		}
 	}
 
@@ -776,57 +740,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Defaults to the existing.
-	classicTemplateFlow := template.UseClassicParameterFlow
-	if req.UseClassicParameterFlow != nil {
-		classicTemplateFlow = *req.UseClassicParameterFlow
-	}
-	disableModuleCache := template.DisableModuleCache
-	if req.DisableModuleCache != nil {
-		disableModuleCache = *req.DisableModuleCache
-	}
-
-	displayName := ptr.NilToDefault(req.DisplayName, template.DisplayName)
-	description := ptr.NilToDefault(req.Description, template.Description)
-	icon := ptr.NilToDefault(req.Icon, template.Icon)
-
 	var updated database.Template
 	err = api.Database.InTx(func(tx database.Store) error {
-		if req.Name == template.Name &&
-			description == template.Description &&
-			displayName == template.DisplayName &&
-			icon == template.Icon &&
-			req.AllowUserAutostart == template.AllowUserAutostart &&
-			req.AllowUserAutostop == template.AllowUserAutostop &&
-			req.AllowUserCancelWorkspaceJobs == template.AllowUserCancelWorkspaceJobs &&
-			req.DefaultTTLMillis == time.Duration(template.DefaultTTL).Milliseconds() &&
-			req.ActivityBumpMillis == time.Duration(template.ActivityBump).Milliseconds() &&
-			autostopRequirementDaysOfWeekParsed == scheduleOpts.AutostopRequirement.DaysOfWeek &&
-			autostartRequirementDaysOfWeekParsed == scheduleOpts.AutostartRequirement.DaysOfWeek &&
-			req.AutostopRequirement.Weeks == scheduleOpts.AutostopRequirement.Weeks &&
-			req.FailureTTLMillis == time.Duration(template.FailureTTL).Milliseconds() &&
-			req.TimeTilDormantMillis == time.Duration(template.TimeTilDormant).Milliseconds() &&
-			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
-			req.RequireActiveVersion == template.RequireActiveVersion &&
-			(deprecationMessage == template.Deprecated) &&
-			(classicTemplateFlow == template.UseClassicParameterFlow) &&
-			(disableModuleCache == template.DisableModuleCache) &&
-			maxPortShareLevel == template.MaxPortSharingLevel &&
-			corsBehavior == template.CorsBehavior {
-			return nil
-		}
-
-		// Users should not be able to clear the template name in the UI
-		name := req.Name
-		if name == "" {
-			name = template.Name
-		}
-
-		groupACL := template.GroupACL
-		if req.DisableEveryoneGroupAccess {
-			delete(groupACL, template.OrganizationID.String())
-		}
-
 		if template.MaxPortSharingLevel != maxPortShareLevel {
 			switch maxPortShareLevel {
 			case database.AppSharingLevelOwner:
@@ -846,25 +761,25 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		err = tx.UpdateTemplateMetaByID(ctx, database.UpdateTemplateMetaByIDParams{
 			ID:                           template.ID,
 			UpdatedAt:                    dbtime.Now(),
-			Name:                         name,
-			DisplayName:                  displayName,
-			Description:                  description,
-			Icon:                         icon,
-			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
-			GroupACL:                     groupACL,
+			Name:                         resolved.name,
+			DisplayName:                  resolved.displayName,
+			Description:                  resolved.description,
+			Icon:                         resolved.icon,
+			AllowUserCancelWorkspaceJobs: resolved.allowUserCancelWorkspaceJobs,
+			GroupACL:                     resolved.groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
-			UseClassicParameterFlow:      classicTemplateFlow,
-			CorsBehavior:                 corsBehavior,
-			DisableModuleCache:           disableModuleCache,
+			UseClassicParameterFlow:      resolved.useClassicTemplateFlow,
+			CorsBehavior:                 resolved.corsBehavior,
+			DisableModuleCache:           resolved.disableModuleCache,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
 		}
 
-		if template.RequireActiveVersion != req.RequireActiveVersion || deprecationMessage != template.Deprecated {
+		if template.RequireActiveVersion != resolved.requireActiveVersion || resolved.deprecationMessage != template.Deprecated {
 			err = (*api.AccessControlStore.Load()).SetTemplateAccessControl(ctx, tx, template.ID, dbauthz.TemplateAccessControl{
-				RequireActiveVersion: req.RequireActiveVersion,
-				Deprecated:           deprecationMessage,
+				RequireActiveVersion: resolved.requireActiveVersion,
+				Deprecated:           resolved.deprecationMessage,
 			})
 			if err != nil {
 				return xerrors.Errorf("set template access control: %w", err)
@@ -876,50 +791,42 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("fetch updated template metadata: %w", err)
 		}
 
-		defaultTTL := time.Duration(req.DefaultTTLMillis) * time.Millisecond
-		activityBump := time.Duration(req.ActivityBumpMillis) * time.Millisecond
-		failureTTL := time.Duration(req.FailureTTLMillis) * time.Millisecond
-		inactivityTTL := time.Duration(req.TimeTilDormantMillis) * time.Millisecond
-		timeTilDormantAutoDelete := time.Duration(req.TimeTilDormantAutoDeleteMillis) * time.Millisecond
+		defaultTTL := time.Duration(resolved.defaultTTLMillis) * time.Millisecond
+		activityBump := time.Duration(resolved.activityBumpMillis) * time.Millisecond
+		failureTTL := time.Duration(resolved.failureTTLMillis) * time.Millisecond
+		inactivityTTL := time.Duration(resolved.timeTilDormantMillis) * time.Millisecond
+		timeTilDormantAutoDelete := time.Duration(resolved.timeTilDormantAutoDeleteMillis) * time.Millisecond
+
+		// updateWorkspaceLastUsedAtIntent is a one-shot intent: only run the
+		// side effect when the field was explicitly set to true.
 		var updateWorkspaceLastUsedAt workspacestats.UpdateTemplateWorkspacesLastUsedAtFunc
-		if req.UpdateWorkspaceLastUsedAt {
+		if resolved.updateWorkspaceLastUsedAtIntent {
 			updateWorkspaceLastUsedAt = workspacestats.UpdateTemplateWorkspacesLastUsedAt
 		}
 
-		if defaultTTL != time.Duration(template.DefaultTTL) ||
-			activityBump != time.Duration(template.ActivityBump) ||
-			autostopRequirementDaysOfWeekParsed != scheduleOpts.AutostopRequirement.DaysOfWeek ||
-			autostartRequirementDaysOfWeekParsed != scheduleOpts.AutostartRequirement.DaysOfWeek ||
-			req.AutostopRequirement.Weeks != scheduleOpts.AutostopRequirement.Weeks ||
-			failureTTL != time.Duration(template.FailureTTL) ||
-			inactivityTTL != time.Duration(template.TimeTilDormant) ||
-			timeTilDormantAutoDelete != time.Duration(template.TimeTilDormantAutoDelete) ||
-			req.AllowUserAutostart != template.AllowUserAutostart ||
-			req.AllowUserAutostop != template.AllowUserAutostop {
-			updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
-				// Some of these values are enterprise-only, but the
-				// TemplateScheduleStore will handle avoiding setting them if
-				// unlicensed.
-				UserAutostartEnabled: req.AllowUserAutostart,
-				UserAutostopEnabled:  req.AllowUserAutostop,
-				DefaultTTL:           defaultTTL,
-				ActivityBump:         activityBump,
-				AutostopRequirement: schedule.TemplateAutostopRequirement{
-					DaysOfWeek: autostopRequirementDaysOfWeekParsed,
-					Weeks:      req.AutostopRequirement.Weeks,
-				},
-				AutostartRequirement: schedule.TemplateAutostartRequirement{
-					DaysOfWeek: autostartRequirementDaysOfWeekParsed,
-				},
-				FailureTTL:                failureTTL,
-				TimeTilDormant:            inactivityTTL,
-				TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
-				UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
-				UpdateWorkspaceDormantAt:  req.UpdateWorkspaceDormantAt,
-			})
-			if err != nil {
-				return xerrors.Errorf("set template schedule options: %w", err)
-			}
+		updated, err = (*api.TemplateScheduleStore.Load()).Set(ctx, tx, updated, schedule.TemplateScheduleOptions{
+			// Some of these values are enterprise-only, but the
+			// TemplateScheduleStore will handle avoiding setting them if
+			// unlicensed.
+			UserAutostartEnabled: resolved.allowUserAutostart,
+			UserAutostopEnabled:  resolved.allowUserAutostop,
+			DefaultTTL:           defaultTTL,
+			ActivityBump:         activityBump,
+			AutostopRequirement: schedule.TemplateAutostopRequirement{
+				DaysOfWeek: resolved.autostopRequirementDaysOfWeekParsed,
+				Weeks:      resolved.autostopRequirementWeeks,
+			},
+			AutostartRequirement: schedule.TemplateAutostartRequirement{
+				DaysOfWeek: resolved.autostartRequirementDaysOfWeekParsed,
+			},
+			FailureTTL:                failureTTL,
+			TimeTilDormant:            inactivityTTL,
+			TimeTilDormantAutoDelete:  timeTilDormantAutoDelete,
+			UpdateWorkspaceLastUsedAt: updateWorkspaceLastUsedAt,
+			UpdateWorkspaceDormantAt:  resolved.updateWorkspaceDormantAtIntent,
+		})
+		if err != nil {
+			return xerrors.Errorf("set template schedule options: %w", err)
 		}
 
 		return nil
@@ -927,7 +834,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: fmt.Sprintf("Template with name %q already exists.", req.Name),
+				Message: fmt.Sprintf("Template with name %q already exists.", resolved.name),
 				Validations: []codersdk.ValidationError{{
 					Field:  "name",
 					Detail: "This value is already in use and should be unique.",
@@ -945,11 +852,6 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if updated.UpdatedAt.IsZero() {
-		aReq.New = template
-		rw.WriteHeader(http.StatusNotModified)
-		return
-	}
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))

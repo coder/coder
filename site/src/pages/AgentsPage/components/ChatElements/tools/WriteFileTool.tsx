@@ -1,15 +1,17 @@
 import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
+import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
+import { getPathBasename } from "../../../utils/path";
+import { DiffFileHeader } from "./DiffFileHeader";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { ToolCollapsible } from "./ToolCollapsible";
+	type AgentDisplayState,
+	isAgentDisplayFullyExpanded,
+	resolveAgentDisplayState,
+} from "./displayMode";
+import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
@@ -17,61 +19,62 @@ import {
 	type ToolStatus,
 } from "./utils";
 
-/**
- * Collapsed-by-default rendering for `write_file` tool calls. Shows
- * "Wrote <filename>" with a chevron; expanding reveals the unified diff.
- */
+const WRITE_FILE_AUTO_DISPLAY_STATE: AgentDisplayState = "collapsed";
+
 export const WriteFileTool: React.FC<{
 	path: string;
 	diff: FileDiffMetadata | null;
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-}> = ({ path, diff, status, isError, errorMessage }) => {
+	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+}> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
+	const displayState = resolveAgentDisplayState(
+		codeDiffDisplayMode,
+		WRITE_FILE_AUTO_DISPLAY_STATE,
+	);
 
-	const filename = path.split("/").pop() || path;
+	const filename = getPathBasename(path);
 	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
 
 	return (
-		<ToolCollapsible
+		<ToolCall.Root
+			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || "Failed to write file"}
 			hasContent={hasDiff}
-			header={
-				<>
-					<span className="text-[13px]">{label}</span>
-					{isError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{errorMessage || "Failed to write file"}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-					)}
-				</>
-			}
+			defaultView={displayState}
 		>
-			{hasDiff && (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileDiff
-						fileDiff={stripNoNewline(diff)}
-						options={getDiffViewerOptions(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			)}
-		</ToolCollapsible>
+			<ToolCall.Header iconName="write_file" label={label} />
+			<ToolCall.Content>
+				{hasDiff && (
+					<ScrollArea
+						data-testid="write-file-diff"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName={
+							isAgentDisplayFullyExpanded(displayState)
+								? "max-h-[80vh]"
+								: "max-h-64"
+						}
+						scrollBarClassName="w-1.5"
+					>
+						<FileDiff
+							fileDiff={stripNoNewline(diff)}
+							options={getDiffViewerOptions(isDark)}
+							style={DIFFS_FONT_STYLE}
+							renderCustomHeader={(fileDiff) => (
+								<DiffFileHeader file={fileDiff} />
+							)}
+						/>
+					</ScrollArea>
+				)}
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { API } from "#/api/api";
+import { MaxChatFileSizeBytes } from "#/api/typesGenerated";
 import type { UploadState } from "../components/AgentChatInput";
-import { getChatFileURL } from "../utils/chatAttachments";
+import {
+	getChatFileURL,
+	renameChatFileForUpload,
+} from "../utils/chatAttachments";
 import {
 	clearChatDraftAttachmentRecords,
 	fileToDataURL,
@@ -13,9 +17,14 @@ import {
 import {
 	formatAgentAttachmentTooLargeError,
 	formatAgentAttachmentUploadError,
-	maxAgentAttachmentSize,
 	readAgentAttachmentText,
 } from "../utils/fileAttachmentLimits";
+import {
+	imageBudgetForProvider,
+	imageNeedsResize,
+	providerBudgetError,
+} from "../utils/imageBudget";
+import { resizeImageToMaxBytes } from "../utils/resizeImage";
 
 const maxTextPreviewSize = 1024 * 1024;
 
@@ -486,6 +495,7 @@ const queueTextContentReads = (
 export function useChatDraftAttachments(
 	organizationId: string | undefined,
 	chatId: string | undefined,
+	options?: { provider?: string },
 ) {
 	const [views, setViews] = useState(() =>
 		hydrateViews(organizationId, chatId),
@@ -493,6 +503,18 @@ export function useChatDraftAttachments(
 	const viewsRef = useRef(views);
 	const subscriptionsRef = useRef(new Map<string, () => void>());
 	const scopeRef = useRef(getDraftScopeKey(organizationId, chatId));
+	// providerRef lets event-driven handlers (paste/drop) see the
+	// latest model selection without rebuilding handleAttach. The
+	// effect-based write keeps React Compiler happy.
+	const provider = options?.provider;
+	const providerRef = useRef(provider);
+	useEffect(() => {
+		providerRef.current = provider;
+	}, [provider]);
+	// clientIds whose resize is in flight but the user removed the
+	// attachment (or the chat scope changed). processResize checks
+	// this before swapping in a replacement.
+	const abandonedResizesRef = useRef<Set<string>>(new Set());
 	const [subscriber] = useState<UploadRegistrySubscriber>(
 		() =>
 			function handleUploadRegistrySnapshot(snapshot: UploadRegistrySnapshot) {
@@ -518,6 +540,11 @@ export function useChatDraftAttachments(
 		const scopeKey = getDraftScopeKey(organizationId, chatId);
 		scopeRef.current = scopeKey;
 		unsubscribeAllEntries(subscriptionsRef);
+		// Abandon in-flight resizes from the previous scope so
+		// their callbacks don't register uploads in the new scope.
+		for (const view of viewsRef.current) {
+			abandonedResizesRef.current.add(view.clientId);
+		}
 		if (!organizationId || !chatId || !scopeKey) {
 			setViews([]);
 			return;
@@ -560,9 +587,150 @@ export function useChatDraftAttachments(
 		}
 	}, [organizationId, chatId, subscriber]);
 
-	const handleAttach = (files: File[]) => {
+	// The view enters in "processing" status from handleAttach;
+	// processResize either swaps in the smaller file and registers
+	// the upload, or surfaces a too-large error.
+	const processResize = async (
+		clientId: string,
+		original: File,
+		budget: number,
+		// Pinned at attach time so a mid-resize provider switch
+		// can't mislabel the error with the new provider's name.
+		providerSnapshot: string | undefined,
+	) => {
+		let resized: File | null = null;
+		try {
+			resized = await resizeImageToMaxBytes(original, budget);
+		} catch {
+			resized = null;
+		}
+
+		if (abandonedResizesRef.current.has(clientId)) {
+			return;
+		}
+		if (!organizationId || !chatId) {
+			return;
+		}
 		const scopeKey = getDraftScopeKey(organizationId, chatId);
+		if (!scopeKey || scopeRef.current !== scopeKey) {
+			return;
+		}
+
+		const replacement = resized ?? original;
+		const replaced = replacement !== original;
+
+		// Resize failed entirely or couldn't shrink enough; show
+		// the too-large error instead of uploading and 413-ing.
+		if (replacement.size > MaxChatFileSizeBytes) {
+			setViews((prev) =>
+				prev.map((view) => {
+					if (view.clientId !== clientId) {
+						return view;
+					}
+					if (replaced) {
+						revokeBlobPreview(view);
+					}
+					const previewState = replaced
+						? computePreview(replacement, "error")
+						: {
+								previewUrl: view.previewUrl,
+								previewUrlKind: view.previewUrlKind,
+							};
+					return {
+						...view,
+						file: replacement,
+						status: "error",
+						error: formatAgentAttachmentTooLargeError(replacement.size),
+						previewUrl: previewState.previewUrl,
+						previewUrlKind: previewState.previewUrlKind,
+					};
+				}),
+			);
+			return;
+		}
+
+		// Replacement is still over the provider budget (e.g.
+		// animated GIF on Anthropic that we don't re-encode).
+		// Surface the error at attach time rather than letting
+		// the server backstop reject only at send time.
+		if (replacement.type.startsWith("image/") && replacement.size > budget) {
+			setViews((prev) =>
+				prev.map((view) => {
+					if (view.clientId !== clientId) {
+						return view;
+					}
+					if (replaced) {
+						revokeBlobPreview(view);
+					}
+					const previewState = replaced
+						? computePreview(replacement, "error")
+						: {
+								previewUrl: view.previewUrl,
+								previewUrlKind: view.previewUrlKind,
+							};
+					return {
+						...view,
+						file: replacement,
+						status: "error",
+						error: providerBudgetError(
+							providerSnapshot,
+							replacement.size,
+							budget,
+						),
+						previewUrl: previewState.previewUrl,
+						previewUrlKind: previewState.previewUrlKind,
+					};
+				}),
+			);
+			return;
+		}
+
+		// beginUpload below drives the view from pending to uploading
+		// via subscribers; we set "pending" here so the registry's
+		// initial snapshot doesn't overwrite our blob preview.
+		setViews((prev) =>
+			prev.map((view) => {
+				if (view.clientId !== clientId) {
+					return view;
+				}
+				if (!replaced) {
+					return { ...view, status: "pending" };
+				}
+				revokeBlobPreview(view);
+				const nextPreview = computePreview(replacement, "pending");
+				return {
+					...view,
+					file: replacement,
+					status: "pending",
+					previewUrl: nextPreview.previewUrl,
+					previewUrlKind: nextPreview.previewUrlKind,
+				};
+			}),
+		);
+
+		const entry = createRegistryEntry(
+			clientId,
+			organizationId,
+			chatId,
+			replacement,
+		);
+		subscribeToEntry(entry, subscriptionsRef, subscriber);
+		beginUpload(entry);
+	};
+
+	const handleAttach = (incomingFiles: File[]) => {
+		// Sanitize filenames at the boundary so chip labels, the
+		// chat-draft localStorage record, the upload header, and any
+		// downstream LLM prompt all see safe names. Already-safe
+		// names return the same File by reference.
+		const files = incomingFiles.map(renameChatFileForUpload);
+		const scopeKey = getDraftScopeKey(organizationId, chatId);
+		// Snapshot provider + budget so a mid-resize switch
+		// can't relabel the error with the new provider.
+		const providerSnapshot = providerRef.current;
+		const budget = imageBudgetForProvider(providerSnapshot);
 		const entriesToStart: UploadRegistryEntry[] = [];
+		const resizeJobs: Array<{ clientId: string; file: File }> = [];
 		const nextViews: DraftAttachmentView[] = [];
 		for (const file of files) {
 			const clientId = createClientId();
@@ -571,7 +739,11 @@ export function useChatDraftAttachments(
 				file,
 				status: "pending",
 			};
-			if (file.size > maxAgentAttachmentSize) {
+			const needsResize = imageNeedsResize(file, budget);
+			// Non-image files over the upload cap are rejected.
+			// Oversized images take the resize pipeline regardless;
+			// the post-resize check validates the result.
+			if (file.size > MaxChatFileSizeBytes && !needsResize) {
 				nextViews.push({
 					...baseView,
 					status: "error",
@@ -585,6 +757,18 @@ export function useChatDraftAttachments(
 					status: "error",
 					error: "Unable to upload: no chat context.",
 				});
+				continue;
+			}
+			if (needsResize) {
+				// Commit synchronously with "processing" so the
+				// send gate blocks dispatch until resize finishes.
+				const view = {
+					...baseView,
+					status: "processing" as const,
+					...computePreview(file, "processing"),
+				};
+				nextViews.push(view);
+				resizeJobs.push({ clientId, file });
 				continue;
 			}
 			const view = { ...baseView, ...computePreview(file, "pending") };
@@ -602,6 +786,11 @@ export function useChatDraftAttachments(
 			setViews,
 			() => scopeRef.current === scopeKey,
 		);
+		// processResize re-checks abandonment + scope before
+		// mutating state, so it's safe to fire-and-forget.
+		for (const job of resizeJobs) {
+			void processResize(job.clientId, job.file, budget, providerSnapshot);
+		}
 	};
 
 	const handleRemoveAttachment = (attachment: number | File) => {
@@ -613,6 +802,9 @@ export function useChatDraftAttachments(
 		if (!removed) {
 			return;
 		}
+		// In-flight resize would otherwise swap in a replacement
+		// after the clear below.
+		abandonedResizesRef.current.add(removed.clientId);
 		if (organizationId && chatId) {
 			removeChatDraftAttachmentRecord(organizationId, chatId, removed.clientId);
 		}
@@ -629,6 +821,12 @@ export function useChatDraftAttachments(
 	};
 
 	const resetAttachments = () => {
+		// Abandon all in-flight resizes so they don't swap a
+		// replacement back in (which would also re-call beginUpload
+		// against the now-stale scope).
+		for (const view of viewsRef.current) {
+			abandonedResizesRef.current.add(view.clientId);
+		}
 		if (!organizationId || !chatId) {
 			setViews([]);
 			return;

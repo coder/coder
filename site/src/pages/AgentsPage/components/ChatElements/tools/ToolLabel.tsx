@@ -1,4 +1,5 @@
 import type React from "react";
+import { getPathBasename } from "../../../utils/path";
 import {
 	getProvidedSubagentTitle,
 	getSubagentDescriptor,
@@ -187,7 +188,7 @@ export const ToolLabel: React.FC<{
 			const attachedName =
 				(parsedResult ? asString(parsedResult.name) : "") ||
 				(parsed ? asString(parsed.name) : "") ||
-				(parsed ? asString(parsed.path).split("/").pop() : "") ||
+				(parsed ? getPathBasename(asString(parsed.path)) : "") ||
 				"file";
 			return (
 				<span className="truncate text-[13px]">{`Attached ${attachedName}`}</span>
@@ -197,12 +198,14 @@ export const ToolLabel: React.FC<{
 			return <span className="truncate text-[13px]">Screenshot</span>;
 		case "propose_plan": {
 			const path = parsed ? asString(parsed.path) || "PLAN.md" : "PLAN.md";
-			const filename = path.split("/").pop() || "PLAN.md";
+			const filename = getPathBasename(path) || "PLAN.md";
 			return <span className="truncate text-[13px]">{filename}</span>;
 		}
 		case "advisor":
 			return (
-				<span className="truncate text-sm text-content-secondary">Advisor</span>
+				<span className="truncate text-[13px] leading-4 text-content-secondary">
+					Advisor
+				</span>
 			);
 		case "read_skill": {
 			const skillName = parsed ? asString(parsed.name) : "";

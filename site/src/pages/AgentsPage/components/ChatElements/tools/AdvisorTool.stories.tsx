@@ -5,6 +5,15 @@ import { Tool } from "./Tool";
 const sampleQuestion =
 	"Should we extract a shared helper for tool result parsing before refactoring the agents page tool cards?";
 
+const longQuestion = [
+	"We are planning a risky refactor of the advisor tool UI after several rounds of feedback from designers, frontend engineers, and dogfood users. The goal is to keep the card readable when the advisor includes a long prompt, a model name, a remaining-use count, and an expanded body with long markdown guidance.",
+	"Before changing the layout further, I want advice on whether the metadata should remain inline with the title, move into compact chips, wrap onto a second line, or disappear behind a details affordance when horizontal space is tight. Please weigh readability, scanability, accessibility, and consistency with adjacent tool cards.",
+	"The edge case I care about most is a real agent asking a verbose strategic question that includes implementation history, user feedback, test expectations, and design constraints in one tool call. The card should still make the question easy to read, avoid truncating important context, and keep the advisor identity, model, and usage details visually distinct.",
+	"Assume the answer may contain multiple markdown sections, bullets, and code references. The UI should not become visually heavy, the header should not look like one blended text block, the question should wrap naturally, and the body should remain scrollable without pushing nearby chat messages too far away.",
+	"Please recommend the safest layout and interaction behavior for this peak state, including where the metadata belongs, how much emphasis the long question should receive, whether the expanded state should stay open by default, and which details should be visible to users versus only useful for debugging.",
+	"Also call out any accessibility risks from nested buttons, long labels, dense metadata, color-only separators, or scroll regions, and suggest a practical test plan that Storybook can cover without adding brittle assertions about exact Tailwind class names.",
+].join(" ");
+
 const sampleAdvice = [
 	"# Quick summary",
 	"",
@@ -56,13 +65,6 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: { name: "advisor" },
 };
 export default meta;
@@ -83,25 +85,17 @@ export const SuccessfulAdvice: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
 		expect(await canvas.findByText("Quick summary")).toBeInTheDocument();
-		// Guards against a regression where `resolvedResultType` drops to
-		// undefined: the advice body would still render via the fallback
-		// branch, but the header badge would silently switch to
-		// "No guidance" instead of "Guidance ready".
-		expect(canvas.getByText("Guidance ready")).toBeInTheDocument();
+		expect(canvas.getByText("Advice")).toBeInTheDocument();
+		expect(canvas.queryByText("Guidance ready")).not.toBeInTheDocument();
+		expect(canvas.getByText("GPT-5 Advisor")).toBeInTheDocument();
+		expect(canvas.getByText("3 uses left")).toBeInTheDocument();
 		expect(
-			canvas.getByText(
+			canvas.queryByText(
 				(_, element) =>
 					element?.textContent?.replace(/\s+/g, " ").trim() ===
 					"Advisor model: GPT-5 Advisor",
 			),
-		).toBeInTheDocument();
-		expect(
-			canvas.getByText(
-				(_, element) =>
-					element?.textContent?.replace(/\s+/g, " ").trim() ===
-					"Remaining uses: 3",
-			),
-		).toBeInTheDocument();
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -113,11 +107,34 @@ export const Running: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
-		// "Consulting advisor…" appears in both the header status badge and
-		// the body spinner label, so we expect exactly two matches. Asserting
-		// the count keeps the coverage for the body indicator even if the
-		// header ever stops rendering the same string.
-		expect(canvas.getAllByText("Consulting advisor…")).toHaveLength(2);
+		expect(canvas.getAllByText("Consulting advisor…")).toHaveLength(1);
+		expect(
+			canvas.getByText("Reviewing context and preparing guidance."),
+		).toBeInTheDocument();
+	},
+};
+
+export const RunningWithStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		result: "Use the smaller diff while the advisor is still responding.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
+		expect(canvas.getByText("Consulting advisor…")).toBeInTheDocument();
+		expect(
+			await canvas.findByText(
+				"Use the smaller diff while the advisor is still responding.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Advisor returned no guidance."),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Reviewing context and preparing guidance."),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -198,7 +215,7 @@ export const EmptyAdvice: Story = {
 		expect(
 			canvas.getByText("Advisor returned no guidance."),
 		).toBeInTheDocument();
-		expect(canvas.getByText("No guidance")).toBeInTheDocument();
+		expect(canvas.queryByText("No guidance")).not.toBeInTheDocument();
 	},
 };
 
@@ -314,5 +331,44 @@ export const LongAdvice: Story = {
 		viewport.scrollTop = viewport.scrollHeight;
 		viewport.dispatchEvent(new Event("scroll"));
 		expect(viewport.scrollTop).toBeGreaterThan(0);
+	},
+};
+
+export const LongAdviceLongQuestion: Story = {
+	name: "Long Advice + long question",
+	args: {
+		status: "completed",
+		args: { question: longQuestion },
+		result: {
+			type: "advice",
+			advice: longAdvice,
+			advisor_model: "GPT-5 Advisor",
+			remaining_uses: 12,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button");
+		const question = canvas.getByText(longQuestion);
+
+		expect(question).toBeInTheDocument();
+		const expandedQuestionHeight = question.getBoundingClientRect().height;
+		expect(expandedQuestionHeight).toBeGreaterThan(40);
+		expect(await canvas.findByText("Follow-up questions")).toBeInTheDocument();
+		expect(canvas.getByText("Advice")).toBeInTheDocument();
+		expect(canvas.getByText("GPT-5 Advisor")).toBeInTheDocument();
+		expect(canvas.getByText("12 uses left")).toBeInTheDocument();
+
+		await userEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
+		expect(question.getBoundingClientRect().height).toBeLessThan(
+			expandedQuestionHeight,
+		);
+		expect(canvas.queryByText("Follow-up questions")).not.toBeInTheDocument();
+
+		await userEvent.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
+		expect(question.getBoundingClientRect().height).toBeGreaterThan(40);
+		expect(await canvas.findByText("Follow-up questions")).toBeInTheDocument();
 	},
 };

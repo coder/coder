@@ -1,5 +1,10 @@
 # Factory
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Factort's Droid agent can be configured to use AI Gateway by setting up custom models for OpenAI and Anthropic.
 
 ## Centralized API Key
@@ -14,7 +19,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
   "customModels": [
     {
       "model": "claude-sonnet-4-5-20250929",
-      "displayName": "Claude (Coder AI Bridge)",
+      "displayName": "Claude (Coder AI Gateway)",
       "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
       "apiKey": "<your-coder-api-token>",
       "provider": "anthropic",
@@ -22,7 +27,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     },
     {
       "model": "gpt-5.2-codex",
-      "displayName": "GPT (Coder AI Bridge)",
+      "displayName": "GPT (Coder AI Gateway)",
       "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1",
       "apiKey": "<your-coder-api-token>",
       "provider": "openai",
@@ -35,7 +40,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
 ## BYOK (Personal API Key)
 
 1. Open `~/.factory/settings.json` (create it if it does not exist).
-2. Add a `customModels` entry for each provider you want to use with AI Bridge.
+2. Add a `customModels` entry for each provider you want to use with AI Gateway.
 3. Replace `coder.example.com` with your Coder deployment URL.
 4. Use your personal API key for `apiKey`.
 5. Set the `X-Coder-AI-Governance-Token` header to your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
@@ -45,7 +50,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
   "customModels": [
     {
       "model": "claude-sonnet-4-5-20250929",
-      "displayName": "Claude (Coder AI Bridge)",
+      "displayName": "Claude (Coder AI Gateway)",
       "baseUrl": "https://coder.example.com/api/v2/aibridge/anthropic",
       "apiKey": "<your-anthropic-api-key>",
       "provider": "anthropic",
@@ -56,7 +61,7 @@ Factort's Droid agent can be configured to use AI Gateway by setting up custom m
     },
     {
       "model": "gpt-5.2-codex",
-      "displayName": "GPT (Coder AI Bridge)",
+      "displayName": "GPT (Coder AI Gateway)",
       "baseUrl": "https://coder.example.com/api/v2/aibridge/openai/v1",
       "apiKey": "<your-openai-api-key>",
       "provider": "openai",

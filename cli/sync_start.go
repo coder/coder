@@ -2,6 +2,9 @@ package cli
 
 import (
 	"context"
+	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -48,13 +51,27 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 			}
 			defer client.Close()
 
-			ready, err := client.SyncReady(ctx, unitName)
+			statusResp, err := client.SyncStatus(ctx, unitName)
 			if err != nil {
-				return xerrors.Errorf("error checking dependencies: %w", err)
+				return xerrors.Errorf("get status failed: %w", err)
 			}
+			ready := statusResp.IsReady
+
+			var allDependencies []string
+			var unsatisfiedDependencies []string
+			for _, dep := range statusResp.Dependencies {
+				allDependencies = append(allDependencies, string(dep.DependsOn))
+				if !dep.IsSatisfied {
+					unsatisfiedDependencies = append(unsatisfiedDependencies, string(dep.DependsOn))
+				}
+			}
+			slices.Sort(allDependencies)
+			slices.Sort(unsatisfiedDependencies)
 
 			if !ready {
-				cliui.Infof(i.Stdout, "Waiting for dependencies of unit '%s' to be satisfied...", unitName)
+				waitedForList := strings.Join(unsatisfiedDependencies, ", ")
+
+				cliui.Infof(i.Stdout, "Unit %q is waiting for dependencies to be satisfied: [%s]", unitName, waitedForList)
 
 				ticker := time.NewTicker(syncPollInterval)
 				defer ticker.Stop()
@@ -83,7 +100,14 @@ func (*RootCmd) syncStart(socketPath *string) *serpent.Command {
 				return xerrors.Errorf("start unit failed: %w", err)
 			}
 
-			cliui.Info(i.Stdout, "Success")
+			switch {
+			case len(allDependencies) == 0:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q started with no dependencies", unitName))
+			case len(unsatisfiedDependencies) == 0:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q started immediately, dependencies already satisfied: [%s]", unitName, strings.Join(allDependencies, ", ")))
+			default:
+				cliui.Info(i.Stdout, fmt.Sprintf("Unit %q finished waiting for dependencies: [%s]", unitName, strings.Join(unsatisfiedDependencies, ", ")))
+			}
 
 			return nil
 		},

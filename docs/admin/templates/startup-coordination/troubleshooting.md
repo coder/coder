@@ -47,6 +47,29 @@ Dependencies:
 No dependencies found
 ```
 
+## List All Units
+
+If you are unsure which units are registered, or want a quick overview of every unit's state, use `coder exp sync list`:
+
+```bash
+coder exp sync list
+```
+
+This displays all registered units, their statuses, and whether they are ready to start:
+
+```bash
+UNIT           STATUS     READY
+git-clone      completed  true
+env-setup      started    true
+ide-configure  pending    false
+```
+
+You can also get JSON output for scripting:
+
+```bash
+coder exp sync list --output json
+```
+
 ## Common Issues
 
 ### Workspace startup script hangs
@@ -56,6 +79,7 @@ If the workspace startup scripts appear to 'hang', one or more of your startup s
 * Inside the workspace, review `/tmp/coder-script-*.log` for more details on your script's execution.
     > **Tip:** add `set -x` to the top of your script to enable debug mode and update/restart the workspace.
 * Review your template and verify that `coder exp sync complete <unit>` is called after the script completes e.g. with an exit trap.
+* List all units to identify which ones are blocked: `coder exp sync list`.
 * View the unit status using `coder exp sync status <unit>`.
 
 ### Workspace startup scripts fail

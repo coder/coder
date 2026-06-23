@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"database/sql"
 	_ "embed"
 	"errors"
@@ -46,11 +45,14 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/agentapi/metadatabatcher"
+	"github.com/coder/coder/v2/coderd/aibridge"
+	"github.com/coder/coder/v2/coderd/aibridge/prices"
 	"github.com/coder/coder/v2/coderd/aiseats"
 	_ "github.com/coder/coder/v2/coderd/apidoc" // Used for swagger docs.
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/boundaryusage"
 	"github.com/coder/coder/v2/coderd/connectionlog"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
@@ -91,9 +93,11 @@ import (
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/x/chatd"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
 	"github.com/coder/coder/v2/codersdk"
@@ -159,7 +163,10 @@ type Options struct {
 	Logger           slog.Logger
 	Database         database.Store
 	Pubsub           pubsub.Pubsub
-	RuntimeConfig    *runtimeconfig.Manager
+	// ReplicaSyncPubsub is used explicitly to instantiate the replicasync manager downstream if it exists.
+	// All other consumers of pubsub should reference Options.Pubsub.
+	ReplicaSyncPubsub *pubsub.PGPubsub
+	RuntimeConfig     *runtimeconfig.Manager
 
 	// CacheDir is used for caching files served by the API.
 	CacheDir string
@@ -171,7 +178,7 @@ type Options struct {
 	ChatdInstructionLookupTimeout  time.Duration
 	AWSCertificates                awsidentity.Certificates
 	Authorizer                     rbac.Authorizer
-	AzureCertificates              x509.VerifyOptions
+	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
@@ -244,9 +251,16 @@ type Options struct {
 	SSHConfig codersdk.SSHConfigResponse
 
 	HTTPClient *http.Client
-	// ChatSubscribeFn provides cross-replica subscription merging.
-	// Set by enterprise for HA deployments. Nil in AGPL single-replica.
-	ChatSubscribeFn chatd.SubscribeFn
+	// ChatStreamPartsDialer dials remote chat stream parts.
+	// Set by enterprise for HA deployments. Nil uses chatd's local
+	// in-process channel dialer.
+	ChatStreamPartsDialer chatd.StreamPartsDialer
+	// ChatProviderAPIKeys overrides deployment-derived provider keys.
+	// Test harnesses use this to route chat models to local providers.
+	ChatProviderAPIKeys *chatprovider.ProviderAPIKeys
+	// ChatWorkerDisabled skips starting the chat daemon's background
+	// worker.
+	ChatWorkerDisabled bool
 
 	UpdateAgentMetrics func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 	StatsBatcher       workspacestats.Batcher
@@ -311,6 +325,12 @@ type Options struct {
 
 // @BasePath /
 
+// @tag.name Agents
+// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
+
+// @tag.name Chats
+// @tag.description Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
+
 // @securitydefinitions.apiKey Authorization
 // @in header
 // @name Authorizaiton
@@ -338,15 +358,24 @@ func New(options *Options) *API {
 		panic("developer error: options.PrometheusRegistry is nil and not running a unit test")
 	}
 
-	if options.DeploymentValues.DisableOwnerWorkspaceExec || options.DeploymentValues.DisableWorkspaceSharing {
+	experiments := ReadExperiments(
+		options.Logger, options.DeploymentValues.Experiments.Value(),
+	)
+
+	if bool(options.DeploymentValues.DisableOwnerWorkspaceExec) || bool(options.DeploymentValues.DisableWorkspaceSharing) || bool(options.DeploymentValues.DisableChatSharing) || experiments.Enabled(codersdk.ExperimentMinimumImplicitMember) {
 		rbac.ReloadBuiltinRoles(&rbac.RoleOptions{
-			NoOwnerWorkspaceExec: bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
-			NoWorkspaceSharing:   bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoOwnerWorkspaceExec:  bool(options.DeploymentValues.DisableOwnerWorkspaceExec),
+			NoWorkspaceSharing:    bool(options.DeploymentValues.DisableWorkspaceSharing),
+			NoChatSharing:         bool(options.DeploymentValues.DisableChatSharing),
+			MinimumImplicitMember: experiments.Enabled(codersdk.ExperimentMinimumImplicitMember),
 		})
 	}
 
 	if options.DeploymentValues.DisableWorkspaceSharing {
 		rbac.SetWorkspaceACLDisabled(true)
+	}
+	if options.DeploymentValues.DisableChatSharing {
+		rbac.SetChatACLDisabled(true)
 	}
 
 	if options.PrometheusRegistry == nil {
@@ -377,9 +406,6 @@ func New(options *Options) *API {
 		options.IDPSync = idpsync.NewAGPLSync(options.Logger, options.RuntimeConfig, idpsync.FromDeploymentValues(options.DeploymentValues))
 	}
 
-	experiments := ReadExperiments(
-		options.Logger, options.DeploymentValues.Experiments.Value(),
-	)
 	if options.AppHostname != "" && options.AppHostnameRegex == nil || options.AppHostname == "" && options.AppHostnameRegex != nil {
 		panic("coderd: both AppHostname and AppHostnameRegex must be set or unset")
 	}
@@ -592,6 +618,12 @@ func New(options *Options) *API {
 		options.Logger.Fatal(ctx, "failed to reconcile system role permissions", slog.Error(err))
 	}
 
+	// Seed the AI Bridge model price table from the embedded price book.
+	//nolint:gocritic // Startup seeder needs to run as aibridge context.
+	if err := prices.Seed(dbauthz.AsAIBridged(ctx), options.Database); err != nil {
+		options.Logger.Error(ctx, "failed to seed AI Bridge prices; cost tracking may use stale prices", slog.Error(err))
+	}
+
 	// AGPL uses a no-op build usage checker as there are no license
 	// entitlements to enforce. This is swapped out in
 	// enterprise/coderd/coderd.go.
@@ -602,10 +634,9 @@ func New(options *Options) *API {
 		ctx:          ctx,
 		cancel:       cancel,
 		DeploymentID: depID,
-
-		ID:          uuid.New(),
-		Options:     options,
-		RootHandler: r,
+		ID:           uuid.New(),
+		Options:      options,
+		RootHandler:  r,
 		HTTPAuth: &HTTPAuthorizer{
 			Authorizer: options.Authorizer,
 			Logger:     options.Logger,
@@ -785,25 +816,42 @@ func New(options *Options) *API {
 				options.Logger.Named("mcp-user-oidc"),
 			)
 		}
-		api.chatDaemon = chatd.New(chatd.Config{
+		providerAPIKeys := ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues)
+		if options.ChatProviderAPIKeys != nil {
+			providerAPIKeys = *options.ChatProviderAPIKeys
+		}
+
+		chatAIGatewayRoutingEnabled := options.DeploymentValues.AI.BridgeConfig.Enabled.Value() &&
+			options.DeploymentValues.AI.Chat.AIGatewayRoutingEnabled.Value()
+
+		api.chatDaemon = chatd.New(options.Pubsub, chatd.Config{
 			Logger:                         options.Logger.Named("chatd"),
 			Database:                       options.Database,
 			ReplicaID:                      api.ID,
-			SubscribeFn:                    options.ChatSubscribeFn,
+			StreamPartsDialer:              options.ChatStreamPartsDialer,
 			MaxChatsPerAcquire:             int32(maxChatsPerAcquire), //nolint:gosec // maxChatsPerAcquire is clamped to int32 range above.
-			ProviderAPIKeys:                ChatProviderAPIKeysFromDeploymentValues(options.DeploymentValues),
+			ProviderAPIKeys:                providerAPIKeys,
+			AllowBYOK:                      options.DeploymentValues.AI.BridgeConfig.AllowBYOK.Value(),
+			AllowBYOKSet:                   true,
+			AIBridgeTransportFactory:       &api.AIBridgeTransportFactory,
+			AIGatewayRoutingEnabled:        chatAIGatewayRoutingEnabled,
 			AlwaysEnableDebugLogs:          options.DeploymentValues.AI.Chat.DebugLoggingEnabled.Value(),
 			AgentConn:                      api.agentProvider.AgentConn,
 			AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 			InstructionLookupTimeout:       options.ChatdInstructionLookupTimeout,
 			CreateWorkspace:                api.chatCreateWorkspace,
 			StartWorkspace:                 api.chatStartWorkspace,
-			Pubsub:                         options.Pubsub,
+			StopWorkspace:                  api.chatStopWorkspace,
 			WebpushDispatcher:              options.WebPushDispatcher,
 			UsageTracker:                   options.WorkspaceUsageTracker,
 			PrometheusRegistry:             options.PrometheusRegistry,
 			OIDCTokenSource:                oidcMCPSrc,
-		}).Start()
+			NotificationsEnqueuer:          options.NotificationsEnqueuer,
+			Auditor:                        &api.Auditor,
+		})
+		if !options.ChatWorkerDisabled {
+			api.chatDaemon.Start()
+		}
 		gitSyncLogger := options.Logger.Named("gitsync")
 		refresher := gitsync.NewRefresher(
 			api.resolveGitProvider,
@@ -823,6 +871,7 @@ func New(options *Options) *API {
 	if options.DeploymentValues.Prometheus.Enable {
 		options.PrometheusRegistry.MustRegister(stn)
 		api.lifecycleMetrics = agentapi.NewLifecycleMetrics(options.PrometheusRegistry)
+		api.workspaceAgentRPCMetrics = NewWorkspaceAgentRPCMetrics(options.PrometheusRegistry, options.Logger)
 	}
 	api.NetworkTelemetryBatcher = tailnet.NewNetworkTelemetryBatcher(
 		quartz.NewReal(),
@@ -883,6 +932,9 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
+	wsMetrics := httpmw.NewWSMetrics(options.PrometheusRegistry)
+	api.wsWatcher = httpapi.NewWSWatcher(options.Clock, wsMetrics.RecordProbe)
+
 	api.workspaceAppServer = workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger: workspaceAppsLogger,
 
@@ -895,11 +947,14 @@ func New(options *Options) *API {
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
+		WSWatcher:           api.wsWatcher,
 
 		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
 		CookiesConfig:            options.DeploymentValues.HTTPCookies,
 		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	})
+
+	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -961,7 +1016,7 @@ func New(options *Options) *API {
 		options.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(options.DERPServer))
 	}
 	cors := httpmw.Cors(options.DeploymentValues.Dangerous.AllowAllCors.Value())
-	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(options.PrometheusRegistry, wsMetrics)
 
 	r.Use(
 		sharedhttpmw.Recover(api.Logger),
@@ -971,7 +1026,9 @@ func New(options *Options) *API {
 		tracing.Middleware(api.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
-		loggermw.Logger(api.Logger),
+		loggermw.Logger(api.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(api.RealIPConfig, r)
+		}),
 		singleSlashMW,
 		rolestore.CustomRoleMW,
 		// Validate API key on every request (if present) and store
@@ -1162,6 +1219,30 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		r.Route("/users/{user}/skills", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Post("/", api.postUserSkill)
+			r.Get("/", api.getUserSkills)
+			r.Route("/{skillName}", func(r chi.Router) {
+				r.Get("/", api.getUserSkill)
+				r.Patch("/", api.patchUserSkill)
+				r.Delete("/", api.deleteUserSkill)
+			})
+		})
+		r.Route("/users/{user}/ai-provider-keys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.listUserAIProviderKeyConfigs)
+			r.Route("/{aiProvider}", func(r chi.Router) {
+				r.Put("/", api.upsertUserAIProviderKey)
+				r.Delete("/", api.deleteUserAIProviderKey)
+			})
+		})
 		r.Route("/chats", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1177,9 +1258,6 @@ func New(options *Options) *API {
 					r.Use(httpmw.ExtractUserParam(options.Database))
 					r.Get("/summary", api.chatCostSummary)
 				})
-			})
-			r.Route("/insights", func(r chi.Router) {
-				r.Get("/pull-requests", api.prInsights)
 			})
 			r.Route("/files", func(r chi.Router) {
 				r.Use(httpmw.RateLimit(options.FilesRateLimit, time.Minute))
@@ -1263,21 +1341,29 @@ func New(options *Options) *API {
 			})
 			r.Route("/{chat}", func(r chi.Router) {
 				r.Use(httpmw.ExtractChatParam(options.Database))
+				r.Route("/acl", func(r chi.Router) {
+					r.Get("/", api.getChatACL)
+					r.Patch("/", api.patchChatACL)
+				})
 				r.Get("/", api.getChat)
 				r.Patch("/", api.patchChat)
 				r.Get("/messages", api.getChatMessages)
 				r.Post("/messages", api.postChatMessages)
 				r.Patch("/messages/{message}", api.patchChatMessage)
+				r.Get("/prompts", api.getChatUserPrompts)
 				r.Route("/stream", func(r chi.Router) {
 					r.Get("/", api.streamChat)
+					r.Get("/parts", api.streamChatParts)
 					r.Get("/desktop", api.watchChatDesktop)
 					r.Get("/git", api.watchChatGit)
 				})
 				r.Post("/interrupt", api.interruptChat)
+				r.Post("/reconcile-invalid", api.reconcileInvalidChatState)
 				r.Post("/tool-results", api.postChatToolResults)
 				r.Post("/title/regenerate", api.regenerateChatTitle)
 				r.Post("/title/propose", api.proposeChatTitle)
 				r.Get("/diff", api.getChatDiffContents)
+				r.Put("/context", api.refreshChatContext)
 				r.Route("/queue/{queuedMessage}", func(r chi.Router) {
 					r.Delete("/", api.deleteChatQueuedMessage)
 					r.Post("/promote", api.promoteChatQueuedMessage)
@@ -1385,6 +1471,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1533,6 +1620,18 @@ func New(options *Options) *API {
 				})
 			})
 		})
+		if !api.DeploymentValues.TemplateBuilder.Disabled.Value() {
+			r.Route("/templatebuilder", func(r chi.Router) {
+				r.Use(
+					apiKeyMiddleware,
+				)
+				r.Get("/bases", api.templateBuilderBases)
+				r.Get("/modules", api.templateBuilderModules)
+				r.Post("/compose", api.templateBuilderCompose)
+				r.Post("/compose/template", api.templateBuilderCreateTemplate)
+			})
+		}
+
 		r.Route("/users", func(r chi.Router) {
 			r.Get("/first", api.firstUser)
 			r.Post("/first", api.postFirstUser)
@@ -1695,8 +1794,7 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
@@ -1770,6 +1868,7 @@ func New(options *Options) *API {
 					r.Patch("/", api.patchWorkspaceACL)
 					r.Delete("/", api.deleteWorkspaceACL)
 				})
+				r.Get("/agent-connection-watch", api.workspaceAgentConnWatcher.WorkspaceAgentConnectionWatch)
 			})
 		})
 		r.Route("/workspacebuilds/{workspacebuild}", func(r chi.Router) {
@@ -1960,6 +2059,7 @@ func New(options *Options) *API {
 		r.Route("/init-script", func(r chi.Router) {
 			r.Get("/{os}/{arch}", api.initScript)
 		})
+		r.Route("/ai/providers", aiProvidersHandler(api, apiKeyMiddleware))
 		r.Route("/tasks", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
 
@@ -2130,6 +2230,16 @@ type API struct {
 	// UsageInserter is a pointer to an atomic pointer because it is passed to
 	// multiple components.
 	UsageInserter *atomic.Pointer[usage.Inserter]
+	// AIBridgeTransportFactory, when non-nil, lets chatd route LLM requests
+	// through an in-process aibridge transport instead of calling upstream
+	// providers directly. Registered by coderd at startup once aibridged is
+	// wired in-memory.
+	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
+	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
+	// RegisterInMemoryAIBridgedHTTPHandler; read both by the enterprise
+	// /api/v2/aibridge route (license-gated) and by the in-memory transport
+	// (used by chatd, license-exempt).
+	aibridgedHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
@@ -2163,9 +2273,11 @@ type API struct {
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]
 	healthCheckProgress healthcheck.Progress
 
-	statsReporter    *workspacestats.Reporter
-	metadataBatcher  *metadatabatcher.Batcher
-	lifecycleMetrics *agentapi.LifecycleMetrics
+	statsReporter            *workspacestats.Reporter
+	metadataBatcher          *metadatabatcher.Batcher
+	lifecycleMetrics         *agentapi.LifecycleMetrics
+	workspaceAgentRPCMetrics *WorkspaceAgentRPCMetrics
+	wsWatcher                *httpapi.WSWatcher
 
 	Acquirer *provisionerdserver.Acquirer
 	// dbRolluper rolls up template usage stats from raw agent and app
@@ -2186,6 +2298,8 @@ type API struct {
 	// profile collection (via /debug/profile) can run at a time. The CPU
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
+
+	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2249,6 +2363,7 @@ func (api *API) Close() error {
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
+	api.workspaceAgentConnWatcher.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

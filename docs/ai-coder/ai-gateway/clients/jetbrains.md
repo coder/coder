@@ -1,5 +1,10 @@
 # JetBrains IDEs
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via the [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
 
 ## Prerequisites

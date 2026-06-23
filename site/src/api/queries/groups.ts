@@ -1,8 +1,10 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
 import { API } from "#/api/api";
+import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
 	Group,
+	GroupAIBudget,
 	GroupMembersResponse,
 	GroupRequest,
 	PatchGroupRequest,
@@ -131,10 +133,20 @@ function selectGroupsByUserId(groups: Group[]): GroupsByUserId {
 	return userIdMapper as GroupsByUserId;
 }
 
-export function groupsForUser(userId: string) {
+export const getGroupsForUserQueryKey = (
+	userId: string,
+	organizationId?: string,
+) => [
+	...groupsQueryKey,
+	"user",
+	userId,
+	...(organizationId ? ["organization", organizationId] : []),
+];
+
+export function groupsForUser(userId: string, organizationId?: string) {
 	return {
-		queryKey: groupsQueryKey,
-		queryFn: () => API.getGroups({ userId }),
+		queryKey: getGroupsForUserQueryKey(userId, organizationId),
+		queryFn: () => API.getGroups({ userId, organization: organizationId }),
 	} as const satisfies UseQueryOptions<Group[]>;
 }
 
@@ -223,6 +235,53 @@ export const removeMember = (
 			API.removeMember(groupId, userId),
 		onSuccess: async (updatedGroup: Group) =>
 			invalidateGroup(queryClient, organization, updatedGroup.name),
+	};
+};
+
+const getGroupAIBudgetQueryKey = (groupId: string) => [
+	"group",
+	groupId,
+	"aiBudget",
+];
+
+/** Budget query; resolves to null when none is set (the GET 404s). */
+export const groupAIBudget = (
+	groupId: string,
+): UseQueryOptions<GroupAIBudget | null> => {
+	return {
+		queryKey: getGroupAIBudgetQueryKey(groupId),
+		queryFn: async () => {
+			try {
+				return await API.getGroupAIBudget(groupId);
+			} catch (error) {
+				if (isApiError(error) && error.response.status === 404) {
+					return null;
+				}
+				throw error;
+			}
+		},
+	};
+};
+
+/* Upserts the budget for a value, or deletes it (uncapped) when given null. */
+export const saveGroupAIBudget = (
+	queryClient: QueryClient,
+	groupId: string,
+) => {
+	return {
+		mutationFn: async (spendLimitMicros: number | null) => {
+			if (spendLimitMicros === null) {
+				await API.deleteGroupAIBudget(groupId);
+			} else {
+				await API.upsertGroupAIBudget(groupId, {
+					spend_limit_micros: spendLimitMicros,
+				});
+			}
+		},
+		onSuccess: async () =>
+			queryClient.invalidateQueries({
+				queryKey: getGroupAIBudgetQueryKey(groupId),
+			}),
 	};
 };
 

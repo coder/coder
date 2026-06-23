@@ -56,7 +56,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				return fantasy.NewTextErrorResponse("workspace starter is not configured"), nil
 			}
 
-			// Serialize with create_workspace to prevent races.
+			// Serialize with create_workspace and stop_workspace to prevent races.
 			if options.WorkspaceMu != nil {
 				options.WorkspaceMu.Lock()
 				defer options.WorkspaceMu.Unlock()
@@ -86,18 +86,9 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				), nil
 			}
 
-			build, err := db.GetLatestWorkspaceBuildByWorkspaceID(ctx, ws.ID)
+			build, job, err := latestWorkspaceBuildAndJob(ctx, db, ws.ID)
 			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("get latest build: %w", err).Error(),
-				), nil
-			}
-
-			job, err := db.GetProvisionerJobByID(ctx, build.JobID)
-			if err != nil {
-				return fantasy.NewTextErrorResponse(
-					xerrors.Errorf("get provisioner job: %w", err).Error(),
-				), nil
+				return fantasy.NewTextErrorResponse(err.Error()), nil
 			}
 
 			// If a build is already in progress, wait for it.
@@ -106,24 +97,7 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 				database.ProvisionerJobStatusRunning:
 				// Publish the build ID to the frontend so it
 				// can start streaming logs immediately.
-				updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-					ID:          chatID,
-					WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-					BuildID: uuid.NullUUID{
-						UUID:  build.ID,
-						Valid: build.ID != uuid.Nil,
-					},
-					AgentID: uuid.NullUUID{},
-				})
-				if bindErr != nil {
-					options.Logger.Error(ctx, "failed to persist build ID on chat binding",
-						slog.F("chat_id", chatID),
-						slog.F("build_id", build.ID),
-						slog.Error(bindErr),
-					)
-				} else if options.OnChatUpdated != nil {
-					options.OnChatUpdated(updatedChat)
-				}
+				publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, build.ID, options.OnChatUpdated)
 				if err := waitForBuild(ctx, db, build.ID); err != nil {
 					// newBuildError returns via toolResponse (IsError: false)
 					// rather than NewTextErrorResponse (IsError: true) so the
@@ -131,10 +105,16 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 					// viewer. The fantasy/chatprompt pipeline discards structured
 					// fields from IsError content.
 					// The frontend detects errors via the "error" key instead.
-					return buildToolResponse(newBuildError(
-						xerrors.Errorf("waiting for in-progress build: %w", err).Error(),
+					return buildFailureToolResponse(
+						ctx,
+						options.Logger,
+						db,
+						options.OwnerID,
+						ws.OrganizationID,
+						buildFailureActionStart,
 						build.ID,
-					)), nil
+						xerrors.Errorf("waiting for in-progress build: %w", err),
+					), nil
 				}
 				result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, build.ID)
 				// Re-fire after the agent is fully ready so
@@ -193,29 +173,18 @@ func StartWorkspace(db database.Store, chatID uuid.UUID, options StartWorkspaceO
 
 			// Persist the build ID on the chat binding so the
 			// frontend can stream logs without polling.
-			updatedChat, bindErr := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
-				ID:          chatID,
-				WorkspaceID: uuid.NullUUID{UUID: ws.ID, Valid: true},
-				BuildID: uuid.NullUUID{
-					UUID:  startBuild.ID,
-					Valid: startBuild.ID != uuid.Nil,
-				},
-				AgentID: uuid.NullUUID{},
-			})
-			if bindErr != nil {
-				options.Logger.Error(ctx, "failed to persist build ID on chat binding",
-					slog.F("chat_id", chatID),
-					slog.F("build_id", startBuild.ID),
-					slog.Error(bindErr),
-				)
-			} else if options.OnChatUpdated != nil {
-				options.OnChatUpdated(updatedChat)
-			}
+			publishBuildBinding(ctx, db, options.Logger, chatID, ws.ID, startBuild.ID, options.OnChatUpdated)
 			if err := waitForBuild(ctx, db, startBuild.ID); err != nil {
-				return buildToolResponse(newBuildError(
-					xerrors.Errorf("workspace start build failed: %w", err).Error(),
+				return buildFailureToolResponse(
+					ctx,
+					options.Logger,
+					db,
+					options.OwnerID,
+					ws.OrganizationID,
+					buildFailureActionStart,
 					startBuild.ID,
-				)), nil
+					xerrors.Errorf("workspace start build failed: %w", err),
+				), nil
 			}
 
 			result := waitForAgentAndRespond(ctx, db, options.AgentConnFn, ws, startBuild.ID)
@@ -295,7 +264,7 @@ func waitForAgentAndRespond(
 	}
 	setBuildID(result, buildID)
 	setNoBuild(result, buildID)
-	for k, v := range waitForAgentReady(ctx, db, selected.ID, agentConnFn) {
+	for k, v := range waitForAgentReady(ctx, db, selected, agentConnFn) {
 		result[k] = v
 	}
 	return result

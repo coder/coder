@@ -22,6 +22,11 @@ func buildAssistantPartsForPersist(
 	toolNameToConfigID map[string]uuid.UUID,
 ) []codersdk.ChatMessagePart {
 	parts := make([]codersdk.ChatMessagePart, 0, len(assistantBlocks)+len(toolResults))
+	// reasoningIdx walks reasoning blocks in occurrence order so we
+	// can apply the matching ReasoningStartedAt/ReasoningCompletedAt
+	// entry from step onto each reasoning part's CreatedAt and
+	// CompletedAt.
+	reasoningIdx := 0
 	for _, block := range assistantBlocks {
 		part := chatprompt.PartFromContentWithLogger(ctx, logger, block)
 		if part.ToolName != "" {
@@ -38,6 +43,19 @@ func buildAssistantPartsForPersist(
 			if ts, ok := step.ToolResultCreatedAt[part.ToolCallID]; ok {
 				part.CreatedAt = &ts
 			}
+		}
+		if part.Type == codersdk.ChatMessagePartTypeReasoning {
+			if reasoningIdx < len(step.ReasoningStartedAt) {
+				if ts := step.ReasoningStartedAt[reasoningIdx]; !ts.IsZero() {
+					part.CreatedAt = &ts
+				}
+			}
+			if reasoningIdx < len(step.ReasoningCompletedAt) {
+				if ts := step.ReasoningCompletedAt[reasoningIdx]; !ts.IsZero() {
+					part.CompletedAt = &ts
+				}
+			}
+			reasoningIdx++
 		}
 		parts = append(parts, part)
 	}

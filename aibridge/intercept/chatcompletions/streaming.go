@@ -20,10 +20,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -37,22 +37,18 @@ type StreamingInterception struct {
 func NewStreamingInterceptor(
 	id uuid.UUID,
 	req *ChatCompletionNewParamsWrapper,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *StreamingInterception {
 	return &StreamingInterception{interceptionBase: interceptionBase{
-		id:             id,
-		providerName:   providerName,
-		req:            req,
-		cfg:            cfg,
-		clientHeaders:  clientHeaders,
-		authHeaderName: authHeaderName,
-		tracer:         tracer,
-		credential:     cred,
+		id:            id,
+		req:           req,
+		cfg:           cfg,
+		cred:          cred,
+		clientHeaders: clientHeaders,
+		tracer:        tracer,
 	}}
 }
 
@@ -98,7 +94,7 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 	defer cancel()
 	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
 
-	svc := i.newCompletionsService()
+	svc := i.newCompletionsService(ctx)
 	logger := i.logger.With(slog.F("model", i.req.Model))
 
 	streamCtx, streamCancel := context.WithCancelCause(ctx)
@@ -126,9 +122,57 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		lastErr         error
 		interceptionErr error
 	)
+
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
+
 	for {
 		// TODO add outer loop span (https://github.com/coder/aibridge/issues/67)
+
+		// Per-iteration: a pool credential advances its failover walker. An
+		// iteration is either an agentic continuation or a failover retry after
+		// the previous key was marked. BYOK has no pool and runs as a single
+		// attempt.
 		var opts []option.RequestOption
+		var currentPoolKey *keypool.Key
+		if cp, isPool := intercept.AsCentralizedPool(i.cred); isPool {
+			walker := cp.Pool.Walker()
+			key, keyPoolErr := cp.NextKey(walker)
+			if keyPoolErr != nil {
+				// Pool exhausted in this iteration. Relay the error to the
+				// client: as an SSE event if events have already been sent,
+				// or by direct write otherwise.
+				respErr := intercept.ResponseErrorFromKeyPool(keyPoolErr)
+				interceptionErr = respErr
+				if events.IsStreaming() {
+					payload, mErr := i.marshalErr(respErr)
+					if mErr != nil {
+						logger.Warn(ctx, "failed to marshal exhaustion error", slog.Error(mErr))
+					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
+						logger.Warn(ctx, "failed to relay exhaustion error", slog.Error(sErr))
+					}
+				} else {
+					i.writeUpstreamError(w, respErr)
+				}
+				break
+			}
+
+			logger.Debug(intercept.WithCredentialInfo(ctx, i.cred), "using centralized api key")
+			currentPoolKey = key
+			opts = append(opts,
+				option.WithAPIKey(key.Value()),
+				// Disable SDK retries because the failover loop handles
+				// retries via key rotation.
+				option.WithMaxRetries(0),
+			)
+			totalKeyAttempts += walker.Attempts()
+		}
 
 		// TODO(ssncferreira): inject actor headers directly in the client-header
 		//   middleware instead of using SDK options.
@@ -139,7 +183,9 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		// We take control of request body here and pass it to the SDK as a raw byte slice.
 		// This is because the SDK's serialization applies hidden request options that result in
 		// unexpected, breaking behavior. See https://github.com/coder/aibridge/pull/164
-		body, err := json.Marshal(i.req.ChatCompletionNewParams)
+		// chatCompletionRequestBody also applies provider-specific
+		// compatibility patches to the exact body sent upstream.
+		body, err := i.chatCompletionRequestBody()
 		if err != nil {
 			return xerrors.Errorf("marshal request body: %w", err)
 		}
@@ -151,7 +197,17 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 
 		var toolCall *openai.FinishedChatCompletionToolCall
 
+		// iterationStarted is per-iteration (reset on every
+		// loop): true once the upstream call has produced any
+		// events for this iteration. While false, a key-specific
+		// failure can still fail over to the next key. Distinct
+		// from events.IsStreaming(), which is stream-wide and
+		// stays true once iteration 1 has sent any event
+		// downstream.
+		var iterationStarted bool
+
 		for stream.Next() {
+			iterationStarted = true
 			chunk := stream.Current()
 
 			canRelay := processor.process(chunk)
@@ -214,57 +270,55 @@ func (i *StreamingInterception) ProcessRequest(w http.ResponseWriter, r *http.Re
 		if lastUsage := processor.getLastUsage(); lastUsage.CompletionTokens > 0 {
 			// If the usage information is set, track it.
 			// The API will send usage information when the response terminates, which will happen if a tool call is invoked.
-			_ = i.recorder.RecordTokenUsage(streamCtx, &recorder.TokenUsageRecord{
-				InterceptionID:       i.ID().String(),
-				MsgID:                processor.getMsgID(),
-				Input:                calculateActualInputTokenUsage(lastUsage),
-				Output:               lastUsage.CompletionTokens,
-				CacheReadInputTokens: lastUsage.PromptTokensDetails.CachedTokens,
-				ExtraTokenTypes: map[string]int64{
-					"prompt_audio":                   lastUsage.PromptTokensDetails.AudioTokens,
-					"prompt_cached":                  lastUsage.PromptTokensDetails.CachedTokens, // TODO: remove from ExtraTokenTypes (https://github.com/coder/aibridge/issues/243)
-					"completion_accepted_prediction": lastUsage.CompletionTokensDetails.AcceptedPredictionTokens,
-					"completion_rejected_prediction": lastUsage.CompletionTokensDetails.RejectedPredictionTokens,
-					"completion_audio":               lastUsage.CompletionTokensDetails.AudioTokens,
-					"completion_reasoning":           lastUsage.CompletionTokensDetails.ReasoningTokens,
-				},
-			})
+			i.recordTokenUsage(streamCtx, processor.getMsgID(), lastUsage)
 		}
 
-		if !events.IsStreaming() {
-			// response/downstream Stream has not started yet; write error response and exit.
-			i.writeUpstreamError(w, getErrorResponse(stream.Err()))
-			return stream.Err()
-		}
-
-		// Check if the stream encountered any errors.
-		if streamErr := stream.Err(); streamErr != nil {
-			if eventstream.IsUnrecoverableError(streamErr) {
-				logger.Debug(ctx, "stream terminated", slog.Error(streamErr))
-				// We can't reflect an error back if there's a connection error or the request context was canceled.
-			} else if oaiErr := getErrorResponse(streamErr); oaiErr != nil {
-				logger.Warn(ctx, "openai stream error", slog.Error(streamErr))
-				interceptionErr = oaiErr
-			} else {
-				logger.Warn(ctx, "unknown stream error", slog.Error(streamErr))
-				// Unfortunately, the OpenAI SDK does not support parsing errors received in the stream
-				// into known types (i.e. [shared.OverloadedError]).
-				// See https://github.com/openai/openai-go/blob/v2.7.0/packages/ssestream/ssestream.go#L171
-				// All it does is wrap the payload in an error - which is all we can return, currently.
-				interceptionErr = newErrorResponse(xerrors.Errorf("unknown stream error: %w", streamErr))
+		if iterationStarted {
+			// Mid-stream error or logical error: events have
+			// already streamed for this iteration, so the
+			// error is relayed as an SSE event.
+			streamErr := stream.Err()
+			if respErr := i.mapStreamError(ctx, logger, streamErr, lastErr); respErr != nil {
+				interceptionErr = respErr
+				payload, err := i.marshalErr(respErr)
+				if err != nil {
+					logger.Warn(ctx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", respErr)))
+				} else if err := events.Send(streamCtx, payload); err != nil {
+					logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
+				}
+			} else if streamErr != nil {
+				// Unrecoverable (e.g., broken pipe, context
+				// canceled): can't relay to the client, but record
+				// the error so it isn't silently swallowed.
+				interceptionErr = streamErr
 			}
-		} else if lastErr != nil {
-			// Otherwise check if any logical errors occurred during processing.
-			logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
-			interceptionErr = newErrorResponse(xerrors.Errorf("processing error: %w", lastErr))
-		}
-
-		if interceptionErr != nil {
-			payload, err := i.marshalErr(interceptionErr)
-			if err != nil {
-				logger.Warn(ctx, "failed to marshal error", slog.Error(err), slog.F("error_payload", fmt.Sprintf("%+v", interceptionErr)))
-			} else if err := events.Send(streamCtx, payload); err != nil {
-				logger.Warn(ctx, "failed to relay error", slog.Error(err), slog.F("payload", payload))
+		} else {
+			// Pre-stream failure of this iteration. For
+			// centralized requests, mark the key and retry with
+			// the next one.
+			if currentPoolKey != nil && i.markKeyOnError(ctx, currentPoolKey, stream.Err()) {
+				continue
+			}
+			// Non-key error: relay it. Use mapStreamError so that
+			// unknown upstream errors (TCP reset, DNS failure, TLS
+			// error, deadline exceeded) are wrapped in a generic
+			// response instead of producing a silent HTTP 200.
+			respErr := i.mapStreamError(ctx, logger, stream.Err(), lastErr)
+			if respErr != nil {
+				interceptionErr = respErr
+				if events.IsStreaming() {
+					// Prior iterations have streamed, so the SSE
+					// connection is open: inject as an SSE event.
+					payload, mErr := i.marshalErr(respErr)
+					if mErr != nil {
+						logger.Warn(ctx, "failed to marshal error", slog.Error(mErr))
+					} else if sErr := events.Send(streamCtx, payload); sErr != nil {
+						logger.Warn(ctx, "failed to relay error", slog.Error(sErr))
+					}
+				} else {
+					// No events streamed yet, write the response directly.
+					i.writeUpstreamError(w, respErr)
+				}
 			}
 		}
 
@@ -405,6 +459,35 @@ func (i *StreamingInterception) newStream(ctx context.Context, svc openai.ChatCo
 	defer span.End()
 
 	return svc.NewStreaming(ctx, openai.ChatCompletionNewParams{}, opts...)
+}
+
+// mapStreamError converts a mid-stream upstream error or
+// processing error into a relayable ResponseError. Returns nil
+// when the error is unrecoverable, in which case nothing can be
+// relayed back.
+func (*StreamingInterception) mapStreamError(ctx context.Context, logger slog.Logger, streamErr, lastErr error) *intercept.ResponseError {
+	if streamErr != nil {
+		if eventstream.IsUnrecoverableError(streamErr) {
+			logger.Debug(ctx, "stream terminated", slog.Error(streamErr))
+			// We can't reflect an error back if there's a connection error or the request context was canceled.
+			return nil
+		}
+		if oaiErr := intercept.ResponseErrorFromAPIError(streamErr); oaiErr != nil {
+			logger.Warn(ctx, "openai stream error", slog.Error(streamErr))
+			return oaiErr
+		}
+		logger.Warn(ctx, "unknown stream error", slog.Error(streamErr))
+		// Unfortunately, the OpenAI SDK does not support parsing errors received in the stream
+		// into known types (i.e. [shared.OverloadedError]).
+		// See https://github.com/openai/openai-go/blob/v2.7.0/packages/ssestream/ssestream.go#L171
+		// All it does is wrap the payload in an error - which is all we can return, currently.
+		return intercept.NewResponseError(fmt.Sprintf("unknown stream error: %s", streamErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
+	}
+	if lastErr != nil {
+		logger.Warn(ctx, "stream processing failed", slog.Error(lastErr))
+		return intercept.NewResponseError(fmt.Sprintf("processing error: %s", lastErr), intercept.OpenAIErrTypeError, intercept.OpenAIErrTypeError, http.StatusBadGateway, 0)
+	}
+	return nil
 }
 
 type streamProcessor struct {

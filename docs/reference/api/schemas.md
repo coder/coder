@@ -220,57 +220,6 @@
 |--------------------|
 | `prebuild_claimed` |
 
-## coderd.SCIMUser
-
-```json
-{
-  "active": true,
-  "emails": [
-    {
-      "display": "string",
-      "primary": true,
-      "type": "string",
-      "value": "user@example.com"
-    }
-  ],
-  "groups": [
-    null
-  ],
-  "id": "string",
-  "meta": {
-    "resourceType": "string"
-  },
-  "name": {
-    "familyName": "string",
-    "givenName": "string"
-  },
-  "schemas": [
-    "string"
-  ],
-  "userName": "string"
-}
-```
-
-### Properties
-
-| Name             | Type               | Required | Restrictions | Description                                                                 |
-|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
-| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
-| `emails`         | array of object    | false    |              |                                                                             |
-| `» display`      | string             | false    |              |                                                                             |
-| `» primary`      | boolean            | false    |              |                                                                             |
-| `» type`         | string             | false    |              |                                                                             |
-| `» value`        | string             | false    |              |                                                                             |
-| `groups`         | array of undefined | false    |              |                                                                             |
-| `id`             | string             | false    |              |                                                                             |
-| `meta`           | object             | false    |              |                                                                             |
-| `» resourceType` | string             | false    |              |                                                                             |
-| `name`           | object             | false    |              |                                                                             |
-| `» familyName`   | string             | false    |              |                                                                             |
-| `» givenName`    | string             | false    |              |                                                                             |
-| `schemas`        | array of string    | false    |              |                                                                             |
-| `userName`       | string             | false    |              |                                                                             |
-
 ## coderd.cspViolation
 
 ```json
@@ -442,6 +391,7 @@
     "base_url": "string",
     "key": "string"
   },
+  "api_dump_dir": "string",
   "bedrock": {
     "access_key": "string",
     "access_key_secret": "string",
@@ -450,6 +400,8 @@
     "region": "string",
     "small_fast_model": "string"
   },
+  "budget_period": "string",
+  "budget_policy": "string",
   "circuit_breaker_enabled": true,
   "circuit_breaker_failure_threshold": 0,
   "circuit_breaker_interval": 0,
@@ -468,7 +420,6 @@
       "bedrock_model": "string",
       "bedrock_region": "string",
       "bedrock_small_fast_model": "string",
-      "dump_dir": "string",
       "name": "string",
       "type": "string"
     }
@@ -482,198 +433,28 @@
 
 ### Properties
 
-| Name                                | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                 |
-|-------------------------------------|-----------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `allow_byok`                        | boolean                                                                     | false    |              |                                                                                                                                                                             |
-| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig)        | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)            | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `circuit_breaker_enabled`           | boolean                                                                     | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                          |
-| `circuit_breaker_failure_threshold` | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_interval`          | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_max_requests`      | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `circuit_breaker_timeout`           | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `enabled`                           | boolean                                                                     | false    |              |                                                                                                                                                                             |
-| `inject_coder_mcp_tools`            | boolean                                                                     | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                |
-| `max_concurrency`                   | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)              | false    |              | Deprecated: Use Providers with indexed CODER_AIBRIDGE_PROVIDER_<N>_* env vars instead.                                                                                      |
-| `providers`                         | array of [codersdk.AIBridgeProviderConfig](#codersdkaibridgeproviderconfig) | false    |              | Providers holds provider instances populated from CODER_AIBRIDGE_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
-| `rate_limit`                        | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `retention`                         | integer                                                                     | false    |              |                                                                                                                                                                             |
-| `send_actor_headers`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
-| `structured_logging`                | boolean                                                                     | false    |              |                                                                                                                                                                             |
-
-## codersdk.AIBridgeInterception
-
-```json
-{
-  "api_key_id": "string",
-  "client": "string",
-  "ended_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "initiator": {
-    "avatar_url": "http://example.com",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "name": "string",
-    "username": "string"
-  },
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "model": "string",
-  "provider": "string",
-  "provider_name": "string",
-  "started_at": "2019-08-24T14:15:22Z",
-  "token_usages": [
-    {
-      "cache_read_input_tokens": 0,
-      "cache_write_input_tokens": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "input_tokens": 0,
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "output_tokens": 0,
-      "provider_response_id": "string"
-    }
-  ],
-  "tool_usages": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "injected": true,
-      "input": "string",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "invocation_error": "string",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "provider_response_id": "string",
-      "server_url": "string",
-      "tool": "string"
-    }
-  ],
-  "user_prompts": [
-    {
-      "created_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "prompt": "string",
-      "provider_response_id": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name               | Type                                                                | Required | Restrictions | Description |
-|--------------------|---------------------------------------------------------------------|----------|--------------|-------------|
-| `api_key_id`       | string                                                              | false    |              |             |
-| `client`           | string                                                              | false    |              |             |
-| `ended_at`         | string                                                              | false    |              |             |
-| `id`               | string                                                              | false    |              |             |
-| `initiator`        | [codersdk.MinimalUser](#codersdkminimaluser)                        | false    |              |             |
-| `metadata`         | object                                                              | false    |              |             |
-| » `[any property]` | any                                                                 | false    |              |             |
-| `model`            | string                                                              | false    |              |             |
-| `provider`         | string                                                              | false    |              |             |
-| `provider_name`    | string                                                              | false    |              |             |
-| `started_at`       | string                                                              | false    |              |             |
-| `token_usages`     | array of [codersdk.AIBridgeTokenUsage](#codersdkaibridgetokenusage) | false    |              |             |
-| `tool_usages`      | array of [codersdk.AIBridgeToolUsage](#codersdkaibridgetoolusage)   | false    |              |             |
-| `user_prompts`     | array of [codersdk.AIBridgeUserPrompt](#codersdkaibridgeuserprompt) | false    |              |             |
-
-## codersdk.AIBridgeListInterceptionsResponse
-
-```json
-{
-  "count": 0,
-  "results": [
-    {
-      "api_key_id": "string",
-      "client": "string",
-      "ended_at": "2019-08-24T14:15:22Z",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "initiator": {
-        "avatar_url": "http://example.com",
-        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "name": "string",
-        "username": "string"
-      },
-      "metadata": {
-        "property1": null,
-        "property2": null
-      },
-      "model": "string",
-      "provider": "string",
-      "provider_name": "string",
-      "started_at": "2019-08-24T14:15:22Z",
-      "token_usages": [
-        {
-          "cache_read_input_tokens": 0,
-          "cache_write_input_tokens": 0,
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "input_tokens": 0,
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "output_tokens": 0,
-          "provider_response_id": "string"
-        }
-      ],
-      "tool_usages": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "injected": true,
-          "input": "string",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "invocation_error": "string",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "provider_response_id": "string",
-          "server_url": "string",
-          "tool": "string"
-        }
-      ],
-      "user_prompts": [
-        {
-          "created_at": "2019-08-24T14:15:22Z",
-          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-          "metadata": {
-            "property1": null,
-            "property2": null
-          },
-          "prompt": "string",
-          "provider_response_id": "string"
-        }
-      ]
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name      | Type                                                                    | Required | Restrictions | Description |
-|-----------|-------------------------------------------------------------------------|----------|--------------|-------------|
-| `count`   | integer                                                                 | false    |              |             |
-| `results` | array of [codersdk.AIBridgeInterception](#codersdkaibridgeinterception) | false    |              |             |
+| Name                                | Type                                                                 | Required | Restrictions | Description                                                                                                                                                                   |
+|-------------------------------------|----------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `allow_byok`                        | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `anthropic`                         | [codersdk.AIBridgeAnthropicConfig](#codersdkaibridgeanthropicconfig) | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `api_dump_dir`                      | string                                                               | false    |              | Api dump dir is the base directory under which each provider's request/response dumps are written, in a subdirectory named after the provider. Empty disables dumping.        |
+| `bedrock`                           | [codersdk.AIBridgeBedrockConfig](#codersdkaibridgebedrockconfig)     | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `budget_period`                     | string                                                               | false    |              |                                                                                                                                                                               |
+| `budget_policy`                     | string                                                               | false    |              | Budget settings for AI Governance cost controls.                                                                                                                              |
+| `circuit_breaker_enabled`           | boolean                                                              | false    |              | Circuit breaker protects against cascading failures from upstream AI provider overload (503, 529).                                                                            |
+| `circuit_breaker_failure_threshold` | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_interval`          | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_max_requests`      | integer                                                              | false    |              |                                                                                                                                                                               |
+| `circuit_breaker_timeout`           | integer                                                              | false    |              |                                                                                                                                                                               |
+| `enabled`                           | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `inject_coder_mcp_tools`            | boolean                                                              | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                  |
+| `max_concurrency`                   | integer                                                              | false    |              |                                                                                                                                                                               |
+| `openai`                            | [codersdk.AIBridgeOpenAIConfig](#codersdkaibridgeopenaiconfig)       | false    |              | Deprecated: Use Providers with indexed CODER_AI_GATEWAY_PROVIDER_<N>_* env vars instead.                                                                                      |
+| `providers`                         | array of [codersdk.AIProviderConfig](#codersdkaiproviderconfig)      | false    |              | Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY> env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above. |
+| `rate_limit`                        | integer                                                              | false    |              |                                                                                                                                                                               |
+| `retention`                         | integer                                                              | false    |              |                                                                                                                                                                               |
+| `send_actor_headers`                | boolean                                                              | false    |              |                                                                                                                                                                               |
+| `structured_logging`                | boolean                                                              | false    |              |                                                                                                                                                                               |
 
 ## codersdk.AIBridgeListSessionsResponse
 
@@ -753,32 +534,6 @@
 | `base_url` | string | false    |              |             |
 | `key`      | string | false    |              |             |
 
-## codersdk.AIBridgeProviderConfig
-
-```json
-{
-  "base_url": "string",
-  "bedrock_model": "string",
-  "bedrock_region": "string",
-  "bedrock_small_fast_model": "string",
-  "dump_dir": "string",
-  "name": "string",
-  "type": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type   | Required | Restrictions | Description                                                                                |
-|----------------------------|--------|----------|--------------|--------------------------------------------------------------------------------------------|
-| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                     |
-| `bedrock_model`            | string | false    |              |                                                                                            |
-| `bedrock_region`           | string | false    |              |                                                                                            |
-| `bedrock_small_fast_model` | string | false    |              |                                                                                            |
-| `dump_dir`                 | string | false    |              | Dump dir is the directory path for dumping API requests and responses.                     |
-| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided. |
-| `type`                     | string | false    |              | Type is the provider type: "openai", "anthropic", or "copilot".                            |
-
 ## codersdk.AIBridgeProxyConfig
 
 ```json
@@ -786,6 +541,7 @@
   "allowed_private_cidrs": [
     "string"
   ],
+  "api_dump_dir": "string",
   "cert_file": "string",
   "domain_allowlist": [
     "string"
@@ -805,6 +561,7 @@
 | Name                    | Type            | Required | Restrictions | Description |
 |-------------------------|-----------------|----------|--------------|-------------|
 | `allowed_private_cidrs` | array of string | false    |              |             |
+| `api_dump_dir`          | string          | false    |              |             |
 | `cert_file`             | string          | false    |              |             |
 | `domain_allowlist`      | array of string | false    |              |             |
 | `enabled`               | boolean         | false    |              |             |
@@ -897,6 +654,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": [
     {
+      "agent_firewall_sequence_number": 0,
+      "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
           "model": "string",
@@ -1034,6 +793,8 @@
 
 ```json
 {
+  "agent_firewall_sequence_number": 0,
+  "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
       "model": "string",
@@ -1093,52 +854,20 @@
 
 ### Properties
 
-| Name              | Type                                                                                   | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
-| `credential_hint` | string                                                                                 | false    |              |             |
-| `credential_kind` | string                                                                                 | false    |              |             |
-| `ended_at`        | string                                                                                 | false    |              |             |
-| `id`              | string                                                                                 | false    |              |             |
-| `model`           | string                                                                                 | false    |              |             |
-| `prompt`          | string                                                                                 | false    |              |             |
-| `provider`        | string                                                                                 | false    |              |             |
-| `started_at`      | string                                                                                 | false    |              |             |
-| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
-
-## codersdk.AIBridgeTokenUsage
-
-```json
-{
-  "cache_read_input_tokens": 0,
-  "cache_write_input_tokens": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "input_tokens": 0,
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "output_tokens": 0,
-  "provider_response_id": "string"
-}
-```
-
-### Properties
-
-| Name                       | Type    | Required | Restrictions | Description |
-|----------------------------|---------|----------|--------------|-------------|
-| `cache_read_input_tokens`  | integer | false    |              |             |
-| `cache_write_input_tokens` | integer | false    |              |             |
-| `created_at`               | string  | false    |              |             |
-| `id`                       | string  | false    |              |             |
-| `input_tokens`             | integer | false    |              |             |
-| `interception_id`          | string  | false    |              |             |
-| `metadata`                 | object  | false    |              |             |
-| » `[any property]`         | any     | false    |              |             |
-| `output_tokens`            | integer | false    |              |             |
-| `provider_response_id`     | string  | false    |              |             |
+| Name                             | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|----------------------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
+| `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
+| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                                                                                                                                           |
 
 ## codersdk.AIBridgeToolCall
 
@@ -1174,70 +903,6 @@
 | `server_url`           | string  | false    |              |             |
 | `tool`                 | string  | false    |              |             |
 
-## codersdk.AIBridgeToolUsage
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "injected": true,
-  "input": "string",
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "invocation_error": "string",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "provider_response_id": "string",
-  "server_url": "string",
-  "tool": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type    | Required | Restrictions | Description |
-|------------------------|---------|----------|--------------|-------------|
-| `created_at`           | string  | false    |              |             |
-| `id`                   | string  | false    |              |             |
-| `injected`             | boolean | false    |              |             |
-| `input`                | string  | false    |              |             |
-| `interception_id`      | string  | false    |              |             |
-| `invocation_error`     | string  | false    |              |             |
-| `metadata`             | object  | false    |              |             |
-| » `[any property]`     | any     | false    |              |             |
-| `provider_response_id` | string  | false    |              |             |
-| `server_url`           | string  | false    |              |             |
-| `tool`                 | string  | false    |              |             |
-
-## codersdk.AIBridgeUserPrompt
-
-```json
-{
-  "created_at": "2019-08-24T14:15:22Z",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
-  "metadata": {
-    "property1": null,
-    "property2": null
-  },
-  "prompt": "string",
-  "provider_response_id": "string"
-}
-```
-
-### Properties
-
-| Name                   | Type   | Required | Restrictions | Description |
-|------------------------|--------|----------|--------------|-------------|
-| `created_at`           | string | false    |              |             |
-| `id`                   | string | false    |              |             |
-| `interception_id`      | string | false    |              |             |
-| `metadata`             | object | false    |              |             |
-| » `[any property]`     | any    | false    |              |             |
-| `prompt`               | string | false    |              |             |
-| `provider_response_id` | string | false    |              |             |
-
 ## codersdk.AIConfig
 
 ```json
@@ -1246,6 +911,7 @@
     "allowed_private_cidrs": [
       "string"
     ],
+    "api_dump_dir": "string",
     "cert_file": "string",
     "domain_allowlist": [
       "string"
@@ -1264,6 +930,7 @@
       "base_url": "string",
       "key": "string"
     },
+    "api_dump_dir": "string",
     "bedrock": {
       "access_key": "string",
       "access_key_secret": "string",
@@ -1272,6 +939,8 @@
       "region": "string",
       "small_fast_model": "string"
     },
+    "budget_period": "string",
+    "budget_policy": "string",
     "circuit_breaker_enabled": true,
     "circuit_breaker_failure_threshold": 0,
     "circuit_breaker_interval": 0,
@@ -1290,7 +959,6 @@
         "bedrock_model": "string",
         "bedrock_region": "string",
         "bedrock_small_fast_model": "string",
-        "dump_dir": "string",
         "name": "string",
         "type": "string"
       }
@@ -1314,6 +982,148 @@
 | `aibridge_proxy` | [codersdk.AIBridgeProxyConfig](#codersdkaibridgeproxyconfig) | false    |              |             |
 | `bridge`         | [codersdk.AIBridgeConfig](#codersdkaibridgeconfig)           | false    |              |             |
 | `chat`           | [codersdk.ChatConfig](#codersdkchatconfig)                   | false    |              |             |
+
+## codersdk.AIGatewayKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key_prefix": "string",
+  "last_used_at": "2019-08-24T14:15:22Z",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `created_at`   | string | false    |              |             |
+| `id`           | string | false    |              |             |
+| `key_prefix`   | string | false    |              |             |
+| `last_used_at` | string | false    |              |             |
+| `name`         | string | false    |              |             |
+
+## codersdk.AIProvider
+
+```json
+{
+  "api_keys": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "masked": "string"
+    }
+  ],
+  "base_url": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "enabled": true,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "settings": {},
+  "type": "openai",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKey](#codersdkaiproviderkey)  | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `created_at`   | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `id`           | string                                                     | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+| `updated_at`   | string                                                     | false    |              |             |
+
+## codersdk.AIProviderConfig
+
+```json
+{
+  "base_url": "string",
+  "bedrock_model": "string",
+  "bedrock_region": "string",
+  "bedrock_small_fast_model": "string",
+  "name": "string",
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name                       | Type   | Required | Restrictions | Description                                                                                                                                           |
+|----------------------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `base_url`                 | string | false    |              | Base URL is the base URL of the upstream provider API.                                                                                                |
+| `bedrock_model`            | string | false    |              |                                                                                                                                                       |
+| `bedrock_region`           | string | false    |              |                                                                                                                                                       |
+| `bedrock_small_fast_model` | string | false    |              |                                                                                                                                                       |
+| `name`                     | string | false    |              | Name is the unique instance identifier used for routing. Defaults to Type if not provided.                                                            |
+| `type`                     | string | false    |              | Type is the provider type. Valid values are: "openai", "anthropic", "azure", "bedrock", "google", "openai-compat", "openrouter", "vercel", "copilot". |
+
+## codersdk.AIProviderKey
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "masked": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `masked`     | string | false    |              |             |
+
+## codersdk.AIProviderKeyMutation
+
+```json
+{
+  "api_key": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description |
+|-----------|--------|----------|--------------|-------------|
+| `api_key` | string | false    |              |             |
+| `id`      | string | false    |              |             |
+
+## codersdk.AIProviderSettings
+
+```json
+{}
+```
+
+### Properties
+
+None
+
+## codersdk.AIProviderType
+
+```json
+"openai"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                |
+|---------------------------------------------------------------------------------------------------------|
+| `anthropic`, `azure`, `bedrock`, `copilot`, `google`, `openai`, `openai-compat`, `openrouter`, `vercel` |
 
 ## codersdk.APIAllowListTarget
 
@@ -1391,9 +1201,9 @@
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key:*`, `ai_gateway_key:create`, `ai_gateway_key:delete`, `ai_gateway_key:read`, `ai_model_price:*`, `ai_model_price:read`, `ai_model_price:update`, `ai_provider:*`, `ai_provider:create`, `ai_provider:delete`, `ai_provider:read`, `ai_provider:update`, `ai_seat:*`, `ai_seat:create`, `ai_seat:read`, `aibridge_interception:*`, `aibridge_interception:create`, `aibridge_interception:read`, `aibridge_interception:update`, `all`, `api_key:*`, `api_key:create`, `api_key:delete`, `api_key:read`, `api_key:update`, `application_connect`, `assign_org_role:*`, `assign_org_role:assign`, `assign_org_role:create`, `assign_org_role:delete`, `assign_org_role:read`, `assign_org_role:unassign`, `assign_org_role:update`, `assign_role:*`, `assign_role:assign`, `assign_role:read`, `assign_role:unassign`, `audit_log:*`, `audit_log:create`, `audit_log:read`, `boundary_log:*`, `boundary_log:create`, `boundary_log:delete`, `boundary_log:read`, `boundary_usage:*`, `boundary_usage:delete`, `boundary_usage:read`, `boundary_usage:update`, `chat:*`, `chat:create`, `chat:delete`, `chat:read`, `chat:share`, `chat:update`, `coder:all`, `coder:apikeys.manage_self`, `coder:application_connect`, `coder:templates.author`, `coder:templates.build`, `coder:workspaces.access`, `coder:workspaces.create`, `coder:workspaces.delete`, `coder:workspaces.operate`, `connection_log:*`, `connection_log:read`, `connection_log:update`, `crypto_key:*`, `crypto_key:create`, `crypto_key:delete`, `crypto_key:read`, `crypto_key:update`, `debug_info:*`, `debug_info:read`, `deployment_config:*`, `deployment_config:read`, `deployment_config:update`, `deployment_stats:*`, `deployment_stats:read`, `file:*`, `file:create`, `file:read`, `group:*`, `group:create`, `group:delete`, `group:read`, `group:update`, `group_member:*`, `group_member:read`, `idpsync_settings:*`, `idpsync_settings:read`, `idpsync_settings:update`, `inbox_notification:*`, `inbox_notification:create`, `inbox_notification:read`, `inbox_notification:update`, `license:*`, `license:create`, `license:delete`, `license:read`, `notification_message:*`, `notification_message:create`, `notification_message:delete`, `notification_message:read`, `notification_message:update`, `notification_preference:*`, `notification_preference:read`, `notification_preference:update`, `notification_template:*`, `notification_template:read`, `notification_template:update`, `oauth2_app:*`, `oauth2_app:create`, `oauth2_app:delete`, `oauth2_app:read`, `oauth2_app:update`, `oauth2_app_code_token:*`, `oauth2_app_code_token:create`, `oauth2_app_code_token:delete`, `oauth2_app_code_token:read`, `oauth2_app_secret:*`, `oauth2_app_secret:create`, `oauth2_app_secret:delete`, `oauth2_app_secret:read`, `oauth2_app_secret:update`, `organization:*`, `organization:create`, `organization:delete`, `organization:read`, `organization:update`, `organization_member:*`, `organization_member:create`, `organization_member:delete`, `organization_member:read`, `organization_member:update`, `prebuilt_workspace:*`, `prebuilt_workspace:delete`, `prebuilt_workspace:update`, `provisioner_daemon:*`, `provisioner_daemon:create`, `provisioner_daemon:delete`, `provisioner_daemon:read`, `provisioner_daemon:update`, `provisioner_jobs:*`, `provisioner_jobs:create`, `provisioner_jobs:read`, `provisioner_jobs:update`, `replicas:*`, `replicas:read`, `system:*`, `system:create`, `system:delete`, `system:read`, `system:update`, `tailnet_coordinator:*`, `tailnet_coordinator:create`, `tailnet_coordinator:delete`, `tailnet_coordinator:read`, `tailnet_coordinator:update`, `task:*`, `task:create`, `task:delete`, `task:read`, `task:update`, `template:*`, `template:create`, `template:delete`, `template:read`, `template:update`, `template:use`, `template:view_insights`, `usage_event:*`, `usage_event:create`, `usage_event:read`, `usage_event:update`, `user:*`, `user:create`, `user:delete`, `user:read`, `user:read_personal`, `user:update`, `user:update_personal`, `user_secret:*`, `user_secret:create`, `user_secret:delete`, `user_secret:read`, `user_secret:update`, `user_skill:*`, `user_skill:create`, `user_skill:delete`, `user_skill:read`, `user_skill:update`, `webpush_subscription:*`, `webpush_subscription:create`, `webpush_subscription:delete`, `webpush_subscription:read`, `workspace:*`, `workspace:application_connect`, `workspace:create`, `workspace:create_agent`, `workspace:delete`, `workspace:delete_agent`, `workspace:read`, `workspace:share`, `workspace:ssh`, `workspace:start`, `workspace:stop`, `workspace:update`, `workspace:update_agent`, `workspace_agent_devcontainers:*`, `workspace_agent_devcontainers:create`, `workspace_agent_resource_monitor:*`, `workspace_agent_resource_monitor:create`, `workspace_agent_resource_monitor:read`, `workspace_agent_resource_monitor:update`, `workspace_dormant:*`, `workspace_dormant:application_connect`, `workspace_dormant:create`, `workspace_dormant:create_agent`, `workspace_dormant:delete`, `workspace_dormant:delete_agent`, `workspace_dormant:read`, `workspace_dormant:share`, `workspace_dormant:ssh`, `workspace_dormant:start`, `workspace_dormant:stop`, `workspace_dormant:update`, `workspace_dormant:update_agent`, `workspace_proxy:*`, `workspace_proxy:create`, `workspace_proxy:delete`, `workspace_proxy:read`, `workspace_proxy:update` |
 
 ## codersdk.AddLicenseRequest
 
@@ -1408,6 +1218,20 @@
 | Name      | Type   | Required | Restrictions | Description |
 |-----------|--------|----------|--------------|-------------|
 | `license` | string | true     |              |             |
+
+## codersdk.AgentChatSendShortcut
+
+```json
+"enter"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                  |
+|---------------------------|
+| `enter`, `modifier_enter` |
 
 ## codersdk.AgentConnectionTiming
 
@@ -1430,6 +1254,101 @@
 | `started_at`           | string                                       | false    |              |             |
 | `workspace_agent_id`   | string                                       | false    |              |             |
 | `workspace_agent_name` | string                                       | false    |              |             |
+
+## codersdk.AgentDisplayMode
+
+```json
+"auto"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                      |
+|-----------------------------------------------|
+| `always_collapsed`, `always_expanded`, `auto` |
+
+## codersdk.AgentFirewallLog
+
+```json
+{
+  "allowed": true,
+  "captured_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "detail": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "matched_rule": "string",
+  "method": "string",
+  "proto": "string",
+  "sequence_number": 0,
+  "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+}
+```
+
+### Properties
+
+| Name              | Type    | Required | Restrictions | Description |
+|-------------------|---------|----------|--------------|-------------|
+| `allowed`         | boolean | false    |              |             |
+| `captured_at`     | string  | false    |              |             |
+| `created_at`      | string  | false    |              |             |
+| `detail`          | string  | false    |              |             |
+| `id`              | string  | false    |              |             |
+| `matched_rule`    | string  | false    |              |             |
+| `method`          | string  | false    |              |             |
+| `proto`           | string  | false    |              |             |
+| `sequence_number` | integer | false    |              |             |
+| `session_id`      | string  | false    |              |             |
+
+## codersdk.AgentFirewallSession
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `confined_process` | string | false    |              |             |
+| `id`               | string | false    |              |             |
+| `owner_id`         | string | false    |              |             |
+| `started_at`       | string | false    |              |             |
+| `workspace_id`     | string | false    |              |             |
+
+## codersdk.AgentFirewallSessionLogsResponse
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                            | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------------------|----------|--------------|-------------|
+| `results` | array of [codersdk.AgentFirewallLog](#codersdkagentfirewalllog) | false    |              |             |
 
 ## codersdk.AgentScriptTiming
 
@@ -2093,6 +2012,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "build_id": "bfb1f3fa-bf7b-43a5-9e0b-26cc050e44cb",
       "children": [],
       "client_type": "ui",
+      "context": {
+        "dirty": true,
+        "dirty_since": "2019-08-24T14:15:22Z",
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
+      },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
         "additions": 0,
@@ -2139,63 +2080,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "retryable": true,
         "status_code": 0
       },
-      "last_injected_context": [
-        {
-          "args": [
-            0
-          ],
-          "args_delta": "string",
-          "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "context_file_content": "string",
-          "context_file_directory": "string",
-          "context_file_os": "string",
-          "context_file_path": "string",
-          "context_file_skill_meta_file": "string",
-          "context_file_truncated": true,
-          "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
-          "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "file_name": "string",
-          "is_error": true,
-          "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "media_type": "string",
-          "name": "string",
-          "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
-          "result_delta": "string",
-          "signature": "string",
-          "skill_description": "string",
-          "skill_dir": "string",
-          "skill_name": "string",
-          "source_id": "string",
-          "start_line": 0,
-          "text": "string",
-          "title": "string",
-          "tool_call_id": "string",
-          "tool_name": "string",
-          "type": "text",
-          "url": "string"
-        }
-      ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
       "last_turn_summary": "string",
       "mcp_server_ids": [
@@ -2203,10 +2087,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ],
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+      "owner_name": "string",
+      "owner_username": "string",
       "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
       "pin_order": 0,
       "plan_mode": "plan",
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+      "shared": true,
       "status": "waiting",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
@@ -2217,6 +2104,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   ],
   "client_type": "ui",
+  "context": {
+    "dirty": true,
+    "dirty_since": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "resources": [
+      {
+        "error": "string",
+        "kind": "instruction_file",
+        "size_bytes": 0,
+        "skill_description": "string",
+        "skill_name": "string",
+        "source": "string",
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
+      }
+    ]
+  },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
     "additions": 0,
@@ -2263,63 +2172,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
-  "last_injected_context": [
-    {
-      "args": [
-        0
-      ],
-      "args_delta": "string",
-      "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "context_file_content": "string",
-      "context_file_directory": "string",
-      "context_file_os": "string",
-      "context_file_path": "string",
-      "context_file_skill_meta_file": "string",
-      "context_file_truncated": true,
-      "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
-      "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "file_name": "string",
-      "is_error": true,
-      "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "media_type": "string",
-      "name": "string",
-      "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
-      "result": [
-        0
-      ],
-      "result_delta": "string",
-      "signature": "string",
-      "skill_description": "string",
-      "skill_dir": "string",
-      "skill_name": "string",
-      "source_id": "string",
-      "start_line": 0,
-      "text": "string",
-      "title": "string",
-      "tool_call_id": "string",
-      "tool_name": "string",
-      "type": "text",
-      "url": "string"
-    }
-  ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
   "last_turn_summary": "string",
   "mcp_server_ids": [
@@ -2327,10 +2179,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "owner_name": "string",
+  "owner_username": "string",
   "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
   "pin_order": 0,
   "plan_mode": "plan",
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "shared": true,
   "status": "waiting",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
@@ -2343,36 +2198,93 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|-------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
-| `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                   | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`             | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`             | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`              | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `created_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`           | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`               | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`           | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_model_config_id` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`       | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`            | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `root_chat_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`               | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `status`               | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `title`                | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`             | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+
+## codersdk.ChatACL
+
+```json
+{
+  "groups": [
+    {
+      "avatar_url": "http://example.com",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "members": [
+        {
+          "avatar_url": "http://example.com",
+          "created_at": "2019-08-24T14:15:22Z",
+          "email": "user@example.com",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "is_service_account": true,
+          "last_seen_at": "2019-08-24T14:15:22Z",
+          "login_type": "",
+          "name": "string",
+          "status": "active",
+          "theme_preference": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "username": "string"
+        }
+      ],
+      "name": "string",
+      "organization_display_name": "string",
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "organization_name": "string",
+      "quota_allowance": 0,
+      "role": "read",
+      "source": "user",
+      "total_member_count": 0
+    }
+  ],
+  "users": [
+    {
+      "avatar_url": "http://example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "role": "read",
+      "username": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name     | Type                                              | Required | Restrictions | Description |
+|----------|---------------------------------------------------|----------|--------------|-------------|
+| `groups` | array of [codersdk.ChatGroup](#codersdkchatgroup) | false    |              |             |
+| `users`  | array of [codersdk.ChatUser](#codersdkchatuser)   | false    |              |             |
 
 ## codersdk.ChatBusyBehavior
 
@@ -2417,6 +2329,119 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------------|---------|----------|--------------|-------------|
 | `acquire_batch_size`    | integer | false    |              |             |
 | `debug_logging_enabled` | boolean | false    |              |             |
+
+## codersdk.ChatContext
+
+```json
+{
+  "dirty": true,
+  "dirty_since": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "resources": [
+    {
+      "error": "string",
+      "kind": "instruction_file",
+      "size_bytes": 0,
+      "skill_description": "string",
+      "skill_name": "string",
+      "source": "string",
+      "status": "ok",
+      "tools": [
+        {
+          "description": "string",
+          "name": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
+|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
+| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
+| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
+| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+
+## codersdk.ChatContextResource
+
+```json
+{
+  "error": "string",
+  "kind": "instruction_file",
+  "size_bytes": 0,
+  "skill_description": "string",
+  "skill_name": "string",
+  "source": "string",
+  "status": "ok",
+  "tools": [
+    {
+      "description": "string",
+      "name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
+| `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+
+## codersdk.ChatContextResourceKind
+
+```json
+"instruction_file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                |
+|---------------------------------------------------------|
+| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+
+## codersdk.ChatContextResourceStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                              |
+|-------------------------------------------------------|
+| `excluded`, `invalid`, `ok`, `oversize`, `unreadable` |
+
+## codersdk.ChatContextTool
+
+```json
+{
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                       |
+|---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
+| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
 
 ## codersdk.ChatDiffContents
 
@@ -2526,9 +2551,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                             |
-|------------------------------------------------------------------------------------------------------|
-| `auth`, `config`, `generic`, `overloaded`, `rate_limit`, `startup_timeout`, `timeout`, `usage_limit` |
+| Value(s)                                                                                                                                        |
+|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auth`, `config`, `generic`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit` |
 
 ## codersdk.ChatFileMetadata
 
@@ -2553,6 +2578,63 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `name`            | string | false    |              |             |
 | `organization_id` | string | false    |              |             |
 | `owner_id`        | string | false    |              |             |
+
+## codersdk.ChatGroup
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "display_name": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "members": [
+    {
+      "avatar_url": "http://example.com",
+      "created_at": "2019-08-24T14:15:22Z",
+      "email": "user@example.com",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "is_service_account": true,
+      "last_seen_at": "2019-08-24T14:15:22Z",
+      "login_type": "",
+      "name": "string",
+      "status": "active",
+      "theme_preference": "string",
+      "updated_at": "2019-08-24T14:15:22Z",
+      "username": "string"
+    }
+  ],
+  "name": "string",
+  "organization_display_name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "organization_name": "string",
+  "quota_allowance": 0,
+  "role": "read",
+  "source": "user",
+  "total_member_count": 0
+}
+```
+
+### Properties
+
+| Name                        | Type                                                  | Required | Restrictions | Description                                                                                                                                                           |
+|-----------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `avatar_url`                | string                                                | false    |              |                                                                                                                                                                       |
+| `display_name`              | string                                                | false    |              |                                                                                                                                                                       |
+| `id`                        | string                                                | false    |              |                                                                                                                                                                       |
+| `members`                   | array of [codersdk.ReducedUser](#codersdkreduceduser) | false    |              |                                                                                                                                                                       |
+| `name`                      | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_display_name` | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_id`           | string                                                | false    |              |                                                                                                                                                                       |
+| `organization_name`         | string                                                | false    |              |                                                                                                                                                                       |
+| `quota_allowance`           | integer                                               | false    |              |                                                                                                                                                                       |
+| `role`                      | [codersdk.ChatRole](#codersdkchatrole)                | false    |              |                                                                                                                                                                       |
+| `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
+| `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
 
 ## codersdk.ChatInputPart
 
@@ -2605,6 +2687,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -2634,6 +2717,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -2642,6 +2730,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -2694,6 +2783,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "args_delta": "string",
+  "completed_at": "2019-08-24T14:15:22Z",
   "content": "string",
   "context_file_agent_id": {
     "uuid": "string",
@@ -2723,6 +2813,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "media_type": "string",
   "name": "string",
+  "parsed_commands": [
+    [
+      "string"
+    ]
+  ],
   "provider_executed": true,
   "provider_metadata": [
     0
@@ -2731,6 +2826,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     0
   ],
   "result_delta": "string",
+  "result_reset": true,
   "signature": "string",
   "skill_description": "string",
   "skill_dir": "string",
@@ -2748,44 +2844,47 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                        |
-|--------------------------------|--------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
-| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                              |
-| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                          |
-| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                           |
-| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                              |
-| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                |
-| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                 |
-| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value. |
-| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                             |
-| `created_at`                   | string                                                       | false    |              | Created at records when this part was produced. Present on tool-call and tool-result parts so the frontend can compute tool execution duration.                                                                                                                    |
-| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
-| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                    |
-| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                    |
-| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                    |
-| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                    |
-| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                    |
-| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                              |
-| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                              |
-| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                    |
-| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                  |
-| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                              |
-| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                            |
-| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                    |
-| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
-| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                    |
-| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| Name                           | Type                                                         | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                                                |
+|--------------------------------|--------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `args`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `args_delta`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `completed_at`                 | string                                                       | false    |              | Completed at is the time a reasoning part finished streaming, so reasoning duration can be computed as completed_at minus created_at. For interrupted reasoning, this is the interruption time. Absent when reasoning timestamp data was not recorded (e.g. messages persisted before this feature was added).                                                                                             |
+| `content`                      | string                                                       | false    |              | The code content from the diff that was commented on.                                                                                                                                                                                                                                                                                                                                                      |
+| `context_file_agent_id`        | [uuid.NullUUID](#uuidnulluuid)                               | false    |              | Context file agent ID is the workspace agent that provided this context file. Used to detect when the agent changes (e.g. workspace rebuilt) so instruction files can be re-persisted with fresh content.                                                                                                                                                                                                  |
+| `context_file_content`         | string                                                       | false    |              | Context file content holds the file content sent to the LLM. Internal only: stripped before API responses to keep payloads small. The backend reads it when building the prompt via partsToMessageParts.                                                                                                                                                                                                   |
+| `context_file_directory`       | string                                                       | false    |              | Context file directory is the working directory of the workspace agent. Internal only: same purpose as ContextFileOS.                                                                                                                                                                                                                                                                                      |
+| `context_file_os`              | string                                                       | false    |              | Context file os is the operating system of the workspace agent. Internal only: used during prompt expansion so the LLM knows the OS even on turns where InsertSystem is not called.                                                                                                                                                                                                                        |
+| `context_file_path`            | string                                                       | false    |              | Context file path is the absolute path of a file loaded into the LLM context (e.g. an AGENTS.md instruction file).                                                                                                                                                                                                                                                                                         |
+| `context_file_skill_meta_file` | string                                                       | false    |              | Context file skill meta file is the basename of the skill meta file (e.g. "SKILL.md") at the time of persistence. Internal only: restored on subsequent turns so the read_skill tool uses the correct filename even when the agent configured a non-default value.                                                                                                                                         |
+| `context_file_truncated`       | boolean                                                      | false    |              | Context file truncated indicates the file exceeded the 64KiB instruction file limit and was truncated.                                                                                                                                                                                                                                                                                                     |
+| `created_at`                   | string                                                       | false    |              | Created at is the timestamp this part carries. The semantics depend on the part type: for tool-call and tool-result parts it is the time the call was emitted or the result was produced (tool duration is the result's created_at minus the call's created_at); for reasoning parts it is the time reasoning started streaming.                                                                           |
+| `data`                         | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `end_line`                     | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_id`                      | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `file_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_error`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `is_media`                     | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `mcp_server_config_id`         | [uuid.NullUUID](#uuidnulluuid)                               | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `media_type`                   | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `name`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
+| `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `provider_metadata`            | array of integer                                             | false    |              | Provider metadata holds provider-specific response metadata (e.g. Anthropic cache control hints) as raw JSON. Internal only: stripped by db2sdk before API responses.                                                                                                                                                                                                                                      |
+| `result`                       | array of integer                                             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `result_reset`                 | boolean                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `signature`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `skill_description`            | string                                                       | false    |              | Skill description is the short description from the skill's SKILL.md frontmatter.                                                                                                                                                                                                                                                                                                                          |
+| `skill_dir`                    | string                                                       | false    |              | Skill dir is the absolute path to the skill directory inside the workspace filesystem. Internal only: used by read_skill/read_skill_file tools to locate skill files.                                                                                                                                                                                                                                      |
+| `skill_name`                   | string                                                       | false    |              | Skill name is the kebab-case name of a discovered skill from the workspace's .agents/skills/ directory.                                                                                                                                                                                                                                                                                                    |
+| `source_id`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `start_line`                   | integer                                                      | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `text`                         | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `title`                        | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_call_id`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `tool_name`                    | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `type`                         | [codersdk.ChatMessagePartType](#codersdkchatmessageparttype) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `url`                          | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatMessagePartType
 
@@ -2855,6 +2954,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -2884,6 +2984,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2892,6 +2997,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -2931,6 +3037,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -2960,6 +3067,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -2968,6 +3080,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -3101,6 +3214,41 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |----------|
 | `plan`   |
 
+## codersdk.ChatPrompt
+
+```json
+{
+  "id": 0,
+  "text": "string"
+}
+```
+
+### Properties
+
+| Name   | Type    | Required | Restrictions | Description |
+|--------|---------|----------|--------------|-------------|
+| `id`   | integer | false    |              |             |
+| `text` | string  | false    |              |             |
+
+## codersdk.ChatPromptsResponse
+
+```json
+{
+  "prompts": [
+    {
+      "id": 0,
+      "text": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                | Required | Restrictions | Description |
+|-----------|-----------------------------------------------------|----------|--------------|-------------|
+| `prompts` | array of [codersdk.ChatPrompt](#codersdkchatprompt) | false    |              |             |
+
 ## codersdk.ChatQueuedMessage
 
 ```json
@@ -3112,6 +3260,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -3141,6 +3290,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3149,6 +3303,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -3193,6 +3348,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |------------------|---------|----------|--------------|-------------|
 | `retention_days` | integer | false    |              |             |
 
+## codersdk.ChatRole
+
+```json
+"read"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)   |
+|------------|
+| ``, `read` |
+
 ## codersdk.ChatStatus
 
 ```json
@@ -3203,9 +3372,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                           |
-|------------------------------------------------------------------------------------|
-| `completed`, `error`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
+| Value(s)                                                                                           |
+|----------------------------------------------------------------------------------------------------|
+| `completed`, `error`, `interrupting`, `paused`, `pending`, `requires_action`, `running`, `waiting` |
 
 ## codersdk.ChatStreamActionRequired
 
@@ -3257,6 +3426,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -3286,6 +3456,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -3294,6 +3469,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -3324,11 +3500,14 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     }
   },
   "message_part": {
+    "generation_attempt": 0,
+    "history_version": 0,
     "part": {
       "args": [
         0
       ],
       "args_delta": "string",
+      "completed_at": "2019-08-24T14:15:22Z",
       "content": "string",
       "context_file_agent_id": {
         "uuid": "string",
@@ -3358,6 +3537,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       },
       "media_type": "string",
       "name": "string",
+      "parsed_commands": [
+        [
+          "string"
+        ]
+      ],
       "provider_executed": true,
       "provider_metadata": [
         0
@@ -3366,6 +3550,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         0
       ],
       "result_delta": "string",
+      "result_reset": true,
       "signature": "string",
       "skill_description": "string",
       "skill_dir": "string",
@@ -3379,7 +3564,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "type": "text",
       "url": "string"
     },
-    "role": "system"
+    "role": "system",
+    "seq": 0
   },
   "queued_messages": [
     {
@@ -3390,6 +3576,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "args_delta": "string",
+          "completed_at": "2019-08-24T14:15:22Z",
           "content": "string",
           "context_file_agent_id": {
             "uuid": "string",
@@ -3419,6 +3606,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           },
           "media_type": "string",
           "name": "string",
+          "parsed_commands": [
+            [
+              "string"
+            ]
+          ],
           "provider_executed": true,
           "provider_metadata": [
             0
@@ -3427,6 +3619,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             0
           ],
           "result_delta": "string",
+          "result_reset": true,
           "signature": "string",
           "skill_description": "string",
           "skill_dir": "string",
@@ -3486,19 +3679,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                 |
-|------------------------------------------------------------------------------------------|
-| `action_required`, `error`, `message`, `message_part`, `queue_update`, `retry`, `status` |
+| Value(s)                                                                                                                   |
+|----------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `error`, `history_reset`, `message`, `message_part`, `preview_reset`, `queue_update`, `retry`, `status` |
 
 ## codersdk.ChatStreamMessagePart
 
 ```json
 {
+  "generation_attempt": 0,
+  "history_version": 0,
   "part": {
     "args": [
       0
     ],
     "args_delta": "string",
+    "completed_at": "2019-08-24T14:15:22Z",
     "content": "string",
     "context_file_agent_id": {
       "uuid": "string",
@@ -3528,6 +3724,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     },
     "media_type": "string",
     "name": "string",
+    "parsed_commands": [
+      [
+        "string"
+      ]
+    ],
     "provider_executed": true,
     "provider_metadata": [
       0
@@ -3536,6 +3737,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       0
     ],
     "result_delta": "string",
+    "result_reset": true,
     "signature": "string",
     "skill_description": "string",
     "skill_dir": "string",
@@ -3549,16 +3751,20 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "type": "text",
     "url": "string"
   },
-  "role": "system"
+  "role": "system",
+  "seq": 0
 }
 ```
 
 ### Properties
 
-| Name   | Type                                                 | Required | Restrictions | Description |
-|--------|------------------------------------------------------|----------|--------------|-------------|
-| `part` | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
-| `role` | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| Name                 | Type                                                 | Required | Restrictions | Description |
+|----------------------|------------------------------------------------------|----------|--------------|-------------|
+| `generation_attempt` | integer                                              | false    |              |             |
+| `history_version`    | integer                                              | false    |              |             |
+| `part`               | [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |             |
+| `role`               | [codersdk.ChatMessageRole](#codersdkchatmessagerole) | false    |              |             |
+| `seq`                | integer                                              | false    |              |             |
 
 ## codersdk.ChatStreamRetry
 
@@ -3618,6 +3824,34 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `tool_call_id` | string | false    |              |             |
 | `tool_name`    | string | false    |              |             |
 
+## codersdk.ChatUser
+
+```json
+{
+  "avatar_url": "http://example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "role": "read",
+  "username": "string"
+}
+```
+
+### Properties
+
+| Name         | Type                                   | Required | Restrictions | Description |
+|--------------|----------------------------------------|----------|--------------|-------------|
+| `avatar_url` | string                                 | false    |              |             |
+| `id`         | string                                 | true     |              |             |
+| `name`       | string                                 | false    |              |             |
+| `role`       | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `username`   | string                                 | true     |              |             |
+
+#### Enumerated Values
+
+| Property | Value(s) |
+|----------|----------|
+| `role`   | `read`   |
+
 ## codersdk.ChatWatchEvent
 
 ```json
@@ -3630,6 +3864,28 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       {}
     ],
     "client_type": "ui",
+    "context": {
+      "dirty": true,
+      "dirty_since": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "resources": [
+        {
+          "error": "string",
+          "kind": "instruction_file",
+          "size_bytes": 0,
+          "skill_description": "string",
+          "skill_name": "string",
+          "source": "string",
+          "status": "ok",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ]
+        }
+      ]
+    },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
       "additions": 0,
@@ -3676,63 +3932,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "retryable": true,
       "status_code": 0
     },
-    "last_injected_context": [
-      {
-        "args": [
-          0
-        ],
-        "args_delta": "string",
-        "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "context_file_content": "string",
-        "context_file_directory": "string",
-        "context_file_os": "string",
-        "context_file_path": "string",
-        "context_file_skill_meta_file": "string",
-        "context_file_truncated": true,
-        "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
-        "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "file_name": "string",
-        "is_error": true,
-        "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "media_type": "string",
-        "name": "string",
-        "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
-        "result_delta": "string",
-        "signature": "string",
-        "skill_description": "string",
-        "skill_dir": "string",
-        "skill_name": "string",
-        "source_id": "string",
-        "start_line": 0,
-        "text": "string",
-        "title": "string",
-        "tool_call_id": "string",
-        "tool_name": "string",
-        "type": "text",
-        "url": "string"
-      }
-    ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
     "last_turn_summary": "string",
     "mcp_server_ids": [
@@ -3740,10 +3939,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ],
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "owner_name": "string",
+    "owner_username": "string",
     "parent_chat_id": "c3609ee6-3b11-4a93-b9ae-e4fabcc99359",
     "pin_order": 0,
     "plan_mode": "plan",
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+    "shared": true,
     "status": "waiting",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
@@ -3781,9 +3983,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                          |
+|-----------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 
@@ -4042,6 +4244,70 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `password` | string                                   | true     |              |                                          |
 | `to_type`  | [codersdk.LoginType](#codersdklogintype) | true     |              | To type is the login type to convert to. |
 
+## codersdk.CreateAIGatewayKeyRequest
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name   | Type   | Required | Restrictions | Description |
+|--------|--------|----------|--------------|-------------|
+| `name` | string | true     |              |             |
+
+## codersdk.CreateAIGatewayKeyResponse
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name         | Type   | Required | Restrictions | Description |
+|--------------|--------|----------|--------------|-------------|
+| `created_at` | string | false    |              |             |
+| `id`         | string | false    |              |             |
+| `key`        | string | false    |              |             |
+| `key_prefix` | string | false    |              |             |
+| `name`       | string | false    |              |             |
+
+## codersdk.CreateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    "string"
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "name": "string",
+  "settings": {},
+  "type": "openai"
+}
+```
+
+### Properties
+
+| Name           | Type                                                       | Required | Restrictions | Description |
+|----------------|------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of string                                            | false    |              |             |
+| `base_url`     | string                                                     | false    |              |             |
+| `display_name` | string                                                     | false    |              |             |
+| `enabled`      | boolean                                                    | false    |              |             |
+| `name`         | string                                                     | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings) | false    |              |             |
+| `type`         | [codersdk.AIProviderType](#codersdkaiprovidertype)         | false    |              |             |
+
 ## codersdk.CreateChatMessageRequest
 
 ```json
@@ -4094,6 +4360,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -4123,6 +4390,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -4131,6 +4403,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -4169,6 +4442,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -4198,6 +4472,11 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -4206,6 +4485,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -4725,6 +5005,20 @@ This is required on creation to enable a user-flow of validating a template work
 | `name`        | string | false    |              |             |
 | `value`       | string | false    |              |             |
 
+## codersdk.CreateUserSkillRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
+
 ## codersdk.CreateWorkspaceBuildReason
 
 ```json
@@ -5215,6 +5509,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "allowed_private_cidrs": [
           "string"
         ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -5233,6 +5528,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -5241,6 +5537,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -5259,7 +5557,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -5321,6 +5618,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -5469,6 +5767,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -5579,10 +5878,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -5632,6 +5933,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_builder": {
+      "disabled": true,
+      "registry_url": "string"
     },
     "terms_of_service_url": "string",
     "tls": {
@@ -5806,6 +6111,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "allowed_private_cidrs": [
         "string"
       ],
+      "api_dump_dir": "string",
       "cert_file": "string",
       "domain_allowlist": [
         "string"
@@ -5824,6 +6130,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "base_url": "string",
         "key": "string"
       },
+      "api_dump_dir": "string",
       "bedrock": {
         "access_key": "string",
         "access_key_secret": "string",
@@ -5832,6 +6139,8 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "region": "string",
         "small_fast_model": "string"
       },
+      "budget_period": "string",
+      "budget_policy": "string",
       "circuit_breaker_enabled": true,
       "circuit_breaker_failure_threshold": 0,
       "circuit_breaker_interval": 0,
@@ -5850,7 +6159,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "bedrock_model": "string",
           "bedrock_region": "string",
           "bedrock_small_fast_model": "string",
-          "dump_dir": "string",
           "name": "string",
           "type": "string"
         }
@@ -5912,6 +6220,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ]
     }
   },
+  "disable_chat_sharing": true,
   "disable_owner_workspace_exec": true,
   "disable_password_auth": true,
   "disable_path_apps": true,
@@ -6060,6 +6369,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "oidc": {
     "allow_signups": true,
     "auth_url_params": {},
+    "auto_repair_links": true,
     "client_cert_file": "string",
     "client_id": "string",
     "client_key_file": "string",
@@ -6170,10 +6480,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
   "retention": {
     "api_keys": 0,
     "audit_logs": 0,
+    "boundary_logs": 0,
     "connection_logs": 0,
     "workspace_agent_logs": 0
   },
   "scim_api_key": "string",
+  "scim_use_legacy": true,
   "session_lifetime": {
     "default_duration": 0,
     "default_token_lifetime": 0,
@@ -6223,6 +6535,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "scheme": "string",
       "user": {}
     }
+  },
+  "template_builder": {
+    "disabled": true,
+    "registry_url": "string"
   },
   "terms_of_service_url": "string",
   "tls": {
@@ -6293,6 +6609,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `config_ssh`                                   | [codersdk.SSHConfig](#codersdksshconfig)                                                             | false    |              |                                                                    |
 | `dangerous`                                    | [codersdk.DangerousConfig](#codersdkdangerousconfig)                                                 | false    |              |                                                                    |
 | `derp`                                         | [codersdk.DERP](#codersdkderp)                                                                       | false    |              |                                                                    |
+| `disable_chat_sharing`                         | boolean                                                                                              | false    |              |                                                                    |
 | `disable_owner_workspace_exec`                 | boolean                                                                                              | false    |              |                                                                    |
 | `disable_password_auth`                        | boolean                                                                                              | false    |              |                                                                    |
 | `disable_path_apps`                            | boolean                                                                                              | false    |              |                                                                    |
@@ -6329,6 +6646,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `redirect_to_access_url`                       | boolean                                                                                              | false    |              |                                                                    |
 | `retention`                                    | [codersdk.RetentionConfig](#codersdkretentionconfig)                                                 | false    |              |                                                                    |
 | `scim_api_key`                                 | string                                                                                               | false    |              |                                                                    |
+| `scim_use_legacy`                              | boolean                                                                                              | false    |              |                                                                    |
 | `session_lifetime`                             | [codersdk.SessionLifetime](#codersdksessionlifetime)                                                 | false    |              |                                                                    |
 | `ssh_keygen_algorithm`                         | string                                                                                               | false    |              |                                                                    |
 | `stats_collection`                             | [codersdk.StatsCollectionConfig](#codersdkstatscollectionconfig)                                     | false    |              |                                                                    |
@@ -6337,6 +6655,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `support`                                      | [codersdk.SupportConfig](#codersdksupportconfig)                                                     | false    |              |                                                                    |
 | `swagger`                                      | [codersdk.SwaggerConfig](#codersdkswaggerconfig)                                                     | false    |              |                                                                    |
 | `telemetry`                                    | [codersdk.TelemetryConfig](#codersdktelemetryconfig)                                                 | false    |              |                                                                    |
+| `template_builder`                             | [codersdk.TemplateBuilderConfig](#codersdktemplatebuilderconfig)                                     | false    |              |                                                                    |
 | `terms_of_service_url`                         | string                                                                                               | false    |              |                                                                    |
 | `tls`                                          | [codersdk.TLSConfig](#codersdktlsconfig)                                                             | false    |              |                                                                    |
 | `trace`                                        | [codersdk.TraceConfig](#codersdktraceconfig)                                                         | false    |              |                                                                    |
@@ -6407,12 +6726,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type    | Required | Restrictions | Description                                                                                                                                                                            |
-|--------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `id`               | integer | false    |              | ID identifies the request for response ordering. Websocket response IDs are monotonically increasing and may exceed the request ID when server-side events trigger additional renders. |
-| `inputs`           | object  | false    |              |                                                                                                                                                                                        |
-| » `[any property]` | string  | false    |              |                                                                                                                                                                                        |
-| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                                                                                                     |
+| Name               | Type    | Required | Restrictions | Description                                                                                                  |
+|--------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
+| `id`               | integer | false    |              | ID identifies the request. The response contains the same ID so that the client can match it to the request. |
+| `inputs`           | object  | false    |              |                                                                                                              |
+| » `[any property]` | string  | false    |              |                                                                                                              |
+| `owner_id`         | string  | false    |              | Owner ID if uuid.Nil, it defaults to `codersdk.Me`                                                           |
 
 ## codersdk.DynamicParametersResponse
 
@@ -6486,26 +6805,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "value": "string"
       }
     }
-  ],
-  "secret_requirements": [
-    {
-      "env": "string",
-      "file": "string",
-      "help_message": "string",
-      "satisfied": true
-    }
   ]
 }
 ```
 
 ### Properties
 
-| Name                  | Type                                                                          | Required | Restrictions | Description |
-|-----------------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `diagnostics`         | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic)           | false    |              |             |
-| `id`                  | integer                                                                       | false    |              |             |
-| `parameters`          | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)               | false    |              |             |
-| `secret_requirements` | array of [codersdk.SecretRequirementStatus](#codersdksecretrequirementstatus) | false    |              |             |
+| Name          | Type                                                                | Required | Restrictions | Description |
+|---------------|---------------------------------------------------------------------|----------|--------------|-------------|
+| `diagnostics` | array of [codersdk.FriendlyDiagnostic](#codersdkfriendlydiagnostic) | false    |              |             |
+| `id`          | integer                                                             | false    |              |             |
+| `parameters`  | array of [codersdk.PreviewParameter](#codersdkpreviewparameter)     | false    |              |             |
 
 ## codersdk.DynamicTool
 
@@ -6541,15 +6851,17 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "text": "string",
       "type": "text"
     }
-  ]
+  ],
+  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205"
 }
 ```
 
 ### Properties
 
-| Name      | Type                                                      | Required | Restrictions | Description |
-|-----------|-----------------------------------------------------------|----------|--------------|-------------|
-| `content` | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |             |
+| Name              | Type                                                      | Required | Restrictions | Description                                                                                                                                                                  |
+|-------------------|-----------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`         | array of [codersdk.ChatInputPart](#codersdkchatinputpart) | false    |              |                                                                                                                                                                              |
+| `model_config_id` | string                                                    | false    |              | Model config ID when set, overrides the model used for the replacement user message and the assistant turn that follows. When nil the original message's model is preserved. |
 
 ## codersdk.EditChatMessageResponse
 
@@ -6563,6 +6875,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           0
         ],
         "args_delta": "string",
+        "completed_at": "2019-08-24T14:15:22Z",
         "content": "string",
         "context_file_agent_id": {
           "uuid": "string",
@@ -6592,6 +6905,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         },
         "media_type": "string",
         "name": "string",
+        "parsed_commands": [
+          [
+            "string"
+          ]
+        ],
         "provider_executed": true,
         "provider_metadata": [
           0
@@ -6600,6 +6918,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           0
         ],
         "result_delta": "string",
+        "result_reset": true,
         "signature": "string",
         "skill_description": "string",
         "skill_dir": "string",
@@ -6720,9 +7039,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------------------------------|
-| `auto-fill-parameters`, `example`, `mcp-server-http`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                             |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-app-tabs`, `ai-gateway-cost-control`, `auto-fill-parameters`, `example`, `mcp-server-http`, `minimum-implicit-member`, `nats_pubsub`, `notifications`, `oauth2`, `workspace-build-updates`, `workspace-usage` |
 
 ## codersdk.ExternalAPIKeyScopes
 
@@ -7208,6 +7527,26 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `source`                    | [codersdk.GroupSource](#codersdkgroupsource)          | false    |              |                                                                                                                                                                       |
 | `total_member_count`        | integer                                               | false    |              | How many members are in this group. Shows the total count, even if the user is not authorized to read group member details. May be greater than `len(Group.Members)`. |
 
+## codersdk.GroupAIBudget
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `created_at`         | string  | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
+| `updated_at`         | string  | false    |              |             |
+
 ## codersdk.GroupMembersResponse
 
 ```json
@@ -7486,9 +7825,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                      |
-|-------------------------------|
-| `REQUIRED_TEMPLATE_VARIABLES` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES` |
 
 ## codersdk.License
 
@@ -8511,6 +8850,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "allow_signups": true,
   "auth_url_params": {},
+  "auto_repair_links": true,
   "client_cert_file": "string",
   "client_id": "string",
   "client_key_file": "string",
@@ -8581,6 +8921,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 |--------------------------------------|----------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `allow_signups`                      | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `auth_url_params`                    | object                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `auto_repair_links`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_cert_file`                   | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_id`                          | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
@@ -8630,6 +8971,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 ```json
 {
   "created_at": "2019-08-24T14:15:22Z",
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -8642,16 +8986,17 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `created_at`   | string  | true     |              |             |
-| `description`  | string  | false    |              |             |
-| `display_name` | string  | false    |              |             |
-| `icon`         | string  | false    |              |             |
-| `id`           | string  | true     |              |             |
-| `is_default`   | boolean | true     |              |             |
-| `name`         | string  | false    |              |             |
-| `updated_at`   | string  | true     |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                                                                                     |
+|----------------------------|-----------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`               | string          | true     |              |                                                                                                                                                 |
+| `default_org_member_roles` | array of string | false    |              | Default org member roles are unioned into every member's effective roles at request time. Changes propagate to all members on the next request. |
+| `description`              | string          | false    |              |                                                                                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                                                                                 |
+| `id`                       | string          | true     |              |                                                                                                                                                 |
+| `is_default`               | boolean         | true     |              |                                                                                                                                                 |
+| `name`                     | string          | false    |              |                                                                                                                                                 |
+| `updated_at`               | string          | true     |              |                                                                                                                                                 |
 
 ## codersdk.OrganizationMember
 
@@ -8770,219 +9115,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `mapping`                     | object          | false    |              | Mapping maps from an OIDC claim --> Coder organization uuid                                                                                                                         |
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
-
-## codersdk.PRInsightsModelBreakdown
-
-```json
-{
-  "cost_per_merged_pr_micros": 0,
-  "display_name": "string",
-  "merge_rate": 0,
-  "merged_prs": 0,
-  "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-  "provider": "string",
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs": 0
-}
-```
-
-### Properties
-
-| Name                        | Type    | Required | Restrictions | Description |
-|-----------------------------|---------|----------|--------------|-------------|
-| `cost_per_merged_pr_micros` | integer | false    |              |             |
-| `display_name`              | string  | false    |              |             |
-| `merge_rate`                | number  | false    |              |             |
-| `merged_prs`                | integer | false    |              |             |
-| `model_config_id`           | string  | false    |              |             |
-| `provider`                  | string  | false    |              |             |
-| `total_additions`           | integer | false    |              |             |
-| `total_cost_micros`         | integer | false    |              |             |
-| `total_deletions`           | integer | false    |              |             |
-| `total_prs`                 | integer | false    |              |             |
-
-## codersdk.PRInsightsPullRequest
-
-```json
-{
-  "additions": 0,
-  "approved": true,
-  "author_avatar_url": "string",
-  "author_login": "string",
-  "base_branch": "string",
-  "changed_files": 0,
-  "changes_requested": true,
-  "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-  "commits": 0,
-  "cost_micros": 0,
-  "created_at": "2019-08-24T14:15:22Z",
-  "deletions": 0,
-  "draft": true,
-  "model_display_name": "string",
-  "pr_number": 0,
-  "pr_title": "string",
-  "pr_url": "string",
-  "reviewer_count": 0,
-  "state": "string"
-}
-```
-
-### Properties
-
-| Name                 | Type    | Required | Restrictions | Description |
-|----------------------|---------|----------|--------------|-------------|
-| `additions`          | integer | false    |              |             |
-| `approved`           | boolean | false    |              |             |
-| `author_avatar_url`  | string  | false    |              |             |
-| `author_login`       | string  | false    |              |             |
-| `base_branch`        | string  | false    |              |             |
-| `changed_files`      | integer | false    |              |             |
-| `changes_requested`  | boolean | false    |              |             |
-| `chat_id`            | string  | false    |              |             |
-| `commits`            | integer | false    |              |             |
-| `cost_micros`        | integer | false    |              |             |
-| `created_at`         | string  | false    |              |             |
-| `deletions`          | integer | false    |              |             |
-| `draft`              | boolean | false    |              |             |
-| `model_display_name` | string  | false    |              |             |
-| `pr_number`          | integer | false    |              |             |
-| `pr_title`           | string  | false    |              |             |
-| `pr_url`             | string  | false    |              |             |
-| `reviewer_count`     | integer | false    |              |             |
-| `state`              | string  | false    |              |             |
-
-## codersdk.PRInsightsResponse
-
-```json
-{
-  "by_model": [
-    {
-      "cost_per_merged_pr_micros": 0,
-      "display_name": "string",
-      "merge_rate": 0,
-      "merged_prs": 0,
-      "model_config_id": "f5fb4d91-62ca-4377-9ee6-5d43ba00d205",
-      "provider": "string",
-      "total_additions": 0,
-      "total_cost_micros": 0,
-      "total_deletions": 0,
-      "total_prs": 0
-    }
-  ],
-  "recent_prs": [
-    {
-      "additions": 0,
-      "approved": true,
-      "author_avatar_url": "string",
-      "author_login": "string",
-      "base_branch": "string",
-      "changed_files": 0,
-      "changes_requested": true,
-      "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
-      "commits": 0,
-      "cost_micros": 0,
-      "created_at": "2019-08-24T14:15:22Z",
-      "deletions": 0,
-      "draft": true,
-      "model_display_name": "string",
-      "pr_number": 0,
-      "pr_title": "string",
-      "pr_url": "string",
-      "reviewer_count": 0,
-      "state": "string"
-    }
-  ],
-  "summary": {
-    "approval_rate": 0,
-    "cost_per_merged_pr_micros": 0,
-    "merge_rate": 0,
-    "prev_cost_per_merged_pr_micros": 0,
-    "prev_merge_rate": 0,
-    "prev_total_prs_created": 0,
-    "prev_total_prs_merged": 0,
-    "total_additions": 0,
-    "total_cost_micros": 0,
-    "total_deletions": 0,
-    "total_prs_created": 0,
-    "total_prs_merged": 0
-  },
-  "time_series": [
-    {
-      "date": "2019-08-24T14:15:22Z",
-      "prs_closed": 0,
-      "prs_created": 0,
-      "prs_merged": 0
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name          | Type                                                                              | Required | Restrictions | Description |
-|---------------|-----------------------------------------------------------------------------------|----------|--------------|-------------|
-| `by_model`    | array of [codersdk.PRInsightsModelBreakdown](#codersdkprinsightsmodelbreakdown)   | false    |              |             |
-| `recent_prs`  | array of [codersdk.PRInsightsPullRequest](#codersdkprinsightspullrequest)         | false    |              |             |
-| `summary`     | [codersdk.PRInsightsSummary](#codersdkprinsightssummary)                          | false    |              |             |
-| `time_series` | array of [codersdk.PRInsightsTimeSeriesEntry](#codersdkprinsightstimeseriesentry) | false    |              |             |
-
-## codersdk.PRInsightsSummary
-
-```json
-{
-  "approval_rate": 0,
-  "cost_per_merged_pr_micros": 0,
-  "merge_rate": 0,
-  "prev_cost_per_merged_pr_micros": 0,
-  "prev_merge_rate": 0,
-  "prev_total_prs_created": 0,
-  "prev_total_prs_merged": 0,
-  "total_additions": 0,
-  "total_cost_micros": 0,
-  "total_deletions": 0,
-  "total_prs_created": 0,
-  "total_prs_merged": 0
-}
-```
-
-### Properties
-
-| Name                             | Type    | Required | Restrictions | Description |
-|----------------------------------|---------|----------|--------------|-------------|
-| `approval_rate`                  | number  | false    |              |             |
-| `cost_per_merged_pr_micros`      | integer | false    |              |             |
-| `merge_rate`                     | number  | false    |              |             |
-| `prev_cost_per_merged_pr_micros` | integer | false    |              |             |
-| `prev_merge_rate`                | number  | false    |              |             |
-| `prev_total_prs_created`         | integer | false    |              |             |
-| `prev_total_prs_merged`          | integer | false    |              |             |
-| `total_additions`                | integer | false    |              |             |
-| `total_cost_micros`              | integer | false    |              |             |
-| `total_deletions`                | integer | false    |              |             |
-| `total_prs_created`              | integer | false    |              |             |
-| `total_prs_merged`               | integer | false    |              |             |
-
-## codersdk.PRInsightsTimeSeriesEntry
-
-```json
-{
-  "date": "2019-08-24T14:15:22Z",
-  "prs_closed": 0,
-  "prs_created": 0,
-  "prs_merged": 0
-}
-```
-
-### Properties
-
-| Name          | Type    | Required | Restrictions | Description |
-|---------------|---------|----------|--------------|-------------|
-| `date`        | string  | false    |              |             |
-| `prs_closed`  | integer | false    |              |             |
-| `prs_created` | integer | false    |              |             |
-| `prs_merged`  | integer | false    |              |             |
 
 ## codersdk.PaginatedMembersResponse
 
@@ -10007,7 +10139,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 | Property     | Value(s)                                                             |
 |--------------|----------------------------------------------------------------------|
-| `error_code` | `REQUIRED_TEMPLATE_VARIABLES`                                        |
+| `error_code` | `INSUFFICIENT_QUOTA`, `REQUIRED_TEMPLATE_VARIABLES`                  |
 | `status`     | `canceled`, `canceling`, `failed`, `pending`, `running`, `succeeded` |
 
 ## codersdk.ProvisionerJobInput
@@ -10357,9 +10489,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `*`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `*`, `ai_gateway_key`, `ai_model_price`, `ai_provider`, `ai_seat`, `aibridge_interception`, `api_key`, `assign_org_role`, `assign_role`, `audit_log`, `boundary_log`, `boundary_usage`, `chat`, `connection_log`, `crypto_key`, `debug_info`, `deployment_config`, `deployment_stats`, `file`, `group`, `group_member`, `idpsync_settings`, `inbox_notification`, `license`, `notification_message`, `notification_preference`, `notification_template`, `oauth2_app`, `oauth2_app_code_token`, `oauth2_app_secret`, `organization`, `organization_member`, `prebuilt_workspace`, `provisioner_daemon`, `provisioner_jobs`, `replicas`, `system`, `tailnet_coordinator`, `task`, `template`, `usage_event`, `user`, `user_secret`, `user_skill`, `webpush_subscription`, `workspace`, `workspace_agent_devcontainers`, `workspace_agent_resource_monitor`, `workspace_dormant`, `workspace_proxy` |
 
 ## codersdk.RateLimitConfig
 
@@ -10575,9 +10707,9 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_secret`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `convert_login`, `custom_role`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `organization`, `organization_member`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -10830,6 +10962,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 {
   "api_keys": 0,
   "audit_logs": 0,
+  "boundary_logs": 0,
   "connection_logs": 0,
   "workspace_agent_logs": 0
 }
@@ -10837,12 +10970,13 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 
 ### Properties
 
-| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                      |
-|------------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                     |
-| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                            |
-| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                  |
-| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior. |
+| Name                   | Type    | Required | Restrictions | Description                                                                                                                                                                                                                                                                          |
+|------------------------|---------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `api_keys`             | integer | false    |              | Api keys controls how long expired API keys are retained before being deleted. Keys are only deleted if they have been expired for at least this duration. Defaults to 7 days to preserve existing behavior.                                                                         |
+| `audit_logs`           | integer | false    |              | Audit logs controls how long audit log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                                |
+| `boundary_logs`        | integer | false    |              | Boundary logs controls how long boundary audit log entries are retained. Boundary logs record every HTTP request processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements. |
+| `connection_logs`      | integer | false    |              | Connection logs controls how long connection log entries are retained. Set to 0 to disable (keep indefinitely).                                                                                                                                                                      |
+| `workspace_agent_logs` | integer | false    |              | Workspace agent logs controls how long workspace agent logs are retained. Logs are deleted if the agent hasn't connected within this period. Logs from the latest build are always retained regardless of age. Defaults to 7 days to preserve existing behavior.                     |
 
 ## codersdk.Role
 
@@ -10957,26 +11091,6 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `hostname_suffix`    | string | false    |              | Hostname suffix is the suffix to append to workspace names for SSH hostnames.                                         |
 | `ssh_config_options` | object | false    |              |                                                                                                                       |
 | » `[any property]`   | string | false    |              |                                                                                                                       |
-
-## codersdk.SecretRequirementStatus
-
-```json
-{
-  "env": "string",
-  "file": "string",
-  "help_message": "string",
-  "satisfied": true
-}
-```
-
-### Properties
-
-| Name           | Type    | Required | Restrictions | Description |
-|----------------|---------|----------|--------------|-------------|
-| `env`          | string  | false    |              |             |
-| `file`         | string  | false    |              |             |
-| `help_message` | string  | false    |              |             |
-| `satisfied`    | boolean | false    |              |             |
 
 ## codersdk.ServerSentEvent
 
@@ -11801,6 +11915,381 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |------------------|------------------------------------------------------|----------|--------------|-------------|
 | `[any property]` | [codersdk.TransitionStats](#codersdktransitionstats) | false    |              |             |
 
+## codersdk.TemplateBuilderBase
+
+```json
+{
+  "description": "string",
+  "icon": "string",
+  "id": "string",
+  "name": "string",
+  "os": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name          | Type                                                                                      | Required | Restrictions | Description |
+|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description` | string                                                                                    | false    |              |             |
+| `icon`        | string                                                                                    | false    |              |             |
+| `id`          | string                                                                                    | false    |              |             |
+| `name`        | string                                                                                    | false    |              |             |
+| `os`          | string                                                                                    | false    |              |             |
+| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+
+## codersdk.TemplateBuilderBasesResponse
+
+```json
+{
+  "bases": [
+    {
+      "description": "string",
+      "icon": "string",
+      "id": "string",
+      "name": "string",
+      "os": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name    | Type                                                                  | Required | Restrictions | Description |
+|---------|-----------------------------------------------------------------------|----------|--------------|-------------|
+| `bases` | array of [codersdk.TemplateBuilderBase](#codersdktemplatebuilderbase) | false    |              |             |
+
+## codersdk.TemplateBuilderComposeModule
+
+```json
+{
+  "id": "string",
+  "variables": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `id`               | string | false    |              |             |
+| `variables`        | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+
+## codersdk.TemplateBuilderComposeRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+
+## codersdk.TemplateBuilderConfig
+
+```json
+{
+  "disabled": true,
+  "registry_url": "string"
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description |
+|----------------|---------|----------|--------------|-------------|
+| `disabled`     | boolean | false    |              |             |
+| `registry_url` | string  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateRequest
+
+```json
+{
+  "base_template_id": "string",
+  "base_variable_values": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "modules": [
+    {
+      "id": "string",
+      "variables": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "name": "string",
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "provisioner_tags": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name                   | Type                                                                                    | Required | Restrictions | Description |
+|------------------------|-----------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `base_template_id`     | string                                                                                  | false    |              |             |
+| `base_variable_values` | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+| `description`          | string                                                                                  | false    |              |             |
+| `display_name`         | string                                                                                  | false    |              |             |
+| `icon`                 | string                                                                                  | false    |              |             |
+| `modules`              | array of [codersdk.TemplateBuilderComposeModule](#codersdktemplatebuildercomposemodule) | false    |              |             |
+| `name`                 | string                                                                                  | true     |              |             |
+| `organization_id`      | string                                                                                  | true     |              |             |
+| `provisioner_tags`     | object                                                                                  | false    |              |             |
+| » `[any property]`     | string                                                                                  | false    |              |             |
+
+## codersdk.TemplateBuilderCreateTemplateResponse
+
+```json
+{
+  "template": {
+    "active_user_count": 0,
+    "active_version_id": "eae64611-bd53-4a80-bb77-df1e432c0fbc",
+    "activity_bump_ms": 0,
+    "allow_user_autostart": true,
+    "allow_user_autostop": true,
+    "allow_user_cancel_workspace_jobs": true,
+    "autostart_requirement": {
+      "days_of_week": [
+        "monday"
+      ]
+    },
+    "autostop_requirement": {
+      "days_of_week": [
+        "monday"
+      ],
+      "weeks": 0
+    },
+    "build_time_stats": {
+      "property1": {
+        "p50": 123,
+        "p95": 146
+      },
+      "property2": {
+        "p50": 123,
+        "p95": 146
+      }
+    },
+    "cors_behavior": "simple",
+    "created_at": "2019-08-24T14:15:22Z",
+    "created_by_id": "9377d689-01fb-4abf-8450-3368d2c1924f",
+    "created_by_name": "string",
+    "default_ttl_ms": 0,
+    "deleted": true,
+    "deprecated": true,
+    "deprecation_message": "string",
+    "description": "string",
+    "disable_module_cache": true,
+    "display_name": "string",
+    "failure_ttl_ms": 0,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "max_port_share_level": "owner",
+    "name": "string",
+    "organization_display_name": "string",
+    "organization_icon": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "organization_name": "string",
+    "provisioner": "terraform",
+    "require_active_version": true,
+    "time_til_dormant_autodelete_ms": 0,
+    "time_til_dormant_ms": 0,
+    "updated_at": "2019-08-24T14:15:22Z",
+    "use_classic_parameter_flow": true
+  }
+}
+```
+
+### Properties
+
+| Name       | Type                                   | Required | Restrictions | Description |
+|------------|----------------------------------------|----------|--------------|-------------|
+| `template` | [codersdk.Template](#codersdktemplate) | false    |              |             |
+
+## codersdk.TemplateBuilderModule
+
+```json
+{
+  "category": "string",
+  "compatible_os": [
+    "string"
+  ],
+  "conflicts_with": [
+    "string"
+  ],
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "string",
+  "variables": [
+    {
+      "default": [
+        0
+      ],
+      "description": "string",
+      "name": "string",
+      "required": true,
+      "sensitive": true,
+      "type": "string"
+    }
+  ],
+  "version": "string"
+}
+```
+
+### Properties
+
+| Name             | Type                                                                                      | Required | Restrictions | Description |
+|------------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `category`       | string                                                                                    | false    |              |             |
+| `compatible_os`  | array of string                                                                           | false    |              |             |
+| `conflicts_with` | array of string                                                                           | false    |              |             |
+| `description`    | string                                                                                    | false    |              |             |
+| `display_name`   | string                                                                                    | false    |              |             |
+| `icon`           | string                                                                                    | false    |              |             |
+| `id`             | string                                                                                    | false    |              |             |
+| `variables`      | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| `version`        | string                                                                                    | false    |              |             |
+
+## codersdk.TemplateBuilderModuleVariable
+
+```json
+{
+  "default": [
+    0
+  ],
+  "description": "string",
+  "name": "string",
+  "required": true,
+  "sensitive": true,
+  "type": "string"
+}
+```
+
+### Properties
+
+| Name          | Type                                                                         | Required | Restrictions | Description |
+|---------------|------------------------------------------------------------------------------|----------|--------------|-------------|
+| `default`     | array of integer                                                             | false    |              |             |
+| `description` | string                                                                       | false    |              |             |
+| `name`        | string                                                                       | false    |              |             |
+| `required`    | boolean                                                                      | false    |              |             |
+| `sensitive`   | boolean                                                                      | false    |              |             |
+| `type`        | [codersdk.TemplateBuilderVariableType](#codersdktemplatebuildervariabletype) | false    |              |             |
+
+## codersdk.TemplateBuilderModulesResponse
+
+```json
+{
+  "modules": [
+    {
+      "category": "string",
+      "compatible_os": [
+        "string"
+      ],
+      "conflicts_with": [
+        "string"
+      ],
+      "description": "string",
+      "display_name": "string",
+      "icon": "string",
+      "id": "string",
+      "variables": [
+        {
+          "default": [
+            0
+          ],
+          "description": "string",
+          "name": "string",
+          "required": true,
+          "sensitive": true,
+          "type": "string"
+        }
+      ],
+      "version": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type                                                                      | Required | Restrictions | Description |
+|-----------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `modules` | array of [codersdk.TemplateBuilderModule](#codersdktemplatebuildermodule) | false    |              |             |
+
+## codersdk.TemplateBuilderVariableType
+
+```json
+"string"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                   |
+|----------------------------|
+| `bool`, `number`, `string` |
+
 ## codersdk.TemplateExample
 
 ```json
@@ -12430,6 +12919,20 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |-------------------------------------------------------------------------------------|
 | ``, `fira-code`, `geist-mono`, `ibm-plex-mono`, `jetbrains-mono`, `source-code-pro` |
 
+## codersdk.ThemeMode
+
+```json
+""
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)             |
+|----------------------|
+| ``, `single`, `sync` |
+
 ## codersdk.ThinkingDisplayMode
 
 ```json
@@ -12508,6 +13011,33 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `p50` | integer | false    |              |             |
 | `p95` | integer | false    |              |             |
 
+## codersdk.UpdateAIProviderRequest
+
+```json
+{
+  "api_keys": [
+    {
+      "api_key": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    }
+  ],
+  "base_url": "string",
+  "display_name": "string",
+  "enabled": true,
+  "settings": {}
+}
+```
+
+### Properties
+
+| Name           | Type                                                                      | Required | Restrictions | Description |
+|----------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `api_keys`     | array of [codersdk.AIProviderKeyMutation](#codersdkaiproviderkeymutation) | false    |              |             |
+| `base_url`     | string                                                                    | false    |              |             |
+| `display_name` | string                                                                    | false    |              |             |
+| `enabled`      | boolean                                                                   | false    |              |             |
+| `settings`     | [codersdk.AIProviderSettings](#codersdkaiprovidersettings)                | false    |              |             |
+
 ## codersdk.UpdateActiveTemplateVersion
 
 ```json
@@ -12551,6 +13081,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `application_name`     | string                                                  | false    |              |                                                                     |
 | `logo_url`             | string                                                  | false    |              |                                                                     |
 | `service_banner`       | [codersdk.BannerConfig](#codersdkbannerconfig)          | false    |              | Deprecated: ServiceBanner has been replaced by AnnouncementBanners. |
+
+## codersdk.UpdateChatACL
+
+```json
+{
+  "group_roles": {
+    "property1": "read",
+    "property2": "read"
+  },
+  "user_roles": {
+    "property1": "read",
+    "property2": "read"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                   | Required | Restrictions | Description |
+|--------------------|----------------------------------------|----------|--------------|-------------|
+| `group_roles`      | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
+| `user_roles`       | object                                 | false    |              |             |
+| » `[any property]` | [codersdk.ChatRole](#codersdkchatrole) | false    |              |             |
 
 ## codersdk.UpdateChatRequest
 
@@ -12616,6 +13170,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "default_org_member_roles": [
+    "string"
+  ],
   "description": "string",
   "display_name": "string",
   "icon": "string",
@@ -12625,12 +13182,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `description`  | string | false    |              |             |
-| `display_name` | string | false    |              |             |
-| `icon`         | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                       | Type            | Required | Restrictions | Description                                                                     |
+|----------------------------|-----------------|----------|--------------|---------------------------------------------------------------------------------|
+| `default_org_member_roles` | array of string | false    |              | Default org member roles when non-nil, replaces the org's default member roles. |
+| `description`              | string          | false    |              |                                                                                 |
+| `display_name`             | string          | false    |              |                                                                                 |
+| `icon`                     | string          | false    |              |                                                                                 |
+| `name`                     | string          | false    |              |                                                                                 |
 
 ## codersdk.UpdateRoles
 
@@ -12758,16 +13316,30 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "light",
+  "theme_light": "light",
+  "theme_mode": "sync",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |             |
-| `theme_preference` | string                                                 | true     |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                        |
+|--------------------|--------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | true     |              |                                                                                                                                                                                                                                                                                                                    |
+| `theme_dark`       | string                                                 | false    |              | Theme dark is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                    |
+| `theme_light`      | string                                                 | false    |              | Theme light is required when ThemeMode is "sync". In "single" mode an empty value means "preserve the previously persisted slot" rather than "clear the slot", so partial updates that send only one slot keep the other intact.                                                                                   |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              | Theme mode is optional for backward compatibility. When empty, the server leaves theme_mode, theme_light, and theme_dark unchanged so older CLI clients do not erase sync-mode settings. Legacy auto preferences are the exception: they clear theme_mode so clients can migrate the old sync-with-system setting. |
+| `theme_preference` | string                                                 | true     |              |                                                                                                                                                                                                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property      | Value(s)                                                                                    |
+|---------------|---------------------------------------------------------------------------------------------|
+| `theme_dark`  | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_light` | `dark`, `dark-protan-deuter`, `dark-tritan`, `light`, `light-protan-deuter`, `light-tritan` |
+| `theme_mode`  | `single`, `sync`                                                                            |
 
 ## codersdk.UpdateUserNotificationPreferences
 
@@ -12807,6 +13379,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
+  "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -12814,10 +13389,13 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name                                | Type                                                         | Required | Restrictions | Description |
-|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -12870,6 +13448,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `env_name`    | string | false    |              |             |
 | `file_path`   | string | false    |              |             |
 | `value`       | string | false    |              |             |
+
+## codersdk.UpdateUserSkillRequest
+
+```json
+{
+  "content": "string"
+}
+```
+
+### Properties
+
+| Name      | Type   | Required | Restrictions | Description                                                                                                                                                           |
+|-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
 ## codersdk.UpdateWorkspaceACL
 
@@ -13031,6 +13623,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |--------|--------|----------|--------------|-------------|
 | `hash` | string | false    |              |             |
 
+## codersdk.UpsertGroupAIBudgetRequest
+
+```json
+{
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `spend_limit_micros` | integer | false    |              |             |
+
+## codersdk.UpsertUserAIBudgetOverrideRequest
+
+```json
+{
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                       |
+|----------------------|---------|----------|--------------|---------------------------------------------------------------------------------------------------|
+| `group_id`           | string  | true     |              | Group ID is the group the user's spend is attributed to. The user must be a member of this group. |
+| `spend_limit_micros` | integer | false    |              |                                                                                                   |
+
 ## codersdk.UpsertWorkspaceAgentPortShareRequest
 
 ```json
@@ -13160,6 +13782,28 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 |----------|-----------------------|
 | `status` | `active`, `suspended` |
 
+## codersdk.UserAIBudgetOverride
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `created_at`         | string  | false    |              |             |
+| `group_id`           | string  | false    |              |             |
+| `spend_limit_micros` | integer | false    |              |             |
+| `updated_at`         | string  | false    |              |             |
+| `user_id`            | string  | false    |              |             |
+
 ## codersdk.UserActivity
 
 ```json
@@ -13252,16 +13896,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 ```json
 {
   "terminal_font": "",
+  "theme_dark": "string",
+  "theme_light": "string",
+  "theme_mode": "",
   "theme_preference": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                   | Required | Restrictions | Description |
-|--------------------|--------------------------------------------------------|----------|--------------|-------------|
-| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |             |
-| `theme_preference` | string                                                 | false    |              |             |
+| Name               | Type                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                               |
+|--------------------|--------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `terminal_font`    | [codersdk.TerminalFontName](#codersdkterminalfontname) | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_dark`       | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_light`      | string                                                 | false    |              | Ignored when ThemeMode is "single"                                                                                                                                                                                                                                                                                                        |
+| `theme_mode`       | [codersdk.ThemeMode](#codersdkthememode)               | false    |              |                                                                                                                                                                                                                                                                                                                                           |
+| `theme_preference` | string                                                 | false    |              | Theme preference is the legacy single-field appearance setting. In "single" mode it mirrors the active theme. In "sync" mode modern clients normally mirror the active OS slot, but older clients can update only this field, so it may diverge from ThemeLight or ThemeDark until a modern client saves the full appearance state again. |
 
 ## codersdk.UserLatency
 
@@ -13393,6 +14043,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "agent_chat_send_shortcut": "enter",
+  "code_diff_display_mode": "auto",
+  "shell_tool_display_mode": "auto",
   "task_notification_alert_dismissed": true,
   "thinking_display_mode": "auto"
 }
@@ -13400,10 +14053,13 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                                | Type                                                         | Required | Restrictions | Description |
-|-------------------------------------|--------------------------------------------------------------|----------|--------------|-------------|
-| `task_notification_alert_dismissed` | boolean                                                      | false    |              |             |
-| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode) | false    |              |             |
+| Name                                | Type                                                             | Required | Restrictions | Description |
+|-------------------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`          | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`            | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `shell_tool_display_mode`           | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `task_notification_alert_dismissed` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`             | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 
@@ -13467,6 +14123,52 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `description` | string | false    |              |             |
 | `env_name`    | string | false    |              |             |
 | `file_path`   | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+
+## codersdk.UserSkill
+
+```json
+{
+  "content": "string",
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `content`     | string | false    |              |             |
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
+| `id`          | string | false    |              |             |
+| `name`        | string | false    |              |             |
+| `updated_at`  | string | false    |              |             |
+
+## codersdk.UserSkillMetadata
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description |
+|---------------|--------|----------|--------------|-------------|
+| `created_at`  | string | false    |              |             |
+| `description` | string | false    |              |             |
 | `id`          | string | false    |              |             |
 | `name`        | string | false    |              |             |
 | `updated_at`  | string | false    |              |             |
@@ -17239,6 +17941,57 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 None
 
+## legacyscim.SCIMUser
+
+```json
+{
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [
+    null
+  ],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": [
+    "string"
+  ],
+  "userName": "string"
+}
+```
+
+### Properties
+
+| Name             | Type               | Required | Restrictions | Description                                                                 |
+|------------------|--------------------|----------|--------------|-----------------------------------------------------------------------------|
+| `active`         | boolean            | false    |              | Active is a ptr to prevent the empty value from being interpreted as false. |
+| `emails`         | array of object    | false    |              |                                                                             |
+| `» display`      | string             | false    |              |                                                                             |
+| `» primary`      | boolean            | false    |              |                                                                             |
+| `» type`         | string             | false    |              |                                                                             |
+| `» value`        | string             | false    |              |                                                                             |
+| `groups`         | array of undefined | false    |              |                                                                             |
+| `id`             | string             | false    |              |                                                                             |
+| `meta`           | object             | false    |              |                                                                             |
+| `» resourceType` | string             | false    |              |                                                                             |
+| `name`           | object             | false    |              |                                                                             |
+| `» familyName`   | string             | false    |              |                                                                             |
+| `» givenName`    | string             | false    |              |                                                                             |
+| `schemas`        | array of string    | false    |              |                                                                             |
+| `userName`       | string             | false    |              |                                                                             |
+
 ## netcheck.Report
 
 ```json
@@ -17983,6 +18736,101 @@ None
 | `derp_map`                   | [tailcfg.DERPMap](#tailcfgderpmap) | false    |              |             |
 | `disable_direct_connections` | boolean                            | false    |              |             |
 | `hostname_suffix`            | string                             | false    |              |             |
+
+## workspacesdk.AgentUpdate
+
+```json
+{
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "lifecycle": "created"
+}
+```
+
+### Properties
+
+| Name        | Type                                                                 | Required | Restrictions | Description |
+|-------------|----------------------------------------------------------------------|----------|--------------|-------------|
+| `id`        | string                                                               | false    |              |             |
+| `lifecycle` | [codersdk.WorkspaceAgentLifecycle](#codersdkworkspaceagentlifecycle) | false    |              |             |
+
+## workspacesdk.BuildUpdate
+
+```json
+{
+  "job_status": "pending",
+  "transition": "start"
+}
+```
+
+### Properties
+
+| Name         | Type                                                           | Required | Restrictions | Description |
+|--------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `job_status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `transition` | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)   | false    |              |             |
+
+## workspacesdk.ConnectionWatchEvent
+
+```json
+{
+  "agent_update": {
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "lifecycle": "created"
+  },
+  "build_update": {
+    "job_status": "pending",
+    "transition": "start"
+  },
+  "error": {
+    "code": 0,
+    "details": "string",
+    "message": "string",
+    "retryable": true
+  }
+}
+```
+
+### Properties
+
+| Name           | Type                                                 | Required | Restrictions | Description |
+|----------------|------------------------------------------------------|----------|--------------|-------------|
+| `agent_update` | [workspacesdk.AgentUpdate](#workspacesdkagentupdate) | false    |              |             |
+| `build_update` | [workspacesdk.BuildUpdate](#workspacesdkbuildupdate) | false    |              |             |
+| `error`        | [workspacesdk.WatchError](#workspacesdkwatcherror)   | false    |              |             |
+
+## workspacesdk.WatchError
+
+```json
+{
+  "code": 0,
+  "details": "string",
+  "message": "string",
+  "retryable": true
+}
+```
+
+### Properties
+
+| Name        | Type                                                       | Required | Restrictions | Description |
+|-------------|------------------------------------------------------------|----------|--------------|-------------|
+| `code`      | [workspacesdk.WatchErrorCode](#workspacesdkwatcherrorcode) | false    |              |             |
+| `details`   | string                                                     | false    |              |             |
+| `message`   | string                                                     | false    |              |             |
+| `retryable` | boolean                                                    | false    |              |             |
+
+## workspacesdk.WatchErrorCode
+
+```json
+0
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                          |
+|-----------------------------------|
+| `0`, `1`, `2`, `3`, `4`, `5`, `6` |
 
 ## wsproxysdk.CryptoKeysResponse
 

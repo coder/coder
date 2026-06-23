@@ -39,66 +39,155 @@ scan_all_files() {
 	fi
 }
 
+# resolve_merge_base finds the merge-base between HEAD and the given ref.
+# In shallow CI clones the merge-base is not directly reachable, so we
+# query the PR commit count via `gh`, deepen HEAD by count+1, and
+# resolve HEAD~N which is the parent of the first PR commit.
+resolve_merge_base() {
+	local base_ref="$1"
+
+	# Fast path: merge-base already reachable (full clone or sufficient depth).
+	local mb
+	mb=$(git merge-base HEAD "$base_ref" 2>/dev/null || true)
+	if [[ -n "$mb" ]]; then
+		echo "$mb"
+		return
+	fi
+
+	if ! command -v gh >/dev/null 2>&1; then
+		echo "gh CLI not found, cannot determine PR commit count." >&2
+		return
+	fi
+
+	# Use the PR commit count to deepen HEAD past the PR commits.
+	# HEAD~N is the parent of the oldest PR commit, i.e. the merge-base.
+	local count
+	count=$(gh pr view --json commits --jq '.commits | length' 2>/dev/null || true)
+	if [[ -z "$count" || "$count" -le 0 ]]; then
+		echo "Could not determine PR commit count from gh." >&2
+		return
+	fi
+
+	echo "Deepening HEAD by $((count + 1)) to reach PR base..." >&2
+	git fetch --deepen="$((count + 1))" 2>/dev/null || true
+
+	# Retry merge-base now that we have more history.
+	mb=$(git merge-base HEAD "$base_ref" 2>/dev/null || true)
+	if [[ -n "$mb" ]]; then
+		echo "$mb"
+		return
+	fi
+
+	# Last resort: walk first-parent history. This is correct for
+	# linear PRs but may traverse the wrong branch for merge-commit
+	# checkouts.
+	git rev-parse --verify "HEAD~${count}" 2>/dev/null || true
+}
+
+# fetch_base_ref ensures origin/$GITHUB_BASE_REF is available locally.
+# CI shallow clones (fetch-depth: 1) typically omit the base branch.
+fetch_base_ref() {
+	local base_ref="$1"
+
+	if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	local ref="${base_ref#origin/}"
+	echo "Base ref $base_ref not found locally, fetching $ref..." >&2
+	git fetch origin "$ref" --depth=1 2>/dev/null || true
+
+	if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+		echo "ERROR: could not fetch base ref $base_ref." >&2
+		return 1
+	fi
+}
+
+# resolve_diff_base determines the base ref to diff against.
+resolve_diff_base() {
+	# CI pull requests: use merge-base against the target branch.
+	if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+		local base_ref="origin/${GITHUB_BASE_REF}"
+		fetch_base_ref "$base_ref" || return 1
+
+		local base
+		base=$(resolve_merge_base "$base_ref")
+		if [[ -n "$base" ]]; then
+			echo "$base"
+			return
+		fi
+
+		# Could not determine merge-base; fall back to branch tip.
+		echo "WARNING: could not find merge-base with $base_ref, using branch tip (diff may include non-PR changes)." >&2
+		echo "$base_ref"
+		return
+	fi
+
+	# Local dev: use merge-base with origin/main.
+	if git rev-parse --verify origin/main >/dev/null 2>&1; then
+		git merge-base HEAD origin/main 2>/dev/null || echo "origin/main"
+		return
+	fi
+}
+
+# scan_diff checks only added lines in the diff for emdash/endash.
+scan_diff() {
+	local base="$1"
+
+	local diff_output
+	if ! diff_output=$(git diff "$base" -U0 -- . "${exclude_pathspecs[@]}" 2>&1); then
+		echo "ERROR: git diff against $base failed:" >&2
+		echo "$diff_output" >&2
+		exit 1
+	fi
+
+	if [[ -z "$diff_output" ]]; then
+		echo "OK: no changes to check."
+		exit 0
+	fi
+
+	local current_file="" current_line=0
+	while IFS= read -r diff_line; do
+		if [[ "$diff_line" =~ ^\+\+\+\ b/(.*) ]]; then
+			current_file="${BASH_REMATCH[1]}"
+		fi
+		# Anchored to hunk header structure to avoid matching
+		# digits from trailing function context.
+		if [[ "$diff_line" =~ ^@@\ -[0-9,]+\ \+([0-9]+) ]]; then
+			current_line=${BASH_REMATCH[1]}
+			continue
+		fi
+		if [[ "$diff_line" =~ ^\+ ]] && [[ ! "$diff_line" =~ ^\+\+\+\ [ab/] ]]; then
+			if echo "$diff_line" | grep -Eq "$pattern"; then
+				echo "${current_file}:${current_line}:${diff_line:1}"
+				found=1
+			fi
+			((current_line++)) || true
+		fi
+	done <<<"$diff_output"
+}
+
 if [[ "$mode" == "all" ]]; then
 	scan_all_files
 else
-	base=""
-	if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
-		base="origin/${GITHUB_BASE_REF}"
-	elif git rev-parse --verify origin/main >/dev/null 2>&1; then
-		base=$(git merge-base HEAD origin/main 2>/dev/null || echo "origin/main")
-	fi
-
+	base=$(resolve_diff_base) || {
+		echo "ERROR: could not determine base ref." >&2
+		exit 1
+	}
 	if [[ -z "$base" ]]; then
-		echo "WARNING: no base ref found, scanning all tracked files."
-		scan_all_files
-	else
-		# Ensure the base ref is fetchable. CI shallow clones
-		# (fetch-depth: 1) may not have the base branch available.
-		if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
-			ref="${base#origin/}"
-			echo "Base ref $base not found locally, fetching $ref..."
-			git fetch origin "$ref" --depth=1 2>/dev/null || true
-			if ! git rev-parse --verify "$base" >/dev/null 2>&1; then
-				echo "ERROR: could not fetch base ref $base."
-				exit 1
-			fi
-		fi
-
-		found=0
-		if ! diff_output=$(git diff "$base" -U0 -- . "${exclude_pathspecs[@]}" 2>&1); then
-			echo "ERROR: git diff against $base failed:"
-			echo "$diff_output"
-			exit 1
-		fi
-
-		if [[ -z "$diff_output" ]]; then
-			echo "OK: no changes to check."
-			exit 0
-		fi
-
-		# Parse the diff to check only added lines for emdash/endash.
-		current_file=""
-		current_line=0
-		while IFS= read -r diff_line; do
-			if [[ "$diff_line" =~ ^\+\+\+\ b/(.*) ]]; then
-				current_file="${BASH_REMATCH[1]}"
-			fi
-			# Anchored to hunk header structure to avoid matching
-			# digits from trailing function context.
-			if [[ "$diff_line" =~ ^@@\ -[0-9,]+\ \+([0-9]+) ]]; then
-				current_line=${BASH_REMATCH[1]}
-				continue
-			fi
-			if [[ "$diff_line" =~ ^\+ ]] && [[ ! "$diff_line" =~ ^\+\+\+\ [ab/] ]]; then
-				if echo "$diff_line" | grep -Eq "$pattern"; then
-					echo "${current_file}:${current_line}:${diff_line:1}"
-					found=1
-				fi
-				((current_line++)) || true
-			fi
-		done <<<"$diff_output"
+		# No base ref is available outside of pull requests, for
+		# example push builds on release branches with a shallow clone
+		# where neither GITHUB_BASE_REF nor origin/main is present.
+		# The diff check has nothing to compare against, and scanning
+		# every tracked file would flag pre-existing characters that
+		# are unrelated to the change under test. Skip instead; pass
+		# --all to force a full-tree scan.
+		echo "OK: no base ref found (not a pull request); skipping emdash check."
+		echo "    Pass --all to scan every tracked file."
+		exit 0
 	fi
+	found=0
+	scan_diff "$base"
 fi
 
 if [[ "$found" -ne 0 ]]; then

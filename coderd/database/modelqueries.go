@@ -129,6 +129,7 @@ func (q *sqlQuerier) GetAuthorizedTemplates(ctx context.Context, arg GetTemplate
 			&i.UseClassicParameterFlow,
 			&i.CorsBehavior,
 			&i.DisableModuleCache,
+			&i.TimeTilAutostopNotify,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 			&i.CreatedByName,
@@ -413,6 +414,8 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		arg.AfterID,
 		arg.Search,
 		arg.Name,
+		arg.ExactUsername,
+		arg.ExactEmail,
 		pq.Array(arg.Status),
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
@@ -744,9 +747,17 @@ func (q *sqlQuerier) CountAuthorizedConnectionLogs(ctx context.Context, arg Coun
 
 type chatQuerier interface {
 	GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]GetChatsRow, error)
+	GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) ([]Chat, error)
 }
 
 func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams, prepared rbac.PreparedAuthorized) ([]GetChatsRow, error) {
+	if (arg.OwnedOnly || arg.SharedOnly) && arg.ViewerID == uuid.Nil {
+		return nil, xerrors.New("viewer_id required when owned_only or shared_only is true")
+	}
+	if arg.SharedOnly && arg.SharedWithUserID == uuid.Nil && len(arg.SharedWithGroupIds) == 0 {
+		return nil, xerrors.New("shared_with_user_id or shared_with_group_ids required when shared_only is true")
+	}
+
 	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
@@ -760,10 +771,21 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedChats :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query,
-		arg.OwnerID,
+		arg.OwnedOnly,
+		arg.SharedOnly,
+		arg.ViewerID,
+		arg.SharedWithUserID,
+		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.AfterID,
 		arg.LabelFilter,
+		arg.DiffURL,
+		arg.TitleQuery,
+		arg.HasUnread,
+		pq.Array(arg.PullRequestStatuses),
+		arg.PrNumber,
+		arg.RepoQuery,
+		arg.PrTitleQuery,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -797,12 +819,27 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.AgentID,
 			&i.Chat.PinOrder,
 			&i.Chat.LastReadMessageID,
-			&i.Chat.LastInjectedContext,
 			&i.Chat.DynamicTools,
 			&i.Chat.OrganizationID,
 			&i.Chat.PlanMode,
 			&i.Chat.ClientType,
 			&i.Chat.LastTurnSummary,
+			&i.Chat.SnapshotVersion,
+			&i.Chat.HistoryVersion,
+			&i.Chat.QueueVersion,
+			&i.Chat.GenerationAttempt,
+			&i.Chat.RetryState,
+			&i.Chat.RetryStateVersion,
+			&i.Chat.RunnerID,
+			&i.Chat.RequiresActionDeadlineAt,
+			&i.Chat.UserACL,
+			&i.Chat.GroupACL,
+			&i.Chat.OwnerUsername,
+			&i.Chat.OwnerName,
+			&i.Chat.ContextAggregateHash,
+			&i.Chat.ContextDirtySince,
+			&i.Chat.ContextDirtyResources,
+			&i.Chat.ContextError,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -817,69 +854,70 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 	return items, nil
 }
 
-type aibridgeQuerier interface {
-	ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error)
-	CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error)
-	ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error)
-	ListAuthorizedAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error)
-	ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error)
-	CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error)
-	ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadsRow, error)
-}
-
-func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, arg ListAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeInterceptionsRow, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
-		VariableConverter: regosql.AIBridgeInterceptionConverter(),
-	})
+func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) ([]Chat, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, rbac.ConfigChats())
 	if err != nil {
 		return nil, xerrors.Errorf("compile authorized filter: %w", err)
 	}
-	filtered, err := insertAuthorizedFilter(listAIBridgeInterceptions, fmt.Sprintf(" AND %s", authorizedFilter))
+
+	filtered, err := insertAuthorizedFilter(getChatsByChatFileID, fmt.Sprintf(" AND %s\nLIMIT 1", authorizedFilter))
 	if err != nil {
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
-	query := fmt.Sprintf("-- name: ListAuthorizedAIBridgeInterceptions :many\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query,
-		arg.StartedAfter,
-		arg.StartedBefore,
-		arg.InitiatorID,
-		arg.Provider,
-		arg.Model,
-		arg.Client,
-		arg.AfterID,
-		arg.Offset,
-		arg.Limit,
-	)
+	query := fmt.Sprintf("-- name: GetAuthorizedChatsByChatFileID :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, fileID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []ListAIBridgeInterceptionsRow
+	var items []Chat
 	for rows.Next() {
-		var i ListAIBridgeInterceptionsRow
+		var i Chat
 		if err := rows.Scan(
-			&i.AIBridgeInterception.ID,
-			&i.AIBridgeInterception.InitiatorID,
-			&i.AIBridgeInterception.Provider,
-			&i.AIBridgeInterception.Model,
-			&i.AIBridgeInterception.StartedAt,
-			&i.AIBridgeInterception.Metadata,
-			&i.AIBridgeInterception.EndedAt,
-			&i.AIBridgeInterception.APIKeyID,
-			&i.AIBridgeInterception.Client,
-			&i.AIBridgeInterception.ThreadParentID,
-			&i.AIBridgeInterception.ThreadRootID,
-			&i.AIBridgeInterception.ClientSessionID,
-			&i.AIBridgeInterception.SessionID,
-			&i.AIBridgeInterception.ProviderName,
-			&i.AIBridgeInterception.CredentialKind,
-			&i.AIBridgeInterception.CredentialHint,
-			&i.VisibleUser.ID,
-			&i.VisibleUser.Username,
-			&i.VisibleUser.Name,
-			&i.VisibleUser.AvatarURL,
-		); err != nil {
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -893,44 +931,12 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeInterceptions(ctx context.Context, ar
 	return items, nil
 }
 
-func (q *sqlQuerier) CountAuthorizedAIBridgeInterceptions(ctx context.Context, arg CountAIBridgeInterceptionsParams, prepared rbac.PreparedAuthorized) (int64, error) {
-	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
-		VariableConverter: regosql.AIBridgeInterceptionConverter(),
-	})
-	if err != nil {
-		return 0, xerrors.Errorf("compile authorized filter: %w", err)
-	}
-	filtered, err := insertAuthorizedFilter(countAIBridgeInterceptions, fmt.Sprintf(" AND %s", authorizedFilter))
-	if err != nil {
-		return 0, xerrors.Errorf("insert authorized filter: %w", err)
-	}
-
-	query := fmt.Sprintf("-- name: CountAuthorizedAIBridgeInterceptions :one\n%s", filtered)
-	rows, err := q.db.QueryContext(ctx, query,
-		arg.StartedAfter,
-		arg.StartedBefore,
-		arg.InitiatorID,
-		arg.Provider,
-		arg.Model,
-		arg.Client,
-	)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	var count int64
-	for rows.Next() {
-		if err := rows.Scan(&count); err != nil {
-			return 0, err
-		}
-	}
-	if err := rows.Close(); err != nil {
-		return 0, err
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	return count, nil
+type aibridgeQuerier interface {
+	ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error)
+	ListAuthorizedAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams, prepared rbac.PreparedAuthorized) ([]string, error)
+	ListAuthorizedAIBridgeSessions(ctx context.Context, arg ListAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionsRow, error)
+	CountAuthorizedAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams, prepared rbac.PreparedAuthorized) (int64, error)
+	ListAuthorizedAIBridgeSessionThreads(ctx context.Context, arg ListAIBridgeSessionThreadsParams, prepared rbac.PreparedAuthorized) ([]ListAIBridgeSessionThreadsRow, error)
 }
 
 func (q *sqlQuerier) ListAuthorizedAIBridgeModels(ctx context.Context, arg ListAIBridgeModelsParams, prepared rbac.PreparedAuthorized) ([]string, error) {
@@ -1010,6 +1016,7 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessions(ctx context.Context, arg Lis
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -1074,6 +1081,7 @@ func (q *sqlQuerier) CountAuthorizedAIBridgeSessions(ctx context.Context, arg Co
 		arg.StartedBefore,
 		arg.InitiatorID,
 		arg.Provider,
+		arg.ProviderName,
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
@@ -1141,6 +1149,8 @@ func (q *sqlQuerier) ListAuthorizedAIBridgeSessionThreads(ctx context.Context, a
 			&i.AIBridgeInterception.ProviderName,
 			&i.AIBridgeInterception.CredentialKind,
 			&i.AIBridgeInterception.CredentialHint,
+			&i.AIBridgeInterception.AgentFirewallSessionID,
+			&i.AIBridgeInterception.AgentFirewallSequenceNumber,
 		); err != nil {
 			return nil, err
 		}

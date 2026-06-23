@@ -1,0 +1,8 @@
+module "jupyterlab" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/jupyterlab/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  config = {{ .Variables.config }}
+  port = {{ .Variables.port }}
+}

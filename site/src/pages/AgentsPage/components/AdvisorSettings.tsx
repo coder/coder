@@ -21,11 +21,8 @@ import {
 import { Switch } from "#/components/Switch/Switch";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
-const advisorReasoningEfforts = ["", "low", "medium", "high"] as const;
-type AdvisorReasoningEffort = (typeof advisorReasoningEfforts)[number];
 const chatModelFallbackValue = "__use-chat-model__";
 const unavailableModelValue = "__unavailable-model__";
-const chatReasoningFallbackValue = "__use-chat-reasoning__";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -54,18 +51,11 @@ type AdvisorSettingsFormValues = {
 	enabled: boolean;
 	max_uses_per_run: string;
 	max_output_tokens: string;
-	reasoning_effort: AdvisorReasoningEffort;
 	model_config_id: string;
 };
 
 const isUnsetModelConfigId = (id: string): boolean =>
 	id === "" || id === nilUUID;
-
-const isAdvisorReasoningEffort = (
-	value: string,
-): value is AdvisorReasoningEffort => {
-	return advisorReasoningEfforts.includes(value as AdvisorReasoningEffort);
-};
 
 const normalizeNonNegativeInteger = (
 	value: number | string | undefined,
@@ -79,26 +69,20 @@ const normalizeNonNegativeInteger = (
 
 const normalizeAdvisorConfig = (
 	config: AdvisorConfig | undefined,
-): AdvisorSettingsFormValues => {
-	const reasoningEffort = config?.reasoning_effort ?? "";
-	return {
-		enabled: config?.enabled ?? false,
-		max_uses_per_run: String(
-			normalizeNonNegativeInteger(config?.max_uses_per_run),
-		),
-		max_output_tokens: String(
-			normalizeNonNegativeInteger(config?.max_output_tokens),
-		),
-		reasoning_effort: isAdvisorReasoningEffort(reasoningEffort)
-			? reasoningEffort
+): AdvisorSettingsFormValues => ({
+	enabled: config?.enabled ?? false,
+	max_uses_per_run: String(
+		normalizeNonNegativeInteger(config?.max_uses_per_run),
+	),
+	max_output_tokens: String(
+		normalizeNonNegativeInteger(config?.max_output_tokens),
+	),
+	model_config_id:
+		typeof config?.model_config_id === "string" &&
+		!isUnsetModelConfigId(config.model_config_id)
+			? config.model_config_id
 			: "",
-		model_config_id:
-			typeof config?.model_config_id === "string" &&
-			!isUnsetModelConfigId(config.model_config_id)
-				? config.model_config_id
-				: "",
-	};
-};
+});
 
 const toAdvisorConfigRequest = (
 	values: AdvisorSettingsFormValues,
@@ -106,7 +90,6 @@ const toAdvisorConfigRequest = (
 	enabled: values.enabled,
 	max_uses_per_run: normalizeNonNegativeInteger(values.max_uses_per_run),
 	max_output_tokens: normalizeNonNegativeInteger(values.max_output_tokens),
-	reasoning_effort: values.reasoning_effort,
 	model_config_id: isUnsetModelConfigId(values.model_config_id)
 		? nilUUID
 		: values.model_config_id,
@@ -140,28 +123,11 @@ const validateAdvisorConfig = (values: AdvisorSettingsFormValues) => {
 			"Max output tokens must be a non-negative integer.";
 	}
 
-	if (!isAdvisorReasoningEffort(values.reasoning_effort)) {
-		errors.reasoning_effort = "Select a valid reasoning effort.";
-	}
-
 	return errors;
 };
 
 const getModelDisplayName = (config: ChatModelConfig): string =>
 	config.display_name.trim() || config.model;
-
-const getReasoningEffortLabel = (value: AdvisorReasoningEffort): string => {
-	switch (value) {
-		case "low":
-			return "Low";
-		case "medium":
-			return "Medium";
-		case "high":
-			return "High";
-		default:
-			return "Use chat model default";
-	}
-};
 
 export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 	advisorConfigData,
@@ -289,7 +255,7 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 					Advisor
 				</h3>
 				<Badge size="sm" variant="warning" className="cursor-default">
-					<TriangleAlertIcon className="h-3 w-3" />
+					<TriangleAlertIcon className="size-3" />
 					Experimental feature
 				</Badge>
 			</div>
@@ -381,43 +347,6 @@ export const AdvisorSettings: FC<AdvisorSettingsProps> = ({
 						/>
 						<p className="m-0 text-xs text-content-secondary">
 							Set to 0 to use the server default output limit.
-						</p>
-					</div>
-
-					<div className="space-y-1.5">
-						<Label className="text-xs text-content-primary">
-							Reasoning effort
-						</Label>
-						<Select
-							value={form.values.reasoning_effort || chatReasoningFallbackValue}
-							onValueChange={(value) =>
-								void form.setFieldValue(
-									"reasoning_effort",
-									value === chatReasoningFallbackValue ? "" : value,
-								)
-							}
-							disabled={isFormDisabled}
-						>
-							<SelectTrigger
-								className="h-9 bg-surface-primary text-[13px]"
-								aria-label="Reasoning effort"
-							>
-								<SelectValue placeholder="Use chat model default">
-									{getReasoningEffortLabel(form.values.reasoning_effort)}
-								</SelectValue>
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value={chatReasoningFallbackValue}>
-									Use chat model default
-								</SelectItem>
-								<SelectItem value="low">Low</SelectItem>
-								<SelectItem value="medium">Medium</SelectItem>
-								<SelectItem value="high">High</SelectItem>
-							</SelectContent>
-						</Select>
-						<p className="m-0 text-xs text-content-secondary">
-							Controls how hard the advisor model reasons before responding.
-							Leave unset to use the model's default.
 						</p>
 					</div>
 

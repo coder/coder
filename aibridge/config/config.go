@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	"github.com/coder/coder/v2/aibridge/keypool"
+)
 
 const (
 	ProviderAnthropic = "anthropic"
@@ -8,19 +12,17 @@ const (
 	ProviderCopilot   = "copilot"
 )
 
+// Anthropic carries configuration for an Anthropic provider.
 type Anthropic struct {
 	// Name is the provider instance name. If empty, defaults to "anthropic".
-	Name             string
-	BaseURL          string
-	Key              string
+	Name    string
+	BaseURL string
+	// KeyPool holds the centralized keys, with automatic key failover. BYOK
+	// credentials are resolved per request from the incoming headers.
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	ExtraHeaders     map[string]string
-	// BYOKBearerToken is set in BYOK mode when the user authenticates
-	// with a access token. When set, the access token is used for upstream
-	// LLM requests instead of the API key.
-	BYOKBearerToken string
 }
 
 type AWSBedrock struct {
@@ -33,15 +35,17 @@ type AWSBedrock struct {
 	BaseURL string
 }
 
+// OpenAI carries configuration for an OpenAI provider.
 type OpenAI struct {
 	// Name is the provider instance name. If empty, defaults to "openai".
-	Name             string
-	BaseURL          string
-	Key              string
+	Name    string
+	BaseURL string
+	// KeyPool holds the centralized keys, with automatic key failover. BYOK
+	// credentials are resolved per request from the incoming headers.
+	KeyPool          *keypool.Pool
 	APIDumpDir       string
 	CircuitBreaker   *CircuitBreaker
 	SendActorHeaders bool
-	ExtraHeaders     map[string]string
 }
 
 type Copilot struct {

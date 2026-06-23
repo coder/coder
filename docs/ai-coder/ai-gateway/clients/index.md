@@ -1,5 +1,10 @@
 # Client Configuration
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Once AI Gateway is setup on your deployment, the AI coding tools used by your users will need to be configured to route requests via AI Gateway.
 
 There are two ways to connect AI tools to AI Gateway:
@@ -8,15 +13,14 @@ There are two ways to connect AI tools to AI Gateway:
 - AI Gateway Proxy: For tools that don't support base URL configuration, [AI Gateway Proxy](../ai-gateway-proxy/index.md) can intercept traffic and forward it to AI Gateway.
 
 > [!NOTE]
-> AI Gateway works with tools running inside or outside
-> of Coder workspaces. For non-workspace setup, see
-> [External and Desktop Clients](#external-and-desktop-clients).
+> AI Gateway works with tools running inside or outside of Coder workspaces.
+> For non-workspace setup, visit [External and Desktop Clients](#external-and-desktop-clients).
 
 ## Base URLs
 
 Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/aibridge/openai/v1`.
 
-The exact configuration method varies by client — some use environment variables, others use configuration files or UI settings:
+The exact configuration method varies by client, some use environment variables, others use configuration files or UI settings:
 
 - **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
 - **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
@@ -25,87 +29,31 @@ Replace `coder.example.com` with your actual Coder deployment URL.
 
 ## Authentication
 
-Instead of distributing provider-specific API keys (OpenAI/Anthropic keys) to users, they authenticate to AI Gateway using their **Coder API token**:
-
-- **OpenAI clients**: Users set `OPENAI_API_KEY` to their Coder API token
-- **Anthropic clients**: Users set `ANTHROPIC_API_KEY` to their Coder API token
-
-> [!NOTE]
-> Only Coder-issued tokens can authenticate users against AI Gateway.
-> AI Gateway will use provider-specific API keys to [authenticate against upstream AI services](../setup.md#configure-providers).
-
-Again, the exact environment variable or setting naming may differ from tool to tool. See a list of [supported clients](#all-supported-clients) below and consult your tool's documentation for details.
-
-### Retrieving your session token
-
-If you're logged in with the Coder CLI, you can retrieve your current session
-token using [`coder login token`](../../../reference/cli/login_token.md):
-
-```sh
-export ANTHROPIC_API_KEY=$(coder login token)
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
-```
-
-Alternatively, [generate a long-lived API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself) via the Coder dashboard.
-
-## Bring Your Own Key (BYOK)
-
-In addition to centralized key management, AI Gateway supports **Bring Your
-Own Key** (BYOK) mode. Users can provide their own LLM API keys or use
-provider subscriptions (such as Claude Pro/Max or ChatGPT Plus/Pro) while
-AI Gateway continues to provide observability and governance.
-
-![BYOK authentication flow](../../../images/aibridge/clients/byok_auth_flow.png)
-
-In BYOK mode, users need two credentials:
-
-- A **Coder API token** to authenticate with AI Gateway.
-- Their **own LLM credential** (personal API key or subscription token) which AI Gateway forwards
-  to the upstream provider.
-
-BYOK and centralized modes can be used together. When a user provides
-their own credential, AI Gateway forwards it directly. When no user
-credential is present, AI Gateway falls back to the admin-configured
-provider key. This lets organizations offer centralized keys as a default
-while allowing individual users to bring their own.
-
-See individual client pages for configuration details.
-
-### Enabling or disabling BYOK
-
-BYOK is enabled by default. Administrators can disable it using `--aibridge-allow-byok=false` or `CODER_AIBRIDGE_ALLOW_BYOK=false`:
-
-```sh
-coder server --aibridge-allow-byok=false
-```
-
-When disabled, BYOK requests are rejected with a `403 Forbidden` response and only centralized key authentication is permitted.
+For information about authenticating with AI Gateway, visit [AI Gateway Authentication](../auth.md).
 
 ## Compatibility
 
 The table below shows tested AI clients and their compatibility with AI Gateway.
 
-| Client                            | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
-|-----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Agents](./coder-agents.md) | ✅      | ✅         | ❌    | First-class AI Gateway client. Uses the Coder Agents [provider config](../../agents/models.md#providers).                                              |
-| [Mux](./mux.md)                   | ✅      | ✅         | -    |                                                                                                                                                        |
-| [Claude Code](./claude-code.md)   | -      | ✅         | ✅    |                                                                                                                                                        |
-| [Codex CLI](./codex.md)           | ✅      | -         | ✅    |                                                                                                                                                        |
-| [OpenCode](./opencode.md)         | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Factory](./factory.md)           | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Cline](./cline.md)               | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Kilo Code](./kilo-code.md)       | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [Roo Code](./roo-code.md)         | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [VS Code](./vscode.md)            | ✅      | ❌         | ❌    | Only supports Custom Base URL for OpenAI.                                                                                                              |
-| [JetBrains IDEs](./jetbrains.md)  | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
-| [Zed](./zed.md)                   | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)    | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
-| WindSurf                          | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Cursor                            | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
-| Sourcegraph Amp                   | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Kiro                              | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Gemini CLI                        | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
-| Antigravity                       | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Client                           | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
+|----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Mux](./mux.md)                  | ✅      | ✅         | -    |                                                                                                                                                        |
+| [Claude Code](./claude-code.md)  | -      | ✅         | ✅    |                                                                                                                                                        |
+| [Codex CLI](./codex.md)          | ✅      | -         | ✅    |                                                                                                                                                        |
+| [OpenCode](./opencode.md)        | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Factory](./factory.md)          | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Cline](./cline.md)              | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Kilo Code](./kilo-code.md)      | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [VS Code](./vscode.md)           | ✅      | ✅         | ❌    | VS Code 1.122+ via Custom Endpoint provider. GitHub sign-in not required. Inline suggestions still require GitHub Copilot.                             |
+| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
+| [Zed](./zed.md)                  | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
+| WindSurf                         | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Cursor                           | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
+| Sourcegraph Amp                  | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Kiro                             | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Gemini CLI                       | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
+| Antigravity                      | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
 |
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
@@ -162,7 +110,7 @@ For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Config
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 For proxy setup details, see [AI Gateway Proxy setup](../ai-gateway-proxy/setup.md).
@@ -175,3 +123,8 @@ For complete setup instructions, see the [supported client examples](#all-suppor
 ## All Supported Clients
 
 <children></children>
+
+## Learn more
+
+- [AI Gateway Authentication and BYOK](../auth.md)
+- [AI Gateway Reference](../reference.md)

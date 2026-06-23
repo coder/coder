@@ -11,6 +11,7 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -18,7 +19,6 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
-import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -48,14 +48,10 @@ const modelOptions = [
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
 	id: modelConfigID,
-	provider: "openai",
 	model: "gpt-4o",
 	display_name: "GPT-4o",
-	enabled: true,
-	is_default: false,
-	context_limit: 200_000,
-	compression_threshold: 70,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	...overrides,
@@ -108,6 +104,7 @@ const meta: Meta<typeof AgentCreateForm> = {
 	decorators: [withDashboardProvider],
 	args: {
 		onCreateChat: fn(),
+		sendShortcut: "enter",
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
@@ -470,28 +467,32 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: <AgentSetupNotice providerCount={0} modelCount={0} />,
+		canConfigureAgentSetup: true,
+		providerCount: 0,
+		modelCount: 0,
 		modelCatalog: { providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
 		isModelConfigsLoading: false,
 	},
 	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
-		const dialog = within(
-			body.getByRole("dialog", { name: "Welcome to Coder Agents" }),
-		);
+		const canvas = within(canvasElement);
 
 		await waitFor(() => {
-			expect(dialog.getByText("Welcome to Coder Agents")).toBeVisible();
+			expect(
+				canvas.getAllByText((_content, element) => {
+					return (
+						element?.textContent ===
+						"To chat with Coder Agents, set up a provider then add a model."
+					);
+				})[0],
+			).toBeVisible();
 		});
-		expect(dialog.getByText("Connect a chat provider")).toBeVisible();
-		expect(dialog.getByText("Add a chat model")).toBeVisible();
-		expect(dialog.queryByLabelText("Complete")).not.toBeInTheDocument();
-		expect(
-			dialog.getByRole("link", { name: "Go to Providers" }),
-		).toHaveAttribute("href", "/agents/settings/providers");
-		expect(dialog.getByRole("link", { name: "Go to Models" })).toHaveAttribute(
+		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
+			"href",
+			"/ai/settings",
+		);
+		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
 			"/agents/settings/models",
 		);
@@ -659,7 +660,7 @@ export const OrgPickerTightSpacing: Story = {
 export const OrgChangeConfirmation: Story = {
 	render: () => (
 		<ConfirmDialog
-			open={true}
+			open
 			title="Change organization?"
 			description="Changing organization will remove your current attachments."
 			type="info"

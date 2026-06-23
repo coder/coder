@@ -166,6 +166,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "allowed_private_cidrs": [
           "string"
         ],
+        "api_dump_dir": "string",
         "cert_file": "string",
         "domain_allowlist": [
           "string"
@@ -184,6 +185,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "base_url": "string",
           "key": "string"
         },
+        "api_dump_dir": "string",
         "bedrock": {
           "access_key": "string",
           "access_key_secret": "string",
@@ -192,6 +194,8 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
           "region": "string",
           "small_fast_model": "string"
         },
+        "budget_period": "string",
+        "budget_policy": "string",
         "circuit_breaker_enabled": true,
         "circuit_breaker_failure_threshold": 0,
         "circuit_breaker_interval": 0,
@@ -210,7 +214,6 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
             "bedrock_model": "string",
             "bedrock_region": "string",
             "bedrock_small_fast_model": "string",
-            "dump_dir": "string",
             "name": "string",
             "type": "string"
           }
@@ -272,6 +275,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         ]
       }
     },
+    "disable_chat_sharing": true,
     "disable_owner_workspace_exec": true,
     "disable_password_auth": true,
     "disable_path_apps": true,
@@ -420,6 +424,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "oidc": {
       "allow_signups": true,
       "auth_url_params": {},
+      "auto_repair_links": true,
       "client_cert_file": "string",
       "client_id": "string",
       "client_key_file": "string",
@@ -530,10 +535,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "retention": {
       "api_keys": 0,
       "audit_logs": 0,
+      "boundary_logs": 0,
       "connection_logs": 0,
       "workspace_agent_logs": 0
     },
     "scim_api_key": "string",
+    "scim_use_legacy": true,
     "session_lifetime": {
       "default_duration": 0,
       "default_token_lifetime": 0,
@@ -583,6 +590,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
         "scheme": "string",
         "user": {}
       }
+    },
+    "template_builder": {
+      "disabled": true,
+      "registry_url": "string"
     },
     "terms_of_service_url": "string",
     "tls": {

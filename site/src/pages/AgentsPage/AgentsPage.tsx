@@ -5,7 +5,12 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useLocation, useNavigate, useParams } from "react-router";
+import {
+	useLocation,
+	useNavigate,
+	useParams,
+	useSearchParams,
+} from "react-router";
 import { toast } from "sonner";
 import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
@@ -34,18 +39,24 @@ import {
 	updateInfiniteChatsCache,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
-import { workspaceById } from "#/api/queries/workspaces";
+import {
+	invalidateWorkspaceMutationQueries,
+	workspaceById,
+} from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "#/components/Dialogs/DeleteDialog/DeleteDialog";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { createReconnectingWebSocket } from "#/utils/reconnectingWebSocket";
-import { clearPersistedSidebarTabId } from "./AgentChatPage";
 import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import { useArchivedFilterParam } from "./hooks/useArchivedFilterParam";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -53,6 +64,8 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
 	chatDetailErrorsEqual,
@@ -60,16 +73,34 @@ import {
 
 export type { AgentsOutletContext } from "./AgentsPageView";
 
+const FILTER_MEMBERSHIP_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"diff_status_change",
+	"status_change",
+]);
+
+export const shouldInvalidateFilteredChatList = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
+
 const AgentsPage: FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
+	const [searchParams, setSearchParams] = useSearchParams();
 	const { agentId } = useParams();
-	const { permissions } = useAuthenticated();
+	const { permissions, user } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const isAgentsAdmin = permissions.editDeploymentConfig;
 
-	const [archivedFilter, setArchivedFilter] = useArchivedFilterParam();
+	const [sidebarFilters, setSidebarFilters] = getAgentSidebarFilters(
+		searchParams,
+		setSearchParams,
+	);
+	const [isSearchDialogOpen, setIsSearchDialogOpen] = useState(false);
 
 	// The global CSS sets scrollbar-gutter: stable on <html> to prevent
 	// layout shift on pages that toggle scrollbars. The agents page
@@ -114,8 +145,18 @@ const AgentsPage: FC = () => {
 		};
 	}, []);
 
+	const archivedFilter = sidebarFilters.archiveStatus === "archived";
+	const chatStatusFilter =
+		sidebarFilters.chatStatuses.length === 1
+			? sidebarFilters.chatStatuses[0]
+			: undefined;
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({ archived: archivedFilter === "archived" }),
+		infiniteChats({
+			archived: archivedFilter,
+			prStatuses: sidebarFilters.prStatuses,
+			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
+		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
 	// model info alongside each chat. Child routes that need models
@@ -169,6 +210,7 @@ const AgentsPage: FC = () => {
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -192,6 +234,7 @@ const AgentsPage: FC = () => {
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
@@ -199,6 +242,10 @@ const AgentsPage: FC = () => {
 			});
 			await queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
+			});
+			await invalidateWorkspaceMutationQueries(queryClient, {
+				organizationName,
+				username: user.username,
 			});
 		},
 		onError: (error) => {
@@ -340,9 +387,23 @@ const AgentsPage: FC = () => {
 		try {
 			const action = await resolveArchiveAndDeleteAction(
 				() => queryClient.fetchQuery(workspaceById(workspaceId)),
+				// We only need build_number 1 and 2 to recognise a
+				// prebuild claim. The default page is newest-first; the
+				// resolver degrades safely ("confirm") if those builds
+				// aren't in the returned slice.
 				() =>
-					readInfiniteChatsCache(queryClient)?.find((c) => c.id === chatId)
-						?.created_at,
+					queryClient.fetchQuery({
+						queryKey: [
+							"workspaceBuilds",
+							workspaceId,
+							"archive-and-delete-resolver",
+						],
+						queryFn: () => API.getWorkspaceBuilds(workspaceId),
+					}),
+				() =>
+					readInfiniteChatsCache(queryClient)?.find(
+						(chat) => chat.id === chatId,
+					)?.created_at,
 			);
 			if (action === "proceed") {
 				archiveAndDeleteMutation.mutate(
@@ -484,6 +545,7 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
+		void invalidateChatListQueries(queryClient);
 	}, [agentId, queryClient]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
@@ -497,13 +559,9 @@ const AgentsPage: FC = () => {
 					}
 					const chatEvent = event.parsedMessage;
 					const updatedChat = chatEvent.chat;
-					// Read the previous status from the infinite chat list
-					// cache before we write the update below. The per-chat
-					// query cache (chatKey) only exists for chats the user
-					// has opened, so reading from the list cache ensures
-					// prevStatus is available for background agents too.
+					// The old membership is only available before the cache write below.
 					const prevStatus = readInfiniteChatsCache(queryClient)?.find(
-						(c) => c.id === updatedChat.id,
+						(chat) => chat.id === updatedChat.id,
 					)?.status;
 					// Only play the chime for top-level chats, not sub-agents.
 					if (!updatedChat.parent_chat_id) {
@@ -565,11 +623,6 @@ const AgentsPage: FC = () => {
 						});
 					}
 
-					// For "created" events, use a cross-page existence
-					// check and prepend only to the first page.
-					// updateInfiniteChatsCache runs the updater per
-					// page, so a naive prepend would duplicate the
-					// chat into every loaded page.
 					if (chatEvent.kind === "created") {
 						if (updatedChat.parent_chat_id) {
 							// Child chat: add to its parent's children
@@ -582,12 +635,28 @@ const AgentsPage: FC = () => {
 							);
 						} else {
 							prependToInfiniteChatsCache(queryClient, updatedChat);
+							void invalidateChatListQueries(queryClient);
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {
 							eventKind: chatEvent.kind,
 							activeChatId: activeChatIDRef.current,
 						});
+						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
+							void invalidateChatListQueries(queryClient);
+						}
+						if (chatEvent.kind === "context_dirty") {
+							// The watch payload carries only the lightweight
+							// context flags (the merge above applies them);
+							// refetch the open chat to pull the pinned
+							// resources the single-chat GET computes. Only the
+							// active chat has an observer, so other chats are
+							// merely marked stale.
+							void queryClient.invalidateQueries({
+								queryKey: chatKey(updatedChat.id),
+								exact: true,
+							});
+						}
 					}
 				});
 				return ws;
@@ -600,6 +669,7 @@ const AgentsPage: FC = () => {
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
+		onToggleSearch: () => setIsSearchDialogOpen((open) => !open),
 	});
 
 	// Fetch workspace name for the confirmation dialog. Only
@@ -621,9 +691,12 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}
+				isSearchDialogOpen={isSearchDialogOpen}
+				onSearchDialogOpenChange={setIsSearchDialogOpen}
 				isCreating={false}
 				isArchiving={isArchiving}
 				archivingChatId={archivingChatId}
@@ -654,8 +727,8 @@ const AgentsPage: FC = () => {
 				hasNextPage={chatsQuery.hasNextPage}
 				onLoadMore={() => void chatsQuery.fetchNextPage()}
 				isFetchingNextPage={chatsQuery.isFetchingNextPage}
-				archivedFilter={archivedFilter}
-				onArchivedFilterChange={setArchivedFilter}
+				sidebarFilters={sidebarFilters}
+				onSidebarFiltersChange={setSidebarFilters}
 			/>
 			<ConfirmDialog
 				open={pendingArchiveChatId !== null}

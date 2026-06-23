@@ -32,7 +32,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 
 	return (
 		<Popover>
-			<PopoverTrigger asChild={true}>
+			<PopoverTrigger asChild>
 				<Button size="sm" variant="subtle">
 					Connect via SSH
 					<ChevronDownIcon />
@@ -61,9 +61,7 @@ export const AgentSSHButton: FC<AgentSSHButtonProps> = ({
 				</ol>
 
 				<HelpPopoverLinksGroup>
-					<HelpPopoverLink href={docs("/install")}>
-						Install Coder CLI
-					</HelpPopoverLink>
+					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>
 					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
 					</HelpPopoverLink>

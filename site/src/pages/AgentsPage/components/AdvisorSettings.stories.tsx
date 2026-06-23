@@ -1,42 +1,38 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import { AdvisorSettings } from "./AdvisorSettings";
 
 const nilUUID = "00000000-0000-0000-0000-000000000000";
 
 const mockModelConfigs: TypesGen.ChatModelConfig[] = [
 	{
+		...MockChatModelConfig,
 		id: "model-1",
-		provider: "openai",
 		model: "gpt-5",
 		display_name: "GPT-5",
-		enabled: true,
 		is_default: true,
-		context_limit: 200000,
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
+		...MockChatModelConfig,
 		id: "model-2",
 		provider: "anthropic",
 		model: "claude-sonnet-4",
 		display_name: "Claude Sonnet 4",
-		enabled: true,
-		is_default: false,
-		context_limit: 200000,
 		compression_threshold: 80,
 		created_at: "2025-01-01T00:00:00Z",
 		updated_at: "2025-01-01T00:00:00Z",
 	},
 	{
+		...MockChatModelConfig,
 		id: "model-3",
-		provider: "openai",
 		model: "gpt-3.5",
 		display_name: "GPT-3.5 (Disabled)",
 		enabled: false,
-		is_default: false,
 		context_limit: 16000,
 		compression_threshold: 60,
 		created_at: "2025-01-01T00:00:00Z",
@@ -48,7 +44,6 @@ const defaultAdvisorConfig: TypesGen.AdvisorConfig = {
 	enabled: false,
 	max_uses_per_run: 0,
 	max_output_tokens: 0,
-	reasoning_effort: "",
 	model_config_id: "",
 };
 
@@ -96,6 +91,9 @@ export const Default: Story = {
 		expect(
 			canvas.queryByRole("combobox", { name: /Advisor model/i }),
 		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByRole("combobox", { name: /Reasoning effort/i }),
+		).not.toBeInTheDocument();
 
 		await userEvent.click(enableAdvisorSwitch);
 
@@ -126,12 +124,12 @@ export const Enabled: Story = {
 		const maxOutputTokensInput = canvas.getByRole("spinbutton", {
 			name: /Max output tokens/i,
 		});
-		const reasoningEffortSelect = canvas.getByRole("combobox", {
-			name: /Reasoning effort/i,
-		});
 		const advisorModelSelect = canvas.getByRole("combobox", {
 			name: /Advisor model/i,
 		});
+		expect(
+			canvas.queryByRole("combobox", { name: /Reasoning effort/i }),
+		).not.toBeInTheDocument();
 		const saveButton = canvas.getByRole("button", { name: /Save/i });
 
 		expect(saveButton).toBeDisabled();
@@ -140,9 +138,6 @@ export const Enabled: Story = {
 		await userEvent.type(maxUsesInput, "5");
 		await userEvent.clear(maxOutputTokensInput);
 		await userEvent.type(maxOutputTokensInput, "2048");
-
-		await userEvent.click(reasoningEffortSelect);
-		await userEvent.click(await body.findByRole("option", { name: /^High$/i }));
 
 		await userEvent.click(advisorModelSelect);
 		expect(
@@ -167,7 +162,6 @@ export const Enabled: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "model-2",
 		});
 		expect(typeof options?.onSuccess).toBe("function");
@@ -236,7 +230,6 @@ export const CustomConfig: Story = {
 			enabled: true,
 			max_uses_per_run: 7,
 			max_output_tokens: 8192,
-			reasoning_effort: "medium",
 			model_config_id: "model-2",
 		},
 	},
@@ -251,9 +244,6 @@ export const CustomConfig: Story = {
 
 		expect(maxUsesInput).toHaveValue(7);
 		expect(maxOutputTokensInput).toHaveValue(8192);
-		expect(
-			canvas.getByRole("combobox", { name: /Reasoning effort/i }),
-		).toHaveTextContent(/Medium/i);
 		expect(
 			canvas.getByRole("combobox", { name: /Advisor model/i }),
 		).toHaveTextContent(/Claude Sonnet 4/i);
@@ -311,9 +301,6 @@ export const Refetching: Story = {
 		).toBeDisabled();
 		expect(
 			canvas.getByRole("spinbutton", { name: /Max uses per run/i }),
-		).toBeDisabled();
-		expect(
-			canvas.getByRole("combobox", { name: /Reasoning effort/i }),
 		).toBeDisabled();
 		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
 	},
@@ -417,9 +404,6 @@ export const Saving: Story = {
 		expect(
 			canvas.getByRole("spinbutton", { name: /Max uses per run/i }),
 		).toBeDisabled();
-		expect(
-			canvas.getByRole("combobox", { name: /Reasoning effort/i }),
-		).toBeDisabled();
 		expect(canvas.getByRole("button", { name: /Save/i })).toBeDisabled();
 	},
 };
@@ -449,14 +433,16 @@ export const SaveErrorWithDetail: Story = {
 		},
 		isSaveAdvisorConfigError: true,
 		saveAdvisorConfigError: new Error(
-			"reasoning_effort must be one of: low, medium, high.",
+			'model_config_id "missing" does not match any existing model config.',
 		),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
 		expect(
-			canvas.getByText(/reasoning_effort must be one of: low, medium, high\./i),
+			canvas.getByText(
+				/model_config_id "missing" does not match any existing model config\./i,
+			),
 		).toBeInTheDocument();
 	},
 };
@@ -507,7 +493,6 @@ export const DisableAdvisorWithDeletedModel: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		},
 	},
@@ -543,7 +528,6 @@ export const DisableAdvisorWithDeletedModel: Story = {
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: nilUUID,
 		});
 	},
@@ -555,7 +539,6 @@ export const DisableAdvisorWhileModelConfigsLoadingPreservesOverride: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		},
 		modelConfigs: [],
@@ -588,7 +571,6 @@ export const DisableAdvisorWhileModelConfigsLoadingPreservesOverride: Story = {
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		});
 	},
@@ -600,7 +582,6 @@ export const DisableAdvisorWithModelConfigsErrorPreservesOverride: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		},
 		modelConfigs: [],
@@ -633,7 +614,6 @@ export const DisableAdvisorWithModelConfigsErrorPreservesOverride: Story = {
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		});
 	},
@@ -646,7 +626,6 @@ export const DisableAdvisorWhileModelConfigsRefetchingPreservesOverride: Story =
 				enabled: true,
 				max_uses_per_run: 5,
 				max_output_tokens: 2048,
-				reasoning_effort: "high",
 				model_config_id: "22222222-2222-2222-2222-222222222222",
 			},
 			// Simulate a background refetch with stale cached data: react-query
@@ -685,7 +664,6 @@ export const DisableAdvisorWhileModelConfigsRefetchingPreservesOverride: Story =
 				enabled: false,
 				max_uses_per_run: 5,
 				max_output_tokens: 2048,
-				reasoning_effort: "high",
 				model_config_id: "22222222-2222-2222-2222-222222222222",
 			});
 		},
@@ -697,7 +675,6 @@ export const DisableAdvisorWithDeletedModelAndEmptyModelConfigs: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "22222222-2222-2222-2222-222222222222",
 		},
 		modelConfigs: [],
@@ -732,7 +709,6 @@ export const DisableAdvisorWithDeletedModelAndEmptyModelConfigs: Story = {
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: nilUUID,
 		});
 	},
@@ -775,7 +751,6 @@ export const DisableThenSave: Story = {
 			enabled: true,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "model-2",
 		},
 	},
@@ -821,7 +796,6 @@ export const DisableThenSave: Story = {
 			enabled: false,
 			max_uses_per_run: 5,
 			max_output_tokens: 2048,
-			reasoning_effort: "high",
 			model_config_id: "model-2",
 		});
 	},

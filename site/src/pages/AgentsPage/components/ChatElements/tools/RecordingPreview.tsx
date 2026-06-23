@@ -44,20 +44,20 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 			style={{ aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT }}
 		>
 			{thumbnailError ? (
-				<div className="flex h-full w-full items-center justify-center gap-1.5 bg-surface-secondary text-xs text-content-secondary">
-					<ImageOffIcon className="h-3 w-3" />
+				<div className="flex size-full items-center justify-center gap-1.5 bg-surface-secondary text-xs text-content-secondary">
+					<ImageOffIcon className="size-3" />
 					Thumbnail unavailable
 				</div>
 			) : thumbnailFileId ? (
 				<img
 					src={thumbnailSrcOverride ?? getChatFileURL(thumbnailFileId)}
 					alt="Recording thumbnail"
-					className="h-full w-full pointer-events-none object-cover"
+					className="size-full pointer-events-none object-cover"
 					onError={() => setThumbnailError(true)}
 				/>
 			) : (
 				// No thumbnail available — neutral gray placeholder.
-				<div className="h-full w-full bg-surface-secondary" />
+				<div className="size-full bg-surface-secondary" />
 			)}
 			<button
 				type="button"
@@ -68,8 +68,8 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 				}}
 				className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center border-0 bg-black/0 p-0 transition-colors hover:bg-black/50"
 			>
-				<span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60">
-					<PlayIcon className="h-5 w-5 text-white" />
+				<span className="flex size-10 items-center justify-center rounded-full bg-black/60">
+					<PlayIcon className="size-5 text-white" />
 				</span>
 			</button>
 			<VideoLightbox

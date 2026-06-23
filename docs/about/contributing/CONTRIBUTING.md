@@ -4,7 +4,7 @@
 
 <div class="tabs">
 
-To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](https://github.com/coder/coder/tree/main/nix).
+To get started with Coder, the easiest way to set up the required environment is to use the provided [Nix environment](../../../flake.nix).
 Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Nix
@@ -56,9 +56,13 @@ Learn more [how Nix works](https://nixos.org/guides/how-nix-works).
 
 ### Without Nix
 
-If you're not using the Nix environment, you can launch a local [DevContainer](https://github.com/coder/coder/tree/main/.devcontainer) to get a fully configured development environment.
+If you're not using the Nix environment, you can launch a local [DevContainer](../../../.devcontainer) to get a fully configured development environment.
 
-DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, and `make`.
+DevContainers are supported in tools like **VS Code** and **GitHub Codespaces**, and come preloaded with all required dependencies: Docker, Go, Node.js with `pnpm`, `mise`, and `make`.
+
+For manual setup outside Nix and DevContainers, install Docker, `mise`, and
+`make`. Run `mise install` from the repository root to install Go, Node.js
+with `pnpm`, and development tools at the versions pinned in `mise.toml`.
 
 </div>
 
@@ -110,7 +114,7 @@ the Makefile trigger the full targets as before.
    ./scripts/coder-dev.sh list
       ```
 
-   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](https://github.com/coder/coder/blob/main/scripts/develop.sh) script for issues.
+   This should return an empty list of workspaces. If you encounter an error, review the output from the [develop.sh](../../../scripts/develop.sh) script for issues.
 
    > [!NOTE]
    > `coder-dev.sh` is a helper script that behaves like the regular coder CLI, but uses the binary built from your local source and shares the same configuration directory set up by `develop.sh`. This ensures your local changes are reflected when testing.
@@ -207,55 +211,60 @@ be applied selectively or to discourage anyone from contributing.
 
 ## Releases
 
-Coder releases are initiated via
-[`./scripts/release.sh`](https://github.com/coder/coder/blob/main/scripts/release.sh)
-and automated via GitHub Actions. Specifically, the
-[`release.yaml`](https://github.com/coder/coder/blob/main/.github/workflows/release.yaml)
-workflow.
-
-Release notes are automatically generated from commit titles and PR metadata.
+Coder releases are managed entirely through the
+[`release.yaml`](../../../.github/workflows/release.yaml)
+GitHub Actions workflow, triggered manually via "Run workflow" in the Actions
+tab. Release notes are automatically generated from commit titles and PR
+metadata.
 
 ### Release types
 
-| Type                   | Tag           | Branch        | Purpose                                 |
-|------------------------|---------------|---------------|-----------------------------------------|
-| RC (release candidate) | `vX.Y.0-rc.W` | `main`        | Ad-hoc pre-release for customer testing |
-| Release                | `vX.Y.0`      | `release/X.Y` | First release of a minor version        |
-| Patch                  | `vX.Y.Z`      | `release/X.Y` | Bug fixes and security patches          |
+| Type                   | Tag           | Source           | Purpose                               |
+|------------------------|---------------|------------------|---------------------------------------|
+| RC (release candidate) | `vX.Y.0-rc.W` | `main` or branch | Pre-release for testing               |
+| Create release branch  | `vX.Y.0-rc.W` | `main`           | Cut `release/X.Y` + tag RC atomically |
+| Release                | `vX.Y.0`      | `release/X.Y`    | First release of a minor version      |
+| Patch                  | `vX.Y.Z`      | `release/X.Y`    | Bug fixes and security patches        |
 
 ### Workflow
 
-RC tags are created directly on `main`. The `release/X.Y` branch is only cut
-when the release is ready. This avoids cherry-picking main's progress onto
-a release branch between the first RC and the release.
+RC tags can be created from `main` or from a release branch. The
+`create-release-branch` type creates `release/X.Y` and tags the next RC in one
+step, continuing the RC numbering sequence.
 
 ```text
-main:  ──●──●──●──●──●──●──●──●──●──
-              ↑           ↑     ↑
-           rc.0        rc.1    cut release/2.34, tag v2.34.0
-                                     \
-                               release/2.34:  ──●── v2.34.1 (patch)
+main:  --*--*--*--*--*--*--*--*--*--
+              |  rc.0   rc.1  |
+              |               +--- create-release-branch ---+
+              |                                             |
+              |            release/2.34:  --*-- rc.2 -- rc.3 -- v2.34.0
+              |
+              +-- (more RCs on main for next cycle)
 ```
 
-1. **RC:** On `main`, run `./scripts/release.sh`. The tool suggests the next
-   RC version and tags it on `main`.
-2. **Release:** When the RC is blessed, create `release/X.Y` from `main` (or
-   the specific RC commit). Switch to that branch and run
-   `./scripts/release.sh`, which suggests `vX.Y.0`.
-3. **Patch:** Cherry-pick fixes onto `release/X.Y` and run
-   `./scripts/release.sh` from that branch.
+1. **RC:** Go to [Actions > Release](https://github.com/coder/coder/actions/workflows/release.yaml),
+   click "Run workflow", select `main` (or a release branch) from the "Use
+   workflow from" dropdown, choose `rc`, and optionally provide a commit SHA
+   (defaults to HEAD). The workflow calculates the next RC version
+   automatically.
+2. **Create release branch:** Select `main` in the dropdown, choose
+   `create-release-branch`, and optionally provide a commit SHA. This creates
+   `release/X.Y` and tags the next RC atomically.
+3. **Release:** Select the release branch (e.g. `release/2.34`) from the
+   dropdown and choose `release`. No other inputs needed.
+4. **Patch:** Cherry-pick fixes onto `release/X.Y`, select that branch from
+   the dropdown, and choose `release`.
 
-The release tool warns if you try to tag a non-RC on `main` or an RC on a
-release branch.
+The workflow validates that commits are on the expected branch for each release
+type.
 
-### Creating a release (via workflow dispatch)
+### Retrying a failed release
 
 If the
 [`release.yaml`](https://github.com/coder/coder/actions/workflows/release.yaml)
-workflow fails after the tag has been pushed, retry it from the GitHub Actions
-UI: press "Run workflow", set "Use workflow from" to the tag (e.g.
-`Tag: v2.34.0`), select the correct release channel, and do **not** select
-dry-run.
+workflow fails after the tag has been pushed, re-run the failed jobs from the
+GitHub Actions UI. The `prepare-release` job is idempotent and will detect
+the existing tag.
 
 To test the workflow without publishing, select dry-run.
 
@@ -284,7 +293,7 @@ changes are within that directory. If changes span multiple top-level
 directories, omit the scope.
 
 A good rule of thumb for writing good commit messages is to recite:
-[If applied, this commit will ...](https://reflectoring.io/meaningful-commit-messages/).
+[If applied, this commit will ...](https://cbea.ms/git-commit/).
 
 **Note:** We lint PR titles to ensure they follow the Conventional Commits
 specification, however, it's still possible to merge PRs on GitHub with a badly
@@ -295,7 +304,7 @@ to use the original commit title instead of the PR title.
 
 When a merged PR on `main` should also ship in older releases, add the
 `backport` label to the PR. The
-[backport workflow](https://github.com/coder/coder/blob/main/.github/workflows/backport.yaml)
+[backport workflow](../../../.github/workflows/backport.yaml)
 will automatically detect the latest three `release/*` branches,
 cherry-pick the merge commit onto each one, and open PRs for
 review.

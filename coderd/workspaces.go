@@ -90,7 +90,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again.", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?include_deleted=true' and trying again.", workspace.ID.String()),
 		})
 		return
 	}
@@ -157,7 +157,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.UserID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -794,7 +794,6 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
-			Logger(api.Logger.Named("wsbuilder")).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -1449,29 +1448,24 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+		if initiatorErr == nil {
+			labels := map[string]string{
+				"name":   newWorkspace.Name,
+				"reason": "a " + initiator.Username + " request",
+			}
+			// DeletingAt is set by the UPDATE only when the template's
+			// time_til_dormant_autodelete is non-zero, so skip the label when
+			// auto-delete is disabled so the body omits the deletion
+			// timeline.
+			if newWorkspace.DeletingAt.Valid {
+				labels["timeTilDelete"] = humanize.Time(newWorkspace.DeletingAt.Time)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           newWorkspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
+				labels,
 				"api",
 				newWorkspace.ID,
 				newWorkspace.OwnerID,
@@ -2034,7 +2028,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspace(
@@ -2231,7 +2225,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	defer cancel()
 
 	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)
@@ -2431,10 +2425,16 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "You cannot change your own workspace sharing role.",
-		})
-		return
+		// Block changing your own sharing role unless you can share any
+		// workspace in the organization. This keeps a user whose only access is
+		// this share from destructively demoting themselves, while letting org
+		// and deployment admins manage their own access.
+		if !api.Authorize(r, policy.ActionShare, rbac.ResourceWorkspace.InOrg(workspace.OrganizationID)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You cannot change your own workspace sharing role.",
+			})
+			return
+		}
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))

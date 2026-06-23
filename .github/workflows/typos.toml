@@ -54,9 +54,13 @@ extend-exclude = [
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	"provisioner/terraform/testdata/**",
+	"coderd/azureidentity/roots_darwin.go",
+	"coderd/azureidentity/azureidentity.go",
 	# notifications' golden files confuse the detector because of quoted-printable encoding
 	"coderd/notifications/testdata/**",
 	"agent/agentcontainers/testdata/devcontainercli/**",
 	# aibridge fixtures contain truncated streaming chunks that look like typos
 	"aibridge/fixtures/**",
+	# go-vcr cassettes contain real API responses with 3rd-party content
+	"coderd/externalauth/gitprovider/testdata/**",
 ]

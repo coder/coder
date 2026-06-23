@@ -17,6 +17,8 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/shellparse"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -233,39 +235,6 @@ func ConvertMessagesWithFiles(
 	return prompt, nil
 }
 
-// PrependSystem prepends a system message unless an existing system
-// message already mentions create_workspace guidance.
-func PrependSystem(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	for _, message := range prompt {
-		if message.Role != fantasy.MessageRoleSystem {
-			continue
-		}
-		for _, part := range message.Content {
-			textPart, ok := fantasy.AsMessagePart[fantasy.TextPart](part)
-			if !ok {
-				continue
-			}
-			if strings.Contains(strings.ToLower(textPart.Text), "create_workspace") {
-				return prompt
-			}
-		}
-	}
-
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleSystem,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
-	out = append(out, prompt...)
-	return out
-}
-
 // InsertSystem inserts a system message after the existing system
 // block and before the first non-system message.
 func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Message {
@@ -293,24 +262,6 @@ func InsertSystem(prompt []fantasy.Message, instruction string) []fantasy.Messag
 	if !inserted {
 		out = append(out, systemMessage)
 	}
-	return out
-}
-
-// AppendUser appends an instruction as a user message at the end of
-// the prompt.
-func AppendUser(prompt []fantasy.Message, instruction string) []fantasy.Message {
-	instruction = strings.TrimSpace(instruction)
-	if instruction == "" {
-		return prompt
-	}
-	out := make([]fantasy.Message, 0, len(prompt)+1)
-	out = append(out, prompt...)
-	out = append(out, fantasy.Message{
-		Role: fantasy.MessageRoleUser,
-		Content: []fantasy.MessagePart{
-			fantasy.TextPart{Text: instruction},
-		},
-	})
 	return out
 }
 
@@ -778,20 +729,24 @@ func sdkPartFromContent(
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
 	case *fantasy.ToolCallContent:
+		args := safeToolCallArgs(value.Input)
 		return codersdk.ChatMessagePart{
 			Type:             codersdk.ChatMessagePartTypeToolCall,
 			ToolCallID:       value.ToolCallID,
 			ToolName:         value.ToolName,
-			Args:             safeToolCallArgs(value.Input),
+			Args:             args,
+			ParsedCommands:   executeToolParsedCommands(value.ToolName, args),
 			ProviderExecuted: value.ProviderExecuted,
 			ProviderMetadata: marshalProviderMetadata(value.ProviderMetadata),
 		}
@@ -1269,6 +1224,23 @@ func safeToolCallArgs(input string) json.RawMessage {
 	return raw
 }
 
+func executeToolParsedCommands(toolName string, args json.RawMessage) [][]string {
+	if toolName != chattool.ExecuteToolName || len(args) == 0 {
+		return nil
+	}
+	var parsed struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal(args, &parsed); err != nil || parsed.Command == "" {
+		return nil
+	}
+	steps, err := shellparse.Parse(parsed.Command)
+	if err != nil {
+		return nil
+	}
+	return steps
+}
+
 // TODO: Replace filename-based detection with explicit origin metadata.
 func isSyntheticPaste(name string, mediaType string) bool {
 	if !syntheticPasteFileNamePattern.MatchString(name) {
@@ -1497,13 +1469,13 @@ func partsToMessageParts(
 				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
 			})
 		case codersdk.ChatMessagePartTypeReasoning:
-			// Same guard as text parts above.
-			if strings.TrimSpace(part.Text) == "" {
+			opts := providerMetadataToOptions(logger, part.ProviderMetadata)
+			if strings.TrimSpace(part.Text) == "" && !chatsanitize.HasAnthropicSignedReasoningOptions(opts) {
 				continue
 			}
 			result = append(result, fantasy.ReasoningPart{
 				Text:            part.Text,
-				ProviderOptions: providerMetadataToOptions(logger, part.ProviderMetadata),
+				ProviderOptions: opts,
 			})
 		case codersdk.ChatMessagePartTypeToolCall:
 			result = append(result, fantasy.ToolCallPart{
@@ -1565,6 +1537,7 @@ func partsToMessageParts(
 				continue
 			}
 			result = append(result, fantasy.FilePart{
+				Filename:        name,
 				Data:            data,
 				MediaType:       mediaType,
 				ProviderOptions: opts,

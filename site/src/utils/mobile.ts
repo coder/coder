@@ -8,6 +8,8 @@ export const isMobileViewport = (): boolean => {
 	return window.matchMedia("(max-width: 639px)").matches;
 };
 
+export const belowMdViewportMediaQuery = "(max-width: 767px)";
+
 /**
  * Returns `true` when the viewport width is below the `md` Tailwind
  * breakpoint (< 768 px). Use this for layout branching that needs to
@@ -17,5 +19,5 @@ export const isMobileViewport = (): boolean => {
  * mobile branch instead of the desktop flyout branch.
  */
 export const isBelowMdViewport = (): boolean => {
-	return window.matchMedia("(max-width: 767px)").matches;
+	return window.matchMedia(belowMdViewportMediaQuery).matches;
 };

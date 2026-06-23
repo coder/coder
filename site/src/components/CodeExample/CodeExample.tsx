@@ -86,17 +86,17 @@ export const CodeExample: FC<CodeExampleProps> = ({
 				)}
 			</code>
 
-			<div className="flex items-center gap-1">
+			<div className="flex items-center gap-1 select-none">
 				{showRevealButton && redactPattern && !secret && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
 								size="icon"
 								variant="subtle"
+								aria-label={showButtonLabel}
 								onClick={() => setShowFullValue(!showFullValue)}
 							>
 								{icon}
-								<span className="sr-only">{showButtonLabel}</span>
 							</Button>
 						</TooltipTrigger>
 						<TooltipContent>{showButtonLabel}</TooltipContent>

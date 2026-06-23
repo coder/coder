@@ -29,7 +29,6 @@ const baseArgs: AgentSettingsExperimentsPageViewProps = {
 		enabled: false,
 		max_uses_per_run: 0,
 		max_output_tokens: 0,
-		reasoning_effort: "",
 		model_config_id: "",
 	},
 	isAdvisorConfigLoading: false,
@@ -154,7 +153,7 @@ export const ForcedByDeployment: Story = {
 export const DesktopSetting: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await canvas.findByText("Virtual Desktop");
+		await canvas.findByText("Virtual desktop");
 		await canvas.findByText(
 			/Allow agents to use a virtual, graphical desktop within workspaces./i,
 		);

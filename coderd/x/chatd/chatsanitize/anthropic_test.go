@@ -1,6 +1,7 @@
 package chatsanitize_test
 
 import (
+	"context"
 	"testing"
 
 	"charm.land/fantasy"
@@ -8,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatsanitize"
 )
 
@@ -43,6 +45,217 @@ func validWebSearchProviderOptionsForTest() fantasy.ProviderOptions {
 			},
 		},
 	}
+}
+
+func providerToolCallPartForSignedReasoningTest(id string) fantasy.ToolCallPart {
+	return fantasy.ToolCallPart{
+		ToolCallID:       id,
+		ToolName:         "web_search",
+		Input:            `{"query":"coder"}`,
+		ProviderExecuted: true,
+	}
+}
+
+func signedReasoningPartForTest(signature string) fantasy.ReasoningPart {
+	return fantasy.ReasoningPart{
+		Text: "signed thinking",
+		ProviderOptions: fantasy.ProviderOptions{
+			fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+				Signature: signature,
+			},
+		},
+	}
+}
+
+func redactedReasoningPartForTest(redactedData string) fantasy.ReasoningPart {
+	return fantasy.ReasoningPart{
+		Text: "redacted thinking",
+		ProviderOptions: fantasy.ProviderOptions{
+			fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+				RedactedData: redactedData,
+			},
+		},
+	}
+}
+
+func latestReasoningAssistantForTest(reasoning fantasy.ReasoningPart) fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{
+			reasoning,
+			providerToolCallPartForSignedReasoningTest("srvtoolu_latest_orphan"),
+			fantasy.TextPart{Text: "answer"},
+		},
+	}
+}
+
+func priorAssistantWithOrphanForTest() fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{
+			providerToolCallPartForSignedReasoningTest("srvtoolu_prior_orphan"),
+			fantasy.TextPart{Text: "prior"},
+		},
+	}
+}
+
+func sanitizedPriorAssistantForTest() fantasy.Message {
+	return fantasy.Message{
+		Role: fantasy.MessageRoleAssistant,
+		Content: []fantasy.MessagePart{
+			fantasy.TextPart{Text: "prior"},
+		},
+	}
+}
+
+func TestSanitizeAnthropicProviderToolHistoryDoesNotMergeAcrossLatestReasoningAssistant(t *testing.T) {
+	t.Parallel()
+
+	reasoningVariants := []struct {
+		name string
+		part fantasy.ReasoningPart
+	}{
+		{name: "signed", part: signedReasoningPartForTest("sig-latest")},
+		{name: "redacted", part: redactedReasoningPartForTest("redacted-latest")},
+	}
+
+	for _, reasoningVariant := range reasoningVariants {
+		t.Run(reasoningVariant.name, func(t *testing.T) {
+			t.Parallel()
+
+			sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolHistory(
+				fantasyanthropic.Name,
+				[]fantasy.Message{
+					priorAssistantWithOrphanForTest(),
+					latestReasoningAssistantForTest(reasoningVariant.part),
+				},
+			)
+
+			require.Equal(t, chatsanitize.AnthropicProviderToolSanitizationStats{RemovedToolCalls: 1}, stats)
+			require.Equal(t, []fantasy.Message{
+				sanitizedPriorAssistantForTest(),
+				latestReasoningAssistantForTest(reasoningVariant.part),
+			}, sanitized)
+		})
+	}
+}
+
+func TestApplyAnthropicProviderToolGuardRepairsOlderSignedAssistantWhenLatestAssistantIsUnsigned(t *testing.T) {
+	t.Parallel()
+
+	reasoningVariants := []struct {
+		name string
+		part fantasy.ReasoningPart
+	}{
+		{name: "signed", part: signedReasoningPartForTest("sig-older")},
+		{name: "redacted", part: redactedReasoningPartForTest("redacted-older")},
+	}
+
+	for _, reasoningVariant := range reasoningVariants {
+		t.Run(reasoningVariant.name, func(t *testing.T) {
+			t.Parallel()
+			guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
+				context.Background(),
+				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				fantasyanthropic.Name,
+				"claude-test",
+				[]fantasy.Message{
+					{
+						Role: fantasy.MessageRoleAssistant,
+						Content: []fantasy.MessagePart{
+							reasoningVariant.part,
+							providerToolCallPartForSignedReasoningTest("srvtoolu_older_orphan"),
+							fantasy.TextPart{Text: "older"},
+						},
+					},
+					{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "continue"}}},
+					{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "latest unsigned"}}},
+					{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "next"}}},
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(t, []fantasy.Message{
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						reasoningVariant.part,
+						fantasy.TextPart{Text: "older"},
+					},
+				},
+				{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "continue"}}},
+				{Role: fantasy.MessageRoleAssistant, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "latest unsigned"}}},
+				{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "next"}}},
+			}, guarded)
+		})
+	}
+}
+
+func TestApplyAnthropicProviderToolGuardDropsOrphanProviderCallsAcrossLatestReasoningAssistant(t *testing.T) {
+	t.Parallel()
+
+	reasoningVariants := []struct {
+		name string
+		part fantasy.ReasoningPart
+	}{
+		{name: "signed", part: signedReasoningPartForTest("sig-latest")},
+		{name: "redacted", part: redactedReasoningPartForTest("redacted-latest")},
+	}
+
+	for _, reasoningVariant := range reasoningVariants {
+		t.Run(reasoningVariant.name, func(t *testing.T) {
+			t.Parallel()
+
+			guarded, err := chatsanitize.ApplyAnthropicProviderToolGuard(
+				context.Background(),
+				slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				fantasyanthropic.Name,
+				"claude-test",
+				[]fantasy.Message{
+					priorAssistantWithOrphanForTest(),
+					latestReasoningAssistantForTest(reasoningVariant.part),
+				},
+			)
+
+			require.NoError(t, err)
+			require.Equal(t, []fantasy.Message{
+				sanitizedPriorAssistantForTest(),
+				{
+					Role: fantasy.MessageRoleAssistant,
+					Content: []fantasy.MessagePart{
+						reasoningVariant.part,
+						fantasy.TextPart{Text: "answer"},
+					},
+				},
+			}, guarded)
+			require.Empty(t, chatsanitize.ValidateAnthropicProviderToolHistory(guarded))
+		})
+	}
+}
+
+func TestSanitizeAnthropicProviderToolContentPreservesSignedReasoningStep(t *testing.T) {
+	t.Parallel()
+
+	content := []fantasy.Content{
+		fantasy.ReasoningContent{
+			Text: "signed thinking",
+			ProviderMetadata: fantasy.ProviderMetadata{
+				fantasyanthropic.Name: &fantasyanthropic.ReasoningOptionMetadata{
+					Signature: "sig-step",
+				},
+			},
+		},
+		fantasy.ToolCallContent{
+			ToolCallID:       "srvtoolu_orphan",
+			ToolName:         "web_search",
+			Input:            `{"query":"coder"}`,
+			ProviderExecuted: true,
+		},
+	}
+
+	sanitized, stats := chatsanitize.SanitizeAnthropicProviderToolContent(fantasyanthropic.Name, content)
+
+	require.Equal(t, chatsanitize.AnthropicProviderToolSanitizationStats{}, stats)
+	require.Equal(t, content, sanitized)
 }
 
 func TestSanitizeAnthropicProviderToolHistory(t *testing.T) {

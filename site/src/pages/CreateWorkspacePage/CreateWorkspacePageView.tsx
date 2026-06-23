@@ -27,6 +27,7 @@ import {
 	ComboboxItem,
 	ComboboxTrigger,
 } from "#/components/Combobox/Combobox";
+import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	HelpPopover,
 	HelpPopoverContent,
@@ -65,13 +66,16 @@ interface CreateWorkspacePageViewProps {
 	disabledParams?: string[];
 	error: unknown;
 	externalAuth: TypesGen.TemplateVersionExternalAuth[];
-	externalAuthPollingState: ExternalAuthPollingState;
+	externalAuthPollingState: Record<string, ExternalAuthPollingState>;
 	hasAllRequiredExternalAuth: boolean;
+	hasIgnoredUrlParams?: boolean;
 	mode: CreateWorkspaceMode;
 	parameters: PreviewParameter[];
 	permissions: CreateWorkspacePermissions;
 	presets: TypesGen.Preset[];
 	template: TypesGen.Template;
+	urlPreset?: TypesGen.Preset;
+	urlPresetError?: string;
 	versionId?: string;
 	versionName?: string;
 	onCancel: () => void;
@@ -81,7 +85,7 @@ interface CreateWorkspacePageViewProps {
 	) => void;
 	resetMutation: () => void;
 	sendMessage: (message: Record<string, string>, ownerId?: string) => void;
-	startPollingExternalAuth: () => void;
+	startPollingExternalAuth: (providerId: string) => void;
 	owner: TypesGen.MinimalUser;
 	setOwner: (user: TypesGen.MinimalUser) => void;
 }
@@ -98,11 +102,14 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	externalAuth,
 	externalAuthPollingState,
 	hasAllRequiredExternalAuth,
+	hasIgnoredUrlParams,
 	mode,
 	parameters,
 	permissions,
 	presets = [],
 	template,
+	urlPreset,
+	urlPresetError,
 	versionId,
 	versionName,
 	onSubmit,
@@ -201,6 +208,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			})),
 		];
 		setPresetOptions(options);
+
+		// URL preset takes precedence over default preset.
+		if (urlPreset) {
+			const idx = presets.findIndex((p) => p.ID === urlPreset.ID) + 1;
+			setSelectedPresetIndex(idx);
+			form.setFieldValue("template_version_preset_id", urlPreset.ID);
+			return;
+		}
+
 		const defaultPreset = presets.find((p) => p.Default);
 		if (defaultPreset) {
 			const idx = presets.indexOf(defaultPreset) + 1; // +1 for "None"
@@ -210,7 +226,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			setSelectedPresetIndex(0); // Explicitly set to "None"
 			form.setFieldValue("template_version_preset_id", undefined);
 		}
-	}, [presets, form.setFieldValue]);
+	}, [presets, form.setFieldValue, urlPreset]);
 
 	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
 		[],
@@ -450,6 +466,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
 
+					{urlPresetError && (
+						<Alert severity="warning" dismissible>
+							{urlPresetError}
+						</Alert>
+					)}
+
+					{hasIgnoredUrlParams && urlPreset && (
+						<Alert severity="info" dismissible>
+							Preset selected. <code>param.*</code> URL parameters have been
+							ignored. Use either <code>preset</code> or <code>param.*</code>,
+							not both.
+						</Alert>
+					)}
+
 					{mode === "duplicate" && (
 						<Alert
 							severity="info"
@@ -558,9 +588,11 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 										key={auth.id}
 										error={error}
 										auth={auth}
-										isLoading={externalAuthPollingState === "polling"}
-										onStartPolling={startPollingExternalAuth}
-										displayRetry={externalAuthPollingState === "abandoned"}
+										isLoading={externalAuthPollingState[auth.id] === "polling"}
+										onStartPolling={() => startPollingExternalAuth(auth.id)}
+										displayRetry={
+											externalAuthPollingState[auth.id] === "abandoned"
+										}
 									/>
 								))}
 							</div>
@@ -636,7 +668,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 															value={preset.value}
 														>
 															{preset.icon && (
-																<img
+																<ExternalImage
 																	src={preset.icon}
 																	alt={preset.label}
 																	className="w-4 h-4"
@@ -712,7 +744,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 											}
 											disabled={isDisabled}
 											isPreset={isPresetParameter}
-											autofill={autofillByName[parameter.name] !== undefined}
+											autofill={
+												!isPresetParameter &&
+												autofillByName[parameter.name] !== undefined
+											}
 											value={formValue}
 										/>
 									);
