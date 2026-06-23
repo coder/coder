@@ -391,9 +391,6 @@ const AgentSettingsPersonalSkillsPage = lazy(
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
 );
-const AgentSettingsModelsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsModelsPage"),
-);
 const AgentSettingsMCPServersPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
@@ -452,6 +449,16 @@ const AISettingsAddProviderPage = lazy(
 );
 const AISettingsGatewayKeysPage = lazy(
 	() => import("./pages/AISettingsPage/GatewayKeysPage/GatewayKeysPage"),
+);
+const AISettingsModelsPage = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
+);
+const AISettingsAddModelPage = lazy(
+	() => import("./pages/AISettingsPage/ModelsPage/AddModelPage/AddModelPage"),
+);
+const AISettingsUpdateModelPage = lazy(
+	() =>
+		import("./pages/AISettingsPage/ModelsPage/UpdateModelPage/UpdateModelPage"),
 );
 
 const AISettingsIndexPage = () => {
@@ -726,6 +733,12 @@ export const router = createBrowserRouter(
 							element={<AISettingsGatewayKeysPage />}
 						/>
 						<Route index element={<AISettingsIndexPage />} />
+						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="models/add" element={<AISettingsAddModelPage />} />
+						<Route
+							path="models/:modelId"
+							element={<AISettingsUpdateModelPage />}
+						/>
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
 							path=":providerId"
@@ -815,7 +828,10 @@ export const router = createBrowserRouter(
 							path="providers"
 							element={<Navigate to="/ai/settings" replace />}
 						/>
-						<Route path="models" element={<AgentSettingsModelsPage />} />
+						<Route
+							path="models"
+							element={<Navigate to="/ai/settings/models" replace />}
+						/>
 						<Route
 							path="mcp-servers"
 							element={<AgentSettingsMCPServersPage />}
