@@ -72,9 +72,7 @@ export const UserAIBudgetOverrideDialog: FC<
 > = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
 	const queryClient = useQueryClient();
 	const shouldLoadEffectiveGroup =
-		effectiveGroupId !== undefined &&
-		effectiveGroupId !== null &&
-		effectiveGroupId !== currentGroup.id;
+		!!effectiveGroupId && effectiveGroupId !== currentGroup.id;
 	const effectiveGroupQuery = useQuery({
 		...groupById(effectiveGroupId ?? "", { exclude_members: true }),
 		enabled: open && shouldLoadEffectiveGroup,

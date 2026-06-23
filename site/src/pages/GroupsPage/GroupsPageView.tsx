@@ -1,8 +1,7 @@
 import { ChevronRightIcon, PlusIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router";
-import type { OrganizationGroupAISpend } from "#/api/api";
-import type { Group } from "#/api/typesGenerated";
+import type { GroupWithAICostControl } from "#/api/api";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
@@ -25,32 +24,21 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
-import { getSeverity, severityTextClassName } from "#/utils/budget";
-import { microsToDollars, usdBudgetFormatter } from "#/utils/currency";
 import { docs } from "#/utils/docs";
+import { AIBudgetUsage } from "./AIBudgetUsage";
 
 type GroupsPageViewProps = {
-	groups: Group[] | undefined;
+	groups: GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
 	groupsEnabled: boolean;
-	// Present when the AI budget column should be shown.
-	aiBudget?: {
-		spend: readonly OrganizationGroupAISpend[] | undefined;
-		isLoading: boolean;
-	};
-};
-
-// Per-group spend resolved for rendering; present only when the column shows.
-type AIBudgetColumn = {
-	spendByGroupID: ReadonlyMap<string, OrganizationGroupAISpend>;
-	isLoading: boolean;
+	showAIBudget: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
 	canCreateGroup,
 	groupsEnabled,
-	aiBudget,
+	showAIBudget,
 }) => {
 	if (!groupsEnabled) {
 		return (
@@ -62,22 +50,15 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 		);
 	}
 
-	const aiBudgetColumn: AIBudgetColumn | undefined = aiBudget && {
-		spendByGroupID: new Map(
-			aiBudget.spend?.map((spend) => [spend.group_id, spend]),
-		),
-		isLoading: aiBudget.isLoading,
-	};
-
 	return (
 		<Table aria-label="Groups">
 			<TableHeader>
 				<TableRow>
 					<TableHead className="w-2/5">Name</TableHead>
-					<TableHead className={aiBudgetColumn ? "w-1/5" : "w-3/5"}>
+					<TableHead className={showAIBudget ? "w-1/5" : "w-3/5"}>
 						Users
 					</TableHead>
-					{aiBudgetColumn && (
+					{showAIBudget && (
 						<TableHead className="w-2/5">
 							<div className="flex items-center gap-1">
 								AI budget
@@ -92,7 +73,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 				<GroupsTableBody
 					groups={groups}
 					canCreateGroup={canCreateGroup}
-					aiBudgetColumn={aiBudgetColumn}
+					showAIBudget={showAIBudget}
 				/>
 			</TableBody>
 		</Table>
@@ -100,18 +81,18 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 };
 
 interface GroupsTableBodyProps {
-	groups: Group[] | undefined;
+	groups: GroupWithAICostControl[] | undefined;
 	canCreateGroup: boolean;
-	aiBudgetColumn: AIBudgetColumn | undefined;
+	showAIBudget: boolean;
 }
 
 const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	groups,
 	canCreateGroup,
-	aiBudgetColumn,
+	showAIBudget,
 }) => {
 	if (groups === undefined) {
-		return <TableLoader showAIBudget={aiBudgetColumn !== undefined} />;
+		return <TableLoader showAIBudget={showAIBudget} />;
 	}
 	if (groups.length === 0) {
 		return (
@@ -142,22 +123,18 @@ const GroupsTableBody: FC<GroupsTableBodyProps> = ({
 	return (
 		<>
 			{groups.map((group) => (
-				<GroupRow
-					key={group.id}
-					group={group}
-					aiBudgetColumn={aiBudgetColumn}
-				/>
+				<GroupRow key={group.id} group={group} showAIBudget={showAIBudget} />
 			))}
 		</>
 	);
 };
 
 interface GroupRowProps {
-	group: Group;
-	aiBudgetColumn: AIBudgetColumn | undefined;
+	group: GroupWithAICostControl;
+	showAIBudget: boolean;
 }
 
-const GroupRow: FC<GroupRowProps> = ({ group, aiBudgetColumn }) => {
+const GroupRow: FC<GroupRowProps> = ({ group, showAIBudget }) => {
 	const navigate = useNavigate();
 	const rowProps = useClickableTableRow({
 		onClick: () => navigate(group.name),
@@ -203,12 +180,16 @@ const GroupRow: FC<GroupRowProps> = ({ group, aiBudgetColumn }) => {
 				)}
 			</TableCell>
 
-			{aiBudgetColumn && (
+			{showAIBudget && (
 				<TableCell>
-					<GroupAIBudgetCell
-						aiSpend={aiBudgetColumn.spendByGroupID.get(group.id)}
-						isLoading={aiBudgetColumn.isLoading}
-					/>
+					{group.ai_cost_control ? (
+						<AIBudgetUsage
+							currentSpend={group.ai_cost_control.current_spend_micros}
+							spendLimit={group.ai_cost_control.spend_limit_micros}
+						/>
+					) : (
+						"-"
+					)}
 				</TableCell>
 			)}
 
@@ -218,41 +199,6 @@ const GroupRow: FC<GroupRowProps> = ({ group, aiBudgetColumn }) => {
 				</div>
 			</TableCell>
 		</TableRow>
-	);
-};
-
-const GroupAIBudgetCell: FC<{
-	aiSpend: OrganizationGroupAISpend | undefined;
-	isLoading: boolean;
-}> = ({ aiSpend, isLoading }) => {
-	if (isLoading) {
-		return <Skeleton variant="text" width="50%" />;
-	}
-
-	if (aiSpend === undefined) {
-		return "-";
-	}
-
-	const { current_spend_micros, spend_limit_micros } = aiSpend;
-
-	if (spend_limit_micros === null) {
-		return (
-			<span className="whitespace-nowrap">
-				{formatBudgetUSD(current_spend_micros)}{" "}
-				<span className="text-content-disabled">/ unlimited USD</span>
-			</span>
-		);
-	}
-
-	const severity = getSeverity(current_spend_micros, spend_limit_micros);
-	return (
-		<span className="whitespace-nowrap">
-			<span className={severityTextClassName(severity)}>
-				{formatBudgetUSD(current_spend_micros)}
-			</span>{" "}
-			/ {formatBudgetUSD(spend_limit_micros)}{" "}
-			<span className="text-content-disabled">USD</span>
-		</span>
 	);
 };
 
@@ -280,7 +226,3 @@ const TableLoader: FC<{ showAIBudget: boolean }> = ({ showAIBudget }) => {
 		</TableLoaderSkeleton>
 	);
 };
-
-function formatBudgetUSD(micros: number): string {
-	return usdBudgetFormatter.format(microsToDollars(micros));
-}

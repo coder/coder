@@ -4,10 +4,13 @@ import {
 	reactRouterOutlet,
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
-import { API, type GroupMemberAISpend } from "#/api/api";
+import {
+	API,
+	type GroupMemberAICostControl,
+	type GroupMemberWithAICostControl,
+} from "#/api/api";
 import {
 	getGroupByIdQueryKey,
-	getGroupMembersAISpendQueryKey,
 	getGroupMembersQueryKey,
 	getGroupQueryKey,
 	getGroupsForUserQueryKey,
@@ -244,50 +247,49 @@ const mockOwnerOverride: UserAIBudgetOverride = {
 	updated_at: "2026-01-01T00:00:00Z",
 };
 
-// Defaults to an override charged to the page's group; pass overrides per case.
-const memberSpend = (
-	userId: string,
-	overrides: Partial<GroupMemberAISpend> = {},
-): GroupMemberAISpend => ({
-	user_id: userId,
-	current_spend_micros: 1_345_000_000,
-	spend_limit_micros: 9_000_000_000,
-	effective_group_id: MockGroupWithoutMembers.id,
-	limit_source: "override",
-	...overrides,
+// Member row with inline AI cost control; defaults to the page's group.
+const memberWithSpend = (
+	user: ReducedUser,
+	overrides: Partial<GroupMemberAICostControl> = {},
+): GroupMemberWithAICostControl => ({
+	...user,
+	ai_cost_control: {
+		current_spend_micros: 1_345_000_000,
+		spend_limit_micros: 9_000_000_000,
+		effective_group_id: MockGroupWithoutMembers.id,
+		limit_source: "override",
+		...overrides,
+	},
 });
 
-const memberWithoutSpend: ReducedUser = {
+const memberWithoutSpend: GroupMemberWithAICostControl = {
 	...MockUserMember,
 	id: "no-spend-user",
 	username: "no-spend",
 };
 
-const aiSpendQuery = (data: GroupMemberAISpend[]) => ({
-	key: getGroupMembersAISpendQueryKey(MockGroupWithoutMembers.id),
-	data,
-});
-
-export const WithMemberAISpend: Story = {
+export const WithMemberAIBudget: Story = {
 	parameters: {
 		features: ["aibridge"],
 		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
-				users: [...MockGroup.members, memberWithoutSpend],
-				count: MockGroup.members.length + 1,
+				users: [
+					// Override source, no limit.
+					memberWithSpend(MockUserOwner, { spend_limit_micros: null }),
+					// Group source, finite limit.
+					memberWithSpend(MockUserMember, {
+						current_spend_micros: 5_492_000_000,
+						spend_limit_micros: 7_000_000_000,
+						limit_source: "group",
+					}),
+					// No cost control exercises the missing-spend "-" fallback.
+					memberWithoutSpend,
+				],
+				count: 3,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
-			// memberWithoutSpend is omitted to exercise the missing-spend "-" fallback.
-			aiSpendQuery([
-				memberSpend(MockUserOwner.id, { spend_limit_micros: null }),
-				memberSpend(MockUserMember.id, {
-					current_spend_micros: 5_492_000_000,
-					spend_limit_micros: 7_000_000_000,
-					limit_source: "group",
-				}),
-			]),
 		],
 	},
 	play: async ({ canvasElement }) => {
@@ -311,59 +313,51 @@ export const WithMemberAISpend: Story = {
 	},
 };
 
-export const WithMemberAISpendLoading: Story = {
+// Budget governed by another group (effective_group_id points elsewhere): only
+// the member's spend shows, with no limit or type.
+export const WithMemberAIBudgetFromAnotherGroup: Story = {
 	parameters: {
 		features: ["aibridge"],
 		experiments: ["ai-gateway-cost-control"],
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
+				users: [
+					memberWithSpend(MockUserOwner, {
+						effective_group_id: "other-group-id",
+						limit_source: "group",
+					}),
+				],
+				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
 		],
 	},
-	beforeEach: () => {
-		spyOn(API, "getGroupMembersAISpend").mockImplementation(
-			() => new Promise(() => {}),
-		);
-	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(await canvas.findByText("AI budget")).toBeInTheDocument();
-		// Skeletons render while spend loads, so no amount is shown yet.
-		await expect(
-			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
-		).not.toHaveTextContent("$");
-	},
-};
-
-export const WithMemberAISpendEffectiveGroupMismatch: Story = {
-	parameters: {
-		features: ["aibridge"],
-		experiments: ["ai-gateway-cost-control"],
-		queries: [
-			groupQuery(MockGroupWithoutMembers),
-			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
-			permissionsQuery({ canUpdateGroup: true }),
-			aiSpendQuery([
-				memberSpend(MockUserOwner.id, {
-					effective_group_id: "other-group-id",
-					limit_source: "group",
-				}),
-			]),
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Off the effective group: spend shows without a limit, and no budget type.
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
 		await expect(cell).toHaveTextContent("$1,345");
 		await expect(cell).not.toHaveTextContent("USD");
 		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
+	},
+};
+
+// AI Bridge hidden: neither the AI budget nor the budget type column renders.
+export const WithoutMemberAIBudgetColumn: Story = {
+	parameters: {
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({ users: [MockUserOwner], count: 1 }),
+			permissionsQuery({ canUpdateGroup: true }),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("table", { name: "Group members" });
+		expect(canvas.queryByText("AI budget")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Budget type")).not.toBeInTheDocument();
 	},
 };
 
@@ -374,13 +368,15 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 		queries: [
 			groupQuery(MockGroupWithoutMembers),
 			groupMembersQuery({
-				users: MockGroup.members,
-				count: MockGroup.members.length,
+				users: [
+					memberWithSpend(MockUserOwner, {
+						effective_group_id: MockGroup2.id,
+					}),
+					MockUserMember,
+				],
+				count: 2,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
-			aiSpendQuery([
-				memberSpend(MockUserOwner.id, { effective_group_id: MockGroup2.id }),
-			]),
 			{
 				key: getGroupByIdQueryKey(MockGroup2.id, { exclude_members: true }),
 				data: MockGroup2,

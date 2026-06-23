@@ -200,23 +200,28 @@ type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
 
-// TODO(AIGOV-290): replace with the generated type from typesGenerated.ts once
-// the GET /organizations/{org}/groups/ai/spend endpoint exists in the backend.
-export type OrganizationGroupAISpend = Readonly<{
-	group_id: string;
+// TODO(AIGOV-290): drop once `ai_cost_control` is generated onto Group.
+export type GroupAICostControl = Readonly<{
 	current_spend_micros: number;
 	spend_limit_micros: number | null;
 }>;
+export type GroupWithAICostControl = TypesGen.Group &
+	Readonly<{ ai_cost_control?: GroupAICostControl }>;
 
-// TODO(AIGOV-291): replace with the generated type from typesGenerated.ts once
-// the GET /groups/{group}/members/ai/spend endpoint exists in the backend.
-export type GroupMemberAISpend = Readonly<{
-	user_id: string;
+// TODO(AIGOV-291): drop once `ai_cost_control` is generated onto ReducedUser.
+export type GroupMemberAICostControl = Readonly<{
 	current_spend_micros: number;
 	spend_limit_micros: number | null;
 	effective_group_id: string | null;
 	limit_source: "group" | "override" | null;
 }>;
+export type GroupMemberWithAICostControl = TypesGen.ReducedUser &
+	Readonly<{ ai_cost_control?: GroupMemberAICostControl }>;
+export type GroupMembersResponseWithAICostControl = Omit<
+	TypesGen.GroupMembersResponse,
+	"users"
+> &
+	Readonly<{ users: readonly GroupMemberWithAICostControl[] }>;
 
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
@@ -2220,21 +2225,9 @@ class ApiMethods {
 	 */
 	getGroupsByOrganization = async (
 		organization: string,
-	): Promise<TypesGen.Group[]> => {
+	): Promise<GroupWithAICostControl[]> => {
 		const response = await this.axios.get(
 			`/api/v2/organizations/${organization}/groups`,
-		);
-		return response.data;
-	};
-
-	/**
-	 * @param organization Can be the organization's ID or name
-	 */
-	getOrganizationGroupsAISpend = async (
-		organization: string,
-	): Promise<OrganizationGroupAISpend[]> => {
-		const response = await this.axios.get(
-			`/api/v2/organizations/${organization}/groups/ai/spend`,
 		);
 		return response.data;
 	};
@@ -2285,7 +2278,7 @@ class ApiMethods {
 		groupName: string,
 		filter?: UsersRequest,
 		signal?: AbortSignal,
-	): Promise<TypesGen.GroupMembersResponse> => {
+	): Promise<GroupMembersResponseWithAICostControl> => {
 		const url = getURLWithSearchParams(
 			`/api/v2/organizations/${organization}/groups/${groupName}/members`,
 			filter,
@@ -2361,15 +2354,6 @@ class ApiMethods {
 
 	deleteGroupAIBudget = async (groupId: string): Promise<void> => {
 		await this.axios.delete(`/api/v2/groups/${groupId}/ai/budget`);
-	};
-
-	getGroupMembersAISpend = async (
-		groupId: string,
-	): Promise<GroupMemberAISpend[]> => {
-		const response = await this.axios.get(
-			`/api/v2/groups/${groupId}/members/ai/spend`,
-		);
-		return response.data;
 	};
 
 	getWorkspaceQuota = async (

@@ -1,0 +1,29 @@
+import type { FC } from "react";
+import { getSeverity, severityTextClassName } from "#/utils/budget";
+import { formatBudgetUSD } from "#/utils/currency";
+
+/** Spend against budget, colored by severity. Null limit is unlimited; values in micros. */
+export const AIBudgetUsage: FC<{
+	currentSpend: number;
+	spendLimit: number | null;
+}> = ({ currentSpend, spendLimit }) => {
+	if (spendLimit === null) {
+		return (
+			<span className="whitespace-nowrap">
+				{formatBudgetUSD(currentSpend)}{" "}
+				<span className="text-content-disabled">/ unlimited USD</span>
+			</span>
+		);
+	}
+
+	const severity = getSeverity(currentSpend, spendLimit);
+	return (
+		<span className="whitespace-nowrap">
+			<span className={severityTextClassName(severity)}>
+				{formatBudgetUSD(currentSpend)}
+			</span>{" "}
+			/ {formatBudgetUSD(spendLimit)}{" "}
+			<span className="text-content-disabled">USD</span>
+		</span>
+	);
+};
