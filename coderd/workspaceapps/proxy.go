@@ -266,19 +266,20 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 		HttpOnly: true,
 	}))
 
-	// Strip the query parameter.
-	path := r.URL.Path
-	if path == "" {
-		path = "/"
-	}
-	q := r.URL.Query()
-	q.Del(SubdomainProxyAPIKeyParam)
-	rawQuery := q.Encode()
-	if rawQuery != "" {
-		path += "?" + q.Encode()
+	// Strip the smuggled API key query parameter and redirect back to the same
+	// path. r.URL.Path is attacker-controlled, so it can smuggle a separate
+	// host (e.g. "//evil.com") that http.Redirect would send the user to.
+	// Collapse the leading "/" and "\" run to a single "/" and set the path
+	// on a url.URL so it is escaped, keeping the redirect on the current origin.
+	redirectURL := url.URL{
+		Path: "/" + strings.TrimLeft(r.URL.Path, `/\`),
 	}
 
-	http.Redirect(rw, r, path, http.StatusSeeOther)
+	q := r.URL.Query()
+	q.Del(SubdomainProxyAPIKeyParam)
+	redirectURL.RawQuery = q.Encode()
+
+	http.Redirect(rw, r, redirectURL.String(), http.StatusSeeOther)
 	return false
 }
 
