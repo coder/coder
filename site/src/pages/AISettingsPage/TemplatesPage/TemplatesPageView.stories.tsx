@@ -68,7 +68,7 @@ const meta = {
 		templatesError: undefined,
 		allowlistError: undefined,
 		isSaving: false,
-		isSaveError: false,
+		saveError: undefined,
 		onRetry: fn(),
 		onSaveAllowlist: fn(),
 	},
@@ -81,7 +81,7 @@ export const NoRestrictions: Story = {
 	args: {
 		allowlistData: { template_ids: [] },
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(await canvas.findByText("No restrictions set.")).toBeVisible();
 		expect(
@@ -89,6 +89,24 @@ export const NoRestrictions: Story = {
 				"All templates are available. Add a template to create an allowlist.",
 			),
 		).toBeVisible();
+
+		const body = within(document.body);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /add template/i }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: /AI webinar/i }),
+		);
+		await waitFor(() => {
+			expect(args.onSaveAllowlist).toHaveBeenCalledWith({
+				template_ids: [templateIDs[2]],
+			});
+		});
+		await waitFor(() => {
+			expect(
+				body.queryByRole("option", { name: /AI webinar/i }),
+			).not.toBeInTheDocument();
+		});
 	},
 };
 
@@ -103,6 +121,36 @@ export const TemplateAllowlist: Story = {
 			expect(canvas.getByText("12 developers")).toBeVisible();
 		});
 
+		await step("searches and adds an available template", async () => {
+			const body = within(document.body);
+			await userEvent.click(
+				canvas.getByRole("button", { name: /add template/i }),
+			);
+			const searchInput = await body.findByLabelText("Search templates");
+			await userEvent.click(searchInput);
+			await userEvent.keyboard("webinar");
+			expect(searchInput).toHaveValue("webinar");
+
+			expect(
+				await body.findByRole("option", { name: /AI webinar/i }),
+			).toBeVisible();
+			expect(
+				body.queryByRole("option", { name: /AWS EC2/i }),
+			).not.toBeInTheDocument();
+
+			await userEvent.click(body.getByRole("option", { name: /AI webinar/i }));
+			await waitFor(() => {
+				expect(args.onSaveAllowlist).toHaveBeenLastCalledWith({
+					template_ids: [templateIDs[0], templateIDs[1], templateIDs[2]],
+				});
+			});
+			await waitFor(() => {
+				expect(
+					body.queryByRole("option", { name: /AI webinar/i }),
+				).not.toBeInTheDocument();
+			});
+		});
+
 		await step("removes an allowlisted template", async () => {
 			const body = within(document.body);
 			await userEvent.click(
@@ -114,31 +162,6 @@ export const TemplateAllowlist: Story = {
 			await waitFor(() => {
 				expect(args.onSaveAllowlist).toHaveBeenCalledWith({
 					template_ids: [templateIDs[1]],
-				});
-			});
-		});
-
-		await step("searches and adds an available template", async () => {
-			const body = within(document.body);
-			await userEvent.click(
-				canvas.getByRole("button", { name: /add template/i, hidden: true }),
-			);
-			const searchInput = await body.findByLabelText("Search templates");
-			await userEvent.click(searchInput);
-			await userEvent.keyboard("webinar");
-			expect(searchInput).toHaveValue("webinar");
-
-			expect(
-				await body.findByRole("button", { name: /AI webinar/i }),
-			).toBeVisible();
-			expect(
-				body.queryByRole("button", { name: /AWS EC2/i }),
-			).not.toBeInTheDocument();
-
-			await userEvent.click(body.getByRole("button", { name: /AI webinar/i }));
-			await waitFor(() => {
-				expect(args.onSaveAllowlist).toHaveBeenLastCalledWith({
-					template_ids: [templateIDs[0], templateIDs[1], templateIDs[2]],
 				});
 			});
 		});
@@ -172,25 +195,26 @@ export const AllowlistLoadError: Story = {
 	args: {
 		allowlistError: new Error("Allowlist request failed"),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		expect(
 			await canvas.findByText(
 				"Failed to load template allowlist configuration.",
 			),
 		).toBeVisible();
-		expect(canvas.getByRole("button", { name: "Retry" })).toBeVisible();
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		expect(args.onRetry).toHaveBeenCalled();
 	},
 };
 
 export const SaveError: Story = {
 	args: {
-		isSaveError: true,
+		saveError: "Template allowlist is locked.",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			await canvas.findByText("Failed to save template allowlist."),
+			await canvas.findByText("Template allowlist is locked."),
 		).toBeVisible();
 	},
 };

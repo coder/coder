@@ -38,7 +38,7 @@ const TemplatesPage: FC = () => {
 				}}
 				onSaveAllowlist={saveAllowlistMutation.mutate}
 				isSaving={saveAllowlistMutation.isPending}
-				isSaveError={saveAllowlistMutation.isError}
+				saveError={saveAllowlistMutation.error}
 			/>
 		</RequirePermission>
 	);

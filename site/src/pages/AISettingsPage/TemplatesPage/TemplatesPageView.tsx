@@ -2,23 +2,28 @@ import {
 	ChevronDownIcon,
 	EllipsisVerticalIcon,
 	PlusIcon,
-	SearchIcon,
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
-import { DetailedError, getErrorDetail } from "#/api/errors";
+import { DetailedError, getErrorDetail, getErrorMessage } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Avatar } from "#/components/Avatar/Avatar";
-
 import { Button } from "#/components/Button/Button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "#/components/Command/Command";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	Popover,
 	PopoverContent,
@@ -37,15 +42,10 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/Table/Table";
+import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
-import { cn } from "#/utils/cn";
 import { createDayString } from "#/utils/createDayString";
 import { formatTemplateActiveDevelopers } from "#/utils/templates";
-
-interface MutationCallbacks {
-	onSuccess?: () => void;
-	onError?: () => void;
-}
 
 interface TemplatesPageViewProps {
 	templatesData: TypesGen.Template[] | undefined;
@@ -54,37 +54,29 @@ interface TemplatesPageViewProps {
 	templatesError: unknown;
 	allowlistError: unknown;
 	onRetry: () => void;
-	onSaveAllowlist: (
-		req: TypesGen.ChatTemplateAllowlist,
-		options?: MutationCallbacks,
-	) => void;
+	onSaveAllowlist: (req: TypesGen.ChatTemplateAllowlist) => void;
 	isSaving: boolean;
-	isSaveError: boolean;
+	saveError: unknown;
 }
 
-interface AddTemplateDropdownProps {
+interface AddTemplatePickerProps {
 	availableTemplates: TypesGen.Template[];
 	isSaving: boolean;
 	onAddTemplate: (templateID: string) => void;
 }
 
-const AddTemplateDropdown: FC<AddTemplateDropdownProps> = ({
+const AddTemplatePicker: FC<AddTemplatePickerProps> = ({
 	availableTemplates,
 	isSaving,
 	onAddTemplate,
 }) => {
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
-	const normalizedSearch = search.trim().toLowerCase();
-	const filteredTemplates = availableTemplates.filter((template) => {
-		if (!normalizedSearch) {
-			return true;
-		}
-
-		return `${template.display_name || template.name} ${template.name}`
+	const filteredTemplates = availableTemplates.filter((template) =>
+		`${template.display_name || template.name} ${template.name}`
 			.toLowerCase()
-			.includes(normalizedSearch);
-	});
+			.includes(search.trim().toLowerCase()),
+	);
 
 	return (
 		<Popover
@@ -107,47 +99,48 @@ const AddTemplateDropdown: FC<AddTemplateDropdownProps> = ({
 				align="end"
 				className="w-80 overflow-hidden border-border-default p-0"
 			>
-				<div className="border-0 border-border-default border-b border-solid px-4 py-3">
-					<div className="flex items-center gap-2.5">
-						<SearchIcon className="size-icon-sm shrink-0 text-content-secondary" />
-						<input
-							value={search}
-							onChange={(event) => setSearch(event.target.value)}
-							placeholder="Search..."
-							aria-label="Search templates"
-							className="min-w-0 flex-1 border-none bg-transparent p-0 text-sm text-content-primary outline-none placeholder:text-content-secondary"
-						/>
-					</div>
-				</div>
-				<div className="flex max-h-80 flex-col items-start overflow-y-auto p-2">
-					{filteredTemplates.length === 0 ? (
-						<div className="w-full px-2 py-6 text-center text-sm text-content-secondary">
-							No templates found.
-						</div>
-					) : (
-						filteredTemplates.map((template) => (
-							<button
-								key={template.id}
-								type="button"
-								className="flex w-full cursor-pointer items-center gap-3 rounded-sm border-none bg-transparent px-2 py-2 text-left text-sm font-medium text-content-secondary outline-none hover:bg-surface-secondary hover:text-content-primary focus:bg-surface-secondary focus:text-content-primary"
-								onClick={() => {
-									onAddTemplate(template.id);
-									setOpen(false);
-								}}
-							>
-								<Avatar
-									size="lg"
-									variant="icon"
-									src={template.icon}
-									fallback={template.display_name || template.name}
-								/>
-								<span className="min-w-0 truncate">
-									{template.display_name || template.name}
-								</span>
-							</button>
-						))
-					)}
-				</div>
+				<Command
+					shouldFilter={false}
+					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-4 [&_[cmdk-input-wrapper]]:py-3"
+				>
+					<CommandInput
+						value={search}
+						onValueChange={setSearch}
+						placeholder="Search..."
+						aria-label="Search templates"
+						className="h-auto py-0"
+					/>
+					<CommandList className="max-h-80 border-t-0">
+						<CommandEmpty>No templates found.</CommandEmpty>
+						<CommandGroup>
+							{filteredTemplates.map((template) => (
+								<CommandItem
+									key={template.id}
+									value={template.id}
+									keywords={[
+										template.display_name || template.name,
+										template.name,
+									]}
+									className="gap-3"
+									onSelect={() => {
+										onAddTemplate(template.id);
+										setOpen(false);
+									}}
+								>
+									<Avatar
+										size="lg"
+										variant="icon"
+										src={template.icon}
+										fallback={template.display_name || template.name}
+									/>
+									<span className="min-w-0 truncate">
+										{template.display_name || template.name}
+									</span>
+								</CommandItem>
+							))}
+						</CommandGroup>
+					</CommandList>
+				</Command>
 			</PopoverContent>
 		</Popover>
 	);
@@ -264,23 +257,19 @@ const TemplatesTable: FC<TemplatesTableProps> = ({
 				{isLoading ? (
 					<TableLoader />
 				) : allowlistedTemplates.length === 0 ? (
-					<TableRow>
-						<TableCell colSpan={999} className="p-0!">
-							<EmptyState
-								message="No restrictions set."
-								description="All templates are available. Add a template to create an allowlist."
-								cta={
-									<AddTemplateDropdown
-										availableTemplates={availableTemplates}
-										isSaving={isSaving}
-										onAddTemplate={onAddTemplate}
-									/>
-								}
-								isCompact
-								className="min-h-52"
+					<TableEmpty
+						message="No restrictions set."
+						description="All templates are available. Add a template to create an allowlist."
+						cta={
+							<AddTemplatePicker
+								availableTemplates={availableTemplates}
+								isSaving={isSaving}
+								onAddTemplate={onAddTemplate}
 							/>
-						</TableCell>
-					</TableRow>
+						}
+						isCompact
+						className="min-h-52"
+					/>
 				) : (
 					allowlistedTemplates.map((template) => (
 						<TemplateRow
@@ -305,7 +294,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	onRetry,
 	onSaveAllowlist,
 	isSaving,
-	isSaveError,
+	saveError,
 }) => {
 	const templateIDs = allowlistData?.template_ids ?? [];
 	const { allowlistedTemplates, availableTemplates } = useMemo(() => {
@@ -354,7 +343,7 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 					!isLoading &&
 					!hasError &&
 					allowlistedTemplates.length > 0 && (
-						<AddTemplateDropdown
+						<AddTemplatePicker
 							availableTemplates={availableTemplates}
 							isSaving={isSaving}
 							onAddTemplate={handleAddTemplate}
@@ -404,12 +393,12 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 						onAddTemplate={handleAddTemplate}
 						onRemoveTemplate={handleRemoveTemplate}
 					/>
-					{isSaveError && (
+					{saveError && (
 						<p
 							role="alert"
-							className={cn("m-0 pt-3 text-xs text-content-destructive")}
+							className="m-0 pt-3 text-xs text-content-destructive"
 						>
-							Failed to save template allowlist.
+							{getErrorMessage(saveError, "Failed to save template allowlist.")}
 						</p>
 					)}
 				</>
