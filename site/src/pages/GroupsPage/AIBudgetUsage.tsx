@@ -2,7 +2,7 @@ import type { FC } from "react";
 import { getSeverity, severityTextClassName } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
-/** Spend against budget, colored by severity. Null limit is unlimited; values in micros. */
+/** Spend against budget. Highlights spend once it nears or exceeds the limit; values in micros. */
 export const AIBudgetUsage: FC<{
 	currentSpend: number;
 	spendLimit: number | null;

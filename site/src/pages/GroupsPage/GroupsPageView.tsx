@@ -8,7 +8,6 @@ import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
-import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { PaywallPremium } from "#/components/Paywall/PaywallPremium";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -26,6 +25,7 @@ import {
 import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { docs } from "#/utils/docs";
 import { AIBudgetUsage } from "./AIBudgetUsage";
+import { InfoIconTooltip } from "./InfoIconTooltip";
 
 type GroupsPageViewProps = {
 	groups: GroupWithAICostControl[] | undefined;
@@ -62,7 +62,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 						<TableHead className="w-2/5">
 							<div className="flex items-center gap-1">
 								AI budget
-								<InfoTooltip message="Current AI spend compared to the group's AI budget for the active period." />
+								<InfoIconTooltip message="Current AI spend compared to the group's AI budget for the active period." />
 							</div>
 						</TableHead>
 					)}

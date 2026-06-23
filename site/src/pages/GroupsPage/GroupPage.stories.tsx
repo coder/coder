@@ -324,23 +324,33 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 			groupMembersQuery({
 				users: [
 					memberWithSpend(MockUserOwner, {
-						effective_group_id: "other-group-id",
+						effective_group_id: MockGroup2.id,
 						limit_source: "group",
 					}),
 				],
 				count: 1,
 			}),
 			permissionsQuery({ canUpdateGroup: true }),
+			{
+				key: getGroupByIdQueryKey(MockGroup2.id, { exclude_members: true }),
+				data: MockGroup2,
+			},
 		],
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const body = within(document.body);
 		const cell = await canvas.findByTestId(
 			`member-ai-budget-${MockUserOwner.id}`,
 		);
 		await expect(cell).toHaveTextContent("$1,345");
 		await expect(cell).not.toHaveTextContent("USD");
 		await expect(canvas.queryByText("Group")).not.toBeInTheDocument();
+		// The info tooltip names the group that sets the budget.
+		await userEvent.click(
+			within(cell).getByRole("button", { name: "More info" }),
+		);
+		await expect(await body.findByText(/developer/)).toBeInTheDocument();
 	},
 };
 
