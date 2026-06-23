@@ -172,7 +172,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
 1. **Ensure image version:** Confirm the Deployment image is set to the
    appropriate version (old or new, depending on the database migration state
    found in step 3). Match your tag in the
-   [migrations directory](https://github.com/coder/coder/tree/main/coderd/database/migrations)
+   [migrations directory](../../coderd/database/migrations)
    to the value in the `schema_migrations` output.
 
 1. **Resume the upgrade:** Follow the

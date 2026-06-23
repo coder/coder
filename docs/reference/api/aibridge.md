@@ -191,6 +191,8 @@ curl -X GET http://coder-server:8080/api/v2/aibridge/sessions/{session_id} \
   "started_at": "2019-08-24T14:15:22Z",
   "threads": [
     {
+      "agent_firewall_sequence_number": 0,
+      "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
           "model": "string",

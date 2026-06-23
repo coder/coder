@@ -2042,6 +2042,23 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
+	// Enrich the lightweight context summary with the chat's pinned
+	// resources (metadata only). This detail is computed on read and only
+	// attached on the single-chat GET; list and watch payloads stay
+	// lightweight. A failure here is non-fatal: the chat is still usable
+	// without the detail, so we log and return the rest of the response.
+	if sdkChat.Context != nil && api.chatDaemon != nil {
+		resources, err := api.chatDaemon.ContextResources(ctx, chat)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to compute chat context resources",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.Context.Resources = resources
+		}
+	}
+
 	// For root chats, embed children so callers get a complete
 	// tree in a single response.
 	if !chat.ParentChatID.Valid {
@@ -2647,7 +2664,26 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	sdkChat := db2sdk.Chat(updated, nil, nil)
+
+	// Enrich the context summary with the freshly pinned resources so the
+	// client reflects the refresh immediately, without a full reload. This
+	// mirrors getChat; we pass the re-pinned chat so the detail reflects the
+	// post-refresh state. A failure here is non-fatal: the refresh already
+	// succeeded, so we log and return the rest of the response.
+	if sdkChat.Context != nil && api.chatDaemon != nil {
+		resources, err := api.chatDaemon.ContextResources(ctx, updated)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to compute chat context resources after refresh",
+				slog.F("chat_id", updated.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.Context.Resources = resources
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
 // patchChat updates a chat resource. Supports updating labels,

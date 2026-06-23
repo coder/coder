@@ -298,6 +298,9 @@ export const EditDialogOpened: Story = {
 		).toBeInTheDocument();
 		await expect(dialogView.getByLabelText("Name")).toHaveValue(secret.name);
 		await expect(dialogView.getByLabelText("Name")).toBeDisabled();
+		await expect(
+			dialogView.getByText("Unique identifier (can’t be changed)."),
+		).toBeInTheDocument();
 		await expect(dialogView.getByLabelText("Description")).toHaveValue(
 			secret.description,
 		);

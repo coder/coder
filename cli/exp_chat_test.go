@@ -1,6 +1,7 @@
 package cli_test
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,36 +12,31 @@ import (
 func TestExpChatContextAdd(t *testing.T) {
 	t.Parallel()
 
-	t.Run("RequiresWorkspaceOrDir", func(t *testing.T) {
+	t.Run("RequiresPathArgument", func(t *testing.T) {
 		t.Parallel()
 
+		// `add` registers a context source identified by <path>, so the path
+		// argument is required and a bare invocation is a usage error.
 		inv, _ := clitest.New(t, "exp", "chat", "context", "add")
 
 		err := inv.Run()
 		require.Error(t, err)
-		require.Contains(t, err.Error(), "this command must be run inside a Coder workspace")
+		require.Contains(t, err.Error(), "wanted 1 args but got 0")
 	})
 
-	t.Run("AllowsExplicitDir", func(t *testing.T) {
+	t.Run("RequiresWorkspaceSocket", func(t *testing.T) {
 		t.Parallel()
 
-		inv, _ := clitest.New(t, "exp", "chat", "context", "add", "--dir", t.TempDir())
+		// Source registration talks to the agent over its local socket, so
+		// outside a workspace it fails to connect rather than silently doing
+		// nothing. Point at a socket path that does not exist so the dial
+		// fails deterministically (and never touches a real agent socket).
+		missingSocket := filepath.Join(t.TempDir(), "agent.sock")
+		inv, _ := clitest.New(t, "exp", "chat", "context", "add", t.TempDir(),
+			"--socket-path", missingSocket)
 
 		err := inv.Run()
-		if err != nil {
-			require.NotContains(t, err.Error(), "this command must be run inside a Coder workspace")
-		}
-	})
-
-	t.Run("AllowsWorkspaceEnv", func(t *testing.T) {
-		t.Parallel()
-
-		inv, _ := clitest.New(t, "exp", "chat", "context", "add")
-		inv.Environ.Set("CODER", "true")
-
-		err := inv.Run()
-		if err != nil {
-			require.NotContains(t, err.Error(), "this command must be run inside a Coder workspace")
-		}
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "inside the workspace")
 	})
 }

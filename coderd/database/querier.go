@@ -1146,8 +1146,8 @@ type sqlcQuerier interface {
 	ListAIBridgeUserPromptsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeUserPrompt, error)
 	ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeysRow, error)
 	// Lists boundary logs for a session, sorted by sequence number ascending.
-	// Supports optional exclusive sequence number bounds (seq_after, seq_before)
-	// for fetching events between two known interceptions.
+	// Supports an inclusive lower bound (seq_after) and an exclusive upper bound
+	// (seq_before) for fetching events between two known interceptions.
 	ListBoundaryLogsBySessionID(ctx context.Context, arg ListBoundaryLogsBySessionIDParams) ([]BoundaryLog, error)
 	// Lists a chat's pinned context resources, ordered deterministically by
 	// source.
@@ -1336,11 +1336,6 @@ type sqlcQuerier interface {
 	// caller can detect stolen or completed chats via set-difference.
 	UpdateChatHeartbeats(ctx context.Context, arg UpdateChatHeartbeatsParams) ([]uuid.UUID, error)
 	UpdateChatLabelsByID(ctx context.Context, arg UpdateChatLabelsByIDParams) (Chat, error)
-	// Updates the cached injected context parts (AGENTS.md +
-	// skills) on the chat row. Called only when context changes
-	// (first workspace attach or agent change). updated_at is
-	// intentionally not touched to avoid reordering the chat list.
-	UpdateChatLastInjectedContext(ctx context.Context, arg UpdateChatLastInjectedContextParams) (Chat, error)
 	UpdateChatLastModelConfigByID(ctx context.Context, arg UpdateChatLastModelConfigByIDParams) (Chat, error)
 	// Updates the last read message ID for a chat. This is used to track
 	// which messages the owner has seen, enabling unread indicators.
