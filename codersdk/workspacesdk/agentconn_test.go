@@ -160,6 +160,31 @@ func TestAgentConnRejectsCrossAgentRedirects(t *testing.T) {
 	}
 }
 
+// TestAgentConnAppHTTPClientRefusesRedirects verifies the app HTTP client does
+// not follow redirects.
+func TestAgentConnAppHTTPClientRefusesRedirects(t *testing.T) {
+	t.Parallel()
+
+	tailnetConn, err := tailnet.NewConn(&tailnet.Options{
+		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
+		Logger:    testutil.Logger(t),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = tailnetConn.Close()
+	})
+
+	conn := workspacesdk.NewAgentConn(tailnetConn, workspacesdk.AgentConnOptions{
+		AgentID: uuid.New(),
+	})
+
+	client := conn.AppHTTPClient()
+	require.NotNil(t, client.CheckRedirect)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.invalid/", nil)
+	require.NoError(t, err)
+	require.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
+}
+
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {
 	t.Helper()
 

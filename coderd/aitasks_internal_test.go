@@ -1,11 +1,6 @@
 package coderd
 
 import (
-	"context"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
 
@@ -225,39 +220,4 @@ func TestDeriveTaskCurrentState_Unit(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestTaskAppHTTPClient_RejectsRedirect verifies the task app client does not
-// follow redirects.
-func TestTaskAppHTTPClient_RejectsRedirect(t *testing.T) {
-	t.Parallel()
-
-	// victim is the redirect target; it must never be contacted.
-	var victimHits atomic.Int64
-	victim := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		victimHits.Add(1)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer victim.Close()
-
-	// The task app redirects every request to the victim address.
-	app := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, victim.URL+r.URL.Path, http.StatusTemporaryRedirect)
-	}))
-	defer app.Close()
-
-	// The dial honors addr like the real agent transport, so following the
-	// redirect would actually reach the victim.
-	client := taskAppHTTPClient(func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, addr)
-	})
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, app.URL, nil)
-	require.NoError(t, err)
-	resp, err := client.Do(req)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode, "redirect must be surfaced, not followed")
-	require.Zero(t, victimHits.Load(), "redirect target must not be contacted")
 }

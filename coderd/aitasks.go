@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"slices"
@@ -1086,23 +1085,8 @@ func (api *API) authAndDoWithTaskAppClient(
 	}
 	defer release()
 
-	client := taskAppHTTPClient(agentConn.DialContext)
+	client := agentConn.AppHTTPClient()
 	return do(ctx, client, parsedURL)
-}
-
-// taskAppHTTPClient builds the HTTP client used to reach a workspace's task app
-// over its agent connection, dialing via the provided dial function.
-//
-// Redirects are blocked to prevent misuse.
-func taskAppHTTPClient(dial func(ctx context.Context, network, addr string) (net.Conn, error)) *http.Client {
-	return &http.Client{
-		CheckRedirect: func(*http.Request, []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Transport: &http.Transport{
-			DialContext: dial,
-		},
-	}
 }
 
 const (
