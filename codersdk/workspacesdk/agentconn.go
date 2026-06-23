@@ -158,6 +158,7 @@ func (c *agentConn) SetExtraHeaders(h http.Header) {
 type AgentConnOptions struct {
 	AgentID   uuid.UUID
 	CloseFunc func() error
+	Logger    slog.Logger
 }
 
 func (c *agentConn) agentAddress() netip.Addr {
@@ -1419,6 +1420,11 @@ func (c *agentConn) apiClient(reqCtx context.Context) *http.Client {
 					return nil, xerrors.Errorf("request %q does not appear to be for http api", addr)
 				}
 				if reqAddr, err := netip.ParseAddr(host); err != nil || reqAddr != agentAddr.Addr() {
+					c.opts.Logger.Warn(ctx, "blocked workspace agent API request to unintended host",
+						slog.F("agent_id", c.opts.AgentID),
+						slog.F("request_host", host),
+						slog.F("intended_agent_addr", agentAddr.Addr()),
+					)
 					return nil, xerrors.Errorf("request host %q does not match intended agent %q", host, agentAddr.Addr())
 				}
 
