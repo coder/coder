@@ -462,7 +462,6 @@ func TestAgent_SessionExec(t *testing.T) {
 	}
 }
 
-//nolint:tparallel // Sub tests need to run sequentially.
 func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 	t.Parallel()
 
@@ -480,49 +479,26 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		},
 	}
 	banner := codersdk.ServiceBannerConfig{}
-	session := setupSSHSession(t, manifest, banner, nil, func(_ *agenttest.Client, opts *agent.Options) {
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	//nolint:dogsled
+	conn, _, _, _, _ := setupAgent(t, manifest, 0, func(c *agenttest.Client, opts *agent.Options) {
+		c.SetAnnouncementBannersFunc(func() ([]codersdk.BannerConfig, error) {
+			return []codersdk.BannerConfig{banner}, nil
+		})
 		opts.ScriptDataDir = tmpdir
 		opts.EnvironmentVariables["MY_OVERRIDE"] = "true"
 	})
 
-	err := session.Setenv("MY_SESSION_MANIFEST", "true")
+	// Share one SSH client across subtests, but run each variable in a
+	// fresh session so a single closed channel cannot fail the others.
+	sshClient, err := conn.SSHClientOnPort(ctx, workspacesdk.AgentSSHPort)
 	require.NoError(t, err)
-	err = session.Setenv("MY_SESSION", "true")
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sshClient.Close()
+	})
 
-	command := "sh"
-	echoEnv := func(t *testing.T, w io.Writer, env string) {
-		if runtime.GOOS == "windows" {
-			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
-			require.NoError(t, err)
-		} else {
-			_, err := fmt.Fprintf(w, "echo $%s\n", env)
-			require.NoError(t, err)
-		}
-	}
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-	}
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	defer stdin.Close()
-	stdout, err := session.StdoutPipe()
-	require.NoError(t, err)
-
-	err = session.Start(command)
-	require.NoError(t, err)
-
-	// Context is fine here since we're not doing a parallel subtest.
-	ctx := testutil.Context(t, testutil.WaitLong)
-	go func() {
-		<-ctx.Done()
-		_ = session.Close()
-	}()
-
-	s := bufio.NewScanner(stdout)
-
-	//nolint:paralleltest // These tests need to run sequentially.
-	for k, partialV := range map[string]string{
+	for k, want := range map[string]string{
 		"CODER":               "true",  // From the agent.
 		"MY_MANIFEST":         "true",  // From the manifest.
 		"MY_OVERRIDE":         "true",  // From the agent environment variables option, overrides manifest.
@@ -531,18 +507,29 @@ func TestAgent_Session_EnvironmentVariables(t *testing.T) {
 		"PATH":                scriptBinDir + string(filepath.ListSeparator),
 	} {
 		t.Run(k, func(t *testing.T) {
-			echoEnv(t, stdin, k)
-			// Windows is unreliable, so keep scanning until we find a match.
-			for s.Scan() {
-				got := strings.TrimSpace(s.Text())
-				t.Logf("%s=%s", k, got)
-				if strings.Contains(got, partialV) {
-					break
-				}
+			t.Parallel()
+
+			session, err := sshClient.NewSession()
+			require.NoError(t, err)
+			defer session.Close()
+
+			// The agent re-applies the manifest, agent, predefined, and
+			// PATH env on every session, so only the session-scoped vars
+			// need a per-session Setenv. MY_SESSION_MANIFEST is set here
+			// too, but the manifest value takes precedence (asserted
+			// "false").
+			err = session.Setenv("MY_SESSION", "true")
+			require.NoError(t, err)
+			err = session.Setenv("MY_SESSION_MANIFEST", "true")
+			require.NoError(t, err)
+
+			command := "sh -c 'echo $" + k + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + k + "%"
 			}
-			if err := s.Err(); !errors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
+			out, err := session.Output(command)
+			require.NoError(t, err)
+			require.Contains(t, strings.TrimSpace(string(out)), want)
 		})
 	}
 }
@@ -575,66 +562,33 @@ func TestAgent_Session_SecretInjection(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "both-value", string(content))
 
-	// Verify env var injection via an SSH session.
+	// Verify env var injection via fresh SSH sessions on a shared client.
+	// Each variable runs in its own session so a single closed channel
+	// cannot fail the others.
 	sshClient, err := conn.SSHClient(ctx)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sshClient.Close() })
 
-	session, err := sshClient.NewSession()
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = session.Close() })
-
-	command := "sh"
-	if runtime.GOOS == "windows" {
-		command = "cmd.exe"
-	}
-
-	stdin, err := session.StdinPipe()
-	require.NoError(t, err)
-	defer stdin.Close()
-	stdout, err := session.StdoutPipe()
-	require.NoError(t, err)
-
-	err = session.Start(command)
-	require.NoError(t, err)
-
-	go func() {
-		<-ctx.Done()
-		_ = session.Close()
-	}()
-
-	s := bufio.NewScanner(stdout)
-
-	echoEnv := func(t *testing.T, w io.Writer, env string) {
-		t.Helper()
-		if runtime.GOOS == "windows" {
-			_, err := fmt.Fprintf(w, "echo %%%s%%\r\n", env)
-			require.NoError(t, err)
-		} else {
-			_, err := fmt.Fprintf(w, "echo $%s\n", env)
-			require.NoError(t, err)
-		}
-	}
-
-	for k, partialV := range map[string]string{
+	for k, want := range map[string]string{
 		"MY_SECRET_ENV":        "env-secret-value",
 		"BOTH_ENV":             "both-value",
 		"SHOULD_BE_OVERRIDDEN": "secret-wins",
 	} {
-		echoEnv(t, stdin, k)
-		found := false
-		for s.Scan() {
-			got := strings.TrimSpace(s.Text())
-			t.Logf("%s=%s", k, got)
-			if strings.Contains(got, partialV) {
-				found = true
-				break
-			}
-		}
-		require.True(t, found, "env %s not found in output", k)
-		if err := s.Err(); !errors.Is(err, io.EOF) {
+		t.Run(k, func(t *testing.T) {
+			t.Parallel()
+
+			session, err := sshClient.NewSession()
 			require.NoError(t, err)
-		}
+			defer session.Close()
+
+			command := "sh -c 'echo $" + k + "'"
+			if runtime.GOOS == "windows" {
+				command = "cmd.exe /c echo %" + k + "%"
+			}
+			out, err := session.Output(command)
+			require.NoError(t, err)
+			require.Contains(t, strings.TrimSpace(string(out)), want)
+		})
 	}
 }
 
