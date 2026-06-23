@@ -219,7 +219,6 @@ func (m *Manager) Run(ctx context.Context) error {
 		Logger:   m.logger.Named("watcher"),
 		Clock:    m.clock,
 		Debounce: m.debounce,
-		MaxDepth: m.resolver.MaxDepth,
 		OnChange: m.signal,
 	})
 	if err != nil {
@@ -561,6 +560,13 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
+			// The working directory is a single scan root. The
+			// resolver reads its top-level instruction files and
+			// .mcp.json plus the fixed skill containers under it;
+			// it neither descends into subdirectories nor climbs
+			// to parent directories. Additional directories are
+			// added explicitly as Sources or via the seeding env
+			// vars.
 			out = append(out, ScanRoot{Path: wd})
 		}
 	}

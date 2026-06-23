@@ -54,7 +54,11 @@ func TestResolver_ProjectAGENTSFile(t *testing.T) {
 	require.NotEqual(t, [32]byte{}, got.ContentHash)
 }
 
-func TestResolver_CaseInsensitiveInstructionNames(t *testing.T) {
+// TestResolver_InstructionNamesAreCaseSensitive verifies the
+// resolver matches instruction filenames exactly, mirroring
+// codex. A lower-case agents.md (for example a generated API
+// reference doc) must not be mistaken for an instruction file.
+func TestResolver_InstructionNamesAreCaseSensitive(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "agents.md"), "lower\n")
@@ -63,7 +67,8 @@ func TestResolver_CaseInsensitiveInstructionNames(t *testing.T) {
 	r := &agentcontext.Resolver{}
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
-	require.Len(t, snap.Resources, 2)
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(dir, "CLAUDE.md"), snap.Resources[0].Source)
 }
 
 func TestResolver_SkillsContainerEmitsEachSubdir(t *testing.T) {
@@ -150,10 +155,11 @@ func TestResolver_MCPConfigEmitted(t *testing.T) {
 }
 
 // TestResolver_SymlinkInsideScanRootAllowed exercises the
-// monorepo case where AGENTS.md is symlinked to shared content
-// inside the same workspace tree. The target lives under the
-// scan root, so the resolver follows the symlink and emits the
-// target bytes as if the symlink were a regular file.
+// monorepo case where a top-level AGENTS.md is symlinked to
+// shared content elsewhere inside the same workspace tree. The
+// target lives under the scan root, so the resolver follows the
+// symlink, emits the target bytes, and attributes the resource
+// to the resolved target path.
 func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -169,15 +175,59 @@ func TestResolver_SymlinkInsideScanRootAllowed(t *testing.T) {
 	r := &agentcontext.Resolver{}
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
-	require.Len(t, snap.Resources, 2)
-	var linked agentcontext.Resource
-	for _, res := range snap.Resources {
-		if res.Source == link {
-			linked = res
-		}
+	// The nested target is not independently recognized (only the
+	// top-level symlink is), so exactly one resource is emitted,
+	// carrying the target bytes and attributed to the target.
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.StatusOK, got.Status)
+	require.Equal(t, target, got.Source)
+	require.Equal(t, "shared monorepo guidance", string(got.Payload))
+}
+
+// TestResolver_SymlinkedInstructionFilesDeduplicated reproduces
+// the common repo layout where CLAUDE.md and .cursorrules are
+// symlinks to a single AGENTS.md. All three resolve to the same
+// file, so the resolver must emit one instruction resource
+// attributed to the real AGENTS.md rather than three copies of
+// identical content.
+func TestResolver_SymlinkedInstructionFilesDeduplicated(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
 	}
-	require.Equal(t, agentcontext.StatusOK, linked.Status)
-	require.Equal(t, "shared monorepo guidance", string(linked.Payload))
+	t.Parallel()
+	dir := t.TempDir()
+	agents := filepath.Join(dir, "AGENTS.md")
+	mustWriteFile(t, agents, "the one true guidance")
+	require.NoError(t, os.Symlink(agents, filepath.Join(dir, "CLAUDE.md")))
+	require.NoError(t, os.Symlink(agents, filepath.Join(dir, ".cursorrules")))
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	got := snap.Resources[0]
+	require.Equal(t, agentcontext.KindInstructionFile, got.Kind)
+	require.Equal(t, agents, got.Source)
+	require.Equal(t, "the one true guidance", string(got.Payload))
+}
+
+// TestResolver_InstructionFilesOnlyAtScanRoot verifies the
+// resolver does not descend into subdirectories to collect
+// nested instruction files, mirroring codex. A nested
+// site/AGENTS.md is ignored while the top-level one is kept.
+func TestResolver_InstructionFilesOnlyAtScanRoot(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "root")
+	mustWriteFile(t, filepath.Join(dir, "site", "AGENTS.md"), "nested")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	require.Len(t, snap.Resources, 1)
+	require.Equal(t, filepath.Join(dir, "AGENTS.md"), snap.Resources[0].Source)
+	require.Equal(t, "root", string(snap.Resources[0].Payload))
 }
 
 // TestResolver_SymlinkOutsideScanRootRejected guards the
@@ -250,18 +300,23 @@ func TestResolver_OversizeInstructionFile(t *testing.T) {
 
 func TestResolver_AggregateCapExcludes(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "small")
-	subA := filepath.Join(dir, "a")
-	subB := filepath.Join(dir, "b")
-	mustWriteFile(t, filepath.Join(subA, "AGENTS.md"), "AAAA")
-	mustWriteFile(t, filepath.Join(subB, "AGENTS.md"), "BBBB")
+	// Instruction files are only read at a scan root's top level,
+	// so each contributing file lives at its own scan root.
+	dirRoot := t.TempDir()
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+	mustWriteFile(t, filepath.Join(dirRoot, "AGENTS.md"), "small")
+	mustWriteFile(t, filepath.Join(dirA, "AGENTS.md"), "AAAA")
+	mustWriteFile(t, filepath.Join(dirB, "AGENTS.md"), "BBBB")
 
-	// Aggregate cap of 9 bytes lets the first two through but
-	// excludes the third regardless of which order they
-	// appear.
+	// Aggregate cap of 9 bytes lets two of the three (5+4) bytes
+	// through but excludes the third regardless of order.
 	r := &agentcontext.Resolver{MaxSnapshotBytes: 9}
-	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	snap := r.Resolve([]agentcontext.ScanRoot{
+		{Path: dirRoot},
+		{Path: dirA},
+		{Path: dirB},
+	})
 
 	var excluded int
 	for _, res := range snap.Resources {
@@ -274,14 +329,17 @@ func TestResolver_AggregateCapExcludes(t *testing.T) {
 
 func TestResolver_CountCapExcludes(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
+	// Instruction files are only read at a scan root's top level,
+	// so spread the five files across five scan roots.
+	roots := make([]agentcontext.ScanRoot, 0, 5)
 	for i := 0; i < 5; i++ {
-		sub := filepath.Join(dir, "dir", string('a'+rune(i)))
-		mustWriteFile(t, filepath.Join(sub, "AGENTS.md"), "x")
+		d := t.TempDir()
+		mustWriteFile(t, filepath.Join(d, "AGENTS.md"), "x")
+		roots = append(roots, agentcontext.ScanRoot{Path: d})
 	}
 
 	r := &agentcontext.Resolver{MaxResources: 3}
-	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+	snap := r.Resolve(roots)
 
 	require.Len(t, snap.Resources, 5)
 	var excluded int
@@ -293,18 +351,48 @@ func TestResolver_CountCapExcludes(t *testing.T) {
 	require.Equal(t, 2, excluded)
 }
 
-func TestResolver_SkipsVendorAndNodeModules(t *testing.T) {
+// TestResolver_MCPConfigOnlyAtScanRoot verifies that .mcp.json is
+// recognized only at a scan root's top level. A nested config is
+// ignored because the resolver no longer walks the tree.
+func TestResolver_MCPConfigOnlyAtScanRoot(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
-	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "root")
-	mustWriteFile(t, filepath.Join(dir, "node_modules", "deep", "AGENTS.md"), "should not appear")
-	mustWriteFile(t, filepath.Join(dir, "vendor", "AGENTS.md"), "should not appear either")
+	mustWriteFile(t, filepath.Join(dir, ".mcp.json"), `{"mcpServers": {}}`)
+	mustWriteFile(t, filepath.Join(dir, "sub", ".mcp.json"), `{"mcpServers": {}}`)
 
 	r := &agentcontext.Resolver{}
 	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
 
 	require.Len(t, snap.Resources, 1)
-	require.Equal(t, filepath.Join(dir, "AGENTS.md"), snap.Resources[0].Source)
+	require.Equal(t, agentcontext.KindMCPConfig, snap.Resources[0].Kind)
+	require.Equal(t, filepath.Join(dir, ".mcp.json"), snap.Resources[0].Source)
+}
+
+// TestResolver_SkillsOnlyFromFixedContainers verifies skills are
+// discovered from the fixed container locations (skills,
+// .agents/skills, .claude/skills, .codex/skills) and never from an
+// arbitrary skills/ directory nested elsewhere in the tree.
+func TestResolver_SkillsOnlyFromFixedContainers(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteSkill(t, filepath.Join(dir, "skills"), "water-plants", "p")
+	mustWriteSkill(t, filepath.Join(dir, ".agents", "skills"), "make-coffee", "c")
+	mustWriteSkill(t, filepath.Join(dir, ".claude", "skills"), "fold-laundry", "l")
+	mustWriteSkill(t, filepath.Join(dir, ".codex", "skills"), "walk-dog", "d")
+	// A skills/ directory buried under an arbitrary path is not a
+	// fixed container location and must be ignored.
+	mustWriteSkill(t, filepath.Join(dir, "pkg", "skills"), "buried", "b")
+
+	r := &agentcontext.Resolver{}
+	snap := r.Resolve([]agentcontext.ScanRoot{{Path: dir}})
+
+	var names []string
+	for _, res := range snap.Resources {
+		require.Equal(t, agentcontext.KindSkill, res.Kind)
+		names = append(names, filepath.Base(res.Source))
+	}
+	require.ElementsMatch(t,
+		[]string{"water-plants", "make-coffee", "fold-laundry", "walk-dog"}, names)
 }
 
 func TestResolver_UserSourceAttribution(t *testing.T) {
