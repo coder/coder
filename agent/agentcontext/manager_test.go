@@ -171,14 +171,9 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 	require.Len(t, sources, 1)
 }
 
-// TestManager_SourceIdentityIsLexicalAndStable guards the duplicate-source
-// bug: source identity is the lexical (configured) path, not the
-// symlink-resolved path. The same configured path is seeded at boot (before a
-// startup script creates the symlink target) and again once the target
-// exists. Resolving symlinks would yield two different strings for one
-// directory and list it twice; the lexical identity is stable across the
-// target's existence, so the source list collapses to a single entry that
-// keeps the path the operator configured.
+// TestManager_SourceIdentityIsLexicalAndStable verifies the same configured
+// source added before and after its symlink target exists collapses to one
+// source keyed by the lexical (configured) path, not the resolved target.
 func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -194,15 +189,13 @@ func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
 		AllowedRoots: []string{root},
 	})
 
-	// The symlink target does not exist yet. Identity is the lexical link
-	// path, not the resolved target.
+	// Target missing: identity is the lexical link path.
 	added1, err := m.AddSource(agentcontext.Source{Path: link})
 	require.NoError(t, err)
 	require.Equal(t, link, added1.Path)
 
-	// Create the target so the symlink now resolves, then add the same
-	// configured path again. Identity is lexical and therefore unchanged, so
-	// it must not register a second source.
+	// Once the target exists the link resolves, but the same configured
+	// path must still dedupe to one source.
 	require.NoError(t, os.MkdirAll(target, 0o755))
 	added2, err := m.AddSource(agentcontext.Source{Path: link})
 	require.NoError(t, err)

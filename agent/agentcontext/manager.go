@@ -276,9 +276,8 @@ func (m *Manager) Sources() []Source {
 	return out
 }
 
-// HasSource reports whether path matches an existing source
-// after resolving it to its lexical identity. Returns the
-// lexical identity path on success.
+// HasSource reports whether path matches a registered source,
+// returning its lexical identity.
 func (m *Manager) HasSource(path string) (canonical string, ok bool) {
 	c, err := lexicalPath(path)
 	if err != nil {
@@ -290,18 +289,15 @@ func (m *Manager) HasSource(path string) (canonical string, ok bool) {
 	return c, ok
 }
 
-// AddSource adds a new source. The path is validated against
-// the AllowedRoots set using its resolved (symlink-followed)
-// form, but it is identified and stored by its lexical path so
-// the source listing reflects the configured path and stays
-// stable across symlink-target changes. AddSource is idempotent.
+// AddSource validates a new source against the AllowedRoots set
+// and registers it by its lexical identity. AddSource is
+// idempotent.
 func (m *Manager) AddSource(s Source) (Source, error) {
 	identity, err := lexicalPath(s.Path)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
 	}
-	// Validate the resolved path so a symlink cannot escape the
-	// allowed roots, even though identity is the lexical path.
+	// Validate the resolved path so symlinks can't escape the allowed roots.
 	resolved, err := CanonicalizePath(s.Path)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
@@ -324,20 +320,14 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 	return Source{Path: identity}, nil
 }
 
-// SeedSources resolves and inserts a batch of trusted sources
-// without applying AllowedRoots validation. It is the
-// late-binding equivalent of ManagerOptions.InitialSources for
-// callers that need the working directory to resolve relative
-// paths but only learn the working directory after Run has
-// started. Paths that fail canonicalization are silently
-// skipped, matching the boot-time seeding contract. SeedSources
-// is idempotent: previously seeded sources are deduplicated by
-// their lexical identity.
+// SeedSources registers a batch of trusted sources without
+// AllowedRoots validation, the late-binding equivalent of
+// ManagerOptions.InitialSources for when the working directory
+// is only known after Run starts. Invalid paths are skipped and
+// duplicates are ignored.
 //
-// AddSource is the correct entry point for untrusted HTTP
-// callers; this method exists only for the agent's manifest-
-// triggered seeding from CODER_AGENT_EXP_*_DIRS, where the
-// template author already authorized the paths.
+// Untrusted callers must use AddSource; SeedSources exists only
+// for manifest-triggered seeding from CODER_AGENT_EXP_*_DIRS.
 func (m *Manager) SeedSources(sources []Source) {
 	if len(sources) == 0 {
 		return
@@ -363,10 +353,8 @@ func (m *Manager) SeedSources(sources []Source) {
 	}
 }
 
-// RemoveSource removes the source matching path. Path is
-// resolved to its lexical identity before matching. Returns
-// ErrSourceNotFound when no such source exists or when the path
-// cannot be canonicalized.
+// RemoveSource removes the source matching path by its lexical
+// identity, returning ErrSourceNotFound if none matches.
 func (m *Manager) RemoveSource(path string) error {
 	identity, err := lexicalPath(path)
 	if err != nil {
@@ -396,9 +384,8 @@ func (m *Manager) RemoveSource(path string) error {
 	return nil
 }
 
-// addSourceLocked appends a source identified by its lexical path unless an
-// identical identity is already registered. It reports whether a new source
-// was added. m.mu must be held.
+// addSourceLocked registers identity unless already present,
+// reporting whether it was added. m.mu must be held.
 func (m *Manager) addSourceLocked(identity string) bool {
 	if _, ok := m.sourceIndex[identity]; ok {
 		return false
