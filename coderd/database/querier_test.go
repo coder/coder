@@ -11764,9 +11764,11 @@ func TestUpsertUserDailySpend(t *testing.T) {
 		name      string
 		costs     []int64
 		wantTotal int64
+		wantErr   bool
 	}{
 		{name: "InsertsNewRow", costs: []int64{100}, wantTotal: 100},
 		{name: "AccumulatesAcrossCalls", costs: []int64{100, 50, 30, 20}, wantTotal: 200},
+		{name: "SchemaRejectsNegativeSpend", costs: []int64{-100}, wantErr: true},
 	}
 
 	for _, tt := range tests {
@@ -11779,16 +11781,23 @@ func TestUpsertUserDailySpend(t *testing.T) {
 			group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 
 			var row database.AIUserDailySpend
+			var err error
 			for _, cost := range tt.costs {
-				var err error
 				row, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
 					UserID:           user.ID,
 					EffectiveGroupID: group.ID,
 					Day:              day,
 					CostMicros:       cost,
 				})
-				require.NoError(t, err)
+				if err != nil {
+					break
+				}
 			}
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
 			require.Equal(t, user.ID, row.UserID)
 			require.Equal(t, group.ID, row.EffectiveGroupID)
 			require.Equal(t, tt.wantTotal, row.SpendMicros)
@@ -11884,15 +11893,16 @@ func TestUpsertUserDailySpend(t *testing.T) {
 			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
 		})
 		require.NoError(t, err)
+
 		dayNonTruncated := day.Add(14*time.Hour + 30*time.Minute)
-		row, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+		nonTruncatedRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
 			UserID: user.ID, EffectiveGroupID: group.ID, Day: dayNonTruncated, CostMicros: 50,
 		})
 		require.NoError(t, err)
-		require.Equal(t, int64(150), row.SpendMicros,
+		require.Equal(t, int64(150), nonTruncatedRow.SpendMicros,
 			"non-midnight UTC time should accumulate on the truncated day's row")
-		require.True(t, row.Day.Equal(day),
-			"row.Day = %s, want truncated = %s", row.Day, day)
+		require.True(t, nonTruncatedRow.Day.Equal(day),
+			"row.Day = %s, want truncated = %s", nonTruncatedRow.Day, day)
 	})
 
 	// Given a non-UTC time that crosses the UTC date boundary, when upserted, then it lands on the UTC calendar day.
@@ -11904,14 +11914,14 @@ func TestUpsertUserDailySpend(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
 
-		// 2024-06-15 23:00 in UTC-5 is 2024-06-16 04:00 UTC, so this should land on nextDay.
+		// 2024-06-15 23:00 in UTC-5 is 2024-06-16 04:00 UTC, so this should land on nextDay (2024-06-16).
 		localLate := time.Date(2024, 6, 15, 23, 0, 0, 0, time.FixedZone("UTC-5", -5*3600))
-		row, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+		nonUTCRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
 			UserID: user.ID, EffectiveGroupID: group.ID, Day: localLate, CostMicros: 100,
 		})
 		require.NoError(t, err)
-		require.True(t, row.Day.Equal(nextDay),
-			"non-UTC input should land on the UTC calendar day (%s), got %s", nextDay, row.Day)
+		require.True(t, nonUTCRow.Day.Equal(nextDay),
+			"non-UTC input should land on the UTC calendar day (%s), got %s", nextDay, nonUTCRow.Day)
 	})
 
 	// Given a zero-cost upsert, when applied, then it is idempotent (creates a zero-spend row or leaves an existing one unchanged).
@@ -11931,10 +11941,11 @@ func TestUpsertUserDailySpend(t *testing.T) {
 		require.Equal(t, int64(0), newRow.SpendMicros)
 
 		// After a real upsert, the row has spend = 100.
-		_, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+		updatedRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
 			UserID: user.ID, EffectiveGroupID: group.ID, Day: day, CostMicros: 100,
 		})
 		require.NoError(t, err)
+		require.Equal(t, int64(100), updatedRow.SpendMicros)
 
 		// Zero-cost upsert on the existing row leaves spend unchanged.
 		sameRow, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
@@ -11954,49 +11965,23 @@ func TestGetUserSpendSince(t *testing.T) {
 	today := monthStart.AddDate(0, 0, 14)            // 2024-06-15
 	prevMonthLastDay := monthStart.AddDate(0, 0, -1) // 2024-05-31
 
+	type seedRow struct {
+		day   time.Time
+		spend int64
+	}
+
 	// Given seeded rows for a single (user, group), when querying since
 	// monthStart, then the period sum is returned.
 	tests := []struct {
-		name string
-		rows []struct {
-			day   time.Time
-			spend int64
-		}
+		name      string
+		rows      []seedRow
 		wantSpend int64
 	}{
 		{name: "NoRows", wantSpend: 0},
-		{
-			name: "SingleRowOnToday",
-			rows: []struct {
-				day   time.Time
-				spend int64
-			}{{today, 100}},
-			wantSpend: 100,
-		},
-		{
-			name: "FirstOfMonthIncluded",
-			rows: []struct {
-				day   time.Time
-				spend int64
-			}{{monthStart, 50}},
-			wantSpend: 50,
-		},
-		{
-			name: "SumsMultipleDaysInMonth",
-			rows: []struct {
-				day   time.Time
-				spend int64
-			}{{monthStart, 50}, {today, 100}},
-			wantSpend: 150,
-		},
-		{
-			name: "ExcludesRowsBeforePeriodStart",
-			rows: []struct {
-				day   time.Time
-				spend int64
-			}{{prevMonthLastDay, 999}, {monthStart, 25}},
-			wantSpend: 25,
-		},
+		{name: "SingleRowOnToday", rows: []seedRow{{today, 100}}, wantSpend: 100},
+		{name: "FirstOfMonthIncluded", rows: []seedRow{{monthStart, 50}}, wantSpend: 50},
+		{name: "SumsMultipleDaysInMonth", rows: []seedRow{{monthStart, 50}, {today, 100}}, wantSpend: 150},
+		{name: "ExcludesRowsBeforePeriodStart", rows: []seedRow{{prevMonthLastDay, 999}, {monthStart, 25}}, wantSpend: 25},
 	}
 
 	for _, tt := range tests {
@@ -12088,6 +12073,41 @@ func TestGetUserSpendSince(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, int64(25), got.SpendMicros,
 			"groupB sum must not include groupA spend")
+	})
+
+	// Given a non-UTC period_start that lands on the previous UTC day, when queried, then it normalizes and excludes the prior day's row.
+	t.Run("NormalizesNonUTCPeriodStart", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user := dbgen.User(t, db, database.User{})
+		org := dbgen.Organization(t, db, database.Organization{})
+		group := dbgen.Group(t, db, database.Group{OrganizationID: org.ID})
+
+		// Seed a row on prevMonthLastDay (which lies on May 31 UTC). A naive
+		// query that does not normalize the period_start would include it.
+		_, err := db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: prevMonthLastDay, CostMicros: 999,
+		})
+		require.NoError(t, err)
+		_, err = db.UpsertUserDailySpend(ctx, database.UpsertUserDailySpendParams{
+			UserID: user.ID, EffectiveGroupID: group.ID, Day: monthStart, CostMicros: 25,
+		})
+		require.NoError(t, err)
+
+		// 2024-05-31 23:00 in UTC-5 is 2024-06-01 04:00 UTC, so the
+		// normalized period_start lands on June 1.
+		localLate := time.Date(2024, 5, 31, 23, 0, 0, 0, time.FixedZone("UTC-5", -5*3600))
+		got, err := db.GetUserSpendSince(ctx, database.GetUserSpendSinceParams{
+			UserID:           user.ID,
+			EffectiveGroupID: group.ID,
+			PeriodStart:      localLate,
+		})
+		require.NoError(t, err)
+		require.True(t, got.PeriodStart.Equal(monthStart),
+			"PeriodStart should be normalized to 2024-06-01 UTC, got %s", got.PeriodStart)
+		require.Equal(t, int64(25), got.SpendMicros,
+			"sum must exclude prevMonthLastDay row after normalization")
 	})
 }
 

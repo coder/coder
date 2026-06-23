@@ -6827,6 +6827,16 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionUpdate).Returns(row)
 	}))
 
+	s.Run("NegativeCost/UpsertUserDailySpend", s.Mocked(func(_ *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpsertUserDailySpendParams{
+			UserID:           uuid.New(),
+			EffectiveGroupID: uuid.New(),
+			Day:              time.Now().UTC().Truncate(24 * time.Hour),
+			CostMicros:       -100,
+		}
+		check.Args(arg).Asserts().Errors(xerrors.New("cost_micros must be non-negative, got -100"))
+	}))
+
 	s.Run("GetAIProviderByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		provider := testutil.Fake(s.T(), faker, database.AIProvider{})
 		dbm.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil).AnyTimes()

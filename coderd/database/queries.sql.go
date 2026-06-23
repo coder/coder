@@ -2672,7 +2672,6 @@ const upsertUserDailySpend = `-- name: UpsertUserDailySpend :one
 INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
 VALUES ($1, $2, (($3::timestamptz) AT TIME ZONE 'UTC')::date, $4)
 ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
-	-- Add this call's cost to the running total for that day.
 	spend_micros = ai_user_daily_spend.spend_micros + EXCLUDED.spend_micros
 RETURNING user_id, effective_group_id, day, spend_micros
 `
@@ -2686,7 +2685,6 @@ type UpsertUserDailySpendParams struct {
 
 // Adds cost_micros to the spend for (user_id, effective_group_id, day).
 // The day parameter is normalized to its UTC calendar day before storage.
-// Returns the resulting row.
 func (q *sqlQuerier) UpsertUserDailySpend(ctx context.Context, arg UpsertUserDailySpendParams) (AIUserDailySpend, error) {
 	row := q.db.QueryRowContext(ctx, upsertUserDailySpend,
 		arg.UserID,
