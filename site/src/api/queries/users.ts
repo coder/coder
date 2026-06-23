@@ -5,6 +5,7 @@ import type {
 	UseQueryOptions,
 } from "react-query";
 import { API } from "#/api/api";
+import { isApiError } from "#/api/errors";
 import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
@@ -15,7 +16,9 @@ import type {
 	UpdateUserPasswordRequest,
 	UpdateUserPreferenceSettingsRequest,
 	UpdateUserProfileRequest,
+	UpsertUserAIBudgetOverrideRequest,
 	User,
+	UserAIBudgetOverride,
 	UserAppearanceSettings,
 	UserPreferenceSettings,
 	UsersRequest,
@@ -160,6 +163,60 @@ export const user = (usernameOrId: string) => {
 	return {
 		queryKey: userKey(usernameOrId),
 		queryFn: () => API.getUser(usernameOrId),
+	};
+};
+
+export const getUserAIBudgetOverrideQueryKey = (userId: string) => [
+	"user",
+	userId,
+	"aiBudgetOverride",
+];
+
+export const userAIBudgetOverride = (
+	userId: string,
+): UseQueryOptions<UserAIBudgetOverride | null> => {
+	return {
+		queryKey: getUserAIBudgetOverrideQueryKey(userId),
+		queryFn: async () => {
+			try {
+				return await API.getUserAIBudgetOverride(userId);
+			} catch (error) {
+				if (isApiError(error) && error.response.status === 404) {
+					return null;
+				}
+
+				throw error;
+			}
+		},
+	};
+};
+
+export const saveUserAIBudgetOverride = (
+	queryClient: QueryClient,
+	userId: string,
+) => {
+	return {
+		mutationFn: (request: UpsertUserAIBudgetOverrideRequest) =>
+			API.upsertUserAIBudgetOverride(userId, request),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: getUserAIBudgetOverrideQueryKey(userId),
+			});
+		},
+	};
+};
+
+export const deleteUserAIBudgetOverride = (
+	queryClient: QueryClient,
+	userId: string,
+) => {
+	return {
+		mutationFn: () => API.deleteUserAIBudgetOverride(userId),
+		onSuccess: async () => {
+			await queryClient.invalidateQueries({
+				queryKey: getUserAIBudgetOverrideQueryKey(userId),
+			});
+		},
 	};
 };
 

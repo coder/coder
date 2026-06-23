@@ -552,6 +552,65 @@ func (p *Server) discoverWorkspaceMCPTools(
 	return tools
 }
 
+// resolveWorkspaceMCPTools selects the workspace MCP tool set for a turn. It
+// prefers the chat's pinned context snapshot and falls back to the per-turn
+// live discovery path for chats whose agent has not reported context yet. The
+// two paths are mutually exclusive, mirroring resolveTurnWorkspaceContext for
+// instructions and skills.
+func (p *Server) resolveWorkspaceMCPTools(
+	ctx context.Context,
+	logger slog.Logger,
+	chat database.Chat,
+	workspaceCtx *turnWorkspaceContext,
+) []fantasy.AgentTool {
+	pinned, ok, err := p.pinnedWorkspaceMCPTools(ctx, chat, workspaceCtx.getWorkspaceConn)
+	if err != nil {
+		// A pinned-read failure should not be more fatal than a live
+		// discovery failure (which returns nil tools), so log and fall back
+		// rather than aborting the turn.
+		logger.Warn(ctx, "failed to read pinned workspace MCP tools; falling back to live discovery",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+	} else if ok {
+		return pinned
+	}
+	return p.discoverWorkspaceMCPTools(ctx, logger, chat.ID, workspaceCtx)
+}
+
+// pinnedWorkspaceMCPTools builds workspace MCP tools from the chat's pinned
+// context snapshot (chat_context_resources) instead of dialing the agent for
+// a live tool list. ok reports whether the caller should use these tools
+// instead of the live discovery path. It is false when the chat has no pinned
+// rows (an older agent that never reported context, or a chat not yet
+// hydrated), so the caller falls back. When rows exist ok is true even if none
+// are MCP servers, because the pin is then authoritative: a workspace with no
+// MCP servers contributes no tools.
+//
+// Each tool still proxies its calls back through the workspace agent
+// connection; the snapshot carries tool definitions, not a way to execute
+// them, so execution requires a reachable agent. There is no per-chat cache to
+// invalidate on the pinned path: a server removed or renamed in the workspace
+// surfaces as a dirty chat on the agent's next push, and the user refreshes to
+// re-pin, so a nil invalidate callback (a 404 no-op) is correct here.
+func (p *Server) pinnedWorkspaceMCPTools(
+	ctx context.Context,
+	chat database.Chat,
+	getConn func(context.Context) (workspacesdk.AgentConn, error),
+) (tools []fantasy.AgentTool, ok bool, err error) {
+	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	if err != nil {
+		return nil, false, xerrors.Errorf("list chat context resources: %w", err)
+	}
+	if len(resources) == 0 {
+		return nil, false, nil
+	}
+	infos := workspaceMCPToolInfosFromResources(resources)
+	tools = make([]fantasy.AgentTool, 0, len(infos))
+	for _, info := range infos {
+		tools = append(tools, chattool.NewWorkspaceMCPTool(info, getConn, nil))
+	}
+	return tools, true, nil
+}
+
 // primeWorkspaceMCPCache populates workspaceMCPToolsCache after the
 // create_workspace or start_workspace tool finishes waiting for the
 // workspace agent to become reachable. By the time it runs the agent

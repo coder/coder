@@ -2721,6 +2721,69 @@ func (api *API) workspaceAgentClearChatContext(rw http.ResponseWriter, r *http.R
 	})
 }
 
+// workspaceAgentRefreshChatContext re-pins every drifted chat bound to the
+// calling agent to the agent's latest context snapshot, clearing their
+// drift markers. It backs the in-workspace `coder exp chat context refresh`
+// (no chat argument), which uses the agent token rather than a user
+// session, mirroring workspaceAgentClearChatContext's auth model.
+//
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentRefreshChatContext(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+
+	// Chats are processed by the chat daemon; without it there is
+	// nothing to refresh.
+	if api.chatDaemon == nil {
+		httpapi.Write(ctx, rw, http.StatusOK, agentsdk.RefreshChatContextResponse{})
+		return
+	}
+
+	// Use system context for chat operations since the workspace agent
+	// scope does not include chat resources.
+	//nolint:gocritic // Agent needs system access to read/write chat resources.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	workspace, err := api.Database.GetWorkspaceByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to determine workspace from agent token.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	chats, err := api.Database.GetActiveChatsByAgentID(sysCtx, workspaceAgent.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to list chats for agent.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	refreshed := 0
+	for _, chat := range chats {
+		// Only re-pin chats owned by this workspace's owner that have
+		// drifted from the agent's latest snapshot.
+		if chat.OwnerID != workspace.OwnerID || !chat.ContextDirtySince.Valid {
+			continue
+		}
+		if _, err := api.chatDaemon.RefreshChatContext(sysCtx, chat); err != nil {
+			api.Logger.Warn(ctx, "failed to refresh chat context for agent",
+				slog.F("chat_id", chat.ID),
+				slog.F("agent_id", workspaceAgent.ID),
+				slog.Error(err),
+			)
+			continue
+		}
+		refreshed++
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.RefreshChatContextResponse{
+		Refreshed: refreshed,
+	})
+}
+
 var (
 	errNoActiveChats                     = xerrors.New("no active chats found")
 	errChatNotFound                      = xerrors.New("chat not found")

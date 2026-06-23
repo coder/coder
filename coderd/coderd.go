@@ -325,6 +325,12 @@ type Options struct {
 
 // @BasePath /
 
+// @tag.name Agents
+// @tag.description Workspace agent endpoints. These power the workspace agent daemon defined by the `coder_agent` Terraform resource. This API is NOT the Coder Agents Chats API. For programmatic access to AI Coder Agents, see the Chats API.
+
+// @tag.name Chats
+// @tag.description Programmatic API for Coder Agents (the user-facing "Coder Agents" / "Chats" product). Use these endpoints to create, list, and manage AI coding agent sessions.
+
 // @securitydefinitions.apiKey Authorization
 // @in header
 // @name Authorizaiton
@@ -1465,6 +1471,7 @@ func New(options *Options) *API {
 			r.Get("/", api.auditLogs)
 			r.Post("/testgenerate", api.generateFakeAuditLog)
 		})
+
 		r.Route("/files", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -1789,6 +1796,7 @@ func New(options *Options) *API {
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context", api.workspaceAgentAddChatContext)
 					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)

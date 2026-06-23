@@ -80,6 +80,15 @@ type AIBridgeThread struct {
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
 	AgenticActions []AIBridgeAgenticAction          `json:"agentic_actions"`
+	// AgentFirewallSessionID links this thread to an agent firewall
+	// confinement session. Nil when the request did not pass through
+	// the agent firewall.
+	AgentFirewallSessionID *uuid.UUID `json:"agent_firewall_session_id,omitempty" format:"uuid"`
+	// AgentFirewallSequenceNumber is the firewall sequence number from
+	// the root interception. Used to determine the position of this
+	// LLM request in the firewall event stream. Nil when the request
+	// did not pass through the agent firewall.
+	AgentFirewallSequenceNumber *int32 `json:"agent_firewall_sequence_number,omitempty"`
 }
 
 // AIBridgeAgenticAction represents a tool call with associated

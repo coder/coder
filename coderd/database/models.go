@@ -5706,6 +5706,7 @@ type Template struct {
 	UseClassicParameterFlow       bool            `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior                  CorsBehavior    `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache            bool            `db:"disable_module_cache" json:"disable_module_cache"`
+	TimeTilAutostopNotify         int64           `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	CreatedByName                 string          `db:"created_by_name" json:"created_by_name"`
@@ -5756,6 +5757,8 @@ type TemplateTable struct {
 	UseClassicParameterFlow bool         `db:"use_classic_parameter_flow" json:"use_classic_parameter_flow"`
 	CorsBehavior            CorsBehavior `db:"cors_behavior" json:"cors_behavior"`
 	DisableModuleCache      bool         `db:"disable_module_cache" json:"disable_module_cache"`
+	// How long before the workspace autostop deadline to send a reminder notification, in nanoseconds. 0 disables the notification.
+	TimeTilAutostopNotify int64 `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.
@@ -6413,25 +6416,26 @@ type WorkspaceAppStatus struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                      uuid.UUID           `db:"id" json:"id"`
-	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber             int32               `db:"build_number" json:"build_number"`
-	Transition              WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline                time.Time           `db:"deadline" json:"deadline"`
-	Reason                  BuildReason         `db:"reason" json:"reason"`
-	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
-	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
-	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
-	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
-	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
-	InitiatorByName         string              `db:"initiator_by_name" json:"initiator_by_name"`
+	ID                       uuid.UUID           `db:"id" json:"id"`
+	CreatedAt                time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt                time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID              uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID        uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber              int32               `db:"build_number" json:"build_number"`
+	Transition               WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID              uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	JobID                    uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                 time.Time           `db:"deadline" json:"deadline"`
+	Reason                   BuildReason         `db:"reason" json:"reason"`
+	DailyCost                int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline              time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID  uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	HasAITask                sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
+	HasExternalAgent         sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	NotifiedAutostopDeadline time.Time           `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
+	InitiatorByAvatarUrl     string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername      string              `db:"initiator_by_username" json:"initiator_by_username"`
+	InitiatorByName          string              `db:"initiator_by_name" json:"initiator_by_name"`
 }
 
 type WorkspaceBuildParameter struct {
@@ -6460,6 +6464,8 @@ type WorkspaceBuildTable struct {
 	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 	HasAITask               sql.NullBool        `db:"has_ai_task" json:"has_ai_task"`
 	HasExternalAgent        sql.NullBool        `db:"has_external_agent" json:"has_external_agent"`
+	// The autostop deadline value that an autostop reminder notification was last sent for. Used for idempotence: when it equals the build deadline the reminder has already been sent, and it re-arms automatically when the deadline changes.
+	NotifiedAutostopDeadline time.Time `db:"notified_autostop_deadline" json:"notified_autostop_deadline"`
 }
 
 type WorkspaceLatestBuild struct {

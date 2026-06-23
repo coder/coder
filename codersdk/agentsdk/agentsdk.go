@@ -1021,6 +1021,13 @@ type ClearChatContextResponse struct {
 	ChatID uuid.UUID `json:"chat_id"`
 }
 
+// RefreshChatContextResponse is the response for refreshing chat context.
+type RefreshChatContextResponse struct {
+	// Refreshed is the number of drifted chats that were re-pinned to the
+	// agent's latest context snapshot.
+	Refreshed int `json:"refreshed"`
+}
+
 // AddChatContext adds context-file and skill parts to an active chat.
 func (c *Client) AddChatContext(ctx context.Context, req AddChatContextRequest) (AddChatContextResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context", req)
@@ -1050,5 +1057,24 @@ func (c *Client) ClearChatContext(ctx context.Context, req ClearChatContextReque
 	}
 
 	var resp ClearChatContextResponse
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// RefreshChatContext re-pins every drifted chat bound to this agent to the
+// agent's latest context snapshot, clearing their drift markers. It backs
+// the in-workspace `coder exp chat context refresh` (no chat argument),
+// which authenticates with the agent token rather than a user session.
+func (c *Client) RefreshChatContext(ctx context.Context) (RefreshChatContextResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/chat-context/refresh", nil)
+	if err != nil {
+		return RefreshChatContextResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return RefreshChatContextResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp RefreshChatContextResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }

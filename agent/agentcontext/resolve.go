@@ -1,8 +1,10 @@
 package agentcontext
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +16,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -100,10 +104,13 @@ type Resolver struct {
 	// MaxDepth caps the directory walk depth. Use
 	// DefaultMaxScanDepth if zero.
 	MaxDepth int
-	// MCP, when non-nil, is consulted after the filesystem
-	// pass and contributes any KindMCPServer resources for
-	// live MCP servers.
-	MCP MCPProvider
+	// MCPResources, when non-nil, is consulted after the
+	// filesystem pass and returns the KindMCPServer resources
+	// for live MCP servers. It must not block: the resolver
+	// calls it on every re-resolve. In production the manager
+	// wires this to its MCP runner's snapshot; tests inject a
+	// closure directly.
+	MCPResources func() []Resource
 }
 
 // ScanRoot describes a single directory or file the resolver
@@ -144,8 +151,8 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 	// Append MCP server resources after the filesystem caps
 	// are applied so a runaway MCP server cannot crowd out
 	// instruction files.
-	if r.MCP != nil {
-		mcp := r.MCP.MCPResources()
+	if r.MCPResources != nil {
+		mcp := r.MCPResources()
 		startIdx := len(resources)
 		resources = append(resources, mcp...)
 		// MCP resources may push the aggregate over the
@@ -164,7 +171,10 @@ func (r *Resolver) ResolveContext(ctx context.Context, roots []ScanRoot) Snapsho
 		payloadBytes += uint64(len(r.Payload))
 	}
 
-	hash := ComputeAggregateHash(resources)
+	// The drift hash covers only pinned prompt content; MCP resources are
+	// excluded (see driftResources). Snapshot.Resources still carries the
+	// full set so MCP servers stay visible in the chat-context snapshot.
+	hash := ComputeAggregateHash(driftResources(resources))
 
 	snap := Snapshot{
 		Resources:     resources,
@@ -439,8 +449,8 @@ func (r *Resolver) readInstructionFile(scanRoot, path string, info fs.FileInfo, 
 // .mcp.json fragments frequently embed secret-bearing fields
 // (Env tokens, Authorization headers). The resolver hashes the
 // file for change detection but intentionally does not ship
-// the bytes; the live MCP server's tool list arrives via the
-// MCPProvider as a KindMCPServer resource, which is what
+// the bytes; the live MCP server's tool list arrives
+// separately as a KindMCPServer resource, which is what
 // downstream consumers actually need.
 func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSource string) Resource {
 	res := Resource{
@@ -472,7 +482,44 @@ func (r *Resolver) readMCPConfig(scanRoot, path string, info fs.FileInfo, userSo
 		return res
 	}
 	res.ContentHash = sha256.Sum256(data)
+	// A .mcp.json with broken JSON yields no MCP servers at all; the
+	// MCP manager logs and skips it, so the failure is otherwise
+	// invisible. Flag structural problems here as StatusInvalid so the
+	// chat context surfaces them as an issue rather than silently
+	// dropping every server in the file.
+	if err := validateMCPConfig(data); err != nil {
+		res.Status = StatusInvalid
+		res.Error = err.Error()
+	}
 	return res
+}
+
+// validateMCPConfig performs lightweight structural validation of a
+// .mcp.json document so syntactically broken files surface as
+// StatusInvalid instead of silently producing no MCP servers. It is
+// deliberately self-contained and does not import the MCP package: it
+// only checks that the document is valid JSON shaped like
+// {"mcpServers": {<name>: {...}}}. Individual server fields
+// (command/url/env/...) are not validated here; the MCP manager owns
+// that when it connects. An absent or empty mcpServers map is valid.
+func validateMCPConfig(data []byte) error {
+	var shape struct {
+		MCPServers map[string]json.RawMessage `json:"mcpServers"`
+	}
+	if err := json.Unmarshal(data, &shape); err != nil {
+		return err
+	}
+	// Each server entry must be a JSON object; a scalar or array
+	// entry is a structural error the MCP manager would reject.
+	// The top-level Unmarshal above already rejects malformed JSON,
+	// so a well-formed value starting with '{' is a complete object.
+	for name, raw := range shape.MCPServers {
+		trimmed := bytes.TrimSpace(raw)
+		if len(trimmed) == 0 || trimmed[0] != '{' {
+			return xerrors.Errorf("server %q must be a JSON object", name)
+		}
+	}
+	return nil
 }
 
 // readFileResource is the shared plumbing for kinds whose only
@@ -785,8 +832,8 @@ const (
 	// more MCP servers.
 	KindMCPConfig
 	// KindMCPServer is a live MCP server's resolved tool list,
-	// populated by an MCPProvider after the server has been
-	// connected.
+	// populated from the MCP runner's snapshot after the server
+	// has been connected.
 	KindMCPServer
 	// KindPlugin is reserved for Claude Code plugin manifests.
 	// Not emitted by v1.
@@ -938,8 +985,12 @@ type Snapshot struct {
 	Version uint64
 	// AggregateHash is sha256 over a canonical encoding of
 	// (ID, Kind, Source, ContentHash, Status) for every
-	// resource. Identical inputs always produce identical
-	// hashes; see ComputeAggregateHash.
+	// drift-relevant resource. MCP resources (KindMCPConfig and
+	// KindMCPServer) are excluded because they describe live,
+	// agent-global runtime capabilities discovered at turn time,
+	// not pinned prompt content; see driftResources. Identical
+	// inputs always produce identical hashes; see
+	// ComputeAggregateHash.
 	AggregateHash [32]byte
 	// Resources is sorted by ID for deterministic encoding.
 	Resources []Resource
@@ -950,6 +1001,28 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
+}
+
+// driftResources returns the subset of resources that participate in
+// chat-context drift detection. MCP resources (the .mcp.json config and
+// connected MCP servers) are deliberately excluded: an agent connects to
+// its MCP servers asynchronously after startup, and the chat model
+// discovers their tools live at turn time, not from pinned prompt
+// content. Hashing them would dirty an already-hydrated chat the moment
+// a server finished connecting, even though nothing the user pinned
+// changed. Instruction files and skills, whose content is pinned into
+// the chat, stay drift-relevant.
+func driftResources(resources []Resource) []Resource {
+	out := make([]Resource, 0, len(resources))
+	for _, r := range resources {
+		switch r.Kind {
+		case KindMCPConfig, KindMCPServer:
+			continue
+		default:
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 // ComputeAggregateHash produces the deterministic snapshot
