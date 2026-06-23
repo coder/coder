@@ -135,7 +135,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 		<div>
 			<h2 className="text-lg font-semibold mb-1">Select modules</h2>
 			<p className="text-sm text-content-secondary mb-4">
-				Add functionality to your template.
+				Add pre-built tools and integrations. Module versions are pinned at
+				selection.
 			</p>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
