@@ -4,7 +4,6 @@ import { HttpResponse, http } from "msw";
 import type {
 	CreateUserSecretRequest,
 	CreateWorkspaceBuildRequest,
-	ImportUserSecretsRequest,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -219,10 +218,9 @@ export const handlers = [
 			status: 201,
 		});
 	}),
-	http.post("/api/v2/users/:userId/secrets/batch", async ({ request }) => {
+	http.post("/api/v2/users/:userId/secrets/batch", () => {
 		// The server parses and validates the contents; the mock returns a
 		// deterministic, value-free set of imported secrets on success.
-		const _body = (await request.json()) as ImportUserSecretsRequest;
 		return HttpResponse.json(M.MockImportedUserSecrets, { status: 201 });
 	}),
 	http.patch(
