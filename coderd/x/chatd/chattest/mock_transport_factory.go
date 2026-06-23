@@ -11,17 +11,20 @@ import (
 )
 
 // RecordedRequest captures metadata from a single request that passed
-// through the mock transport factory. Tests use it to assert that AI
-// Gateway routing attributed requests to the correct API key and
-// provider.
+// through the mock transport factory. Fields not already available on
+// [http.Request] are included here; tests can access headers and path
+// via [RecordedRequest.Request].
 type RecordedRequest struct {
-	ProviderName  string
-	Source        aibridge.Source
-	APIKeyID      string
-	Path          string
-	Authorization string
-	XAPIKey       string
-	CoderToken    string
+	// Request is a shallow clone of the original [http.Request].
+	Request *http.Request
+	// ProviderName is the AI provider instance name passed to
+	// [TransportFactory.TransportFor].
+	ProviderName string
+	// Source is the aibridge source passed to TransportFor.
+	Source aibridge.Source
+	// APIKeyID is the delegated API key ID attached to the request
+	// context, when one was set.
+	APIKeyID string
 }
 
 // MockTransportFactory is a test [aibridge.TransportFactory] that
@@ -85,13 +88,10 @@ func (rt mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
 	rt.factory.mu.Lock()
 	rt.factory.requests = append(rt.factory.requests, RecordedRequest{
-		ProviderName:  rt.providerName,
+		Request:      req.Clone(req.Context()),
+		ProviderName: rt.providerName,
 		Source:        rt.source,
 		APIKeyID:      apiKeyID,
-		Path:          req.URL.Path,
-		Authorization: req.Header.Get("Authorization"),
-		XAPIKey:       req.Header.Get("X-Api-Key"),
-		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
 	})
 	rt.factory.mu.Unlock()
 
