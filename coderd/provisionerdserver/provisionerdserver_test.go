@@ -5537,12 +5537,12 @@ func TestDownloadFile(t *testing.T) {
 		require.NotEqual(t, daemon.OrganizationID, otherOrg.ID)
 
 		moduleData := make([]byte, sdkproto.ChunkSize*2)
-		_, err := crand.Read(moduleData)
-		require.NoError(t, err)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
 		file := insertModuleFile(t, db, otherOrg.ID, moduleData)
 
 		stream := &mockDownloadStream{ctx: ctx}
-		err = server.DownloadFile(&proto.FileRequest{
+		err := server.DownloadFile(&proto.FileRequest{
 			FileId:     file.ID.String(),
 			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
 		}, stream)
@@ -5571,12 +5571,12 @@ func TestDownloadFile(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		moduleData := make([]byte, sdkproto.ChunkSize*2+512)
-		_, err := crand.Read(moduleData)
-		require.NoError(t, err)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
 		file := insertModuleFile(t, db, daemon.OrganizationID, moduleData)
 
 		stream := &mockDownloadStream{ctx: ctx}
-		err = server.DownloadFile(&proto.FileRequest{
+		err := server.DownloadFile(&proto.FileRequest{
 			FileId:     file.ID.String(),
 			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
 		}, stream)
