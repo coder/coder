@@ -2,9 +2,6 @@ package agentcontext
 
 import (
 	"context"
-	"os"
-	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -556,50 +553,6 @@ func (m *Manager) Trigger() {
 	m.signal()
 }
 
-// projectMarker is the directory entry that bounds the
-// instruction-file walk-up. Matching codex, discovery climbs from
-// the working directory to the nearest ancestor that contains a
-// .git entry and treats that as the project root. The entry may be
-// a directory (a normal clone) or a file (a worktree or submodule
-// gitdir pointer), so both are accepted.
-const projectMarker = ".git"
-
-// projectChain returns the directories to scan for project-scoped
-// context, ordered from the project root down to workingDir
-// inclusive. The project root is the nearest ancestor of
-// workingDir (inclusive) that contains a .git entry. When no such
-// ancestor exists the chain is just workingDir, so discovery never
-// climbs above the workspace into unrelated parent directories.
-func projectChain(workingDir string) []string {
-	workingDir = filepath.Clean(workingDir)
-	root := workingDir
-	for dir := workingDir; ; {
-		if _, err := os.Lstat(filepath.Join(dir, projectMarker)); err == nil {
-			root = dir
-			break
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			// Reached the filesystem root without a marker;
-			// scan only the working directory.
-			return []string{workingDir}
-		}
-		dir = parent
-	}
-	// Collect cwd -> root, then reverse to root -> cwd so callers
-	// see ancestors before descendants.
-	var chain []string
-	for dir := workingDir; ; {
-		chain = append(chain, dir)
-		if dir == root {
-			break
-		}
-		dir = filepath.Dir(dir)
-	}
-	slices.Reverse(chain)
-	return chain
-}
-
 // scanRootsLocked returns the list of ScanRoots to feed the
 // resolver and watcher. The Manager's mutex must be held.
 func (m *Manager) scanRootsLocked() []ScanRoot {
@@ -607,14 +560,14 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 	out := make([]ScanRoot, 0, 1+len(builtinRoots)+len(m.sources))
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
-			// Walk up to the project root and scan each
-			// directory from the root down to the working dir,
-			// mirroring codex. Each chain dir is its own scan
-			// root, so the resolver reads instruction files and
-			// .mcp.json at every ancestor without descending.
-			for _, dir := range projectChain(wd) {
-				out = append(out, ScanRoot{Path: dir})
-			}
+			// The working directory is a single scan root. The
+			// resolver reads its top-level instruction files and
+			// .mcp.json plus the fixed skill containers under it;
+			// it neither descends into subdirectories nor climbs
+			// to parent directories. Additional directories are
+			// added explicitly as Sources or via the seeding env
+			// vars.
+			out = append(out, ScanRoot{Path: wd})
 		}
 	}
 	for _, r := range builtinRoots {

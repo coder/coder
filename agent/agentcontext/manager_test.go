@@ -438,44 +438,11 @@ func TestManager_MCPResourcesAppliesToSnapshot(t *testing.T) {
 	require.True(t, found, "expected MCP server resource in snapshot")
 }
 
-func TestProjectChain_WalksUpToGitRoot(t *testing.T) {
-	t.Parallel()
-	root := testutil.TempDirResolved(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
-	cwd := filepath.Join(root, "a", "b")
-	require.NoError(t, os.MkdirAll(cwd, 0o755))
-
-	require.Equal(t, []string{
-		root,
-		filepath.Join(root, "a"),
-		cwd,
-	}, agentcontext.ProjectChainForTest(cwd))
-}
-
-func TestProjectChain_GitFileBoundaryIsHonored(t *testing.T) {
-	t.Parallel()
-	// A worktree or submodule has .git as a file, not a directory.
-	root := testutil.TempDirResolved(t)
-	require.NoError(t, os.WriteFile(filepath.Join(root, ".git"), []byte("gitdir: elsewhere"), 0o600))
-	cwd := filepath.Join(root, "sub")
-	require.NoError(t, os.MkdirAll(cwd, 0o755))
-
-	require.Equal(t, []string{root, cwd}, agentcontext.ProjectChainForTest(cwd))
-}
-
-func TestProjectChain_NoGitFallsBackToWorkingDir(t *testing.T) {
-	t.Parallel()
-	cwd := filepath.Join(testutil.TempDirResolved(t), "x", "y")
-	require.NoError(t, os.MkdirAll(cwd, 0o755))
-
-	require.Equal(t, []string{cwd}, agentcontext.ProjectChainForTest(cwd))
-}
-
-// TestManager_WalkUpReadsAncestorInstructionFiles confirms the
-// Manager scans every directory from the git root down to the
-// working directory, and ignores instruction files in sibling
-// subtrees that are not on the chain.
-func TestManager_WalkUpReadsAncestorInstructionFiles(t *testing.T) {
+// TestManager_WorkingDirScannedShallow confirms the working
+// directory is a single scan root: its top-level instruction files
+// are read, but the resolver neither climbs to an ancestor (no
+// walk-up to a .git project root) nor descends into subdirectories.
+func TestManager_WorkingDirScannedShallow(t *testing.T) {
 	t.Parallel()
 	root := testutil.TempDirResolved(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(root, ".git"), 0o755))
@@ -483,8 +450,8 @@ func TestManager_WalkUpReadsAncestorInstructionFiles(t *testing.T) {
 	cwd := filepath.Join(root, "service")
 	require.NoError(t, os.MkdirAll(cwd, 0o755))
 	mustWriteFile(t, filepath.Join(cwd, "AGENTS.md"), "service rules")
-	// A sibling subtree is not on the root->cwd chain.
-	mustWriteFile(t, filepath.Join(root, "other", "AGENTS.md"), "other rules")
+	// A subdirectory below the working dir must not be descended.
+	mustWriteFile(t, filepath.Join(cwd, "nested", "AGENTS.md"), "nested rules")
 
 	m := newTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return cwd },
@@ -497,44 +464,7 @@ func TestManager_WalkUpReadsAncestorInstructionFiles(t *testing.T) {
 			sources = append(sources, r.Source)
 		}
 	}
-	require.ElementsMatch(t, []string{
-		filepath.Join(root, "AGENTS.md"),
-		filepath.Join(cwd, "AGENTS.md"),
-	}, sources)
-}
-
-// TestManager_UserSourceDoesNotWalkUp confirms an explicitly added
-// source is scanned at exactly that directory. Walk-up to the
-// project (.git) root applies only to the working directory, so
-// adding a subdirectory such as ./site inside a repo scans ./site
-// itself and does not pull in the repo-root instruction files.
-func TestManager_UserSourceDoesNotWalkUp(t *testing.T) {
-	t.Parallel()
-	// repo is a git project with a root AGENTS.md and a nested
-	// site/AGENTS.md. The user adds the site subdirectory directly.
-	repo := testutil.TempDirResolved(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(repo, ".git"), 0o755))
-	mustWriteFile(t, filepath.Join(repo, "AGENTS.md"), "root rules")
-	site := filepath.Join(repo, "site")
-	mustWriteFile(t, filepath.Join(site, "AGENTS.md"), "site rules")
-
-	// The working directory is unrelated and contributes nothing,
-	// isolating the user-source behavior under test.
-	wd := testutil.TempDirResolved(t)
-
-	m := newTestManager(t, agentcontext.ManagerOptions{
-		WorkingDir:     func() string { return wd },
-		InitialSources: []agentcontext.Source{{Path: site}},
-	})
-
-	snap := m.Snapshot()
-	var sources []string
-	for _, r := range snap.Resources {
-		if r.Kind == agentcontext.KindInstructionFile {
-			sources = append(sources, r.Source)
-		}
-	}
-	// Only the added subdirectory's AGENTS.md is present; the
-	// repo-root AGENTS.md is absent, proving no walk-up occurred.
-	require.Equal(t, []string{filepath.Join(site, "AGENTS.md")}, sources)
+	// Only the working directory's own AGENTS.md is present: the
+	// ancestor root and the nested subdirectory are both excluded.
+	require.Equal(t, []string{filepath.Join(cwd, "AGENTS.md")}, sources)
 }

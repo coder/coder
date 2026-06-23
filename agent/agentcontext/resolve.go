@@ -222,13 +222,12 @@ func (r *Resolver) normalize() *Resolver {
 // list. Aggregate caps are applied separately. The ctx is checked
 // between roots so callers can bail out promptly.
 //
-// Discovery is deliberately shallow. codex never walks the working
-// directory downward; it reads fixed locations and walks up to the
-// project root. The Manager performs the walk-up by feeding the
-// root->cwd chain as separate scan roots, and for each root the
+// Discovery is deliberately shallow. For each scan root the
 // resolver inspects only that directory's top level (instruction
 // files and .mcp.json) plus a fixed set of skill-container
-// locations.
+// locations under it. It never descends into subdirectories and
+// never climbs to a parent directory; additional directories must
+// be added explicitly as scan roots.
 func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
 	// Dedup roots by canonical path. The first occurrence
 	// wins so user-added roots that overlap with a built-in
