@@ -70,7 +70,7 @@ func ExtractRealIPAddress(config *RealIPConfig, req *http.Request) (net.IP, erro
 	}
 
 	for _, trustedHeader := range config.TrustedHeaders {
-		addr := getRemoteAddress(req.Header.Get(trustedHeader))
+		addr := extractForwardedAddress(config, req.Header.Get(trustedHeader))
 		if addr != nil {
 			return addr, nil
 		}
@@ -204,6 +204,31 @@ func getRemoteAddress(address string) net.IP {
 		return net.ParseIP(firstAddress)
 	}
 	return net.ParseIP(host)
+}
+
+// extractForwardedAddress parses a comma-separated forwarding header value and
+// returns the rightmost address that is not a trusted origin. Reverse proxies
+// append the peer that connected to them, so the rightmost untrusted address is
+// the real client; any values a client prepends to spoof its address sit to the
+// left of the addresses inserted by trusted proxies and are ignored. If every
+// parsed address is a trusted origin, the leftmost address is returned. It
+// returns nil when no address can be parsed.
+func extractForwardedAddress(config *RealIPConfig, value string) net.IP {
+	parts := strings.Split(value, ",")
+	var leftmost net.IP
+	for i := len(parts) - 1; i >= 0; i-- {
+		ip := getRemoteAddress(strings.TrimSpace(parts[i]))
+		if ip == nil {
+			continue
+		}
+		// Iterating right-to-left, so the last assignment is the leftmost
+		// valid address, used as the fallback when all hops are trusted.
+		leftmost = ip
+		if !isContainedIn(config.TrustedOrigins, ip) {
+			return ip
+		}
+	}
+	return leftmost
 }
 
 // isContainedIn checks that the given address is contained in the given
