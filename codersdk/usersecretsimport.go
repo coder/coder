@@ -223,33 +223,24 @@ func parseEnvValue(rhs string, lineNum int) (string, error) {
 	}
 	switch v[0] {
 	case '"':
-		return parseDoubleQuotedEnvValue(v, lineNum)
+		// Double-quoted: runs to the matching closing quote, with the
+		// permitted escape sequences interpreted.
+		inner, ok := quotedInner(v, '"')
+		if !ok {
+			return "", xerrors.Errorf("line %d: missing closing double quote", lineNum)
+		}
+		return unescapeDoubleQuoted(inner), nil
 	case '\'':
-		return parseSingleQuotedEnvValue(v, lineNum)
+		// Single-quoted: verbatim, no escape processing.
+		inner, ok := quotedInner(v, '\'')
+		if !ok {
+			return "", xerrors.Errorf("line %d: missing closing single quote", lineNum)
+		}
+		return inner, nil
 	default:
 		// Unquoted: trim surrounding whitespace, keep '#' literally.
 		return strings.TrimSpace(v), nil
 	}
-}
-
-// parseDoubleQuotedEnvValue extracts a double-quoted value and
-// interprets the permitted escape sequences.
-func parseDoubleQuotedEnvValue(v string, lineNum int) (string, error) {
-	inner, ok := quotedInner(v, '"')
-	if !ok {
-		return "", xerrors.Errorf("line %d: missing closing double quote", lineNum)
-	}
-	return unescapeDoubleQuoted(inner), nil
-}
-
-// parseSingleQuotedEnvValue extracts a single-quoted value verbatim;
-// single quotes perform no escape processing.
-func parseSingleQuotedEnvValue(v string, lineNum int) (string, error) {
-	inner, ok := quotedInner(v, '\'')
-	if !ok {
-		return "", xerrors.Errorf("line %d: missing closing single quote", lineNum)
-	}
-	return inner, nil
 }
 
 // quotedInner returns the content between the opening quote (v[0]) and
