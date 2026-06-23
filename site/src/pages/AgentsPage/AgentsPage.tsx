@@ -546,9 +546,8 @@ const AgentsPage: FC = () => {
 			});
 			return changed ? next : chats;
 		});
-		// Drop the now-read chat from the unread (has_unread:true) filter
-		// cache so it leaves the unread view without a refetch. Window
-		// focus remains the backstop for any other drift.
+		// Prune the read chat from the unread filter cache so it leaves the
+		// unread view; window-focus refetch backstops other drift.
 		removeChatFromUnreadChatListCache(queryClient, agentId);
 	}, [agentId, queryClient]);
 	useEffect(() => {

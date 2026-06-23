@@ -2718,11 +2718,9 @@ describe("removeChatFromUnreadChatListCache", () => {
 		const queryClient = createTestQueryClient();
 		const readChat = makeChat("chat-read", { has_unread: false });
 		const otherChat = makeChat("chat-other", { has_unread: true });
-		// Unread-filter cache: the read chat should be removed.
 		seedInfiniteChats(queryClient, [readChat, otherChat], {
 			chatStatus: "unread",
 		});
-		// Default (no filter) and read-filter caches: untouched.
 		seedInfiniteChats(queryClient, [readChat, otherChat], { archived: false });
 		seedInfiniteChats(queryClient, [readChat, otherChat], {
 			chatStatus: "read",
