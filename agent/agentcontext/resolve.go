@@ -45,8 +45,12 @@ const (
 
 // File-name conventions recognized by the v1 resolver.
 var (
-	// instructionFileNames are picked up from any scan root.
-	// Matching is case-insensitive on the basename.
+	// instructionFileNames are picked up from the top level of a
+	// scan root. Matching is case-sensitive on the basename,
+	// mirroring codex: it keys on the exact name "AGENTS.md" and
+	// never case-folds, so a lower-case agents.md (for example a
+	// generated API reference doc) is not mistaken for an
+	// instruction file.
 	instructionFileNames = []string{
 		"AGENTS.md",
 		"CLAUDE.md",
@@ -77,14 +81,25 @@ var skipDirNames = map[string]struct{}{
 }
 
 // recognizedInstructionFile reports whether name is one of the
-// instruction-file conventions, case-insensitively.
+// instruction-file conventions. Matching is case-sensitive:
+// codex keys on the exact basename "AGENTS.md", so a lower-case
+// agents.md is intentionally not recognized.
 func recognizedInstructionFile(name string) bool {
 	for _, candidate := range instructionFileNames {
-		if strings.EqualFold(name, candidate) {
+		if name == candidate {
 			return true
 		}
 	}
 	return false
+}
+
+// atScanRoot reports whether path sits directly at scanRoot:
+// either path is the scan root itself (a single-file root) or
+// its parent directory is the scan root. Instruction files are
+// recognized only at this top level, never deeper in the tree,
+// mirroring codex's lack of downward recursion.
+func atScanRoot(path, scanRoot string) bool {
+	return path == scanRoot || filepath.Dir(path) == scanRoot
 }
 
 // Resolver walks one or more scan roots and produces a snapshot
@@ -246,7 +261,11 @@ func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Reso
 			continue
 		}
 		if !info.IsDir() {
-			// Single-file roots are classified directly.
+			// Single-file roots are classified directly. A
+			// file that is itself the scan root counts as
+			// top-level (see atScanRoot), so instruction
+			// files added as an explicit source are still
+			// recognized.
 			if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
 				if _, dup := seenID[res.ID]; !dup {
 					seenID[res.ID] = struct{}{}
@@ -278,10 +297,11 @@ func (r *Resolver) walkDir(ctx context.Context, root ScanRoot, out *[]Resource, 
 		if err != nil {
 			// Surface the error as Unreadable when we can
 			// associate it with a single recognized file;
-			// otherwise let the walk continue.
+			// otherwise let the walk continue. Instruction
+			// files only count at the scan-root top level.
 			if d != nil && !d.IsDir() {
 				kind, recognized := kindFromFilename(d.Name())
-				if recognized {
+				if recognized && (kind != KindInstructionFile || atScanRoot(path, root.Path)) {
 					res := Resource{
 						ID:         resourceID(kind, path),
 						Kind:       kind,
@@ -403,10 +423,18 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 
 // classifyFile inspects a single file path and produces a
 // Resource when the basename matches a recognized convention.
+// Instruction files are recognized only when path sits directly
+// at the scan root (see atScanRoot), because codex does not
+// descend into subdirectories to collect nested AGENTS.md files.
+// Skills and MCP configs are a Coder extension and remain
+// discoverable at any depth.
 func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	name := info.Name()
 	switch {
 	case recognizedInstructionFile(name):
+		if !atScanRoot(path, scanRoot) {
+			return Resource{}, false
+		}
 		return r.readInstructionFile(scanRoot, path, info, userSource), true
 	case name == mcpConfigFileName:
 		return r.readMCPConfig(scanRoot, path, info, userSource), true
@@ -529,14 +557,26 @@ func validateMCPConfig(data []byte) error {
 // post-processing (e.g. firstLine for instruction files) by
 // inspecting Status==StatusOK.
 func (r *Resolver) readFileResource(kind ResourceKind, scanRoot, path string, info fs.FileInfo, userSource string) Resource {
+	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
+	// Attribute the resource to the resolved target rather than
+	// the path we walked. When several names point at the same
+	// file (e.g. CLAUDE.md and .cursorrules symlinked to
+	// AGENTS.md), they share an ID and collapse to a single
+	// resource via the walk's ID-based dedup, instead of shipping
+	// identical content multiple times. On resolve failure the
+	// original path is kept so the error points at the offending
+	// link.
+	idPath := path
+	if ok {
+		idPath = readPath
+	}
 	res := Resource{
-		ID:         resourceID(kind, path),
+		ID:         resourceID(kind, idPath),
 		Kind:       kind,
-		Source:     path,
+		Source:     idPath,
 		SizeBytes:  safeUint64(info.Size()),
 		SourcePath: userSource,
 	}
-	readPath, readInfo, ok, status, errMsg := resolveReadTarget(path, info, scanRoot)
 	if !ok {
 		res.Status = status
 		res.Error = errMsg
