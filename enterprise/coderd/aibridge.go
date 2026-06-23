@@ -95,7 +95,7 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 			// This is a bit funky but since aibridge only exposes a HTTP
 			// handler, this is how it has to be.
 			r.HandleFunc("/*", func(rw http.ResponseWriter, r *http.Request) {
-				handler := api.AGPL.GetAIGatewayHandler()
+				handler := api.AGPL.AIGatewayHandler()
 				if handler == nil {
 					httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 						Message: "aibridged handler not mounted",

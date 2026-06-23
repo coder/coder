@@ -19,11 +19,11 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 )
 
-// GetAIGatewayHandler returns the in-memory AI Gateway HTTP handler
+// AIGatewayHandler returns the in-memory AI Gateway HTTP handler
 // set by [API.RegisterInMemoryAIBridgedHTTPHandler], or nil if the daemon
 // has not been wired in. Callers must apply their own [http.StripPrefix]
 // for the route prefix they are mounting under.
-func (api *API) GetAIGatewayHandler() http.Handler {
+func (api *API) AIGatewayHandler() http.Handler {
 	return api.aiGatewayHandler
 }
 
