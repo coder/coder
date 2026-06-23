@@ -91,8 +91,8 @@ export const updateInfiniteChatsCache = (
 		queryKey: readonly unknown[];
 	}) => boolean = isChatListQuery,
 ) => {
-	// Update every matching infinite chat query. Defaults to all chat-list
-	// queries; pass a narrower predicate to target a subset.
+	// Defaults to all chat-list queries; pass a narrower predicate to target a
+	// subset.
 	queryClient.setQueriesData<InfiniteChatsCacheData>(
 		{ queryKey: chatsKey, predicate },
 		(prev) => {
@@ -486,8 +486,7 @@ export const invalidateChatListQueries = (queryClient: QueryClient) => {
 };
 
 /**
- * Narrows isChatListQuery to unread (has_unread:true) filter queries.
- * The filter object sits at queryKey[1] (see infiniteChatsKey).
+ * The chatStatus filter object sits at queryKey[1] (see infiniteChatsKey).
  */
 const isUnreadChatListQuery = (query: {
 	queryKey: readonly unknown[];

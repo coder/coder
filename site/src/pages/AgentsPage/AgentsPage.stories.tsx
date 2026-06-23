@@ -118,8 +118,6 @@ const unreadChatList: TypesGen.Chat[] = [
 	},
 ];
 
-// Selecting a chat while on the unread filter removes it from the unread
-// sidebar without a refetch.
 export const SelectingUnreadChatLeavesUnreadView: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -152,6 +150,9 @@ export const SelectingUnreadChatLeavesUnreadView: Story = {
 				canvas.queryByRole("link", { name: /Unread agent one/ }),
 			).toBeNull(),
 		);
+		expect(
+			canvas.getByRole("link", { name: /Unread agent two/ }),
+		).toBeInTheDocument();
 		expect(API.experimental.getChats).toHaveBeenCalledTimes(1);
 	},
 };
