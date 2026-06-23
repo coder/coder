@@ -204,18 +204,17 @@ export const AgentDevcontainerCard: FC<AgentDevcontainerCardProps> = ({
 				gap-6 px-4 pl-8 leading-6
 				md:gap-4"
 			>
-				<div className="flex items-center gap-6 text-xs text-content-secondary">
-					<div className="flex items-center gap-4 md:w-full">
+				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
+					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}
 							parentAgent={parentAgent}
 							agent={subAgent}
 						/>
 						<span
-							className="max-w-xs shrink-0
+							className="flex-1 shrink-0
 							overflow-hidden text-ellipsis whitespace-nowrap
-							text-sm font-semibold text-content-primary
-							md:overflow-visible"
+							text-sm font-semibold text-content-primary"
 						>
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}

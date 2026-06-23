@@ -91,30 +91,6 @@ export interface AIBridgeConfig {
 }
 
 // From codersdk/aibridge.go
-export interface AIBridgeInterception {
-	readonly id: string;
-	readonly api_key_id: string | null;
-	readonly initiator: MinimalUser;
-	readonly provider: string;
-	readonly provider_name: string;
-	readonly model: string;
-	readonly client: string | null;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly started_at: string;
-	readonly ended_at: string | null;
-	readonly token_usages: readonly AIBridgeTokenUsage[];
-	readonly user_prompts: readonly AIBridgeUserPrompt[];
-	readonly tool_usages: readonly AIBridgeToolUsage[];
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeListInterceptionsResponse {
-	readonly count: number;
-	readonly results: readonly AIBridgeInterception[];
-}
-
-// From codersdk/aibridge.go
 export interface AIBridgeListSessionsResponse {
 	readonly count: number;
 	readonly sessions: readonly AIBridgeSession[];
@@ -227,20 +203,19 @@ export interface AIBridgeThread {
 	readonly ended_at?: string;
 	readonly token_usage: AIBridgeSessionThreadsTokenUsage;
 	readonly agentic_actions: readonly AIBridgeAgenticAction[];
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeTokenUsage {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly input_tokens: number;
-	readonly output_tokens: number;
-	readonly cache_read_input_tokens: number;
-	readonly cache_write_input_tokens: number;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
+	/**
+	 * AgentFirewallSessionID links this thread to an agent firewall
+	 * confinement session. Nil when the request did not pass through
+	 * the agent firewall.
+	 */
+	readonly agent_firewall_session_id?: string;
+	/**
+	 * AgentFirewallSequenceNumber is the firewall sequence number from
+	 * the root interception. Used to determine the position of this
+	 * LLM request in the firewall event stream. Nil when the request
+	 * did not pass through the agent firewall.
+	 */
+	readonly agent_firewall_sequence_number?: number;
 }
 
 // From codersdk/aibridge.go
@@ -256,32 +231,6 @@ export interface AIBridgeToolCall {
 	readonly tool: string;
 	readonly injected: boolean;
 	readonly input: string;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeToolUsage {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly server_url: string;
-	readonly tool: string;
-	readonly input: string;
-	readonly injected: boolean;
-	readonly invocation_error: string;
-	// empty interface{} type, falling back to unknown
-	readonly metadata: Record<string, unknown>;
-	readonly created_at: string;
-}
-
-// From codersdk/aibridge.go
-export interface AIBridgeUserPrompt {
-	readonly id: string;
-	readonly interception_id: string;
-	readonly provider_response_id: string;
-	readonly prompt: string;
 	// empty interface{} type, falling back to unknown
 	readonly metadata: Record<string, unknown>;
 	readonly created_at: string;
@@ -1088,6 +1037,66 @@ export const AgentDisplayModes: AgentDisplayMode[] = [
 	"auto",
 ];
 
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallLog represents a single audit event from an agent firewall proxy.
+ */
+export interface AgentFirewallLog {
+	readonly id: string;
+	readonly session_id: string;
+	readonly sequence_number: number;
+	readonly allowed: boolean;
+	readonly created_at: string;
+	readonly proto: string;
+	readonly method: string;
+	readonly detail: string;
+	readonly matched_rule: string | null;
+	readonly captured_at?: string;
+}
+
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSession represents a firewall session for a workspace agent.
+ */
+export interface AgentFirewallSession {
+	readonly id: string;
+	readonly workspace_id: string;
+	readonly owner_id: string;
+	readonly confined_process: string;
+	readonly started_at: string;
+}
+
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSessionLogsParams are query parameters for listing
+ * agent firewall session logs.
+ */
+export interface AgentFirewallSessionLogsParams {
+	/**
+	 * SeqAfter is an inclusive lower bound on sequence_number.
+	 * Only logs with sequence_number >= SeqAfter are returned.
+	 */
+	readonly seq_after?: number;
+	/**
+	 * SeqBefore is an exclusive upper bound on sequence_number.
+	 * Only logs with sequence_number < SeqBefore are returned.
+	 */
+	readonly seq_before?: number;
+	/**
+	 * Limit caps the number of returned rows. Defaults to 100.
+	 */
+	readonly limit?: number;
+}
+
+// From codersdk/agentfirewall.go
+/**
+ * AgentFirewallSessionLogsResponse is the response for
+ * GET /api/v2/agent-firewall/sessions/{id}/logs.
+ */
+export interface AgentFirewallSessionLogsResponse {
+	readonly results: readonly AgentFirewallLog[];
+}
+
 // From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
@@ -1546,6 +1555,10 @@ export interface Chat {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly archived: boolean;
+	/**
+	 * Shared is true when this chat's root chat has explicit user or group ACL entries.
+	 */
+	readonly shared: boolean;
 	readonly pin_order: number;
 	readonly mcp_server_ids: readonly string[];
 	readonly labels: Record<string, string>;
@@ -1557,12 +1570,11 @@ export interface Chat {
 	 */
 	readonly has_unread: boolean;
 	/**
-	 * LastInjectedContext holds the most recently persisted
-	 * injected context parts (AGENTS.md files and skills). It
-	 * is updated only when context changes, on first workspace
-	 * attach or agent change.
+	 * Context reports the chat's pinned workspace-context state and
+	 * whether it has drifted from the agent's latest pushed snapshot.
+	 * Nil when the chat has no pinned context yet.
 	 */
-	readonly last_injected_context?: readonly ChatMessagePart[];
+	readonly context?: ChatContext;
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
@@ -1648,6 +1660,36 @@ export interface ChatConfig {
 }
 
 // From codersdk/chats.go
+/**
+ * ChatContext reports a chat's pinned workspace context and whether it has
+ * drifted from the agent's latest pushed snapshot. The chat stays usable
+ * when dirty; refreshing re-pins it to the latest snapshot.
+ */
+export interface ChatContext {
+	/**
+	 * Dirty is true when the agent's latest snapshot hash differs from the
+	 * chat's pinned hash.
+	 */
+	readonly dirty: boolean;
+	/**
+	 * DirtySince is when drift was first detected; nil when not dirty.
+	 */
+	readonly dirty_since?: string;
+	/**
+	 * Error is the snapshot-level error copied from the pinned snapshot
+	 * (empty when healthy).
+	 */
+	readonly error?: string;
+	/**
+	 * Resources is the chat's pinned context (instruction files and
+	 * skills) the prompt is built from, metadata only (no bodies). It is
+	 * populated only on the single-chat GET response; list and watch
+	 * payloads leave it nil to stay lightweight.
+	 */
+	readonly resources?: readonly ChatContextResource[];
+}
+
+// From codersdk/chats.go
 export interface ChatContextFilePart {
 	readonly type: "context-file";
 	/**
@@ -1667,6 +1709,95 @@ export interface ChatContextFilePart {
 	 * re-persisted with fresh content.
 	 */
 	readonly context_file_agent_id?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ChatContextResource is one pinned workspace-context resource the chat's
+ * prompt is built from. It is metadata only; bodies are omitted. Reported
+ * only on the single-chat GET response.
+ */
+export interface ChatContextResource {
+	/**
+	 * Source is the resource locator: the canonical file path for an
+	 * instruction file, the skill directory for a skill, the file path for
+	 * an MCP config, or the server name for an MCP server.
+	 */
+	readonly source: string;
+	readonly kind: ChatContextResourceKind;
+	/**
+	 * SizeBytes is the original payload size in bytes.
+	 */
+	readonly size_bytes: number;
+	/**
+	 * SkillName and SkillDescription are populated only for skill kinds.
+	 */
+	readonly skill_name?: string;
+	readonly skill_description?: string;
+	/**
+	 * Tools lists the tools exposed by an MCP server. Populated only for the
+	 * mcp_server kind; nil otherwise.
+	 */
+	readonly tools?: readonly ChatContextTool[];
+	/**
+	 * Status is the resource's health. Non-ok resources (invalid, unreadable,
+	 * oversize, excluded) are still reported so the UI can surface why a
+	 * resource was dropped from the prompt instead of silently omitting it;
+	 * their body-specific fields (skill name, tools) are empty.
+	 */
+	readonly status: ChatContextResourceStatus;
+	/**
+	 * Error explains a non-ok Status; empty when healthy. May also carry a
+	 * non-fatal warning when Status is ok.
+	 */
+	readonly error?: string;
+}
+
+// From codersdk/chats.go
+export type ChatContextResourceKind =
+	| "instruction_file"
+	| "mcp_config"
+	| "mcp_server"
+	| "skill";
+
+export const ChatContextResourceKinds: ChatContextResourceKind[] = [
+	"instruction_file",
+	"mcp_config",
+	"mcp_server",
+	"skill",
+];
+
+// From codersdk/chats.go
+export type ChatContextResourceStatus =
+	| "excluded"
+	| "invalid"
+	| "ok"
+	| "oversize"
+	| "unreadable";
+
+export const ChatContextResourceStatuses: ChatContextResourceStatus[] = [
+	"excluded",
+	"invalid",
+	"ok",
+	"oversize",
+	"unreadable",
+];
+
+// From codersdk/chats.go
+/**
+ * ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+ * single-chat GET response. Metadata only; the input schema is omitted.
+ */
+export interface ChatContextTool {
+	/**
+	 * Name is the tool name with the "<server>__" prefix the agent adds
+	 * stripped, so it reads as the server exposes it.
+	 */
+	readonly name: string;
+	/**
+	 * Description is the tool's human-readable summary; may be empty.
+	 */
+	readonly description?: string;
 }
 
 // From codersdk/chats.go
@@ -2147,6 +2278,14 @@ export const ChatInputPartTypes: ChatInputPartType[] = [
 ];
 
 // From codersdk/chats.go
+export type ChatListSource = "created_by_me" | "shared_with_me";
+
+export const ChatListSources: ChatListSource[] = [
+	"created_by_me",
+	"shared_with_me",
+];
+
+// From codersdk/chats.go
 /**
  * ChatMessage represents a single message in a chat.
  */
@@ -2295,6 +2434,7 @@ export interface ChatModelAnthropicProviderOptions {
 	readonly send_reasoning?: boolean;
 	readonly thinking?: ChatModelAnthropicThinkingOptions;
 	readonly effort?: string;
+	readonly thinking_display?: string;
 	readonly disable_parallel_tool_use?: boolean;
 	readonly web_search_enabled?: boolean;
 	readonly allowed_domains?: readonly string[];
@@ -2752,6 +2892,7 @@ export interface ChatSourcePart {
 export type ChatStatus =
 	| "completed"
 	| "error"
+	| "interrupting"
 	| "paused"
 	| "pending"
 	| "requires_action"
@@ -2761,6 +2902,7 @@ export type ChatStatus =
 export const ChatStatuses: ChatStatus[] = [
 	"completed",
 	"error",
+	"interrupting",
 	"paused",
 	"pending",
 	"requires_action",
@@ -2796,8 +2938,10 @@ export interface ChatStreamEvent {
 export type ChatStreamEventType =
 	| "action_required"
 	| "error"
+	| "history_reset"
 	| "message"
 	| "message_part"
+	| "preview_reset"
 	| "queue_update"
 	| "retry"
 	| "status";
@@ -2805,8 +2949,10 @@ export type ChatStreamEventType =
 export const ChatStreamEventTypes: ChatStreamEventType[] = [
 	"action_required",
 	"error",
+	"history_reset",
 	"message",
 	"message_part",
+	"preview_reset",
 	"queue_update",
 	"retry",
 	"status",
@@ -2819,6 +2965,9 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 export interface ChatStreamMessagePart {
 	readonly role?: ChatMessageRole;
 	readonly part: ChatMessagePart;
+	readonly history_version?: number;
+	readonly generation_attempt?: number;
+	readonly seq?: number;
 }
 
 // From codersdk/chats.go
@@ -3079,6 +3228,7 @@ export interface ChatWatchEvent {
 // From codersdk/chats.go
 export type ChatWatchEventKind =
 	| "action_required"
+	| "context_dirty"
 	| "created"
 	| "deleted"
 	| "diff_status_change"
@@ -3088,6 +3238,7 @@ export type ChatWatchEventKind =
 
 export const ChatWatchEventKinds: ChatWatchEventKind[] = [
 	"action_required",
+	"context_dirty",
 	"created",
 	"deleted",
 	"diff_status_change",
@@ -4389,9 +4540,12 @@ export const EntitlementsWarningHeader = "X-Coder-Entitlements-Warning";
 
 // From codersdk/deployment.go
 export type Experiment =
+	| "ai-gateway-cost-control"
+	| "agent-app-tabs"
 	| "auto-fill-parameters"
 	| "example"
 	| "mcp-server-http"
+	| "minimum-implicit-member"
 	| "nats_pubsub"
 	| "notifications"
 	| "oauth2"
@@ -4399,9 +4553,12 @@ export type Experiment =
 	| "workspace-usage";
 
 export const Experiments: Experiment[] = [
+	"ai-gateway-cost-control",
+	"agent-app-tabs",
 	"auto-fill-parameters",
 	"example",
 	"mcp-server-http",
+	"minimum-implicit-member",
 	"nats_pubsub",
 	"notifications",
 	"oauth2",
@@ -5108,7 +5265,15 @@ export interface LinkConfig {
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {
+	/**
+	 * Query supports raw chat search terms. If Query includes a source: term,
+	 * Source must be empty.
+	 */
 	readonly Query: string;
+	/**
+	 * Source adds a source: term to Query.
+	 */
+	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 }
 
@@ -6077,6 +6242,7 @@ export interface OIDCConfig {
 	 * domain.
 	 */
 	readonly redirect_url: string;
+	readonly auto_repair_links: boolean;
 }
 
 // From codersdk/parameters.go
@@ -6098,6 +6264,12 @@ export interface Organization extends MinimalOrganization {
 	readonly created_at: string;
 	readonly updated_at: string;
 	readonly is_default: boolean;
+	/**
+	 * DefaultOrgMemberRoles are unioned into every member's effective
+	 * roles at request time. Changes propagate to all members on the
+	 * next request.
+	 */
+	readonly default_org_member_roles: readonly string[];
 }
 
 // From codersdk/organizations.go
@@ -6172,93 +6344,6 @@ export interface OrganizationSyncSettings {
 	 * for every user, regardless of their claims. This preserves legacy behavior.
 	 */
 	readonly organization_assign_default: boolean;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsModelBreakdown contains PR metrics for a single model.
- */
-export interface PRInsightsModelBreakdown {
-	readonly model_config_id: string;
-	readonly display_name: string;
-	readonly provider: string;
-	readonly total_prs: number;
-	readonly merged_prs: number;
-	readonly merge_rate: number;
-	readonly total_additions: number;
-	readonly total_deletions: number;
-	readonly total_cost_micros: number;
-	readonly cost_per_merged_pr_micros: number;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsPullRequest represents a single PR in the recent PRs
- * table.
- */
-export interface PRInsightsPullRequest {
-	readonly chat_id: string;
-	readonly pr_title: string;
-	readonly pr_url?: string;
-	readonly pr_number?: number;
-	readonly state: string;
-	readonly draft: boolean;
-	readonly additions: number;
-	readonly deletions: number;
-	readonly changed_files: number;
-	readonly commits?: number;
-	readonly approved?: boolean;
-	readonly changes_requested: boolean;
-	readonly reviewer_count?: number;
-	readonly author_login?: string;
-	readonly author_avatar_url?: string;
-	readonly base_branch: string;
-	readonly model_display_name: string;
-	readonly cost_micros: number;
-	readonly created_at: string;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsResponse is the response from the PR insights endpoint.
- */
-export interface PRInsightsResponse {
-	readonly summary: PRInsightsSummary;
-	readonly time_series: readonly PRInsightsTimeSeriesEntry[];
-	readonly by_model: readonly PRInsightsModelBreakdown[];
-	readonly recent_prs: readonly PRInsightsPullRequest[];
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsSummary contains aggregate PR metrics for a time period,
- * plus the previous period's metrics for trend calculation.
- */
-export interface PRInsightsSummary {
-	readonly total_prs_created: number;
-	readonly total_prs_merged: number;
-	readonly merge_rate: number;
-	readonly total_additions: number;
-	readonly total_deletions: number;
-	readonly total_cost_micros: number;
-	readonly cost_per_merged_pr_micros: number;
-	readonly approval_rate: number;
-	readonly prev_total_prs_created: number;
-	readonly prev_total_prs_merged: number;
-	readonly prev_merge_rate: number;
-	readonly prev_cost_per_merged_pr_micros: number;
-}
-
-// From codersdk/chats.go
-/**
- * PRInsightsTimeSeriesEntry is a single data point in the PR
- * activity time series chart.
- */
-export interface PRInsightsTimeSeriesEntry {
-	readonly date: string;
-	readonly prs_created: number;
-	readonly prs_merged: number;
-	readonly prs_closed: number;
 }
 
 // From codersdk/organizations.go
@@ -7153,6 +7238,7 @@ export type ResourceType =
 	| "template"
 	| "template_version"
 	| "user"
+	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
 	| "workspace"
@@ -7189,6 +7275,7 @@ export const ResourceTypes: ResourceType[] = [
 	"template",
 	"template_version",
 	"user",
+	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
 	"workspace",
@@ -7266,6 +7353,14 @@ export interface RetentionConfig {
 	 * Defaults to 7 days to preserve existing behavior.
 	 */
 	readonly workspace_agent_logs: number;
+	/**
+	 * BoundaryLogs controls how long boundary audit log entries are
+	 * retained. Boundary logs record every HTTP request processed by
+	 * a Boundary confinement proxy. Set to 0 to disable automatic
+	 * deletion (keep indefinitely). Adjust to match your
+	 * organization's regulatory requirements.
+	 */
+	readonly boundary_logs: number;
 }
 
 // From codersdk/roles.go
@@ -7335,6 +7430,12 @@ export const RoleOrganizationTemplateAdmin = "organization-template-admin";
  * Ideally these roles would be generated from the rbac/roles.go package.
  */
 export const RoleOrganizationUserAdmin = "organization-user-admin";
+
+// From codersdk/rbacroles.go
+/**
+ * Ideally these roles would be generated from the rbac/roles.go package.
+ */
+export const RoleOrganizationWorkspaceAccess = "organization-workspace-access";
 
 // From codersdk/rbacroles.go
 /**
@@ -8169,11 +8270,125 @@ export type TemplateBuildTimeStats = Record<
 	TransitionStats
 >;
 
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBase is the API response type for a base template
+ * returned by GET /api/v2/templatebuilder/bases.
+ */
+export interface TemplateBuilderBase {
+	readonly id: string;
+	readonly name: string;
+	readonly description: string;
+	readonly icon: string;
+	readonly os: string;
+	readonly variables: readonly TemplateBuilderModuleVariable[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderBasesResponse is the response body for listing template builder bases.
+ */
+export interface TemplateBuilderBasesResponse {
+	readonly bases: readonly TemplateBuilderBase[];
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeModule identifies a module and its variable
+ * values for the compose request.
+ */
+export interface TemplateBuilderComposeModule {
+	readonly id: string;
+	readonly variables?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderComposeRequest is the request body for
+ * POST /api/v2/templatebuilder/compose.
+ */
+export interface TemplateBuilderComposeRequest {
+	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+}
+
 // From codersdk/deployment.go
 export interface TemplateBuilderConfig {
 	readonly disabled?: boolean;
 	readonly registry_url?: string;
 }
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateRequest is the request body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateRequest {
+	readonly base_template_id: string;
+	readonly base_variable_values?: Record<string, string>;
+	readonly modules: readonly TemplateBuilderComposeModule[];
+	readonly organization_id: string;
+	readonly name: string;
+	readonly display_name?: string;
+	readonly description?: string;
+	readonly icon?: string;
+	readonly provisioner_tags?: Record<string, string>;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderCreateTemplateResponse is the response body for
+ * POST /api/v2/templatebuilder/compose/template.
+ */
+export interface TemplateBuilderCreateTemplateResponse {
+	readonly template: Template;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModule is the API response type returned by
+ * GET /api/v2/templatebuilder/modules. The Version field is
+ * populated from the catalog manifest's PinnedVersion at serving time.
+ */
+export interface TemplateBuilderModule {
+	readonly id: string;
+	readonly display_name: string;
+	readonly description: string;
+	readonly icon: string;
+	readonly category: string;
+	readonly version: string;
+	readonly compatible_os: readonly string[];
+	readonly conflicts_with: readonly string[];
+	readonly variables: readonly TemplateBuilderModuleVariable[];
+}
+
+// From codersdk/templatebuilder.go
+export interface TemplateBuilderModuleVariable {
+	readonly name: string;
+	readonly type: TemplateBuilderVariableType;
+	readonly description: string;
+	readonly default?: Record<string, string>;
+	readonly required: boolean;
+	readonly sensitive: boolean;
+}
+
+// From codersdk/templatebuilder.go
+/**
+ * TemplateBuilderModulesResponse is the response body for listing template builder modules.
+ */
+export interface TemplateBuilderModulesResponse {
+	readonly modules: readonly TemplateBuilderModule[];
+}
+
+// From codersdk/templatebuilder.go
+export type TemplateBuilderVariableType = "bool" | "number" | "string";
+
+export const TemplateBuilderVariableTypes: TemplateBuilderVariableType[] = [
+	"bool",
+	"number",
+	"string",
+];
 
 // From codersdk/insights.go
 /**
@@ -8837,6 +9052,11 @@ export interface UpdateOrganizationRequest {
 	readonly display_name?: string;
 	readonly description?: string;
 	readonly icon?: string;
+	/**
+	 * DefaultOrgMemberRoles, when non-nil, replaces the org's default
+	 * member roles.
+	 */
+	readonly default_org_member_roles?: string[];
 }
 
 // From codersdk/users.go

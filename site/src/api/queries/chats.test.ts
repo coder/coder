@@ -121,6 +121,7 @@ const makeChat = (
 	created_at: "2025-01-01T00:00:00.000Z",
 	updated_at: "2025-01-01T00:00:00.000Z",
 	archived: false,
+	shared: false,
 	pin_order: 0,
 	has_unread: false,
 	client_type: "ui",
@@ -1542,12 +1543,13 @@ describe("infiniteChats", () => {
 			});
 		});
 
-		it("builds q from archived, prStatuses, and chatStatus", async () => {
+		it("builds q from archived, prStatuses, chatStatus, and sources", async () => {
 			vi.mocked(API.experimental.getChats).mockResolvedValue([]);
 			const { queryFn } = infiniteChats({
 				archived: true,
 				prStatuses: ["draft", "open", "merged"],
 				chatStatus: "unread",
+				sources: ["created_by_me", "shared_with_me"],
 			});
 
 			await queryFn({ pageParam: 0 });
@@ -1555,7 +1557,7 @@ describe("infiniteChats", () => {
 			expect(API.experimental.getChats).toHaveBeenCalledWith({
 				limit: PAGE_LIMIT,
 				offset: 0,
-				q: "archived:true pr_status:draft,open,merged has_unread:true",
+				q: "archived:true pr_status:draft,open,merged has_unread:true source:created_by_me,shared_with_me",
 			});
 		});
 
@@ -2060,6 +2062,68 @@ describe("updateChildInParentCache", () => {
 });
 
 describe("mergeWatchedChatSummary", () => {
+	it("applies context_dirty flags while preserving the pinned resource list", () => {
+		const cachedChat = makeChat("chat-1", {
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context: {
+				dirty: false,
+				resources: [
+					{
+						source: "/AGENTS.md",
+						kind: "instruction_file",
+						size_bytes: 10,
+						status: "ok",
+					},
+				],
+			},
+		});
+		const watchedChat = makeChat("chat-1", {
+			// Drift is tracked outside updated_at, so an older event timestamp
+			// still applies the dirty flags.
+			updated_at: "2024-12-31T00:00:00.000Z",
+			context: { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" },
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "context_dirty",
+			}).context,
+		).toEqual({
+			dirty: true,
+			dirty_since: "2025-01-02T00:00:00.000Z",
+			// The lightweight watch payload omits resources; the merge keeps the
+			// pinned list a prior single-chat GET populated.
+			resources: [
+				{
+					source: "/AGENTS.md",
+					kind: "instruction_file",
+					size_bytes: 10,
+					status: "ok",
+				},
+			],
+		});
+	});
+
+	it("leaves context untouched for non-context events", () => {
+		const context = { dirty: true, dirty_since: "2025-01-02T00:00:00.000Z" };
+		const cachedChat = makeChat("chat-1", {
+			status: "pending",
+			updated_at: "2025-01-01T00:00:00.000Z",
+			context,
+		});
+		const watchedChat = makeChat("chat-1", {
+			status: "running",
+			updated_at: "2025-01-01T00:05:00.000Z",
+			context: { dirty: false },
+		});
+
+		expect(
+			mergeWatchedChatSummary(cachedChat, watchedChat, {
+				eventKind: "status_change",
+			}).context,
+		).toBe(context);
+	});
+
 	it("merges fresh status updates without clobbering a newer title snapshot", () => {
 		const cachedChat = makeChat("chat-1", {
 			status: "pending",

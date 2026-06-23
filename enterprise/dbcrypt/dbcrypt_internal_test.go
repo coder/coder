@@ -1127,7 +1127,7 @@ func TestAIProviders(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:     "anthropic-bedrock",
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			BaseUrl:  "https://bedrock-runtime.us-west-2.amazonaws.com/",
 			Settings: sql.NullString{String: settings, Valid: true},
 		})
@@ -1195,6 +1195,7 @@ func TestAIProviders(t *testing.T) {
 		const newSettings = `{"_type":"bedrock","_version":1,"region":"us-east-1","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
@@ -1211,6 +1212,7 @@ func TestAIProviders(t *testing.T) {
 		provider := insertProvider(t, crypt, ciphers)
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
@@ -1235,7 +1237,7 @@ func TestAIProviderKeys(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:    "openai-test",
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			BaseUrl: "https://api.openai.com/v1/",
 		})
 		key := dbgen.AIProviderKey(t, crypt, database.AIProviderKey{
@@ -1321,7 +1323,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t *testing.T,
 		crypt *dbCrypt,
 		ciphers []Cipher,
-	) (database.AIProvider, database.UserAiProviderKey) {
+	) (database.AIProvider, database.UserAIProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{})
@@ -1341,7 +1343,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		return provider, key
 	}
 
-	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAiProviderKey {
+	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAIProviderKey {
 		t.Helper()
 		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       userID,

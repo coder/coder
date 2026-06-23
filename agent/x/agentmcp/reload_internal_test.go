@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -18,6 +20,38 @@ import (
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/testutil"
 )
+
+// catalogTool is a flattened (server, tool) pair taken from the
+// Manager's per-server catalog. Tests assert on these pairs instead of
+// the control plane's flattened "server__tool" form: the agent exposes
+// raw per-server tool names, and joining them into a single namespace
+// is chatd's concern.
+type catalogTool struct {
+	server string
+	tool   string
+}
+
+// connectedTools flattens the Manager's catalog into (server, tool)
+// pairs for connected servers, sorted by server then tool, so tests can
+// assert on the count and identity of the live tool set.
+func (m *Manager) connectedTools() []catalogTool {
+	var out []catalogTool
+	for _, s := range m.Catalog() {
+		if !s.Connected {
+			continue
+		}
+		for _, tl := range s.Tools {
+			out = append(out, catalogTool{server: s.Name, tool: tl.Name})
+		}
+	}
+	slices.SortFunc(out, func(a, b catalogTool) int {
+		if a.server != b.server {
+			return strings.Compare(a.server, b.server)
+		}
+		return strings.Compare(a.tool, b.tool)
+	})
+	return out
+}
 
 // writeMCPConfig writes a .mcp.json file with the given server
 // entries. Each entry maps a server name to its config.
@@ -220,11 +254,11 @@ func TestSnapshotChanged_MultipleConfigFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Tools from both files should be present.
-	tools := m.cachedTools()
+	tools := m.connectedTools()
 	require.Len(t, tools, 2, "should have tools from both config files")
-	assert.Contains(t, tools[0].Name, "srv1",
+	assert.Equal(t, "srv1", tools[0].server,
 		"first tool should be from first config")
-	assert.Contains(t, tools[1].Name, "srv2b",
+	assert.Equal(t, "srv2b", tools[1].server,
 		"second tool should be from second config")
 }
 
@@ -246,9 +280,9 @@ func TestReload(t *testing.T) {
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 1, "should have one tool from the fake server")
-		assert.Contains(t, tools[0].Name, "echo")
+		assert.Equal(t, "echo", tools[0].tool)
 
 		// Snapshot should be fresh.
 		assert.False(t, m.SnapshotChanged([]string{configPath}))
@@ -293,7 +327,7 @@ func TestReload(t *testing.T) {
 			assert.NoError(t, err, "caller %d should not fail", i)
 		}
 
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 1)
 	})
 
@@ -340,9 +374,9 @@ func TestReload(t *testing.T) {
 		// First reload.
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools1 := m.cachedTools()
+		tools1 := m.connectedTools()
 		require.Len(t, tools1, 1)
-		assert.Contains(t, tools1[0].Name, "srv1")
+		assert.Equal(t, "srv1", tools1[0].server)
 
 		// Rewrite config with a different server.
 		_, entry2 := fakeMCPServerConfig(t, "srv2")
@@ -352,9 +386,9 @@ func TestReload(t *testing.T) {
 		assert.True(t, m.SnapshotChanged([]string{configPath}))
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools2 := m.cachedTools()
+		tools2 := m.connectedTools()
 		require.Len(t, tools2, 1)
-		assert.Contains(t, tools2[0].Name, "srv2")
+		assert.Equal(t, "srv2", tools2[0].server)
 	})
 
 	t.Run("PerServerConnectFailureUpdatesSnapshot", func(t *testing.T) {
@@ -393,14 +427,14 @@ func TestReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.cachedTools(), 1)
+		require.Len(t, m.connectedTools(), 1)
 
 		// Delete config file.
 		require.NoError(t, os.Remove(configPath))
 
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		assert.Empty(t, m.cachedTools(), "tools should be empty after config deleted")
+		assert.Empty(t, m.connectedTools(), "tools should be empty after config deleted")
 
 		// Subsequent reload finds snapshot unchanged.
 		assert.False(t, m.SnapshotChanged([]string{configPath}))
@@ -451,7 +485,7 @@ func TestDifferentialReload(t *testing.T) {
 			"unchanged server should reuse client pointer")
 
 		// Both servers should have tools.
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 2)
 	})
 
@@ -505,7 +539,7 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.cachedTools(), 2)
+		require.Len(t, m.connectedTools(), 2)
 
 		// Capture srvB's client before removal.
 		m.mu.RLock()
@@ -519,9 +553,9 @@ func TestDifferentialReload(t *testing.T) {
 		err = m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
 
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 1)
-		assert.Contains(t, tools[0].Name, "srvA")
+		assert.Equal(t, "srvA", tools[0].server)
 
 		// The old client for srvB should be closed.
 		// ListTools on a closed client returns an error.
@@ -545,7 +579,7 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		require.Len(t, m.cachedTools(), 1)
+		require.Len(t, m.connectedTools(), 1)
 
 		m.mu.RLock()
 		origClient := m.servers["srv"].client
@@ -568,7 +602,7 @@ func TestDifferentialReload(t *testing.T) {
 			"failed connect should retain old client")
 
 		// Tools should still work.
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 1)
 	})
 
@@ -586,9 +620,9 @@ func TestDifferentialReload(t *testing.T) {
 
 		err := m.Reload(ctx, []string{configPath})
 		require.NoError(t, err)
-		tools := m.cachedTools()
+		tools := m.connectedTools()
 		require.Len(t, tools, 1)
-		toolName := tools[0].Name
+		toolName := tools[0].server + ToolNameSep + tools[0].tool
 
 		// Add a second server (srv unchanged, so client is reused).
 		_, entry2 := fakeMCPServerConfig(t, "srv2")
@@ -637,9 +671,9 @@ func TestReload_FirstBootPath(t *testing.T) {
 	err := m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
 
-	tools := m.cachedTools()
+	tools := m.connectedTools()
 	require.Len(t, tools, 1)
-	assert.Contains(t, tools[0].Name, "echo")
+	assert.Equal(t, "echo", tools[0].tool)
 }
 
 // TestReload_NoopWhenUnchanged verifies that Reload returns
@@ -709,7 +743,7 @@ func TestClose_SuppressesSubprocessExitError(t *testing.T) {
 
 	err := m.Reload(ctx, []string{configPath})
 	require.NoError(t, err)
-	require.Len(t, m.cachedTools(), 1, "server should be connected")
+	require.Len(t, m.connectedTools(), 1, "server should be connected")
 
 	// Close kills the subprocess. The ExitError guard should
 	// suppress the "signal: killed" error.

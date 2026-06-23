@@ -172,7 +172,8 @@ networking:
   # True-Client-Ip, X-Forwarded-For.
   # (default: <unset>, type: string-array)
   proxyTrustedHeaders: []
-  # Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
+  # Origin addresses to respect "proxy-trusted-headers" and X-Forwarded-Host for
+  # subdomain app routing. e.g. 192.168.1.0/24.
   # (default: <unset>, type: string-array)
   proxyTrustedOrigins: []
   # Controls if the 'Secure' property is set on browser session cookies.
@@ -427,6 +428,12 @@ oidc:
   # setting can also break OIDC, so use with caution.
   # (default: <unset>, type: url)
   oidc-redirect-url:
+  # OIDC based users require the IdP issuer and subject in the claims to be static.
+  # If a new provider is configured, this option is required to be 'true'. It will
+  # reset any existing users to the previous provider, and match by email on their
+  # next login.
+  # (default: true, type: bool)
+  oidc-repair-links: true
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.
@@ -512,6 +519,10 @@ sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
 # (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
 agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
+# Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is
+# provided for backward compatibility for existing users.
+# (default: true, type: bool)
+scimUseLegacy: true
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -542,12 +553,18 @@ client:
   # (default: coder., type: string)
   sshHostnamePrefix: coder.
   # Workspace hostnames use this suffix in SSH config and Coder Connect on Coder
-  # Desktop. By default it is coder, resulting in names like myworkspace.coder.
+  # Desktop. By default it is coder, resulting in names like myworkspace.coder. The
+  # suffix must not start with a dot, and must not contain spaces, newlines, or glob
+  # characters (* and ?).
   # (default: coder, type: string)
   workspaceHostnameSuffix: coder
   # These SSH config options will override the default SSH config options. Provide
-  # options in "key=value" or "key value" format separated by commas.Using this
-  # incorrectly can break SSH to your deployment, use cautiously.
+  # options in "key=value" or "key value" format separated by commas. Using this
+  # incorrectly can break SSH to your deployment, use cautiously. The following
+  # options are not allowed: Host, Match, Include, ProxyCommand, ProxyJump,
+  # LocalCommand, PermitLocalCommand, RemoteCommand, KnownHostsCommand,
+  # PKCS11Provider, SecurityKeyProvider, SmartcardDevice, XAuthLocation. Option
+  # values must not contain newline, carriage return, or NUL characters.
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
@@ -1115,6 +1132,12 @@ retention:
   # build are always retained. Set to 0 to disable automatic deletion.
   # (default: 7d, type: duration)
   workspace_agent_logs: 168h0m0s
+  # How long boundary audit log entries are retained. Boundary logs record HTTP
+  # requests processed by a Boundary confinement proxy. Set to 0 to disable
+  # automatic deletion (keep indefinitely). Adjust to match your organization's
+  # regulatory requirements.
+  # (default: 0, type: duration)
+  boundary_logs: 0s
 templateBuilder:
   # Disable the template builder feature for guided template creation. When
   # disabled, all /api/v2/templatebuilder/* endpoints return 404.

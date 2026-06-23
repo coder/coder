@@ -3175,6 +3175,71 @@ func buildWorkspaceWithAgent(
 	return r.Workspace
 }
 
+// TestWorkspaceAgentPushContextState exercises the full agent RPC path
+// for PushContextState: agent token auth middleware, the v2.10 DRPC
+// API, the dbauthz workspace authorization boundary, and persistence.
+// The push must succeed using only the agent's own token subject.
+func TestWorkspaceAgentPushContextState(t *testing.T) {
+	t.Parallel()
+
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	require.Len(t, r.Agents, 1)
+	agentID := r.Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(r.AgentToken))
+	aAPI, _, err := agentClient.ConnectRPC210(ctx)
+	require.NoError(t, err)
+	defer func() {
+		cErr := aAPI.DRPCConn().Close()
+		require.NoError(t, cErr)
+	}()
+
+	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{0x01, 0x02},
+		Resources: []*agentproto.ContextResource{
+			{
+				Source:      "/workspace/AGENTS.md",
+				ContentHash: []byte{0x03, 0x04},
+				SizeBytes:   5,
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte("hello")},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, resp.GetAccepted())
+
+	snapshot, err := db.GetLatestWorkspaceAgentContextSnapshot(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Test assertions read agent-pushed rows directly from the store.
+	require.NoError(t, err)
+	require.EqualValues(t, 1, snapshot.Version)
+	resources, err := db.ListWorkspaceAgentContextResources(dbauthz.AsSystemRestricted(ctx), agentID) //nolint:gocritic // Same as above.
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Equal(t, "/workspace/AGENTS.md", resources[0].Source)
+	require.Equal(t, database.WorkspaceAgentContextBodyKindInstructionFile, resources[0].BodyKind)
+	require.Equal(t, database.WorkspaceAgentContextResourceStatusOk, resources[0].Status)
+
+	// A non-initial replay of the same version is dropped without error.
+	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       false,
+		AggregateHash: []byte{0x01, 0x02},
+	})
+	require.NoError(t, err)
+	require.False(t, resp.GetAccepted())
+}
+
 func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCAgentClient) agentsdk.Manifest {
 	mp, err := aAPI.GetManifest(ctx, &agentproto.GetManifestRequest{})
 	require.NoError(t, err)
@@ -3184,7 +3249,7 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	aAPI, _, err := client.ConnectRPC29(ctx)
+	aAPI, _, err := client.ConnectRPC210(ctx)
 	require.NoError(t, err)
 	defer func() {
 		cErr := aAPI.DRPCConn().Close()

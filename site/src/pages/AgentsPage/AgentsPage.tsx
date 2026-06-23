@@ -64,6 +64,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -154,6 +155,7 @@ const AgentsPage: FC = () => {
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
@@ -208,6 +210,7 @@ const AgentsPage: FC = () => {
 		onSuccess: (_data, chatId) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -231,6 +234,7 @@ const AgentsPage: FC = () => {
 		onSuccess: async ({ chatId }) => {
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 			await invalidateChatListQueries(queryClient);
 			await queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
@@ -641,6 +645,18 @@ const AgentsPage: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
+						if (chatEvent.kind === "context_dirty") {
+							// The watch payload carries only the lightweight
+							// context flags (the merge above applies them);
+							// refetch the open chat to pull the pinned
+							// resources the single-chat GET computes. Only the
+							// active chat has an observer, so other chats are
+							// merely marked stale.
+							void queryClient.invalidateQueries({
+								queryKey: chatKey(updatedChat.id),
+								exact: true,
+							});
+						}
 					}
 				});
 				return ws;
@@ -675,6 +691,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}

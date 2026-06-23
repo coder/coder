@@ -121,7 +121,7 @@ func TestAPIDump(t *testing.T) {
 
 			// Setup mock upstream server.
 			fix := fixtures.Parse(t, tc.fixture)
-			srv := newMockUpstream(ctx, t, newFixtureResponse(fix))
+			srv := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
 
 			// Create temp dir for API dumps.
 			dumpDir := t.TempDir()

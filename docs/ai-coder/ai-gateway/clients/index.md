@@ -44,7 +44,7 @@ The table below shows tested AI clients and their compatibility with AI Gateway.
 | [Factory](./factory.md)          | ✅      | ✅         | ✅    |                                                                                                                                                        |
 | [Cline](./cline.md)              | ✅      | ✅         | ✅    |                                                                                                                                                        |
 | [Kilo Code](./kilo-code.md)      | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [VS Code](./vscode.md)           | ✅      | ❌         | ❌    | Only supports Custom Base URL for OpenAI.                                                                                                              |
+| [VS Code](./vscode.md)           | ✅      | ✅         | ❌    | VS Code 1.122+ via Custom Endpoint provider. GitHub sign-in not required. Inline suggestions still require GitHub Copilot.                             |
 | [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
 | [Zed](./zed.md)                  | ✅      | ✅         | ❌    |                                                                                                                                                        |
 | [GitHub Copilot](./copilot.md)   | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
@@ -110,7 +110,7 @@ For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Config
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 For proxy setup details, see [AI Gateway Proxy setup](../ai-gateway-proxy/setup.md).

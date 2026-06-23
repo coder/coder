@@ -1,0 +1,8 @@
+module "git-config" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/git-config/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  allow_email_change = {{ .Variables.allow_email_change }}
+  allow_username_change = {{ .Variables.allow_username_change }}
+}

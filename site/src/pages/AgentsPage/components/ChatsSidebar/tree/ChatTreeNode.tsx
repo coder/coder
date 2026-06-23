@@ -8,6 +8,7 @@ import {
 	PinOffIcon,
 	SquarePenIcon,
 	Trash2Icon,
+	UsersIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
@@ -123,6 +124,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const isSharedChat = chat.shared;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -318,14 +320,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-							{isArchivingThisChat ? (
-								<Spinner
-									className="h-3.5 w-3.5 text-content-secondary"
-									loading
-								/>
-							) : (
-								<>
+						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+								{isArchivingThisChat ? (
+									<Spinner
+										className="h-3.5 w-3.5 text-content-secondary"
+										loading
+									/>
+								) : (
 									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
@@ -334,34 +336,46 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 												aria-hidden="true"
 											/>
 										) : (
-											<span data-chromatic="ignore">
-												{shortRelativeTime(chat.updated_at)}
-											</span>
+											<>
+												{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+												<span
+													data-chromatic="ignore"
+													className="inline-block w-7 text-right"
+												>
+													{shortRelativeTime(chat.updated_at)}
+												</span>
+											</>
 										)}
 									</span>
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-												aria-label={`Open actions for ${chat.title}`}
-											>
-												<EllipsisVerticalIcon className="size-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="[&_[role=menuitem]]:text-[13px]"
-										>
-											{renderMenuItems({
-												Item: DropdownMenuItem,
-												Separator: DropdownMenuSeparator,
-											})}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</>
+								)}
+							</div>
+							{isSharedChat && (
+								<UsersIcon
+									className="mt-auto size-3.5 text-content-secondary"
+									aria-label="Shared chat"
+								/>
 							)}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisVerticalIcon className="size-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
+									{renderMenuItems({
+										Item: DropdownMenuItem,
+										Separator: DropdownMenuSeparator,
+									})}
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</div>
 				</ContextMenuTrigger>

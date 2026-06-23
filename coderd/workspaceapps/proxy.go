@@ -438,7 +438,7 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 			}
 
 			// Step 2: Get the request Host.
-			host := httpapi.RequestHost(r)
+			host := httpmw.EffectiveHost(s.RealIPConfig, r)
 			if host == "" {
 				if r.URL.Path == "/derp" {
 					// The /derp endpoint is used by wireguard clients to tunnel

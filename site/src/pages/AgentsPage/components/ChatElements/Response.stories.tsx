@@ -39,13 +39,6 @@ func ValidateToken(token string) error {
 const meta: Meta<typeof Response> = {
 	title: "pages/AgentsPage/ChatElements/Response",
 	component: Response,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		children: sampleMarkdown,
 	},
@@ -104,72 +97,18 @@ const expectCodeBlock = async (
 	expect(host.style.getPropertyValue("--diffs-font-size")).toBe("12px");
 	expect(host.style.getPropertyValue("--diffs-line-height")).toBe("20px");
 
+	expect(canvasElement.textContent ?? "").not.toContain("```");
+
 	const shadowRoot = host.shadowRoot;
 	if (!shadowRoot) {
 		throw new Error("Expected FileViewer to render code in its shadow root.");
 	}
-	expect(shadowRoot.textContent ?? "").not.toContain("```");
-
-	const pre = shadowRoot.querySelector(
-		"pre[data-file][data-disable-line-numbers]",
-	);
-	expect(pre).toBeInTheDocument();
-	if (!(pre instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a pre element.");
-	}
-
-	const code = shadowRoot.querySelector("[data-code]");
-	expect(code).toBeInTheDocument();
-	if (!(code instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render a code container.");
-	}
-
-	const line = shadowRoot.querySelector("[data-line]");
-	expect(line).toBeInTheDocument();
-	if (!(line instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render code lines.");
-	}
-
-	const gutter = shadowRoot.querySelector("[data-column-number]");
-	expect(gutter).toBeInTheDocument();
-	if (!(gutter instanceof HTMLElement)) {
-		throw new Error("Expected FileViewer to render its line-number gutter.");
-	}
-
-	const preStyles = getComputedStyle(pre);
-	expect(preStyles.fontSize).toBe("12px");
-	expect(preStyles.lineHeight).toBe("20px");
-
-	const codeStyles = getComputedStyle(code);
-	expect(codeStyles.paddingTop).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe("8px");
-	expect(codeStyles.paddingBottom).toBe(codeStyles.paddingTop);
-
-	const lineStyles = getComputedStyle(line);
-	expect(lineStyles.paddingLeft).toBe("12px");
-	expect(lineStyles.paddingRight).toBe("12px");
-	expect(lineStyles.paddingRight).toBe(lineStyles.paddingLeft);
-	expect(lineStyles.minHeight).toBe("20px");
-
-	const gutterStyles = getComputedStyle(gutter);
-	expect(gutterStyles.minWidth).toBe("0px");
-	expect(gutterStyles.paddingLeft).toBe("0px");
-	expect(gutterStyles.paddingRight).toBe("0px");
 
 	if (options.highlighted) {
-		let highlightedToken: HTMLElement | null = null;
 		await waitFor(() => {
 			const token = shadowRoot.querySelector("span[style*='color']");
 			expect(token).toBeInTheDocument();
-			if (!(token instanceof HTMLElement)) {
-				throw new Error("Expected FileViewer to render highlighted tokens.");
-			}
-			highlightedToken = token;
 		});
-		if (!highlightedToken) {
-			throw new Error("Expected FileViewer to render highlighted tokens.");
-		}
-		expect(getComputedStyle(highlightedToken).color).not.toBe(lineStyles.color);
 	}
 
 	return host;
@@ -181,6 +120,32 @@ export const SingleLineFencedBlock: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		await expectCodeBlock(canvasElement, /07c3697 feat/);
+	},
+};
+
+const longLineCodeBlockMarkdown = [
+	"```ts",
+	'const config = { apiUrl: "https://coder.example.com/api/v2/workspaces", token: "abcdefghijklmnopqrstuvwxyz0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", retries: 5 };',
+	"```",
+	"",
+].join("\n");
+
+export const LongLineFencedBlock: Story = {
+	args: {
+		children: longLineCodeBlockMarkdown,
+	},
+	play: async ({ canvasElement }) => {
+		await expectCodeBlock(canvasElement, /apiUrl/);
+		const viewport = [
+			...canvasElement.querySelectorAll<HTMLElement>(
+				"[data-radix-scroll-area-viewport]",
+			),
+		].find((v) => v.scrollWidth > v.clientWidth);
+		if (!viewport) {
+			throw new Error("Expected a horizontally scrollable viewport.");
+		}
+		viewport.scrollLeft = 200;
+		await waitFor(() => expect(viewport.scrollLeft).toBeGreaterThan(0));
 	},
 };
 

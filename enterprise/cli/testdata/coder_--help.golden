@@ -16,7 +16,7 @@ USAGE:
 SUBCOMMANDS:
     agent-firewall         Network isolation tool for monitoring and restricting
                            HTTP/HTTPS requests
-    aibridge               Manage AI Bridge.
+    ai-gateway             Manage AI Gateway
     external-workspaces    Create or manage external workspaces
     features               List Enterprise features
     groups                 Manage groups
