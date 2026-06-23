@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
+import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
@@ -20,6 +21,15 @@ const meta: Meta<typeof ModelForm> = {
 		isDeleting: false,
 		onCreateModel: fn(async () => undefined),
 		onUpdateModel: fn(async () => undefined),
+	},
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/ai/settings/models/add" },
+			routing: [
+				{ path: "/ai/settings/models/add", useStoryElement: true },
+				{ path: "/ai/settings/models", element: <div>Models</div> },
+			],
+		}),
 	},
 };
 
@@ -77,10 +87,10 @@ export const LeaveWithUnsavedChanges: Story = {
 		await userEvent.click(
 			canvas.getByRole("link", { name: /back to models/i }),
 		);
-		const dialog = await screen.findByRole("dialog");
-		await expect(
-			within(dialog).getByText(/unsaved changes/i),
-		).toBeInTheDocument();
+		const dialog = await screen.findByRole("dialog", {
+			name: /unsaved changes/i,
+		});
+		await expect(dialog).toBeInTheDocument();
 	},
 };
 
