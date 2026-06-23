@@ -11,6 +11,7 @@ import (
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
+	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -183,6 +184,8 @@ type Pubsub struct {
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
+
+	metrics *metrics
 }
 
 // groupSub maps to one underlying *natsgo.Subscription. The first
@@ -190,7 +193,10 @@ type Pubsub struct {
 // When the last local subscriber detaches, the NATS subscription is
 // unsubscribed.
 type groupSub struct {
-	event string
+	// metrics records received-message metrics from handleMessage. It is
+	// the only part of the owning Pubsub that a groupSub needs.
+	metrics *metrics
+	event   string
 	// mu guards localSubs.
 	mu sync.Mutex
 	// localSubs are the local subscribers attached to this NATS subscription.
@@ -214,6 +220,21 @@ type localSub struct {
 // Compile-time assertion that *Pubsub satisfies the pubsub.Pubsub interface.
 var _ pubsub.Pubsub = (*Pubsub)(nil)
 
+// Compile-time assertion that *Pubsub is a prometheus.Collector.
+var _ prometheus.Collector = (*Pubsub)(nil)
+
+// Describe implements prometheus.Collector.
+func (p *Pubsub) Describe(descs chan<- *prometheus.Desc) {
+	p.metrics.describe(descs)
+}
+
+// Collect implements prometheus.Collector. The subscriber and event
+// gauges are maintained as atomic counters by metrics, so Collect does
+// not lock the Pubsub.
+func (p *Pubsub) Collect(ch chan<- prometheus.Metric) {
+	p.metrics.collect(ch, p)
+}
+
 // newPubsub allocates a *Pubsub with initialized maps and cancel ctx.
 func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 	ctx, cancel := context.WithCancel(ctx)
@@ -225,6 +246,7 @@ func newPubsub(ctx context.Context, logger slog.Logger, opts Options) *Pubsub {
 		cancel:        cancel,
 		peerFetcher:   opts.PeerFetcher,
 		peerRefresh:   make(chan struct{}, 1),
+		metrics:       newMetrics(logger),
 	}
 }
 
@@ -250,10 +272,12 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 			if err != nil {
 				p.logger.Warn(p.ctx, "nats client disconnected", slog.Error(err))
 			}
+			p.metrics.onDisconnect()
 			p.signalSubscribersDroppedForConn(conn)
 		},
 		reconnect: func(_ *natsgo.Conn) {
 			p.logger.Info(p.ctx, "nats client reconnected")
+			p.metrics.onReconnect()
 		},
 		closed: func(_ *natsgo.Conn) {
 			p.logger.Debug(p.ctx, "nats client closed")
@@ -320,6 +344,8 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Pubsub, error)
 
 	p.publishPool = publishPool
 	p.subscribePool = subscribePool
+	// All owned connections dialed successfully above.
+	p.metrics.markConnected(len(publishPool) + len(subscribePool))
 
 	if p.clustered {
 		go p.runPeerRefresh()
@@ -361,12 +387,15 @@ func newConnPool(ns *natsserver.Server, opts Options, handlers connHandlers, cou
 // same-subject publishes preserve per-subject ordering.
 func (p *Pubsub) Publish(event string, message []byte) error {
 	if p.ctx.Err() != nil {
+		p.metrics.recordPublishFailure()
 		return errClosed
 	}
 
 	if err := pickConn(p.publishPool, event).Publish(event, message); err != nil {
+		p.metrics.recordPublishFailure()
 		return xerrors.Errorf("publish: %w", err)
 	}
+	p.metrics.recordPublishSuccess(len(message))
 	return nil
 }
 
@@ -418,7 +447,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		defer p.mu.Unlock()
 
 		if p.ctx.Err() != nil {
-			return nil, erroredGroupSub(errClosed)
+			return nil, erroredGroupSub(p.metrics, errClosed)
 		}
 
 		var (
@@ -428,6 +457,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 		gSub, ok = p.subscriptions[event]
 		if !ok {
 			gSub = &groupSub{
+				metrics:   p.metrics,
 				event:     event,
 				localSubs: make(map[*localSub]struct{}),
 				sub: &subGetter{
@@ -436,6 +466,7 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 			}
 			go p.subscribeGroup(gSub)
 			p.subscriptions[event] = gSub
+			p.metrics.addEvent()
 		}
 		lSub := &localSub{
 			event: event,
@@ -448,8 +479,17 @@ func (p *Pubsub) subscribeQueue(event string, newQ *pubsub.MsgQueue) (cancel fun
 	}()
 
 	if _, err := g.sub.get(); err != nil {
+		p.metrics.recordSubscribeFailure()
+		// A failed subscribe was never counted (we increment only on
+		// success below), so there is nothing to undo here.
 		return nil, err
 	}
+	p.metrics.recordSubscribeSuccess()
+	// Count the subscriber once the NATS subscription is established. The
+	// matching decrement is in closeLocalSubFunc when the localSub is
+	// removed. A mid-subscribe Close may decrement without a matching
+	// increment, but the gauge is irrelevant once we are shutting down.
+	p.metrics.addSubscriber()
 	return p.closeLocalSubFunc(l, g), nil
 }
 
@@ -546,6 +586,10 @@ func (p *Pubsub) handleSlowSubscriber(nsub *groupSub) {
 // Close does not drain queued listener messages.
 func (p *Pubsub) Close() error {
 	p.closeOnce.Do(func() {
+		// Report disconnected immediately. The owned connections are
+		// closed below without firing the disconnect handler, so nothing
+		// else resets the gauge during shutdown.
+		p.metrics.markClosed()
 		p.mu.Lock()
 		p.logger.Debug(p.ctx, "closing pubsub")
 		// Cancel while holding p.mu so subscriber state cleanup below
@@ -615,6 +659,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		l.queue.Close()
 
 		delete(g.localSubs, l)
+		p.metrics.removeSubscriber()
 		logger.Debug(context.Background(), "removed local sub from group", slog.F("group_size", len(g.localSubs)))
 		if len(g.localSubs) > 0 {
 			return // Not last one out
@@ -628,6 +673,7 @@ func (p *Pubsub) closeLocalSubFunc(l *localSub, g *groupSub) func() {
 		}()
 		if pSub, ok := p.subscriptions[l.event]; ok && g == pSub {
 			delete(p.subscriptions, l.event)
+			p.metrics.removeEvent()
 		}
 	}
 }
@@ -642,6 +688,7 @@ func (p *Pubsub) subscribeGroup(g *groupSub) {
 			defer p.mu.Unlock()
 			if psub := p.subscriptions[g.event]; psub == g {
 				delete(p.subscriptions, g.event)
+				p.metrics.removeEvent()
 			}
 		}
 		close(g.sub.subscribeDone)
@@ -710,10 +757,11 @@ func pickConn(pool []conn, subject string) conn {
 }
 
 // erroredGroupSub returns a groupSub that shows an error rather than an active subscription.
-func erroredGroupSub(err error) *groupSub {
+func erroredGroupSub(m *metrics, err error) *groupSub {
 	c := make(chan struct{})
 	close(c)
 	return &groupSub{
+		metrics: m,
 		sub: &subGetter{
 			subscribeDone: c,
 			err:           err,
@@ -729,6 +777,7 @@ func erroredGroupSub(err error) *groupSub {
 // local listener without cloning. Listeners on a coalesced subject MUST
 // treat the delivered bytes as immutable.
 func (g *groupSub) handleMessage(msg *natsgo.Msg) {
+	g.metrics.recordReceived(msg.Data)
 	g.mu.Lock()
 	defer g.mu.Unlock()
 	for l := range g.localSubs {
