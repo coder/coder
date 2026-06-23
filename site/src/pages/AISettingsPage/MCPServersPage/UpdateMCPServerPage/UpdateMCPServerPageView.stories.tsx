@@ -1,14 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { mockCoderMCPServer } from "../testFixtures";
+import { MockCoderMCPServer } from "../testFixtures";
 import UpdateMCPServerPageView from "./UpdateMCPServerPageView";
 
 const meta: Meta<typeof UpdateMCPServerPageView> = {
 	title: "pages/AISettingsPage/MCPServersPage/UpdateMCPServerPageView",
 	component: UpdateMCPServerPageView,
 	args: {
-		server: mockCoderMCPServer,
+		server: MockCoderMCPServer,
 		isSaving: false,
 		isDeleting: false,
 		onUpdateServer: fn(async () => undefined),

@@ -1,19 +1,16 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
+import { MockMCPServerConfig as BaseMockMCPServerConfig } from "#/testHelpers/chatEntities";
 
 const now = "2026-03-19T12:00:00.000Z";
 
-const createMCPServerConfig = (
-	overrides: Partial<TypesGen.MCPServerConfig> &
-		Pick<TypesGen.MCPServerConfig, "id" | "display_name" | "slug">,
-): TypesGen.MCPServerConfig => ({
-	...MockMCPServerConfig,
+const MockMCPServerConfig: TypesGen.MCPServerConfig = {
+	...BaseMockMCPServerConfig,
 	created_at: now,
 	updated_at: now,
-	...overrides,
-});
+};
 
-export const mockCoderMCPServer = createMCPServerConfig({
+export const MockCoderMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
 	id: "mcp-coder",
 	display_name: "Coder",
 	slug: "coder",
@@ -24,9 +21,10 @@ export const mockCoderMCPServer = createMCPServerConfig({
 	has_oauth2_secret: true,
 	availability: "default_off",
 	enabled: true,
-});
+};
 
-export const mockGitHubMCPServer = createMCPServerConfig({
+export const MockGitHubMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
 	id: "mcp-github",
 	display_name: "GitHub",
 	slug: "github",
@@ -37,9 +35,10 @@ export const mockGitHubMCPServer = createMCPServerConfig({
 	has_oauth2_secret: true,
 	availability: "default_off",
 	enabled: true,
-});
+};
 
-export const mockImageMCPServer = createMCPServerConfig({
+export const MockImageMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
 	id: "mcp-image",
 	display_name: "Image",
 	slug: "image",
@@ -49,9 +48,10 @@ export const mockImageMCPServer = createMCPServerConfig({
 	has_api_key: true,
 	availability: "default_off",
 	enabled: false,
-});
+};
 
-export const mockMemoryMCPServer = createMCPServerConfig({
+export const MockMemoryMCPServer: TypesGen.MCPServerConfig = {
+	...MockMCPServerConfig,
 	id: "mcp-memory",
 	display_name: "Memory",
 	slug: "memory",
@@ -60,4 +60,4 @@ export const mockMemoryMCPServer = createMCPServerConfig({
 	auth_type: "oauth2",
 	availability: "force_on",
 	enabled: true,
-});
+};

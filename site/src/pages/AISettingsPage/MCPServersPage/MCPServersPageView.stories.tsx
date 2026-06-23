@@ -3,10 +3,10 @@ import { expect, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import MCPServersPageView from "./MCPServersPageView";
 import {
-	mockCoderMCPServer,
-	mockGitHubMCPServer,
-	mockImageMCPServer,
-	mockMemoryMCPServer,
+	MockCoderMCPServer,
+	MockGitHubMCPServer,
+	MockImageMCPServer,
+	MockMemoryMCPServer,
 } from "./testFixtures";
 
 const meta: Meta<typeof MCPServersPageView> = {
@@ -16,10 +16,10 @@ const meta: Meta<typeof MCPServersPageView> = {
 		isLoading: false,
 		error: null,
 		servers: [
-			mockCoderMCPServer,
-			mockGitHubMCPServer,
-			mockImageMCPServer,
-			mockMemoryMCPServer,
+			MockCoderMCPServer,
+			MockGitHubMCPServer,
+			MockImageMCPServer,
+			MockMemoryMCPServer,
 		],
 	},
 	parameters: {
