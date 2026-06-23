@@ -123,19 +123,20 @@ export const WithAIBudgetsLoading: Story = {
 	},
 };
 
-// Failed spend request falls back to "-" per group.
-export const WithAIBudgetsError: Story = {
+// Spend unavailable (request failed or returned nothing): groups fall back to
+// "-". The error toast is fired by the GroupsPage container, not this view.
+export const WithAIBudgetsSpendUnavailable: Story = {
 	args: {
-		groups: [aiGroup("ai-error", "Spend failed to load")],
+		groups: [aiGroup("ai-unavailable", "Spend unavailable")],
 		canCreateGroup: true,
 		groupsEnabled: true,
 		aiBudget: { spend: undefined, isLoading: false },
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(await canvas.findByTestId("group-ai-error")).toHaveTextContent(
-			"-",
-		);
+		await expect(
+			await canvas.findByTestId("group-ai-unavailable"),
+		).toHaveTextContent("-");
 	},
 };
 
