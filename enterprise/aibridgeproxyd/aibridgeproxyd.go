@@ -48,7 +48,7 @@ type RoundTripDumper interface {
 const (
 	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
-	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
+	ProxyAuthRealm = `"Coder AI Gateway Proxy"`
 )
 
 // proxyAuthRequiredMsg is the response body for 407 responses.
@@ -303,13 +303,20 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy.CertStore = NewCertCache()
 	}
 
-	// Always set secure TLS defaults, overriding goproxy's default.
-	// This ensures secure TLS connections for:
-	// - HTTPS upstream proxy connections
-	// - MITM'd requests if aibridge uses HTTPS
+	// Override goproxy's default transport, which has InsecureSkipVerify: true.
+	// This applies to all proxy.Tr traffic: MITM'd requests forwarded to aibridge,
+	// passthrough requests, and HTTPS upstream proxy connections. Proxy is
+	// intentionally unset so MITM'd requests go directly to aibridge, never
+	// through an upstream proxy or HTTPS_PROXY env var.
 	rootCAs, err := x509.SystemCertPool()
 	if err != nil {
 		return nil, xerrors.Errorf("failed to load system certificate pool: %w", err)
+	}
+	proxy.Tr = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    rootCAs,
+		},
 	}
 
 	srv := &Server{
@@ -351,15 +358,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			connectReqHandler = func(req *http.Request) {
 				req.Header.Set("Proxy-Authorization", proxyAuth)
 			}
-		}
-
-		// Set transport without Proxy to ensure MITM'd requests go directly to aibridge,
-		// not through any upstream proxy.
-		proxy.Tr = &http.Transport{
-			TLSClientConfig: &tls.Config{
-				MinVersion: tls.VersionTLS12,
-				RootCAs:    rootCAs,
-			},
 		}
 
 		// Add custom CA certificate if provided (for corporate proxies with private CAs).
@@ -914,7 +912,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		)
 
 		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
-		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
+		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Gateway Proxy"`)
 		return req, resp
 	}
 
@@ -970,16 +968,16 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
-	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", reqCtx.Provider, originalPath)
+	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), agplaibridge.AIGatewayRootPath, reqCtx.Provider, originalPath)
 	if err != nil {
 		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Gateway URL")
 	}
 
 	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
 	if err != nil {
 		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Gateway URL")
 	}
 
 	// Preserve query parameters from the original request.

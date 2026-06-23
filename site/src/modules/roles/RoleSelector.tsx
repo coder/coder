@@ -19,6 +19,9 @@ type RoleSelectorProps = {
 	additionalImpliedRoles?: AssignableRoles[];
 	selectedRoles: Set<string>;
 	onChange: (roles: Set<string>) => void;
+	/** When provided, called for each role. Return a tooltip string to
+	 *  force-disable the role, or undefined to leave it enabled. */
+	disabledReason?: (role: AssignableRoles) => string | undefined;
 };
 
 export const RoleSelector: FC<RoleSelectorProps> = ({
@@ -29,6 +32,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 	additionalImpliedRoles = [],
 	selectedRoles,
 	onChange,
+	disabledReason,
 }) => {
 	if (loading) {
 		return (
@@ -82,6 +86,7 @@ export const RoleSelector: FC<RoleSelectorProps> = ({
 					advancedRoles={advancedRoles}
 					selectedRoles={selectedRoles}
 					handleToggle={handleToggle}
+					disabledReason={disabledReason}
 				/>
 			)}
 
@@ -95,6 +100,7 @@ type RoleSelectorListProps = {
 	advancedRoles: AssignableRoles[];
 	selectedRoles: Set<string>;
 	handleToggle: (roleName: string) => void;
+	disabledReason?: (role: AssignableRoles) => string | undefined;
 };
 
 const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
@@ -102,6 +108,7 @@ const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
 	advancedRoles,
 	selectedRoles,
 	handleToggle,
+	disabledReason,
 }) => {
 	return (
 		<div className="border border-border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
@@ -111,6 +118,7 @@ const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
 					role={role}
 					selected={selectedRoles.has(role.name)}
 					onToggle={() => handleToggle(role.name)}
+					disabledReason={disabledReason?.(role)}
 				/>
 			))}
 			{advancedRoles.length > 0 && (
@@ -121,6 +129,7 @@ const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
 							role={role}
 							selected={selectedRoles.has(role.name)}
 							onToggle={() => handleToggle(role.name)}
+							disabledReason={disabledReason?.(role)}
 						/>
 					))}
 				</CollapsibleSummary>
@@ -133,29 +142,32 @@ type RoleCheckboxProps = {
 	role: AssignableRoles;
 	selected: boolean;
 	onToggle: () => void;
+	disabledReason?: string;
 };
 
 const RoleCheckbox: React.FC<RoleCheckboxProps> = ({
 	role,
 	selected,
 	onToggle,
+	disabledReason,
 }) => {
 	const checkboxId = useId();
+	const isDisabled = !role.assignable || !!disabledReason;
 
-	return (
+	const label = (
 		<label
 			key={role.name}
 			htmlFor={checkboxId}
 			className={cn(
 				"flex items-start gap-2",
-				role.assignable ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+				isDisabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
 			)}
 		>
 			<Checkbox
 				id={checkboxId}
 				checked={selected}
 				onCheckedChange={onToggle}
-				disabled={!role.assignable}
+				disabled={isDisabled}
 				className="mt-1 shrink-0"
 			/>
 			<div className="flex flex-col">
@@ -168,6 +180,13 @@ const RoleCheckbox: React.FC<RoleCheckboxProps> = ({
 			</div>
 		</label>
 	);
+
+	// Disabled checkboxes apply pointer-events:none which suppresses native
+	// title tooltips. Wrapping in a span keeps the tooltip reachable on hover.
+	if (disabledReason) {
+		return <span title={disabledReason}>{label}</span>;
+	}
+	return label;
 };
 
 type RoleSelectorLayoutProps = {

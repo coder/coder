@@ -8,10 +8,10 @@ import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
+import { useClientFilterMenu } from "../filters/ClientFilter";
+import { useModelFilterMenu } from "../filters/ModelFilter";
+import { useProviderFilterMenu } from "../filters/ProviderFilter";
 import { getAIBridgePermissions } from "../getAIBridgePermissions";
-import { useClientFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ClientFilter";
-import { useModelFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ModelFilter";
-import { useProviderFilterMenu } from "../RequestLogsPage/RequestLogsFilter/ProviderFilter";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 const AISessionListPage: FC = () => {
@@ -76,7 +76,7 @@ const AISessionListPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={hasPermission}>
-			<title>{pageTitle("Sessions", "AI Bridge")}</title>
+			<title>{pageTitle("Sessions", "AI Gateway")}</title>
 
 			<ListSessionsPageView
 				isLoading={sessionsQuery.isLoading}

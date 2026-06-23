@@ -5,6 +5,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatDiffStatus, ChatMessagePart } from "#/api/typesGenerated";
+import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -25,7 +26,6 @@ import {
 	AgentChatPageNotFoundView,
 	AgentChatPageView,
 } from "./AgentChatPageView";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import {
 	createChatStore,
 	useChatSelector,
@@ -53,25 +53,15 @@ const defaultModelOptions: ModelSelectorOption[] = [
 const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
 const buildChat = (overrides: Partial<TypesGen.Chat> = {}): TypesGen.Chat => ({
+	...MockChat,
 	id: AGENT_ID,
-	organization_id: "test-org-id",
 	owner_id: "owner-1",
 	owner_username: "owner",
 	owner_name: "Owner",
 	title: "Help me refactor",
-	status: "completed",
 	last_model_config_id: defaultModelConfigID,
-	mcp_server_ids: [],
-	labels: {},
 	created_at: oneWeekAgo,
 	updated_at: oneWeekAgo,
-	archived: false,
-	shared: false,
-	pin_order: 0,
-	has_unread: false,
-	client_type: "ui",
-	last_turn_summary: null,
-	children: [],
 	...overrides,
 });
 
@@ -190,6 +180,9 @@ const StoryAgentChatPageView: FC<StoryProps> = ({ editing, ...overrides }) => {
 		onMCPSelectionChange: fn(),
 		onMCPAuthComplete: fn(),
 		canShareChat: false,
+		canConfigureAgentSetup: true,
+		providerCount: 1,
+		modelCount: 1,
 		...overrides,
 		store,
 		messageCount: overrides.messageCount ?? messageCount,
@@ -528,9 +521,9 @@ export const NoModelOptions: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -555,7 +548,7 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };
@@ -563,9 +556,9 @@ export const MissingProviderAndModelSetup: Story = {
 export const MissingModelSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={1} modelCount={0} />
-			}
+			canConfigureAgentSetup
+			providerCount={1}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -586,7 +579,7 @@ export const MissingModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };
@@ -594,9 +587,9 @@ export const MissingModelSetup: Story = {
 export const MissingProviderSetup: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin providerCount={0} modelCount={1} />
-			}
+			canConfigureAgentSetup
+			providerCount={0}
+			modelCount={1}
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -622,9 +615,9 @@ export const MissingProviderSetup: Story = {
 export const MemberNoModelsAvailable: Story = {
 	render: () => (
 		<StoryAgentChatPageView
-			agentSetupNotice={
-				<AgentSetupNotice isAdmin={false} providerCount={0} modelCount={0} />
-			}
+			canConfigureAgentSetup={false}
+			providerCount={0}
+			modelCount={0}
 			hasModelOptions={false}
 			modelOptions={[]}
 			isInputDisabled
@@ -746,6 +739,11 @@ export const Loading: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -765,6 +763,11 @@ export const LoadingWithModelOptions: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled={false}
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -783,6 +786,11 @@ export const LoadingWithRightPanel: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}
@@ -802,6 +810,11 @@ export const LoadingSidebarCollapsed: Story = {
 		<AgentChatPageLoadingView
 			sendShortcut="enter"
 			titleElement={<title>Loading — Agents</title>}
+			inputRef={{ current: null }}
+			initialValue=""
+			initialEditorState={undefined}
+			remountKey={0}
+			onContentChange={fn()}
 			isInputDisabled
 			effectiveSelectedModel={defaultModelConfigID}
 			setSelectedModel={fn()}

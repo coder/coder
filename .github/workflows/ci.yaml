@@ -162,6 +162,112 @@ jobs:
       - name: Check docs
         run: pnpm check-docs
 
+      # Vale prose linter, advisory only. Scoped to changed Markdown under
+      # docs/. Every Vale step is `continue-on-error` so this section can
+      # never block the required `lint-docs` job: a `vale sync` network
+      # blip or a baseline rule violation surfaces as an annotation, not a
+      # merge gate. Only markdownlint/table-formatter above stay blocking.
+      # `vale --no-exit` additionally keeps the baseline error count from
+      # un-overridden upstream Google rules from failing the step. Lives
+      # here rather than a standalone workflow so docs lint stays in the
+      # single required CI umbrella (see #25608). See DOCS-40.
+      - name: Detect changed Markdown
+        id: changed-md
+        continue-on-error: true
+        uses: tj-actions/changed-files@22103cc46bda19c2b464ffe86db46df6922fd323 # v45.0.7
+        with:
+          files: |
+            **.md
+          separator: ","
+
+      # `**.md` (not `docs/**.md`) because the action's globber collapses a
+      # `**` adjacent to `.md` to a single path segment, so `docs/**.md`
+      # only matches top-level docs/*.md and misses nested pages such as
+      # docs/.style/style-guide.md. The prose step below re-filters to
+      # docs/ paths.
+      # Cache split into restore + conditional save to avoid letting PR
+      # runs populate a cache that other branches restore from (the
+      # zizmor `cache-poisoning` concern). Only pushes to the default
+      # branch may write the cache; PRs may only read it.
+      - name: Restore Vale styles
+        id: vale-cache
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          # Negation excludes the hand-authored Coder rules from the cache;
+          # the key also hashes them so a rule change always invalidates it.
+          # mise manages the Vale binary, so only the synced styles cache.
+          path: |
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
+            docs/.style/.vale-synced
+          key: vale-${{ hashFiles('.vale.ini', 'mise.toml', 'docs/.style/styles/Coder/**') }}
+          restore-keys: |
+            vale-
+
+      - name: Prepare Vale styles
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        env:
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
+        run: make docs/.style/.vale-synced
+
+      - name: Vale prose lint
+        if: steps.changed-md.outputs.any_changed == 'true'
+        continue-on-error: true
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-md.outputs.all_changed_files }}
+          # Non-interactive: let mise auto-install the pinned Vale on first use.
+          MISE_YES: "1"
+        run: |
+          # all_changed_files is ACMRD and so lists paths this PR deleted.
+          # Vale errors on a missing file (--no-exit only suppresses alert
+          # exits, not runtime errors), so keep only docs/ paths still on
+          # disk. See DOCS-40.
+          files=$(printf '%s\n' "$ALL_CHANGED_FILES" \
+            | tr ',' '\n' \
+            | grep -E '^docs/' \
+            | while IFS= read -r f; do [ -f "$f" ] && printf '%s\n' "$f"; done || true)
+          if [ -z "$files" ]; then
+            echo "No changed Markdown files under docs/ on disk; skipping Vale."
+            exit 0
+          fi
+          # Vale's --output=line strips per-finding severity, so the
+          # previous problem-matcher approach collapsed every finding to
+          # a single hard-coded severity. Use --output=JSON instead and
+          # emit GitHub workflow commands directly so error/warning/
+          # suggestion render with their actual Vale severities. URL-
+          # encode message bodies for `%`, `\r`, and `\n` per the
+          # GitHub Actions workflow command spec. See DOCS-426.
+          printf '%s\n' "$files" \
+            | xargs -d '\n' mise exec "aqua:errata-ai/vale" -- vale --no-exit --output=JSON \
+            | jq -r '
+                to_entries[]
+                | .key as $file
+                | .value[]
+                | (if .Severity == "suggestion" then "notice"
+                   elif .Severity == "warning" then "warning"
+                   else "error" end) as $level
+                | (.Message | gsub("%"; "%25") | gsub("\r"; "%0D") | gsub("\n"; "%0A")) as $msg
+                | "::\($level) file=\($file),line=\(.Line),col=\(.Span[0]),title=\(.Check)::\($msg)"
+              '
+
+      - name: Save Vale styles
+        # Only the default branch is trusted to write the cache, so PR
+        # runs cannot poison the cache that subsequent runs restore from.
+        # Skip when the cache already had an exact key hit (no new content).
+        if: github.ref == 'refs/heads/main' && steps.changed-md.outputs.any_changed == 'true' && steps.vale-cache.outputs.cache-hit != 'true'
+        continue-on-error: true
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: |
+            docs/.style/styles/*
+            !docs/.style/styles/Coder
+            docs/.style/.vale-synced
+          key: ${{ steps.vale-cache.outputs.cache-primary-key }}
+
   # Disabled due to instability. See: https://github.com/coder/coder/issues/14553
   # Re-enable once the flake hash calculation is stable.
   # update-flake:
@@ -342,6 +448,9 @@ jobs:
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:storj.io/drpc/cmd/protoc-gen-go-drpc go:github.com/coder/sqlc/cmd/sqlc
 
+      - name: Start PostgreSQL container
+        run: make test-postgres-docker
+
       - name: make gen
         timeout-minutes: 8
         run: |
@@ -354,6 +463,17 @@ jobs:
 
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
+
+      - name: Collect PostgreSQL logs
+        if: always()
+        run: make test-postgres-docker-logs > postgres.log 2>&1
+
+      - name: Upload PostgreSQL logs
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: gen-postgres-logs
+          path: postgres.log
 
   fmt:
     needs: changes
@@ -936,6 +1056,37 @@ jobs:
           name: debug-pprof-dumps-${{ matrix.variant.name }}-${{ github.sha }}
           path: ./site/test-results/**/debug-pprof-*.txt
           retention-days: 7
+
+  storybook:
+    name: Storybook
+
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-24.04-16' || 'ubuntu-latest' }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        name: Checkout
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        name: Install dependencies
+        with:
+          run_install: true
+          cache: true
+
+      - run: pnpm storybook:build
+        working-directory: site/
+        name: Build Storybook
+
+      - run: pnpm playwright:install
+        working-directory: site/
+        name: Install Chromium
+
+      - run: pnpm pixel-storybook
+        working-directory: site/
+        name: Snapshot
+        env:
+          PIXEL_KEY: ${{ secrets.PIXEL_KEY }}
 
   # Reference guide:
   # https://www.chromatic.com/docs/turbosnap-best-practices/#run-with-caution-when-using-the-pull_request-event

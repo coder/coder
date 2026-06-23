@@ -63,6 +63,7 @@ zizmor = "1.11.0"
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
 "aqua:crate-ci/typos" = "1.46.1"
+"aqua:errata-ai/vale" = "3.7.1"
 "aqua:jj-vcs/jj" = "0.41.0"
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"
@@ -71,6 +72,13 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# Vercel CLI for deploying/previewing projects from dogfood workspaces.
+# Restricted to Linux/macOS because mise installs this through `npm:vercel`,
+# which spawns `node install.js` from cmd.exe on Windows. mise's `node` lives
+# only in the shim dir at install time, so `node` is not on PATH and the
+# install fails with `'node' is not recognized` (coder/internal#1596). The
+# CLI is only needed in dogfood workspaces, which are Linux.
+vercel = { version = "54.14.0", os = ["linux", "macos"] }
 # weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
 # action-linkspector without resolving mutable npm metadata at runtime.
 "npm:@puppeteer/browsers" = "2.13.0"

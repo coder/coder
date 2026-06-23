@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { API } from "#/api/api";
 import type {
 	ChatDiffContents,
@@ -137,6 +137,15 @@ export const PullRequestAndWorkingChanges: Story = {
 			...defaultDiffContents,
 			diff: sampleDiff,
 		});
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The branch row exposes a button that copies the PR head
+		// branch name. The aria-label embeds the branch so a single
+		// query is enough to assert both presence and target.
+		await expect(
+			canvas.getByLabelText("Copy branch name: feat/add-mcp-config"),
+		).toBeVisible();
 	},
 };
 
@@ -325,35 +334,19 @@ export const InlineCommentInput: Story = {
 		});
 	},
 	play: async ({ canvasElement }) => {
-		// Wait for the diff to load and render inside Shadow DOM.
-		// The line numbers live inside @pierre/diffs FileDiff web
-		// components, so we need to wait a bit for them to mount.
-		await new Promise((resolve) => setTimeout(resolve, 2000));
-
-		// Find a line number element inside a Shadow DOM diff viewer.
-		// The diff renders in shadow roots, so we look for the
-		// host elements and query inside their shadow DOMs.
-		const diffHosts = canvasElement.querySelectorAll("[data-diffs]");
-
-		for (const host of diffHosts) {
-			const shadow = host.shadowRoot;
-			if (!shadow) continue;
-
-			// Look for a line number cell — they have data-line-number.
-			const lineNumber = shadow.querySelector(
-				"[data-line-number]",
-			) as HTMLElement | null;
-			if (lineNumber) {
-				await userEvent.click(lineNumber);
-				break;
+		const canvas = within(canvasElement);
+		const lineNumber = await waitFor(() => {
+			for (const host of canvasElement.querySelectorAll("diffs-container")) {
+				const target = host.shadowRoot?.querySelector(
+					"[data-column-number]",
+				) as HTMLElement | null;
+				if (target) return target;
 			}
-		}
+			throw new Error("No rendered diff line number found");
+		});
 
-		// Verify the inline prompt appeared.
-		const textarea = canvasElement.querySelector("textarea");
-		if (textarea) {
-			expect(textarea).toBeInTheDocument();
-		}
+		await userEvent.click(lineNumber);
+		expect(canvas.getByRole("textbox")).toBeInTheDocument();
 	},
 };
 

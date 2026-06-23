@@ -1284,7 +1284,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1294,7 +1294,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.anthropic.com:8443/v1/messages", nil
 			},
-			expectedPath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedPath: "/api/v2/ai-gateway/anthropic/v1/messages",
 			provider:     "anthropic",
 		},
 		{
@@ -1304,7 +1304,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1314,7 +1314,7 @@ func TestProxy_MITM(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) (string, error) {
 				return "https://api.openai.com:8443/v1/chat/completions", nil
 			},
-			expectedPath: "/api/v2/aibridge/openai/v1/chat/completions",
+			expectedPath: "/api/v2/ai-gateway/openai/v1/chat/completions",
 			provider:     "openai",
 		},
 		{
@@ -1624,6 +1624,37 @@ func TestListenerTLS(t *testing.T) {
 	}
 }
 
+// TestProxy_AIBridgeTLSVerification verifies the proxy refuses to forward
+// MITM'd requests to an aibridge endpoint whose TLS certificate is not trusted.
+func TestProxy_AIBridgeTLSVerification(t *testing.T) {
+	t.Parallel()
+
+	// HTTPS server with a self-signed cert untrusted by the system pool,
+	// standing in for aibridge.
+	aibridgeServer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(aibridgeServer.Close)
+
+	srv := newTestProxy(t,
+		withCoderAccessURL(aibridgeServer.URL),
+		withProviderHosts(aibridgeproxyd.HostAnthropic),
+	)
+
+	client := newProxyClient(t, srv, makeProxyAuthHeader("test-token"), getProxyCertPool(t), false)
+
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		"https://"+aibridgeproxyd.HostAnthropic+"/v1/messages",
+		strings.NewReader(`{}`))
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	if resp != nil {
+		defer resp.Body.Close()
+	}
+	require.Error(t, err, "proxy must refuse to forward MITM'd requests to an untrusted aibridge cert")
+}
+
 // TestServeCACert validates that a configured certificate file can be served correctly by the API.
 //
 // Note: Tests for certificate file errors (missing file, invalid PEM) are
@@ -1821,7 +1852,7 @@ func TestUpstreamProxy(t *testing.T) {
 			buildTargetURL: func(_ *url.URL) string {
 				return "https://api.anthropic.com:443/v1/messages"
 			},
-			expectedAIBridgePath: "/api/v2/aibridge/anthropic/v1/messages",
+			expectedAIBridgePath: "/api/v2/ai-gateway/anthropic/v1/messages",
 		},
 	}
 
@@ -2107,7 +2138,7 @@ func TestProxy_MITM_CustomProvider(t *testing.T) {
 
 	// The proxy should route through the aibridge path using the custom
 	// provider name.
-	require.Equal(t, "/api/v2/aibridge/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
+	require.Equal(t, "/api/v2/ai-gateway/"+openrouterProvider+"/api/v1/chat/completions", receivedPath)
 	require.Equal(t, "coder-token", receivedBYOK)
 }
 

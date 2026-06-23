@@ -22,9 +22,19 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						AI Governance
 					</SidebarNavItem>
 				)}
-				<SidebarNavItem href="/ai/settings" end>
-					Providers
-				</SidebarNavItem>
+				{permissions.viewAnyAIProvider && (
+					<SidebarNavItem href="/ai/settings" end>
+						Providers
+					</SidebarNavItem>
+				)}
+				{permissions.viewAIGatewayKeys && (
+					<SidebarNavItem href="/ai/settings/gateway-keys">
+						AI Gateway Keys
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
+				)}
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/agents/settings/agents">
 						<div className="flex flex-row items-center gap-1">

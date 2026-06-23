@@ -1804,7 +1804,7 @@ export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspac
 		},
 	};
 
-const _MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
+export const MockOutdatedStoppedWorkspaceAlwaysUpdate: TypesGen.Workspace = {
 	...MockOutdatedRunningWorkspaceAlwaysUpdate,
 	latest_build: {
 		...MockWorkspaceBuild,
@@ -1945,6 +1945,25 @@ export const MockTemplateVersionParameter6: TypesGen.TemplateVersionParameter =
 		options: [],
 		required: true,
 		ephemeral: true,
+	};
+
+// Not required and the default is a blank string.
+export const MockTemplateVersionParameter7: TypesGen.TemplateVersionParameter =
+	{
+		name: "seventh_parameter",
+		type: "string",
+		form_type: "input",
+		description: "This is seventh parameter",
+		description_plaintext: "Markdown: This is seventh parameter",
+		default_value: "",
+		mutable: true,
+		icon: "/icon/folder.svg",
+		options: [],
+		validation_min: 1,
+		validation_max: 10,
+		validation_monotonic: "decreasing",
+		required: false,
+		ephemeral: false,
 	};
 
 export const MockTemplateVersionVariable1: TypesGen.TemplateVersionVariable = {
@@ -3302,6 +3321,7 @@ export const MockPermissions: Permissions = {
 	viewAnyMembers: true,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: true,
+	viewAIGatewayKeys: true,
 	createOAuth2App: true,
 	editOAuth2App: true,
 	deleteOAuth2App: true,
@@ -3337,6 +3357,7 @@ export const MockNoPermissions: Permissions = {
 	viewAnyMembers: false,
 	viewAnyAIBridgeInterception: true,
 	viewAnyAIProvider: false,
+	viewAIGatewayKeys: false,
 	createOAuth2App: false,
 	editOAuth2App: false,
 	deleteOAuth2App: false,
@@ -3422,6 +3443,12 @@ export const MockWorkspaceBuildParameter5: TypesGen.WorkspaceBuildParameter = {
 	value: "5",
 };
 
+// Has a blank value.
+export const MockWorkspaceBuildParameter7: TypesGen.WorkspaceBuildParameter = {
+	name: MockTemplateVersionParameter7.name,
+	value: "",
+};
+
 export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	name: "parameter1",
 	display_name: "Parameter 1",
@@ -3439,6 +3466,62 @@ export const MockPreviewParameter: TypesGen.PreviewParameter = {
 	icon: "",
 	styling: {},
 	order: 0,
+};
+
+// A text parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter1.
+export const MockPreviewParameter1: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter1.name,
+	display_name: MockTemplateVersionParameter1.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter1.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter1.default_value },
+};
+
+// A number parameter that is required and mutable.  Maps to
+// MockTemplateVersionParameter2.
+export const MockPreviewParameter2: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter2.name,
+	display_name: MockTemplateVersionParameter2.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter2.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter2.default_value },
+};
+
+// A text parameter that is required and immutable.  Maps to
+// MockTemplateVersionParameter4.
+export const MockPreviewParameter4: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter4.name,
+	display_name: MockTemplateVersionParameter4.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter4.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter4.default_value },
+	mutable: false,
+};
+
+// A text parameter that is mutable, not required, and has a blank value.  Maps
+// to MockTemplateVersionParameter7.
+export const MockPreviewParameter7: TypesGen.PreviewParameter = {
+	...MockPreviewParameter,
+	name: MockTemplateVersionParameter7.name,
+	display_name: MockTemplateVersionParameter7.name,
+	default_value: {
+		valid: true,
+		value: MockTemplateVersionParameter7.default_value,
+	},
+	value: { valid: true, value: MockTemplateVersionParameter7.default_value },
+	required: MockTemplateVersionParameter7.required,
+	mutable: MockTemplateVersionParameter7.mutable,
+	ephemeral: MockTemplateVersionParameter7.ephemeral,
 };
 
 export const MockDropdownParameter: TypesGen.PreviewParameter = {
@@ -3636,6 +3719,16 @@ export const MockTemplateVersionExternalAuthGithubAuthenticated: TypesGen.Templa
 		authenticated: true,
 		display_icon: "/icon/github.svg",
 		display_name: "GitHub",
+	};
+
+export const MockTemplateVersionExternalAuthAzure: TypesGen.TemplateVersionExternalAuth =
+	{
+		id: "azure",
+		type: "azure",
+		authenticate_url: "https://example.com/external-auth/azure",
+		authenticated: false,
+		display_icon: "/icon/azure.svg",
+		display_name: "Azure",
 	};
 
 export const MockDeploymentStats: TypesGen.DeploymentStats = {
@@ -4872,7 +4965,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked as Dormant",
 			title_template: 'Workspace "{{.Labels.name}}" marked as dormant',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked as [**dormant**](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-threshold-enterprise) because of {{.Labels.reason}}.\nDormant workspaces are [automatically deleted](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) after {{.Labels.timeTilDormant}} of inactivity.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -4898,7 +4991,7 @@ export const MockSystemNotificationTemplates: TypesGen.NotificationTemplate[] =
 			name: "Workspace Marked for Deletion",
 			title_template: 'Workspace "{{.Labels.name}}" marked for deletion',
 			body_template:
-				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
+				"Hi {{.UserName}}\n\nYour workspace **{{.Labels.name}}** has been marked for **deletion** after {{.Labels.timeTilDormant}} of [dormancy](https://coder.com/docs/admin/templates/managing-templates/schedule#dormancy-auto-deletion-enterprise) because of {{.Labels.reason}}.\nTo prevent deletion, use your workspace with the link below.",
 			actions:
 				'[{"url": "{{ base_url }}/@{{.UserUsername}}/{{.Labels.name}}", "label": "View workspace"}]',
 			group: "Workspace Events",
@@ -5417,81 +5510,6 @@ export const MockDisplayNameTasks = [
 	},
 ] satisfies TypesGen.Task[];
 
-export const MockInterception: TypesGen.AIBridgeInterception = {
-	id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	initiator: {
-		id: "1ebb7622-e6ea-45b4-b244-dda30afc7238",
-		username: "testuser",
-		avatar_url: "https://example.com/avatar.png",
-	},
-	provider: "openai",
-	provider_name: "openai",
-	model: "gpt-4o",
-	started_at: "2022-05-17T17:39:01.382927298Z",
-	ended_at: "2022-05-17T17:39:01.382927298Z",
-	token_usages: [
-		{
-			id: "32e7fd17-24be-46b9-b867-2f0adfd42aff",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			input_tokens: 5,
-			output_tokens: 1,
-			cache_read_input_tokens: 3,
-			cache_write_input_tokens: 1,
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	metadata: {},
-	user_prompts: [
-		{
-			id: "85154044-818e-4ee4-bac2-87f3ac8f066b",
-			interception_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-			provider_response_id: "res_1234567890",
-			prompt: "Hello OpenAI",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-	tool_usages: [],
-	api_key_id: "5c1da48a-9eb0-440e-9c82-5bc5692a603d",
-	client: "Claude Code",
-};
-
-export const MockInterceptionAnthropic: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-	provider: "anthropic",
-	model: "claude-sonnet-4.5",
-	user_prompts: [
-		{
-			id: "c820f31f-0170-4044-8b7c-b1b18747b4fb",
-			interception_id: "e5610f5b-2d6c-43db-b1c0-1dfcc6531f04",
-			provider_response_id: "res_2345678901",
-			prompt: "Hello Anthropic",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
-export const MockInterceptionCopilot: TypesGen.AIBridgeInterception = {
-	...MockInterception,
-	id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-	provider: "copilot",
-	model: "claude-opus-4-5",
-	user_prompts: [
-		{
-			id: "c6c613d1-177e-416f-95b5-c7f0eeefb922",
-			interception_id: "22c9d31e-1a1f-464a-b397-562958599aa8",
-			provider_response_id: "res_3456789012",
-			prompt: "Hello Copilot",
-			metadata: {},
-			created_at: "2022-05-17T17:39:01.382927298Z",
-		},
-	],
-};
-
 export const MockSession: TypesGen.AIBridgeSession = {
 	id: "c8f2df8c-149c-43e1-9d51-898daaa2c505",
 	initiator: {
@@ -5596,3 +5614,28 @@ export const MockAIProviders: TypesGen.AIProvider[] = [
 	MockAIProviderBedrock,
 	MockAIProviderCopilot,
 ];
+
+export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
+	{
+		id: "1c2e6f4a-8b3d-4f1a-9c7e-2a5b8d6f0e11",
+		name: "primary-gateway",
+		key_prefix: "a1B2c3D4e5F",
+		created_at: "2024-05-01T14:00:00Z",
+		last_used_at: "2024-05-20T09:30:00Z",
+	},
+	{
+		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",
+		name: "backup-gateway",
+		key_prefix: "z9Y8x7W6v5U",
+		created_at: "2024-05-10T08:15:00Z",
+	},
+];
+
+export const MockCreateAIGatewayKeyResponse: TypesGen.CreateAIGatewayKeyResponse =
+	{
+		id: "3e4a8b6c-0d5f-4b3c-9e7a-4c7d0f8a2b33",
+		name: "new-gateway",
+		key: "K3mNp7qRs2TvW9xY4zA6bC1dE8fG5hJ0kL3nM7pQ2rS",
+		key_prefix: "K3mNp7qRs2T",
+		created_at: "2024-05-28T12:00:00Z",
+	};

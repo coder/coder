@@ -15,6 +15,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
 )
@@ -62,6 +63,11 @@ type Agent struct {
 	firstConnect   chan<- time.Duration
 	firstConnected atomic.Bool
 
+	// A zero connReportInterval or connReportDuration disables synthetic SSH
+	// connection reporting.
+	connReportInterval time.Duration
+	connReportDuration time.Duration
+
 	start time.Time
 
 	cancel context.CancelFunc
@@ -105,6 +111,15 @@ func WithMetrics(m *Metrics) Option {
 func WithFirstConnect(ch chan<- time.Duration) Option {
 	return func(a *Agent) {
 		a.firstConnect = ch
+	}
+}
+
+// WithConnectionReports enables periodic synthetic SSH connection reporting.
+// A zero interval or duration disables reporting.
+func WithConnectionReports(interval, duration time.Duration) Option {
+	return func(a *Agent) {
+		a.connReportInterval = interval
+		a.connReportDuration = duration
 	}
 }
 
@@ -165,7 +180,7 @@ func (a *Agent) Run(ctx context.Context) error {
 // continuing to issue RPCs against an already-closed rpc handle until the
 // outer ctx (the whole Agent's lifetime) eventually cancels.
 func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
-	rpc, _, err := client.ConnectRPC29WithRole(ctx, "agent")
+	rpc, tailnetClient, err := client.ConnectRPC29WithRole(ctx, "agent")
 	if err != nil {
 		return xerrors.Errorf("connect dRPC: %w", err)
 	}
@@ -201,6 +216,13 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 			slog.Error(err))
 	}
 
+	// fatalErr collects errors from routines that must reconnect the dRPC
+	// connection on failure, matching the real agent's managed subroutines
+	// (metadata and the derp subscriber). runConnectionReports is excluded: the
+	// real agent swallows connection-report failures (see
+	// agent.reportConnectionsLoop), so a blip there must not reconnect.
+	fatalErr := make(chan error, 2)
+
 	// Fetch the agent manifest so we know which metadata descriptions the
 	// template declared. We synthesize values for each declared key at the
 	// declared interval. Failure here is non-fatal: a manifest fetch
@@ -222,35 +244,63 @@ func (a *Agent) connectAndServe(ctx context.Context, client rpcDialer) error {
 				slog.Error(idErr))
 			workspaceID = uuid.Nil
 		}
-		go a.runMetadata(connCtx, rpc, workspaceID, descs)
+		go func() { fatalErr <- a.runMetadata(connCtx, rpc, workspaceID, descs) }()
 	}
+
+	// Connection reporting is non-fatal, so it isn't wired into fatalErr. Bound
+	// to connCtx so it exits on reconnect, like the fatal routines.
+	go a.runConnectionReports(connCtx, rpc)
+
+	go func() { fatalErr <- a.runDERPMapSubscriber(connCtx, tailnetClient) }()
 
 	select {
 	case <-ctx.Done():
 		return nil
 	case <-conn.Closed():
 		return xerrors.New("dRPC connection closed by remote")
+	case err := <-fatalErr:
+		// A non-nil error reconnects; nil is a clean shutdown. The routines
+		// wrap their own errors, so return as-is.
+		return err
 	}
 }
 
-// runMetadata sends synthetic values for every metadata description in the
-// agent manifest, batching per-tick into a single BatchUpdateMetadata call.
-//
-// One goroutine per agent (not per description): a 1s ticker pulses and we
-// track per-description next-due timestamps so each key reports at its own
-// declared interval. The goroutine is scoped to the connection's ctx; on
-// disconnect or shutdown it exits cleanly.
-//
-// The payload is a single fixed value, computed once: the workspace ID
-// prepended to a constant padding so each metadata row in scaletest logs
-// and the database is traceable back to the agent that emitted it. We
-// intentionally do not vary the value per key or per tick; if a future
-// scenario requires per-key/per-tick variation we can extend this then.
-//
-// Errors from BatchUpdateMetadata are logged and ignored. Tearing the
-// connection down over a metadata RPC blip would be wasteful; real agents
-// behave the same way (see agent.reportMetadata).
-func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, workspaceID uuid.UUID, descs []*proto.WorkspaceAgentMetadata_Description) {
+// runDERPMapSubscriber drains the DERP map stream, discarding each map since
+// fake agents have no tailnet.Conn. It returns the stream error so
+// connectAndServe can reconnect, re-creating coderd's send goroutine; ctx
+// cancellation (shutdown/reconnect) returns nil to avoid churn.
+func (a *Agent) runDERPMapSubscriber(ctx context.Context, tailnetClient tailnetproto.DRPCTailnetClient28) error {
+	stream, err := tailnetClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return xerrors.Errorf("open derp map stream: %w", err)
+	}
+	defer func() {
+		_ = stream.Close()
+	}()
+	for {
+		dmp, err := stream.Recv()
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return xerrors.Errorf("recv derp map: %w", err)
+		}
+		_ = tailnet.DERPMapFromProto(dmp)
+		a.metrics.incDERPMapsReceived()
+	}
+}
+
+// runMetadata batches synthetic values for every manifest metadata description
+// into one BatchUpdateMetadata call per tick (a 1s ticker tracks per-key
+// next-due timestamps so each reports at its declared interval). The payload is
+// a fixed value computed once, the workspace ID plus padding, so rows are
+// traceable to the emitting agent. It returns a BatchUpdateMetadata error so
+// connectAndServe reconnects, matching the real agent (see
+// agent.reportMetadata); ctx cancellation returns nil to avoid churn.
+func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, workspaceID uuid.UUID, descs []*proto.WorkspaceAgentMetadata_Description) error {
 	// Resolve declared intervals once, applying a floor so a malformed
 	// manifest can't spin us. Initialize all keys as immediately due so
 	// the first tick fires every description.
@@ -289,15 +339,10 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 	}
 	value := base64.StdEncoding.EncodeToString([]byte(prefix + strings.Repeat("a", padLen)))
 
-	// TickerFunc spawns its own goroutine that ticks until ctx is
-	// done and then stops the underlying ticker. We Wait on the
-	// returned Waiter so that runMetadata (itself running in the
-	// goroutine spawned by connectAndServe) stays alive for the
-	// connection's lifetime, matching the pre-refactor for/select
-	// shape. The Wait error is discarded: ticker exits are expected
-	// (ctx cancellation), and our tick func never returns a non-nil
-	// error of its own.
-	_ = a.clock.TickerFunc(ctx, metadataTickInterval, func() error {
+	// TickerFunc ticks until ctx is done or the func errors; Wait
+	// returns that error. A BatchUpdateMetadata failure propagates so
+	// the connection reconnects, while ctx cancellation returns nil.
+	err := a.clock.TickerFunc(ctx, metadataTickInterval, func() error {
 		now := a.clock.Now()
 		var batch []*proto.Metadata
 		for i, d := range descs {
@@ -318,12 +363,79 @@ func (a *Agent) runMetadata(ctx context.Context, rpc proto.DRPCAgentClient29, wo
 		}
 		if _, err := rpc.BatchUpdateMetadata(ctx, &proto.BatchUpdateMetadataRequest{
 			Metadata: batch,
-		}); err != nil && ctx.Err() == nil {
-			a.logger.Debug(ctx, "batch update metadata failed",
-				slog.Error(err))
+		}); err != nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			return xerrors.Errorf("batch update metadata: %w", err)
 		}
 		return nil
 	}, "agentfake", "runMetadata").Wait()
+	if ctx.Err() != nil {
+		return nil
+	}
+	return err
+}
+
+// runConnectionReports emits periodic synthetic SSH sessions (CONNECT then
+// DISCONNECT) via ReportConnection. Each session reuses one connection_id so
+// coderd pairs the two halves onto a single connection_log row.
+func (a *Agent) runConnectionReports(ctx context.Context, rpc proto.DRPCAgentClient29) {
+	// A zero-length session is meaningless, so a zero interval or duration
+	// disables reporting entirely.
+	if a.connReportInterval <= 0 || a.connReportDuration <= 0 {
+		return
+	}
+
+	// Tick at the smaller of the two so neither boundary is overshot.
+	tick := min(a.connReportInterval, a.connReportDuration)
+
+	var (
+		openID   uuid.UUID
+		closeAt  time.Time
+		nextOpen = a.clock.Now().Add(a.connReportInterval)
+	)
+	_ = a.clock.TickerFunc(ctx, tick, func() error {
+		now := a.clock.Now()
+		switch {
+		case openID != uuid.Nil && !now.Before(closeAt):
+			// A failed DISCONNECT send is non-fatal for scaletesting, so we
+			// ignore the result and always reset the session.
+			a.sendConnection(ctx, rpc, openID, proto.Connection_DISCONNECT, now)
+			openID = uuid.Nil
+			nextOpen = now.Add(a.connReportInterval)
+		case openID == uuid.Nil && !now.Before(nextOpen):
+			id := uuid.New()
+			closeAt = now.Add(a.connReportDuration)
+			if a.sendConnection(ctx, rpc, id, proto.Connection_CONNECT, now) {
+				openID = id
+			} else {
+				// Leave openID nil so a failed CONNECT retries next interval
+				// instead of desyncing the connect/disconnect pairing.
+				nextOpen = now.Add(a.connReportInterval)
+			}
+		}
+		return nil
+	}, "agentfake", "connectionReports").Wait()
+}
+
+func (a *Agent) sendConnection(ctx context.Context, rpc proto.DRPCAgentClient29, id uuid.UUID, action proto.Connection_Action, now time.Time) bool {
+	_, err := rpc.ReportConnection(ctx, &proto.ReportConnectionRequest{
+		Connection: &proto.Connection{
+			Id:        id[:],
+			Action:    action,
+			Type:      proto.Connection_SSH,
+			Timestamp: timestamppb.New(now),
+			Ip:        "127.0.0.1",
+		},
+	})
+	if err != nil && ctx.Err() == nil {
+		a.logger.Debug(ctx, "report connection failed",
+			slog.F("action", action.String()),
+			slog.Error(err))
+		return false
+	}
+	return true
 }
 
 // Close stops the agent. Safe to call multiple times.

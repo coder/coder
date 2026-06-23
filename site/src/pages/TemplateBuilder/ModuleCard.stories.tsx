@@ -1,0 +1,50 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { fn } from "storybook/test";
+import { ModuleCard } from "./ModuleCard";
+
+const meta: Meta<typeof ModuleCard> = {
+	title: "pages/TemplateBuilder/ModuleCard",
+	component: ModuleCard,
+	args: {
+		onSelect: fn(),
+	},
+};
+
+export default meta;
+type Story = StoryObj<typeof ModuleCard>;
+
+export const Default: Story = {
+	args: {
+		name: "Docker Containers",
+		description: "Provision Docker containers as Coder workspaces.",
+		iconUrl: "/icon/docker.svg",
+		selected: false,
+	},
+};
+
+export const Selected: Story = {
+	args: {
+		name: "Docker Containers",
+		description: "Provision Docker containers as Coder workspaces.",
+		iconUrl: "/icon/docker.svg",
+		selected: true,
+	},
+};
+
+export const NoIcon: Story = {
+	args: {
+		name: "Custom Template",
+		description: "A template without an icon.",
+		selected: false,
+	},
+};
+
+export const LongDescription: Story = {
+	args: {
+		name: "Kubernetes Pods",
+		description:
+			"Provision Kubernetes pods as Coder workspaces with full cluster access and custom resource limits.",
+		iconUrl: "/icon/k8s.svg",
+		selected: false,
+	},
+};

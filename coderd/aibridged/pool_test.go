@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/mock/gomock"
@@ -18,11 +20,13 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/config"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/mcpmock"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // TestPool validates the published behavior of [aibridged.CachedBridgePool].
@@ -393,4 +397,95 @@ func (m *blockingMCPFactory) Build(ctx context.Context, _ aibridged.Request, _ t
 		}
 	}
 	return nil, context.Canceled
+}
+
+// TestPoolKeyPools verifies KeyPools returns the providers' pools, the pool
+// wires failover metrics into them, and the state collector reflects live
+// pool state, on both the initial set and reload.
+func TestPoolKeyPools(t *testing.T) {
+	t.Parallel()
+
+	// Setup.
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	opts := aibridged.PoolOptions{MaxItems: 1, TTL: time.Minute}
+	clk := quartz.NewMock(t)
+	reg := prometheus.NewRegistry()
+	m := aibridge.NewMetrics(reg)
+
+	// markRateLimited drives one rate-limit transition on the pool's first
+	// key, recording a metric only if the pool has metrics attached.
+	markRateLimited := func(t *testing.T, pool *keypool.Pool) {
+		key, kpErr := pool.Walker().Next()
+		require.Nil(t, kpErr)
+		pool.MarkKeyOnStatus(context.Background(), key,
+			&http.Response{StatusCode: http.StatusTooManyRequests, Header: make(http.Header)}, logger)
+	}
+
+	// Given: provider "a" (2 keys), a BYOK provider with no key pool, and
+	// provider "b" (1 key).
+	poolA, err := keypool.New("a", []string{"a-key-0", "a-key-1"}, clk, m)
+	require.NoError(t, err)
+	poolB, err := keypool.New("b", []string{"b-key-0"}, clk, m)
+	require.NoError(t, err)
+
+	// When: the providers are loaded into a new bridge pool.
+	aibridgePool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "a", KeyPool: poolA}),
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "byok"}),
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "b", KeyPool: poolB}),
+	}, logger, m, testTracer)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = aibridgePool.Shutdown(context.Background()) })
+
+	reg.MustRegister(keypool.NewStateCollector(aibridgePool.KeyPools))
+
+	// Then: KeyPools returns the non-BYOK pools, and the collector reports
+	// every key as valid.
+	require.Equal(t, []*keypool.Pool{poolA, poolB}, aibridgePool.KeyPools())
+	gathered, err := reg.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 2, "key_pool_state", "a", "valid"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "b", "valid"))
+
+	// When: a key in pool "a" is rate-limited.
+	markRateLimited(t, poolA)
+
+	// Then: the transition is recorded (metrics were attached) and the key
+	// moves to temporary, which the collector reflects.
+	gathered, err = reg.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, gathered, 1, "key_pool_state_transitions_total", "a", "rate_limited"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "a", "valid"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "a", "temporary"))
+
+	// When: the providers reload, dropping a key from "a", adding one to "b",
+	// and introducing a new provider "c".
+	poolA, err = keypool.New("a", []string{"a-key-0"}, clk, m)
+	require.NoError(t, err)
+	poolB, err = keypool.New("b", []string{"b-key-0", "b-key-1"}, clk, m)
+	require.NoError(t, err)
+	poolC, err := keypool.New("c", []string{"c-key-0"}, clk, m)
+	require.NoError(t, err)
+	aibridgePool.ReplaceProviders([]aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "a", KeyPool: poolA}),
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "b", KeyPool: poolB}),
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "c", KeyPool: poolC}),
+	})
+
+	// Then: KeyPools, metric wiring, and pool state all follow the new set.
+	require.Equal(t, []*keypool.Pool{poolA, poolB, poolC}, aibridgePool.KeyPools())
+	gathered, err = reg.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "a", "valid"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 2, "key_pool_state", "b", "valid"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "c", "valid"))
+
+	// When: a key in the new pool "c" is rate-limited.
+	markRateLimited(t, poolC)
+
+	// Then: the transition is recorded and the key moves to temporary.
+	gathered, err = reg.Gather()
+	require.NoError(t, err)
+	assert.True(t, testutil.PromCounterHasValue(t, gathered, 1, "key_pool_state_transitions_total", "c", "rate_limited"))
+	assert.True(t, testutil.PromGaugeHasValue(t, gathered, 1, "key_pool_state", "c", "temporary"))
 }

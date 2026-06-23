@@ -28,7 +28,7 @@ const nameFormatDetail = "Must be 64 characters or fewer, lowercase letters, num
 // @Tags Enterprise
 // @Param request body codersdk.CreateAIGatewayKeyRequest true "Create AI Gateway key request"
 // @Success 201 {object} codersdk.CreateAIGatewayKeyResponse
-// @Router /api/v2/aibridge/keys [post]
+// @Router /api/v2/ai-gateway/keys [post]
 func (api *API) postAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
@@ -87,14 +87,14 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 	switch {
 	case httpapi.IsUnauthorizedError(err):
 		httpapi.Forbidden(rw)
-	case database.IsCheckViolation(err, database.CheckAiGatewayKeysNameCheck):
+	case database.IsCheckViolation(err, database.CheckAIGatewayKeysNameCheck):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid key name.",
 			Validations: []codersdk.ValidationError{
 				{Field: "name", Detail: nameFormatDetail},
 			},
 		})
-	case database.IsUniqueViolation(err, database.UniqueAiGatewayKeysNameIndex):
+	case database.IsUniqueViolation(err, database.UniqueAIGatewayKeysNameIndex):
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Key name must be unique.",
 			Validations: []codersdk.ValidationError{
@@ -116,7 +116,7 @@ func writeKeyInsertError(ctx context.Context, rw http.ResponseWriter, err error)
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {array} codersdk.AIGatewayKey
-// @Router /api/v2/aibridge/keys [get]
+// @Router /api/v2/ai-gateway/keys [get]
 func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -146,7 +146,7 @@ func (api *API) aiGatewayKeys(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param key path string true "Key ID" format(uuid)
 // @Success 204
-// @Router /api/v2/aibridge/keys/{key} [delete]
+// @Router /api/v2/ai-gateway/keys/{key} [delete]
 func (api *API) deleteAIGatewayKey(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()

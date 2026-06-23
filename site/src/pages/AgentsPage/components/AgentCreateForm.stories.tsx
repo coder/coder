@@ -11,6 +11,7 @@ import {
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockOrganization2,
@@ -18,7 +19,6 @@ import {
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { AgentCreateForm } from "./AgentCreateForm";
-import { AgentSetupNotice } from "./AgentSetupNotice";
 
 // Query key used by permittedOrganizations() in the form.
 const permittedOrgsKey = [
@@ -48,14 +48,10 @@ const modelOptions = [
 const buildModelConfig = (
 	overrides: Partial<TypesGen.ChatModelConfig> = {},
 ): TypesGen.ChatModelConfig => ({
+	...MockChatModelConfig,
 	id: modelConfigID,
-	provider: "openai",
 	model: "gpt-4o",
 	display_name: "GPT-4o",
-	enabled: true,
-	is_default: false,
-	context_limit: 200_000,
-	compression_threshold: 70,
 	created_at: "2026-02-18T00:00:00.000Z",
 	updated_at: "2026-02-18T00:00:00.000Z",
 	...overrides,
@@ -471,9 +467,9 @@ export const NoModelsConfigured: Story = {
 export const MissingProviderAndModelSetup: Story = {
 	args: {
 		...defaultArgs,
-		agentSetupNotice: (
-			<AgentSetupNotice isAdmin providerCount={0} modelCount={0} />
-		),
+		canConfigureAgentSetup: true,
+		providerCount: 0,
+		modelCount: 0,
 		modelCatalog: { providers: [] },
 		modelOptions: [],
 		isModelCatalogLoading: false,
@@ -498,7 +494,7 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };

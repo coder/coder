@@ -16,6 +16,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
+	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -56,10 +57,7 @@ import { AgentsPageView } from "./AgentsPageView";
 import { emptyInputStorageKey } from "./components/AgentCreateForm";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
-import {
-	AGENT_SOURCE_ORDER,
-	getAgentSidebarFilters,
-} from "./utils/agentSidebarFilters";
+import { getAgentSidebarFilters } from "./utils/agentSidebarFilters";
 import {
 	archiveChatAndDeleteWorkspace,
 	resolveArchiveAndDeleteAction,
@@ -67,6 +65,7 @@ import {
 } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { getModelOptionsFromConfigs } from "./utils/modelOptions";
+import { clearPersistedRightPanelState } from "./utils/rightPanelTabStorage";
 import { clearPersistedSidebarTabId } from "./utils/sidebarTabStorage";
 import {
 	type ChatDetailError,
@@ -152,16 +151,12 @@ const AgentsPage: FC = () => {
 		sidebarFilters.chatStatuses.length === 1
 			? sidebarFilters.chatStatuses[0]
 			: undefined;
-	const sourceFilter =
-		sidebarFilters.sources.length === AGENT_SOURCE_ORDER.length
-			? "all"
-			: sidebarFilters.sources[0];
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats({
 			archived: archivedFilter,
 			prStatuses: sidebarFilters.prStatuses,
 			chatStatus: chatStatusFilter,
-			source: sourceFilter,
+			sources: sidebarFilters.sources,
 		}),
 	);
 	// Model queries are kept here for the sidebar, which displays
@@ -213,9 +208,11 @@ const AgentsPage: FC = () => {
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
-		onSuccess: (_data, chatId) => {
+		onSuccess: (data, chatId) => {
+			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
 		},
 		onError: (error, chatId, context) => {
 			archiveChatBase.onError(error, chatId, context);
@@ -236,18 +233,20 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: async ({ chatId }) => {
+		onSuccess: ({ chatId }) => {
+			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
-			await invalidateChatListQueries(queryClient);
-			await queryClient.invalidateQueries({
+			clearPersistedRightPanelState(chatId);
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
 				exact: true,
 			});
-			await queryClient.invalidateQueries({
+			void queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
-			await invalidateWorkspaceMutationQueries(queryClient, {
+			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
 			});
@@ -649,6 +648,18 @@ const AgentsPage: FC = () => {
 						if (shouldInvalidateFilteredChatList(updatedChat, chatEvent.kind)) {
 							void invalidateChatListQueries(queryClient);
 						}
+						if (chatEvent.kind === "context_dirty") {
+							// The watch payload carries only the lightweight
+							// context flags (the merge above applies them);
+							// refetch the open chat to pull the pinned
+							// resources the single-chat GET computes. Only the
+							// active chat has an observer, so other chats are
+							// merely marked stale.
+							void queryClient.invalidateQueries({
+								queryKey: chatKey(updatedChat.id),
+								exact: true,
+							});
+						}
 					}
 				});
 				return ws;
@@ -683,6 +694,7 @@ const AgentsPage: FC = () => {
 			<AgentsPageView
 				agentId={agentId}
 				chatList={chatList}
+				currentUserId={user.id}
 				catalogModelOptions={catalogModelOptions}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				handleNewAgent={handleNewAgent}

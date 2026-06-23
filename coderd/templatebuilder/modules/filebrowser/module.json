@@ -1,0 +1,61 @@
+{
+  "id": "filebrowser",
+  "display_name": "File Browser",
+  "description": "A file browser for your workspace",
+  "icon": "/icon/filebrowser.svg",
+  "category": "Utility",
+  "tags": [
+    "filebrowser",
+    "web"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [],
+  "pinned_version": "1.1.5",
+  "variables": [
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "agent_name",
+      "type": "string",
+      "description": "The name of the coder_agent resource. Required when `subdomain` is `false` so the path-based base URL matches the URL Coder serves.",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "database_path",
+      "type": "string",
+      "description": "The path to the filebrowser database.",
+      "default": "filebrowser.db",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "--root value for filebrowser.",
+      "default": "~",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port to run filebrowser on.",
+      "default": 13339,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

@@ -54,7 +54,7 @@ func newMockUpstream(t *testing.T, name string) *mockUpstream {
 
 // startTestAIBridgeDaemon wires an in-process aibridged daemon onto
 // the supplied API and subscribes it to ai_providers change events.
-// This mirrors what cli/server.go does in production so /api/v2/aibridge
+// This mirrors what cli/server.go does in production so /api/v2/ai-gateway
 // requests dispatch through the real pool and reloader.
 func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
 	t.Helper()
@@ -64,7 +64,7 @@ func startTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-reload-test")
 
-	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger)
+	providers, _, err := cli.BuildProviders(ctx, api.Database, cfg, logger, nil)
 	require.NoError(t, err)
 
 	pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger.Named("pool"), nil, tracer)
@@ -97,7 +97,7 @@ type testPoolReloader struct {
 
 func (r *testPoolReloader) Reload(ctx context.Context) error {
 	defer r.metrics.RecordReloadAttempt()
-	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger)
+	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func (r *testPoolReloader) Reload(ctx context.Context) error {
 // TestAIBridgeProviderHotReload exercises the end-to-end CRUD ->
 // reload -> routing path: every provider mutation made through codersdk
 // must, within a short window, change the routing observed at
-// /api/v2/aibridge/{name}/v1/models. The OpenAI passthrough route
+// /api/v2/ai-gateway/{name}/v1/models. The OpenAI passthrough route
 // /v1/models reverse-proxies to BaseURL, so the upstream that responds
 // identifies which provider the daemon's mux dispatched to.
 func TestAIBridgeProviderHotReload(t *testing.T) {
@@ -162,11 +162,11 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 
-	// sendRequest issues GET /api/v2/aibridge/{name}/v1/models and
+	// sendRequest issues GET /api/v2/ai-gateway/{name}/v1/models and
 	// returns the status and the upstream marker decoded from the
 	// JSON body (empty if the body was not the marker JSON).
 	sendRequest := func(providerName string) (int, string) {
-		url := client.URL.String() + "/api/v2/aibridge/" + providerName + "/v1/models"
+		url := client.URL.String() + "/api/v2/ai-gateway/" + providerName + "/v1/models"
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		require.NoError(t, err)
 		req.Header.Set("Authorization", "Bearer "+client.SessionToken())

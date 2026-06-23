@@ -16,6 +16,14 @@ const usdSubCentCurrencyFormatter = new Intl.NumberFormat("en-US", {
 	signDisplay: "auto",
 });
 
+/** Drops the cents when the amount is a whole dollar, used for budget displays. */
+export const usdBudgetFormatter = new Intl.NumberFormat("en-US", {
+	style: "currency",
+	currency: "USD",
+	minimumFractionDigits: 0,
+	maximumFractionDigits: 2,
+});
+
 export function microsToDollars(micros: number): number {
 	return micros / MICROS_PER_DOLLAR;
 }

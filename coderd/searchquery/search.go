@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -217,7 +218,7 @@ func Members(query string, organizationID uuid.UUID) (database.OrganizationMembe
 	return params, parser.Errors
 }
 
-func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration) (database.GetWorkspacesParams, []codersdk.ValidationError) {
+func Workspaces(ctx context.Context, db database.Store, query string, page codersdk.Pagination, agentInactiveDisconnectTimeout time.Duration, actorID uuid.UUID) (database.GetWorkspacesParams, []codersdk.ValidationError) {
 	filter := database.GetWorkspacesParams{
 		AgentInactiveDisconnectTimeoutSeconds: int64(agentInactiveDisconnectTimeout.Seconds()),
 
@@ -273,8 +274,7 @@ func Workspaces(ctx context.Context, db database.Store, query string, page coder
 	filter.HasExternalAgent = parser.NullableBoolean(values, sql.NullBool{}, "has_external_agent")
 	filter.OrganizationID = parseOrganization(ctx, db, parser, values, "organization")
 	filter.Shared = parser.NullableBoolean(values, sql.NullBool{}, "shared")
-	// TODO: support "me" by passing in the actorID
-	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", uuid.Nil)
+	filter.SharedWithUserID = parseUser(ctx, db, parser, values, "shared_with_user", actorID)
 	filter.SharedWithGroupID = parseGroup(ctx, db, parser, values, "shared_with_group")
 	// Translate healthy filter to has-agent statuses
 	// healthy:true = connected, healthy:false = disconnected or timeout
@@ -355,50 +355,6 @@ func Templates(ctx context.Context, db database.Store, actorID uuid.UUID, query 
 	if filter.AuthorUsername == codersdk.Me {
 		filter.AuthorID = actorID
 		filter.AuthorUsername = ""
-	}
-
-	parser.ErrorExcessParams(values)
-	return filter, parser.Errors
-}
-
-func AIBridgeInterceptions(ctx context.Context, db database.Store, query string, page codersdk.Pagination, actorID uuid.UUID) (database.ListAIBridgeInterceptionsParams, []codersdk.ValidationError) {
-	// nolint:exhaustruct // Empty values just means "don't filter by that field".
-	filter := database.ListAIBridgeInterceptionsParams{
-		AfterID: page.AfterID,
-		// #nosec G115 - Safe conversion for pagination limit which is expected to be within int32 range
-		Limit: int32(page.Limit),
-		// #nosec G115 - Safe conversion for pagination offset which is expected to be within int32 range
-		Offset: int32(page.Offset),
-	}
-
-	if query == "" {
-		return filter, nil
-	}
-
-	values, errors := searchTerms(query, func(term string, values url.Values) error {
-		// Default to the initiating user
-		values.Add("initiator", term)
-		return nil
-	})
-	if len(errors) > 0 {
-		return filter, errors
-	}
-
-	parser := httpapi.NewQueryParamParser()
-	filter.InitiatorID = parseUser(ctx, db, parser, values, "initiator", actorID)
-	filter.Provider = parser.String(values, "", "provider")
-	filter.ProviderName = parseAIProviderName(ctx, db, parser, values)
-	filter.Model = parser.String(values, "", "model")
-	filter.Client = parser.String(values, "", "client")
-
-	// Time must be between started_after and started_before.
-	filter.StartedAfter = parser.Time3339Nano(values, time.Time{}, "started_after")
-	filter.StartedBefore = parser.Time3339Nano(values, time.Time{}, "started_before")
-	if !filter.StartedBefore.IsZero() && !filter.StartedAfter.IsZero() && !filter.StartedBefore.After(filter.StartedAfter) {
-		parser.Errors = append(parser.Errors, codersdk.ValidationError{
-			Field:  "started_before",
-			Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
-		})
 	}
 
 	parser.ErrorExcessParams(values)
@@ -611,22 +567,29 @@ func Chats(query string) (database.GetChatsParams, []codersdk.ValidationError) {
 	filter.TitleQuery = parser.String(values, "", "title")
 	filter.PrTitleQuery = parser.String(values, "", "pr_title")
 	filter.RepoQuery = parser.String(values, "", "repo")
-	if source := parser.String(values, "", "source"); source != "" {
+	sources := httpapi.ParseCustomList(parser, values, nil, "source", func(v string) (string, error) {
+		source := strings.ToLower(strings.TrimSpace(v))
 		switch source {
-		case "created_by_me":
+		case "created_by_me", "shared_with_me":
+			return source, nil
+		default:
+			return "", xerrors.Errorf("%q is not a valid value", v)
+		}
+	})
+	if len(sources) > 0 {
+		hasCreatedByMe := slices.Contains(sources, "created_by_me")
+		hasSharedWithMe := slices.Contains(sources, "shared_with_me")
+
+		switch {
+		case hasCreatedByMe && hasSharedWithMe:
 			filter.OwnedOnly = true
-			filter.SharedOnly = false
-		case "shared_with_me":
+			filter.SharedOnly = true
+		case hasSharedWithMe:
 			filter.OwnedOnly = false
 			filter.SharedOnly = true
-		case "all":
-			filter.OwnedOnly = false
-			filter.SharedOnly = false
 		default:
-			parser.Errors = append(parser.Errors, codersdk.ValidationError{
-				Field:  "source",
-				Detail: fmt.Sprintf("%q is not a valid value", source),
-			})
+			filter.OwnedOnly = true
+			filter.SharedOnly = false
 		}
 	}
 

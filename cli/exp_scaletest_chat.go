@@ -11,8 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/scaletest/chat"
 	"github.com/coder/coder/v2/scaletest/harness"
@@ -22,17 +20,18 @@ import (
 
 func (r *RootCmd) scaletestChat() *serpent.Command {
 	var (
-		chatsPerWorkspace int64
-		prompt            string
-		turns             int64
-		turnStartDelay    time.Duration
-		llmMockURL        string
-		targetFlags       = &workspaceTargetFlags{}
-		tracingFlags      = &scaletestTracingFlags{}
-		prometheusFlags   = &scaletestPrometheusFlags{}
-		timeoutStrategy   = &timeoutFlags{}
-		cleanupStrategy   = newScaletestCleanupStrategy()
-		output            = &scaletestOutputFlags{}
+		chatsPerWorkspace       int64
+		prompt                  string
+		turns                   int64
+		turnStartDelay          time.Duration
+		llmMockURL              string
+		providerPropagationWait time.Duration
+		targetFlags             = &workspaceTargetFlags{allowEmpty: true}
+		tracingFlags            = &scaletestTracingFlags{}
+		prometheusFlags         = &scaletestPrometheusFlags{}
+		timeoutStrategy         = &timeoutFlags{}
+		cleanupStrategy         = newScaletestCleanupStrategy()
+		output                  = &scaletestOutputFlags{}
 	)
 
 	cmd := &serpent.Command{
@@ -72,8 +71,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 				return err
 			}
 
-			logger := slog.Make(sloghuman.Sink(inv.Stderr)).Leveled(slog.LevelDebug)
-			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, codersdk.NewExperimentalClient(client), logger, llmMockURL)
+			if len(workspaces) == 0 {
+				workspaces = append(workspaces, codersdk.Workspace{OrganizationID: me.OrganizationIDs[0]})
+				_, _ = fmt.Fprintln(inv.Stderr, "No scaletest workspaces found; running chats without workspace context.")
+			}
+
+			logger := inv.Logger
+			modelConfigID, err := chat.EnsureScaletestModelConfig(ctx, client, logger, llmMockURL, providerPropagationWait)
 			if err != nil {
 				return err
 			}
@@ -154,7 +158,7 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			// Run the chat harness in the background so the CLI can release the
 			// follow-up turns after every runner finishes its initial turn.
 			totalChats := int64(len(workspaces)) * chatsPerWorkspace
-			_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d workspaces...\n", totalChats, len(workspaces))
+			_, _ = fmt.Fprintf(inv.Stderr, "Starting chat scale test with %d chats across %d targets...\n", totalChats, len(workspaces))
 			testCtx, testCancel := timeoutStrategy.toContext(ctx)
 			defer testCancel()
 			testDone := make(chan error, 1)
@@ -242,6 +246,13 @@ func (r *RootCmd) scaletestChat() *serpent.Command {
 			Description: "URL of the mock LLM server (e.g. http://127.0.0.1:8080/v1). Creates or updates the Scaletest LLM Mock openai-compat provider and model config to point at this URL.",
 			Value:       serpent.StringOf(&llmMockURL),
 			Required:    true,
+		},
+		{
+			Flag:        "provider-propagation-wait",
+			Description: "Time to wait after creating or updating the mock LLM provider so every coderd replica's cached provider config expires. The default exceeds the server-side cache TTL.",
+			Default:     chat.DefaultProviderPropagationWait.String(),
+			Value:       serpent.DurationOf(&providerPropagationWait),
+			Hidden:      true,
 		},
 	}
 	targetFlags.attach(&cmd.Options)

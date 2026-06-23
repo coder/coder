@@ -11,13 +11,6 @@ const stoppedWorkspaceError =
 const meta: Meta<typeof ExecuteTool> = {
 	title: "components/ai-elements/tool/ExecuteTool",
 	component: ExecuteTool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: {
 		status: "completed",
 		isError: false,
@@ -212,5 +205,35 @@ export const ParsedCommandsWithIntent: Story = {
 			["cd", "/repo"],
 			["go", "test"],
 		],
+	},
+};
+
+export const LongUnbrokenLineOutput: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-72">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		command: "cat access-token.txt",
+		transcriptBlocks: [
+			{
+				kind: "output",
+				text: `token:${"A".repeat(400)}:end`,
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const viewport = canvasElement.querySelector<HTMLElement>(
+			"[data-radix-scroll-area-viewport]",
+		);
+		await expect(viewport).not.toBeNull();
+		if (viewport) {
+			await expect(viewport.scrollWidth).toBeLessThanOrEqual(
+				viewport.clientWidth + 2,
+			);
+		}
 	},
 };

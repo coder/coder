@@ -134,7 +134,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
 		if xerrors.As(err, &derr) {
-			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
+			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/security/database-encryption#disabling-encryption: %w", derr)
 		}
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
@@ -159,10 +159,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	var replicaManagerPtr atomic.Pointer[replicasync.Manager]
+	var api *API
 	resolveReplicaAddress := func(
 		_ context.Context,
 		replicaID uuid.UUID,
 	) (string, bool) {
+		if api != nil && api.AGPL != nil && replicaID == api.AGPL.ID && api.AGPL.AccessURL != nil {
+			return api.AGPL.AccessURL.String(), true
+		}
 		manager := replicaManagerPtr.Load()
 		if manager == nil {
 			return "", false
@@ -180,7 +184,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return "", false
 	}
 
-	api := &API{
+	api = &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
 		Options: options,
@@ -207,17 +211,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		replicaHTTPClient = http.DefaultClient
 	}
 	// Use a closure that captures api by reference so it can access
-	// api.AGPL.ID after coderd.New is called. The SubscribeFn is
-	// only invoked from Subscribe, which happens after init.
-	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
+	// api.AGPL.ID after coderd.New is called. The parts dialer is
+	// only invoked from stream subscriptions, which happen after init.
+	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
-			id := api.AGPL.ID
-			if id == uuid.Nil {
-				return uuid.New()
-			}
-			return id
+			return api.AGPL.ID
 		},
 	})
 
@@ -291,16 +291,27 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	// Legacy aibridge routes: kept for backward compatibility.
+	// New endpoints should be added to /ai-gateway only.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge", aibridgeHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	// AI Gateway routes: canonical aliases for the aibridge endpoints.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway", aiGatewayHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/keys", func(r chi.Router) {
+		r.Route("/ai-gateway/proxy", aiGatewayProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
@@ -328,6 +339,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureConnectionLog),
 			)
 			r.Get("/", api.connectionLogs)
+		})
+		r.Route("/agent-firewall", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureBoundary),
+			)
+			r.Route("/sessions/{id}", func(r chi.Router) {
+				r.Get("/", api.agentFirewallSessionByID)
+				r.Get("/logs", api.agentFirewallSessionLogs)
+			})
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -612,6 +633,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
 			// AI cost controls are a paid feature (AI Governance add-on).
 			r.Use(
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
 				apiKeyMiddleware,
 				httpmw.ExtractUserParam(options.Database),
@@ -1102,9 +1125,9 @@ func (api *API) CheckBuildUsage(
 	task *database.Task,
 	transition database.WorkspaceTransition,
 ) (wsbuilder.UsageCheckResponse, error) {
-	// If the template version has an external agent, we need to check that the
-	// license is entitled to this feature.
-	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
+	// External-agent templates require an entitlement for start builds.
+	if transition == database.WorkspaceTransitionStart &&
+		templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
 		feature, ok := api.Entitlements.Feature(codersdk.FeatureWorkspaceExternalAgent)
 		if !ok || !feature.Enabled {
 			return wsbuilder.UsageCheckResponse{
@@ -1331,7 +1354,8 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// the system will eventually recover as replicas timeout
 		// if their heartbeats stop. The best effort just tries to update the
 		// UI faster if it succeeds.
-		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+		// Postgres pubsub; see PubsubEventLicenses.
+		_ = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()
 	for {
 		select {
@@ -1341,7 +1365,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			// pass
 		}
 		if !subscribed {
-			cancel, err := api.Pubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
+			// Postgres pubsub; see PubsubEventLicenses. ReplicaSyncPubsub is
+			// always set in enterprise startup (replicasync.New requires it when
+			// the API is constructed), so it is safe to use directly here.
+			cancel, err := api.ReplicaSyncPubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
 				// don't block.  If the channel is full, drop the event, as there is a resync
 				// scheduled already.
 				select {

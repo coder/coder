@@ -93,6 +93,7 @@ const (
 	ChatStatusCompleted      ChatStatus = "completed"
 	ChatStatusError          ChatStatus = "error"
 	ChatStatusRequiresAction ChatStatus = "requires_action"
+	ChatStatusInterrupting   ChatStatus = "interrupting"
 )
 
 // ChatClientType indicates whether a chat was created from the
@@ -136,19 +137,97 @@ type Chat struct {
 	// the owner's read cursor, which updates on stream
 	// connect and disconnect.
 	HasUnread bool `json:"has_unread"`
-	// LastInjectedContext holds the most recently persisted
-	// injected context parts (AGENTS.md files and skills). It
-	// is updated only when context changes, on first workspace
-	// attach or agent change.
-	LastInjectedContext []ChatMessagePart `json:"last_injected_context,omitempty"`
-	Warnings            []string          `json:"warnings,omitempty"`
-	ClientType          ChatClientType    `json:"client_type"`
+	// Context reports the chat's pinned workspace-context state and
+	// whether it has drifted from the agent's latest pushed snapshot.
+	// Nil when the chat has no pinned context yet.
+	Context    *ChatContext   `json:"context,omitempty"`
+	Warnings   []string       `json:"warnings,omitempty"`
+	ClientType ChatClientType `json:"client_type"`
 	// Children holds child (subagent) chats nested under this root
 	// chat. Always initialized to an empty slice so the JSON field
 	// is present as []. Child chats cannot create their own
 	// subagents, so nesting depth is capped at 1 and this slice is
 	// always empty for child chats.
 	Children []Chat `json:"children"`
+}
+
+// ChatContext reports a chat's pinned workspace context and whether it has
+// drifted from the agent's latest pushed snapshot. The chat stays usable
+// when dirty; refreshing re-pins it to the latest snapshot.
+type ChatContext struct {
+	// Dirty is true when the agent's latest snapshot hash differs from the
+	// chat's pinned hash.
+	Dirty bool `json:"dirty"`
+	// DirtySince is when drift was first detected; nil when not dirty.
+	DirtySince *time.Time `json:"dirty_since,omitempty" format:"date-time"`
+	// Error is the snapshot-level error copied from the pinned snapshot
+	// (empty when healthy).
+	Error string `json:"error,omitempty"`
+	// Resources is the chat's pinned context (instruction files and
+	// skills) the prompt is built from, metadata only (no bodies). It is
+	// populated only on the single-chat GET response; list and watch
+	// payloads leave it nil to stay lightweight.
+	Resources []ChatContextResource `json:"resources,omitempty"`
+}
+
+// ChatContextResourceKind classifies a pinned context resource the prompt
+// uses. Only the kinds that contribute to the prompt are reported.
+type ChatContextResourceKind string
+
+const (
+	ChatContextResourceKindInstructionFile ChatContextResourceKind = "instruction_file"
+	ChatContextResourceKindSkill           ChatContextResourceKind = "skill"
+	ChatContextResourceKindMCPConfig       ChatContextResourceKind = "mcp_config"
+	ChatContextResourceKindMCPServer       ChatContextResourceKind = "mcp_server"
+)
+
+// ChatContextResource is one pinned workspace-context resource the chat's
+// prompt is built from. It is metadata only; bodies are omitted. Reported
+// only on the single-chat GET response.
+type ChatContextResource struct {
+	// Source is the resource locator: the canonical file path for an
+	// instruction file, the skill directory for a skill, the file path for
+	// an MCP config, or the server name for an MCP server.
+	Source string                  `json:"source"`
+	Kind   ChatContextResourceKind `json:"kind"`
+	// SizeBytes is the original payload size in bytes.
+	SizeBytes int64 `json:"size_bytes"`
+	// SkillName and SkillDescription are populated only for skill kinds.
+	SkillName        string `json:"skill_name,omitempty"`
+	SkillDescription string `json:"skill_description,omitempty"`
+	// Tools lists the tools exposed by an MCP server. Populated only for the
+	// mcp_server kind; nil otherwise.
+	Tools []ChatContextTool `json:"tools,omitempty"`
+	// Status is the resource's health. Non-ok resources (invalid, unreadable,
+	// oversize, excluded) are still reported so the UI can surface why a
+	// resource was dropped from the prompt instead of silently omitting it;
+	// their body-specific fields (skill name, tools) are empty.
+	Status ChatContextResourceStatus `json:"status"`
+	// Error explains a non-ok Status; empty when healthy. May also carry a
+	// non-fatal warning when Status is ok.
+	Error string `json:"error,omitempty"`
+}
+
+// ChatContextResourceStatus is the health of a pinned context resource,
+// mirroring the agent resolver's per-resource status.
+type ChatContextResourceStatus string
+
+const (
+	ChatContextResourceStatusOK         ChatContextResourceStatus = "ok"
+	ChatContextResourceStatusOversize   ChatContextResourceStatus = "oversize"
+	ChatContextResourceStatusUnreadable ChatContextResourceStatus = "unreadable"
+	ChatContextResourceStatusInvalid    ChatContextResourceStatus = "invalid"
+	ChatContextResourceStatusExcluded   ChatContextResourceStatus = "excluded"
+)
+
+// ChatContextTool is one tool exposed by a pinned MCP server, reported on the
+// single-chat GET response. Metadata only; the input schema is omitted.
+type ChatContextTool struct {
+	// Name is the tool name with the "<server>__" prefix the agent adds
+	// stripped, so it reads as the server exposes it.
+	Name string `json:"name"`
+	// Description is the tool's human-readable summary; may be empty.
+	Description string `json:"description,omitempty"`
 }
 
 // ChatFileMetadata contains lightweight metadata about a file
@@ -1217,8 +1296,8 @@ type ChatModelOpenAIProviderOptions struct {
 	StructuredOutputs   *bool            `json:"structured_outputs,omitempty" description:"Whether to enable structured JSON output mode" hidden:"true"`
 	StrictJSONSchema    *bool            `json:"strict_json_schema,omitempty" description:"Whether to enforce strict adherence to the JSON schema" hidden:"true"`
 	WebSearchEnabled    *bool            `json:"web_search_enabled,omitempty" description:"Enable OpenAI web search tool for grounding responses with real-time information"`
-	SearchContextSize   *string          `json:"search_context_size,omitempty" description:"Amount of search context to use" enum:"low,medium,high"`
-	AllowedDomains      []string         `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains"`
+	SearchContextSize   *string          `json:"search_context_size,omitempty" description:"Amount of search context to use" enum:"low,medium,high" visible_when:"web_search_enabled"`
+	AllowedDomains      []string         `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains" visible_when:"web_search_enabled"`
 }
 
 // ChatModelAnthropicThinkingOptions configures Anthropic thinking budget.
@@ -1234,8 +1313,8 @@ type ChatModelAnthropicProviderOptions struct {
 	ThinkingDisplay        *string                            `json:"thinking_display,omitempty" label:"Thinking Display" description:"Controls how Anthropic returns thinking content" enum:"summarized,omitted"`
 	DisableParallelToolUse *bool                              `json:"disable_parallel_tool_use,omitempty" description:"Whether to disable parallel tool execution"`
 	WebSearchEnabled       *bool                              `json:"web_search_enabled,omitempty" description:"Enable Anthropic web search tool for grounding responses with real-time information"`
-	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)"`
-	BlockedDomains         []string                           `json:"blocked_domains,omitempty" label:"Web Search: Blocked Domains" description:"Block web search on these domains (cannot be used with allowed_domains)"`
+	AllowedDomains         []string                           `json:"allowed_domains,omitempty" label:"Web Search: Allowed Domains" description:"Restrict web search to these domains (cannot be used with blocked_domains)" visible_when:"web_search_enabled" conflicts_with:"blocked_domains"`
+	BlockedDomains         []string                           `json:"blocked_domains,omitempty" label:"Web Search: Blocked Domains" description:"Block web search on these domains (cannot be used with allowed_domains)" visible_when:"web_search_enabled" conflicts_with:"allowed_domains"`
 }
 
 // ChatModelGoogleThinkingConfig configures Google thinking behavior.
@@ -1502,6 +1581,8 @@ const (
 	ChatStreamEventTypeQueueUpdate    ChatStreamEventType = "queue_update"
 	ChatStreamEventTypeRetry          ChatStreamEventType = "retry"
 	ChatStreamEventTypeActionRequired ChatStreamEventType = "action_required"
+	ChatStreamEventTypePreviewReset   ChatStreamEventType = "preview_reset"
+	ChatStreamEventTypeHistoryReset   ChatStreamEventType = "history_reset"
 )
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
@@ -1515,8 +1596,11 @@ type ChatQueuedMessage struct {
 
 // ChatStreamMessagePart is a streamed message part update.
 type ChatStreamMessagePart struct {
-	Role ChatMessageRole `json:"role,omitempty"`
-	Part ChatMessagePart `json:"part"`
+	Role              ChatMessageRole `json:"role,omitempty"`
+	Part              ChatMessagePart `json:"part"`
+	HistoryVersion    int64           `json:"history_version,omitempty"`
+	GenerationAttempt int64           `json:"generation_attempt,omitempty"`
+	Seq               int64           `json:"seq,omitempty"`
 }
 
 // ChatStreamStatus represents an updated chat status.
@@ -1686,6 +1770,10 @@ const (
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+	// ChatWatchEventKindContextDirty signals that the chat's pinned
+	// workspace context drifted from the agent's latest pushed snapshot.
+	// The chat stays usable; a refresh re-pins it to the latest snapshot.
+	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 )
 
 // ChatWatchEvent represents an event from the global chat watch stream.
@@ -2047,8 +2135,6 @@ const (
 	ChatListSourceCreatedByMe ChatListSource = "created_by_me"
 	// ChatListSourceSharedWithMe returns chats shared with the caller.
 	ChatListSourceSharedWithMe ChatListSource = "shared_with_me"
-	// ChatListSourceAll returns both owned and shared chats.
-	ChatListSourceAll ChatListSource = "all"
 )
 
 // ListChatsOptions are optional parameters for ListChats.
@@ -3082,6 +3168,21 @@ func (c *ExperimentalClient) GetChat(ctx context.Context, chatID uuid.UUID) (Cha
 	return chat, json.NewDecoder(res.Body).Decode(&chat)
 }
 
+// RefreshChatContext re-pins the chat to its agent's latest context snapshot
+// and clears the dirty marker. The request takes no body.
+func (c *ExperimentalClient) RefreshChatContext(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/chats/%s/context", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
 func (c *ExperimentalClient) GetChatACL(ctx context.Context, chatID uuid.UUID) (ChatACL, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/experimental/chats/%s/acl", chatID), nil)
 	if err != nil {
@@ -3241,6 +3342,22 @@ func (c *ExperimentalClient) EditChatMessage(
 // InterruptChat cancels an in-flight chat run and leaves it waiting.
 func (c *ExperimentalClient) InterruptChat(ctx context.Context, chatID uuid.UUID) (Chat, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/interrupt", chatID), nil)
+	if err != nil {
+		return Chat{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return Chat{}, ReadBodyAsError(res)
+	}
+	var chat Chat
+	return chat, json.NewDecoder(res.Body).Decode(&chat)
+}
+
+// ReconcileInvalidChatState recovers a chat stuck in an invalid
+// execution state, moving it into an error state from which the caller
+// can send a new message or edit history to continue.
+func (c *ExperimentalClient) ReconcileInvalidChatState(ctx context.Context, chatID uuid.UUID) (Chat, error) {
+	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/chats/%s/reconcile-invalid", chatID), nil)
 	if err != nil {
 		return Chat{}, err
 	}
@@ -3482,76 +3599,4 @@ func (c *ExperimentalClient) GetChatsByWorkspace(ctx context.Context, workspaceI
 	}
 	var result map[uuid.UUID]uuid.UUID
 	return result, json.NewDecoder(res.Body).Decode(&result)
-}
-
-// PRInsightsResponse is the response from the PR insights endpoint.
-type PRInsightsResponse struct {
-	Summary      PRInsightsSummary           `json:"summary"`
-	TimeSeries   []PRInsightsTimeSeriesEntry `json:"time_series"`
-	ByModel      []PRInsightsModelBreakdown  `json:"by_model"`
-	PullRequests []PRInsightsPullRequest     `json:"recent_prs"`
-}
-
-// PRInsightsSummary contains aggregate PR metrics for a time period,
-// plus the previous period's metrics for trend calculation.
-type PRInsightsSummary struct {
-	TotalPRsCreated           int64   `json:"total_prs_created"`
-	TotalPRsMerged            int64   `json:"total_prs_merged"`
-	MergeRate                 float64 `json:"merge_rate"`
-	TotalAdditions            int64   `json:"total_additions"`
-	TotalDeletions            int64   `json:"total_deletions"`
-	TotalCostMicros           int64   `json:"total_cost_micros"`
-	CostPerMergedPRMicros     int64   `json:"cost_per_merged_pr_micros"`
-	ApprovalRate              float64 `json:"approval_rate"`
-	PrevTotalPRsCreated       int64   `json:"prev_total_prs_created"`
-	PrevTotalPRsMerged        int64   `json:"prev_total_prs_merged"`
-	PrevMergeRate             float64 `json:"prev_merge_rate"`
-	PrevCostPerMergedPRMicros int64   `json:"prev_cost_per_merged_pr_micros"`
-}
-
-// PRInsightsTimeSeriesEntry is a single data point in the PR
-// activity time series chart.
-type PRInsightsTimeSeriesEntry struct {
-	Date       time.Time `json:"date" format:"date-time"`
-	PRsCreated int64     `json:"prs_created"`
-	PRsMerged  int64     `json:"prs_merged"`
-	PRsClosed  int64     `json:"prs_closed"`
-}
-
-// PRInsightsModelBreakdown contains PR metrics for a single model.
-type PRInsightsModelBreakdown struct {
-	ModelConfigID         uuid.UUID `json:"model_config_id" format:"uuid"`
-	DisplayName           string    `json:"display_name"`
-	Provider              string    `json:"provider"`
-	TotalPRs              int64     `json:"total_prs"`
-	MergedPRs             int64     `json:"merged_prs"`
-	MergeRate             float64   `json:"merge_rate"`
-	TotalAdditions        int64     `json:"total_additions"`
-	TotalDeletions        int64     `json:"total_deletions"`
-	TotalCostMicros       int64     `json:"total_cost_micros"`
-	CostPerMergedPRMicros int64     `json:"cost_per_merged_pr_micros"`
-}
-
-// PRInsightsPullRequest represents a single PR in the recent PRs
-// table.
-type PRInsightsPullRequest struct {
-	ChatID           uuid.UUID `json:"chat_id" format:"uuid"`
-	PRTitle          string    `json:"pr_title"`
-	PRURL            *string   `json:"pr_url,omitempty"`
-	PRNumber         *int32    `json:"pr_number,omitempty"`
-	State            string    `json:"state"`
-	Draft            bool      `json:"draft"`
-	Additions        int32     `json:"additions"`
-	Deletions        int32     `json:"deletions"`
-	ChangedFiles     int32     `json:"changed_files"`
-	Commits          *int32    `json:"commits,omitempty"`
-	Approved         *bool     `json:"approved,omitempty"`
-	ChangesRequested bool      `json:"changes_requested"`
-	ReviewerCount    *int32    `json:"reviewer_count,omitempty"`
-	AuthorLogin      *string   `json:"author_login,omitempty"`
-	AuthorAvatarURL  *string   `json:"author_avatar_url,omitempty"`
-	BaseBranch       string    `json:"base_branch"`
-	ModelDisplayName string    `json:"model_display_name"`
-	CostMicros       int64     `json:"cost_micros"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
 }
