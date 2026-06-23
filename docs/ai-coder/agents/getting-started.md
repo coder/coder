@@ -216,8 +216,8 @@ sub-agent delegation, and complex multi-step work can consume significant
 token volume. Consider:
 
 - Starting with a single model to establish a cost baseline.
-- Setting per-model token pricing under **Agents** > **Settings** >
-  **Manage Agents** > **Models** (Input Price, Output Price) to track spend.
+- Setting per-model token pricing under **Admin settings** > **AI** >
+  **Models** (Input Price, Output Price) to track spend.
 - Monitoring provider dashboards for usage trends during the evaluation.
 
 ### Pilot with a small group
