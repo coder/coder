@@ -58,6 +58,16 @@ func TestTemplateBuilderBases(t *testing.T) {
 				expectedOS:   "linux",
 				hasVariables: false,
 			},
+			{
+				id:           "aws-windows",
+				expectedOS:   "windows",
+				hasVariables: false,
+			},
+			{
+				id:           "gcp-windows",
+				expectedOS:   "windows",
+				hasVariables: false,
+			},
 		}
 
 		for _, spec := range specs {
