@@ -132,7 +132,7 @@ type Options struct {
 	// ClusterTLS enables mutual TLS on the cluster route listener. A
 	// per-replica leaf certificate is minted from the configured CA at
 	// startup. Nil keeps routes plaintext (token auth only).
-	ClusterTLS *ClusterTLSOptions
+	// ClusterTLS *ClusterTLSOptions
 
 	// disableCluster is intended only for testing. Since we cannot reload a server
 	// with a cluster host/port after initialization, we start all production servers
@@ -303,8 +303,19 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
-	sopts, err := buildServerOptions(opts)
+func New(ctx context.Context, logger slog.Logger, opts Options, tls *ClusterTLSOptions) (pubSub *Pubsub, retErr error) {
+	// Persist the default cluster port onto opts so it is the same value the
+	// listener (buildServerOptions) binds and the value parsePeerAddresses
+	// compares against. parsePeerAddresses overwrites each peer's parsed port
+	// with defaultClusterPort, but only when opts.ClusterPort already equals
+	// defaultClusterPort. Callers like the cli leave ClusterPort at 0, so
+	// without this that branch is skipped and peers are dialed on the relay
+	// URL's port (e.g. 8080) instead of the NATS route port (6222).
+	if opts.ClusterPort == 0 {
+		opts.ClusterPort = defaultClusterPort
+	}
+
+	sopts, err := buildServerOptions(ctx, logger, opts, tls)
 	if err != nil {
 		return nil, err
 	}

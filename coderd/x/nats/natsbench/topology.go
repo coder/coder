@@ -69,7 +69,7 @@ func buildTopology(ctx context.Context, logger slog.Logger, cfg Config) (*topolo
 		opts := pubsubOptions(cfg)
 		opts.ClusterAuthToken = token
 		opts.PeerFetcher = fetcher
-		node, err := nats.New(ctx, logger.Named(fmt.Sprintf("node%d", i)), opts)
+		node, err := nats.New(ctx, logger.Named(fmt.Sprintf("node%d", i)), opts, nil)
 		if err != nil {
 			top.closeAll()
 			return nil, xerrors.Errorf("create node %d: %w", i, err)

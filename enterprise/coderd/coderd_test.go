@@ -639,7 +639,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 		ClusterHost:      "127.0.0.1",
 		ClusterPort:      natsserver.RANDOM_PORT,
 		ClusterAuthToken: clusterToken,
-	})
+	}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = natsA.Close() })
 
@@ -666,7 +666,7 @@ func TestMultiReplica_NATSPubsubPeers(t *testing.T) {
 		ClusterHost:      "127.0.0.1",
 		ClusterPort:      natsserver.RANDOM_PORT,
 		ClusterAuthToken: clusterToken,
-	})
+	}, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = natsB.Close() })
 

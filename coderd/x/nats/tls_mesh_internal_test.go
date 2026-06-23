@@ -26,15 +26,15 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 
 		caCert, caKey := generateTestCA(t)
 		opts := clusterTestOptions(t)
-		opts.ClusterTLS = &ClusterTLSOptions{
-			CACert:  caCert,
-			CAKey:   caKey,
-			SANHost: "127.0.0.1",
+		tls := &ClusterTLSOptions{
+			CACert: caCert,
+			CAKey:  caKey,
+			SANIP:  "127.0.0.1",
 		}
 
-		a := newTestPubsub(t, opts)
-		b := newTestPubsub(t, opts)
-		c := newTestPubsub(t, opts)
+		a := newTestPubsub(t, opts, tls)
+		b := newTestPubsub(t, opts, tls)
+		c := newTestPubsub(t, opts, tls)
 
 		addrA := clusterRouteAddress(t, a)
 		require.NoError(t, b.setPeerAddresses([]string{addrA}))
@@ -65,20 +65,20 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		otherCACert, otherCAKey := generateTestCA(t)
 
 		optsA := clusterTestOptions(t)
-		optsA.ClusterTLS = &ClusterTLSOptions{
-			CACert:  caCert,
-			CAKey:   caKey,
-			SANHost: "127.0.0.1",
+		tlsA := &ClusterTLSOptions{
+			CACert: caCert,
+			CAKey:  caKey,
+			SANIP:  "127.0.0.1",
 		}
-		a := newTestPubsub(t, optsA)
+		a := newTestPubsub(t, optsA, tlsA)
 
 		optsB := optsA
-		optsB.ClusterTLS = &ClusterTLSOptions{
-			CACert:  otherCACert,
-			CAKey:   otherCAKey,
-			SANHost: "127.0.0.1",
+		tlsB := &ClusterTLSOptions{
+			CACert: otherCACert,
+			CAKey:  otherCAKey,
+			SANIP:  "127.0.0.1",
 		}
-		b := newTestPubsub(t, optsB)
+		b := newTestPubsub(t, optsB, tlsB)
 
 		require.NoError(t, b.setPeerAddresses([]string{clusterRouteAddress(t, a)}))
 		require.Never(t, func() bool {
@@ -91,24 +91,24 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 
 		caCert, caKey := generateTestCA(t)
 		opts := clusterTestOptions(t)
-		opts.ClusterTLS = &ClusterTLSOptions{
-			CACert:  caCert,
-			CAKey:   caKey,
-			SANHost: "127.0.0.1",
+		tls := &ClusterTLSOptions{
+			CACert: caCert,
+			CAKey:  caKey,
+			SANIP:  "127.0.0.1",
 		}
-		a := newTestPubsub(t, opts)
+		a := newTestPubsub(t, opts, tls)
 
 		// b's leaf is signed by the same CA but for a different IP. SAN
 		// verification happens on the dialing side (the accept side
 		// checks only the chain, as Go does not SAN-check client
 		// certs), so a must dial b to hit b's mismatched SAN.
 		optsB := opts
-		optsB.ClusterTLS = &ClusterTLSOptions{
-			CACert:  caCert,
-			CAKey:   caKey,
-			SANHost: "10.99.99.99",
+		tlsB := &ClusterTLSOptions{
+			CACert: caCert,
+			CAKey:  caKey,
+			SANIP:  "10.99.99.99",
 		}
-		b := newTestPubsub(t, optsB)
+		b := newTestPubsub(t, optsB, tlsB)
 
 		require.NoError(t, a.setPeerAddresses([]string{clusterRouteAddress(t, b)}))
 		require.Never(t, func() bool {
@@ -120,17 +120,14 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		t.Parallel()
 
 		caCert, caKey := generateTestCA(t)
-		optsTLS := clusterTestOptions(t)
-		optsTLS.ClusterTLS = &ClusterTLSOptions{
-			CACert:  caCert,
-			CAKey:   caKey,
-			SANHost: "127.0.0.1",
+		opts := clusterTestOptions(t)
+		tls := &ClusterTLSOptions{
+			CACert: caCert,
+			CAKey:  caKey,
+			SANIP:  "127.0.0.1",
 		}
-		a := newTestPubsub(t, optsTLS)
-
-		optsPlain := optsTLS
-		optsPlain.ClusterTLS = nil
-		b := newTestPubsub(t, optsPlain)
+		a := newTestPubsub(t, opts, tls)
+		b := newTestPubsub(t, opts, nil)
 
 		// Routes cannot form in either direction; rollout must enable
 		// TLS on every replica of a deployment.

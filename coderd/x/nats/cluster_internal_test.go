@@ -109,7 +109,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 		fetcher := &testPeerFetcher{addresses: []string{"nats://127.0.0.1:1234"}}
 		opts := clusterTestOptions(t)
 		opts.PeerFetcher = fetcher
-		a := newTestPubsub(t, opts)
+		a := newTestPubsub(t, opts, nil)
 		require.GreaterOrEqual(t, fetcher.port, minTCPPort)
 		require.LessOrEqual(t, fetcher.port, maxTCPPort)
 
@@ -124,7 +124,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 	t.Run("SetPeerFetcher", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
-		a := newTestPubsub(t, opts)
+		a := newTestPubsub(t, opts, nil)
 
 		routes := []string{
 			"nats://127.0.0.1:1234",
@@ -183,9 +183,9 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
-		a := newTestPubsub(t, opts)
-		b := newTestPubsub(t, opts)
-		c := newTestPubsub(t, opts)
+		a := newTestPubsub(t, opts, nil)
+		b := newTestPubsub(t, opts, nil)
+		c := newTestPubsub(t, opts, nil)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
@@ -208,14 +208,14 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, defaultTestOptions())
+		ps := newTestPubsub(t, defaultTestOptions(), nil)
 		err := ps.setPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})
 
 	t.Run("Closed", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, clusterTestOptions(t))
+		ps := newTestPubsub(t, clusterTestOptions(t), nil)
 		require.NoError(t, ps.Close())
 		err := ps.setPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
@@ -223,7 +223,7 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 
 	t.Run("DropsSelfRoute", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, clusterTestOptions(t))
+		ps := newTestPubsub(t, clusterTestOptions(t), nil)
 		require.NoError(t, ps.setPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
 	})

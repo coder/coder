@@ -1,11 +1,14 @@
 package nats
 
 import (
+	"context"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
 )
 
 const readyTimeout = 10 * time.Second
@@ -13,7 +16,7 @@ const readyTimeout = 10 * time.Second
 // buildServerOptions constructs the embedded NATS server options. The
 // server runs with a loopback random client listener and an optional
 // cluster route listener.
-func buildServerOptions(opts Options) (*natsserver.Options, error) {
+func buildServerOptions(ctx context.Context, logger slog.Logger, opts Options, tls *ClusterTLSOptions) (*natsserver.Options, error) {
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
@@ -62,14 +65,13 @@ func buildServerOptions(opts Options) (*natsserver.Options, error) {
 			sopts.Cluster.Username = defaultClusterTokenUsername
 			sopts.Cluster.Password = opts.ClusterAuthToken
 		}
-		if opts.ClusterTLS != nil {
-			tlsConfig, err := buildClusterTLSConfig(*opts.ClusterTLS)
+		if tls != nil {
+			tlsConfig, err := buildClusterTLSConfig(*tls)
 			if err != nil {
 				return nil, err
 			}
+			logger.Info(ctx, "nats mTLS config is valid", slog.F("cluster_tls_san", tls.SANIP))
 			sopts.Cluster.TLSConfig = tlsConfig
-			// The NATS default route TLS timeout is 2s, which is tight
-			// under CI load.
 			sopts.Cluster.TLSTimeout = clusterTLSTimeout.Seconds()
 		}
 	}

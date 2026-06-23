@@ -26,6 +26,10 @@ const leafCertValidity = 30 * 24 * time.Hour
 // NATS default of 2s, which is tight under CI load.
 const clusterTLSTimeout = 10 * time.Second
 
+// RFC 5280 limits certificate serial numbers to 20 octets (160 bits); 128 random bits stays well under that ceiling
+// while still giving enough entropy to make collisions negligible.
+const serialNumberBits = 128
+
 // ClusterTLSOptions configures mutual TLS for the inter-replica NATS
 // cluster route listener. The CA signs an ephemeral per-replica leaf
 // certificate at startup; the leaf private key is never persisted.
@@ -38,39 +42,35 @@ type ClusterTLSOptions struct {
 	// leaf certificate.
 	CAKey crypto.Signer
 
-	// SANHost is this replica's relay-URL host, embedded as an IP SAN
+	// SANIP is this replica's relay-URL host, embedded as an IP SAN
 	// in the leaf certificate. It must be an IP address and must match
 	// the address peers dial, or route TLS handshakes fail with a
 	// hostname verification error.
-	SANHost string
+	SANIP string
 }
 
-// ClusterTLSOptionsFromRelayURL derives ClusterTLSOptions from this
-// replica's relay URL, whose host is the address peers dial for
-// cluster routes and therefore the leaf certificate's IP SAN. The
-// relay host must be an IP address.
+// ClusterTLSOptionsFromRelayURL derives ClusterTLSOptions from this replica's relay URL, whose host is the address
+// peers dial for cluster routes and therefore the leaf certificate's IP SAN. The relay host must be an IP address.
+// It validates eagerly by building a trial TLS config; errors from that step propagate directly.
 func ClusterTLSOptionsFromRelayURL(relayURL *url.URL, caCert *x509.Certificate, caKey crypto.Signer) (*ClusterTLSOptions, error) {
 	if relayURL == nil {
 		return nil, xerrors.New("cluster TLS: relay URL is required")
 	}
 	opts := &ClusterTLSOptions{
-		CACert:  caCert,
-		CAKey:   caKey,
-		SANHost: relayURL.Hostname(),
+		CACert: caCert,
+		CAKey:  caKey,
+		SANIP:  relayURL.Hostname(),
 	}
-	// Surface invalid options at construction time rather than at
-	// server startup.
+	// Surface invalid options at construction time rather than at server startup.
 	if _, err := buildClusterTLSConfig(*opts); err != nil {
 		return nil, err
 	}
 	return opts, nil
 }
 
-// buildClusterTLSConfig mints an ephemeral ECDSA P-256 leaf certificate
-// signed by the configured CA and returns a *tls.Config suitable for
-// natsserver.ClusterOpts.TLSConfig. The same config serves both route
-// roles: the NATS server uses it when accepting routes and clones it
-// (setting ServerName from the dialed route URL) when soliciting them.
+// buildClusterTLSConfig mints an ephemeral ECDSA P-256 leaf certificate signed by the configured CA and returns a
+// *tls.Config suitable for natsserver.ClusterOpts.TLSConfig. The same config serves both route roles: the NATS server
+// uses it when accepting routes and clones it (setting ServerName from the dialed route URL) when soliciting them.
 func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 	if opts.CACert == nil {
 		return nil, xerrors.New("cluster TLS: CA certificate is required")
@@ -78,9 +78,17 @@ func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 	if opts.CAKey == nil {
 		return nil, xerrors.New("cluster TLS: CA private key is required")
 	}
-	ip := net.ParseIP(opts.SANHost)
+
+	if !opts.CACert.IsCA {
+		return nil, xerrors.New("cluster TLS: CA certificate does not have the CA basic constraint")
+	}
+	if opts.CACert.KeyUsage&x509.KeyUsageCertSign == 0 {
+		return nil, xerrors.New("cluster TLS: CA certificate is missing KeyUsageCertSign")
+	}
+
+	ip := net.ParseIP(opts.SANIP)
 	if ip == nil {
-		return nil, xerrors.Errorf("cluster TLS: SAN host %q is not an IP address; NATS cluster TLS requires an IP-based relay URL", opts.SANHost)
+		return nil, xerrors.Errorf("cluster TLS: SAN host %q is not an IP address; coder NATS cluster TLS only supports IP-based SANs", opts.SANIP)
 	}
 
 	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -88,20 +96,20 @@ func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 		return nil, xerrors.Errorf("generate leaf key: %w", err)
 	}
 
-	serialLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialLimit := new(big.Int).Lsh(big.NewInt(1), serialNumberBits)
 	serial, err := rand.Int(rand.Reader, serialLimit)
 	if err != nil {
-		return nil, xerrors.Errorf("generate leaf serial: %w", err)
+		return nil, xerrors.Errorf("cluster TLS: generate leaf serial: %w", err)
 	}
 
 	now := time.Now()
 	template := &x509.Certificate{
 		SerialNumber: serial,
 		Subject: pkix.Name{
-			CommonName: opts.SANHost,
+			CommonName: opts.SANIP,
 		},
 		IPAddresses: []net.IP{ip},
-		NotBefore:   now,
+		NotBefore:   now.Add(-5 * time.Minute),
 		NotAfter:    now.Add(leafCertValidity),
 		KeyUsage:    x509.KeyUsageDigitalSignature,
 		// Both usages are required: on a route each server acts as the
@@ -115,11 +123,11 @@ func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 
 	leafDER, err := x509.CreateCertificate(rand.Reader, template, opts.CACert, &leafKey.PublicKey, opts.CAKey)
 	if err != nil {
-		return nil, xerrors.Errorf("sign leaf certificate: %w", err)
+		return nil, xerrors.Errorf("cluster TLS: sign leaf certificate: %w", err)
 	}
 	leaf, err := x509.ParseCertificate(leafDER)
 	if err != nil {
-		return nil, xerrors.Errorf("parse leaf certificate: %w", err)
+		return nil, xerrors.Errorf("cluster TLS: parse leaf certificate: %w", err)
 	}
 
 	// A pool rather than a single cert so multiple CA certificates can

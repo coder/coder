@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,6 +15,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"cdr.dev/slog/v3"
 )
 
 // generateTestCA returns a self-signed CA certificate and its private
@@ -55,21 +58,21 @@ func Test_buildClusterTLSConfig_Validation(t *testing.T) {
 		{
 			name: "MissingCACert",
 			opts: ClusterTLSOptions{
-				CAKey:   caKey,
-				SANHost: "127.0.0.1",
+				CAKey: caKey,
+				SANIP: "127.0.0.1",
 			},
 			errPart: "CA certificate is required",
 		},
 		{
 			name: "MissingCAKey",
 			opts: ClusterTLSOptions{
-				CACert:  caCert,
-				SANHost: "127.0.0.1",
+				CACert: caCert,
+				SANIP:  "127.0.0.1",
 			},
 			errPart: "CA private key is required",
 		},
 		{
-			name: "EmptySANHost",
+			name: "EmptySANIP",
 			opts: ClusterTLSOptions{
 				CACert: caCert,
 				CAKey:  caKey,
@@ -77,11 +80,11 @@ func Test_buildClusterTLSConfig_Validation(t *testing.T) {
 			errPart: "is not an IP address",
 		},
 		{
-			name: "HostnameSANHost",
+			name: "HostnameSANIP",
 			opts: ClusterTLSOptions{
-				CACert:  caCert,
-				CAKey:   caKey,
-				SANHost: "coderd-0.coderd.svc.cluster.local",
+				CACert: caCert,
+				CAKey:  caKey,
+				SANIP:  "coderd-0.coderd.svc.cluster.local",
 			},
 			errPart: "is not an IP address",
 		},
@@ -104,11 +107,11 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 	caCert, caKey := generateTestCA(t)
 
 	testCases := []struct {
-		name    string
-		sanHost string
+		name  string
+		SANIP string
 	}{
-		{name: "IPv4", sanHost: "10.0.1.5"},
-		{name: "IPv6", sanHost: "fd12:3456:789a::1"},
+		{name: "IPv4", SANIP: "10.0.1.5"},
+		{name: "IPv6", SANIP: "fd12:3456:789a::1"},
 	}
 
 	for _, tc := range testCases {
@@ -116,9 +119,9 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 			t.Parallel()
 
 			cfg, err := buildClusterTLSConfig(ClusterTLSOptions{
-				CACert:  caCert,
-				CAKey:   caKey,
-				SANHost: tc.sanHost,
+				CACert: caCert,
+				CAKey:  caKey,
+				SANIP:  tc.SANIP,
 			})
 			require.NoError(t, err)
 
@@ -135,10 +138,10 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 			// The leaf must verify against the CA pool for both route
 			// roles: ServerAuth when accepting and ClientAuth when
 			// dialing.
-			wantIP := net.ParseIP(tc.sanHost)
+			wantIP := net.ParseIP(tc.SANIP)
 			require.Len(t, leaf.IPAddresses, 1)
 			require.True(t, leaf.IPAddresses[0].Equal(wantIP))
-			require.Equal(t, tc.sanHost, leaf.Subject.CommonName)
+			require.Equal(t, tc.SANIP, leaf.Subject.CommonName)
 			require.ElementsMatch(t, []x509.ExtKeyUsage{
 				x509.ExtKeyUsageServerAuth,
 				x509.ExtKeyUsageClientAuth,
@@ -151,7 +154,7 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 				})
 				require.NoError(t, err)
 			}
-			require.NoError(t, leaf.VerifyHostname(tc.sanHost))
+			require.NoError(t, leaf.VerifyHostname(tc.SANIP))
 
 			now := time.Now()
 			require.True(t, leaf.NotBefore.Before(now.Add(time.Minute)))
@@ -165,9 +168,9 @@ func Test_buildClusterTLSConfig_UniqueLeafKeys(t *testing.T) {
 
 	caCert, caKey := generateTestCA(t)
 	opts := ClusterTLSOptions{
-		CACert:  caCert,
-		CAKey:   caKey,
-		SANHost: "127.0.0.1",
+		CACert: caCert,
+		CAKey:  caKey,
+		SANIP:  "127.0.0.1",
 	}
 
 	first, err := buildClusterTLSConfig(opts)
@@ -193,14 +196,19 @@ func Test_buildServerOptions_ClusterTLS(t *testing.T) {
 	t.Run("Enabled", func(t *testing.T) {
 		t.Parallel()
 
-		sopts, err := buildServerOptions(Options{
-			ClusterAuthToken: "token",
-			ClusterTLS: &ClusterTLSOptions{
-				CACert:  caCert,
-				CAKey:   caKey,
-				SANHost: "127.0.0.1",
+		logger := slog.Make()
+		sopts, err := buildServerOptions(
+			context.Background(),
+			logger,
+			Options{
+				ClusterAuthToken: "token",
 			},
-		})
+			&ClusterTLSOptions{
+				CACert: caCert,
+				CAKey:  caKey,
+				SANIP:  "127.0.0.1",
+			},
+		)
 		require.NoError(t, err)
 		require.NotNil(t, sopts.Cluster.TLSConfig)
 		require.Equal(t, tls.RequireAndVerifyClientCert, sopts.Cluster.TLSConfig.ClientAuth)
@@ -210,9 +218,13 @@ func Test_buildServerOptions_ClusterTLS(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		t.Parallel()
 
-		sopts, err := buildServerOptions(Options{
-			ClusterAuthToken: "token",
-		})
+		logger := slog.Make()
+		sopts, err := buildServerOptions(
+			context.Background(),
+			logger,
+			Options{ClusterAuthToken: "token"},
+			nil,
+		)
 		require.NoError(t, err)
 		require.Nil(t, sopts.Cluster.TLSConfig)
 		require.Zero(t, sopts.Cluster.TLSTimeout)
@@ -221,13 +233,17 @@ func Test_buildServerOptions_ClusterTLS(t *testing.T) {
 	t.Run("InvalidOptions", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := buildServerOptions(Options{
-			ClusterTLS: &ClusterTLSOptions{
-				CACert:  caCert,
-				CAKey:   caKey,
-				SANHost: "not-an-ip",
+		logger := slog.Make()
+		_, err := buildServerOptions(
+			context.Background(),
+			logger,
+			Options{},
+			&ClusterTLSOptions{
+				CACert: caCert,
+				CAKey:  caKey,
+				SANIP:  "not-an-ip",
 			},
-		})
+		)
 		require.ErrorContains(t, err, "is not an IP address")
 	})
 }
@@ -248,7 +264,7 @@ func Test_ClusterTLSOptionsFromRelayURL(t *testing.T) {
 
 		opts, err := ClusterTLSOptionsFromRelayURL(mustParse("http://10.0.1.5:3457"), caCert, caKey)
 		require.NoError(t, err)
-		require.Equal(t, "10.0.1.5", opts.SANHost)
+		require.Equal(t, "10.0.1.5", opts.SANIP)
 		require.Equal(t, caCert, opts.CACert)
 	})
 
@@ -257,7 +273,7 @@ func Test_ClusterTLSOptionsFromRelayURL(t *testing.T) {
 
 		opts, err := ClusterTLSOptionsFromRelayURL(mustParse("http://[fd12:3456:789a::1]:3457"), caCert, caKey)
 		require.NoError(t, err)
-		require.Equal(t, "fd12:3456:789a::1", opts.SANHost)
+		require.Equal(t, "fd12:3456:789a::1", opts.SANIP)
 	})
 
 	t.Run("NilRelayURL", func(t *testing.T) {

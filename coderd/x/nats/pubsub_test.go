@@ -27,7 +27,7 @@ func newPubsub(t *testing.T, opts nats.Options) *nats.Pubsub {
 
 	logger := slogtest.Make(t, nil)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	ps, err := nats.New(ctx, logger, opts)
+	ps, err := nats.New(ctx, logger, opts, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
@@ -134,7 +134,7 @@ func TestPubsub(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		ps, err := nats.New(ctx, logger, nats.Options{})
+		ps, err := nats.New(ctx, logger, nats.Options{}, nil)
 		require.NoError(t, err)
 
 		var first, second error
