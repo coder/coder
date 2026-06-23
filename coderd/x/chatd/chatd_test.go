@@ -262,8 +262,6 @@ func newWorkspaceToolTestServer(
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -898,17 +896,6 @@ func TestExploreChatUsesPersistedMCPSnapshot(t *testing.T) {
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
 	workspaceToolName := "workspace-snapshot-mcp__echo"
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{Tools: []workspacesdk.MCPToolInfo{{
-			ServerName:  "workspace-snapshot-mcp",
-			Name:        workspaceToolName,
-			Description: "Workspace echo tool",
-			Schema: map[string]any{
-				"input": map[string]any{"type": "string"},
-			},
-			Required: []string{"input"},
-		}}}, nil).
-		AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -3123,10 +3110,6 @@ func TestPersistToolResultWithBinaryData(t *testing.T) {
 	mockConn.EXPECT().
 		ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).
-		AnyTimes()
-	mockConn.EXPECT().
-		ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).
 		AnyTimes()
 	mockConn.EXPECT().
 		LS(gomock.Any(), gomock.Any(), gomock.Any()).
@@ -6478,14 +6461,11 @@ func toolMessageForTest(
 func setupToolExecutionAgentConn(
 	t *testing.T,
 	mockConn *agentconnmock.MockAgentConn,
-	mcpTools ...workspacesdk.MCPToolInfo,
 ) {
 	t.Helper()
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{Tools: mcpTools}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -9439,10 +9419,6 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 	mockConn.EXPECT().
-		ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).
-		AnyTimes()
-	mockConn.EXPECT().
 		ExecuteDesktopAction(gomock.Any(), gomock.Any()).
 		Return(workspacesdk.DesktopActionResponse{
 			ScreenshotWidth:  1920,
@@ -10205,8 +10181,6 @@ func TestMCPServerToolInvocation(t *testing.T) {
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -10714,8 +10688,6 @@ func TestMCPServerOAuth2TokenRefresh(t *testing.T) {
 	mockConn.EXPECT().SetExtraHeaders(gomock.Any()).AnyTimes()
 	mockConn.EXPECT().ContextConfig(gomock.Any()).
 		Return(workspacesdk.ContextConfigResponse{}, xerrors.New("not supported")).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
@@ -12670,8 +12642,6 @@ func setupWorkspaceContextAgentConn(
 			}, nil
 		},
 	).AnyTimes()
-	mockConn.EXPECT().ListMCPTools(gomock.Any()).
-		Return(workspacesdk.ListMCPToolsResponse{}, nil).AnyTimes()
 	mockConn.EXPECT().LS(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(workspacesdk.LSResponse{AbsolutePathString: "/home/coder"}, nil).AnyTimes()
 	mockConn.EXPECT().ReadFile(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).

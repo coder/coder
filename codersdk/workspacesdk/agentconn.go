@@ -104,7 +104,6 @@ type AgentConn interface {
 	DialContext(ctx context.Context, network string, addr string) (net.Conn, error)
 	GetPeerDiagnostics() tailnet.PeerDiagnostics
 	ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
-	ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error)
 	ListProcesses(ctx context.Context) (ListProcessesResponse, error)
 	ListeningPorts(ctx context.Context) (codersdk.WorkspaceAgentListeningPortsResponse, error)
 	Netcheck(ctx context.Context) (healthsdk.AgentNetcheckReport, error)
@@ -1132,12 +1131,6 @@ type FileEditResult struct {
 	Diff string `json:"diff"`
 }
 
-// ListMCPToolsResponse is the response from the agent's
-// MCP tool discovery endpoint.
-type ListMCPToolsResponse struct {
-	Tools []MCPToolInfo `json:"tools"`
-}
-
 // MCPToolInfo describes a single tool discovered from an MCP
 // server configured in the workspace's .mcp.json file.
 type MCPToolInfo struct {
@@ -1212,23 +1205,6 @@ func (c *agentConn) ListProcesses(ctx context.Context) (ListProcessesResponse, e
 		return ListProcessesResponse{}, codersdk.ReadBodyAsError(res)
 	}
 	var resp ListProcessesResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-// ListMCPTools returns tools discovered from MCP servers configured
-// in the workspace.
-func (c *agentConn) ListMCPTools(ctx context.Context) (ListMCPToolsResponse, error) {
-	ctx, span := tracing.StartSpan(ctx)
-	defer span.End()
-	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/mcp/tools", nil)
-	if err != nil {
-		return ListMCPToolsResponse{}, xerrors.Errorf("do request: %w", err)
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return ListMCPToolsResponse{}, codersdk.ReadBodyAsError(res)
-	}
-	var resp ListMCPToolsResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
