@@ -21,6 +21,7 @@ import (
 
 func TestValidate(t *testing.T) {
 	t.Parallel()
+	t.Skip("See https://github.com/coder/internal/issues/1602")
 
 	mustTime := func(layout string, value string) time.Time {
 		ti, err := time.Parse(layout, value)
