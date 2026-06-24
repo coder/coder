@@ -5386,6 +5386,15 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 	return q.db.GetWorkspacesForWorkspaceMetrics(ctx)
 }
 
+func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	// This query authorizes provisioner module-file downloads. The caller
+	// must be able to read files in the target organization; the actual
+	// tenant isolation comes from the organization_id filter in the query.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.InOrg(arg.OrganizationID)); err != nil {
+		return false, err
+	}
+	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
+}
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
