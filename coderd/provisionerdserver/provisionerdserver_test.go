@@ -26,6 +26,8 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
@@ -53,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -5422,57 +5425,33 @@ func newFakeUsageInserter() (*coderdtest.UsageInserter, *atomic.Pointer[usage.In
 	return fake, poitr
 }
 
-// mockDownloadStream is an in-memory implementation of
-// proto.DRPCProvisionerDaemon_DownloadFileStream that records every message
-// sent by the handler so tests can assert on them.
-type mockDownloadStream struct {
-	ctx      context.Context
-	messages []*sdkproto.FileUpload
-}
-
-func (m *mockDownloadStream) Send(f *sdkproto.FileUpload) error {
-	m.messages = append(m.messages, f)
-	return nil
-}
-func (m *mockDownloadStream) Context() context.Context                { return m.ctx }
-func (*mockDownloadStream) CloseSend() error                          { return nil }
-func (*mockDownloadStream) Close() error                              { return nil }
-func (*mockDownloadStream) MsgSend(drpc.Message, drpc.Encoding) error { return nil }
-func (*mockDownloadStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
-
-// failure returns the error message streamed by the handler, if any.
-func (m *mockDownloadStream) failure() (string, bool) {
-	for _, msg := range m.messages {
-		if e, ok := msg.Type.(*sdkproto.FileUpload_Error); ok {
-			return e.Error.Error, true
-		}
-	}
-	return "", false
-}
-
-// downloadedBytes reassembles the file streamed by the handler from its
-// DataUpload + ChunkPiece messages.
-func (m *mockDownloadStream) downloadedBytes(t *testing.T) []byte {
+// serveProvisionerDaemon serves the provisioner daemon server over an
+// in-memory pipe and returns a connected client, mirroring how coderd serves
+// in-memory provisioner daemons. This exercises the real DRPC streaming path
+// instead of a hand-rolled mock stream.
+func serveProvisionerDaemon(t *testing.T, srv proto.DRPCProvisionerDaemonServer) proto.DRPCProvisionerDaemonClient {
 	t.Helper()
-	var upload *sdkproto.DataUpload
-	chunks := map[int32][]byte{}
-	for _, msg := range m.messages {
-		switch v := msg.Type.(type) {
-		case *sdkproto.FileUpload_DataUpload:
-			require.Nil(t, upload, "received more than one DataUpload")
-			upload = v.DataUpload
-		case *sdkproto.FileUpload_ChunkPiece:
-			chunks[v.ChunkPiece.PieceIndex] = v.ChunkPiece.Data
-		case *sdkproto.FileUpload_Error:
-			t.Fatalf("unexpected error message in stream: %s", v.Error.Error)
-		}
-	}
-	require.NotNil(t, upload, "no DataUpload message was streamed")
-	var data []byte
-	for i := int32(0); i < upload.Chunks; i++ {
-		data = append(data, chunks[i]...)
-	}
-	return data
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
+	t.Cleanup(func() {
+		_ = clientPipe.Close()
+		_ = serverPipe.Close()
+	})
+	mux := drpcmux.New()
+	require.NoError(t, proto.DRPCRegisterProvisionerDaemon(mux, srv))
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		_ = server.Serve(ctx, serverPipe)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-closed
+	})
+	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
 }
 
 // insertModuleFile inserts a system-created (CreatedBy=uuid.Nil) tar file and
@@ -5527,10 +5506,11 @@ func TestDownloadFile(t *testing.T) {
 		t.Parallel()
 
 		// The server is scoped to the default organization (org A).
-		server, db, _, daemon := setup(t, false, &overrides{
+		srv, db, _, daemon := setup(t, false, &overrides{
 			externalAuthConfigs: []*externalauth.Config{{}},
 		})
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
 
 		// Create a module file belonging to a different organization (org B).
 		otherOrg := dbgen.Organization(t, db, database.Organization{})
@@ -5541,50 +5521,44 @@ func TestDownloadFile(t *testing.T) {
 		_, _ = crand.Read(moduleData)
 		file := insertModuleFile(t, db, otherOrg.ID, moduleData)
 
-		stream := &mockDownloadStream{ctx: ctx}
-		err := server.DownloadFile(&proto.FileRequest{
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
 			FileId:     file.ID.String(),
 			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
-		}, stream)
+		})
+		require.NoError(t, err)
+
+		// The handler must reject the cross-org download with an error rather
+		// than streaming the file's contents.
+		_, err = provisionersdk.HandleReceivingDataUpload(stream)
 		require.Error(t, err)
 		require.ErrorContains(t, err, "is not a modules file")
-
-		// The handler must not have streamed any of the file's contents.
-		msg, ok := stream.failure()
-		require.True(t, ok, "expected an error message on the stream")
-		require.Contains(t, msg, "is not a modules file")
-		for _, m := range stream.messages {
-			switch m.Type.(type) {
-			case *sdkproto.FileUpload_DataUpload, *sdkproto.FileUpload_ChunkPiece:
-				t.Fatal("handler leaked file contents for another org's module file")
-			}
-		}
 	})
 
 	t.Run("AllowsSameOrgModuleFile", func(t *testing.T) {
 		t.Parallel()
 
 		// The server is scoped to the default organization (org A).
-		server, db, _, daemon := setup(t, false, &overrides{
+		srv, db, _, daemon := setup(t, false, &overrides{
 			externalAuthConfigs: []*externalauth.Config{{}},
 		})
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
 
 		moduleData := make([]byte, sdkproto.ChunkSize*2+512)
 		// crand.Read never returns an error as of Go 1.24.
 		_, _ = crand.Read(moduleData)
 		file := insertModuleFile(t, db, daemon.OrganizationID, moduleData)
 
-		stream := &mockDownloadStream{ctx: ctx}
-		err := server.DownloadFile(&proto.FileRequest{
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
 			FileId:     file.ID.String(),
 			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
-		}, stream)
+		})
 		require.NoError(t, err)
 
-		if msg, ok := stream.failure(); ok {
-			t.Fatalf("unexpected error on stream: %s", msg)
-		}
-		require.Equal(t, moduleData, stream.downloadedBytes(t))
+		builder, err := provisionersdk.HandleReceivingDataUpload(stream)
+		require.NoError(t, err)
+		data, err := builder.Complete()
+		require.NoError(t, err)
+		require.Equal(t, moduleData, data)
 	})
 }

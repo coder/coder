@@ -5698,10 +5698,10 @@ func (q *querier) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]datab
 }
 
 func (q *querier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
-	// This is an internal cross-table guard used to authorize provisioner
-	// module-file downloads. Tenant isolation comes from the organization_id
-	// filter in the query itself; only system-level actors may call it.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	// This query authorizes provisioner module-file downloads. The caller
+	// must be able to read files in the target organization; the actual
+	// tenant isolation comes from the organization_id filter in the query.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceFile.InOrg(arg.OrganizationID)); err != nil {
 		return false, err
 	}
 	return q.db.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg)
