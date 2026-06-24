@@ -1,5 +1,5 @@
 import { useFormik } from "formik";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import * as Yup from "yup";
 import type { Group } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
@@ -39,6 +39,76 @@ const validationSchema = Yup.object({
 		.transform((value, original) => (original === "" ? undefined : value))
 		.min(0, "Enter an amount of zero or more."),
 });
+
+interface AIBudgetFeedbackProps {
+	error: boolean;
+	helperText?: ReactNode;
+	monthlyBudgetPerMember: string;
+	memberCount: number;
+}
+
+const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
+	error,
+	helperText,
+	monthlyBudgetPerMember,
+	memberCount,
+}) => {
+	if (error) {
+		return (
+			<span className="text-left text-xs text-content-destructive">
+				{helperText}
+			</span>
+		);
+	}
+
+	const budgetValue = monthlyBudgetPerMember.trim();
+	if (budgetValue === "") {
+		return (
+			<>
+				<span className="text-left text-xs text-content-secondary">
+					This group has{" "}
+					<span className="font-medium text-content-primary">
+						unlimited budget
+					</span>
+					.
+				</span>
+				<Alert severity="info">
+					Members in this group have no spending cap.
+				</Alert>
+			</>
+		);
+	}
+
+	const budgetAmount = Number(budgetValue);
+	if (budgetAmount === 0) {
+		return (
+			<>
+				<span className="text-left text-xs text-content-secondary">
+					This group has{" "}
+					<span className="font-medium text-content-primary">no budget</span>.
+				</span>
+				<Alert severity="info">
+					A $0 limit disables AI access for this group.
+				</Alert>
+			</>
+		);
+	}
+
+	if (Number.isFinite(budgetAmount) && budgetAmount > 0) {
+		return (
+			<span className="text-left text-xs text-content-secondary">
+				<span className="font-medium text-content-primary">
+					{usdBudgetFormatter.format(budgetAmount * memberCount)}
+				</span>
+				/month maximum, based on{" "}
+				<span className="font-medium text-content-primary">{memberCount}</span>{" "}
+				{memberCount === 1 ? "member" : "members"}.
+			</span>
+		);
+	}
+
+	return null;
+};
 
 interface UpdateGroupFormProps {
 	group: Group;
@@ -83,16 +153,10 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
             of its members.`,
 	});
 	const budgetField = getFieldHelpers("monthly_budget_per_member");
-	const budgetValue = form.values.monthly_budget_per_member.trim();
-	const budgetAmount = Number(budgetValue);
-	const isUnlimitedBudget = budgetValue === "";
-	const isNoBudget = !isUnlimitedBudget && budgetAmount === 0;
-	const hasMonthlyLimit = Number.isFinite(budgetAmount) && budgetAmount > 0;
-	const memberCount = group.total_member_count;
 
 	return (
 		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
-			<section className="flex max-w-xl flex-col gap-4">
+			<section className="flex flex-col gap-4 max-w-md">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						General
@@ -163,7 +227,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 			</section>
 
 			{showAISettings && (
-				<section className="flex max-w-xl flex-col gap-8">
+				<section className="flex flex-col gap-8 max-w-md">
 					<div className="flex items-center gap-2">
 						<h2 className="m-0 text-xl font-semibold text-content-primary">
 							AI budget
@@ -192,52 +256,13 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 								/>
 								<InputGroupAddon align="inline-end">USD</InputGroupAddon>
 							</InputGroup>
-							{budgetField.error && (
-								<span className="text-left text-xs text-content-destructive">
-									{budgetField.helperText}
-								</span>
-							)}
-							{!budgetField.error && hasMonthlyLimit && (
-								<span className="text-left text-xs text-content-secondary">
-									<span className="font-medium text-content-primary">
-										{usdBudgetFormatter.format(budgetAmount * memberCount)}
-									</span>
-									/month maximum, based on{" "}
-									<span className="font-medium text-content-primary">
-										{memberCount}
-									</span>{" "}
-									{memberCount === 1 ? "member" : "members"}.
-								</span>
-							)}
-							{!budgetField.error && isNoBudget && (
-								<span className="text-left text-xs text-content-secondary">
-									This group has{" "}
-									<span className="font-medium text-content-primary">
-										no budget
-									</span>
-									.
-								</span>
-							)}
-							{!budgetField.error && isUnlimitedBudget && (
-								<span className="text-left text-xs text-content-secondary">
-									This group has{" "}
-									<span className="font-medium text-content-primary">
-										unlimited budget
-									</span>
-									.
-								</span>
-							)}
+							<AIBudgetFeedback
+								error={budgetField.error}
+								helperText={budgetField.helperText}
+								monthlyBudgetPerMember={form.values.monthly_budget_per_member}
+								memberCount={group.total_member_count}
+							/>
 						</div>
-						{!budgetField.error && isUnlimitedBudget && (
-							<Alert severity="info">
-								Members in this group have no spending cap.
-							</Alert>
-						)}
-						{!budgetField.error && isNoBudget && (
-							<Alert severity="info">
-								A $0 limit disables AI access for this group.
-							</Alert>
-						)}
 					</div>
 				</section>
 			)}
