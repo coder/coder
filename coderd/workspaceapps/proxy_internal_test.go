@@ -16,41 +16,49 @@ func Test_originLocalURL(t *testing.T) {
 	t.Run("RejectsOffOrigin", func(t *testing.T) {
 		t.Parallel()
 
-		// Each input models an already-percent-decoded r.URL.Path that tries to
+		// Each path models an already-percent-decoded r.URL.Path that tries to
 		// smuggle a separate host into the redirect.
-		maliciousPaths := []string{
-			"//evil.com/phish",
-			"///evil.com/phish",
-			"/\\evil.com/phish",
-			"/\\/evil.com/phish",
-			"\\\\evil.com/phish",
-			"/\t/evil.com/phish",
-			"/\t\\evil.com/phish",
-			"/\n/evil.com/phish",
-			"/\r/evil.com/phish",
-			"/\t//evil.com/phish",
+		cases := []struct {
+			name string
+			path string
+		}{
+			{name: "DoubleSlash", path: "//evil.com/phish"},
+			{name: "TripleSlash", path: "///evil.com/phish"},
+			{name: "SlashBackslash", path: "/\\evil.com/phish"},
+			{name: "SlashBackslashSlash", path: "/\\/evil.com/phish"},
+			{name: "DoubleBackslash", path: "\\\\evil.com/phish"},
+			{name: "SlashTab", path: "/\t/evil.com/phish"},
+			{name: "SlashTabBackslash", path: "/\t\\evil.com/phish"},
+			{name: "SlashNewline", path: "/\n/evil.com/phish"},
+			{name: "SlashCarriageReturn", path: "/\r/evil.com/phish"},
+			{name: "SlashTabDoubleSlash", path: "/\t//evil.com/phish"},
 		}
 
-		for _, p := range maliciousPaths {
-			loc := originLocalURL(p).String()
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			// The Location must parse as a relative, same-origin reference.
-			require.Falsef(t, strings.HasPrefix(loc, "//"),
-				"path %q produced scheme-relative Location %q", p, loc)
-			parsed, err := url.Parse(loc)
-			require.NoErrorf(t, err, "path %q produced unparseable Location %q", p, loc)
-			require.Emptyf(t, parsed.Scheme, "path %q produced Location %q with a scheme", p, loc)
-			require.Emptyf(t, parsed.Host, "path %q produced Location %q with a host", p, loc)
+				loc := originLocalURL(tc.path).String()
 
-			// It must also be free of raw bytes a browser would normalize back
-			// into an authority before resolving (a backslash becomes "/", and
-			// tab/newline/CR are stripped, either of which could re-form "//host").
-			// url.URL.String() guarantees this by percent-encoding them; we assert
-			// it here rather than reproducing browser normalization in the code.
-			for _, raw := range []string{`\`, "\t", "\n", "\r"} {
-				require.NotContainsf(t, loc, raw,
-					"path %q produced Location %q containing a raw %q", p, loc, raw)
-			}
+				// The Location must parse as a relative, same-origin reference.
+				require.Falsef(t, strings.HasPrefix(loc, "//"),
+					"path %q produced scheme-relative Location %q", tc.path, loc)
+				parsed, err := url.Parse(loc)
+				require.NoErrorf(t, err, "path %q produced unparseable Location %q", tc.path, loc)
+				require.Emptyf(t, parsed.Scheme, "path %q produced Location %q with a scheme", tc.path, loc)
+				require.Emptyf(t, parsed.Host, "path %q produced Location %q with a host", tc.path, loc)
+
+				// It must also be free of raw bytes a browser would normalize back
+				// into an authority before resolving (a backslash becomes "/", and
+				// tab/newline/CR are stripped, either of which could re-form
+				// "//host"). url.URL.String() guarantees this by percent-encoding
+				// them; we assert it here rather than reproducing browser
+				// normalization in the code.
+				for _, raw := range []string{`\`, "\t", "\n", "\r"} {
+					require.NotContainsf(t, loc, raw,
+						"path %q produced Location %q containing a raw %q", tc.path, loc, raw)
+				}
+			})
 		}
 	})
 
@@ -74,8 +82,12 @@ func Test_originLocalURL(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			loc := originLocalURL(tc.in).String()
-			require.Equalf(t, tc.want, loc, "%s: originLocalURL(%q) must percent-encode the control character", tc.name, tc.in)
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				require.Equalf(t, tc.want, originLocalURL(tc.in).String(),
+					"originLocalURL(%q) must percent-encode the control character", tc.in)
+			})
 		}
 	})
 
@@ -83,18 +95,23 @@ func Test_originLocalURL(t *testing.T) {
 		t.Parallel()
 
 		cases := []struct {
+			name string
 			in   string
 			want string
 		}{
-			{in: "", want: "/"},
-			{in: "/", want: "/"},
-			{in: "/test", want: "/test"},
-			{in: "/app/sub/page", want: "/app/sub/page"},
-			{in: "/@user/ws/apps/app", want: "/@user/ws/apps/app"},
+			{name: "Empty", in: "", want: "/"},
+			{name: "Root", in: "/", want: "/"},
+			{name: "Simple", in: "/test", want: "/test"},
+			{name: "Nested", in: "/app/sub/page", want: "/app/sub/page"},
+			{name: "PathApp", in: "/@user/ws/apps/app", want: "/@user/ws/apps/app"},
 		}
 
 		for _, tc := range cases {
-			require.Equalf(t, tc.want, originLocalURL(tc.in).String(), "originLocalURL(%q)", tc.in)
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				require.Equalf(t, tc.want, originLocalURL(tc.in).String(), "originLocalURL(%q)", tc.in)
+			})
 		}
 	})
 }

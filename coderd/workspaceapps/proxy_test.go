@@ -98,7 +98,7 @@ func TestHandleSubdomain(t *testing.T) {
 	// After consuming a smuggled API key, the handler redirects to strip the key.
 	// A path that smuggles a separate host (e.g. "//evil.com") must redirect back
 	// to the current origin, not off-site. The full path-sanitization matrix lives
-	// in Test_originLocalPath.
+	// in Test_originLocalURL.
 	t.Run("APIKeySmugglingStaysOnOrigin", func(t *testing.T) {
 		t.Parallel()
 
