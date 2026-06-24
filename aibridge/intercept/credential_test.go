@@ -19,6 +19,9 @@ import (
 func TestCredential(t *testing.T) {
 	t.Parallel()
 
+	// Matches the VARCHAR(15) DB constraint.
+	const maxCredentialHintLength = 15
+
 	tests := []struct {
 		name                    string
 		newCred                 func(t *testing.T) intercept.Credential
@@ -118,6 +121,8 @@ func TestCredential(t *testing.T) {
 			assert.Equal(t, tc.expectKind, cred.Kind(), "Kind")
 			assert.Equal(t, tc.expectAuthHeader, cred.AuthHeader(), "AuthHeader")
 			assert.Equal(t, tc.expectHint, cred.Hint(), "Hint")
+			assert.LessOrEqual(t, len(cred.Hint()), maxCredentialHintLength,
+				"Hint must fit the credential_hint column")
 			assert.Equal(t, tc.expectLength, cred.Length(), "Length")
 
 			credBYOK, credBYOKOK := intercept.AsBYOK(cred)
