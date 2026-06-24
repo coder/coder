@@ -118,7 +118,8 @@ const SelectField: FC<SelectFieldDefinition> = ({
 }) => {
 	const descriptionId = `${id}-description`;
 	return (
-		<div className="flex flex-col gap-2">
+		// All fields span 2 columns, except for dropdowns which can only be 1 column
+		<div className="col-end-1 flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
 				{required && (
@@ -328,7 +329,7 @@ export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
 	children,
 }) => {
 	return (
-		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start *:col-start-1 *:col-span-full">
 			{children}
 		</div>
 	);

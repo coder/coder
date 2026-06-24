@@ -83,9 +83,11 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 
 			{optionalFields && optionalFields.length > 0 && (
 				<CollapsibleSummary label="Advanced settings" className="mt-4">
-					{optionalFields.map((f) => (
-						<ConfigurationField key={f.id} field={f} />
-					))}
+					<ConfigurationFieldContainer>
+						{optionalFields.map((f) => (
+							<ConfigurationField key={f.id} field={f} />
+						))}
+					</ConfigurationFieldContainer>
 				</CollapsibleSummary>
 			)}
 		</section>
