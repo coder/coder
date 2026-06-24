@@ -28,16 +28,16 @@ type RecordedRequest struct {
 	APIKeyID string
 }
 
-// MockTransportOption configures a [MockTransportFactory].
-type MockTransportOption func(*MockTransportFactory)
+// MockAIBridgeTransportOption configures a [MockAIBridgeTransport].
+type MockAIBridgeTransportOption func(*MockAIBridgeTransport)
 
 // WithPreservePath disables the default "/v1" path stripping so the
 // target server receives the full original request path.
-func WithPreservePath() MockTransportOption {
-	return func(f *MockTransportFactory) { f.preservePath = true }
+func WithPreservePath() MockAIBridgeTransportOption {
+	return func(f *MockAIBridgeTransport) { f.preservePath = true }
 }
 
-// MockTransportFactory is a test [aibridge.TransportFactory] that
+// MockAIBridgeTransport is a test [aibridge.TransportFactory] that
 // redirects requests to a target URL (typically a [chattest.NewOpenAI]
 // or [chattest.NewAnthropic] server) and records each request for
 // later inspection.
@@ -46,7 +46,7 @@ func WithPreservePath() MockTransportOption {
 // forwarding, matching how the real AI Gateway transport rewrites
 // upstream-shaped requests. Pass [WithPreservePath] when the target
 // server expects the full original path.
-type MockTransportFactory struct {
+type MockAIBridgeTransport struct {
 	target       *url.URL
 	transport    http.RoundTripper
 	preservePath bool
@@ -54,15 +54,15 @@ type MockTransportFactory struct {
 	requests     []RecordedRequest
 }
 
-// NewMockTransportFactory creates a [MockTransportFactory] that
+// NewMockAIBridgeTransport creates a [MockAIBridgeTransport] that
 // forwards to targetBaseURL.
-func NewMockTransportFactory(t testing.TB, targetBaseURL string, opts ...MockTransportOption) *MockTransportFactory {
+func NewMockAIBridgeTransport(t testing.TB, targetBaseURL string, opts ...MockAIBridgeTransportOption) *MockAIBridgeTransport {
 	t.Helper()
 	target, err := url.Parse(targetBaseURL)
 	if err != nil {
 		t.Fatalf("parse target URL: %v", err)
 	}
-	f := &MockTransportFactory{target: target, transport: http.DefaultTransport}
+	f := &MockAIBridgeTransport{target: target, transport: http.DefaultTransport}
 	for _, opt := range opts {
 		opt(f)
 	}
@@ -70,19 +70,19 @@ func NewMockTransportFactory(t testing.TB, targetBaseURL string, opts ...MockTra
 }
 
 // TransportFor implements [aibridge.TransportFactory].
-func (f *MockTransportFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+func (f *MockAIBridgeTransport) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
 	return mockRoundTripper{factory: f, providerName: providerName, source: source}, nil
 }
 
 // RequestsSnapshot returns a copy of all recorded requests.
-func (f *MockTransportFactory) RequestsSnapshot() []RecordedRequest {
+func (f *MockAIBridgeTransport) RequestsSnapshot() []RecordedRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return append([]RecordedRequest(nil), f.requests...)
 }
 
 type mockRoundTripper struct {
-	factory      *MockTransportFactory
+	factory      *MockAIBridgeTransport
 	providerName string
 	source       aibridge.Source
 }

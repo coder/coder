@@ -5319,7 +5319,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 			return chattest.AnthropicStreamingResponse()
 		}
 	})
-	factory := chattest.NewMockTransportFactory(t, anthropicURL, chattest.WithPreservePath())
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	provider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
@@ -9708,7 +9708,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
 	})
-	factory := chattest.NewMockTransportFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 
@@ -9767,7 +9767,7 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Workspace"}`)
 	})
-	factory := chattest.NewMockTransportFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
