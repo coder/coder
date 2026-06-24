@@ -92,12 +92,20 @@ func TestHandleSubdomain_IgnoresUntrustedForwardedHost(t *testing.T) {
 	require.Zero(t, provider.issueCalls)
 }
 
-// newSmugglingTestServer builds a workspaceapps.Server wired with a static
-// encryption keycache and returns the server, a valid app subdomain host, and a
-// freshly minted smuggled API key that decrypts against the server. Each caller
-// gets its own server so parallel subtests never share mutable state.
-func newSmugglingTestServer(t *testing.T) (srv *workspaceapps.Server, host, encryptedAPIKey string) {
-	t.Helper()
+// TestHandleSubdomain_APIKeySmuggling_NoOpenRedirect verifies that after
+// HandleSubdomain consumes a smuggled subdomain API key, the redirect it issues
+// to strip the key stays on the current origin and cannot be pointed at an
+// external host (ANT-2026-22456).
+//
+// This is a focused wiring test: it confirms the real handler sanitizes the
+// redirect target and strips the key while preserving other query parameters.
+// The exhaustive path-sanitization matrix (slash, backslash, tab, newline, CR,
+// encoded variants) lives in Test_originLocalPath, which exercises the same
+// url.URL construction without the server setup. It is built inline like the
+// sibling test above; there is no lighter shared fixture, and the full app test
+// harness cannot model an attacker path that bypasses slash-cleaning middleware.
+func TestHandleSubdomain_APIKeySmuggling_NoOpenRedirect(t *testing.T) {
+	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -111,17 +119,13 @@ func newSmugglingTestServer(t *testing.T) (srv *workspaceapps.Server, host, encr
 	// StaticKey satisfies cryptokeys.EncryptionKeycache and lets us mint a valid
 	// smuggled API key so the handler reaches the redirect. A256GCMKW needs a
 	// 32-byte key.
-	keycache := jwtutils.StaticKey{
-		ID:  "test",
-		Key: generateSecret(t, 32),
-	}
-
+	keycache := jwtutils.StaticKey{ID: "test", Key: generateSecret(t, 32)}
 	payload := workspaceapps.EncryptedAPIKeyPayload{APIKey: "fake-api-key"}
 	payload.Fill(time.Now())
-	encryptedAPIKey, err = jwtutils.Encrypt(ctx, keycache, payload)
+	encryptedAPIKey, err := jwtutils.Encrypt(ctx, keycache, payload)
 	require.NoError(t, err)
 
-	srv = workspaceapps.NewServer(workspaceapps.ServerOptions{
+	srv := workspaceapps.NewServer(workspaceapps.ServerOptions{
 		Logger:        testutil.Logger(t),
 		DashboardURL:  dashboardURL,
 		AccessURL:     dashboardURL,
@@ -137,141 +141,51 @@ func newSmugglingTestServer(t *testing.T) (srv *workspaceapps.Server, host, encr
 		APIKeyEncryptionKeycache: keycache,
 	})
 
-	host = appurl.ApplicationURL{
+	host := appurl.ApplicationURL{
 		AppSlugOrPort: "app",
 		WorkspaceName: "workspace",
 		Username:      "user",
 	}.String() + "--apps.test.coder.com"
 
-	return srv, host, encryptedAPIKey
-}
-
-// doSmugglingRequest drives HandleSubdomain with a smuggled API key and the
-// given (already attacker-decoded) request path. It models how the path
-// survives to the handler by setting r.URL.Path directly: the slash-collapsing
-// middleware writes to chi's RoutePath, not r.URL.Path. A benign "x=1" query
-// parameter rides along to verify it is preserved across the redirect.
-func doSmugglingRequest(t *testing.T, srv *workspaceapps.Server, host, encryptedAPIKey, rawPath string) (status int, location string, nextCalled bool) {
-	t.Helper()
-
+	// The HTTP server populates r.URL.Path from the request line; set it directly
+	// to model the attacker-supplied "//evil.com" path that survives to the
+	// handler (the slash-collapsing middleware writes to chi's RoutePath, not
+	// r.URL.Path). A benign "x=1" rides along to confirm it is preserved.
 	req := httptest.NewRequest(http.MethodGet, "https://"+host+"/", nil)
 	req.Host = host
 	req.RemoteAddr = "10.0.0.1:1234"
-	req.URL.Path = rawPath
+	req.URL.Path = "//evil.com/phish"
 	req.URL.RawQuery = url.Values{
 		workspaceapps.SubdomainProxyAPIKeyParam: {encryptedAPIKey},
 		"x":                                     {"1"},
 	}.Encode()
 
 	rec := httptest.NewRecorder()
-	called := false
+	nextCalled := false
 	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-		called = true
+		nextCalled = true
 	})
 
 	srv.HandleSubdomain()(next).ServeHTTP(rec, req)
 
 	res := rec.Result()
 	defer res.Body.Close()
-	return res.StatusCode, res.Header.Get("Location"), called
-}
 
-// TestHandleSubdomain_APIKeySmuggling_NoOpenRedirect ensures that the redirect
-// issued after consuming a smuggled subdomain API key cannot be turned into an
-// open redirect to an arbitrary external origin (ANT-2026-22456).
-//
-// The request path is attacker-controlled and already percent-decoded.
-// http.Redirect parses the Location with url.Parse (which treats a leading "//"
-// as a scheme-relative URL) and emits it verbatim when parsing fails. Browsers
-// additionally strip tab/newline characters and treat a leading "/\" like "//",
-// so a raw tab such as "/<tab>/evil.com" is a real bypass over HTTP/1 because
-// the header writer does not sanitize tabs.
-func TestHandleSubdomain_APIKeySmuggling_NoOpenRedirect(t *testing.T) {
-	t.Parallel()
+	// The smuggled key is consumed and a redirect is issued instead of falling
+	// through to the proxied app.
+	require.Equal(t, http.StatusSeeOther, res.StatusCode)
+	require.False(t, nextCalled)
 
-	cases := []struct {
-		name string
-		// path is the already-decoded value of r.URL.Path as seen by the handler.
-		path string
-	}{
-		{name: "DoubleSlash", path: "//evil.com/phish"},
-		{name: "TripleSlash", path: "///evil.com/phish"},
-		{name: "LeadingBackslash", path: "/\\evil.com/phish"},
-		{name: "LeadingTab", path: "/\t/evil.com/phish"},
-		{name: "TabThenBackslash", path: "/\t\\evil.com/phish"},
-		{name: "LeadingBackslashSlash", path: "/\\/evil.com/phish"},
-	}
+	loc := res.Header.Get("Location")
+	require.NotEmpty(t, loc)
+	require.False(t, strings.HasPrefix(loc, "//"), "redirect %q must stay same-origin", loc)
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+	parsed, err := url.Parse(loc)
+	require.NoError(t, err)
+	require.Empty(t, parsed.Scheme, "redirect %q must not carry a scheme", loc)
+	require.Empty(t, parsed.Host, "redirect %q must not carry a host", loc)
 
-			srv, host, encryptedAPIKey := newSmugglingTestServer(t)
-
-			status, loc, nextCalled := doSmugglingRequest(t, srv, host, encryptedAPIKey, tc.path)
-
-			// The smuggled key is consumed and a redirect is issued instead of
-			// falling through to the proxied app.
-			require.Equal(t, http.StatusSeeOther, status)
-			require.False(t, nextCalled)
-			require.NotEmpty(t, loc)
-
-			// Model browser URL normalization: tab/newline/CR are stripped and a
-			// backslash is treated like a forward slash before the URL is
-			// resolved. After that, the Location must not look like a
-			// scheme-relative ("//host") URL.
-			browserLoc := strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(loc)
-			browserLoc = strings.ReplaceAll(browserLoc, "\\", "/")
-			require.False(t, strings.HasPrefix(browserLoc, "//"),
-				"redirect %q resolves off-origin (browser-normalized to %q)", loc, browserLoc)
-
-			// Go's url.Parse must also see a same-origin, relative reference.
-			parsed, err := url.Parse(loc)
-			require.NoError(t, err)
-			require.Empty(t, parsed.Scheme, "redirect %q must not carry a scheme", loc)
-			require.Empty(t, parsed.Host, "redirect %q must not carry a host", loc)
-
-			// The smuggled key is stripped and unrelated query params survive.
-			require.Empty(t, parsed.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam))
-			require.Equal(t, "1", parsed.Query().Get("x"))
-		})
-	}
-}
-
-// TestHandleSubdomain_APIKeySmuggling_PreservesPath ensures the security fix does
-// not change the redirect for legitimate paths: the path round-trips and the
-// smuggled key is stripped while other query params are preserved.
-func TestHandleSubdomain_APIKeySmuggling_PreservesPath(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		name     string
-		path     string
-		wantPath string
-	}{
-		{name: "Empty", path: "", wantPath: "/"},
-		{name: "Root", path: "/", wantPath: "/"},
-		{name: "Simple", path: "/test", wantPath: "/test"},
-		{name: "Nested", path: "/app/sub/page", wantPath: "/app/sub/page"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			srv, host, encryptedAPIKey := newSmugglingTestServer(t)
-
-			status, loc, nextCalled := doSmugglingRequest(t, srv, host, encryptedAPIKey, tc.path)
-
-			require.Equal(t, http.StatusSeeOther, status)
-			require.False(t, nextCalled)
-
-			parsed, err := url.Parse(loc)
-			require.NoError(t, err)
-			require.Equal(t, tc.wantPath, parsed.Path)
-			require.Empty(t, parsed.Host)
-			require.Empty(t, parsed.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam))
-			require.Equal(t, "1", parsed.Query().Get("x"))
-		})
-	}
+	// The smuggled key is stripped and unrelated query params survive.
+	require.Empty(t, parsed.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam))
+	require.Equal(t, "1", parsed.Query().Get("x"))
 }

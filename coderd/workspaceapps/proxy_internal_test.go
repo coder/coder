@@ -50,6 +50,31 @@ func Test_originLocalPath(t *testing.T) {
 		}
 	})
 
+	t.Run("EscapesControlCharacters", func(t *testing.T) {
+		t.Parallel()
+
+		// A redirect built from a path containing a raw control character is an
+		// open redirect: http.Redirect emits it verbatim (url.Parse rejects the
+		// control byte and skips cleaning) and browsers strip tab/newline/CR
+		// before resolving, re-forming "//evil.com". Building the Location via
+		// url.URL percent-encodes each one. Assert every class is escaped so a
+		// future change that breaks encoding for only one class is caught.
+		cases := []struct {
+			name string
+			in   string
+			want string
+		}{
+			{name: "Tab", in: "/\t/evil.com", want: "/%09/evil.com"},
+			{name: "Newline", in: "/\n/evil.com", want: "/%0A/evil.com"},
+			{name: "CarriageReturn", in: "/\r/evil.com", want: "/%0D/evil.com"},
+		}
+
+		for _, tc := range cases {
+			loc := (&url.URL{Path: originLocalPath(tc.in)}).String()
+			require.Equalf(t, tc.want, loc, "%s: originLocalPath(%q) must percent-encode the control character", tc.name, tc.in)
+		}
+	})
+
 	t.Run("PreservesLegitPaths", func(t *testing.T) {
 		t.Parallel()
 
