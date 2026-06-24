@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { type FC, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
 	InstructionsPageView,
@@ -312,5 +313,73 @@ export const SavesBothSections: Story = {
 		});
 
 		expect(saveOrder).toEqual(["system", "plan"]);
+	},
+};
+
+const RefetchPromptWrapper: FC = () => {
+	const [systemPromptValue, setSystemPromptValue] = useState("Old");
+
+	return (
+		<>
+			<button
+				type="button"
+				onClick={() => setSystemPromptValue("New")}
+				className="sr-only"
+			>
+				Simulate system prompt refetch
+			</button>
+			<InstructionsPageView
+				systemPromptData={{
+					system_prompt: systemPromptValue,
+					include_default_system_prompt: false,
+					default_system_prompt: mockDefaultSystemPrompt,
+				}}
+				planModeInstructionsData={{
+					plan_mode_instructions: "Baseline plan mode guidance.",
+				}}
+				onSaveSystemPrompt={fn()}
+				onSavePlanModeInstructions={fn()}
+				onResetSystemPromptSave={fn()}
+				onResetPlanModeInstructionsSave={fn()}
+				isSaving={false}
+				isSaveSystemPromptError={false}
+				isSavePlanModeInstructionsError={true}
+			/>
+		</>
+	);
+};
+
+export const PartialSaveFailureCancelResyncsToServer: Story = {
+	render: () => <RefetchPromptWrapper />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await canvas.findByDisplayValue("Old");
+		await canvas.findByDisplayValue("Baseline plan mode guidance.");
+		expect(
+			canvas.getByText("Failed to save plan mode instructions."),
+		).toBeInTheDocument();
+
+		const planTextarea = await canvas.findByLabelText(
+			"Additional plan mode instructions",
+		);
+		await userEvent.type(planTextarea, " edited");
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: "Simulate system prompt refetch" }),
+		);
+
+		const cancelButton = canvas.getByRole("button", {
+			name: "Cancel",
+		});
+		await waitFor(() => {
+			expect(cancelButton).toBeEnabled();
+		});
+		await userEvent.click(cancelButton);
+
+		await waitFor(() => {
+			expect(canvas.getByDisplayValue("New")).toBeInTheDocument();
+			expect(canvas.queryByDisplayValue("Old")).toBeNull();
+		});
 	},
 };

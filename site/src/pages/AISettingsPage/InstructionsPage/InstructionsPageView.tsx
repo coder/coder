@@ -138,7 +138,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 	const planModeInvisibleCharCount = countInvisibleCharacters(
 		form.values.plan_mode_instructions,
 	);
-	const isDisabled = isSaving;
+	const isDisabled = isSaving || form.isSubmitting;
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-8">
@@ -251,7 +251,7 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 							// both stores must reset before the clean form disables actions.
 							onResetSystemPromptSave();
 							onResetPlanModeInstructionsSave();
-							form.resetForm();
+							form.resetForm({ values: initialValues });
 						}}
 						disabled={isDisabled || !form.dirty}
 					>
