@@ -74,7 +74,9 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
-	const categories = [...new Set(modules.map((module) => module.category))];
+	const categories = [
+		...new Set(modules.map((module) => module.category)),
+	].sort((a, b) => a.localeCompare(b));
 
 	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
 
