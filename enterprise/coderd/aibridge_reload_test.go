@@ -68,7 +68,7 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 		},
 	})
 
-	metrics := coderdtest.StartTestAIBridgeDaemon(t, api.AGPL)
+	metrics := coderdtest.StartTestAIBridgeDaemon(t, testutil.Context(t, testutil.WaitLong), api.AGPL, nil)
 
 	// requireProviderStatus polls until the provider_info series for
 	// (name, status) settles to value 1. Reloads happen via pubsub, so

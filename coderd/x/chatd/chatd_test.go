@@ -5319,7 +5319,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 			return chattest.AnthropicStreamingResponse()
 		}
 	})
-	factory := chattest.NewMockTransportFactoryPreservePath(t, anthropicURL)
+	factory := chattest.NewMockTransportFactory(t, anthropicURL, chattest.WithPreservePath())
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	provider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)

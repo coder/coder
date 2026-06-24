@@ -28,6 +28,15 @@ type RecordedRequest struct {
 	APIKeyID string
 }
 
+// MockTransportOption configures a [MockTransportFactory].
+type MockTransportOption func(*MockTransportFactory)
+
+// WithPreservePath disables the default "/v1" path stripping so the
+// target server receives the full original request path.
+func WithPreservePath() MockTransportOption {
+	return func(f *MockTransportFactory) { f.preservePath = true }
+}
+
 // MockTransportFactory is a test [aibridge.TransportFactory] that
 // redirects requests to a target URL (typically a [chattest.NewOpenAI]
 // or [chattest.NewAnthropic] server) and records each request for
@@ -35,8 +44,8 @@ type RecordedRequest struct {
 //
 // By default it strips the leading "/v1" path segment before
 // forwarding, matching how the real AI Gateway transport rewrites
-// upstream-shaped requests. Use [NewMockTransportFactoryPreservePath]
-// when the target server expects the full original path.
+// upstream-shaped requests. Pass [WithPreservePath] when the target
+// server expects the full original path.
 type MockTransportFactory struct {
 	target       *url.URL
 	transport    http.RoundTripper
@@ -46,25 +55,18 @@ type MockTransportFactory struct {
 }
 
 // NewMockTransportFactory creates a [MockTransportFactory] that
-// forwards to targetBaseURL, stripping the leading "/v1" path segment.
-func NewMockTransportFactory(t testing.TB, targetBaseURL string) *MockTransportFactory {
+// forwards to targetBaseURL.
+func NewMockTransportFactory(t testing.TB, targetBaseURL string, opts ...MockTransportOption) *MockTransportFactory {
 	t.Helper()
 	target, err := url.Parse(targetBaseURL)
 	if err != nil {
 		t.Fatalf("parse target URL: %v", err)
 	}
-	return &MockTransportFactory{target: target, transport: http.DefaultTransport}
-}
-
-// NewMockTransportFactoryPreservePath creates a [MockTransportFactory]
-// that forwards to targetBaseURL without stripping the request path.
-func NewMockTransportFactoryPreservePath(t testing.TB, targetBaseURL string) *MockTransportFactory {
-	t.Helper()
-	target, err := url.Parse(targetBaseURL)
-	if err != nil {
-		t.Fatalf("parse target URL: %v", err)
+	f := &MockTransportFactory{target: target, transport: http.DefaultTransport}
+	for _, opt := range opts {
+		opt(f)
 	}
-	return &MockTransportFactory{target: target, transport: http.DefaultTransport, preservePath: true}
+	return f
 }
 
 // TransportFor implements [aibridge.TransportFactory].

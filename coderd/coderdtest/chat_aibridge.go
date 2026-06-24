@@ -29,12 +29,20 @@ import (
 // through the real aibridged stack: auth header injection, SSE streaming,
 // request recording, and path rewriting all run as they would in production.
 //
-// The returned *aibridged.Metrics can be used to assert on reload events.
-// Most callers can ignore it.
-func StartTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
+// ctx controls the lifetime of the daemon and provider reload subscription.
+// Pass a test-scoped context so the daemon shuts down when the test ends.
+//
+// metrics is the registry the daemon reports provider reload events to.
+// Pass nil to create a fresh registry; the returned metrics is what the
+// daemon reports to, regardless of who supplied it.
+func StartTestAIBridgeDaemon(
+	t *testing.T,
+	ctx context.Context,
+	api *coderd.API,
+	metrics *aibridged.Metrics,
+) *aibridged.Metrics {
 	t.Helper()
 
-	ctx := context.Background()
 	logger := slogtest.Make(t, nil).Named("aibridged").Leveled(slog.LevelDebug)
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-test")
@@ -50,7 +58,9 @@ func StartTestAIBridgeDaemon(t *testing.T, api *coderd.API) *aibridged.Metrics {
 	}
 	t.Cleanup(func() { _ = pool.Shutdown(context.Background()) })
 
-	metrics := aibridged.NewMetrics(prometheus.NewRegistry())
+	if metrics == nil {
+		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
+	}
 	reloader := &testPoolReloader{pool: pool, db: api.Database, cfg: cfg, logger: logger.Named("reloader"), metrics: metrics}
 	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, api.Pubsub, reloader, logger.Named("subscriber"))
 	if err != nil {
