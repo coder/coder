@@ -8,9 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_originLocalPath verifies that originLocalPath, the helper used to build
-// every redirect Location derived from r.URL.Path, keeps the target on the
-// current origin (ANT-2026-22456). Call sites build the Location as
+// Test_originLocalPath checks that originLocalPath keeps a redirect target on
+// the current origin. Call sites build the Location as
 // url.URL{Path: originLocalPath(...)}.String(), so the assertions mirror that.
 func Test_originLocalPath(t *testing.T) {
 	t.Parallel()
