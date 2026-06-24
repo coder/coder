@@ -11,7 +11,7 @@ import { DebugRetentionSettings } from "./components/DebugRetentionSettings";
 import { RetentionPeriodSettings } from "./components/RetentionPeriodSettings";
 import { WorkspaceAutostopSettings } from "./components/WorkspaceAutostopSettings";
 
-export interface AgentSettingsLifecyclePageViewProps {
+export interface LifecyclePageViewProps {
 	workspaceTTLData: TypesGen.ChatWorkspaceTTLResponse | undefined;
 	isWorkspaceTTLLoading: boolean;
 	isWorkspaceTTLLoadError: boolean;
@@ -58,9 +58,7 @@ export interface AgentSettingsLifecyclePageViewProps {
 	isSaveAutoArchiveDaysError: boolean;
 }
 
-export const AgentSettingsLifecyclePageView: FC<
-	AgentSettingsLifecyclePageViewProps
-> = ({
+export const LifecyclePageView: FC<LifecyclePageViewProps> = ({
 	workspaceTTLData,
 	isWorkspaceTTLLoading,
 	isWorkspaceTTLLoadError,

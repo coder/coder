@@ -3,8 +3,8 @@ import type { FC } from "react";
 import * as Yup from "yup";
 import type * as TypesGen from "#/api/typesGenerated";
 import { DefaultChatAutoArchiveDays } from "#/api/typesGenerated";
+import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
 import { DaysField, LifecycleSettingLayout } from "./LifecycleSettingLayout";
-import { useTemporarySavedState } from "./TemporarySavedState";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;

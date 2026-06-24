@@ -4,7 +4,7 @@ import { expect, userEvent, within } from "storybook/test";
 import { DurationField } from "./DurationField";
 
 const meta: Meta<typeof DurationField> = {
-	title: "pages/AgentsPage/DurationField",
+	title: "pages/AISettingsPage/LifecyclePage/DurationField",
 	component: DurationField,
 	args: {
 		label: "Duration",

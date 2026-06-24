@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import {
-	AgentSettingsLifecyclePageView,
-	type AgentSettingsLifecyclePageViewProps,
-} from "./AgentSettingsLifecyclePageView";
+	LifecyclePageView,
+	type LifecyclePageViewProps,
+} from "./LifecyclePageView";
 
-const baseArgs: AgentSettingsLifecyclePageViewProps = {
+const baseArgs: LifecyclePageViewProps = {
 	workspaceTTLData: { workspace_ttl_ms: 7_200_000 },
 	isWorkspaceTTLLoading: false,
 	isWorkspaceTTLLoadError: false,
@@ -33,13 +33,13 @@ const baseArgs: AgentSettingsLifecyclePageViewProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsLifecyclePageView",
-	component: AgentSettingsLifecyclePageView,
+	title: "pages/AISettingsPage/LifecyclePage/LifecyclePageView",
+	component: LifecyclePageView,
 	args: baseArgs,
-} satisfies Meta<typeof AgentSettingsLifecyclePageView>;
+} satisfies Meta<typeof LifecyclePageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsLifecyclePageView>;
+type Story = StoryObj<typeof LifecyclePageView>;
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {

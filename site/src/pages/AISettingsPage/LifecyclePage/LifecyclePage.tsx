@@ -13,9 +13,9 @@ import {
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { AgentSettingsLifecyclePageView } from "./AgentSettingsLifecyclePageView";
+import { LifecyclePageView } from "./LifecyclePageView";
 
-const AgentSettingsLifecyclePage: FC = () => {
+const LifecyclePage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const workspaceTTLQuery = useQuery({
@@ -50,7 +50,7 @@ const AgentSettingsLifecyclePage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
 			<title>{pageTitle("Lifecycle", "AI Settings")}</title>
-			<AgentSettingsLifecyclePageView
+			<LifecyclePageView
 				workspaceTTLData={workspaceTTLQuery.data}
 				isWorkspaceTTLLoading={workspaceTTLQuery.isLoading}
 				isWorkspaceTTLLoadError={workspaceTTLQuery.isError}
@@ -80,4 +80,4 @@ const AgentSettingsLifecyclePage: FC = () => {
 	);
 };
 
-export default AgentSettingsLifecyclePage;
+export default LifecyclePage;
