@@ -107,6 +107,9 @@ importers:
       '@xterm/addon-canvas':
         specifier: 0.7.0
         version: 0.7.0(@xterm/xterm@5.5.0)
+      '@xterm/addon-clipboard':
+        specifier: 0.2.0
+        version: 0.2.0
       '@xterm/addon-fit':
         specifier: 0.11.0
         version: 0.11.0
@@ -3041,6 +3044,9 @@ packages:
     peerDependencies:
       '@xterm/xterm': ^5.0.0
 
+  '@xterm/addon-clipboard@0.2.0':
+    resolution: {integrity: sha512-Dl31BCtBhLaUEECUbEiVcCLvLBbaeGYdT7NofB8OJkGTD3MWgBsaLjXvfGAD4tQNHhm6mbKyYkR7XD8kiZsdNg==, tarball: https://registry.npmjs.org/@xterm/addon-clipboard/-/addon-clipboard-0.2.0.tgz}
+
   '@xterm/addon-fit@0.11.0':
     resolution: {integrity: sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==, tarball: https://registry.npmjs.org/@xterm/addon-fit/-/addon-fit-0.11.0.tgz}
 
@@ -4461,6 +4467,9 @@ packages:
   jiti@2.6.1:
     resolution: {integrity: sha512-ekilCSN1jwRvIbgeg/57YFh8qQDNbwDb9xT/qu2DAHbFFZUicIl4ygVaAvzveMhMVr3LnpSKTNnwt8PoOfmKhQ==, tarball: https://registry.npmjs.org/jiti/-/jiti-2.6.1.tgz}
     hasBin: true
+
+  js-base64@3.7.8:
+    resolution: {integrity: sha512-hNngCeKxIUQiEUN3GPJOkz4wF/YvdUdbNL9hsBcMQTkKzboD7T/q3OYOuuPZLUE6dBxSGpwhk5mwuDud7JVAow==, tarball: https://registry.npmjs.org/js-base64/-/js-base64-3.7.8.tgz}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==, tarball: https://registry.npmjs.org/js-tokens/-/js-tokens-4.0.0.tgz}
@@ -9272,6 +9281,10 @@ snapshots:
     dependencies:
       '@xterm/xterm': 5.5.0
 
+  '@xterm/addon-clipboard@0.2.0':
+    dependencies:
+      js-base64: 3.7.8
+
   '@xterm/addon-fit@0.11.0': {}
 
   '@xterm/addon-unicode11@0.9.0': {}
@@ -10760,6 +10773,8 @@ snapshots:
   jiti@1.21.7: {}
 
   jiti@2.6.1: {}
+
+  js-base64@3.7.8: {}
 
   js-tokens@4.0.0: {}
 

@@ -64,6 +64,7 @@
 		"@pierre/trees": "1.0.0-beta.4",
 		"@tanstack/react-query-devtools": "5.77.0",
 		"@xterm/addon-canvas": "0.7.0",
+		"@xterm/addon-clipboard": "0.2.0",
 		"@xterm/addon-fit": "0.11.0",
 		"@xterm/addon-unicode11": "0.9.0",
 		"@xterm/addon-web-links": "0.12.0",
