@@ -45,7 +45,6 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 						<Link
 							href={detailsUrl}
 							target="_blank"
-							rel="noreferrer"
 							size="sm"
 							className="text-sm font-normal ml-1"
 						>

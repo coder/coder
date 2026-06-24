@@ -7,16 +7,11 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
-import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
-import {
-	ConfigurationField,
-	ConfigurationFieldContainer,
-} from "./ConfigurationField";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
 interface ModuleSettingsStepProps {
@@ -150,20 +145,9 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 								iconUrl={mod.icon}
 								detailsUrl={moduleDetailsUrl(mod.id)}
 								fields={requiredFields}
-							>
-								{optionalFields.length > 0 && (
-									<CollapsibleSummary
-										label="Advanced settings"
-										className="mt-4"
-									>
-										<ConfigurationFieldContainer>
-											{optionalFields.map((f) => (
-												<ConfigurationField key={f.id} field={f} />
-											))}
-										</ConfigurationFieldContainer>
-									</CollapsibleSummary>
-								)}
-							</ModuleConfiguration>
+								optionalFields={optionalFields}
+							/>
+
 							{sensitiveVars.length > 0 && (
 								<div className="flex items-center gap-2 mt-2 p-3 rounded-md text-sm text-content-secondary">
 									<InfoIcon className="size-icon-sm shrink-0 mt-0.5" />

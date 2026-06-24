@@ -1,6 +1,6 @@
 import { TrashIcon } from "lucide-react";
-import type { PropsWithChildren } from "react";
 import { Button } from "#/components/Button/Button";
+import { CollapsibleSummary } from "#/components/CollapsibleSummary/CollapsibleSummary";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
@@ -8,14 +8,15 @@ import {
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
-type ModuleConfigurationProps = PropsWithChildren<{
+type ModuleConfigurationProps = {
 	name: string;
 	description: string;
 	iconUrl?: string;
 	detailsUrl?: string;
 	onRemove?: () => void;
 	fields?: ConfigurationFieldDefinition[];
-}>;
+	optionalFields?: ConfigurationFieldDefinition[];
+};
 
 export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	name,
@@ -24,7 +25,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	detailsUrl,
 	onRemove,
 	fields,
-	children,
+	optionalFields,
 }) => {
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
@@ -52,7 +53,6 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 							<Link
 								href={detailsUrl}
 								target="_blank"
-								rel="noreferrer"
 								size="sm"
 								className="text-xs font-normal ml-1"
 							>
@@ -81,7 +81,13 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 				</ConfigurationFieldContainer>
 			)}
 
-			{children}
+			{optionalFields && optionalFields.length > 0 && (
+				<CollapsibleSummary label="Advanced settings" className="mt-4">
+					{optionalFields.map((f) => (
+						<ConfigurationField key={f.id} field={f} />
+					))}
+				</CollapsibleSummary>
+			)}
 		</section>
 	);
 };
