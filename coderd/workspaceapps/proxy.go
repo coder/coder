@@ -166,6 +166,18 @@ func (s *Server) Attach(r chi.Router) {
 	r.Get("/api/v2/workspaceagents/{workspaceagent}/pty", s.workspaceAgentPTY)
 }
 
+// originLocalPath returns p rooted at the current origin so it is safe to use
+// as a redirect Location. p (typically r.URL.Path) is attacker-controlled and
+// already percent-decoded, so a leading "//" or "/\" run would otherwise be
+// parsed by http.Redirect or a browser as a scheme-relative URL pointing at
+// another host, turning a redirect back to the same path into an open redirect.
+// Collapsing the leading slash and backslash run to a single "/" keeps the
+// result same-origin. Callers must still build the Location through a url.URL so
+// control characters in the path are percent-encoded.
+func originLocalPath(p string) string {
+	return "/" + strings.TrimLeft(p, `/\`)
+}
+
 // handleAPIKeySmuggling is called by the proxy path and subdomain handlers to
 // process any "smuggled" API keys in the query parameters.
 //
@@ -267,13 +279,10 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	}))
 
 	// Strip the smuggled API key query parameter and redirect back to the same
-	// path. r.URL.Path is attacker-controlled, so it can smuggle a separate
-	// host (e.g. "//evil.com") that http.Redirect would send the user to.
-	// Collapse the leading "/" and "\" run to a single "/" and set the path
-	// on a url.URL so it is escaped, keeping the redirect on the current origin.
-	redirectURL := url.URL{
-		Path: "/" + strings.TrimLeft(r.URL.Path, `/\`),
-	}
+	// path. r.URL.Path is attacker-controlled and can smuggle a separate host
+	// (e.g. "//evil.com"); originLocalPath plus url.URL keep the redirect on the
+	// current origin.
+	redirectURL := url.URL{Path: originLocalPath(r.URL.Path)}
 
 	q := r.URL.Query()
 	q.Del(SubdomainProxyAPIKeyParam)
@@ -617,7 +626,14 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		// Web applications typically request paths relative to the
 		// root URL. This allows for routing behind a proxy or subpath.
 		// See https://github.com/coder/code-server/issues/241 for examples.
-		http.Redirect(rw, r, r.URL.Path+"/", http.StatusTemporaryRedirect)
+		//
+		// r.URL.Path is attacker-controlled, so sanitize it before redirecting
+		// to avoid an off-origin "//host" Location (see originLocalPath).
+		redirectPath := originLocalPath(r.URL.Path)
+		if !strings.HasSuffix(redirectPath, "/") {
+			redirectPath += "/"
+		}
+		http.Redirect(rw, r, (&url.URL{Path: redirectPath}).String(), http.StatusTemporaryRedirect)
 		return
 	}
 	if path == "/" && r.URL.RawQuery == "" && appURL.RawQuery != "" {
@@ -626,8 +642,15 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		// query parameters for server-side requests, but sometimes
 		// client-side applications require the query parameters to render
 		// properly. With code-server, this is the "folder" param.
-		r.URL.RawQuery = appURL.RawQuery
-		http.Redirect(rw, r, r.URL.String(), http.StatusTemporaryRedirect)
+		//
+		// r.URL.Path is attacker-controlled, so build the Location from a
+		// sanitized same-origin path instead of r.URL directly (see
+		// originLocalPath).
+		redirectURL := url.URL{
+			Path:     originLocalPath(r.URL.Path),
+			RawQuery: appURL.RawQuery,
+		}
+		http.Redirect(rw, r, redirectURL.String(), http.StatusTemporaryRedirect)
 		return
 	}
 
