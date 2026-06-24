@@ -19,10 +19,10 @@ import (
 	"github.com/coder/quartz"
 )
 
-// newAnthropic is local (not aibridgetest.NewAnthropicProvider) because these
+// newTestAnthropic is local (not aibridgetest.NewAnthropicProvider) because these
 // white-box tests need the concrete *Anthropic, and importing aibridgetest here
 // would create an import cycle.
-func newAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
+func newTestAnthropic(t testing.TB, cfg config.Anthropic, bedrockCfg *config.AWSBedrock) *Anthropic {
 	t.Helper()
 	p, err := NewAnthropic(context.Background(), cfg, bedrockCfg)
 	require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestAnthropic_TypeAndName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			p := newAnthropic(t, tc.cfg, nil)
+			p := newTestAnthropic(t, tc.cfg, nil)
 			assert.Equal(t, tc.expectType, p.Type())
 			assert.Equal(t, tc.expectName, p.Name())
 		})
@@ -92,7 +92,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			p := newAnthropic(t, tc.cfg, nil)
+			p := newTestAnthropic(t, tc.cfg, nil)
 
 			if tc.expectedKeys == nil {
 				assert.Nil(t, p.cfg.KeyPool, "expected no KeyPool")
@@ -117,7 +117,7 @@ func TestNewAnthropic_KeyResolution(t *testing.T) {
 func TestAnthropic_CreateInterceptor(t *testing.T) {
 	t.Parallel()
 
-	provider := newAnthropic(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
+	provider := newTestAnthropic(t, config.Anthropic{KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key")}, nil)
 
 	t.Run("Messages_NonStreamingRequest_BlockingInterceptor", func(t *testing.T) {
 		t.Parallel()
@@ -175,7 +175,7 @@ func TestAnthropic_CreateInterceptor(t *testing.T) {
 		}))
 		t.Cleanup(mockUpstream.Close)
 
-		provider := newAnthropic(t, config.Anthropic{
+		provider := newTestAnthropic(t, config.Anthropic{
 			BaseURL: mockUpstream.URL,
 			KeyPool: testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 		}, nil)
@@ -342,7 +342,7 @@ func TestAnthropic_CreateInterceptor_Credential(t *testing.T) {
 					bedrock.AccessKeySecret = "wJalrXUtnFEMI-secret-value"
 				}
 			}
-			provider := newAnthropic(t, acfg, bedrock)
+			provider := newTestAnthropic(t, acfg, bedrock)
 
 			body := `{"model": "claude-opus-4-5", "max_tokens": 1024, "messages": [{"role": "user", "content": "hello"}], "stream": false}`
 			req := httptest.NewRequest(http.MethodPost, routeMessages, bytes.NewBufferString(body))
@@ -386,7 +386,7 @@ func TestAnthropic_KeyFailoverConfig(t *testing.T) {
 	pool, err := keypool.New(config.ProviderAnthropic, []string{"k0", "k1"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
-	p := newAnthropic(t, config.Anthropic{KeyPool: pool}, nil)
+	p := newTestAnthropic(t, config.Anthropic{KeyPool: pool}, nil)
 
 	cfg := p.KeyFailoverConfig(slog.Make())
 
