@@ -81,7 +81,7 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 				</ConfigurationFieldContainer>
 			)}
 
-			<ConfigurationFieldContainer>{children}</ConfigurationFieldContainer>
+			{children}
 		</section>
 	);
 };
