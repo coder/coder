@@ -3027,6 +3027,14 @@ func (q *querier) GetChatComputerUseProvider(ctx context.Context) (string, error
 	return q.db.GetChatComputerUseProvider(ctx)
 }
 
+func (q *querier) GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatCostByChatIDRow, error) {
+	// Authorize read on the chat.
+	if _, err := q.GetChatByID(ctx, chatID); err != nil {
+		return database.GetChatCostByChatIDRow{}, err
+	}
+	return q.db.GetChatCostByChatID(ctx, chatID)
+}
+
 func (q *querier) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	// The owner's chats, may cross orgs. AnyOrganization() authorizes
 	// the caller if they hold read permission on chats owned by

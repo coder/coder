@@ -10343,6 +10343,140 @@ func TestChatCostSummary_AdminDrilldown(t *testing.T) {
 	})
 }
 
+func TestGetChatCost(t *testing.T) {
+	t.Parallel()
+
+	t.Run("BasicCost", func(t *testing.T) {
+		t.Parallel()
+
+		f := seedChatCostFixture(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := f.Client.GetChatCost(ctx, f.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, f.ChatID, cost.RootChatID)
+		require.Equal(t, int64(1000), cost.TotalCostMicros)
+		require.Equal(t, int64(2), cost.PricedMessageCount)
+		require.Equal(t, int64(0), cost.UnpricedMessageCount)
+	})
+
+	t.Run("RollsUpChildChats", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		rootChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "root chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          rootChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 500, Valid: true},
+		})
+
+		// A subagent (child) chat points at the root via ParentChatID/RootChatID.
+		childChat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "child chat",
+			ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+			RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          childChat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 250, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Querying the root includes the child's cost in the rollup.
+		rootCost, err := client.GetChatCost(ctx, rootChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, rootChat.ID, rootCost.RootChatID)
+		require.Equal(t, int64(750), rootCost.TotalCostMicros)
+		require.Equal(t, int64(2), rootCost.PricedMessageCount)
+
+		// Querying the child resolves to the same root rollup.
+		childCost, err := client.GetChatCost(ctx, childChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, rootChat.ID, childCost.RootChatID)
+		require.Equal(t, int64(750), childCost.TotalCostMicros)
+		require.Equal(t, int64(2), childCost.PricedMessageCount)
+	})
+
+	t.Run("UnpricedMessages", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "unpriced chat",
+		})
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:          chat.ID,
+			ModelConfigID:   uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:            database.ChatMessageRoleAssistant,
+			TotalCostMicros: sql.NullInt64{Int64: 400, Valid: true},
+		})
+		// A message that has token usage but no cost (e.g. no model pricing
+		// configured) is counted as unpriced, not priced.
+		_ = dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			ModelConfigID: uuid.NullUUID{UUID: modelConfig.ID, Valid: true},
+			Role:          database.ChatMessageRoleAssistant,
+			InputTokens:   sql.NullInt64{Int64: 100, Valid: true},
+			OutputTokens:  sql.NullInt64{Int64: 50, Valid: true},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		cost, err := client.GetChatCost(ctx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, int64(400), cost.TotalCostMicros)
+		require.Equal(t, int64(1), cost.PricedMessageCount)
+		require.Equal(t, int64(1), cost.UnpricedMessageCount)
+	})
+
+	t.Run("MemberCannotReadOtherUsersChat", func(t *testing.T) {
+		t.Parallel()
+
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+		memberClientRaw, _ := coderdtest.CreateAnotherUser(t, client.Client, firstUser.OrganizationID)
+		memberClient := codersdk.NewExperimentalClient(memberClientRaw)
+		modelConfig := createChatModelConfig(t, client)
+
+		chat := dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    firstUser.OrganizationID,
+			OwnerID:           firstUser.UserID,
+			LastModelConfigID: modelConfig.ID,
+			Title:             "owner chat",
+		})
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := memberClient.GetChatCost(ctx, chat.ID)
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+}
+
 func TestChatCostUsers(t *testing.T) {
 	t.Parallel()
 

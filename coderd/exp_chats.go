@@ -2205,6 +2205,41 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// EXPERIMENTAL: this endpoint is experimental and is subject to change.
+//
+// @Summary Get chat cost
+// @ID get-chat-cost
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param chat path string true "Chat ID" format(uuid)
+// @Success 200 {object} codersdk.ChatCost
+// @Router /api/experimental/chats/{chat}/cost [get]
+// @Description Experimental: this endpoint is subject to change.
+//
+//nolint:revive // HTTP handler writes to ResponseWriter.
+func (api *API) getChatCost(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	chat := httpmw.ChatParam(r)
+
+	row, err := api.Database.GetChatCostByChatID(ctx, chat.ID)
+	if err != nil {
+		if dbauthz.IsNotAuthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatCost{
+		RootChatID:           row.RootChatID,
+		TotalCostMicros:      row.TotalCostMicros,
+		PricedMessageCount:   row.PricedMessageCount,
+		UnpricedMessageCount: row.UnpricedMessageCount,
+	})
+}
+
 // @Summary List chat user prompts
 // @ID list-chat-user-prompts
 // @Security CoderSessionToken

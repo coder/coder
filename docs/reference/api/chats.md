@@ -1267,6 +1267,48 @@ Experimental: this endpoint is subject to change.
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get chat cost
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/experimental/chats/{chat}/cost \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/experimental/chats/{chat}/cost`
+
+Experimental: this endpoint is subject to change.
+
+### Parameters
+
+| Name   | In   | Type         | Required | Description |
+|--------|------|--------------|----------|-------------|
+| `chat` | path | string(uuid) | true     | Chat ID     |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "priced_message_count": 0,
+  "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
+  "total_cost_micros": 0,
+  "unpriced_message_count": 0
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ChatCost](schemas.md#codersdkchatcost) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get chat diff contents
 
 ### Code samples

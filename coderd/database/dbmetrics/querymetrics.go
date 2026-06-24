@@ -1442,6 +1442,14 @@ func (m queryMetricsStore) GetChatComputerUseProvider(ctx context.Context) (stri
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatCostByChatID(ctx context.Context, chatID uuid.UUID) (database.GetChatCostByChatIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatCostByChatID(ctx, chatID)
+	m.queryLatencies.WithLabelValues("GetChatCostByChatID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatCostByChatID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatCostPerChat(ctx context.Context, arg database.GetChatCostPerChatParams) ([]database.GetChatCostPerChatRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatCostPerChat(ctx, arg)

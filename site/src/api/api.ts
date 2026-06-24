@@ -3355,6 +3355,12 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
+	getChatCost = async (chatId: string): Promise<TypesGen.ChatCost> => {
+		const response = await this.axios.get<TypesGen.ChatCost>(
+			`/api/experimental/chats/${chatId}/cost`,
+		);
+		return response.data;
+	};
 	getChatMessages = async (
 		chatId: string,
 		opts?: { before_id?: number; after_id?: number; limit?: number },

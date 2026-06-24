@@ -41,6 +41,7 @@ import type { PendingAttachment } from "./components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "./components/ChatPageContent";
 import { ChatScrollContainer } from "./components/ChatScrollContainer";
 import { ChatSharingPopoverContent } from "./components/ChatSharingPopover";
+import { ChatSummaryPopoverContent } from "./components/ChatSummaryPopover";
 import { getEffectiveTabId } from "./components/ChatsSidebar/tabs/getEffectiveTabId";
 import { SidebarTabView } from "./components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "./components/ChatTopBar";
@@ -857,6 +858,9 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 											)
 										: undefined
 								}
+								renderChatSummaryContent={(open) => (
+									<ChatSummaryPopoverContent chatId={agentId} open={open} />
+								)}
 							/>
 							{chatOwnerWarning && (
 								<div
