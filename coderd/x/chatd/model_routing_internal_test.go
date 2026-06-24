@@ -779,19 +779,6 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 	}
 }
 
-func TestDirectModelBuildDoesNotRequireActiveAPIKeyID(t *testing.T) {
-	t.Parallel()
-
-	server := &Server{}
-	model, err := server.newModel(t.Context(), modelClientRequest{
-		Chat:      database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
-		ModelName: "gpt-4",
-		UserAgent: chatprovider.UserAgent(),
-	}, newDirectModelRoute("openai", chatprovider.ProviderAPIKeys{OpenAI: "sk-test"}), modelBuildOptions{})
-	require.NoError(t, err)
-	require.NotNil(t, model)
-}
-
 func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
 	t.Parallel()
 
