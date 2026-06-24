@@ -146,7 +146,7 @@ export interface AIBridgeSession {
 // From codersdk/aibridge.go
 /**
  * AIBridgeSessionThreadsResponse is the response for GET
- * /api/v2/aibridge/sessions/{session_id} which returns a single
+ * /api/v2/ai-gateway/sessions/{session_id} which returns a single
  * session with fully expanded threads.
  */
 export interface AIBridgeSessionThreadsResponse {
@@ -3686,6 +3686,12 @@ export interface CreateTemplateRequest {
 	 * but can be set to 0 to disable activity bumping.
 	 */
 	readonly activity_bump_ms?: number;
+	/**
+	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	 * before the autostop deadline at which a reminder notification is sent for
+	 * workspaces created from this template. Defaults to 0 (disabled).
+	 */
+	readonly time_til_autostop_notify_ms?: number;
 	/**
 	 * AutostopRequirement allows optionally specifying the autostop requirement
 	 * for workspaces created from this template. This is an enterprise feature.
@@ -8169,6 +8175,12 @@ export interface Template {
 	readonly default_ttl_ms: number;
 	readonly activity_bump_ms: number;
 	/**
+	 * TimeTilAutostopNotifyMillis is the duration before the workspace's
+	 * autostop deadline at which a reminder notification is sent. 0 disables
+	 * the notification.
+	 */
+	readonly time_til_autostop_notify_ms: number;
+	/**
 	 * AutostopRequirement and AutostartRequirement are enterprise features. Its
 	 * value is only used if your license is entitled to use the advanced template
 	 * scheduling feature.
@@ -9106,6 +9118,13 @@ export interface UpdateTemplateMeta {
 	 * but can be set to 0 to disable activity bumping.
 	 */
 	readonly activity_bump_ms?: number;
+	/**
+	 * TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	 * before the autostop deadline at which a reminder notification is sent for
+	 * workspaces created from this template. Defaults to 0 (disabled). Omitting
+	 * the field keeps the existing value.
+	 */
+	readonly time_til_autostop_notify_ms?: number;
 	/**
 	 * AutostopRequirement and AutostartRequirement can only be set if your license
 	 * includes the advanced template scheduling feature. If you attempt to set this

@@ -416,6 +416,7 @@ export type DeploymentConfig = Readonly<{
 }>;
 
 const aiProviderConfigsPath = "/api/v2/ai/providers";
+const aiGatewayPath = "/api/v2/ai-gateway";
 const chatModelConfigsPath = "/api/experimental/chats/model-configs";
 const userSkillsPath = (user: string) =>
 	`/api/experimental/users/${encodeURIComponent(user)}/skills`;
@@ -3157,21 +3158,21 @@ class ApiMethods {
 	};
 
 	getAIBridgeModels = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/models", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/models`, options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeClients = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/clients", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/clients`, options);
 
 		const response = await this.axios.get<string[]>(url);
 		return response.data;
 	};
 
 	getAIBridgeSessionList = async (options: SearchParamOptions) => {
-		const url = getURLWithSearchParams("/api/v2/aibridge/sessions", options);
+		const url = getURLWithSearchParams(`${aiGatewayPath}/sessions`, options);
 		const response =
 			await this.axios.get<TypesGen.AIBridgeListSessionsResponse>(url);
 		return response.data;
@@ -3182,7 +3183,7 @@ class ApiMethods {
 		options?: { after_id?: string; before_id?: string; limit?: number },
 	) => {
 		const url = getURLWithSearchParams(
-			`/api/v2/aibridge/sessions/${sessionId}`,
+			`${aiGatewayPath}/sessions/${sessionId}`,
 			options,
 		);
 		const response =
@@ -3233,7 +3234,7 @@ class ApiMethods {
 
 	getAIGatewayKeys = async (): Promise<TypesGen.AIGatewayKey[]> => {
 		const response = await this.axios.get<TypesGen.AIGatewayKey[]>(
-			"/api/v2/aibridge/keys",
+			`${aiGatewayPath}/keys`,
 		);
 		return response.data;
 	};
@@ -3242,14 +3243,14 @@ class ApiMethods {
 		req: TypesGen.CreateAIGatewayKeyRequest,
 	): Promise<TypesGen.CreateAIGatewayKeyResponse> => {
 		const response = await this.axios.post<TypesGen.CreateAIGatewayKeyResponse>(
-			"/api/v2/aibridge/keys",
+			`${aiGatewayPath}/keys`,
 			req,
 		);
 		return response.data;
 	};
 
 	deleteAIGatewayKey = async (id: string): Promise<void> => {
-		await this.axios.delete(`/api/v2/aibridge/keys/${encodeURIComponent(id)}`);
+		await this.axios.delete(`${aiGatewayPath}/keys/${encodeURIComponent(id)}`);
 	};
 }
 

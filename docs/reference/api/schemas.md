@@ -4778,7 +4778,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -4807,6 +4808,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_use_classic_parameter_flow` | boolean                                                                        | false    |              | Template use classic parameter flow allows optionally specifying whether the template should use the classic parameter flow. The default if unset is true, and is why `*bool` is used here. When dynamic parameters becomes the default, this will default to false.                                                |
 |`template_version_id`|string|true||Template version ID is an in-progress or completed job to use as an initial version of the template.
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
+|`time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled).|
 
 ## codersdk.CreateTemplateVersionDryRunRequest
 
@@ -11691,6 +11693,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -11733,6 +11736,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -12153,6 +12157,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -13278,6 +13283,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -13308,6 +13314,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates workspaces built using this template use the active version of the template. This option has no effect on template admins.                                                                                                                                                                                                                         |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled). Omitting the field keeps the existing value.                                                                                                                      |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |

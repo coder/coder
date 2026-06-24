@@ -12,9 +12,10 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsLifecyclePageView } from "./AgentSettingsLifecyclePageView";
+import { pageTitle } from "#/utils/page";
+import { LifecyclePageView } from "./LifecyclePageView";
 
-const AgentSettingsLifecyclePage: FC = () => {
+const LifecyclePage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const workspaceTTLQuery = useQuery({
@@ -48,7 +49,8 @@ const AgentSettingsLifecyclePage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsLifecyclePageView
+			<title>{pageTitle("Lifecycle", "AI Settings")}</title>
+			<LifecyclePageView
 				workspaceTTLData={workspaceTTLQuery.data}
 				isWorkspaceTTLLoading={workspaceTTLQuery.isLoading}
 				isWorkspaceTTLLoadError={workspaceTTLQuery.isError}
@@ -78,4 +80,4 @@ const AgentSettingsLifecyclePage: FC = () => {
 	);
 };
 
-export default AgentSettingsLifecyclePage;
+export default LifecyclePage;

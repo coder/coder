@@ -169,6 +169,62 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 - Check system permissions for network extensions
 - Ensure only one copy of Coder Desktop is installed
 
+### Collecting Logs
+
+When reporting an issue, attach the relevant log files so we can diagnose it faster.
+
+<div class="tabs">
+
+#### macOS
+
+Coder Desktop and its network extension write to the Apple [unified logging system](https://developer.apple.com/documentation/os/logging). The file sync (Mutagen) daemon writes to a separate log file.
+
+1. Export the unified logs for the last hour with the `log` command:
+
+    ```shell
+    log show --predicate 'subsystem == "com.coder.Coder-Desktop"' \
+      --info --debug --last 1h > ~/Desktop/coder-desktop.log
+    ```
+
+    Adjust `--last` (e.g. `30m`, `2h`, `1d`) to cover the time the issue occurred. You can also view the same logs interactively in **Console.app** by filtering on the `com.coder.Coder-Desktop` subsystem.
+
+2. If you're using file sync, also collect the Mutagen daemon log:
+
+    ```shell
+    ~/Library/Application\ Support/Coder\ Desktop/Mutagen/daemon.log
+    ```
+
+    Coder Desktop also opens this file in Console automatically when the file sync daemon fails.
+
+#### Windows
+
+Coder Desktop has three components that write logs: the app (UI), the VPN service, and the file sync (Mutagen) daemon.
+
+1. App log (daily rolling):
+
+    ```powershell
+    %LOCALAPPDATA%\CoderDesktop\app.log
+    ```
+
+2. VPN service log (default install path):
+
+    ```powershell
+    C:\Program Files\Coder Desktop\coder-desktop-service.log
+    ```
+
+3. File sync (Mutagen) daemon log, if you use file sync:
+
+    ```powershell
+    %LOCALAPPDATA%\CoderDesktop\mutagen\daemon.log
+    ```
+
+You can quickly open the app log directory by pasting `%LOCALAPPDATA%\CoderDesktop` into File Explorer.
+
+</div>
+
+> [!TIP]
+> Before attaching logs to a public issue, review them for any sensitive information (deployment URLs, usernames, hostnames) and redact as needed.
+
 ### Getting Help
 
 If you encounter issues not covered here:
