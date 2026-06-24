@@ -232,9 +232,7 @@ const SwitchRow: FC<{
 			onCheckedChange={onCheckedChange}
 			aria-describedby={describedBy}
 		/>
-		<Label htmlFor={id} className="font-normal">
-			{label}
-		</Label>
+		<Label htmlFor={id}>{label}</Label>
 	</div>
 );
 
@@ -271,7 +269,10 @@ const SwitchField: FC<SwitchFieldDefinition> = ({
 				describedBy={description ? descriptionId : undefined}
 			/>
 			{description && (
-				<div id={descriptionId} className="text-sm text-content-secondary">
+				<div
+					id={descriptionId}
+					className="ml-[44px] text-sm font-normal text-content-secondary"
+				>
 					{description}
 				</div>
 			)}
