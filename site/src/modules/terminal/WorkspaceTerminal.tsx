@@ -1,5 +1,6 @@
 import "@xterm/xterm/css/xterm.css";
 import { CanvasAddon } from "@xterm/addon-canvas";
+import { ClipboardAddon } from "@xterm/addon-clipboard";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
@@ -239,6 +240,7 @@ export const WorkspaceTerminal = ({
 				handleOpenLink(uri);
 			}),
 		);
+		nextTerminal.loadAddon(new ClipboardAddon());
 
 		const copySelection = () => {
 			const selection = nextTerminal.getSelection();
