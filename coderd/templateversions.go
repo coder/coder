@@ -328,6 +328,7 @@ func (api *API) templateVersionRichParameters(rw http.ResponseWriter, r *http.Re
 // @Produce json
 // @Tags Templates
 // @Param templateversion path string true "Template version ID" format(uuid)
+// @Param user_id query string false "Owner to report external auth state for. Defaults to the requesting user." format(uuid)
 // @Success 200 {array} codersdk.TemplateVersionExternalAuth
 // @Router /api/v2/templateversions/{templateversion}/external-auth [get]
 func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Request) {
@@ -336,6 +337,43 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 		apiKey          = httpmw.APIKey(r)
 		templateVersion = httpmw.TemplateVersionParam(r)
 	)
+
+	// The external auth state is reported for the workspace owner. By default
+	// this is the requesting user, but an admin creating a workspace for someone
+	// else passes that user's ID so the form reflects the owner's auth state
+	// instead of the admin's.
+	ownerID := apiKey.UserID
+	if q := r.URL.Query().Get("user_id"); q != "" && q != codersdk.Me {
+		uid, err := uuid.Parse(q)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid user_id query parameter.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		ownerID = uid
+	}
+	self := ownerID == apiKey.UserID
+
+	// readCtx is used to look up the owner's external auth links. For the
+	// requesting user this is the request context. When reporting another
+	// user's state the requester must be allowed to create a workspace on that
+	// owner's behalf, mirroring the workspace creation authorization. After that
+	// check the links are read with an elevated context so the requester does
+	// not also need personal read access to the owner.
+	readCtx := ctx
+	if !self {
+		if !api.Authorize(r, policy.ActionCreate,
+			rbac.ResourceWorkspace.InOrg(templateVersion.OrganizationID).WithOwner(ownerID.String())) {
+			httpapi.Forbidden(rw)
+			return
+		}
+		// The requester was authorized to create a workspace for this owner
+		// above. Read the owner's external auth link status (not tokens) with an
+		// elevated context so admins without personal read access still work.
+		readCtx = dbauthz.AsSystemRestricted(ctx) //nolint:gocritic // Authorized as create-workspace-for-owner above; reads only link status.
+	}
 
 	var rawProviders []database.ExternalAuthProvider
 	err := json.Unmarshal(templateVersion.ExternalAuthProviders, &rawProviders)
@@ -364,28 +402,34 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// This is the URL that will redirect the user with a state token.
-		redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", config.ID))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Failed to parse access URL.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
 		provider := codersdk.TemplateVersionExternalAuth{
-			ID:              config.ID,
-			Type:            config.Type,
-			AuthenticateURL: redirectURL.String(),
-			DisplayName:     config.DisplayName,
-			DisplayIcon:     config.DisplayIcon,
-			Optional:        rawProvider.Optional,
+			ID:          config.ID,
+			Type:        config.Type,
+			DisplayName: config.DisplayName,
+			DisplayIcon: config.DisplayIcon,
+			Optional:    rawProvider.Optional,
 		}
 
-		authLink, err := api.Database.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+		// Only the requesting user can complete an authentication flow from the
+		// form. Logging in always authenticates the current session, so the URL
+		// is omitted when reporting another user's state to avoid offering an
+		// action that would authenticate the admin rather than the owner.
+		if self {
+			// This is the URL that will redirect the user with a state token.
+			redirectURL, err := api.AccessURL.Parse(fmt.Sprintf("/external-auth/%s", config.ID))
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Failed to parse access URL.",
+					Detail:  err.Error(),
+				})
+				return
+			}
+			provider.AuthenticateURL = redirectURL.String()
+		}
+
+		authLink, err := api.Database.GetExternalAuthLink(readCtx, database.GetExternalAuthLinkParams{
 			ProviderID: config.ID,
-			UserID:     apiKey.UserID,
+			UserID:     ownerID,
 		})
 		// If there isn't an auth link, then the user just isn't authenticated.
 		if errors.Is(err, sql.ErrNoRows) {
@@ -398,6 +442,16 @@ func (api *API) templateVersionExternalAuth(rw http.ResponseWriter, r *http.Requ
 				Detail:  err.Error(),
 			})
 			return
+		}
+
+		if !self {
+			// Refreshing mutates the owner's token, so we do not do it from this
+			// read-only status check. The presence of a link means the owner has
+			// connected the provider. The workspace build refreshes the token at
+			// provision time and skips it if it is no longer valid.
+			provider.Authenticated = true
+			providers = append(providers, provider)
+			continue
 		}
 
 		_, err = config.RefreshToken(ctx, api.Database, authLink)

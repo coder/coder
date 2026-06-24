@@ -1141,9 +1141,15 @@ class ApiMethods {
 
 	getTemplateVersionExternalAuth = async (
 		versionId: string,
+		userId?: string,
 	): Promise<TypesGen.TemplateVersionExternalAuth[]> => {
+		const params = new URLSearchParams();
+		if (userId) {
+			params.set("user_id", userId);
+		}
+		const query = params.toString();
 		const response = await this.axios.get(
-			`/api/v2/templateversions/${versionId}/external-auth`,
+			`/api/v2/templateversions/${versionId}/external-auth${query ? `?${query}` : ""}`,
 		);
 
 		return response.data;
