@@ -230,12 +230,17 @@ export const ModelForm: FC<ModelFormProps> = ({
 	const compressionThresholdValid =
 		!form.values.compressionThreshold.trim() ||
 		parseThresholdInteger(form.values.compressionThreshold) !== null;
+	// In edit mode the form starts pre-populated with the saved values, so
+	// without a dirty check the Update button would be enabled on mount.
+	// Require at least one change before allowing submit, matching the
+	// behavior of the Provider form (see PR #25551).
 	const canSubmit =
 		!isSaving &&
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
 		contextLimitValid &&
-		compressionThresholdValid;
+		compressionThresholdValid &&
+		(!isEditing || form.dirty);
 
 	const handleConfirmReplaceDefault = () => {
 		replaceDefaultConfirmedRef.current = true;
