@@ -5579,7 +5579,7 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",
-	type: "anthropic",
+	type: "bedrock",
 	name: "bedrock",
 	display_name: "Bedrock",
 	base_url: "https://bedrock-runtime.us-east-2.amazonaws.com",

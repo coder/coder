@@ -329,9 +329,9 @@ describe("providerFormValuesToCreate", () => {
 	});
 
 	describe("Bedrock", () => {
-		it('maps Bedrock to a wire `type:"anthropic"`', () => {
+		it('maps Bedrock to a wire `type:"bedrock"`', () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
-			expect(req.type).toBe("anthropic");
+			expect(req.type).toBe("bedrock");
 		});
 
 		it("derives the region from a canonical AWS URL", () => {

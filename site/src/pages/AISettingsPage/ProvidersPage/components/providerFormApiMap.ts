@@ -143,7 +143,7 @@ export const providerFormValuesToCreate = (
 			sanitizeCredential(values.accessKeySecret),
 		);
 		return {
-			type: "anthropic",
+			type: "bedrock",
 			...base,
 			settings: settings as AIProviderSettings,
 		};
