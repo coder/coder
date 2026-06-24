@@ -7,7 +7,6 @@ import type {
 import { API } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
-	AuthorizationRequest,
 	GenerateAPIKeyResponse,
 	GetUsersResponse,
 	MinimalUser,
@@ -29,7 +28,6 @@ import {
 } from "#/hooks/useEmbeddedMetadata";
 import type { UsePaginatedQueryOptions } from "#/hooks/usePaginatedQuery";
 import { prepareQuery } from "#/utils/filters";
-import { getAuthorizationKey } from "./authCheck";
 import { cachedQuery } from "./util";
 
 export function usersKey(req: UsersRequest) {
@@ -237,19 +235,16 @@ export const hasFirstUser = (userMetadata: MetadataState<User>) => {
 	});
 };
 
-export const login = (
-	authorization: AuthorizationRequest,
-	queryClient: QueryClient,
-) => {
+export const login = (queryClient: QueryClient) => {
 	return {
 		mutationFn: async (credentials: { email: string; password: string }) =>
-			loginFn({ ...credentials, authorization }),
+			loginFn(credentials),
 		onSuccess: async (data: Awaited<ReturnType<typeof loginFn>>) => {
 			queryClient.setQueryData(meKey, data.user);
-			queryClient.setQueryData(
-				getAuthorizationKey(authorization),
-				data.permissions,
-			);
+			// AuthProvider's permissionsQuery fetches authorization lazily.
+			// We deliberately don't pre-seed it here because chaining a
+			// CSRF-protected POST onto the login response made post-login
+			// navigation hang on a single rejected authcheck.
 		},
 	};
 };
@@ -257,21 +252,13 @@ export const login = (
 const loginFn = async ({
 	email,
 	password,
-	authorization,
 }: {
 	email: string;
 	password: string;
-	authorization: AuthorizationRequest;
 }) => {
 	await API.login(email, password);
-	const [user, permissions] = await Promise.all([
-		API.getAuthenticatedUser(),
-		API.checkAuthorization(authorization),
-	]);
-	return {
-		user,
-		permissions,
-	};
+	const user = await API.getAuthenticatedUser();
+	return { user };
 };
 
 export const logout = (queryClient: QueryClient): MutationOptions => {

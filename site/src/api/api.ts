@@ -4043,12 +4043,23 @@ class ExperimentalApiMethods {
 const csrfToken =
 	"KNKvagCBEHZK7ihe2t7fj6VeJ0UyTDco1yVUJE8N06oNqxLu5Zx1vRxZbgfC0mJJgeGkVjgs08mgPbcWPBkZ1A==";
 
-// Always attach CSRF token to all requests. In puppeteer the document is
-// undefined. In those cases, just do nothing.
-const tokenMetadataElement =
-	typeof document !== "undefined"
-		? document.head.querySelector('meta[property="csrf-token"]')
-		: null;
+// Reads the CSRF token from the `<meta property="csrf-token">` tag at
+// request time so the `X-CSRF-TOKEN` header stays in sync with whatever the
+// server most recently rendered. Pinning the value at module init raced with
+// meta tag population and cookie rotation.
+function getCsrfToken(): string {
+	if (typeof document === "undefined") {
+		return "";
+	}
+	if (process.env.NODE_ENV === "development") {
+		return csrfToken;
+	}
+	return (
+		document.head
+			.querySelector('meta[property="csrf-token"]')
+			?.getAttribute("content") ?? ""
+	);
+}
 
 function getConfiguredAxiosInstance(): AxiosInstance {
 	const instance = globalAxios.create();
@@ -4060,29 +4071,34 @@ function getConfiguredAxiosInstance(): AxiosInstance {
 		return (status >= 200 && status < 300) || status === 304;
 	};
 
-	const metadataIsAvailable =
-		tokenMetadataElement !== null &&
-		tokenMetadataElement.getAttribute("content") !== null;
+	// Warn on missing meta tag at module init so misconfigured pages are still
+	// obvious in the console. In dev, rewrite the meta tag to the hardcoded
+	// token so anything reading it directly sees the value the dev proxy
+	// accepts.
+	if (typeof document !== "undefined") {
+		const tokenMetadataElement = document.head.querySelector(
+			'meta[property="csrf-token"]',
+		);
+		const metaContent = tokenMetadataElement?.getAttribute("content");
 
-	if (metadataIsAvailable) {
-		if (process.env.NODE_ENV === "development") {
-			// Development mode uses a hard-coded CSRF token
-			instance.defaults.headers.common["X-CSRF-TOKEN"] = csrfToken;
+		if (process.env.NODE_ENV === "development" && tokenMetadataElement) {
 			tokenMetadataElement.setAttribute("content", csrfToken);
-		} else {
-			instance.defaults.headers.common["X-CSRF-TOKEN"] =
-				tokenMetadataElement.getAttribute("content") ?? "";
-		}
-	} else {
-		// Do not write error logs if we are in a FE unit test or if there is no document (e.g., Electron)
-		if (
-			typeof document !== "undefined" &&
+		} else if (
+			!metaContent &&
 			!process.env.JEST_WORKER_ID &&
 			!process.env.VITEST
 		) {
 			console.error("CSRF token not found");
 		}
 	}
+
+	instance.interceptors.request.use((config) => {
+		const token = getCsrfToken();
+		if (token) {
+			config.headers.set("X-CSRF-TOKEN", token);
+		}
+		return config;
+	});
 
 	return instance;
 }

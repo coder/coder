@@ -58,9 +58,7 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 	});
 
 	const queryClient = useQueryClient();
-	const loginMutation = useMutation(
-		login({ checks: permissionChecks }, queryClient),
-	);
+	const loginMutation = useMutation(login(queryClient));
 
 	const logoutMutation = useMutation(logout(queryClient));
 	const updateProfileMutation = useMutation({
