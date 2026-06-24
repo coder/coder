@@ -25,16 +25,19 @@ const WorkspaceBuildPage: FC = () => {
 		...workspaceBuildByNumber(username, workspaceName, buildNumber),
 		placeholderData: keepPreviousData,
 	});
+
+	// We only want to fetch the workspace if the build is not found. This is so
+	// we can gather why the build is not found, specifically catching the case
+	// where the workspace has been deleted.
+	const shouldCheckDeletedWorkspace =
+		isAxiosError(wsBuildQuery.error) &&
+		(wsBuildQuery.error.response?.status === 404 ||
+			wsBuildQuery.error.response?.status === 410);
 	const workspaceQuery = useQuery({
 		...workspaceByOwnerAndName(username, workspaceName),
-		// We only want to fetch the workspace if the build is not found.
-		// This is so we can gather why the build is not found, specifically
-		// catching the case where the workspace has been deleted.
-		enabled:
-			isAxiosError(wsBuildQuery.error) &&
-			(wsBuildQuery.error.response?.status === 404 ||
-				wsBuildQuery.error.response?.status === 410),
+		enabled: shouldCheckDeletedWorkspace,
 	});
+
 	const build = wsBuildQuery.data;
 	const buildsQuery = useQuery({
 		queryKey: ["builds", username, build?.workspace_id],
@@ -62,6 +65,14 @@ const WorkspaceBuildPage: FC = () => {
 				}
 			: undefined;
 
+	// Hold off on surfacing the build error while we follow up with the
+	// workspace query, otherwise the generic error briefly flashes before the
+	// deleted-workspace banner has a chance to render.
+	const buildError =
+		shouldCheckDeletedWorkspace && !workspaceQuery.isFetched
+			? undefined
+			: wsBuildQuery.error;
+
 	return (
 		<>
 			{build && (
@@ -73,7 +84,7 @@ const WorkspaceBuildPage: FC = () => {
 			<WorkspaceBuildPageView
 				logs={logs}
 				build={build}
-				buildError={wsBuildQuery.error}
+				buildError={buildError}
 				deletedWorkspaceBanner={deletedWorkspaceBanner}
 				builds={buildsQuery.data}
 				activeBuildNumber={buildNumber}
