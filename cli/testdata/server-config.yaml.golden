@@ -1145,5 +1145,5 @@ templateBuilder:
   disabled: false
   # The base URL of the module registry used by the template builder for module
   # source paths.
-  # (default: https://registry.coder.com, type: string)
-  registryURL: https://registry.coder.com
+  # (default: registry.coder.com, type: string)
+  registryURL: registry.coder.com

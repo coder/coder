@@ -36,6 +36,10 @@ type Template struct {
 	Icon               string                 `json:"icon"`
 	DefaultTTLMillis   int64                  `json:"default_ttl_ms"`
 	ActivityBumpMillis int64                  `json:"activity_bump_ms"`
+	// TimeTilAutostopNotifyMillis is the duration before the workspace's
+	// autostop deadline at which a reminder notification is sent. 0 disables
+	// the notification.
+	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
 	// AutostopRequirement and AutostartRequirement are enterprise features. Its
 	// value is only used if your license is entitled to use the advanced template
 	// scheduling feature.
@@ -227,6 +231,11 @@ type UpdateTemplateMeta struct {
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
+	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	// before the autostop deadline at which a reminder notification is sent for
+	// workspaces created from this template. Defaults to 0 (disabled). Omitting
+	// the field keeps the existing value.
+	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement and AutostartRequirement can only be set if your license
 	// includes the advanced template scheduling feature. If you attempt to set this
 	// value while unlicensed, it will be ignored.

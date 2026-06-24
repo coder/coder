@@ -1,5 +1,5 @@
 import type { QueryClient, UseQueryOptions } from "react-query";
-import { API } from "#/api/api";
+import { API, type OrganizationGroupAISpend } from "#/api/api";
 import { isApiError } from "#/api/errors";
 import type {
 	CreateGroupRequest,
@@ -36,6 +36,18 @@ export const groupsByOrganization = (organization: string) => {
 		queryKey: getGroupsByOrganizationQueryKey(organization),
 		queryFn: () => API.getGroupsByOrganization(organization),
 	} satisfies UseQueryOptions<Group[]>;
+};
+
+const getOrganizationGroupsAISpendQueryKey = (organization: string) => [
+	...getGroupsByOrganizationQueryKey(organization),
+	"aiSpend",
+];
+
+export const organizationGroupsAISpend = (organization: string) => {
+	return {
+		queryKey: getOrganizationGroupsAISpendQueryKey(organization),
+		queryFn: () => API.getOrganizationGroupsAISpend(organization),
+	} satisfies UseQueryOptions<OrganizationGroupAISpend[]>;
 };
 
 const getRootGroupQueryKey = (organization: string, groupName: string) => [

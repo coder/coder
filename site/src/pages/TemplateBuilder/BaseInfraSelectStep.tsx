@@ -20,6 +20,7 @@ function toSelectedBaseMeta(base: TemplateBuilderBase): SelectedBaseMeta {
 		os: base.os,
 		hasParameters:
 			base.variables.length > 0 && base.variables.some((v) => !v.sensitive),
+		hasPrerequisites: Boolean(base.prerequisites?.length),
 	};
 }
 

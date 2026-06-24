@@ -16,6 +16,7 @@ import { API, watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import {
 	addChildToParentInCache,
+	applyChatArchiveStateToCaches,
 	archiveChat,
 	cancelChatListRefetches,
 	chatDiffContentsKey,
@@ -207,7 +208,8 @@ const AgentsPage: FC = () => {
 	const archiveChatBase = archiveChat(queryClient);
 	const archiveAgentMutation = useMutation({
 		...archiveChatBase,
-		onSuccess: (_data, chatId) => {
+		onSuccess: (data, chatId) => {
+			archiveChatBase.onSuccess(data, chatId);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
@@ -231,19 +233,20 @@ const AgentsPage: FC = () => {
 				(id) => API.experimental.updateChat(id, { archived: true }),
 				(id) => API.deleteWorkspace(id),
 			),
-		onSuccess: async ({ chatId }) => {
+		onSuccess: ({ chatId }) => {
+			applyChatArchiveStateToCaches(queryClient, chatId, true);
 			clearChatErrorReason(chatId);
 			clearPersistedSidebarTabId(chatId);
 			clearPersistedRightPanelState(chatId);
-			await invalidateChatListQueries(queryClient);
-			await queryClient.invalidateQueries({
+			void invalidateChatListQueries(queryClient);
+			void queryClient.invalidateQueries({
 				queryKey: chatKey(chatId),
 				exact: true,
 			});
-			await queryClient.invalidateQueries({
+			void queryClient.invalidateQueries({
 				queryKey: chatsByWorkspaceKeyPrefix,
 			});
-			await invalidateWorkspaceMutationQueries(queryClient, {
+			void invalidateWorkspaceMutationQueries(queryClient, {
 				organizationName,
 				username: user.username,
 			});

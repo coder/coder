@@ -7,6 +7,7 @@ import {
 	Route,
 	ScrollRestoration,
 	useLocation,
+	useParams,
 } from "react-router";
 import { GlobalErrorBoundary } from "./components/ErrorBoundary/GlobalErrorBoundary";
 import { Loader } from "./components/Loader/Loader";
@@ -374,8 +375,8 @@ const AgentSettingsCompactionPage = lazy(
 const AgentSettingsExperimentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
 );
-const AgentSettingsLifecyclePage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLifecyclePage"),
+const AISettingsLifecyclePage = lazy(
+	() => import("./pages/AISettingsPage/LifecyclePage/LifecyclePage"),
 );
 const AgentSettingsAgentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAgentsPage"),
@@ -394,9 +395,6 @@ const AgentSettingsMCPServersPage = lazy(
 );
 const AgentSettingsSpendPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
-);
-const AgentSettingsTemplatesPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsTemplatesPage"),
 );
 const AgentAnalyticsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
@@ -450,6 +448,9 @@ const AISettingsModelsPage = lazy(
 );
 const AISettingsInstructionsPage = lazy(
 	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
+);
+const AISettingsTemplatesPage = lazy(
+	() => import("./pages/AISettingsPage/TemplatesPage/TemplatesPage"),
 );
 const AISettingsAddModelPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/AddModelPage/AddModelPage"),
@@ -536,6 +537,12 @@ const groupsRouter = () => {
 const NavigateWithSearch = ({ to }: { to: string }) => {
 	const location = useLocation();
 	return <Navigate to={{ pathname: to, search: location.search }} replace />;
+};
+
+/** Redirect /aibridge/sessions/:sessionId to /ai-gateway/sessions/:sessionId. */
+const RedirectAIBridgeSession = () => {
+	const { sessionId } = useParams() as { sessionId: string };
+	return <Navigate to={`/ai-gateway/sessions/${sessionId}`} replace />;
 };
 
 export const router = createBrowserRouter(
@@ -710,17 +717,34 @@ export const router = createBrowserRouter(
 						</Route>
 					</Route>
 
-					<Route path="/aibridge" element={<AIBridgeLayout />}>
+					<Route path="/ai-gateway" element={<AIBridgeLayout />}>
 						<Route
 							index
-							element={<Navigate to="/aibridge/sessions" replace />}
+							element={<Navigate to="/ai-gateway/sessions" replace />}
 						/>
 					</Route>
 
-					<Route path="/aibridge/sessions" element={<AIBridgeSessionsLayout />}>
+					<Route
+						path="/ai-gateway/sessions"
+						element={<AIBridgeSessionsLayout />}
+					>
 						<Route index element={<AIBridgeListSessionsPage />} />
 						<Route path=":sessionId" element={<AIBridgeSessionThreadsPage />} />
 					</Route>
+
+					{/* Legacy /aibridge routes redirect to /ai-gateway */}
+					<Route
+						path="/aibridge"
+						element={<Navigate to="/ai-gateway" replace />}
+					/>
+					<Route
+						path="/aibridge/sessions"
+						element={<Navigate to="/ai-gateway/sessions" replace />}
+					/>
+					<Route
+						path="/aibridge/sessions/:sessionId"
+						element={<RedirectAIBridgeSession />}
+					/>
 
 					<Route path="/ai/settings" element={<AISettingsLayout />}>
 						<Route element={<DeploymentConfigProvider />}>
@@ -736,6 +760,8 @@ export const router = createBrowserRouter(
 							path="instructions"
 							element={<AISettingsInstructionsPage />}
 						/>
+						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
+						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
 							path="models/:modelId"
@@ -814,7 +840,10 @@ export const router = createBrowserRouter(
 							path="experiments"
 							element={<AgentSettingsExperimentsPage />}
 						/>
-						<Route path="lifecycle" element={<AgentSettingsLifecyclePage />} />
+						<Route
+							path="lifecycle"
+							element={<Navigate to="/ai/settings/lifecycle" replace />}
+						/>
 						<Route
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
@@ -841,7 +870,10 @@ export const router = createBrowserRouter(
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />
 						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
-						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
+						<Route
+							path="templates"
+							element={<Navigate to="/ai/settings/templates" replace />}
+						/>
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route

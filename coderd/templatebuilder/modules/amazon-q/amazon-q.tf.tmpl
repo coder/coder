@@ -2,6 +2,7 @@
 variable "auth_tarball" {
   description = "Base64 encoded, zstd compressed tarball of a pre-authenticated ~/.local/share/amazon-q directory."
   type        = string
+  default     = ""
   sensitive   = true
 }
 module "amazon-q" {

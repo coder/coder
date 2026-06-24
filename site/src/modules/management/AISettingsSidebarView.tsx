@@ -41,6 +41,16 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/lifecycle">
+						Lifecycle
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/templates">
+						Templates
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/agents/settings/agents">
 						<div className="flex flex-row items-center gap-1">
 							Manage Coder Agents <ArrowUpRightIcon size={16} />

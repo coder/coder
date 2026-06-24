@@ -1,6 +1,6 @@
 import type { TemplateBuilderWizardState } from "./wizardState";
 
-type StepId =
+export type StepId =
 	| "base-infra"
 	| "base-parameters"
 	| "module-select"
@@ -40,7 +40,9 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 	{
 		id: "base-parameters",
 		group: 1,
-		shouldSkip: (state) => !state.selectedBase?.hasParameters,
+		shouldSkip: (state) =>
+			!state.selectedBase?.hasParameters &&
+			!state.selectedBase?.hasPrerequisites,
 	},
 	{
 		id: "module-select",
