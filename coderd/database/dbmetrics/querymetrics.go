@@ -2354,6 +2354,14 @@ func (m queryMetricsStore) GetMCPServerUserTokensByUserID(ctx context.Context, u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx)
+	m.queryLatencies.WithLabelValues("GetNextPendingWorkspaceBuildOrchestrationForUpdate").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetNextPendingWorkspaceBuildOrchestrationForUpdate").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetNotificationMessagesByStatus(ctx, arg)
@@ -4522,6 +4530,14 @@ func (m queryMetricsStore) InsertWorkspaceBuild(ctx context.Context, arg databas
 	return r0
 }
 
+func (m queryMetricsStore) InsertWorkspaceBuildOrchestration(ctx context.Context, arg database.InsertWorkspaceBuildOrchestrationParams) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceBuildOrchestration(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceBuildOrchestration").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkspaceBuildOrchestration").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspaceBuildParameters(ctx context.Context, arg database.InsertWorkspaceBuildParametersParams) error {
 	start := time.Now()
 	r0 := m.s.InsertWorkspaceBuildParameters(ctx, arg)
@@ -5936,6 +5952,38 @@ func (m queryMetricsStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildFlagsByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildFlagsByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationCanceledByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCanceledByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceBuildOrchestrationCanceledByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildOrchestrationCanceledByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildOrchestrationCanceledByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationCompletedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationCompletedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceBuildOrchestrationCompletedByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildOrchestrationCompletedByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildOrchestrationCompletedByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationFailedByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationFailedByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceBuildOrchestrationFailedByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildOrchestrationFailedByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildOrchestrationFailedByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspaceBuildOrchestrationRetryByID(ctx context.Context, arg database.UpdateWorkspaceBuildOrchestrationRetryByIDParams) (database.WorkspaceBuildOrchestration, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkspaceBuildOrchestrationRetryByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildOrchestrationRetryByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildOrchestrationRetryByID").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
