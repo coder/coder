@@ -355,7 +355,7 @@ type exchangeAssertingProvider struct {
 	onExchange func(opts []oauth2.AuthCodeOption)
 }
 
-func (p *exchangeAssertingProvider) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
+func (*exchangeAssertingProvider) AuthCodeURL(state string, _ ...oauth2.AuthCodeOption) string {
 	return "?state=" + url.QueryEscape(state)
 }
 

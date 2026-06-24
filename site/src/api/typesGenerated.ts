@@ -6111,6 +6111,15 @@ export const OAuth2ProviderResponseTypes: OAuth2ProviderResponseType[] = [
  */
 export const OAuth2RedirectCookie = "oauth_redirect";
 
+// From codersdk/client.go
+/**
+ * OAuth2RedirectURICookie stores the dynamically computed OIDC redirect_uri
+ * when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is enabled. The same value must be
+ * used for both the authorization request and the token exchange (RFC 6749
+ * section 4.1.3).
+ */
+export const OAuth2RedirectURICookie = "oauth_redirect_uri";
+
 // From codersdk/oauth2.go
 export type OAuth2RevocationTokenTypeHint = "access_token" | "refresh_token";
 
