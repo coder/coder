@@ -327,12 +327,19 @@ func validateAIProviderRoleARN(roleARN string) []ValidationError {
 	if roleARN == "" {
 		return nil
 	}
+	const exampleRoleARN = "arn:aws:iam::123456789012:role/BedrockRole"
+	invalid := func(detail string) []ValidationError {
+		return []ValidationError{{Field: "settings.role_arn", Detail: detail}}
+	}
 	parsed, err := arn.Parse(roleARN)
-	if err != nil || parsed.Service != "iam" || !strings.HasPrefix(parsed.Resource, "role/") {
-		return []ValidationError{{
-			Field:  "settings.role_arn",
-			Detail: "role_arn must be a valid IAM role ARN, e.g. arn:aws:iam::123456789012:role/BedrockRole",
-		}}
+	if err != nil {
+		return invalid(fmt.Sprintf("role_arn %q is not a valid ARN, e.g. %s", roleARN, exampleRoleARN))
+	}
+	if parsed.Service != "iam" {
+		return invalid(fmt.Sprintf("role_arn must be an IAM ARN, but resolved to service %q, e.g. %s", parsed.Service, exampleRoleARN))
+	}
+	if !strings.HasPrefix(parsed.Resource, "role/") {
+		return invalid(fmt.Sprintf("role_arn must reference an IAM role, but resolved to resource %q, e.g. %s", parsed.Resource, exampleRoleARN))
 	}
 	return nil
 }
