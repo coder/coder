@@ -1550,5 +1550,7 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.Equal(t, "arn:aws:iam::123456789012:role/target", persisted.Bedrock.RoleARN)
 		require.NotNil(t, persisted.Bedrock.AccessKey)
 		require.Equal(t, "", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
 	})
 }
