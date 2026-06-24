@@ -1,4 +1,4 @@
-package coderd
+package wsbuildorchestrator
 
 import (
 	"context"
@@ -14,18 +14,22 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func newTestOrchestrator(t *testing.T, db database.Store, ps pubsub.Pubsub) *Orchestrator {
+	t.Helper()
+
+	return New(Options{
+		Logger:   testutil.Logger(t),
+		Database: db,
+		Pubsub:   ps,
+	})
+}
+
 func TestWorkspaceBuildOrchestratorSubscribeQueuesWakeOnPubsub(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ps := pubsub.NewInMemory()
-	api := &API{
-		Options: &Options{
-			Pubsub: ps,
-			Logger: testutil.Logger(t),
-		},
-	}
-	o := newWorkspaceBuildOrchestrator(api)
+	o := newTestOrchestrator(t, nil, ps)
 
 	go o.subscribe(ctx)
 
@@ -43,19 +47,13 @@ func TestWorkspaceBuildOrchestratorProcessesPromptlyAfterWake(t *testing.T) {
 	t.Parallel()
 
 	const waitBeforeBackupPoll = time.Second
-	require.Greater(t, workspaceBuildOrchestratorBackupPollInterval, waitBeforeBackupPoll)
+	require.Greater(t, backupPollInterval, waitBeforeBackupPoll)
 
 	ctx := testutil.Context(t, waitBeforeBackupPoll)
-	store := &workspaceBuildOrchestratorRunStore{
+	store := &runStore{
 		calls: make(chan struct{}),
 	}
-	api := &API{
-		Options: &Options{
-			Database: store,
-			Logger:   testutil.Logger(t),
-		},
-	}
-	o := newWorkspaceBuildOrchestrator(api)
+	o := newTestOrchestrator(t, store, nil)
 
 	go o.run(ctx)
 
@@ -70,16 +68,16 @@ func TestWorkspaceBuildOrchestratorProcessesPromptlyAfterWake(t *testing.T) {
 	testutil.RequireReceive(ctx, t, store.calls)
 }
 
-type workspaceBuildOrchestratorRunStore struct {
+type runStore struct {
 	database.Store
 	calls chan struct{}
 }
 
-func (s *workspaceBuildOrchestratorRunStore) InTx(fn func(database.Store) error, _ *database.TxOptions) error {
+func (s *runStore) InTx(fn func(database.Store) error, _ *database.TxOptions) error {
 	return fn(s)
 }
 
-func (s *workspaceBuildOrchestratorRunStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(
+func (s *runStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(
 	ctx context.Context,
 ) (database.WorkspaceBuildOrchestration, error) {
 	select {

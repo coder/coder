@@ -68,6 +68,22 @@ func WorkspaceEventChannel(ownerID uuid.UUID) string {
 	return fmt.Sprintf("workspace_owner:%s", ownerID)
 }
 
+// PublishWorkspaceEvent validates and publishes a workspace event to
+// the owner's event channel.
+func PublishWorkspaceEvent(_ context.Context, ps pubsub.Pubsub, ownerID uuid.UUID, event WorkspaceEvent) error {
+	if err := event.Validate(); err != nil {
+		return xerrors.Errorf("validate workspace event: %w", err)
+	}
+	msg, err := json.Marshal(event)
+	if err != nil {
+		return xerrors.Errorf("marshal workspace event: %w", err)
+	}
+	if err := ps.Publish(WorkspaceEventChannel(ownerID), msg); err != nil {
+		return xerrors.Errorf("publish workspace event: %w", err)
+	}
+	return nil
+}
+
 func HandleWorkspaceEvent(cb func(ctx context.Context, payload WorkspaceEvent, err error)) func(ctx context.Context, message []byte, err error) {
 	return func(ctx context.Context, message []byte, err error) {
 		if err != nil {

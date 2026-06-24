@@ -96,6 +96,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -950,7 +951,16 @@ func New(options *Options) *API {
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
 
-	newWorkspaceBuildOrchestrator(api).start(api.ctx)
+	wsbuildorchestrator.New(wsbuildorchestrator.Options{
+		Logger:            options.Logger,
+		Database:          options.Database,
+		Pubsub:            options.Pubsub,
+		FileCache:         api.FileCache,
+		BuildUsageChecker: api.BuildUsageChecker,
+		DeploymentValues:  options.DeploymentValues,
+		Experiments:       api.Experiments,
+		BuilderMetrics:    options.WorkspaceBuilderMetrics,
+	}).Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,

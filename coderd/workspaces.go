@@ -2943,20 +2943,7 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 }
 
 func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
-	err := event.Validate()
-	if err != nil {
-		api.Logger.Warn(ctx, "invalid workspace update event",
-			slog.F("workspace_id", event.WorkspaceID),
-			slog.F("event_kind", event.Kind), slog.Error(err))
-		return
-	}
-	msg, err := json.Marshal(event)
-	if err != nil {
-		api.Logger.Warn(ctx, "failed to marshal workspace update",
-			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
-		return
-	}
-	err = api.Pubsub.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
+	err := wspubsub.PublishWorkspaceEvent(ctx, api.Pubsub, ownerID, event)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
 			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))

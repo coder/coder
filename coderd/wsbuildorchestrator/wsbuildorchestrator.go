@@ -1,4 +1,4 @@
-package coderd
+package wsbuildorchestrator
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -20,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/files"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -28,25 +30,52 @@ import (
 )
 
 const (
-	workspaceBuildOrchestratorSubscribeMaxBackoff = 10 * time.Second
+	subscribeMaxBackoff = 10 * time.Second
 	// Pubsub should wake the worker promptly, while occasional
 	// polling prevents missed wakes from leaving rows pending
 	// indefinitely.
-	workspaceBuildOrchestratorBackupPollInterval = 30 * time.Second
-	workspaceBuildOrchestrationMaxAttempts       = 3
-	workspaceBuildOrchestrationRetryDelay        = 30 * time.Second
+	backupPollInterval = 30 * time.Second
+	maxAttempts        = 3
+	retryDelay         = 30 * time.Second
 )
 
-type workspaceBuildOrchestrator struct {
-	api    *API
-	logger slog.Logger
+// Orchestrator fulfills workspace build orchestrations after their
+// parent builds reach a terminal state.
+type Orchestrator struct {
+	logger            slog.Logger
+	db                database.Store
+	pubsub            pubsub.Pubsub
+	fileCache         *files.Cache
+	buildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	deploymentValues  *codersdk.DeploymentValues
+	experiments       codersdk.Experiments
+	builderMetrics    *wsbuilder.Metrics
+
 	wakeCh chan struct{}
 }
 
-func newWorkspaceBuildOrchestrator(api *API) *workspaceBuildOrchestrator {
-	return &workspaceBuildOrchestrator{
-		api:    api,
-		logger: api.Logger.Named("workspace_build_orchestrator"),
+type Options struct {
+	Logger            slog.Logger
+	Database          database.Store
+	Pubsub            pubsub.Pubsub
+	FileCache         *files.Cache
+	BuildUsageChecker *atomic.Pointer[wsbuilder.UsageChecker]
+	DeploymentValues  *codersdk.DeploymentValues
+	Experiments       codersdk.Experiments
+	BuilderMetrics    *wsbuilder.Metrics
+}
+
+// New constructs an Orchestrator. Call Start to begin processing.
+func New(opts Options) *Orchestrator {
+	return &Orchestrator{
+		logger:            opts.Logger.Named("workspace_build_orchestrator"),
+		db:                opts.Database,
+		pubsub:            opts.Pubsub,
+		fileCache:         opts.FileCache,
+		buildUsageChecker: opts.BuildUsageChecker,
+		deploymentValues:  opts.DeploymentValues,
+		experiments:       opts.Experiments,
+		builderMetrics:    opts.BuilderMetrics,
 		// Keep one pending wake signal while the worker is between
 		// runs. One is enough because each run drains all ready
 		// orchestration rows.
@@ -54,20 +83,20 @@ func newWorkspaceBuildOrchestrator(api *API) *workspaceBuildOrchestrator {
 	}
 }
 
-func (o *workspaceBuildOrchestrator) start(ctx context.Context) {
+func (o *Orchestrator) Start(ctx context.Context) {
 	go o.subscribe(ctx)
 	go o.run(ctx)
 }
 
-func (o *workspaceBuildOrchestrator) subscribe(ctx context.Context) {
+func (o *Orchestrator) subscribe(ctx context.Context) {
 	eb := backoff.NewExponentialBackOff()
 	eb.MaxElapsedTime = 0 // retry indefinitely
-	eb.MaxInterval = workspaceBuildOrchestratorSubscribeMaxBackoff
+	eb.MaxInterval = subscribeMaxBackoff
 	bkoff := backoff.WithContext(eb, ctx)
 
 	var cancelSubscribe func()
 	err := backoff.Retry(func() error {
-		cancelFn, err := o.api.Pubsub.SubscribeWithErr(
+		cancelFn, err := o.pubsub.SubscribeWithErr(
 			wspubsub.WorkspaceBuildOrchestrationWakeChannel,
 			o.listen,
 		)
@@ -94,7 +123,7 @@ func (o *workspaceBuildOrchestrator) subscribe(ctx context.Context) {
 	<-ctx.Done()
 }
 
-func (o *workspaceBuildOrchestrator) listen(ctx context.Context, _ []byte, err error) {
+func (o *Orchestrator) listen(ctx context.Context, _ []byte, err error) {
 	if xerrors.Is(err, pubsub.ErrDroppedMessages) {
 		o.logger.Warn(ctx, "pubsub may have dropped wake signals")
 		o.wake()
@@ -107,19 +136,19 @@ func (o *workspaceBuildOrchestrator) listen(ctx context.Context, _ []byte, err e
 	o.wake()
 }
 
-func (o *workspaceBuildOrchestrator) wake() {
+func (o *Orchestrator) wake() {
 	select {
 	case o.wakeCh <- struct{}{}:
 	default:
 	}
 }
 
-func (o *workspaceBuildOrchestrator) run(ctx context.Context) {
-	ticker := time.NewTicker(workspaceBuildOrchestratorBackupPollInterval)
+func (o *Orchestrator) run(ctx context.Context) {
+	ticker := time.NewTicker(backupPollInterval)
 	defer ticker.Stop()
 
 	for {
-		err := o.api.processWorkspaceBuildOrchestrations(ctx)
+		err := o.processAll(ctx)
 		if err != nil && ctx.Err() == nil {
 			o.logger.Error(ctx, "process orchestrations", slog.Error(err))
 		}
@@ -133,11 +162,11 @@ func (o *workspaceBuildOrchestrator) run(ctx context.Context) {
 	}
 }
 
-// processWorkspaceBuildOrchestrations processes all pending orchestration rows
-// whose parent builds have reached a terminal state.
-func (api *API) processWorkspaceBuildOrchestrations(ctx context.Context) error {
+// processAll processes all pending orchestration rows whose parent
+// builds have reached a terminal state.
+func (o *Orchestrator) processAll(ctx context.Context) error {
 	for {
-		found, err := api.processNextWorkspaceBuildOrchestration(ctx)
+		found, err := o.processNext(ctx)
 		if err != nil {
 			return err
 		}
@@ -149,7 +178,7 @@ func (api *API) processWorkspaceBuildOrchestrations(ctx context.Context) error {
 	}
 }
 
-func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (bool, error) {
+func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 	//nolint:gocritic // Inserting the orchestration row required
 	// authorization for the parent and child transitions. The worker
 	// uses system authority to fulfill that durable intent after the
@@ -164,7 +193,7 @@ func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (boo
 		childBuildErr   error
 	)
 
-	err := api.Database.InTx(func(tx database.Store) error {
+	err := o.db.InTx(func(tx database.Store) error {
 		orchestration, err := tx.GetNextPendingWorkspaceBuildOrchestrationForUpdate(sysCtx)
 		if xerrors.Is(err, sql.ErrNoRows) {
 			return nil
@@ -264,7 +293,7 @@ func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (boo
 			return xerrors.Errorf("get workspace: %w", err)
 		}
 
-		childBuild, provisionerJob, err := api.createWorkspaceBuildFromOrchestration(sysCtx, tx, workspace, parentBuild.InitiatorID, childBuildRequest)
+		childBuild, provisionerJob, err := o.createBuild(sysCtx, tx, workspace, parentBuild.InitiatorID, childBuildRequest)
 		if err != nil {
 			// Decide whether to mark the orchestration failed based on
 			// the builder error after the transaction rolls back.
@@ -297,7 +326,7 @@ func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (boo
 		if shouldFail {
 			// Mark the orchestration failed so one bad row does not
 			// block later orchestrations.
-			_, markErr = api.Database.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
+			_, markErr = o.db.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
 				Error: sql.NullString{
 					String: childBuildErrorMessage(childBuildErr),
 					Valid:  true,
@@ -307,15 +336,15 @@ func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (boo
 			})
 		} else {
 			now := dbtime.Now()
-			_, markErr = api.Database.UpdateWorkspaceBuildOrchestrationRetryByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
+			_, markErr = o.db.UpdateWorkspaceBuildOrchestrationRetryByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationRetryByIDParams{
 				Error: sql.NullString{
 					String: childBuildErrorMessage(childBuildErr),
 					Valid:  true,
 				},
-				NextRetryAfter:  now.Add(workspaceBuildOrchestrationRetryDelay),
+				NextRetryAfter:  now.Add(retryDelay),
 				UpdatedAt:       now,
 				ID:              orchestrationID,
-				MaxAttemptCount: workspaceBuildOrchestrationMaxAttempts,
+				MaxAttemptCount: maxAttempts,
 			})
 		}
 
@@ -343,17 +372,21 @@ func (api *API) processNextWorkspaceBuildOrchestration(ctx context.Context) (boo
 	// pubsub does not corrupt state. It can delay workers or
 	// subscribers until another wake or refresh.
 	if childJob != nil {
-		if err := provisionerjobs.PostJob(api.Pubsub, *childJob); err != nil {
-			api.Logger.Error(ctx, "failed to post child provisioner job to pubsub",
+		if err := provisionerjobs.PostJob(o.pubsub, *childJob); err != nil {
+			o.logger.Error(ctx, "failed to post child provisioner job to pubsub",
 				slog.F("workspace_build_orchestration_id", orchestrationID),
 				slog.Error(err),
 			)
 		}
 
-		api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		err := wspubsub.PublishWorkspaceEvent(ctx, o.pubsub, workspace.OwnerID, wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
 			WorkspaceID: workspace.ID,
 		})
+		if err != nil {
+			o.logger.Warn(ctx, "failed to publish workspace update",
+				slog.F("workspace_id", workspace.ID), slog.Error(err))
+		}
 	}
 
 	return found, nil
@@ -390,7 +423,7 @@ func childBuildRequestFromOrchestration(orchestration database.WorkspaceBuildOrc
 	return request, nil
 }
 
-func (api *API) createWorkspaceBuildFromOrchestration(
+func (o *Orchestrator) createBuild(
 	ctx context.Context,
 	tx database.Store,
 	workspace database.Workspace,
@@ -398,14 +431,14 @@ func (api *API) createWorkspaceBuildFromOrchestration(
 	request codersdk.CreateWorkspaceBuildRequest,
 ) (*database.WorkspaceBuild, *database.ProvisionerJob, error) {
 	transition := database.WorkspaceTransition(request.Transition)
-	builder := wsbuilder.New(workspace, transition, *api.BuildUsageChecker.Load()).
+	builder := wsbuilder.New(workspace, transition, *o.buildUsageChecker.Load()).
 		Initiator(initiatorID).
 		RichParameterValues(request.RichParameterValues).
 		LogLevel(string(request.LogLevel)).
-		DeploymentValues(api.Options.DeploymentValues).
-		Experiments(api.Experiments).
+		DeploymentValues(o.deploymentValues).
+		Experiments(o.experiments).
 		TemplateVersionPresetID(request.TemplateVersionPresetID).
-		BuildMetrics(api.WorkspaceBuilderMetrics)
+		BuildMetrics(o.builderMetrics)
 
 	if request.TemplateVersionID != uuid.Nil {
 		builder = builder.VersionID(request.TemplateVersionID)
@@ -416,7 +449,7 @@ func (api *API) createWorkspaceBuildFromOrchestration(
 		builder = builder.Reason(database.BuildReason(request.Reason))
 	}
 
-	workspaceBuild, provisionerJob, _, err := builder.Build(ctx, tx, api.FileCache,
+	workspaceBuild, provisionerJob, _, err := builder.Build(ctx, tx, o.fileCache,
 		func(policy.Action, rbac.Objecter) bool {
 			// Inserting the orchestration row required authorization
 			// for the parent and child transitions. The worker uses
