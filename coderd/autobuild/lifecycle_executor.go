@@ -232,6 +232,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					auditLog              *auditParams
 					shouldNotifyDormancy  bool
 					shouldNotifyTaskPause bool
+					autostopReminderDue   bool
+					reminderDeadline      time.Time
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
@@ -309,11 +311,24 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					nextTransition, reason, err := getNextTransition(user, ws, latestBuild, latestJob, templateSchedule, currentTick)
 					if err != nil {
-						log.Debug(e.ctx, "skipping workspace", slog.Error(err))
-						// err is used to indicate that a workspace is not eligible
-						// so returning nil here is ok although ultimately the distinction
-						// doesn't matter since the transaction is  read-only up to
-						// this point.
+						return xerrors.Errorf("get next transition: %w", err)
+					}
+
+					// No transition is due. The workspace may still need a one-time
+					// autostop reminder; reuse the lock and transaction we already
+					// hold to stamp the marker.
+					if reason == "" {
+						if shouldRemindAutostop(latestBuild, templateSchedule, currentTick) {
+							if err := tx.UpdateWorkspaceBuildNotifiedAutostopDeadline(e.ctx, database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams{
+								ID:                       latestBuild.ID,
+								NotifiedAutostopDeadline: latestBuild.Deadline,
+								UpdatedAt:                dbtime.Now(),
+							}); err != nil {
+								return xerrors.Errorf("stamp autostop reminder marker: %w", err)
+							}
+							reminderDeadline = latestBuild.Deadline
+							autostopReminderDue = true
+						}
 						return nil
 					}
 
@@ -536,6 +551,24 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						}
 					}
 				}
+				if autostopReminderDue {
+					// At-most-once: the marker is already committed, so a failed
+					// enqueue only logs (no retry).
+					if _, err := e.notificationsEnqueuer.Enqueue(
+						e.ctx,
+						ws.OwnerID,
+						notifications.TemplateWorkspaceAutostopReminder,
+						map[string]string{
+							"workspace": ws.Name,
+							"deadline":  reminderDeadline.UTC().Format(time.RFC1123),
+						},
+						"lifecycle_executor",
+						// Associate this notification with all the related entities.
+						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
+					); err != nil {
+						log.Warn(e.ctx, "failed to notify of upcoming workspace autostop", slog.Error(err))
+					}
+				}
 				return nil
 			}()
 			if err != nil && !xerrors.Is(err, context.Canceled) {
@@ -559,12 +592,52 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	return stats
 }
 
+// shouldRemindAutostop reports whether a reminder notification should be sent
+// for the workspace's latest build at currentTick.
+//
+// time_til_autostop_notify has no upper bound. If it exceeds a
+// workspace's remaining lifetime, the notify window already covers "now" at
+// build creation. This is still safe: we require deadline > now (so we never
+// remind once the stop is due) and the marker (NotifiedAutostopDeadline ==
+// Deadline, stamped after the first send) filters every subsequent tick. The
+// result is exactly one reminder per deadline, never one per tick.
+func shouldRemindAutostop(build database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
+	if templateSchedule.TimeTilAutostopNotify <= 0 {
+		return false
+	}
+
+	if build.Transition != database.WorkspaceTransitionStart || build.Deadline.IsZero() {
+		return false
+	}
+
+	if !build.Deadline.After(currentTick) {
+		return false
+	}
+
+	// "now" must be within the lead window before the deadline, i.e.
+	// deadline <= now + time_til_autostop_notify.
+	if build.Deadline.After(currentTick.Add(templateSchedule.TimeTilAutostopNotify)) {
+		return false
+	}
+
+	// Idempotence: a reminder has not yet been sent for THIS deadline. The
+	// marker re-arms automatically when the deadline changes (e.g. an activity
+	// bump), so a new reminder fires once the new deadline re-enters the window.
+	return !build.NotifiedAutostopDeadline.Equal(build.Deadline)
+}
+
 // getNextTransition returns the next eligible transition for the workspace
 // as well as the reason for why it is transitioning. It is possible
 // for this function to return a nil error as well as an empty transition.
 // In such cases it means no provisioning should occur but the workspace
 // may be "transitioning" to a new state (such as an inactive, stopped
 // workspace transitioning to the dormant state).
+//
+// When no action is due at all, it returns an empty transition AND an empty
+// reason (with a nil error). Callers should treat reason == "" as the
+// "nothing to do" signal: every other branch returns a non-empty reason. A
+// non-nil error indicates a genuine failure; this function currently never
+// returns one, but the contract now keeps errors reserved for real failures.
 func getNextTransition(
 	user database.User,
 	ws database.Workspace,
@@ -604,7 +677,8 @@ func getNextTransition(
 	case isEligibleForDelete(ws, templateSchedule, latestBuild, latestJob, currentTick):
 		return database.WorkspaceTransitionDelete, database.BuildReasonAutodelete, nil
 	default:
-		return "", "", xerrors.Errorf("last transition not valid for autostart or autostop")
+		// No autostart, autostop, dormancy, or deletion transition is due.
+		return "", "", nil
 	}
 }
 

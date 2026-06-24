@@ -11151,6 +11151,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildFlagsByID(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildFlagsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildFlagsByID), ctx, arg)
 }
 
+// UpdateWorkspaceBuildNotifiedAutostopDeadline mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildNotifiedAutostopDeadline", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildNotifiedAutostopDeadline indicates an expected call of UpdateWorkspaceBuildNotifiedAutostopDeadline.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildNotifiedAutostopDeadline", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildNotifiedAutostopDeadline), ctx, arg)
+}
+
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.
 func (m *MockStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	m.ctrl.T.Helper()

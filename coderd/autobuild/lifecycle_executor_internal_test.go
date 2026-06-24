@@ -112,6 +112,127 @@ func Test_getNextTransition_TaskAutoPause(t *testing.T) {
 	}
 }
 
+func Test_getNextTransition_NoAction(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+
+	// A stopped workspace with no autostart schedule, no dormancy, and no
+	// deletion configured has no transition due. The default case must report
+	// "nothing to do" via an empty transition AND empty reason, with a nil
+	// error (not a sentinel error).
+	user := database.User{Status: database.UserStatusActive}
+	ws := database.Workspace{
+		DormantAt: sql.NullTime{Valid: false},
+	}
+	build := database.WorkspaceBuild{
+		Transition: database.WorkspaceTransitionStop,
+	}
+	job := database.ProvisionerJob{
+		JobStatus: database.ProvisionerJobStatusSucceeded,
+	}
+	templateSchedule := schedule.TemplateScheduleOptions{}
+
+	transition, reason, err := getNextTransition(user, ws, build, job, templateSchedule, now)
+	require.NoError(t, err)
+	require.Equal(t, database.WorkspaceTransition(""), transition)
+	require.Equal(t, database.BuildReason(""), reason)
+}
+
+func TestShouldRemindAutostop(t *testing.T) {
+	t.Parallel()
+
+	currentTick := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
+	const ttl = time.Hour
+
+	// inWindow places the deadline 30m out, inside the 1h lead window.
+	inWindow := func() database.WorkspaceBuild {
+		return database.WorkspaceBuild{
+			Transition: database.WorkspaceTransitionStart,
+			Deadline:   currentTick.Add(30 * time.Minute),
+		}
+	}
+
+	testCases := []struct {
+		Name             string
+		Build            database.WorkspaceBuild
+		TemplateSchedule schedule.TemplateScheduleOptions
+		Expected         bool
+	}{
+		{
+			Name:             "InWindow",
+			Build:            inWindow(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         true,
+		},
+		{
+			Name:             "TemplateDisabled",
+			Build:            inWindow(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: 0},
+			Expected:         false,
+		},
+		{
+			Name: "TransitionStop",
+			Build: func() database.WorkspaceBuild {
+				b := inWindow()
+				b.Transition = database.WorkspaceTransitionStop
+				return b
+			}(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         false,
+		},
+		{
+			Name: "ZeroDeadline",
+			Build: func() database.WorkspaceBuild {
+				b := inWindow()
+				b.Deadline = time.Time{}
+				return b
+			}(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         false,
+		},
+		{
+			Name: "DeadlineInPast",
+			Build: func() database.WorkspaceBuild {
+				b := inWindow()
+				b.Deadline = currentTick.Add(-time.Minute)
+				return b
+			}(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         false,
+		},
+		{
+			Name: "BeforeWindow",
+			Build: func() database.WorkspaceBuild {
+				b := inWindow()
+				// Deadline two hours out, ttl is only one hour.
+				b.Deadline = currentTick.Add(2 * time.Hour)
+				return b
+			}(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         false,
+		},
+		{
+			Name: "AlreadyNotified",
+			Build: func() database.WorkspaceBuild {
+				b := inWindow()
+				b.NotifiedAutostopDeadline = b.Deadline
+				return b
+			}(),
+			TemplateSchedule: schedule.TemplateScheduleOptions{TimeTilAutostopNotify: ttl},
+			Expected:         false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, tc.Expected, shouldRemindAutostop(tc.Build, tc.TemplateSchedule, currentTick))
+		})
+	}
+}
+
 func Test_isEligibleForAutostart(t *testing.T) {
 	t.Parallel()
 

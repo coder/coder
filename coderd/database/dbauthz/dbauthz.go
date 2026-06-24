@@ -8414,6 +8414,24 @@ func (q *querier) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg databas
 	return q.db.UpdateWorkspaceBuildFlagsByID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	build, err := q.db.GetWorkspaceBuildByID(ctx, arg.ID)
+	if err != nil {
+		return err
+	}
+
+	workspace, err := q.db.GetWorkspaceByID(ctx, build.WorkspaceID)
+	if err != nil {
+		return err
+	}
+
+	err = q.authorizeContext(ctx, policy.ActionUpdate, workspace.RBACObject())
+	if err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
 		return err

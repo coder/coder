@@ -1472,6 +1472,12 @@ type sqlcQuerier interface {
 	UpdateWorkspaceBuildCostByID(ctx context.Context, arg UpdateWorkspaceBuildCostByIDParams) error
 	UpdateWorkspaceBuildDeadlineByID(ctx context.Context, arg UpdateWorkspaceBuildDeadlineByIDParams) error
 	UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg UpdateWorkspaceBuildFlagsByIDParams) error
+	// Stamps the deadline value that an autostop reminder was last sent for. Once
+	// this equals the build's deadline the reminder is considered handled and the
+	// lifecycle executor will not send another for this deadline, which makes the
+	// reminder idempotent and HA-safe. It re-arms automatically when the deadline
+	// changes (e.g. an activity bump).
+	UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error
 	UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg UpdateWorkspaceBuildProvisionerStateByIDParams) error
 	UpdateWorkspaceDeletedByID(ctx context.Context, arg UpdateWorkspaceDeletedByIDParams) error
 	UpdateWorkspaceDormantDeletingAt(ctx context.Context, arg UpdateWorkspaceDormantDeletingAtParams) (WorkspaceTable, error)

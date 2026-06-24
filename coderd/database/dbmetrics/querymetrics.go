@@ -5946,6 +5946,14 @@ func (m queryMetricsStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, ar
 	return r0
 }
 
+func (m queryMetricsStore) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceBuildNotifiedAutostopDeadline").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkspaceBuildNotifiedAutostopDeadline").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Context, arg database.UpdateWorkspaceBuildProvisionerStateByIDParams) error {
 	start := time.Now()
 	r0 := m.s.UpdateWorkspaceBuildProvisionerStateByID(ctx, arg)
