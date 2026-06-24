@@ -195,11 +195,6 @@ variable "openai_api_key" {
   sensitive   = true
 }
 
-# IDEs that are enabled by default in the dogfood workspace.
-locals {
-  enabled_ides = ["vscode", "code-server", "cursor"]
-}
-
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
 }
@@ -223,6 +218,50 @@ data "coder_workspace_tags" "prebuild" {
   count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
   tags = {
     "is_prebuild" = "true"
+  }
+}
+
+data "coder_parameter" "ide_choices" {
+  type        = "list(string)"
+  name        = "Select IDEs"
+  form_type   = "multi-select"
+  mutable     = true
+  description = "Choose one or more IDEs to enable in your workspace"
+  default     = jsonencode(["vscode", "code-server", "cursor"])
+  option {
+    name  = "VS Code Desktop"
+    value = "vscode"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "code-server"
+    value = "code-server"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "VS Code Web"
+    value = "vscode-web"
+    icon  = "/icon/code.svg"
+  }
+  option {
+    name  = "JetBrains IDEs"
+    value = "jetbrains"
+    icon  = "/icon/jetbrains.svg"
+  }
+  option {
+    name  = "Cursor"
+    value = "cursor"
+    icon  = "/icon/cursor.svg"
+  }
+  option {
+    name  = "Windsurf"
+    value = "windsurf"
+    icon  = "/icon/windsurf.svg"
+  }
+  option {
+    name  = "Zed"
+    value = "zed"
+    icon  = "/icon/zed.svg"
   }
 }
 
@@ -287,7 +326,7 @@ module "mux" {
 }
 
 module "code-server" {
-  count                   = contains(local.enabled_ides, "code-server") ? data.coder_workspace.me.start_count : 0
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
   version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
@@ -297,7 +336,7 @@ module "code-server" {
 }
 
 module "vscode-web" {
-  count                   = contains(local.enabled_ides, "vscode-web") ? data.coder_workspace.me.start_count : 0
+  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
   version                 = "1.5.1"
   agent_id                = coder_agent.dev.id
@@ -309,7 +348,7 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count         = contains(local.enabled_ides, "jetbrains") ? data.coder_workspace.me.start_count : 0
+  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
   version       = "1.4.0"
   agent_id      = coder_agent.dev.id
@@ -335,7 +374,7 @@ module "coder-login" {
 }
 
 module "cursor" {
-  count    = contains(local.enabled_ides, "cursor") ? data.coder_workspace.me.start_count : 0
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
   version  = "1.4.1"
   agent_id = coder_agent.dev.id
@@ -343,7 +382,7 @@ module "cursor" {
 }
 
 module "windsurf" {
-  count    = contains(local.enabled_ides, "windsurf") ? data.coder_workspace.me.start_count : 0
+  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
   version  = "1.3.1"
   agent_id = coder_agent.dev.id
@@ -351,7 +390,7 @@ module "windsurf" {
 }
 
 module "zed" {
-  count      = contains(local.enabled_ides, "zed") ? data.coder_workspace.me.start_count : 0
+  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
   version    = "1.1.4"
   agent_id   = coder_agent.dev.id
@@ -405,7 +444,7 @@ resource "coder_agent" "dev" {
   startup_script_behavior = "blocking"
 
   display_apps {
-    vscode          = contains(local.enabled_ides, "vscode")
+    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode")
     vscode_insiders = false
   }
 
