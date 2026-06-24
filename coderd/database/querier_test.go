@@ -3078,6 +3078,78 @@ func TestReadCustomRoles(t *testing.T) {
 	}
 }
 
+// TestCustomRolesMalformedLookupName is a regression test for a customer
+// report where OAuth login failed with "pq: malformed record literal" when
+// IdP role-sync passed an unmapped group name (containing parentheses and
+// spaces) through as a Coder role lookup name. The CustomRoles query uses
+// the name_organization_pair composite type, and NameOrganizationPair.Value
+// must escape per Postgres composite-literal rules so that names containing
+// special characters do not abort the query.
+//
+// A name that could never be a real Coder role (NameValid rejects it) must
+// still produce a clean zero-row lookup, not an error.
+func TestCustomRolesMalformedLookupName(t *testing.T) {
+	t.Parallel()
+
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+
+	db := database.New(sqlDB)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	orgID := uuid.New()
+	validRole, err := db.InsertCustomRole(ctx, database.InsertCustomRoleParams{
+		Name: "valid-role",
+		OrganizationID: uuid.NullUUID{
+			UUID:  orgID,
+			Valid: true,
+		},
+	})
+	require.NoError(t, err)
+
+	// Sanity: the existing valid name still resolves through Value() after
+	// the escape change.
+	found, err := db.CustomRoles(ctx, database.CustomRolesParams{
+		LookupRoles: []database.NameOrganizationPair{{
+			Name:           validRole.Name,
+			OrganizationID: orgID,
+		}},
+		IncludeSystemRoles: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, found, 1)
+	require.Equal(t, validRole.Name, found[0].Name)
+
+	// Names that hit every special character covered by the composite
+	// literal grammar. None of these can exist as a row, so each lookup
+	// must succeed and return zero rows.
+	malformed := []string{
+		"Atlassian Developers (Bitbucket and Bamboo)", // exact customer payload
+		"with,comma",
+		`with"quote`,
+		`with\backslash`,
+		"with spaces",
+		"",
+		"NULL",
+	}
+	for _, name := range malformed {
+		found, err := db.CustomRoles(ctx, database.CustomRolesParams{
+			LookupRoles: []database.NameOrganizationPair{{
+				Name:           name,
+				OrganizationID: orgID,
+			}},
+			IncludeSystemRoles: true,
+		})
+		require.NoErrorf(t, err, "lookup with name %q must not error", name)
+		require.Emptyf(t, found, "lookup with name %q must return zero rows", name)
+	}
+}
+
 func TestDeleteCustomRoleDoesNotDeleteSystemRole(t *testing.T) {
 	t.Parallel()
 

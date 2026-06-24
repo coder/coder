@@ -293,8 +293,37 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 // what that literal is as well, with proper quoting.
 //
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
+//
+// The name is escaped per Postgres composite-literal rules so that lookup
+// values originating from user-controlled input (e.g. IdP role-sync claims)
+// cannot produce a malformed record literal that aborts the query. Valid
+// Coder role names (alphanumeric with hyphens) round-trip unchanged.
 func (a NameOrganizationPair) Value() (driver.Value, error) {
-	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+	return fmt.Sprintf(`(%s,%s)`, pgEscapeCompositeField(a.Name), a.OrganizationID.String()), nil
+}
+
+// pgEscapeCompositeField escapes a string for inclusion in a Postgres
+// composite-type literal. Postgres requires fields containing parentheses,
+// commas, double quotes, backslashes, or whitespace, the empty string, or
+// the literal "NULL" (case-insensitive) to be wrapped in double quotes,
+// with internal backslashes and double quotes themselves escaped using a
+// backslash.
+//
+// Fields that contain none of those characters are returned unchanged so
+// existing valid identifiers (e.g. role and resource names) round-trip
+// byte-for-byte through this function.
+//
+// Reference: https://www.postgresql.org/docs/current/rowtypes.html#ROWTYPES-IO-SYNTAX
+func pgEscapeCompositeField(s string) string {
+	needsQuote := s == "" ||
+		strings.EqualFold(s, "NULL") ||
+		strings.ContainsAny(s, "(),\"\\ \t\n\r\v\f")
+	if !needsQuote {
+		return s
+	}
+	escaped := strings.ReplaceAll(s, `\`, `\\`)
+	escaped = strings.ReplaceAll(escaped, `"`, `\"`)
+	return `"` + escaped + `"`
 }
 
 // AgentIDNamePair is used as a result tuple for workspace and agent rows.
