@@ -250,6 +250,106 @@ export const SystemPromptSaveErrorThenCancel: Story = {
 	},
 };
 
+export const CleanSystemPromptErrorCancelDismisses: Story = {
+	args: {
+		onResetSystemPromptSave: fn(),
+		onResetPlanModeInstructionsSave: fn(),
+		isSaveSystemPromptError: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText("Failed to save system prompt."),
+		).toBeInTheDocument();
+
+		const cancelButton = canvas.getByRole("button", {
+			name: "Cancel",
+		});
+		const saveButton = canvas.getByRole("button", {
+			name: "Save",
+		});
+
+		await waitFor(() => {
+			expect(cancelButton).toBeEnabled();
+		});
+		expect(saveButton).toBeDisabled();
+
+		await userEvent.click(cancelButton);
+
+		expect(args.onResetSystemPromptSave).toHaveBeenCalledTimes(1);
+		expect(args.onResetPlanModeInstructionsSave).toHaveBeenCalledTimes(1);
+	},
+};
+
+export const CleanPlanModeInstructionsErrorCancelDismisses: Story = {
+	args: {
+		onResetSystemPromptSave: fn(),
+		onResetPlanModeInstructionsSave: fn(),
+		isSavePlanModeInstructionsError: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText("Failed to save plan mode instructions."),
+		).toBeInTheDocument();
+
+		const cancelButton = canvas.getByRole("button", {
+			name: "Cancel",
+		});
+		const saveButton = canvas.getByRole("button", {
+			name: "Save",
+		});
+
+		await waitFor(() => {
+			expect(cancelButton).toBeEnabled();
+		});
+		expect(saveButton).toBeDisabled();
+
+		await userEvent.click(cancelButton);
+
+		expect(args.onResetSystemPromptSave).toHaveBeenCalledTimes(1);
+		expect(args.onResetPlanModeInstructionsSave).toHaveBeenCalledTimes(1);
+	},
+};
+
+export const CleanBothErrorsCancelDismisses: Story = {
+	args: {
+		onResetSystemPromptSave: fn(),
+		onResetPlanModeInstructionsSave: fn(),
+		isSaveSystemPromptError: true,
+		isSavePlanModeInstructionsError: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText("Failed to save system prompt."),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText("Failed to save plan mode instructions."),
+		).toBeInTheDocument();
+
+		const cancelButton = canvas.getByRole("button", {
+			name: "Cancel",
+		});
+		const saveButton = canvas.getByRole("button", {
+			name: "Save",
+		});
+
+		await waitFor(() => {
+			expect(cancelButton).toBeEnabled();
+		});
+		expect(saveButton).toBeDisabled();
+
+		await userEvent.click(cancelButton);
+
+		expect(args.onResetSystemPromptSave).toHaveBeenCalledTimes(1);
+		expect(args.onResetPlanModeInstructionsSave).toHaveBeenCalledTimes(1);
+	},
+};
+
 export const PlanModeInstructionsSaveError: Story = {
 	args: {
 		isSavePlanModeInstructionsError: true,

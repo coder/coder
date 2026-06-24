@@ -253,7 +253,12 @@ const InstructionsForm: FC<InstructionsFormProps> = ({
 							onResetPlanModeInstructionsSave();
 							form.resetForm({ values: initialValues });
 						}}
-						disabled={isDisabled || !form.dirty}
+						disabled={
+							isDisabled ||
+							(!form.dirty &&
+								!isSaveSystemPromptError &&
+								!isSavePlanModeInstructionsError)
+						}
 					>
 						Cancel
 					</Button>
