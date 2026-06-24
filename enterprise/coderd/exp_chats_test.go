@@ -74,10 +74,10 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, closer, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -86,19 +86,17 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		_ = closer
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
 
-		secondClient, closer2, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		_ = closer2
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 
@@ -221,11 +219,11 @@ func TestChatStreamRelay(t *testing.T) {
 
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, closer, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:        db,
-				Pubsub:          pubsub,
-				TLSCertificates: certificates,
+				Database:         db,
+				Pubsub:           pubsub,
+				TLSCertificates:  certificates,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -234,20 +232,18 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		_ = closer
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
 
-		secondClient, closer2, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database:        db,
-				Pubsub:          pubsub,
-				TLSCertificates: certificates,
+				Database:         db,
+				Pubsub:           pubsub,
+				TLSCertificates:  certificates,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		_ = closer2
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
 
 		// Authenticate the second client using cookies only, simulating
@@ -407,10 +403,10 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, closer, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -419,19 +415,17 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		_ = closer
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
 
-		secondClient, closer2, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		_ = closer2
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
@@ -566,7 +560,7 @@ func TestChatStreamRelay(t *testing.T) {
 			dv.HTTPCookies.EnableHostPrefix = true
 			dv.HTTPCookies.Secure = true
 		})
-		firstClient, closer, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:         db,
 				Pubsub:           pubsub,
@@ -578,10 +572,9 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		_ = closer
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
 
-		secondClient, closer2, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				Database:         db,
 				Pubsub:           pubsub,
@@ -590,7 +583,6 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		_ = closer2
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
@@ -715,10 +707,10 @@ func TestChatStreamRelay(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
-		firstClient, closer, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -727,19 +719,17 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		_ = closer
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
 
-		secondClient, closer2, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
-				Database: db,
-				Pubsub:   pubsub,
+				Database:         db,
+				Pubsub:           pubsub,
 				DeploymentValues: coderdtest.DeploymentValues(t),
 			},
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		_ = closer2
 		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 

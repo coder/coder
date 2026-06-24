@@ -38,7 +38,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -292,7 +292,7 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
