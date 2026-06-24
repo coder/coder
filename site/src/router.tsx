@@ -398,9 +398,6 @@ const AgentSettingsMCPServersPage = lazy(
 const AgentSettingsSpendPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
 );
-const AgentSettingsTemplatesPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsTemplatesPage"),
-);
 const AgentAnalyticsPage = lazy(
 	() => import("./pages/AgentsPage/AgentAnalyticsPage"),
 );
@@ -450,6 +447,9 @@ const AISettingsGatewayKeysPage = lazy(
 );
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
+);
+const AISettingsTemplatesPage = lazy(
+	() => import("./pages/AISettingsPage/TemplatesPage/TemplatesPage"),
 );
 const AISettingsAddModelPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/AddModelPage/AddModelPage"),
@@ -755,6 +755,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexPage />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
 							path="models/:modelId"
@@ -860,7 +861,10 @@ export const router = createBrowserRouter(
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />
 						<Route path="usage" element={<NavigateWithSearch to="spend" />} />
-						<Route path="templates" element={<AgentSettingsTemplatesPage />} />
+						<Route
+							path="templates"
+							element={<Navigate to="/ai/settings/templates" replace />}
+						/>
 					</Route>
 					<Route path="analytics" element={<AgentAnalyticsPage />} />
 					<Route
