@@ -83,27 +83,15 @@ func TestExtractAddress(t *testing.T) {
 			ExpectedRemoteAddr: "10.24.1.1",
 		},
 		{
-			// Reverse proxies append the peer that connected to them, so a
-			// client controls the leftmost X-Forwarded-For entries while a
-			// trusted proxy appends the real client to the right. With a
-			// realistic proxy CIDR (not 0.0.0.0/0), the resolved address must
-			// be the rightmost entry outside the trusted set, never the
-			// leftmost client-supplied value.
-			Name: "spoofed-x-forwarded-for-single-proxy",
+			Name: "no-trusted-origins",
 			Config: &httpmw.RealIPConfig{
-				TrustedOrigins: []*net.IPNet{
-					{
-						IP:   net.ParseIP("10.0.0.0"),
-						Mask: net.CIDRMask(8, 32),
-					},
-				},
 				TrustedHeaders: []string{
 					"X-Forwarded-For",
 				},
 			},
-			RemoteAddr: "10.0.0.1",
+			RemoteAddr: "203.0.113.5",
 			Header: http.Header{
-				"X-Forwarded-For": []string{"1.2.3.4, 203.0.113.5"},
+				"X-Forwarded-For": []string{"1.2.3.4"},
 			},
 			ExpectedRemoteAddr: "203.0.113.5",
 		},
@@ -111,7 +99,7 @@ func TestExtractAddress(t *testing.T) {
 			// A chain of trusted proxies appends each hop. The rightmost
 			// untrusted address (the real client) wins, skipping the trusted
 			// inner-proxy hop.
-			Name: "spoofed-x-forwarded-for-chained-proxies",
+			Name: "picks-rightmost-untrusted",
 			Config: &httpmw.RealIPConfig{
 				TrustedOrigins: []*net.IPNet{
 					{
@@ -134,7 +122,7 @@ func TestExtractAddress(t *testing.T) {
 			// RFC 7230 section 3.2.2 these are equivalent to a single
 			// comma-joined value, so the spoofed first line must not be
 			// trusted on its own.
-			Name: "spoofed-x-forwarded-for-multiple-lines",
+			Name: "x-forwarded-for-set-multiple-times",
 			Config: &httpmw.RealIPConfig{
 				TrustedOrigins: []*net.IPNet{
 					{
