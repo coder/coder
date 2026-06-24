@@ -293,6 +293,21 @@ func (o *Orchestrator) processNext(ctx context.Context) (bool, error) {
 			return xerrors.Errorf("get workspace: %w", err)
 		}
 
+		if workspace.Deleted {
+			_, err = tx.UpdateWorkspaceBuildOrchestrationFailedByID(sysCtx, database.UpdateWorkspaceBuildOrchestrationFailedByIDParams{
+				Error: sql.NullString{
+					String: "workspace was deleted",
+					Valid:  true,
+				},
+				UpdatedAt: dbtime.Now(),
+				ID:        orchestration.ID,
+			})
+			if err != nil {
+				return xerrors.Errorf("mark workspace build orchestration as failed: %w", err)
+			}
+			return nil
+		}
+
 		childBuild, provisionerJob, err := o.createBuild(sysCtx, tx, workspace, parentBuild.InitiatorID, childBuildRequest)
 		if err != nil {
 			// Decide whether to mark the orchestration failed based on
