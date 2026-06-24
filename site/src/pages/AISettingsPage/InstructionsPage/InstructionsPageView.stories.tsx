@@ -6,6 +6,7 @@ import {
 } from "./InstructionsPageView";
 
 const mockDefaultSystemPrompt = "You are Coder, an AI coding assistant.";
+const saveOrder: string[] = [];
 
 const baseArgs: InstructionsPageViewProps = {
 	systemPromptData: {
@@ -184,7 +185,7 @@ export const SavesPlanModeInstructions: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const textarea = await canvas.findByLabelText(
-			"Additional Plan mode instructions",
+			"Additional plan mode instructions",
 		);
 
 		await userEvent.clear(textarea);
@@ -204,5 +205,112 @@ export const SavesPlanModeInstructions: Story = {
 			});
 		});
 		expect(args.onSaveSystemPrompt).not.toHaveBeenCalled();
+	},
+};
+
+export const SystemPromptSaveErrorThenCancel: Story = {
+	args: {
+		systemPromptData: {
+			system_prompt: "Baseline system prompt.",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		},
+		onResetSystemPromptSave: fn(),
+		onResetPlanModeInstructionsSave: fn(),
+		isSaveSystemPromptError: true,
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText("Failed to save system prompt."),
+		).toBeInTheDocument();
+
+		const textarea = await canvas.findByLabelText(
+			"Additional system instructions",
+		);
+		await userEvent.type(textarea, " edited");
+
+		const cancelButton = canvas.getByRole("button", {
+			name: "Cancel",
+		});
+		await waitFor(() => {
+			expect(cancelButton).toBeEnabled();
+		});
+		await userEvent.click(cancelButton);
+
+		expect(args.onResetSystemPromptSave).toHaveBeenCalledTimes(1);
+		expect(args.onResetPlanModeInstructionsSave).toHaveBeenCalledTimes(1);
+		await waitFor(() => {
+			expect(
+				canvas.getByDisplayValue("Baseline system prompt."),
+			).toBeInTheDocument();
+		});
+	},
+};
+
+export const PlanModeInstructionsSaveError: Story = {
+	args: {
+		isSavePlanModeInstructionsError: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		expect(
+			canvas.getByText("Failed to save plan mode instructions."),
+		).toBeInTheDocument();
+	},
+};
+
+export const SavesBothSections: Story = {
+	args: {
+		systemPromptData: {
+			system_prompt: "",
+			include_default_system_prompt: false,
+			default_system_prompt: mockDefaultSystemPrompt,
+		},
+		planModeInstructionsData: { plan_mode_instructions: "" },
+		onSaveSystemPrompt: fn(async () => {
+			saveOrder.push("system");
+		}),
+		onSavePlanModeInstructions: fn(async () => {
+			saveOrder.push("plan");
+		}),
+	},
+	play: async ({ canvasElement, args }) => {
+		saveOrder.length = 0;
+		const canvas = within(canvasElement);
+
+		const systemPromptTextarea = await canvas.findByLabelText(
+			"Additional system instructions",
+		);
+		const planModeTextarea = await canvas.findByLabelText(
+			"Additional plan mode instructions",
+		);
+
+		await userEvent.type(systemPromptTextarea, "New system instruction.");
+		await userEvent.type(planModeTextarea, "New plan mode guidance.");
+
+		const saveButton = canvas.getByRole("button", {
+			name: "Save",
+		});
+		await waitFor(() => {
+			expect(saveButton).toBeEnabled();
+		});
+		await userEvent.click(saveButton);
+
+		await waitFor(() => {
+			expect(args.onSaveSystemPrompt).toHaveBeenCalledWith({
+				system_prompt: "New system instruction.",
+				include_default_system_prompt: false,
+			});
+		});
+		await waitFor(() => {
+			expect(args.onSavePlanModeInstructions).toHaveBeenCalledWith({
+				plan_mode_instructions: "New plan mode guidance.",
+			});
+		});
+
+		expect(saveOrder).toEqual(["system", "plan"]);
 	},
 };

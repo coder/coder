@@ -39,6 +39,45 @@ export interface InstructionsPageViewProps {
 export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	systemPromptData,
 	planModeInstructionsData,
+	...formProps
+}) => {
+	const hasLoadedInstructions =
+		systemPromptData !== undefined && planModeInstructionsData !== undefined;
+
+	// Without this gate, Formik would initialize from empty query fallbacks and
+	// keep those values after query data loads.
+	if (!hasLoadedInstructions) {
+		return null;
+	}
+
+	return (
+		<InstructionsForm
+			systemPromptData={systemPromptData}
+			planModeInstructionsData={planModeInstructionsData}
+			{...formProps}
+		/>
+	);
+};
+
+interface InstructionsFormProps {
+	systemPromptData: TypesGen.ChatSystemPromptResponse;
+	planModeInstructionsData: TypesGen.ChatPlanModeInstructionsResponse;
+	onSaveSystemPrompt: (
+		req: TypesGen.UpdateChatSystemPromptRequest,
+	) => Promise<void> | void;
+	onSavePlanModeInstructions: (
+		req: TypesGen.UpdateChatPlanModeInstructionsRequest,
+	) => Promise<void> | void;
+	onResetSystemPromptSave: () => void;
+	onResetPlanModeInstructionsSave: () => void;
+	isSaving: boolean;
+	isSaveSystemPromptError: boolean;
+	isSavePlanModeInstructionsError: boolean;
+}
+
+const InstructionsForm: FC<InstructionsFormProps> = ({
+	systemPromptData,
+	planModeInstructionsData,
 	onSaveSystemPrompt,
 	onSavePlanModeInstructions,
 	onResetSystemPromptSave,
@@ -49,20 +88,16 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 }) => {
 	const [showDefaultPromptPreview, setShowDefaultPromptPreview] =
 		useState(false);
-
-	const hasLoadedInstructions =
-		systemPromptData !== undefined && planModeInstructionsData !== undefined;
-	const defaultSystemPrompt = systemPromptData?.default_system_prompt ?? "";
+	const defaultSystemPrompt = systemPromptData.default_system_prompt ?? "";
 	const initialValues = {
-		system_prompt: systemPromptData?.system_prompt ?? "",
+		system_prompt: systemPromptData.system_prompt ?? "",
 		include_default_system_prompt:
-			systemPromptData?.include_default_system_prompt ?? false,
+			systemPromptData.include_default_system_prompt ?? false,
 		plan_mode_instructions:
-			planModeInstructionsData?.plan_mode_instructions ?? "",
+			planModeInstructionsData.plan_mode_instructions ?? "",
 	};
 
 	const form = useFormik({
-		enableReinitialize: true,
 		initialValues,
 		onSubmit: async (values, { resetForm, setValues }) => {
 			onResetSystemPromptSave();
@@ -103,7 +138,7 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 	const planModeInvisibleCharCount = countInvisibleCharacters(
 		form.values.plan_mode_instructions,
 	);
-	const isDisabled = isSaving || !hasLoadedInstructions;
+	const isDisabled = isSaving;
 
 	return (
 		<div className="flex max-w-4xl flex-col gap-8">
@@ -135,7 +170,6 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 							variant="subtle"
 							type="button"
 							onClick={() => setShowDefaultPromptPreview(true)}
-							disabled={!systemPromptData}
 							className="min-w-0 px-0 font-sans text-sm font-normal leading-6 text-content-link hover:text-content-link"
 						>
 							View prompt
@@ -174,7 +208,7 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					className="mt-8 mb-2 font-sans text-sm font-bold leading-6 text-content-primary"
 					htmlFor="plan_mode_instructions"
 				>
-					Additional Plan mode instructions
+					Additional plan mode instructions
 				</label>
 				<TextareaAutosize
 					className="w-full resize-none overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-4 py-3 font-sans text-sm font-normal leading-6 text-content-primary placeholder:text-content-secondary focus:outline-none focus:ring-2 focus:ring-content-link/30 [scrollbar-width:thin]"
@@ -212,7 +246,13 @@ export const InstructionsPageView: FC<InstructionsPageViewProps> = ({
 					<Button
 						variant="outline"
 						type="button"
-						onClick={() => form.resetForm()}
+						onClick={() => {
+							// Save failures leave mutation errors outside Formik state, so
+							// both stores must reset before the clean form disables actions.
+							onResetSystemPromptSave();
+							onResetPlanModeInstructionsSave();
+							form.resetForm();
+						}}
 						disabled={isDisabled || !form.dirty}
 					>
 						Cancel
