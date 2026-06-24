@@ -131,7 +131,7 @@ Available query filters:
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 
-See the [API documentation](../../reference/api/aibridge.md) for full details.
+See the [API documentation](../../reference/api/aigateway.md) for full details.
 
 ## Data Retention
 

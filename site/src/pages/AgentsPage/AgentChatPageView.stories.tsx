@@ -548,7 +548,7 @@ export const MissingProviderAndModelSetup: Story = {
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };
@@ -579,7 +579,7 @@ export const MissingModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
-			"/agents/settings/models",
+			"/ai/settings/models",
 		);
 	},
 };

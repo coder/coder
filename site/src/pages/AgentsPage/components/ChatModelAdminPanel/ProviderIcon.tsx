@@ -1,9 +1,9 @@
 import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
-import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",

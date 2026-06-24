@@ -200,6 +200,14 @@ type WatchInboxNotificationsParams = Readonly<{
 	read_status?: "read" | "unread" | "all";
 }>;
 
+// TODO(AIGOV-290): replace with the generated type from typesGenerated.ts once
+// the GET /organizations/{org}/groups/ai/spend endpoint exists in the backend.
+export type OrganizationGroupAISpend = Readonly<{
+	group_id: string;
+	current_spend_micros: number;
+	spend_limit_micros: number | null;
+}>;
+
 export function watchInboxNotifications(
 	params?: WatchInboxNotificationsParams,
 ): OneWayWebSocket<TypesGen.GetInboxNotificationResponse> {
@@ -2211,6 +2219,18 @@ class ApiMethods {
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
+	getOrganizationGroupsAISpend = async (
+		organization: string,
+	): Promise<OrganizationGroupAISpend[]> => {
+		const response = await this.axios.get(
+			`/api/v2/organizations/${organization}/groups/ai/spend`,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param organization Can be the organization's ID or name
+	 */
 	createGroup = async (
 		organization: string,
 		data: TypesGen.CreateGroupRequest,
@@ -2491,6 +2511,16 @@ class ApiMethods {
 		const params = base ? `?base=${encodeURIComponent(base)}` : "";
 		const response = await this.axios.get(
 			`/api/v2/templatebuilder/modules${params}`,
+		);
+		return response.data;
+	};
+
+	createTemplateFromBuilder = async (
+		req: TypesGen.TemplateBuilderCreateTemplateRequest,
+	): Promise<TypesGen.TemplateBuilderCreateTemplateResponse> => {
+		const response = await this.axios.post(
+			"/api/v2/templatebuilder/compose/template",
+			req,
 		);
 		return response.data;
 	};

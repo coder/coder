@@ -7,13 +7,22 @@ import (
 
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/structpb"
 
 	"cdr.dev/slog/v3"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
+
+// AgentChatContextSentinelPath is the canonical path of the synthetic empty
+// context-file part that legacy chats used to mark skill-only workspace-agent
+// context. New turns no longer emit it; it is retained as the canonical value
+// so historical-message handling and the chatopenai chain-mode tests stay in
+// sync.
+const AgentChatContextSentinelPath = ".coder/agent-chat-context-sentinel"
 
 // contextBodyUnmarshalOptions reads the protojson resource bodies written by
 // the agent context push (coderd/agentapi/context.go). DiscardUnknown keeps
@@ -41,6 +50,13 @@ func decodeSkillMetaBody(body json.RawMessage) (*agentproto.SkillMetaBody, bool)
 	return &decoded, true
 }
 
+// mcpToolNameSeparator joins a server name and a tool name into the
+// flattened "<server>__<tool>" form. The agent reports MCP tool names
+// unprefixed alongside the server name; the workspace agent's MCP proxy
+// expects this flattened form to route a call back to the owning server
+// (see agent/x/agentmcp ToolNameSep).
+const mcpToolNameSeparator = "__"
+
 // mcpToolsFromServerBody decodes a stored mcp_server resource body and returns
 // its tool list for the chat response. The agent prefixes each tool name with
 // "<server>__"; that prefix is stripped so the name reads as the server
@@ -54,7 +70,7 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 	if len(tools) == 0 {
 		return nil
 	}
-	prefix := server + "__"
+	prefix := server + mcpToolNameSeparator
 	out := make([]codersdk.ChatContextTool, 0, len(tools))
 	for _, t := range tools {
 		name := strings.TrimPrefix(t.GetName(), prefix)
@@ -70,6 +86,68 @@ func mcpToolsFromServerBody(server string, body json.RawMessage) []codersdk.Chat
 		return nil
 	}
 	return out
+}
+
+// workspaceMCPToolInfosFromResources decodes a chat's pinned mcp_server
+// resources into execution-ready tool infos. Only OK mcp_server rows
+// contribute. The agent reports tool names unprefixed alongside the server
+// name, so each tool is re-prefixed to "<server>__<tool>", the model-facing
+// and proxy-routable form the live discovery path also produces. The pushed
+// input schema is a full JSON Schema object; its "properties" and "required"
+// are split out to match the shape the workspace agent's live tool list
+// produces (see agent/x/agentmcp). Tools with an empty name are skipped.
+func workspaceMCPToolInfosFromResources(resources []database.ChatContextResource) []workspacesdk.MCPToolInfo {
+	var out []workspacesdk.MCPToolInfo
+	for _, r := range resources {
+		if r.BodyKind != database.WorkspaceAgentContextBodyKindMcpServer ||
+			r.Status != database.WorkspaceAgentContextResourceStatusOk {
+			continue
+		}
+		var decoded agentproto.MCPServerBody
+		if err := contextBodyUnmarshalOptions.Unmarshal(r.Body, &decoded); err != nil {
+			continue
+		}
+		server := decoded.GetServerName()
+		if server == "" {
+			server = r.Source
+		}
+		for _, t := range decoded.GetTools() {
+			name := t.GetName()
+			if name == "" {
+				continue
+			}
+			properties, required := splitMCPInputSchema(t.GetInputSchema())
+			out = append(out, workspacesdk.MCPToolInfo{
+				ServerName:  server,
+				Name:        server + mcpToolNameSeparator + name,
+				Description: t.GetDescription(),
+				Schema:      properties,
+				Required:    required,
+			})
+		}
+	}
+	return out
+}
+
+// splitMCPInputSchema splits a pushed JSON Schema object into the properties
+// map and required list the workspace MCP tool wrapper expects. A nil schema,
+// or one missing these keys, yields nil for the absent part.
+func splitMCPInputSchema(schema *structpb.Struct) (properties map[string]any, required []string) {
+	if schema == nil {
+		return nil, nil
+	}
+	m := schema.AsMap()
+	if props, ok := m["properties"].(map[string]any); ok {
+		properties = props
+	}
+	if raw, ok := m["required"].([]any); ok {
+		for _, v := range raw {
+			if s, ok := v.(string); ok {
+				required = append(required, s)
+			}
+		}
+	}
+	return properties, required
 }
 
 // decodeInstructionContent decodes an instruction-file resource body and
@@ -100,30 +178,24 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 
 // pinnedWorkspaceContext builds the system-prompt instruction block and
 // workspace skills from the chat's pinned context resources
-// (chat_context_resources), populated at hydrate and refresh time.
-//
-// ok reports whether the caller should use these values instead of the
-// per-turn, history-derived path. It is false when the chat has no pinned
-// rows (an older agent that never reported context, or a chat not yet
-// hydrated), so the caller falls back to the legacy path. When rows exist ok
-// is true even if they all filter to empty content, because the pin is then
-// the source of truth. A read error is returned rather than swallowed,
-// matching the other prompt-input reads in prepareGeneration.
+// (chat_context_resources), populated at hydrate and refresh time. A chat
+// with no pinned rows yields no context. A read error is returned rather than
+// swallowed, matching the other prompt-input reads in prepareGeneration.
 //
 // agent only decorates the instruction header with its OS and directory; an
-// unresolved (zero-value) agent does not force a fallback, so the pin keeps
+// unresolved (zero-value) agent does not blank the context, so the pin keeps
 // working when the workspace is unreachable.
 func (server *Server) pinnedWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
-) (instruction string, skills []chattool.SkillMeta, ok bool, err error) {
+) (instruction string, skills []chattool.SkillMeta, err error) {
 	resources, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
-		return "", nil, false, xerrors.Errorf("list chat context resources: %w", err)
+		return "", nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	if len(resources) == 0 {
-		return "", nil, false, nil
+		return "", nil, nil
 	}
 
 	directory := agent.ExpandedDirectory
@@ -147,42 +219,23 @@ func (server *Server) pinnedWorkspaceContext(
 		slog.F("skill_count", len(skills)),
 		slog.F("has_instruction", instruction != ""),
 	)
-	return instruction, skills, true, nil
+	return instruction, skills, nil
 }
 
 // resolveTurnWorkspaceContext selects the instruction block and workspace
-// skills for a turn. It prefers the chat's pinned context copy when the
-// workspace agent has reported context, and falls back to the per-turn,
-// history-derived context-file and skill parts for older agents that have
-// not. The two paths are mutually exclusive. agent is the chat's resolved
-// workspace agent, used only to decorate the pinned instruction header. A
-// non-workspace chat yields no context.
+// skills for a turn from the chat's pinned context snapshot
+// (chat_context_resources). agent is the chat's resolved workspace agent,
+// used only to decorate the pinned instruction header. A non-workspace chat
+// yields no context.
 func (server *Server) resolveTurnWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
-	promptRows []database.ChatMessage,
 ) (instruction string, skills []chattool.SkillMeta, err error) {
 	if !chat.WorkspaceID.Valid {
 		return "", nil, nil
 	}
-
-	pinnedInstruction, pinnedSkills, ok, err := server.pinnedWorkspaceContext(ctx, chat, agent)
-	if err != nil {
-		return "", nil, err
-	}
-	if ok {
-		return pinnedInstruction, pinnedSkills, nil
-	}
-
-	// History fallback: re-derive the instruction and skills from the
-	// context-file and skill parts the per-turn pull persisted. Skills are
-	// included only when context files are present; the pinned path resolves
-	// them independently.
-	if _, found := contextFileAgentID(promptRows); found {
-		return instructionFromContextFiles(promptRows), skillsFromParts(promptRows), nil
-	}
-	return "", nil, nil
+	return server.pinnedWorkspaceContext(ctx, chat, agent)
 }
 
 // contextResourcesToPrompt converts a chat's pinned context resources into
@@ -221,23 +274,26 @@ func contextResourcesToPrompt(
 				ContextFileContent: content,
 			})
 		case database.WorkspaceAgentContextBodyKindSkill:
-			name, description, decoded := decodeSkillIdentity(r.Body)
-			if !decoded {
+			decodedBody, ok := decodeSkillMetaBody(r.Body)
+			if !ok {
 				malformed++
 				continue
 			}
-			if name == "" {
+			if decodedBody.GetName() == "" {
 				continue
 			}
 			// source is the skill directory. MetaFile is left empty so
 			// chattool falls back to DefaultSkillMetaFile ("SKILL.md").
 			// SkillMetaBody carries no meta file name, so a non-default
 			// CODER_AGENT_EXP_SKILL_META_FILE is not preserved on this
-			// path, unlike the per-turn discovery path.
+			// path, unlike the per-turn discovery path. Meta carries the
+			// verbatim SKILL.md so read_skill serves the body from the
+			// pin instead of dialing the workspace.
 			skills = append(skills, chattool.SkillMeta{
-				Name:        name,
-				Description: description,
+				Name:        decodedBody.GetName(),
+				Description: decodedBody.GetDescription(),
 				Dir:         r.Source,
+				Meta:        decodedBody.GetMeta(),
 			})
 		}
 	}

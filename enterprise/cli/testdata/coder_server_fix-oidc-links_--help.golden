@@ -13,6 +13,10 @@ OPTIONS:
   -n, --dry-run bool, $CODER_FIX_OIDC_LINKS_DRY_RUN
           Print analysis only, do not modify the database.
 
+      --force-reset-all bool, $CODER_FIX_OIDC_LINKS_FORCE_RESET_ALL
+          Reset all OIDC linked IDs, not just those with a mismatched issuer.
+          Mutually exclusive with --issuer-url.
+
       --issuer-url string, $CODER_OIDC_ISSUER_URL
           The OIDC issuer URL. The canonical issuer is resolved via OIDC
           discovery.

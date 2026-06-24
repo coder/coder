@@ -1794,8 +1794,7 @@ func New(options *Options) *API {
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
-					r.Post("/chat-context", api.workspaceAgentAddChatContext)
-					r.Delete("/chat-context", api.workspaceAgentClearChatContext)
+					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
 				})
 				r.Route("/tasks/{task}", func(r chi.Router) {
 					r.Post("/log-snapshot", api.postWorkspaceAgentTaskLogSnapshot)
@@ -2236,11 +2235,12 @@ type API struct {
 	// providers directly. Registered by coderd at startup once aibridged is
 	// wired in-memory.
 	AIBridgeTransportFactory atomic.Pointer[aibridge.TransportFactory]
-	// aibridgedHandler is the in-memory aibridge HTTP handler. Set by
-	// RegisterInMemoryAIBridgedHTTPHandler; read both by the enterprise
-	// /api/v2/aibridge route (license-gated) and by the in-memory transport
-	// (used by chatd, license-exempt).
-	aibridgedHandler http.Handler
+	// aiGatewayHandler is the in-memory AI Gateway HTTP handler
+	// (no prefix stripping). Set by RegisterInMemoryAIBridgedHTTPHandler,
+	// used by the enterprise /api/v2/aibridge and /api/v2/ai-gateway
+	// routes (license-gated) which apply their own StripPrefix, and by
+	// the in-memory transport (used by chatd, license-exempt).
+	aiGatewayHandler http.Handler
 
 	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
