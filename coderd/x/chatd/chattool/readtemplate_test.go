@@ -3,9 +3,11 @@ package chattool_test
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -180,4 +182,107 @@ func TestReadTemplate_NoPresets(t *testing.T) {
 	// Presets key should be absent when there are no presets.
 	_, hasPresets := result["presets"]
 	require.False(t, hasPresets, "presets key should be absent when there are none")
+}
+
+func TestReadTemplate_Readme(t *testing.T) {
+	t.Parallel()
+
+	// Seed the database, user, and organization once and reuse them across
+	// subtests; each subtest only adds its own template (and version).
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	readTemplateInfo := func(t *testing.T, activeVersionID uuid.UUID) map[string]any {
+		t.Helper()
+		tmpl := dbgen.Template(t, db, database.Template{
+			OrganizationID:  org.ID,
+			CreatedBy:       user.ID,
+			ActiveVersionID: activeVersionID,
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		tool := chattool.ReadTemplate(db, org.ID, chattool.ReadTemplateOptions{
+			OwnerID: user.ID,
+		})
+		resp, err := tool.Run(ctx, fantasy.ToolCall{
+			ID:    "call-1",
+			Name:  "read_template",
+			Input: `{"template_id":"` + tmpl.ID.String() + `"}`,
+		})
+		require.NoError(t, err)
+		require.False(t, resp.IsError, "unexpected error: %s", resp.Content)
+
+		var result map[string]any
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &result))
+		tmplInfo, ok := result["template"].(map[string]any)
+		require.True(t, ok)
+		return tmplInfo
+	}
+
+	readTemplateInfoForReadme := func(t *testing.T, readme string) map[string]any {
+		t.Helper()
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			Readme:         readme,
+		})
+		return readTemplateInfo(t, tv.ID)
+	}
+
+	t.Run("Surfaced", func(t *testing.T) {
+		t.Parallel()
+		readme := "---\ndescription: Go template.\n---\n# Title\n\nUse Docker.\n"
+		tmplInfo := readTemplateInfoForReadme(t, readme)
+		require.Equal(t, "Title\nUse Docker.", tmplInfo["readme"])
+	})
+
+	t.Run("EmptyOmitsField", func(t *testing.T) {
+		t.Parallel()
+		tmplInfo := readTemplateInfoForReadme(t, " \n\t\n")
+		_, ok := tmplInfo["readme"]
+		require.False(t, ok, "readme should be omitted when blank")
+	})
+
+	t.Run("NotTruncatedUnderCap", func(t *testing.T) {
+		t.Parallel()
+		readme := "# Title\n\n" + strings.Repeat("x", 3000)
+		tmplInfo := readTemplateInfoForReadme(t, readme)
+		require.Equal(t, "Title\n"+strings.Repeat("x", 3000), tmplInfo["readme"])
+	})
+
+	// Images are dropped but code blocks are preserved as text (detail view).
+	t.Run("DropsImagesKeepsCode", func(t *testing.T) {
+		t.Parallel()
+		readme := "# Setup\n\n![diagram](./a.svg)\n\nRun the installer.\n\n```sh\nmake build\n```\n\nDone.\n"
+		tmplInfo := readTemplateInfoForReadme(t, readme)
+		require.Equal(t, "Setup\nRun the installer.\nmake build\nDone.", tmplInfo["readme"])
+	})
+
+	// READMEs larger than the cap are truncated with a trailing ellipsis so a
+	// single large document cannot dominate the response.
+	t.Run("TruncatedOverCap", func(t *testing.T) {
+		t.Parallel()
+		readme := strings.Repeat("x", 9000)
+		tmplInfo := readTemplateInfoForReadme(t, readme)
+		got, ok := tmplInfo["readme"].(string)
+		require.True(t, ok)
+		gotRunes := []rune(got)
+		require.Len(t, gotRunes, chattool.ReadTemplateReadmeMaxRunes)
+		require.Equal(t, '…', gotRunes[len(gotRunes)-1])
+	})
+
+	// A template whose active version row is missing must not fail
+	// read_template; the version fetch is best-effort and readme is simply
+	// omitted.
+	t.Run("MissingVersionOmitsField", func(t *testing.T) {
+		t.Parallel()
+		tmplInfo := readTemplateInfo(t, uuid.New())
+		_, ok := tmplInfo["readme"]
+		require.False(t, ok, "readme should be omitted when the version is missing")
+	})
 }

@@ -12,6 +12,10 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
+// so one large README cannot dominate a single tool response.
+const ReadTemplateReadmeMaxRunes = 8000
+
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
 	OwnerID            uuid.UUID
@@ -31,9 +35,9 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 	return fantasy.NewAgentTool(
 		"read_template",
 		"Get details about a workspace template, including its "+
-			"configurable parameters and available presets. Use this "+
-			"after list_templates when you need required parameter "+
-			"details or preset IDs before create_workspace.",
+			"configurable parameters, available presets, and the active "+
+			"version README. Use this after list_templates when you need "+
+			"parameter details, preset IDs, or the README before create_workspace.",
 		func(ctx context.Context, args readTemplateArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			templateIDStr := strings.TrimSpace(args.TemplateID)
 			if templateIDStr == "" {
@@ -88,6 +92,13 @@ func ReadTemplate(db database.Store, organizationID uuid.UUID, options ReadTempl
 			}
 			if desc := strings.TrimSpace(template.Description); desc != "" {
 				templateInfo["description"] = desc
+			}
+			// Best-effort: a missing or unreadable version must not fail
+			// read_template.
+			if version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID); err == nil {
+				if r := readmeText(version.Readme, ReadTemplateReadmeMaxRunes); r != "" {
+					templateInfo["readme"] = r
+				}
 			}
 
 			paramList := make([]map[string]any, 0, len(params))
