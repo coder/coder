@@ -82,3 +82,28 @@ export const MockAnthropicProviderState: ProviderState = {
 	providerConfig: MockAnthropicProviderConfig,
 	modelConfigs: [mockClaude],
 };
+
+const MockBedrockProviderConfig: ChatProviderConfig = {
+	...MockOpenAIProviderConfig,
+	id: "prov-bedrock",
+	provider: "bedrock",
+	display_name: "AWS Bedrock",
+};
+
+export const mockBedrockClaude: ChatModelConfig = {
+	...mockClaude,
+	id: "model-bedrock-claude",
+	provider: "anthropic", // stale denormalized text
+	ai_provider_id: "prov-bedrock",
+	model: "anthropic.claude-sonnet-4-5",
+	display_name: "Claude Sonnet 4.5 (Bedrock)",
+};
+
+export const MockBedrockProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-bedrock",
+	provider: "bedrock",
+	label: "AWS Bedrock",
+	providerConfig: MockBedrockProviderConfig,
+	modelConfigs: [mockBedrockClaude],
+};

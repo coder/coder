@@ -99,9 +99,11 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 		paginateItems(models, MODELS_PAGE_SIZE, page);
 
 	const providerLabelByModelId = new Map<string, string>();
+	const providerTypeByModelId = new Map<string, string>();
 	for (const providerState of providerStates) {
 		for (const providerModel of providerState.modelConfigs) {
 			providerLabelByModelId.set(providerModel.id, providerState.label);
+			providerTypeByModelId.set(providerModel.id, providerState.provider);
 		}
 	}
 
@@ -147,6 +149,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 								key={model.id}
 								model={model}
 								providerLabel={providerLabelByModelId.get(model.id) ?? ""}
+								providerType={providerTypeByModelId.get(model.id) ?? ""}
 								onClick={() => void navigate(`/ai/settings/models/${model.id}`)}
 							/>
 						))

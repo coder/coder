@@ -5,7 +5,9 @@ import type { ChatModelConfig } from "#/api/typesGenerated";
 import ModelsPageView from "./ModelsPageView";
 import {
 	MockAnthropicProviderState,
+	MockBedrockProviderState,
 	MockOpenAIProviderState,
+	mockBedrockClaude,
 	mockClaude,
 	mockDisabledModel,
 	mockGPT5,
@@ -17,8 +19,12 @@ const meta: Meta<typeof ModelsPageView> = {
 	args: {
 		isLoading: false,
 		error: null,
-		models: [mockGPT5, mockClaude, mockDisabledModel],
-		providerStates: [MockOpenAIProviderState, MockAnthropicProviderState],
+		models: [mockGPT5, mockClaude, mockDisabledModel, mockBedrockClaude],
+		providerStates: [
+			MockOpenAIProviderState,
+			MockAnthropicProviderState,
+			MockBedrockProviderState,
+		],
 	},
 	parameters: {
 		reactRouter: reactRouterParameters({
@@ -45,6 +51,13 @@ export const Default: Story = {
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
 		await expect(canvas.getAllByText("OpenAI").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Anthropic")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Claude Sonnet 4.5 (Bedrock)"),
+		).toBeInTheDocument();
+		await expect(canvas.getByText("AWS Bedrock")).toBeInTheDocument();
+		// The icon should reflect the resolved Bedrock provider, not the
+		// stale "anthropic" text on the model config.
+		await expect(canvas.getByAltText("AWS Bedrock")).toBeInTheDocument();
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();

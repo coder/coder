@@ -3596,6 +3596,55 @@ func TestListChatModelConfigs(t *testing.T) {
 		})
 	})
 
+	t.Run("ProviderOverriddenByAIProviderType", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		firstUser := coderdtest.CreateFirstUser(t, client.Client)
+
+		// Create a Bedrock AI provider. Bedrock requires settings, not API keys,
+		// so use the CreateAIProvider endpoint directly instead of the helper.
+		aiProvider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "test-bedrock-" + uuid.NewString(),
+			BaseURL: aiProviderBaseURLForTest("bedrock"),
+			Enabled: true,
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region: "us-east-1",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		// Insert a model config with stale provider text pointing to the
+		// Bedrock provider via ai_provider_id. Simulates a legacy row where
+		// the denormalized provider column was not updated.
+		staleConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+			Provider:             "anthropic",
+			AIProviderID:         uuid.NullUUID{UUID: aiProvider.ID, Valid: true},
+			Model:                "anthropic.claude-sonnet-4-5",
+			DisplayName:          "Claude Sonnet 4.5 (Bedrock)",
+			CreatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			UpdatedBy:            uuid.NullUUID{UUID: firstUser.UserID, Valid: true},
+			ContextLimit:         200000,
+			CompressionThreshold: 70,
+		})
+
+		configs, err := client.ListChatModelConfigs(ctx)
+		require.NoError(t, err)
+
+		var found bool
+		for _, config := range configs {
+			if config.ID == staleConfig.ID {
+				found = true
+				require.Equal(t, "bedrock", config.Provider)
+			}
+		}
+		require.True(t, found)
+	})
+
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {
 		t.Parallel()
 
