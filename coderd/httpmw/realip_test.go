@@ -83,6 +83,76 @@ func TestExtractAddress(t *testing.T) {
 			ExpectedRemoteAddr: "10.24.1.1",
 		},
 		{
+			// Reverse proxies append the peer that connected to them, so a
+			// client controls the leftmost X-Forwarded-For entries while a
+			// trusted proxy appends the real client to the right. With a
+			// realistic proxy CIDR (not 0.0.0.0/0), the resolved address must
+			// be the rightmost entry outside the trusted set, never the
+			// leftmost client-supplied value.
+			Name: "spoofed-x-forwarded-for-single-proxy",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4, 203.0.113.5"},
+			},
+			ExpectedRemoteAddr: "203.0.113.5",
+		},
+		{
+			// A chain of trusted proxies appends each hop. The rightmost
+			// untrusted address (the real client) wins, skipping the trusted
+			// inner-proxy hop.
+			Name: "spoofed-x-forwarded-for-chained-proxies",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4, 203.0.113.5, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "203.0.113.5",
+		},
+		{
+			// A proxy may append its hop as a separate header line. Per
+			// RFC 7230 section 3.2.2 these are equivalent to a single
+			// comma-joined value, so the spoofed first line must not be
+			// trusted on its own.
+			Name: "spoofed-x-forwarded-for-multiple-lines",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4", "203.0.113.5, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "203.0.113.5",
+		},
+		{
 			Name: "single-real-ip",
 			Config: &httpmw.RealIPConfig{
 				TrustedOrigins: []*net.IPNet{
@@ -740,103 +810,6 @@ func TestApplicationProxy(t *testing.T) {
 
 			middleware(nextHandler).ServeHTTP(httptest.NewRecorder(), req)
 
-			require.True(t, handlerCalled, "expected handler to be invoked")
-		})
-	}
-}
-
-// TestExtractRealIPSpoofedXForwardedFor verifies that a client cannot control
-// the resolved real IP by setting X-Forwarded-For. Reverse proxies append the
-// peer that connected to them, so a client can set the leftmost entries to
-// arbitrary values, while trusted proxies append the real client to the right.
-// The resolved address must therefore be the rightmost entry that is not a
-// trusted origin, not the leftmost (client-supplied) entry.
-func TestExtractRealIPSpoofedXForwardedFor(t *testing.T) {
-	t.Parallel()
-
-	const (
-		spoofedAddr = "1.2.3.4"
-		realClient  = "203.0.113.5"
-	)
-
-	// Trust a realistic proxy range (not 0.0.0.0/0) so that a spoofed
-	// public-client address falls outside the trusted set.
-	newConfig := func() *httpmw.RealIPConfig {
-		return &httpmw.RealIPConfig{
-			TrustedOrigins: []*net.IPNet{
-				{
-					IP:   net.ParseIP("10.0.0.0"),
-					Mask: net.CIDRMask(8, 32),
-				},
-			},
-			TrustedHeaders: []string{"X-Forwarded-For"},
-		}
-	}
-
-	cases := []struct {
-		name string
-		// xForwardedFor holds one entry per physical X-Forwarded-For header
-		// line. Multiple entries exercise the case where a proxy appends its
-		// hop as a separate header field rather than to the existing value.
-		xForwardedFor []string
-	}{
-		{
-			// A single trusted proxy appends the real client to whatever the
-			// client claimed, so the leftmost value is attacker-controlled.
-			name:          "single-proxy",
-			xForwardedFor: []string{spoofedAddr + ", " + realClient},
-		},
-		{
-			// A chain of trusted proxies appends each hop. The rightmost
-			// untrusted address (the real client) must win, skipping the
-			// trusted inner-proxy hop.
-			name:          "chained-proxies",
-			xForwardedFor: []string{spoofedAddr + ", " + realClient + ", 10.0.0.2"},
-		},
-		{
-			// A proxy may append its hop as a separate header line. Per
-			// RFC 7230 these are equivalent to a single comma-joined value,
-			// so the spoofed first line must not be trusted on its own.
-			name:          "multiple-header-lines",
-			xForwardedFor: []string{spoofedAddr, realClient + ", 10.0.0.2"},
-		},
-	}
-
-	setXFF := func(req *http.Request, lines []string) {
-		// Assign directly to preserve multiple header lines; Header.Set would
-		// collapse them into a single value.
-		req.Header["X-Forwarded-For"] = lines
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Direct call to ExtractRealIPAddress.
-			req := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-			req.RemoteAddr = "10.0.0.1" // trusted proxy peer
-			setXFF(req, tc.xForwardedFor)
-
-			addr, err := httpmw.ExtractRealIPAddress(newConfig(), req)
-			require.NoError(t, err)
-			require.Equal(t, realClient, addr.String(),
-				"must use the real client IP, not the spoofed leftmost value")
-			require.NotEqual(t, spoofedAddr, addr.String(),
-				"spoofed leftmost X-Forwarded-For value must be ignored")
-
-			// Middleware rewrites RemoteAddr to the same value that
-			// httprate.KeyByIP (rate limiting) and audit.InitRequest consume.
-			mwReq := httptest.NewRequest(http.MethodGet, "http://localhost", nil)
-			mwReq.RemoteAddr = "10.0.0.1"
-			setXFF(mwReq, tc.xForwardedFor)
-
-			handlerCalled := false
-			next := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-				handlerCalled = true
-				require.Equal(t, realClient, r.RemoteAddr,
-					"middleware must set RemoteAddr to the real client IP")
-			})
-			httpmw.ExtractRealIP(newConfig())(next).ServeHTTP(httptest.NewRecorder(), mwReq)
 			require.True(t, handlerCalled, "expected handler to be invoked")
 		})
 	}
