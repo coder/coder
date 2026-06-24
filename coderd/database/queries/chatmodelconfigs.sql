@@ -17,61 +17,25 @@ WHERE
     AND deleted = FALSE;
 
 -- name: GetChatModelConfigs :many
--- The provider column is resolved from the linked ai_providers.type
--- (the canonical source of truth) rather than the denormalized text
--- column on chat_model_configs, which can be stale for legacy rows.
 SELECT
-    cmc.id,
-    COALESCE(ap.type::text, cmc.provider) AS provider,
-    cmc.model,
-    cmc.display_name,
-    cmc.created_by,
-    cmc.updated_by,
-    cmc.enabled,
-    cmc.is_default,
-    cmc.deleted,
-    cmc.deleted_at,
-    cmc.created_at,
-    cmc.updated_at,
-    cmc.context_limit,
-    cmc.compression_threshold,
-    cmc.options,
-    cmc.ai_provider_id
+    *
 FROM
-    chat_model_configs cmc
-    LEFT JOIN ai_providers ap ON ap.id = cmc.ai_provider_id AND ap.deleted = FALSE
+    chat_model_configs
 WHERE
-    cmc.deleted = FALSE
+    deleted = FALSE
 ORDER BY
-    cmc.provider ASC,
-    cmc.model ASC,
-    cmc.updated_at DESC,
-    cmc.id DESC;
+    provider ASC,
+    model ASC,
+    updated_at DESC,
+    id DESC;
 
 -- name: GetEnabledChatModelConfigs :many
--- The provider column is resolved from the linked ai_providers.type
--- (the canonical source of truth) rather than the denormalized text
--- column on chat_model_configs, which can be stale for legacy rows.
 SELECT
-    cmc.id,
-    COALESCE(ap.type::text, cmc.provider) AS provider,
-    cmc.model,
-    cmc.display_name,
-    cmc.created_by,
-    cmc.updated_by,
-    cmc.enabled,
-    cmc.is_default,
-    cmc.deleted,
-    cmc.deleted_at,
-    cmc.created_at,
-    cmc.updated_at,
-    cmc.context_limit,
-    cmc.compression_threshold,
-    cmc.options,
-    cmc.ai_provider_id
+    cmc.*
 FROM
     chat_model_configs cmc
-    JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
+JOIN
+    ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
