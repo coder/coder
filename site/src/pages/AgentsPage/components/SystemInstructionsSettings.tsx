@@ -7,12 +7,12 @@ import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
-import { cn } from "#/utils/cn";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
-} from "./TemporarySavedState";
+} from "#/components/TemporarySavedState/TemporarySavedState";
+import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 
 interface MutationCallbacks {

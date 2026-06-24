@@ -36,6 +36,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/lifecycle">
+						Lifecycle
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/templates">
 						Templates
 					</SidebarNavItem>
