@@ -14,7 +14,7 @@ import (
 
 // ReadTemplateReadmeMaxRunes bounds the full README returned by read_template
 // so one large README cannot dominate a single tool response.
-const ReadTemplateReadmeMaxRunes = 8192
+const ReadTemplateReadmeMaxRunes = 8000
 
 // ReadTemplateOptions configures the read_template tool.
 type ReadTemplateOptions struct {
