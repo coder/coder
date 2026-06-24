@@ -22,14 +22,14 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						AI Governance
 					</SidebarNavItem>
 				)}
-				{permissions.viewAnyAIProvider && (
-					<SidebarNavItem href="/ai/settings" end>
-						Providers
-					</SidebarNavItem>
-				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
 						AI Gateway Keys
+					</SidebarNavItem>
+				)}
+				{permissions.viewAnyAIProvider && (
+					<SidebarNavItem href="/ai/settings" end>
+						Providers
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
