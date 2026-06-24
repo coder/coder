@@ -322,6 +322,13 @@ export interface AIProviderBedrockSettings {
 	 * AccessKey. Write-only.
 	 */
 	readonly access_key_secret?: string;
+	/**
+	 * RoleARN, when set, is the IAM role assumed via STS before calling
+	 * Bedrock. The base identity (static keys or the AWS environment, e.g.
+	 * IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	 * call, and the resulting temporary credentials sign Bedrock requests.
+	 */
+	readonly role_arn?: string;
 }
 
 // From codersdk/aiproviders_bedrock.go
