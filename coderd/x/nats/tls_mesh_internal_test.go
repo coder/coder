@@ -3,6 +3,7 @@ package nats
 import (
 	"context"
 	"testing"
+	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	"github.com/stretchr/testify/require"
@@ -36,11 +37,16 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		b := newTestPubsub(t, opts, tls)
 		c := newTestPubsub(t, opts, tls)
 
+		// Form a direct full mesh, mirroring production where every
+		// replica peers with every other (replicasync returns all peer
+		// addresses). This avoids depending on multi-hop route gossip.
 		addrA := clusterRouteAddress(t, a)
-		require.NoError(t, b.setPeerAddresses([]string{addrA}))
-		require.NoError(t, c.setPeerAddresses([]string{addrA}))
+		addrB := clusterRouteAddress(t, b)
+		addrC := clusterRouteAddress(t, c)
+		require.NoError(t, a.setPeerAddresses([]string{addrB, addrC}))
+		require.NoError(t, b.setPeerAddresses([]string{addrA, addrC}))
+		require.NoError(t, c.setPeerAddresses([]string{addrA, addrB}))
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		received := make(chan string, 4)
 		cancelSub, err := c.Subscribe("tls-mesh", func(_ context.Context, msg []byte) {
 			select {
@@ -51,11 +57,22 @@ func TestPubsub_ClusterTLS(t *testing.T) {
 		require.NoError(t, err)
 		defer cancelSub()
 
-		// b -> a -> c crosses two TLS route hops (gossip meshes b and c
-		// through a).
-		waitForRouteSubscription(t, b, "tls-mesh")
-		require.NoError(t, b.Publish("tls-mesh", []byte("hello")))
-		require.Equal(t, "hello", testutil.TryReceive(ctx, t, received))
+		// Publish until the message arrives over the TLS route: routes
+		// and subscription interest propagate asynchronously after the
+		// servers report ready, so retry rather than gate on a one-shot
+		// route-state check.
+		require.Eventually(t, func() bool {
+			if err := b.Publish("tls-mesh", []byte("hello")); err != nil {
+				return false
+			}
+			select {
+			case msg := <-received:
+				require.Equal(t, "hello", msg)
+				return true
+			case <-time.After(testutil.IntervalMedium):
+				return false
+			}
+		}, testutil.WaitLong, testutil.IntervalFast)
 	})
 
 	t.Run("WrongCA", func(t *testing.T) {
