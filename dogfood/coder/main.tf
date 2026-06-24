@@ -34,7 +34,7 @@ locals {
     "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
+  repo_base_dir  = "/home/coder"
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 
@@ -50,12 +50,8 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "us-pittsburgh"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)     = "us-pittsburgh"
+    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
   }
   prebuilds {
     instances = 2
@@ -67,12 +63,8 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "za-cpt"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)     = "za-cpt"
+    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
   }
   prebuilds {
     instances = 1
@@ -84,12 +76,8 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "eu-helsinki"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)     = "eu-helsinki"
+    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
   }
   prebuilds {
     instances = 1
@@ -101,24 +89,12 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)                   = "ap-sydney"
-    (data.coder_parameter.image_type.name)               = data.coder_parameter.image_type.default
-    (data.coder_parameter.repo_base_dir.name)            = "~"
-    (data.coder_parameter.res_mon_memory_threshold.name) = 80
-    (data.coder_parameter.res_mon_volume_threshold.name) = 90
-    (data.coder_parameter.res_mon_volume_path.name)      = "/home/coder"
+    (data.coder_parameter.region.name)     = "ap-sydney"
+    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
   }
   prebuilds {
     instances = 1
   }
-}
-
-data "coder_parameter" "repo_base_dir" {
-  type        = "string"
-  name        = "Coder Repository Base Directory"
-  default     = "~"
-  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
-  mutable     = true
 }
 
 locals {
@@ -194,38 +170,6 @@ data "coder_parameter" "region" {
   }
 }
 
-data "coder_parameter" "res_mon_memory_threshold" {
-  type        = "number"
-  name        = "Memory usage threshold"
-  default     = 80
-  description = "The memory usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_threshold" {
-  type        = "number"
-  name        = "Volume usage threshold"
-  default     = 90
-  description = "The volume usage threshold used in resources monitoring to trigger notifications."
-  mutable     = true
-  validation {
-    min = 0
-    max = 100
-  }
-}
-
-data "coder_parameter" "res_mon_volume_path" {
-  type        = "string"
-  name        = "Volume path"
-  default     = "/home/coder"
-  description = "The path monitored in resources monitoring to trigger notifications."
-  mutable     = true
-}
-
 data "coder_parameter" "devcontainer_autostart" {
   type        = "bool"
   name        = "Automatically start devcontainer for coder/coder"
@@ -234,17 +178,9 @@ data "coder_parameter" "devcontainer_autostart" {
   mutable     = true
 }
 
-data "coder_parameter" "enable_ai_gateway" {
-  type        = "bool"
-  name        = "Use AI Gateway"
-  default     = true
-  description = "If enabled, AI requests will be sent via AI Gateway."
-  mutable     = true
-}
-
-# Only used if AI Gateway is disabled.
 # dogfood/main.tf injects this value from a GH Actions secret;
 # `coderd_template.dogfood` passes the value injected by .github/workflows/dogfood.yaml in `TF_VAR_CODER_DOGFOOD_ANTHROPIC_API_KEY` and `TF_VAR_CODER_DOGFOOD_OPENAI_API_KEY`.
+# Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
 variable "anthropic_api_key" {
   type        = string
   description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
@@ -257,6 +193,11 @@ variable "openai_api_key" {
   description = "The API key used to authenticate with the OpenAI API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
+}
+
+# IDEs that are enabled by default in the dogfood workspace.
+locals {
+  enabled_ides = ["vscode", "code-server", "cursor"]
 }
 
 provider "docker" {
@@ -282,69 +223,6 @@ data "coder_workspace_tags" "prebuild" {
   count = data.coder_workspace_owner.me.name == "prebuilds" ? 1 : 0
   tags = {
     "is_prebuild" = "true"
-  }
-}
-
-data "coder_parameter" "ide_choices" {
-  type        = "list(string)"
-  name        = "Select IDEs"
-  form_type   = "multi-select"
-  mutable     = true
-  description = "Choose one or more IDEs to enable in your workspace"
-  default     = jsonencode(["vscode", "code-server", "cursor"])
-  option {
-    name  = "VS Code Desktop"
-    value = "vscode"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    name  = "code-server"
-    value = "code-server"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    name  = "VS Code Web"
-    value = "vscode-web"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    name  = "JetBrains IDEs"
-    value = "jetbrains"
-    icon  = "/icon/jetbrains.svg"
-  }
-  option {
-    name  = "Cursor"
-    value = "cursor"
-    icon  = "/icon/cursor.svg"
-  }
-  option {
-    name  = "Windsurf"
-    value = "windsurf"
-    icon  = "/icon/windsurf.svg"
-  }
-  option {
-    name  = "Zed"
-    value = "zed"
-    icon  = "/icon/zed.svg"
-  }
-}
-
-data "coder_parameter" "vscode_channel" {
-  count       = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") ? 1 : 0
-  type        = "string"
-  name        = "VS Code Desktop channel"
-  description = "Choose the VS Code Desktop channel"
-  mutable     = true
-  default     = "stable"
-  option {
-    value = "stable"
-    name  = "Stable"
-    icon  = "/icon/code.svg"
-  }
-  option {
-    value = "insiders"
-    name  = "Insiders"
-    icon  = "/icon/code-insiders.svg"
   }
 }
 
@@ -409,7 +287,7 @@ module "mux" {
 }
 
 module "code-server" {
-  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
+  count                   = contains(local.enabled_ides, "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
   version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
@@ -419,7 +297,7 @@ module "code-server" {
 }
 
 module "vscode-web" {
-  count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
+  count                   = contains(local.enabled_ides, "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
   version                 = "1.5.1"
   agent_id                = coder_agent.dev.id
@@ -431,7 +309,7 @@ module "vscode-web" {
 }
 
 module "jetbrains" {
-  count         = contains(jsondecode(data.coder_parameter.ide_choices.value), "jetbrains") ? data.coder_workspace.me.start_count : 0
+  count         = contains(local.enabled_ides, "jetbrains") ? data.coder_workspace.me.start_count : 0
   source        = "dev.registry.coder.com/coder/jetbrains/coder"
   version       = "1.4.0"
   agent_id      = coder_agent.dev.id
@@ -457,7 +335,7 @@ module "coder-login" {
 }
 
 module "cursor" {
-  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "cursor") ? data.coder_workspace.me.start_count : 0
+  count    = contains(local.enabled_ides, "cursor") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/cursor/coder"
   version  = "1.4.1"
   agent_id = coder_agent.dev.id
@@ -465,7 +343,7 @@ module "cursor" {
 }
 
 module "windsurf" {
-  count    = contains(jsondecode(data.coder_parameter.ide_choices.value), "windsurf") ? data.coder_workspace.me.start_count : 0
+  count    = contains(local.enabled_ides, "windsurf") ? data.coder_workspace.me.start_count : 0
   source   = "dev.registry.coder.com/coder/windsurf/coder"
   version  = "1.3.1"
   agent_id = coder_agent.dev.id
@@ -473,7 +351,7 @@ module "windsurf" {
 }
 
 module "zed" {
-  count      = contains(jsondecode(data.coder_parameter.ide_choices.value), "zed") ? data.coder_workspace.me.start_count : 0
+  count      = contains(local.enabled_ides, "zed") ? data.coder_workspace.me.start_count : 0
   source     = "dev.registry.coder.com/coder/zed/coder"
   version    = "1.1.4"
   agent_id   = coder_agent.dev.id
@@ -517,18 +395,18 @@ resource "coder_agent" "dev" {
       # and is recreated with the container on workspace restart.
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
-    data.coder_parameter.enable_ai_gateway.value ? {
+    {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
-    } : {}
+    }
   )
   startup_script_behavior = "blocking"
 
   display_apps {
-    vscode          = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "stable"
-    vscode_insiders = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode") && try(data.coder_parameter.vscode_channel[0].value, "stable") == "insiders"
+    vscode          = contains(local.enabled_ides, "vscode")
+    vscode_insiders = false
   }
 
   # The following metadata blocks are optional. They are used to display
@@ -585,16 +463,16 @@ resource "coder_agent" "dev" {
   resources_monitoring {
     memory {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_memory_threshold.value
+      threshold = 80
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
-      path      = data.coder_parameter.res_mon_volume_path.value
+      threshold = 90
+      path      = "/home/coder"
     }
     volume {
       enabled   = true
-      threshold = data.coder_parameter.res_mon_volume_threshold.value
+      threshold = 90
       path      = "/var/lib/docker"
     }
   }
@@ -1007,8 +885,8 @@ module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
   version           = "5.2.0"
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  anthropic_api_key = data.coder_parameter.enable_ai_gateway.value ? "" : var.anthropic_api_key
+  enable_ai_gateway = true
+  anthropic_api_key = ""
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
   mcp               = <<-EOF
@@ -1042,8 +920,8 @@ module "codex" {
   version           = "5.2.0"
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
-  enable_ai_gateway = data.coder_parameter.enable_ai_gateway.value
-  openai_api_key    = data.coder_parameter.enable_ai_gateway.value ? "" : var.openai_api_key
+  enable_ai_gateway = true
+  openai_api_key    = ""
   mcp               = <<-EOT
     [mcp_servers.playwright]
     command = "npx"
