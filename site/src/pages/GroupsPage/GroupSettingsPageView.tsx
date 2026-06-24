@@ -83,17 +83,12 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
             of its members.`,
 	});
 	const budgetField = getFieldHelpers("monthly_budget_per_member");
-	const budgetDollars = form.values.monthly_budget_per_member;
-	const trimmedBudgetDollars = budgetDollars.trim();
-	const budgetAmount = Number(trimmedBudgetDollars);
-	const hasBudgetValue = trimmedBudgetDollars !== "";
-	const hasNoBudget = hasBudgetValue && budgetAmount === 0;
-	const hasMonthlyLimit =
-		hasBudgetValue && Number.isFinite(budgetAmount) && budgetAmount > 0;
+	const budgetValue = form.values.monthly_budget_per_member.trim();
+	const budgetAmount = Number(budgetValue);
+	const isUnlimitedBudget = budgetValue === "";
+	const isNoBudget = !isUnlimitedBudget && budgetAmount === 0;
+	const hasMonthlyLimit = Number.isFinite(budgetAmount) && budgetAmount > 0;
 	const memberCount = group.total_member_count;
-	const monthlyMaximum = hasMonthlyLimit
-		? usdBudgetFormatter.format(budgetAmount * memberCount)
-		: "";
 
 	return (
 		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
@@ -197,14 +192,15 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 								/>
 								<InputGroupAddon align="inline-end">USD</InputGroupAddon>
 							</InputGroup>
-							{budgetField.error ? (
+							{budgetField.error && (
 								<span className="text-left text-xs text-content-destructive">
 									{budgetField.helperText}
 								</span>
-							) : hasMonthlyLimit ? (
+							)}
+							{!budgetField.error && hasMonthlyLimit && (
 								<span className="text-left text-xs text-content-secondary">
 									<span className="font-medium text-content-primary">
-										{monthlyMaximum}
+										{usdBudgetFormatter.format(budgetAmount * memberCount)}
 									</span>
 									/month maximum, based on{" "}
 									<span className="font-medium text-content-primary">
@@ -212,7 +208,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									</span>{" "}
 									{memberCount === 1 ? "member" : "members"}.
 								</span>
-							) : hasNoBudget ? (
+							)}
+							{!budgetField.error && isNoBudget && (
 								<span className="text-left text-xs text-content-secondary">
 									This group has{" "}
 									<span className="font-medium text-content-primary">
@@ -220,7 +217,8 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									</span>
 									.
 								</span>
-							) : !hasBudgetValue ? (
+							)}
+							{!budgetField.error && isUnlimitedBudget && (
 								<span className="text-left text-xs text-content-secondary">
 									This group has{" "}
 									<span className="font-medium text-content-primary">
@@ -228,14 +226,14 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 									</span>
 									.
 								</span>
-							) : null}
+							)}
 						</div>
-						{!budgetField.error && !hasBudgetValue && (
+						{!budgetField.error && isUnlimitedBudget && (
 							<Alert severity="info">
 								Members in this group have no spending cap.
 							</Alert>
 						)}
-						{!budgetField.error && hasNoBudget && (
+						{!budgetField.error && isNoBudget && (
 							<Alert severity="info">
 								A $0 limit disables AI access for this group.
 							</Alert>
