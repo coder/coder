@@ -41,6 +41,12 @@ export const Default: Story = {
 		await expect(
 			canvas.getByRole("button", { name: /add model/i }),
 		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("searchbox", { name: /search models/i }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByRole("combobox", { name: /filter by provider/i }),
+		).toBeInTheDocument();
 		await expect(canvas.getByText("GPT-5")).toBeInTheDocument();
 		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
 		await expect(canvas.getAllByText("OpenAI").length).toBeGreaterThan(0);
@@ -48,6 +54,45 @@ export const Default: Story = {
 		await expect(canvas.getAllByText("Enabled").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Default")).toBeInTheDocument();
 		await expect(canvas.getByText("Disabled")).toBeInTheDocument();
+	},
+};
+
+export const SearchByName: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const search = canvas.getByRole("searchbox", { name: /search models/i });
+		await userEvent.type(search, "claude");
+		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
+		await expect(canvas.queryByText("GPT-5")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("GPT-4o mini")).not.toBeInTheDocument();
+	},
+};
+
+export const FilterByProvider: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const providerFilter = canvas.getByRole("combobox", {
+			name: /filter by provider/i,
+		});
+		await userEvent.click(providerFilter);
+		const anthropicOption = await within(document.body).findByRole("option", {
+			name: "Anthropic",
+		});
+		await userEvent.click(anthropicOption);
+		await expect(canvas.getByText("Claude Sonnet 4.5")).toBeInTheDocument();
+		await expect(canvas.queryByText("GPT-5")).not.toBeInTheDocument();
+		await expect(canvas.queryByText("GPT-4o mini")).not.toBeInTheDocument();
+	},
+};
+
+export const NoMatchingModels: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const search = canvas.getByRole("searchbox", { name: /search models/i });
+		await userEvent.type(search, "no-such-model");
+		await expect(
+			canvas.getByText("No models match your filters"),
+		).toBeInTheDocument();
 	},
 };
 
