@@ -3634,15 +3634,9 @@ func TestListChatModelConfigs(t *testing.T) {
 
 		configs, err := client.ListChatModelConfigs(ctx)
 		require.NoError(t, err)
-
-		var found bool
-		for _, config := range configs {
-			if config.ID == staleConfig.ID {
-				found = true
-				require.Equal(t, "bedrock", config.Provider)
-			}
-		}
-		require.True(t, found)
+		require.Len(t, configs, 1)
+		require.Equal(t, staleConfig.ID, configs[0].ID)
+		require.Equal(t, "bedrock", configs[0].Provider)
 	})
 
 	t.Run("SuccessForOrganizationMember", func(t *testing.T) {

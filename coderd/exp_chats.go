@@ -6868,16 +6868,12 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch AI providers so the provider column in each model config reflects
+	// Fetch AI providers so the provider field in each model config reflects
 	// the linked ai_providers.type, correcting stale denormalized text for
-	// legacy rows. Non-admin requesters use the chatd context, which has read
-	// access to ResourceAIProvider.
-	providerQueryCtx := ctx
-	if !isAdmin {
-		//nolint:gocritic // All authenticated users need to resolve provider types for display.
-		providerQueryCtx = dbauthz.AsChatd(ctx)
-	}
-	aiProviders, err := api.Database.GetAIProviders(providerQueryCtx, database.GetAIProvidersParams{
+	// legacy rows. Use the chatd context unconditionally, matching the pattern
+	// in createChatModelConfig and updateChatModelConfig.
+	//nolint:gocritic // All authenticated users need to resolve provider types for display.
+	aiProviders, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{
 		IncludeDisabled: true,
 	})
 	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
