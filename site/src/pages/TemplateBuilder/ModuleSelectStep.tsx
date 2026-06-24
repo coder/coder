@@ -8,6 +8,10 @@ import type {
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,
@@ -133,10 +137,10 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 
 	return (
 		<div>
-			<h2 className="text-lg font-semibold mb-1">Select modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
+			<TemplateBuilderTitle>Select modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Add functionality to your template.
-			</p>
+			</TemplateBuilderSubtitle>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				{modules.map((m) => (
