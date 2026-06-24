@@ -18449,6 +18449,42 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CreateWorkspaceBuildOnSuccessRequest": {
+            "type": "object",
+            "required": [
+                "transition"
+            ],
+            "properties": {
+                "rich_parameter_values": {
+                    "description": "RichParameterValues are applied to the child build. Parameters\nnot listed here fall back to their values from the previous\nbuild, matching normal build behavior.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceBuildParameter"
+                    }
+                },
+                "template_version_id": {
+                    "description": "TemplateVersionID pins the child build to a specific template\nversion. Pinning requires permission to update the template,\nsince the active version may change before the child build\nruns. When empty, the child build uses the template's active\nversion at the time it runs.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_version_preset_id": {
+                    "description": "TemplateVersionPresetID selects a preset for the child build.\nIt requires TemplateVersionID to also be set.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "transition": {
+                    "description": "Transition must be \"start\". The parent build's transition must\nbe \"stop\".",
+                    "enum": [
+                        "start"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkspaceTransition"
+                        }
+                    ]
+                }
+            }
+        },
         "codersdk.CreateWorkspaceBuildReason": {
             "type": "string",
             "enum": [
@@ -18487,6 +18523,14 @@ const docTemplate = `{
                     "allOf": [
                         {
                             "$ref": "#/definitions/codersdk.ProvisionerLogLevel"
+                        }
+                    ]
+                },
+                "on_success": {
+                    "description": "OnSuccess queues a follow-up workspace build after this build succeeds.\nIt currently supports restarting a workspace by starting it after a\nsuccessful stop build.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.CreateWorkspaceBuildOnSuccessRequest"
                         }
                     ]
                 },

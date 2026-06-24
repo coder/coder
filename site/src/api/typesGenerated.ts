@@ -3733,6 +3733,41 @@ export interface CreateUserSkillRequest {
 }
 
 // From codersdk/workspaces.go
+/**
+ * CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
+ * runs after the parent build succeeds. It currently supports
+ * restarting a workspace: the parent build must be a "stop" and this
+ * child build a "start". The child build inherits LogLevel and Reason
+ * from the parent CreateWorkspaceBuildRequest.
+ */
+export interface CreateWorkspaceBuildOnSuccessRequest {
+	/**
+	 * TemplateVersionID pins the child build to a specific template
+	 * version. Pinning requires permission to update the template,
+	 * since the active version may change before the child build
+	 * runs. When empty, the child build uses the template's active
+	 * version at the time it runs.
+	 */
+	readonly template_version_id?: string;
+	/**
+	 * Transition must be "start". The parent build's transition must
+	 * be "stop".
+	 */
+	readonly transition: WorkspaceTransition;
+	/**
+	 * RichParameterValues are applied to the child build. Parameters
+	 * not listed here fall back to their values from the previous
+	 * build, matching normal build behavior.
+	 */
+	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
+	/**
+	 * TemplateVersionPresetID selects a preset for the child build.
+	 * It requires TemplateVersionID to also be set.
+	 */
+	readonly template_version_preset_id?: string;
+}
+
+// From codersdk/workspaces.go
 export type CreateWorkspaceBuildReason =
 	| "cli"
 	| "dashboard"
@@ -3783,6 +3818,12 @@ export interface CreateWorkspaceBuildRequest {
 	 * Reason sets the reason for the workspace build.
 	 */
 	readonly reason?: CreateWorkspaceBuildReason;
+	/**
+	 * OnSuccess queues a follow-up workspace build after this build succeeds.
+	 * It currently supports restarting a workspace by starting it after a
+	 * successful stop build.
+	 */
+	readonly on_success?: CreateWorkspaceBuildOnSuccessRequest;
 }
 
 // From codersdk/workspaceproxy.go

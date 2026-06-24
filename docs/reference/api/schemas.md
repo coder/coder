@@ -4979,6 +4979,37 @@ This is required on creation to enable a user-flow of validating a template work
 |-----------|--------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `content` | string | false    |              | Content must be SKILL.md-format Markdown with YAML frontmatter. The frontmatter must include name, may include description, and must be followed by a non-empty body. |
 
+## codersdk.CreateWorkspaceBuildOnSuccessRequest
+
+```json
+{
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+  "transition": "start"
+}
+```
+
+### Properties
+
+| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                                       |
+|------------------------------|-------------------------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are applied to the child build. Parameters not listed here fall back to their values from the previous build, matching normal build behavior.                                                                                                               |
+| `template_version_id`        | string                                                                        | false    |              | Template version ID pins the child build to a specific template version. Pinning requires permission to update the template, since the active version may change before the child build runs. When empty, the child build uses the template's active version at the time it runs. |
+| `template_version_preset_id` | string                                                                        | false    |              | Template version preset ID selects a preset for the child build. It requires TemplateVersionID to also be set.                                                                                                                                                                    |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              | Transition must be "start". The parent build's transition must be "stop".                                                                                                                                                                                                         |
+
+#### Enumerated Values
+
+| Property     | Value(s) |
+|--------------|----------|
+| `transition` | `start`  |
+
 ## codersdk.CreateWorkspaceBuildReason
 
 ```json
@@ -4999,6 +5030,17 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "dry_run": true,
   "log_level": "debug",
+  "on_success": {
+    "rich_parameter_values": [
+      {
+        "name": "string",
+        "value": "string"
+      }
+    ],
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+    "transition": "start"
+  },
   "orphan": true,
   "reason": "dashboard",
   "rich_parameter_values": [
@@ -5018,17 +5060,18 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name                         | Type                                                                          | Required | Restrictions | Description                                                                                                                                                                                                   |
-|------------------------------|-------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `dry_run`                    | boolean                                                                       | false    |              |                                                                                                                                                                                                               |
-| `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                  | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
-| `orphan`                     | boolean                                                                       | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
-| `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)    | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
-| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter) | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
-| `state`                      | array of integer                                                              | false    |              |                                                                                                                                                                                                               |
-| `template_version_id`        | string                                                                        | false    |              |                                                                                                                                                                                                               |
-| `template_version_preset_id` | string                                                                        | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
-| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                  | true     |              |                                                                                                                                                                                                               |
+| Name                         | Type                                                                                           | Required | Restrictions | Description                                                                                                                                                                                                   |
+|------------------------------|------------------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dry_run`                    | boolean                                                                                        | false    |              |                                                                                                                                                                                                               |
+| `log_level`                  | [codersdk.ProvisionerLogLevel](#codersdkprovisionerloglevel)                                   | false    |              | Log level changes the default logging verbosity of a provider ("info" if empty).                                                                                                                              |
+| `on_success`                 | [codersdk.CreateWorkspaceBuildOnSuccessRequest](#codersdkcreateworkspacebuildonsuccessrequest) | false    |              | On success queues a follow-up workspace build after this build succeeds. It currently supports restarting a workspace by starting it after a successful stop build.                                           |
+| `orphan`                     | boolean                                                                                        | false    |              | Orphan may be set for the Destroy transition.                                                                                                                                                                 |
+| `reason`                     | [codersdk.CreateWorkspaceBuildReason](#codersdkcreateworkspacebuildreason)                     | false    |              | Reason sets the reason for the workspace build.                                                                                                                                                               |
+| `rich_parameter_values`      | array of [codersdk.WorkspaceBuildParameter](#codersdkworkspacebuildparameter)                  | false    |              | Rich parameter values are optional. It will write params to the 'workspace' scope. This will overwrite any existing parameters with the same name. This will not delete old params not included in this list. |
+| `state`                      | array of integer                                                                               | false    |              |                                                                                                                                                                                                               |
+| `template_version_id`        | string                                                                                         | false    |              |                                                                                                                                                                                                               |
+| `template_version_preset_id` | string                                                                                         | false    |              | Template version preset ID is the ID of the template version preset to use for the build.                                                                                                                     |
+| `transition`                 | [codersdk.WorkspaceTransition](#codersdkworkspacetransition)                                   | true     |              |                                                                                                                                                                                                               |
 
 #### Enumerated Values
 
