@@ -131,7 +131,7 @@ if [[ "$build_base" != "" ]]; then
 
 	base_image="$build_base"
 else
-	docker pull --platform "$arch" "$base_image" 1>&2
+	retry 5 5 -- docker pull --platform "$arch" "$base_image" 1>&2
 fi
 
 log "--- Building Docker image for $arch ($image_tag)"
@@ -150,7 +150,7 @@ rm -rf "$temp_dir"
 
 if [[ "$push" == 1 ]]; then
 	log "--- Pushing Docker image for $arch ($image_tag)"
-	docker push "$image_tag" 1>&2
+	retry 5 5 -- docker push "$image_tag" 1>&2
 fi
 
 # SBOM generation and attestation moved to the GitHub workflow

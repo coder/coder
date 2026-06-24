@@ -197,6 +197,57 @@ error() {
 	exit 1
 }
 
+# retry runs a command, retrying it with exponential backoff if it fails. It is
+# intended for commands that touch flaky external services such as a container
+# registry.
+#
+# Usage: retry <max_attempts> <base_delay_seconds> -- <command...>
+#
+# The delay starts at base_delay_seconds and doubles after each failed attempt,
+# capped at 60 seconds. The command's stderr is left intact so the underlying
+# error stays visible. Returns the command's exit status from the final attempt.
+retry() {
+	if (($# < 3)); then
+		log "retry: usage: retry <max_attempts> <base_delay_seconds> [--] <command...>"
+		return 1
+	fi
+	local max_attempts="$1"
+	local delay="$2"
+	shift 2
+	if [[ ${1-} == "--" ]]; then
+		shift
+	fi
+	if (($# == 0)); then
+		log "retry: no command specified"
+		return 1
+	fi
+
+	local max_delay=60
+	local attempt=1
+	local status=0
+	while true; do
+		status=0
+		"$@" || status=$?
+		if ((status == 0)); then
+			if ((attempt > 1)); then
+				log "retry: succeeded after ${attempt} attempt(s)"
+			fi
+			return 0
+		fi
+		if ((attempt >= max_attempts)); then
+			log "retry: command failed after ${attempt} attempt(s)"
+			return "$status"
+		fi
+		log "retry: attempt ${attempt}/${max_attempts} failed (exit ${status}), retrying in ${delay}s"
+		sleep "$delay"
+		attempt=$((attempt + 1))
+		delay=$((delay * 2))
+		if ((delay > max_delay)); then
+			delay=$max_delay
+		fi
+	done
+}
+
 # isdarwin returns an error if the current platform is not darwin.
 isdarwin() {
 	[[ "${OSTYPE:-darwin}" == *darwin* ]]
