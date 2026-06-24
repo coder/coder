@@ -186,8 +186,7 @@ deployment. Use this to encode organizational conventions:
 - Required review processes before merging.
 - Any guardrails specific to your environment.
 
-Configure the system prompt from **Agents** > **Settings** >
-**Manage Agents** > **Instructions**
+Configure the system prompt from **AI Settings** > **Instructions**
 or via the API at `PUT /api/experimental/chats/config/system-prompt`.
 See [Platform Controls](./platform-controls/index.md) for details.
 
