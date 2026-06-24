@@ -160,6 +160,8 @@ func TestBuildBedrockCredentialsDefaultChain(t *testing.T) {
 // NOTE: no t.Parallel() because it uses t.Setenv.
 func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	var gotRoleARN, gotSessionName string
+	// Mock the AWS STS AssumeRole API.
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm())
 		gotRoleARN = r.Form.Get("RoleArn")
@@ -211,6 +213,8 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 // NOTE: no t.Parallel() because it uses t.Setenv.
 func TestBuildBedrockCredentialsAssumeRoleCaches(t *testing.T) {
 	var stsCalls atomic.Int64
+	// Mock the AWS STS AssumeRole API.
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		stsCalls.Add(1)
 		w.Header().Set("Content-Type", "text/xml")
@@ -257,6 +261,8 @@ func TestBuildBedrockCredentialsAssumeRoleCaches(t *testing.T) {
 // NOTE: no t.Parallel() because it uses t.Setenv.
 func TestBuildBedrockCredentialsAssumeRoleRefreshesOnExpiry(t *testing.T) {
 	var stsCalls atomic.Int64
+	// Mock the AWS STS AssumeRole API.
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
 	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		stsCalls.Add(1)
 		w.Header().Set("Content-Type", "text/xml")
