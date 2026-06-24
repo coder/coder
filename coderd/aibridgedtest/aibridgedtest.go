@@ -1,7 +1,7 @@
 //go:build !slim
 
-// Package aibridgedtest provides test helpers for standing up a real
-// in-process aibridged daemon wired to fake upstream providers.
+// Package aibridgedtest provides helpers for starting an in-process
+// aibridged daemon in tests.
 package aibridgedtest
 
 import (
@@ -21,27 +21,26 @@ import (
 )
 
 // StartTestAIBridgeDaemon wires an in-process aibridged daemon onto the
-// supplied API, mirroring what cli/server.go does in production. It builds
-// providers from the database, creates a cached bridge pool, subscribes to
-// provider reload events, and registers the in-memory AI Gateway HTTP handler
-// so chatd routes LLM requests through the real aibridge transport.
-//
-// Tests that create AI provider rows with BaseURL pointing at fake upstream
-// HTTP servers (e.g. chattest.NewOpenAI) will have their requests proxied
-// through the real aibridged stack: auth header injection, SSE streaming,
-// request recording, and path rewriting all run as they would in production.
+// supplied API, mirroring what cli/server.go does in production. Tests that
+// create AI provider rows with BaseURL pointing at fake upstream HTTP servers
+// (e.g. chattest.NewOpenAI) will have their requests proxied through the real
+// aibridged stack as they would in production.
 //
 // ctx controls the lifetime of the daemon and provider reload subscription.
 // Pass a test-scoped context so the daemon shuts down when the test ends.
 //
+// t provides cleanup and fatal helpers.
+//
+// api must carry DeploymentValues, Database, Pubsub,
+// CreateInMemoryAIBridgeServer, and RegisterInMemoryAIBridgedHTTPHandler.
+// These are the same fields cli/server.go uses to wire the production daemon.
+//
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
 // runs. Use [aibridged.NewMetrics] to create one.
-//
-// t is the test's [testing.T], used for cleanup and fatal helpers.
 func StartTestAIBridgeDaemon(
 	ctx context.Context,
-	t *testing.T,
+	t testing.TB,
 	api *coderd.API,
 	metrics *aibridged.Metrics,
 ) {
@@ -92,7 +91,9 @@ type testPoolReloader struct {
 }
 
 func (r *testPoolReloader) Reload(ctx context.Context) error {
-	defer r.metrics.RecordReloadAttempt()
+	// Record the attempt before any work, matching production's ordering
+	// so the gap between attempt and success reveals a mid-reload hang.
+	r.metrics.RecordReloadAttempt()
 	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
 	if err != nil {
 		return err

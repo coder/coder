@@ -3,6 +3,7 @@ package chattest
 import (
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -79,7 +80,7 @@ func (f *MockAIBridgeTransport) TransportFor(providerName string, source aibridg
 func (f *MockAIBridgeTransport) RequestsSnapshot() []RecordedRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]RecordedRequest(nil), f.requests...)
+	return slices.Clone(f.requests)
 }
 
 type mockRoundTripper struct {
