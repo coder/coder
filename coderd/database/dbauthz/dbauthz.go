@@ -5733,6 +5733,13 @@ func (q *querier) IncrementChatGenerationAttempt(ctx context.Context, id uuid.UU
 	return q.db.IncrementChatGenerationAttempt(ctx, id)
 }
 
+func (q *querier) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
+		return database.AIUserDailySpend{}, err
+	}
+	return q.db.IncrementUserAIDailySpend(ctx, arg)
+}
+
 func (q *querier) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	return insert(q.log, q.auth, rbac.ResourceAibridgeInterception.WithOwner(arg.InitiatorID.String()), q.db.InsertAIBridgeInterception)(ctx, arg)
 }
@@ -8908,14 +8915,6 @@ func (q *querier) UpsertUserAIBudgetOverride(ctx context.Context, arg database.U
 		return database.UserAIBudgetOverride{}, err
 	}
 	return q.db.UpsertUserAIBudgetOverride(ctx, arg)
-}
-
-func (q *querier) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
-	// Daily spend writes are made by the aibridged process.
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAibridgeInterception); err != nil {
-		return database.AIUserDailySpend{}, err
-	}
-	return q.db.UpsertUserAIDailySpend(ctx, arg)
 }
 
 func (q *querier) UpsertUserAIProviderKey(ctx context.Context, arg database.UpsertUserAIProviderKeyParams) (database.UserAIProviderKey, error) {

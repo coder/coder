@@ -3897,6 +3897,14 @@ func (m queryMetricsStore) IncrementChatGenerationAttempt(ctx context.Context, i
 	return r0, r1
 }
 
+func (m queryMetricsStore) IncrementUserAIDailySpend(ctx context.Context, arg database.IncrementUserAIDailySpendParams) (database.AIUserDailySpend, error) {
+	start := time.Now()
+	r0, r1 := m.s.IncrementUserAIDailySpend(ctx, arg)
+	m.queryLatencies.WithLabelValues("IncrementUserAIDailySpend").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "IncrementUserAIDailySpend").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertAIBridgeInterception(ctx context.Context, arg database.InsertAIBridgeInterceptionParams) (database.AIBridgeInterception, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertAIBridgeInterception(ctx, arg)
@@ -6414,14 +6422,6 @@ func (m queryMetricsStore) UpsertUserAIBudgetOverride(ctx context.Context, arg d
 	r0, r1 := m.s.UpsertUserAIBudgetOverride(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertUserAIBudgetOverride").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserAIBudgetOverride").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertUserAIDailySpend(ctx context.Context, arg database.UpsertUserAIDailySpendParams) (database.AIUserDailySpend, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpsertUserAIDailySpend(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertUserAIDailySpend").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertUserAIDailySpend").Inc()
 	return r0, r1
 }
 

@@ -6815,15 +6815,15 @@ func (s *MethodTestSuite) TestAIBridge() {
 		check.Args(arg).Asserts(user, policy.ActionRead).Returns(row)
 	}))
 
-	s.Run("UpsertUserAIDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		arg := database.UpsertUserAIDailySpendParams{
+	s.Run("IncrementUserAIDailySpend", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.IncrementUserAIDailySpendParams{
 			UserID:           uuid.New(),
 			EffectiveGroupID: uuid.New(),
 			Day:              time.Now().UTC().Truncate(24 * time.Hour),
 			CostMicros:       1000,
 		}
 		row := testutil.Fake(s.T(), faker, database.AIUserDailySpend{UserID: arg.UserID, EffectiveGroupID: arg.EffectiveGroupID, Day: arg.Day})
-		dbm.EXPECT().UpsertUserAIDailySpend(gomock.Any(), arg).Return(row, nil).AnyTimes()
+		dbm.EXPECT().IncrementUserAIDailySpend(gomock.Any(), arg).Return(row, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceAibridgeInterception, policy.ActionUpdate).Returns(row)
 	}))
 

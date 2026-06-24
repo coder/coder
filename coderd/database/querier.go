@@ -998,6 +998,9 @@ type sqlcQuerier interface {
 	HydrateAgentChatsContext(ctx context.Context, arg HydrateAgentChatsContextParams) error
 	// Increments generation_attempt and returns the resulting value.
 	IncrementChatGenerationAttempt(ctx context.Context, id uuid.UUID) (int64, error)
+	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
+	// The day parameter is normalized to its UTC calendar day before storage.
+	IncrementUserAIDailySpend(ctx context.Context, arg IncrementUserAIDailySpendParams) (AIUserDailySpend, error)
 	InsertAIBridgeInterception(ctx context.Context, arg InsertAIBridgeInterceptionParams) (AIBridgeInterception, error)
 	InsertAIBridgeModelThought(ctx context.Context, arg InsertAIBridgeModelThoughtParams) (AIBridgeModelThought, error)
 	InsertAIBridgeTokenUsage(ctx context.Context, arg InsertAIBridgeTokenUsageParams) (AIBridgeTokenUsage, error)
@@ -1570,9 +1573,6 @@ type sqlcQuerier interface {
 	// combination. The result is stored in the template_usage_stats table.
 	UpsertTemplateUsageStats(ctx context.Context) error
 	UpsertUserAIBudgetOverride(ctx context.Context, arg UpsertUserAIBudgetOverrideParams) (UserAIBudgetOverride, error)
-	// Adds cost_micros to the spend for (user_id, effective_group_id, day).
-	// The day parameter is normalized to its UTC calendar day before storage.
-	UpsertUserAIDailySpend(ctx context.Context, arg UpsertUserAIDailySpendParams) (AIUserDailySpend, error)
 	// UpsertUserAIProviderKey preserves the original id and created_at when the
 	// user/provider pair already exists. On conflict, callers provide id and
 	// created_at for the insert path only.

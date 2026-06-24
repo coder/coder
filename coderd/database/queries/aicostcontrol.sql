@@ -80,7 +80,7 @@ ORDER BY
 	gaib.group_id ASC
 LIMIT 1;
 
--- name: UpsertUserAIDailySpend :one
+-- name: IncrementUserAIDailySpend :one
 -- Adds cost_micros to the spend for (user_id, effective_group_id, day).
 -- The day parameter is normalized to its UTC calendar day before storage.
 INSERT INTO ai_user_daily_spend (user_id, effective_group_id, day, spend_micros)
