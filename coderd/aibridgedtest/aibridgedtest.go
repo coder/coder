@@ -35,9 +35,11 @@ import (
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
 // runs. Use [aibridged.NewMetrics] to create one.
+//
+// t is the test's [testing.T], used for cleanup and fatal helpers.
 func StartTestAIBridgeDaemon(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	api *coderd.API,
 	metrics *aibridged.Metrics,
 ) {

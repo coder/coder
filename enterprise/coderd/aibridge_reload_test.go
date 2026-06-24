@@ -72,7 +72,7 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 	})
 
 	metrics := aibridged.NewMetrics(prometheus.NewRegistry())
-	aibridgedtest.StartTestAIBridgeDaemon(t, testutil.Context(t, testutil.WaitLong), api.AGPL, metrics)
+	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api.AGPL, metrics)
 
 	// requireProviderStatus polls until the provider_info series for
 	// (name, status) settles to value 1. Reloads happen via pubsub, so
