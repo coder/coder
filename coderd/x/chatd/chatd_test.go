@@ -9744,13 +9744,16 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
-	require.Equal(t, provider.Name, requests[0].ProviderName)
-	require.Equal(t, aibridge.SourceAgents, requests[0].Source)
-	require.Equal(t, apiKey.ID, requests[0].APIKeyID)
-	require.Equal(t, "Bearer sk-user-aibridge", requests[0].Request.Header.Get("Authorization"))
-	require.Empty(t, requests[0].Request.Header.Get("X-Api-Key"))
-	require.Equal(t, "delegated", requests[0].Request.Header.Get(aibridge.HeaderCoderToken))
-	require.True(t, strings.HasPrefix(requests[0].Request.URL.Path, "/v1/"), "unexpected aibridge path %q", requests[0].Request.URL.Path)
+	require.Equal(t, "/v1/responses", requests[0].Request.URL.Path)
+	for _, req := range requests {
+		require.Equal(t, provider.Name, req.ProviderName)
+		require.Equal(t, aibridge.SourceAgents, req.Source)
+		require.Equal(t, apiKey.ID, req.APIKeyID)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Empty(t, req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
+		require.True(t, strings.HasPrefix(req.Request.URL.Path, "/v1/"), "unexpected aibridge path %q", req.Request.URL.Path)
+	}
 }
 
 func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *testing.T) {

@@ -1,3 +1,5 @@
+//go:build !slim
+
 // Package aibridgedtest provides test helpers for standing up a real
 // in-process aibridged daemon wired to fake upstream providers.
 package aibridgedtest
