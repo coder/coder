@@ -131,7 +131,12 @@ Once a workspace is available:
 Write the file first, then present it. All file paths must be absolute.
 When the <plan-file-path> block below is present, use that exact path.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
-</planning>`
+</planning>
+
+<subagent-orchestration>
+An error status is often recoverable. Resume the agent with message_agent to retry; treat only genuine, repeating failures as terminal.
+If you lose track of your spawned agents, call list_agents to recover them before finishing.
+</subagent-orchestration>`
 
 var planningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.

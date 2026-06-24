@@ -755,17 +755,17 @@ const EVERY_TOOL_ASSISTANT_TURN = {
 			},
 		},
 
-		// close_agent -- terminate a subagent
+		// interrupt_agent: interrupt a subagent
 		{
 			type: "tool-call",
-			tool_call_id: "every-close-agent",
-			tool_name: "close_agent",
+			tool_call_id: "every-interrupt-agent",
+			tool_name: "interrupt_agent",
 			args: { chat_id: "every-explore-child" },
 		},
 		{
 			type: "tool-result",
-			tool_call_id: "every-close-agent",
-			tool_name: "close_agent",
+			tool_call_id: "every-interrupt-agent",
+			tool_name: "interrupt_agent",
 			result: {
 				chat_id: "every-explore-child",
 				type: "explore",
@@ -1693,14 +1693,14 @@ export const WithMixedSubagentTranscript: Story = {
 							},
 							{
 								type: "tool-call",
-								tool_call_id: "legacy-close",
-								tool_name: "close_agent",
+								tool_call_id: "legacy-interrupt",
+								tool_name: "interrupt_agent",
 								args: { chat_id: "legacy-child" },
 							},
 							{
 								type: "tool-result",
-								tool_call_id: "legacy-close",
-								tool_name: "close_agent",
+								tool_call_id: "legacy-interrupt",
+								tool_name: "interrupt_agent",
 								result: {
 									chat_id: "legacy-child",
 									type: "general",

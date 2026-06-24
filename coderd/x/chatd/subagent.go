@@ -31,6 +31,30 @@ import (
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
 
+// ErrSubagentWaitTimeout is returned by awaitSubagentCompletion when the
+// wait deadline elapses before the subagent reaches a terminal status. The
+// agent is still working and the wait can be retried.
+var ErrSubagentWaitTimeout = xerrors.New("timed out waiting for delegated subagent completion")
+
+// subagentToolNameAliases maps deprecated subagent tool names to their
+// current names so historical close_agent calls in chat history still
+// dispatch to interrupt_agent without advertising the old name in the
+// tool list.
+var subagentToolNameAliases = map[string]string{
+	"close_agent": "interrupt_agent",
+}
+
+// subagentStatusError wraps a subagent that reached error status. It
+// carries the chat and report so callers can surface a structured,
+// recoverable-aware payload instead of a bare tool error.
+type subagentStatusError struct {
+	chat   database.Chat
+	report string
+	reason string
+}
+
+func (e *subagentStatusError) Error() string { return e.reason }
+
 var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
 
 type modelOverrideConfigResolver func(
@@ -48,6 +72,9 @@ const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
+
+	defaultListAgentsLimit = 10
+	maxListAgentsLimit     = 50
 )
 
 // computerUseSubagentSystemPrompt is the system prompt prepended to
@@ -77,8 +104,13 @@ type messageAgentArgs struct {
 	Interrupt bool   `json:"interrupt,omitempty"`
 }
 
-type closeAgentArgs struct {
+type interruptAgentArgs struct {
 	ChatID string `json:"chat_id"`
+}
+
+type listAgentsArgs struct {
+	Limit  *int `json:"limit,omitempty"`
+	Offset *int `json:"offset,omitempty"`
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
@@ -609,9 +641,9 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a spawned child agent finishes its task. "+
-				"Returns the agent's final response and status. "+
-				"Call this after "+spawnAgentToolName+" to collect the "+
-				"result before continuing your own work.",
+				"Returns the agent's response and status. A timeout is not "+
+				"a failure: the agent is still running. Call wait_agent again "+
+				"or use list_agents to check its status.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -694,41 +726,70 @@ func (p *Server) subagentTools(
 				// On timeout or error, leave the recording running on
 				// the agent so the next wait_agent call continues it.
 				if awaitErr != nil {
+					if xerrors.Is(awaitErr, ErrSubagentWaitTimeout) {
+						// The agent may have completed in the gap between
+						// the last poll and the timer firing. Re-check
+						// completion with a fresh DB read to avoid acting
+						// on a stale status (TOCTOU).
+						checkedChat, checkedReport, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
+						if checkErr != nil {
+							return subagentErrorResponse(checkErr, targetChatInfo), nil
+						}
+						if !done {
+							timeoutChat := database.Chat{ID: targetChatID}
+							if targetChatInfo != nil {
+								timeoutChat = *targetChatInfo
+							}
+							if refreshed, refErr := p.db.GetChatByID(ctx, targetChatID); refErr == nil {
+								timeoutChat = refreshed
+							}
+							return toolJSONResponse(withSubagentType(map[string]any{
+								"chat_id":   targetChatID.String(),
+								"title":     timeoutChat.Title,
+								"status":    string(timeoutChat.Status),
+								"timed_out": true,
+							}, timeoutChat)), nil
+						}
+						// The agent completed in the gap. Classify through
+						// the same handler as the normal poll path. If the
+						// agent errored, handleSubagentDone returns a
+						// subagentStatusError that the error-status block
+						// below catches.
+						targetChat, report, awaitErr = handleSubagentDone(checkedChat, checkedReport)
+						if awaitErr == nil {
+							return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
+						}
+					}
+					if errStatus, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
+						errChat := errStatus.chat
+						lastError := subagentLastErrorMessage(errChat.LastError)
+						if lastError == "" {
+							lastError = errStatus.reason
+						}
+						return toolJSONResponse(withSubagentType(map[string]any{
+							"chat_id":    errChat.ID.String(),
+							"title":      errChat.Title,
+							"status":     string(errChat.Status),
+							"last_error": lastError,
+							"report":     errStatus.report,
+						}, errChat)), nil
+					}
 					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
 
 				// Only stop and store the recording on success.
-				var recResult recordingResult
-				if recordingID != "" && agentConn != nil {
-					// Use a fresh context for cleanup so a canceled
-					// parent context does not prevent recording storage.
-					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
-					defer stopCancel()
-					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-						recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
-				}
-				resp := withSubagentType(map[string]any{
-					"chat_id": targetChat.ID.String(),
-					"title":   targetChat.Title,
-					"report":  report,
-					"status":  string(targetChat.Status),
-				}, targetChat)
-				if recResult.recordingFileID != "" {
-					resp["recording_file_id"] = recResult.recordingFileID
-				}
-				if recResult.thumbnailFileID != "" {
-					resp["thumbnail_file_id"] = recResult.thumbnailFileID
-				}
-				return toolJSONResponse(resp), nil
+				return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
-				"agent. Use this to provide additional instructions, "+
-				"corrections, or context to a running or completed "+
-				"agent. After sending, use wait_agent to collect the "+
-				"updated response.",
+				"agent. If the agent is idle, it resumes work on the "+
+				"message. If the agent is busy, the message is queued and "+
+				"processed after current work. Set interrupt to true to "+
+				"stop the agent's current work; the message is queued and "+
+				"processed next, after any already-queued messages. "+
+				"After sending, use wait_agent to retrieve the response.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -773,11 +834,11 @@ func (p *Server) subagentTools(
 			},
 		),
 		fantasy.NewAgentTool(
-			"close_agent",
-			"Immediately stop a spawned child agent. Use this to "+
-				"cancel a subagent that is stuck, no longer needed, "+
-				"or working on the wrong approach.",
-			func(ctx context.Context, args closeAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			"interrupt_agent",
+			"Interrupt a spawned child agent's current work. The agent "+
+				"stops and waits; resume it with message_agent or leave it "+
+				"idle.",
+			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
@@ -792,12 +853,12 @@ func (p *Server) subagentTools(
 				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
 					targetChatInfo = &chat
 				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
-					p.logger.Warn(ctx, "unexpected error looking up chat for close",
+					p.logger.Warn(ctx, "unexpected error looking up chat for interrupt",
 						slog.F("chat_id", targetChatID),
 						slog.Error(lookupErr),
 					)
 				}
-				targetChat, err := p.closeSubagent(
+				targetChat, interrupted, err := p.interruptSubagent(
 					ctx,
 					parent.ID,
 					targetChatID,
@@ -807,11 +868,99 @@ func (p *Server) subagentTools(
 				}
 
 				return toolJSONResponse(withSubagentType(map[string]any{
-					"chat_id":    targetChat.ID.String(),
-					"title":      targetChat.Title,
-					"terminated": true,
-					"status":     string(targetChat.Status),
+					"chat_id":     targetChat.ID.String(),
+					"title":       targetChat.Title,
+					"interrupted": interrupted,
+					"status":      string(targetChat.Status),
 				}, targetChat)), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"list_agents",
+			"List the child agents spawned by this chat, most recently "+
+				"active first. Returns up to `limit` agents (default 10) "+
+				"with `total` and `has_more`; use `offset` to page. The "+
+				"sort order is best-effort: an agent's position may shift "+
+				"if its updated_at changes between calls. Each "+
+				"agent has chat_id, title, type, status, created_at, "+
+				"updated_at. Status: pending/running = working, "+
+				"interrupting = transient, waiting/completed = idle, "+
+				"error = stopped on error.",
+			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				limit := defaultListAgentsLimit
+				if args.Limit != nil {
+					limit = *args.Limit
+				}
+				if limit <= 0 {
+					limit = defaultListAgentsLimit
+				}
+				if limit > maxListAgentsLimit {
+					limit = maxListAgentsLimit
+				}
+				offset := 0
+				if args.Offset != nil && *args.Offset > 0 {
+					offset = *args.Offset
+				}
+
+				parent := currentChat()
+				rows, err := p.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+					ParentIds: []uuid.UUID{parent.ID},
+					// Exclude archived children by default. Do not pass an
+					// invalid NullBool, which would include archived rows.
+					Archived: sql.NullBool{Bool: false, Valid: true},
+				})
+				if err != nil {
+					return fantasy.NewTextErrorResponse(xerrors.Errorf("list child agents: %w", err).Error()), nil
+				}
+
+				children := make([]database.Chat, 0, len(rows))
+				for _, row := range rows {
+					children = append(children, row.Chat)
+				}
+				// Sort most recently active first with a stable id
+				// tiebreak. The shared query's own ordering is not
+				// altered because it backs the chats sidebar; paginate
+				// here instead.
+				slices.SortStableFunc(children, func(a, b database.Chat) int {
+					if c := b.UpdatedAt.Compare(a.UpdatedAt); c != 0 {
+						return c
+					}
+					return strings.Compare(b.ID.String(), a.ID.String())
+				})
+
+				total := len(children)
+				start := offset
+				if start > total {
+					start = total
+				}
+				end := start + limit
+				if end > total {
+					end = total
+				}
+				page := children[start:end]
+
+				agents := make([]map[string]any, 0, len(page))
+				for _, child := range page {
+					agents = append(agents, withSubagentType(map[string]any{
+						"chat_id":    child.ID.String(),
+						"title":      child.Title,
+						"status":     string(child.Status),
+						"created_at": child.CreatedAt.Format(time.RFC3339),
+						"updated_at": child.UpdatedAt.Format(time.RFC3339),
+					}, child))
+				}
+
+				return toolJSONResponse(map[string]any{
+					"agents":   agents,
+					"total":    total,
+					"returned": len(agents),
+					"offset":   offset,
+					"has_more": end < total,
+				}), nil
 			},
 		),
 	}
@@ -1183,7 +1332,7 @@ func (p *Server) awaitSubagentCompletion(
 		case <-notifyCh:
 		case <-ticker.C:
 		case <-timer.C:
-			return database.Chat{}, "", xerrors.New("timed out waiting for delegated subagent completion")
+			return database.Chat{}, "", ErrSubagentWaitTimeout
 		case <-ctx.Done():
 			return database.Chat{}, "", ctx.Err()
 		}
@@ -1199,7 +1348,9 @@ func (p *Server) awaitSubagentCompletion(
 }
 
 // handleSubagentDone translates a completed subagent check into the
-// appropriate return value, surfacing error-status chats as errors.
+// appropriate return value. An error-status chat is returned as a typed
+// subagentStatusError that carries the chat and report so the
+// wait_agent handler can surface a structured, recoverable-aware payload.
 func handleSubagentDone(
 	chat database.Chat,
 	report string,
@@ -1209,31 +1360,83 @@ func handleSubagentDone(
 		if reason == "" {
 			reason = "agent reached error status"
 		}
-		return database.Chat{}, "", xerrors.New(reason)
+		return database.Chat{}, "", &subagentStatusError{
+			chat:   chat,
+			report: report,
+			reason: reason,
+		}
 	}
 	return chat, report, nil
 }
 
-func (p *Server) closeSubagent(
+// subagentLastErrorMessage extracts the normalized, user-facing message
+// from a chat's last_error payload, falling back to the raw JSON when the
+// payload is not a recognized ChatError.
+func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
+	if !raw.Valid {
+		return ""
+	}
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
+		return payload.Message
+	}
+	return string(raw.RawMessage)
+}
+
+// waitAgentSuccessResponse stops and stores the recording (if active) and
+// builds the normal completion payload for a wait_agent call.
+func (p *Server) waitAgentSuccessResponse(
+	ctx context.Context,
+	recordingID string,
+	agentConn workspacesdk.AgentConn,
+	parent database.Chat,
+	targetChat database.Chat,
+	report string,
+) fantasy.ToolResponse {
+	var recResult recordingResult
+	if recordingID != "" && agentConn != nil {
+		// Use a fresh context for cleanup so a canceled
+		// parent context does not prevent recording storage.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
+		defer stopCancel()
+		recResult = p.stopAndStoreRecording(stopCtx, agentConn,
+			recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
+	}
+	resp := withSubagentType(map[string]any{
+		"chat_id": targetChat.ID.String(),
+		"title":   targetChat.Title,
+		"report":  report,
+		"status":  string(targetChat.Status),
+	}, targetChat)
+	if recResult.recordingFileID != "" {
+		resp["recording_file_id"] = recResult.recordingFileID
+	}
+	if recResult.thumbnailFileID != "" {
+		resp["thumbnail_file_id"] = recResult.thumbnailFileID
+	}
+	return toolJSONResponse(resp)
+}
+
+func (p *Server) interruptSubagent(
 	ctx context.Context,
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
-) (database.Chat, error) {
+) (database.Chat, bool, error) {
 	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
-		return database.Chat{}, err
+		return database.Chat{}, false, err
 	}
 	if !isDescendant {
-		return database.Chat{}, ErrSubagentNotDescendant
+		return database.Chat{}, false, ErrSubagentNotDescendant
 	}
 
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
+		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
 	if targetChat.Status == database.ChatStatusWaiting {
-		return targetChat, nil
+		return targetChat, false, nil
 	}
 
 	updatedChat, err := p.InterruptChat(ctx, targetChat)
@@ -1242,13 +1445,13 @@ func (p *Server) closeSubagent(
 		// chatstate.Interrupt precondition. Surface the error
 		// so the caller can decide whether the parent expected
 		// the subagent to already be waiting.
-		return database.Chat{}, xerrors.Errorf("interrupt subagent chat: %w", err)
+		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
 	// chatstate.Interrupt lands active runs in `interrupting`
 	// and requires-action chats in `running`. Workers finalize
 	// the transition; accept either non-active status as long as
 	// the transition committed.
-	return updatedChat, nil
+	return updatedChat, true, nil
 }
 
 func (p *Server) checkSubagentCompletion(

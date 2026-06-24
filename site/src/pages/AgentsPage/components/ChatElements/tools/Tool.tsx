@@ -19,6 +19,7 @@ import {
 	ExecuteTool as ExecuteToolComponent,
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
+import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
@@ -498,6 +499,7 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
+
 	const rawTitle = getProvidedSubagentTitle({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
@@ -579,6 +581,28 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 		<ListTemplatesTool
 			templates={templates}
 			count={count}
+			status={status}
+			isError={isError}
+			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ListAgentsRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const agents = rec && Array.isArray(rec.agents) ? rec.agents : [];
+	const total = rec
+		? (asNumber(rec.total, { parseString: true }) ?? agents.length)
+		: 0;
+
+	return (
+		<ListAgentsTool
+			agents={agents}
+			total={total}
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
@@ -1033,6 +1057,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	create_workspace: CreateWorkspaceRenderer,
 	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
+	list_agents: ListAgentsRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
@@ -1074,9 +1099,10 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = isSubagentToolName(name)
-			? SubagentRenderer
-			: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer =
+			isSubagentToolName(name) && name !== "list_agents"
+				? SubagentRenderer
+				: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;

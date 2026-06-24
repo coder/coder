@@ -387,7 +387,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		"list_templates", "read_template", "create_workspace",
 		"start_workspace", "stop_workspace",
 	}
-	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "close_agent"}
+	subagentTools := []string{"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents"}
 
 	// Identify root and subagent calls. Root chat calls include
 	// spawn_agent; the subagent call does not. Because the root chat
@@ -9537,7 +9537,7 @@ func TestComputerUseSubagentToolsAndModel(t *testing.T) {
 	// 5. Verify subagent tools are NOT present.
 	subagentTools := []string{
 		"spawn_agent",
-		"wait_agent", "message_agent", "close_agent",
+		"wait_agent", "message_agent", "interrupt_agent", "list_agents",
 	}
 	for _, tool := range subagentTools {
 		require.NotContains(t, childTools, tool,

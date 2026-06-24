@@ -902,10 +902,11 @@ func matchingAttachmentForMedia(
 	return chattool.AttachmentMetadata{}, false
 }
 
-// Keep in sync with coderd/x/chatd/subagent.go.
+// Lifecycle tools whose error results may carry structured JSON.
+// See subagentToolNameAliases for the full alias map.
 func isSubagentLifecycleToolName(name string) bool {
 	switch name {
-	case "spawn_agent", "wait_agent", "message_agent", "close_agent":
+	case "spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "close_agent":
 		return true
 	default:
 		return false
