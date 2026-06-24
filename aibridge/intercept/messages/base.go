@@ -274,8 +274,8 @@ func (i *interceptionBase) withBody() option.RequestOption {
 
 // withAWSBedrockOptions returns request options for authenticating with AWS Bedrock.
 //
-// Credentials come from i.bedrock.Creds, it is a shared credentials cache, so the per-request
-// Retrieve below is served from that cache and does not re-resolve or re-assume on every request.
+// Credentials come from i.bedrock.Creds. It is a shared credentials cache, so the per-request Retrieve()
+// below is served from that cache and does not re-resolve or re-assume on every request.
 func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.RequestOption, error) {
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
