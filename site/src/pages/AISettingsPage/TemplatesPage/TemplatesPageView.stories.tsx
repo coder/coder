@@ -207,12 +207,72 @@ export const AllowlistLoadError: Story = {
 	},
 };
 
+export const PhantomTemplateIDs: Story = {
+	args: {
+		allowlistData: { template_ids: ["deleted-template", templateIDs[0]] },
+	},
+	play: async ({ canvasElement, step, args }) => {
+		const canvas = within(canvasElement);
+
+		await step("drops phantom IDs when adding a template", async () => {
+			const body = within(document.body);
+			await userEvent.click(
+				canvas.getByRole("button", { name: /add template/i }),
+			);
+			await userEvent.click(
+				await body.findByRole("option", { name: /AI webinar/i }),
+			);
+			await waitFor(() => {
+				expect(args.onSaveAllowlist).toHaveBeenLastCalledWith({
+					template_ids: [templateIDs[0], templateIDs[2]],
+				});
+			});
+			await waitFor(() => {
+				expect(
+					body.queryByRole("option", { name: /AI webinar/i }),
+				).not.toBeInTheDocument();
+			});
+		});
+
+		await step("drops phantom IDs when removing a template", async () => {
+			const body = within(document.body);
+			await userEvent.click(
+				canvas.getByRole("button", { name: "Actions for Docker containers" }),
+			);
+			await userEvent.click(
+				await body.findByRole("menuitem", { name: /remove/i }),
+			);
+			await waitFor(() => {
+				expect(args.onSaveAllowlist).toHaveBeenLastCalledWith({
+					template_ids: [],
+				});
+			});
+		});
+	},
+};
+
+export const Saving: Story = {
+	args: {
+		isSaving: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			await canvas.findByRole("button", { name: /add template/i }),
+		).toBeDisabled();
+		expect(
+			canvas.getByRole("button", { name: "Actions for Docker containers" }),
+		).toBeDisabled();
+	},
+};
+
 export const SaveError: Story = {
 	args: {
 		saveError: "Template allowlist is locked.",
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		expect(await canvas.findByText("Docker containers")).toBeVisible();
 		expect(
 			await canvas.findByText("Template allowlist is locked."),
 		).toBeVisible();

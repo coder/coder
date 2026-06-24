@@ -117,10 +117,6 @@ const AddTemplatePicker: FC<AddTemplatePickerProps> = ({
 								<CommandItem
 									key={template.id}
 									value={template.id}
-									keywords={[
-										template.display_name || template.name,
-										template.name,
-									]}
 									className="gap-3"
 									onSelect={() => {
 										onAddTemplate(template.id);
@@ -297,39 +293,45 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	saveError,
 }) => {
 	const templateIDs = allowlistData?.template_ids ?? [];
-	const { allowlistedTemplates, availableTemplates } = useMemo(() => {
-		const allTemplates = templatesData ?? [];
-		const templatesByID = new Map(
-			allTemplates.map((template) => [template.id, template]),
-		);
-		const selectedIDs = new Set(templateIDs);
-		const allowlisted = templateIDs
-			.map((templateID) => templatesByID.get(templateID))
-			.filter((template) => template !== undefined);
-		const available = allTemplates
-			.filter((template) => !selectedIDs.has(template.id))
-			.toSorted((left, right) =>
-				(left.display_name || left.name).localeCompare(
-					right.display_name || right.name,
-				),
+	const { allowlistedTemplates, availableTemplates, resolvedTemplateIDs } =
+		useMemo(() => {
+			const allTemplates = templatesData ?? [];
+			const templatesByID = new Map(
+				allTemplates.map((template) => [template.id, template]),
 			);
+			const selectedIDs = new Set(templateIDs);
+			const allowlisted = templateIDs
+				.map((templateID) => templatesByID.get(templateID))
+				.filter((template) => template !== undefined);
+			const resolvedIDs = allowlisted.map((template) => template.id);
+			const available = allTemplates
+				.filter((template) => !selectedIDs.has(template.id))
+				.toSorted((left, right) =>
+					(left.display_name || left.name).localeCompare(
+						right.display_name || right.name,
+					),
+				);
 
-		return { allowlistedTemplates: allowlisted, availableTemplates: available };
-	}, [templatesData, templateIDs]);
+			return {
+				allowlistedTemplates: allowlisted,
+				availableTemplates: available,
+				resolvedTemplateIDs: resolvedIDs,
+			};
+		}, [templatesData, templateIDs]);
 
 	const saveTemplateIDs = (nextTemplateIDs: string[]) => {
 		onSaveAllowlist({ template_ids: nextTemplateIDs });
 	};
 
 	const handleAddTemplate = (templateID: string) => {
-		if (templateIDs.includes(templateID)) {
+		if (resolvedTemplateIDs.includes(templateID)) {
 			return;
 		}
-		saveTemplateIDs([...templateIDs, templateID]);
+		saveTemplateIDs([...resolvedTemplateIDs, templateID]);
 	};
 
 	const handleRemoveTemplate = (templateID: string) => {
-		saveTemplateIDs(templateIDs.filter((id) => id !== templateID));
+		saveTemplateIDs(resolvedTemplateIDs.filter((id) => id !== templateID));
 	};
 
 	const hasTemplatesError = Boolean(templatesError);
