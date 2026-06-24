@@ -14,6 +14,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { AIBridgeSetupAlert } from "../AIBridgeSetupAlert";
+import { mockNetworkActivityForSession } from "./NetworkActivity/mocks";
 import { SessionSummaryTable } from "./SessionSummaryTable";
 import { SessionTimeline } from "./SessionTimeline/SessionTimeline";
 import { SessionTimelineSkeleton } from "./SessionTimeline/SessionTimelineSkeleton";
@@ -75,6 +76,13 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 		0,
 	);
 
+	// TODO(network-activity): mock data, no backend wiring yet. The variant is
+	// derived from the session ID so different sessions surface different
+	// states on the live page for visual validation.
+	const networkActivity = session
+		? mockNetworkActivityForSession(session.id)
+		: undefined;
+
 	return (
 		<>
 			<nav className="mb-6">
@@ -115,6 +123,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}
+							networkActivity={networkActivity}
 						/>
 					)}
 				</aside>
@@ -126,6 +135,7 @@ export const SessionThreadsPageView: FC<SessionThreadsPageViewProps> = ({
 							hasNextPage={hasNextPage}
 							isFetchingNextPage={isFetchingNextPage}
 							onFetchNextPage={onFetchNextPage}
+							networkActivity={networkActivity}
 						/>
 					) : (
 						loading && <SessionTimelineSkeleton />
