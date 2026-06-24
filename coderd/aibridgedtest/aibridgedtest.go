@@ -1,6 +1,6 @@
-//go:build !slim
-
-package coderdtest
+// Package aibridgedtest provides test helpers for standing up a real
+// in-process aibridged daemon wired to fake upstream providers.
+package aibridgedtest
 
 import (
 	"context"

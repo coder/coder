@@ -7,8 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/aibridge"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/aibridge"
 )
 
 // RecordedRequest captures metadata from a single request that passed
@@ -98,8 +99,8 @@ func (rt mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	rt.factory.requests = append(rt.factory.requests, RecordedRequest{
 		Request:      req.Clone(req.Context()),
 		ProviderName: rt.providerName,
-		Source:        rt.source,
-		APIKeyID:      apiKeyID,
+		Source:       rt.source,
+		APIKeyID:     apiKeyID,
 	})
 	rt.factory.mu.Unlock()
 
