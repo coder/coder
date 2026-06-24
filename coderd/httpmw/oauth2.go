@@ -14,8 +14,10 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -61,8 +63,9 @@ func OAuth2(r *http.Request) OAuth2State {
 // precedence over r.TLS / X-Forwarded-Proto because some reverse proxies
 // report the inner-hop scheme (e.g. "http") rather than the original
 // client-facing scheme, which would produce a redirect_uri the IdP
-// rejects. When empty (no AccessURL configured), the scheme is derived
-// from the request as a fallback for local-dev contexts.
+// rejects. Callers must always supply this when redirectAllowedHosts is
+// non-empty; an empty value would yield an invalid redirect_uri without
+// a scheme.
 func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg codersdk.HTTPCookieConfig, authURLOpts map[string]string, pkceMethods []promoauth.Oauth2PKCEChallengeMethod, redirectAllowedHosts []string, redirectDefaultScheme string) func(http.Handler) http.Handler {
 	opts := make([]oauth2.AuthCodeOption, 0, len(authURLOpts)+1)
 	opts = append(opts, oauth2.AccessTypeOffline)
@@ -143,15 +146,13 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 				if h, _, splitErr := net.SplitHostPort(r.Host); splitErr == nil {
 					hostname = h
 				}
-				allowed := false
-				lowerHost := strings.ToLower(hostname)
-				for _, h := range normalizedAllowedHosts {
-					if lowerHost == h {
-						allowed = true
-						break
+				if !slices.Contains(normalizedAllowedHosts, strings.ToLower(hostname)) {
+					if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+						rlogger.WithFields(
+							slog.F("oidc_rejected_reason", "host_not_in_allowlist"),
+							slog.F("oidc_rejected_host", hostname),
+						)
 					}
-				}
-				if !allowed {
 					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 						Message: "OIDC login is not permitted from this host.",
 						Detail:  fmt.Sprintf("Host %q is not in the OIDC redirect allowlist. Configure CODER_OIDC_REDIRECT_ALLOWED_HOSTS to include it.", hostname),
@@ -270,10 +271,44 @@ func ExtractOAuth2(config promoauth.OAuth2Config, client *http.Client, cookieCfg
 			// exchange must match the one sent in the authorization request.
 			// When the dynamic-redirect path is in use, the original value was
 			// stashed in a cookie; replay it here.
+			//
+			// Defense in depth: we do not blindly forward the cookie value to
+			// the IdP. We recompute the expected redirect_uri from the (already
+			// allowlist-validated) request Host, then require the cookie to
+			// match. This guards against:
+			//   - The cookie going missing (e.g. third-party cookie blocking)
+			//     and silently falling back to the static redirect_uri, which
+			//     would mismatch the authorization request and produce a
+			//     confusing IdP rejection. Fail loudly here instead.
+			//   - A tampered cookie pointing at a host the user did not
+			//     authenticate on. The IdP allowlist would normally catch this,
+			//     but we should not depend on it.
 			if dynamicRedirectEnabled {
-				if redirectCookie, err := r.Cookie(codersdk.OAuth2RedirectURICookie); err == nil && redirectCookie.Value != "" {
-					exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("redirect_uri", redirectCookie.Value))
+				redirectCookie, err := r.Cookie(codersdk.OAuth2RedirectURICookie)
+				if err != nil || redirectCookie.Value == "" {
+					if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+						rlogger.WithFields(slog.F("oidc_rejected_reason", "missing_redirect_uri_cookie"))
+					}
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: fmt.Sprintf("Cookie %q must be provided for the OIDC callback when CODER_OIDC_REDIRECT_ALLOWED_HOSTS is configured.", codersdk.OAuth2RedirectURICookie),
+					})
+					return
 				}
+				expectedRedirectURI := buildDynamicRedirectURI(r, redirectDefaultScheme)
+				if redirectCookie.Value != expectedRedirectURI {
+					if rlogger := loggermw.RequestLoggerFromContext(ctx); rlogger != nil {
+						rlogger.WithFields(
+							slog.F("oidc_rejected_reason", "redirect_uri_cookie_mismatch"),
+							slog.F("oidc_cookie_redirect_uri", redirectCookie.Value),
+							slog.F("oidc_expected_redirect_uri", expectedRedirectURI),
+						)
+					}
+					httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+						Message: "OIDC redirect_uri cookie does not match the current request host.",
+					})
+					return
+				}
+				exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("redirect_uri", redirectCookie.Value))
 			}
 
 			oauthToken, err := config.Exchange(ctx, code, exchangeOpts...)

@@ -268,11 +268,50 @@ func TestOAuth2DynamicRedirect(t *testing.T) {
 			},
 		}
 		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
-			[]string{primaryHost, altHost}, "")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			[]string{primaryHost, altHost}, "https")(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 			state := httpmw.OAuth2(r)
 			require.Equal(t, "/dashboard", state.Redirect)
 		})).ServeHTTP(res, req)
 		require.True(t, exchangeCalled, "expected Exchange to be invoked")
+	})
+
+	t.Run("CallbackWithMissingRedirectURICookieReturnsBadRequest", func(t *testing.T) {
+		t.Parallel()
+		// Same shape as ExchangeReusesRedirectURIFromCookie but without the
+		// redirect_uri cookie. Must fail loudly rather than silently sending
+		// the static config redirect_uri (which would mismatch what was used
+		// in the original authorization request).
+		req := httptest.NewRequest("GET", callbackPath+"?code=test&state=something", nil)
+		req.Host = altHost
+		req.AddCookie(&http.Cookie{Name: codersdk.OAuth2StateCookie, Value: "something"})
+		req.AddCookie(&http.Cookie{Name: codersdk.OAuth2RedirectCookie, Value: "/dashboard"})
+		// Intentionally NO OAuth2RedirectURICookie.
+		res := httptest.NewRecorder()
+
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
+			[]string{primaryHost, altHost}, "https")(nil).ServeHTTP(res, req)
+
+		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
+	})
+
+	t.Run("CallbackWithMismatchedRedirectURICookieReturnsBadRequest", func(t *testing.T) {
+		t.Parallel()
+		// Cookie was set when the user initiated on altHost, but the callback
+		// is somehow arriving from primaryHost (or the cookie was tampered).
+		// Defense in depth: reject the exchange instead of forwarding a
+		// stale/mismatched value to the IdP.
+		req := httptest.NewRequest("GET", callbackPath+"?code=test&state=something", nil)
+		req.Host = primaryHost
+		req.AddCookie(&http.Cookie{Name: codersdk.OAuth2StateCookie, Value: "something"})
+		req.AddCookie(&http.Cookie{Name: codersdk.OAuth2RedirectURICookie, Value: wantAltURI})
+		res := httptest.NewRecorder()
+
+		tp := newTestOAuth2Provider(t, oauth2.AccessTypeOffline)
+		httpmw.ExtractOAuth2(tp, nil, codersdk.HTTPCookieConfig{}, nil, nil,
+			[]string{primaryHost, altHost}, "https")(nil).ServeHTTP(res, req)
+
+		require.Equal(t, http.StatusBadRequest, res.Result().StatusCode)
 	})
 
 	t.Run("CallbackOnDisallowedHostReturnsBadRequest", func(t *testing.T) {
