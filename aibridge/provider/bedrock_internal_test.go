@@ -207,6 +207,45 @@ func TestBuildBedrockCredentialsAssumeRole(t *testing.T) {
 	require.Equal(t, bedrockSessionName, gotSessionName)
 }
 
+// TestBuildBedrockCredentialsAssumeRoleError verifies that when STS rejects the
+// AssumeRole call (e.g. a trust-policy or IAM denial), the failure surfaces to
+// the caller on Retrieve with enough detail to diagnose it, rather than being
+// swallowed. The base identity resolved fine; only the role assumption failed.
+// NOTE: no t.Parallel() because it uses t.Setenv.
+func TestBuildBedrockCredentialsAssumeRoleError(t *testing.T) {
+	// Mock the AWS STS AssumeRole API.
+	// https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRole.html
+	sts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/xml")
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<ErrorResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
+  <Error>
+    <Type>Sender</Type>
+    <Code>AccessDenied</Code>
+    <Message>User arn:aws:iam::123456789012:user/base is not authorized to perform sts:AssumeRole on arn:aws:iam::123456789012:role/target</Message>
+  </Error>
+</ErrorResponse>`))
+	}))
+	defer sts.Close()
+
+	t.Setenv("AWS_ENDPOINT_URL_STS", sts.URL)
+	t.Setenv("AWS_ACCESS_KEY_ID", "base-key")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "base-secret")
+
+	creds, _, err := buildBedrockCredentials(context.Background(), config.AWSBedrock{
+		Region:  "us-east-1",
+		RoleARN: "arn:aws:iam::123456789012:role/target",
+	})
+	require.NoError(t, err) // Build is lazy; the STS call happens on Retrieve.
+
+	_, err = creds.Retrieve(context.Background())
+	require.Error(t, err)
+	// The error must carry the STS operation and failure code so operators can
+	// tell this is an AssumeRole authorization problem, not missing credentials.
+	require.ErrorContains(t, err, "AssumeRole")
+	require.ErrorContains(t, err, "AccessDenied")
+}
+
 // TestBuildBedrockCredentialsAssumeRoleCaches verifies the AssumeRole result is
 // cached: many credential retrievals, one per LLM request, trigger a single STS
 // AssumeRole call rather than re-assuming the role on every request.
