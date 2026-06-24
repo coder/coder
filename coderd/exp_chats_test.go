@@ -86,7 +86,7 @@ func newChatClient(t *testing.T, overrides ...func(*coderdtest.Options)) *coders
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client)
 }
 
@@ -95,7 +95,7 @@ func newChatClientWithAPI(t *testing.T, overrides ...func(*coderdtest.Options)) 
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client), api
 }
 
@@ -107,7 +107,7 @@ func newChatClientWithDeploymentValues(
 
 	opts := newChatTestOptions(t, values)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client)
 }
 
@@ -116,7 +116,7 @@ func newChatClientWithDatabase(t *testing.T, overrides ...func(*coderdtest.Optio
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client), api.Database
 }
 
@@ -125,7 +125,7 @@ func newChatClientWithAPIAndDatabase(t *testing.T, overrides ...func(*coderdtest
 
 	opts := newChatTestOptions(t, coderdtest.DeploymentValues(t), overrides...)
 	client, _, api := coderdtest.NewWithAPI(t, opts)
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	return codersdk.NewExperimentalClient(client), api.Database, api
 }
 
@@ -1974,7 +1974,7 @@ func TestWatchChats(t *testing.T) {
 		rawClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 		chatDaemon := api.ChatDaemonForTest()
@@ -4263,7 +4263,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			Pubsub:           pubsub,
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		modelConfig := createChatModelConfig(t, client)
@@ -4288,7 +4288,7 @@ func TestUpdateChatModelConfig(t *testing.T) {
 			Pubsub:           pubsub,
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		defaultConfig := createChatModelConfig(t, client)
@@ -5557,7 +5557,7 @@ func TestPatchChat(t *testing.T) {
 				Pubsub:              ps,
 				ChatProviderAPIKeys: &providerKeys,
 			})
-			aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
@@ -5595,7 +5595,7 @@ func TestPatchChat(t *testing.T) {
 				Pubsub:              ps,
 				ChatProviderAPIKeys: &providerKeys,
 			})
-			aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+			aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 			client := codersdk.NewExperimentalClient(clientRaw)
 			firstUser := coderdtest.CreateFirstUser(t, client.Client)
 			_ = createChatModelConfig(t, client)
@@ -8398,7 +8398,7 @@ func TestRegenerateChatTitle(t *testing.T) {
 			},
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		db := api.Database
 		client := codersdk.NewExperimentalClient(clientRaw)
 		user := coderdtest.CreateFirstUser(t, client.Client)
@@ -8669,7 +8669,7 @@ func TestProposeChatTitle(t *testing.T) {
 			},
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		db := api.Database
 		client := codersdk.NewExperimentalClient(clientRaw)
 		user := coderdtest.CreateFirstUser(t, client.Client)
@@ -8869,7 +8869,7 @@ func TestGetChatDiffStatus(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 
@@ -8991,7 +8991,7 @@ func TestGetChatDiffContents(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		db := api.Database
 		user := coderdtest.CreateFirstUser(t, client.Client)
@@ -11039,7 +11039,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			Pubsub:           pubsub,
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
@@ -11209,7 +11209,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			Pubsub:           pubsub,
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
@@ -11258,7 +11258,7 @@ If a workspace is needed, use list_templates before create_workspace and follow 
 			Pubsub:           pubsub,
 			DeploymentValues: coderdtest.DeploymentValues(t),
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 		client := codersdk.NewExperimentalClient(rawClient)
 		firstUser := coderdtest.CreateFirstUser(t, client.Client)
 		_ = createChatModelConfig(t, client)
