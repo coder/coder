@@ -78,6 +78,7 @@ export const LoadError: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Failed to load MCP servers")).toBeVisible();
 		await expect(
 			canvas.queryByText("No MCP servers configured"),
 		).not.toBeInTheDocument();

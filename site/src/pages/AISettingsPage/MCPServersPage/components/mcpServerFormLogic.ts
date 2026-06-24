@@ -1,6 +1,6 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
-const SECRET_PLACEHOLDER = "••••••••••••••••";
+export const SECRET_PLACEHOLDER = "••••••••••••••••";
 
 export const TRANSPORT_OPTIONS = [
 	{ value: "streamable_http", label: "Streamable HTTP" },

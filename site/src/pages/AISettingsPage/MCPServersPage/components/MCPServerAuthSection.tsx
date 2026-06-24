@@ -14,9 +14,8 @@ import { Field } from "./MCPServerFormFieldPrimitives";
 import {
 	AUTH_TYPE_OPTIONS,
 	type MCPServerFormValues,
+	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
-
-const SECRET_PLACEHOLDER = "••••••••••••••••";
 
 interface MCPServerAuthSectionProps {
 	form: FormikContextType<MCPServerFormValues>;

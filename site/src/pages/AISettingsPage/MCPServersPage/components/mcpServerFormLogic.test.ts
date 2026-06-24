@@ -6,6 +6,7 @@ import {
 	buildUpdateMCPServerConfigRequest,
 	canSubmitMCPServerForm,
 	type MCPServerFormValues,
+	SECRET_PLACEHOLDER,
 } from "./mcpServerFormLogic";
 
 const validValues = (
@@ -25,8 +26,8 @@ describe("mcpServerFormLogic", () => {
 			has_api_key: true,
 		});
 
-		expect(values.oauth2ClientSecret).toBe("••••••••••••••••");
-		expect(values.apiKeyValue).toBe("••••••••••••••••");
+		expect(values.oauth2ClientSecret).toBe(SECRET_PLACEHOLDER);
+		expect(values.apiKeyValue).toBe(SECRET_PLACEHOLDER);
 	});
 
 	it("requires display name, slug, and URL before submitting", () => {
@@ -45,7 +46,7 @@ describe("mcpServerFormLogic", () => {
 		const unchanged = buildCreateMCPServerConfigRequest(
 			validValues({
 				authType: "oauth2",
-				oauth2ClientSecret: "••••••••••••••••",
+				oauth2ClientSecret: SECRET_PLACEHOLDER,
 				oauth2SecretTouched: false,
 			}),
 		);
@@ -65,7 +66,7 @@ describe("mcpServerFormLogic", () => {
 		const unchanged = buildCreateMCPServerConfigRequest(
 			validValues({
 				authType: "api_key",
-				apiKeyValue: "••••••••••••••••",
+				apiKeyValue: SECRET_PLACEHOLDER,
 				apiKeyTouched: false,
 			}),
 		);
