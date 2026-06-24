@@ -1,12 +1,15 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { API } from "#/api/api";
-import { mockApiError } from "#/testHelpers/entities";
+import { MockUserOwner, mockApiError } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import AccountPage from "./AccountPage";
 
 const newData = {
 	username: "user",
 	name: "Mr User",
+	// The avatar is not edited by the form here, so it round-trips the value
+	// from the authenticated user.
+	avatar_url: MockUserOwner.avatar_url,
 };
 
 const fillAndSubmitForm = async () => {
@@ -33,7 +36,6 @@ describe("AccountPage", () => {
 					status: "active",
 					organization_ids: ["123"],
 					roles: [],
-					avatar_url: "",
 					last_seen_at: new Date().toISOString(),
 					login_type: "password",
 					has_ai_seat: false,

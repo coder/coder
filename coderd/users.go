@@ -917,11 +917,19 @@ func (api *API) putUserProfile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Avatars for password and none login types are managed manually. For
+	// other login types the avatar is synced from the identity provider on
+	// login, so we preserve the existing value and ignore any submitted one.
+	avatarURL := user.AvatarURL
+	if user.LoginType == database.LoginTypePassword || user.LoginType == database.LoginTypeNone {
+		avatarURL = params.AvatarURL
+	}
+
 	updatedUserProfile, err := api.Database.UpdateUserProfile(ctx, database.UpdateUserProfileParams{
 		ID:        user.ID,
 		Email:     user.Email,
 		Name:      params.Name,
-		AvatarURL: user.AvatarURL,
+		AvatarURL: avatarURL,
 		Username:  params.Username,
 		UpdatedAt: dbtime.Now(),
 	})
