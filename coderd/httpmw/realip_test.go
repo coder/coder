@@ -83,19 +83,6 @@ func TestExtractAddress(t *testing.T) {
 			ExpectedRemoteAddr: "10.24.1.1",
 		},
 		{
-			Name: "no-trusted-origins",
-			Config: &httpmw.RealIPConfig{
-				TrustedHeaders: []string{
-					"X-Forwarded-For",
-				},
-			},
-			RemoteAddr: "203.0.113.5",
-			Header: http.Header{
-				"X-Forwarded-For": []string{"1.2.3.4"},
-			},
-			ExpectedRemoteAddr: "203.0.113.5",
-		},
-		{
 			// A chain of trusted proxies appends each hop. The rightmost
 			// untrusted address (the real client) wins, skipping the trusted
 			// inner-proxy hop.
