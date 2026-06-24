@@ -159,3 +159,56 @@ func TestAIProviderSettings_Roundtrip(t *testing.T) {
 	require.NoError(t, json.Unmarshal(encoded, &got))
 	require.Equal(t, orig, got)
 }
+
+func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		roleARN string
+		wantErr bool
+	}{
+		{name: "empty is allowed", roleARN: "", wantErr: false},
+		{name: "standard role arn", roleARN: "arn:aws:iam::743809215448:role/bedrock-role", wantErr: false},
+		{name: "govcloud partition", roleARN: "arn:aws-us-gov:iam::123456789012:role/bedrock-role", wantErr: false},
+		{name: "china partition", roleARN: "arn:aws-cn:iam::123456789012:role/bedrock-role", wantErr: false},
+		{name: "role path", roleARN: "arn:aws:iam::123456789012:role/team/bedrock-role", wantErr: false},
+		{name: "not an arn", roleARN: "bedrock-role", wantErr: true},
+		{name: "wrong resource type", roleARN: "arn:aws:iam::123456789012:user/dave", wantErr: true},
+		{name: "wrong service", roleARN: "arn:aws:s3:::my-bucket", wantErr: true},
+		{name: "truncated arn", roleARN: "arn:aws:iam::123456789012", wantErr: true},
+	}
+
+	hasRoleARNError := func(vs []codersdk.ValidationError) bool {
+		for _, v := range vs {
+			if v.Field == "settings.role_arn" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			settings := codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:  "us-east-1",
+					RoleARN: tc.roleARN,
+				},
+			}
+
+			create := codersdk.CreateAIProviderRequest{
+				Type:     codersdk.AIProviderTypeBedrock,
+				Name:     "bedrock",
+				BaseURL:  "https://bedrock-runtime.us-east-1.amazonaws.com",
+				Settings: settings,
+			}
+			require.Equal(t, tc.wantErr, hasRoleARNError(create.Validate()))
+
+			update := codersdk.UpdateAIProviderRequest{Settings: &settings}
+			require.Equal(t, tc.wantErr, hasRoleARNError(update.Validate()))
+		})
+	}
+}

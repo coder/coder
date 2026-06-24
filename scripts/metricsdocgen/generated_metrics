@@ -298,6 +298,9 @@ coderd_chatd_tool_errors_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_tool_result_size_bytes Size in bytes of each tool execution result.
 # TYPE coderd_chatd_tool_result_size_bytes histogram
 coderd_chatd_tool_result_size_bytes{provider="",model="",tool_name=""} 0
+# HELP coderd_chatd_tool_result_truncated_total Total tool results truncated to fit the model context window.
+# TYPE coderd_chatd_tool_result_truncated_total counter
+coderd_chatd_tool_result_truncated_total{provider="",model="",tool_name=""} 0
 # HELP coderd_chatd_ttft_seconds Time-to-first-token: wall time from LLM request to first streamed chunk.
 # TYPE coderd_chatd_ttft_seconds histogram
 coderd_chatd_ttft_seconds{provider="",model=""} 0

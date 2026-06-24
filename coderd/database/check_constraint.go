@@ -44,6 +44,7 @@ const (
 	CheckMcpServerConfigsAvailabilityCheck             CheckConstraint = "mcp_server_configs_availability_check"                // mcp_server_configs
 	CheckMcpServerConfigsTransportCheck                CheckConstraint = "mcp_server_configs_transport_check"                   // mcp_server_configs
 	CheckMaxProvisionerLogsLength                      CheckConstraint = "max_provisioner_logs_length"                          // provisioner_jobs
+	CheckNatsPortValidTcp                              CheckConstraint = "nats_port_valid_tcp"                                  // replicas
 	CheckMaxLogsLength                                 CheckConstraint = "max_logs_length"                                      // workspace_agents
 	CheckSubsystemsNotNone                             CheckConstraint = "subsystems_not_none"                                  // workspace_agents
 	CheckWorkspaceBuildsDeadlineBelowMaxDeadline       CheckConstraint = "workspace_builds_deadline_below_max_deadline"         // workspace_builds

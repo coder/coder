@@ -32,6 +32,7 @@ sql:
           # identifiers follow Go naming conventions.
           - id
           - ai
+          - nats
         overrides:
           - column: "api_keys.scopes"
             go_type:

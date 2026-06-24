@@ -669,6 +669,7 @@ func (s *taskStarter) executeLocalTools(
 		BuiltinToolNames:   prepared.BuiltinToolNames,
 		ModelProvider:      provider,
 		ModelName:          modelName,
+		ContextLimit:       prepared.ContextLimitFallback,
 		PublishMessagePart: publish,
 		Logger:             s.opts.Logger,
 		Metrics:            s.server.metrics,
