@@ -74,19 +74,29 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 	const { data, error, isLoading } = useQuery(templateBuilderModules(baseId));
 	const [moduleSearchText, setModuleSearchText] = useState("");
 	const modules = data?.modules ?? [];
+	const categories = [...new Set(modules.map((module) => module.category))];
 
 	const [selectedFilterTab, setSelectedFilterTab] = useState("All");
-	// TODO category counts should update on search
-	const categoryCounts = new Map<string, number>();
-	for (const module of modules) {
-		categoryCounts.set(
+
+	const searchedModules = useFuzzySearch({
+		allItems: modules,
+		searchText: moduleSearchText,
+		searchProperties: ["display_name", "description"],
+	});
+
+	const searchedCategoryCounts = new Map<string, number>();
+	for (const module of searchedModules) {
+		searchedCategoryCounts.set(
 			module.category,
-			(categoryCounts.get(module.category) ?? 0) + 1,
+			(searchedCategoryCounts.get(module.category) ?? 0) + 1,
 		);
 	}
-	const filterTabs: Array<{ value: string; count: number }> = [
-		{ value: "All", count: modules.length },
-		...categoryCounts.entries().map(([value, count]) => ({ value, count })),
+	const filterTabs = [
+		{ value: "All", count: searchedModules.length },
+		...categories.map((value) => ({
+			value,
+			count: searchedCategoryCounts.get(value) ?? 0,
+		})),
 	];
 	const { containerRef, visibleTabs: visibleFilterTabs } = useKebabMenu({
 		tabs: filterTabs,
@@ -94,14 +104,12 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 		isActive: true,
 	});
 
-	const searchedModules = useFuzzySearch({
-		allItems:
-			selectedFilterTab === "All"
-				? modules
-				: modules.filter((module) => module.category === selectedFilterTab),
-		searchText: moduleSearchText,
-		searchProperties: ["display_name", "description"],
-	});
+	const visibleModules =
+		selectedFilterTab === "All"
+			? searchedModules
+			: searchedModules.filter(
+					(module) => module.category === selectedFilterTab,
+				);
 
 	const selectedSet = useMemo(
 		() => new Set(selectedModuleIds),
@@ -195,8 +203,8 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 			</Tabs>
 
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-				{searchedModules.length ? (
-					searchedModules.map((m) => (
+				{visibleModules.length ? (
+					visibleModules.map((m) => (
 						<ModuleCard
 							key={m.id}
 							name={m.display_name}
