@@ -111,6 +111,14 @@ func FilterUntrustedOriginHeaders(config *RealIPConfig, req *http.Request) {
 	}
 
 	for _, header := range config.TrustedHeaders {
+		// X-Forwarded-For is a list-valued header whose field lines are
+		// equivalent to a single comma-separated value (RFC 7230 section
+		// 3.2.2). Join them so later hops are not dropped when collapsing to a
+		// single line. Other forwarding headers carry a single value.
+		if http.CanonicalHeaderKey(header) == headerXForwardedFor {
+			req.Header.Set(header, strings.Join(req.Header.Values(header), ","))
+			continue
+		}
 		req.Header.Set(header, req.Header.Get(header))
 	}
 }
@@ -195,12 +203,15 @@ func EnsureXForwardedForHeader(req *http.Request) error {
 	return nil
 }
 
-// getRemoteAddress extracts the IP address from the given string. If
-// the string contains commas, it assumes that the first part is the
-// original address.
+// getRemoteAddress extracts a single IP address from the given string,
+// stripping a port if present. If the string contains commas, only the
+// portion before the first comma is parsed. This helper does not select the
+// real client from a multi-hop X-Forwarded-For chain; use
+// extractForwardedAddress for that, which accounts for client-supplied values.
 func getRemoteAddress(address string) net.IP {
-	// X-Forwarded-For may contain multiple addresses, in case the
-	// proxies are chained; the first value is the client address
+	// A value may contain a port and, for a raw X-Forwarded-For value, more
+	// than one comma-separated address. Parse only the part before the first
+	// comma.
 	i := strings.IndexByte(address, ',')
 	if i == -1 {
 		i = len(address)
