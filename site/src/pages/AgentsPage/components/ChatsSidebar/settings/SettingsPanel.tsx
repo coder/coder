@@ -187,9 +187,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={LayoutTemplateIcon}
 						label="Templates"
-						active={settingsSection === "templates"}
-						to="/agents/settings/templates"
-						state={location.state}
+						active={false}
+						to="/ai/settings/templates"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={CoinsIcon}
@@ -215,9 +215,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={RefreshCwIcon}
 						label="Lifecycle"
-						active={settingsSection === "lifecycle"}
-						to="/agents/settings/lifecycle"
-						state={location.state}
+						active={false}
+						to="/ai/settings/lifecycle"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 				</nav>
 			)}

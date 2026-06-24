@@ -100,14 +100,17 @@ export const DurationField: FC<DurationFieldProps> = ({
 					aria-label={label}
 					aria-invalid={error}
 					disabled={disabled}
-					className="flex-1"
+					className="h-10 w-24 flex-none gap-2 rounded-md border-border-default px-3 shadow-none"
 				/>
 				<Select
 					value={unit}
 					onValueChange={(v: string) => handleUnitChange(v as TimeUnit)}
 					disabled={disabled}
 				>
-					<SelectTrigger className="w-[120px]" aria-label="Time unit">
+					<SelectTrigger
+						className="h-10 w-[120px] flex-none gap-2 rounded-md border-border-default px-3 shadow-none"
+						aria-label="Time unit"
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

@@ -26,6 +26,7 @@ describe("wizardReducer", () => {
 						id: "docker",
 						name: "Docker",
 						hasParameters: false,
+						hasPrerequisites: false,
 					},
 				},
 			]);
@@ -37,7 +38,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_BASE_VARIABLES",
@@ -45,7 +51,12 @@ describe("wizardReducer", () => {
 				},
 				{
 					type: "SET_BASE",
-					base: { id: "aws-linux", name: "AWS Linux", hasParameters: true },
+					base: {
+						id: "aws-linux",
+						name: "AWS Linux",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 			]);
 			expect(state.baseTemplateId).toBe("aws-linux");
@@ -56,7 +67,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_BASE_VARIABLES",
@@ -64,7 +80,12 @@ describe("wizardReducer", () => {
 				},
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 			]);
 			expect(state.baseVariableValues).toEqual({ image: "ubuntu" });
@@ -254,7 +275,12 @@ describe("wizardReducer", () => {
 			const state = reduce([
 				{
 					type: "SET_BASE",
-					base: { id: "docker", name: "Docker", hasParameters: true },
+					base: {
+						id: "docker",
+						name: "Docker",
+						hasParameters: true,
+						hasPrerequisites: false,
+					},
 				},
 				{
 					type: "SET_CUSTOMIZATION",

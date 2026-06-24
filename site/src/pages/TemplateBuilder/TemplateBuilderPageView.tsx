@@ -254,6 +254,8 @@ function computeCanContinue(
 	moduleVarMap: Record<string, Record<string, string>>,
 ): boolean {
 	switch (stepId) {
+		case "base-infra":
+			return state.selectedBase !== null;
 		case "base-parameters":
 			return baseParametersComplete(
 				basesData,

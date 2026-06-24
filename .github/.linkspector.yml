@@ -25,6 +25,7 @@ ignorePatterns:
   - pattern: "www.gnu.org"
   - pattern: "wiki.ubuntu.com"
   - pattern: "mutagen.io"
+  - pattern: "dotnet.microsoft.com"
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"

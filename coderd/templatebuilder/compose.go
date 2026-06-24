@@ -47,6 +47,9 @@ type ComposeResult struct {
 	// ModulesTF is the concatenated rendered module blocks. Empty when
 	// no modules are selected.
 	ModulesTF []byte
+	// Readme is the full README.md content from the base template.
+	// Empty when the base has no README.
+	Readme []byte
 }
 
 // Compose renders a base template and selected modules into Terraform
@@ -59,7 +62,10 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	if len(req.Modules) == 0 {
-		return &ComposeResult{MainTF: formatHCL(mainTF)}, nil
+		return &ComposeResult{
+			MainTF: formatHCL(mainTF),
+			Readme: []byte(BaseReadme(req.BaseTemplateID)),
+		}, nil
 	}
 
 	agentName, err := ExtractAgentResourceName(mainTF)
@@ -82,10 +88,12 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	return &ComposeResult{
+	result := &ComposeResult{
 		MainTF:    formatHCL(mainTF),
 		ModulesTF: formatHCL(modulesTF),
-	}, nil
+		Readme:    []byte(BaseReadme(req.BaseTemplateID)),
+	}
+	return result, nil
 }
 
 // formatHCL applies canonical HCL formatting to src. If src is not valid
@@ -445,6 +453,12 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 	if len(result.ModulesTF) > 0 {
 		if err := writeTarFile(tw, "modules.tf", result.ModulesTF); err != nil {
 			return nil, xerrors.Errorf("write modules.tf to tar: %w", err)
+		}
+	}
+
+	if len(result.Readme) > 0 {
+		if err := writeTarFile(tw, "README.md", result.Readme); err != nil {
+			return nil, xerrors.Errorf("write README.md to tar: %w", err)
 		}
 	}
 
