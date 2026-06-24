@@ -11,7 +11,6 @@ import { cn } from "#/utils/cn";
 type ModelRowProps = {
 	model: ChatModelConfig;
 	providerLabel: string;
-	providerType: string;
 	onClick: () => void;
 };
 
@@ -25,7 +24,6 @@ const formatContextLimit = (contextLimit: number): string => {
 export const ModelRow: FC<ModelRowProps> = ({
 	model,
 	providerLabel,
-	providerType,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
@@ -42,7 +40,7 @@ export const ModelRow: FC<ModelRowProps> = ({
 						size="lg"
 						className="flex shrink-0 items-center justify-center"
 					>
-						<ProviderIcon provider={providerType || model.provider} />
+						<ProviderIcon provider={model.provider} />
 					</Avatar>
 					<span
 						className="truncate text-sm font-medium leading-6 text-content-primary"

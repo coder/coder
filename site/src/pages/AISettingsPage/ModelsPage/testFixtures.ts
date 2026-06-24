@@ -93,7 +93,7 @@ const MockBedrockProviderConfig: ChatProviderConfig = {
 export const mockBedrockClaude: ChatModelConfig = {
 	...mockClaude,
 	id: "model-bedrock-claude",
-	provider: "anthropic", // stale denormalized text
+	provider: "bedrock",
 	ai_provider_id: "prov-bedrock",
 	model: "anthropic.claude-sonnet-4-5",
 	display_name: "Claude Sonnet 4.5 (Bedrock)",
