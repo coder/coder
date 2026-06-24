@@ -8,10 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Test_originLocalPath checks that originLocalPath keeps a redirect target on
-// the current origin. Call sites build the Location as
-// url.URL{Path: originLocalPath(...)}.String(), so the assertions mirror that.
-func Test_originLocalPath(t *testing.T) {
+// Test_originLocalURL checks that originLocalURL produces a redirect target that
+// stays on the current origin.
+func Test_originLocalURL(t *testing.T) {
 	t.Parallel()
 
 	t.Run("RejectsOffOrigin", func(t *testing.T) {
@@ -33,7 +32,7 @@ func Test_originLocalPath(t *testing.T) {
 		}
 
 		for _, p := range maliciousPaths {
-			loc := (&url.URL{Path: originLocalPath(p)}).String()
+			loc := originLocalURL(p).String()
 
 			// Model browser URL normalization: tab/newline/CR are stripped and a
 			// backslash is treated like a forward slash before resolving.
@@ -55,9 +54,9 @@ func Test_originLocalPath(t *testing.T) {
 		// A redirect built from a path containing a raw control character is an
 		// open redirect: http.Redirect emits it verbatim (url.Parse rejects the
 		// control byte and skips cleaning) and browsers strip tab/newline/CR
-		// before resolving, re-forming "//evil.com". Building the Location via
-		// url.URL percent-encodes each one. Assert every class is escaped so a
-		// future change that breaks encoding for only one class is caught.
+		// before resolving, re-forming "//evil.com". originLocalURL percent-encodes
+		// each one. Assert every class is escaped so a future change that breaks
+		// encoding for only one class is caught.
 		cases := []struct {
 			name string
 			in   string
@@ -69,8 +68,8 @@ func Test_originLocalPath(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			loc := (&url.URL{Path: originLocalPath(tc.in)}).String()
-			require.Equalf(t, tc.want, loc, "%s: originLocalPath(%q) must percent-encode the control character", tc.name, tc.in)
+			loc := originLocalURL(tc.in).String()
+			require.Equalf(t, tc.want, loc, "%s: originLocalURL(%q) must percent-encode the control character", tc.name, tc.in)
 		}
 	})
 
@@ -89,7 +88,7 @@ func Test_originLocalPath(t *testing.T) {
 		}
 
 		for _, tc := range cases {
-			require.Equalf(t, tc.want, originLocalPath(tc.in), "originLocalPath(%q)", tc.in)
+			require.Equalf(t, tc.want, originLocalURL(tc.in).String(), "originLocalURL(%q)", tc.in)
 		}
 	})
 }
