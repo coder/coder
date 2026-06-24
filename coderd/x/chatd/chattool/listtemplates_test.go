@@ -1006,3 +1006,58 @@ func listTemplateItems(t *testing.T, result map[string]any) []map[string]any {
 	}
 	return templates
 }
+
+type fakeListTemplatesMetrics struct {
+	outcomes        []string
+	signalsFailures int
+	gaps            int
+}
+
+func (m *fakeListTemplatesMetrics) RecordListTemplatesOutcome(outcome string) {
+	m.outcomes = append(m.outcomes, outcome)
+}
+func (m *fakeListTemplatesMetrics) RecordListTemplatesSignalsFailure() { m.signalsFailures++ }
+func (m *fakeListTemplatesMetrics) RecordListTemplatesAffinityGap(bool, float64) {
+	m.gaps++
+}
+
+// TestListTemplates_RecordsTelemetry exercises the handler's telemetry wiring
+// end to end: the outcome metric fires and the per-chat recommendation is
+// recorded so a later create_workspace can classify it.
+func TestListTemplates_RecordsTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: org.ID})
+	tmpl := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+		Name:           "only-template",
+	})
+
+	chatID := uuid.New()
+	metrics := &fakeListTemplatesMetrics{}
+	tracker := chattool.NewRecommendationTracker(nil, 0, 0)
+
+	tool := chattool.ListTemplates(db, org.ID, chattool.ListTemplatesOptions{
+		OwnerID:         user.ID,
+		ChatID:          chatID,
+		Metrics:         metrics,
+		Recommendations: tracker,
+	})
+
+	resp, err := tool.Run(ctx, fantasy.ToolCall{ID: "lt-1", Name: "list_templates", Input: "{}"})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	// The lone template is recommended, so the outcome metric records it.
+	require.Equal(t, []string{"recommended"}, metrics.outcomes)
+	require.Zero(t, metrics.signalsFailures)
+
+	// The recommendation was recorded for the chat: classifying the chosen
+	// template as the recommended one yields an acceptance.
+	require.Equal(t, "accepted_recommendation", tracker.Classify(chatID, tmpl.ID))
+}

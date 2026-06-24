@@ -38,6 +38,11 @@ type Metrics struct {
 	StepsTotal               *prometheus.CounterVec
 	StreamRetriesTotal       *prometheus.CounterVec
 	StreamBufferDroppedTotal prometheus.Counter
+
+	ListTemplatesOutcomeTotal           *prometheus.CounterVec
+	ListTemplatesSignalsFailuresTotal   prometheus.Counter
+	ListTemplatesAffinityGap            *prometheus.HistogramVec
+	TemplateRecommendationFollowupTotal *prometheus.CounterVec
 }
 
 // NewMetrics creates a new Metrics instance registered with the
@@ -109,6 +114,31 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "stream_buffer_dropped_total",
 			Help:      "Number of chat stream buffer events dropped due to the per-chat buffer cap.",
 		}),
+		ListTemplatesOutcomeTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "list_templates_outcome_total",
+			Help:      "Total list_templates calls by recommendation outcome (recommended, ask_user, no_matches, no_templates).",
+		}, []string{"outcome"}),
+		ListTemplatesSignalsFailuresTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "list_templates_signals_failures_total",
+			Help:      "Total list_templates calls where ranking signals failed to load, degrading the result toward asking the user.",
+		}),
+		ListTemplatesAffinityGap: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "list_templates_affinity_gap",
+			Help:      "Affinity score gap between the top two candidates when affinity is the deciding signal, labeled by whether a recommendation was made.",
+			Buckets:   prometheus.ExponentialBuckets(0.1, 2, 9), // 0.1 .. 25.6
+		}, []string{"recommended"}),
+		TemplateRecommendationFollowupTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: metricsNamespace,
+			Subsystem: metricsSubsystem,
+			Name:      "template_recommendation_followup_total",
+			Help:      "Total create_workspace calls by how the chosen template related to the prior list_templates recommendation (accepted_recommendation, overrode_with_listed_template, created_listed_without_recommendation, created_unlisted_template, no_recent_list_templates).",
+		}, []string{"outcome"}),
 	}
 }
 
@@ -163,6 +193,45 @@ func (m *Metrics) RecordToolError(provider, model, toolLabel string) {
 		return
 	}
 	m.ToolErrorsTotal.WithLabelValues(provider, model, toolLabel).Inc()
+}
+
+// RecordListTemplatesOutcome increments list_templates_outcome_total for the
+// given recommendation outcome. No-op when m is nil.
+func (m *Metrics) RecordListTemplatesOutcome(outcome string) {
+	if m == nil {
+		return
+	}
+	m.ListTemplatesOutcomeTotal.WithLabelValues(outcome).Inc()
+}
+
+// RecordListTemplatesSignalsFailure increments
+// list_templates_signals_failures_total. No-op when m is nil.
+func (m *Metrics) RecordListTemplatesSignalsFailure() {
+	if m == nil {
+		return
+	}
+	m.ListTemplatesSignalsFailuresTotal.Inc()
+}
+
+// RecordListTemplatesAffinityGap observes the affinity gap between the top two
+// list_templates candidates, labeled by whether a recommendation was made.
+// Callers must only record when affinity is the deciding signal so the gap is
+// non-negative and meaningful. No-op when m is nil.
+func (m *Metrics) RecordListTemplatesAffinityGap(recommended bool, gap float64) {
+	if m == nil {
+		return
+	}
+	m.ListTemplatesAffinityGap.WithLabelValues(strconv.FormatBool(recommended)).Observe(gap)
+}
+
+// RecordTemplateRecommendationFollowup increments
+// template_recommendation_followup_total for how a create_workspace call
+// related to the prior list_templates recommendation. No-op when m is nil.
+func (m *Metrics) RecordTemplateRecommendationFollowup(outcome string) {
+	if m == nil {
+		return
+	}
+	m.TemplateRecommendationFollowupTotal.WithLabelValues(outcome).Inc()
 }
 
 // RecordStreamBufferDropped increments stream_buffer_dropped_total

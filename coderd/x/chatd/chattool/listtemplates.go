@@ -76,14 +76,65 @@ const (
 	queryScoreDescriptionMatch = 1
 )
 
+// listTemplatesRankingVersion identifies the ranking policy (scoring formula
+// and confidence thresholds) for telemetry. Bump it whenever the policy
+// changes so recorded decisions can be segmented by version.
+const listTemplatesRankingVersion = 1
+
+// list_templates outcomes are the label values for
+// list_templates_outcome_total and the "outcome" field of the decision log.
+const (
+	listTemplatesOutcomeRecommended = "recommended"
+	listTemplatesOutcomeAskUser     = "ask_user"
+	listTemplatesOutcomeNoMatches   = "no_matches"
+	listTemplatesOutcomeNoTemplates = "no_templates"
+	// listTemplatesOutcomeUnknown is a defensive bucket for a next-step value
+	// that listTemplatesOutcome does not map. It should never appear in
+	// practice; an increment signals a new NextStep* constant that was not
+	// wired into the outcome mapping.
+	listTemplatesOutcomeUnknown = "unknown"
+)
+
+// Recommendation reasons explain which branch produced the outcome. They are
+// recorded in the decision log (not as a metric label) so the "why" survives
+// without reconstructing it from the raw scores.
+const (
+	recommendationReasonNoTemplates        = "no_templates"
+	recommendationReasonNoMatches          = "no_matches"
+	recommendationReasonOnlyAvailable      = "only_available_template"
+	recommendationReasonDecisiveQuery      = "decisive_query_match"
+	recommendationReasonSignalsUnavailable = "signals_unavailable"
+	recommendationReasonQueryTieConfident  = "query_tie_broken_by_affinity"
+	recommendationReasonQueryTieAmbiguous  = "ambiguous_query_tie"
+	recommendationReasonAffinityConfident  = "affinity_confident"
+	recommendationReasonAffinityLow        = "affinity_below_floor"
+	recommendationReasonAffinityAmbiguous  = "ambiguous_affinity"
+)
+
+// ListTemplatesMetrics records list_templates ranking telemetry. It is
+// implemented by *chatloop.Metrics and declared here (rather than imported)
+// because chatloop imports chattool, so chattool must not import chatloop.
+type ListTemplatesMetrics interface {
+	RecordListTemplatesOutcome(outcome string)
+	RecordListTemplatesSignalsFailure()
+	RecordListTemplatesAffinityGap(recommended bool, gap float64)
+}
+
 // ListTemplatesOptions configures the list_templates tool. OwnerID is
 // required; Clock defaults to a real clock when nil. AllowedTemplateIDs
-// optionally restricts which templates can be returned.
+// optionally restricts which templates can be returned. ChatID, Metrics, and
+// Recommendations are optional telemetry hooks: ChatID correlates a result
+// with a later create_workspace call, Metrics records aggregate ranking
+// outcomes, and Recommendations remembers the result for follow-up
+// classification.
 type ListTemplatesOptions struct {
 	OwnerID            uuid.UUID
 	Logger             slog.Logger
 	Clock              quartz.Clock
 	AllowedTemplateIDs func() map[uuid.UUID]bool
+	ChatID             uuid.UUID
+	Metrics            ListTemplatesMetrics
+	Recommendations    *RecommendationTracker
 }
 
 type listTemplatesArgs struct {
@@ -122,7 +173,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			"by a query matching template name, display name, or description. "+
 			"Follow the "+NextStepField+" field in the result. Returns 10 per "+
 			"page; fetch next_page only when no listed template fits the request.",
-		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		func(ctx context.Context, args listTemplatesArgs, toolCall fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			ctx, err := asOwner(ctx, db, options.OwnerID)
 			if err != nil {
 				return fantasy.NewTextErrorResponse(xerrors.Errorf("authorize list_templates owner: %w", err).Error()), nil
@@ -176,7 +227,7 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			}
 
 			rankTemplates(ranked, query)
-			recommendedID, nextStep := selectTemplateRecommendation(
+			recommendedID, nextStep, reason := selectTemplateRecommendation(
 				ranked,
 				visibleTemplateCount,
 				signalsErr,
@@ -191,9 +242,25 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 			end := min(start+listTemplatesPageSize, totalCount)
 
 			items := make([]map[string]any, 0, end-start)
+			pageTemplateIDs := make([]uuid.UUID, 0, end-start)
 			for _, t := range ranked[start:end] {
 				items = append(items, templateItem(t))
+				pageTemplateIDs = append(pageTemplateIDs, t.Template.ID)
 			}
+
+			recordListTemplatesTelemetry(ctx, options, toolCall.ID, organizationID, listTemplatesTelemetry{
+				query:                query,
+				page:                 page,
+				visibleTemplateCount: visibleTemplateCount,
+				candidateCount:       totalCount,
+				returnedCount:        len(items),
+				ranked:               ranked,
+				recommendedID:        recommendedID,
+				nextStep:             nextStep,
+				reason:               reason,
+				signalsErr:           signalsErr,
+			})
+			options.Recommendations.Record(options.ChatID, recommendedID, pageTemplateIDs, page)
 
 			result := map[string]any{
 				"templates":   items,
@@ -302,55 +369,165 @@ func rankTemplates(ranked []rankedTemplate, query string) {
 }
 
 // selectTemplateRecommendation returns the recommended template (uuid.Nil for
-// none) and the next-step instruction. A decisive query match recommends on
+// none), the next-step instruction, and a reason identifying which branch
+// decided the outcome (for telemetry). A decisive query match recommends on
 // its own; otherwise the affinity score must clear a floor and lead the
 // runner-up by a margin.
 func selectTemplateRecommendation(
 	ranked []rankedTemplate,
 	visibleTemplateCount int,
 	rankingSignalsErr error,
-) (uuid.UUID, string) {
+) (recommendedID uuid.UUID, nextStep string, reason string) {
 	if len(ranked) == 0 {
 		if visibleTemplateCount == 0 {
-			return uuid.Nil, NextStepNoTemplates
+			return uuid.Nil, NextStepNoTemplates, recommendationReasonNoTemplates
 		}
-		return uuid.Nil, NextStepNoMatches
+		return uuid.Nil, NextStepNoMatches, recommendationReasonNoMatches
 	}
 
 	top := ranked[0]
 	if visibleTemplateCount == 1 && len(ranked) == 1 {
-		return top.Template.ID, NextStepUseRecommended
+		return top.Template.ID, NextStepUseRecommended, recommendationReasonOnlyAvailable
 	}
 
 	// A decisive query match recommends even when signals failed to load.
 	if top.QueryScore > 0 && (len(ranked) == 1 || top.QueryScore > ranked[1].QueryScore) {
-		return top.Template.ID, NextStepUseRecommended
+		return top.Template.ID, NextStepUseRecommended, recommendationReasonDecisiveQuery
 	}
 
 	// Beyond a decisive query match, confidence comes from the affinity
 	// score, so a failed signal load means asking the user.
 	if rankingSignalsErr != nil {
-		return uuid.Nil, NextStepAskUser
+		return uuid.Nil, NextStepAskUser, recommendationReasonSignalsUnavailable
 	}
 
-	// Query tie: break it with a clear affinity gap.
+	// Query tie: both candidates matched the query at the same relevance tier,
+	// so the query itself is the baseline confidence signal and affinity only
+	// breaks the tie. A clear affinity gap is enough here; unlike the no-query
+	// branch below, the top score need not clear minConfidentAffinityScore on
+	// its own.
 	if top.QueryScore > 0 {
 		if len(ranked) > 1 && affinityScoreAtLeast(top.AffinityScore-ranked[1].AffinityScore, minConfidentGap) {
-			return top.Template.ID, NextStepUseRecommended
+			return top.Template.ID, NextStepUseRecommended, recommendationReasonQueryTieConfident
 		}
-		return uuid.Nil, NextStepAskUser
+		return uuid.Nil, NextStepAskUser, recommendationReasonQueryTieAmbiguous
 	}
 
 	// No query: the affinity score alone decides.
 	if !affinityScoreAtLeast(top.AffinityScore, minConfidentAffinityScore) {
-		return uuid.Nil, NextStepAskUser
+		return uuid.Nil, NextStepAskUser, recommendationReasonAffinityLow
 	}
 	if len(ranked) > 1 &&
 		affinityScoreAtLeast(ranked[1].AffinityScore, minConfidentAffinityScore) &&
 		!affinityScoreAtLeast(top.AffinityScore-ranked[1].AffinityScore, minConfidentGap) {
-		return uuid.Nil, NextStepAskUser
+		return uuid.Nil, NextStepAskUser, recommendationReasonAffinityAmbiguous
 	}
-	return top.Template.ID, NextStepUseRecommended
+	return top.Template.ID, NextStepUseRecommended, recommendationReasonAffinityConfident
+}
+
+// listTemplatesOutcome maps a next-step instruction to its telemetry outcome.
+func listTemplatesOutcome(nextStep string) string {
+	switch nextStep {
+	case NextStepNoTemplates:
+		return listTemplatesOutcomeNoTemplates
+	case NextStepNoMatches:
+		return listTemplatesOutcomeNoMatches
+	case NextStepUseRecommended:
+		return listTemplatesOutcomeRecommended
+	case NextStepAskUser:
+		return listTemplatesOutcomeAskUser
+	default:
+		return listTemplatesOutcomeUnknown
+	}
+}
+
+// listTemplatesTelemetry carries the data recorded for one list_templates call:
+// aggregate ranking metrics plus the inputs for a structured decision log.
+type listTemplatesTelemetry struct {
+	query                string
+	page                 int
+	visibleTemplateCount int
+	candidateCount       int
+	returnedCount        int
+	ranked               []rankedTemplate
+	recommendedID        uuid.UUID
+	nextStep             string
+	reason               string
+	signalsErr           error
+}
+
+// recordListTemplatesTelemetry records the aggregate ranking metrics and emits
+// the structured decision log. The raw user query text is never logged: only
+// its presence and length are, to avoid leaking task content. The affinity
+// score is not included in the tool result shown to the model; the log records
+// the inputs (scores, gap, thresholds) so a decision is reconstructable.
+func recordListTemplatesTelemetry(
+	ctx context.Context,
+	options ListTemplatesOptions,
+	toolCallID string,
+	organizationID uuid.UUID,
+	t listTemplatesTelemetry,
+) {
+	outcome := listTemplatesOutcome(t.nextStep)
+	recommended := t.recommendedID != uuid.Nil
+
+	if options.Metrics != nil {
+		options.Metrics.RecordListTemplatesOutcome(outcome)
+		if t.signalsErr != nil {
+			options.Metrics.RecordListTemplatesSignalsFailure()
+		}
+		// The affinity gap is only meaningful when affinity is the deciding
+		// signal: no query, or the top two share the same query tier. In those
+		// cases the sort guarantees a non-negative gap. A failed signal load
+		// leaves every affinity score at its zero default and forces an
+		// ask_user outcome, so recording the gap then would only add
+		// meaningless zero samples; the signals-failure counter covers it.
+		if t.signalsErr == nil && len(t.ranked) > 1 {
+			top, runner := t.ranked[0], t.ranked[1]
+			if t.query == "" || top.QueryScore == runner.QueryScore {
+				options.Metrics.RecordListTemplatesAffinityGap(recommended, top.AffinityScore-runner.AffinityScore)
+			}
+		}
+	}
+
+	fields := []slog.Field{
+		slog.F("tool_call_id", toolCallID),
+		slog.F("chat_id", options.ChatID),
+		slog.F("owner_id", options.OwnerID),
+		slog.F("organization_id", organizationID),
+		slog.F("query_present", t.query != ""),
+		slog.F("query_len", len(t.query)),
+		slog.F("page", t.page),
+		slog.F("visible_template_count", t.visibleTemplateCount),
+		slog.F("candidate_count", t.candidateCount),
+		slog.F("returned_count", t.returnedCount),
+		slog.F("outcome", outcome),
+		slog.F("recommendation_reason", t.reason),
+		slog.F("signals_load_failed", t.signalsErr != nil),
+		slog.F("ranking_version", listTemplatesRankingVersion),
+		slog.F("min_confident_affinity_score", minConfidentAffinityScore),
+		slog.F("min_confident_gap", minConfidentGap),
+	}
+	if recommended {
+		fields = append(fields, slog.F("recommended_template_id", t.recommendedID))
+	}
+	if len(t.ranked) > 0 {
+		top := t.ranked[0]
+		fields = append(fields,
+			slog.F("top_template_id", top.Template.ID),
+			slog.F("top_query_score", top.QueryScore),
+			slog.F("top_affinity_score", top.AffinityScore),
+		)
+	}
+	if len(t.ranked) > 1 {
+		runner := t.ranked[1]
+		fields = append(fields,
+			slog.F("runner_up_query_score", runner.QueryScore),
+			slog.F("runner_up_affinity_score", runner.AffinityScore),
+			slog.F("affinity_gap", t.ranked[0].AffinityScore-runner.AffinityScore),
+		)
+	}
+	options.Logger.Info(ctx, "list_templates decision", fields...)
 }
 
 func templateItem(t rankedTemplate) map[string]any {

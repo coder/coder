@@ -2100,3 +2100,68 @@ func TestCreateWorkspace_WithPresetAndParams(t *testing.T) {
 	require.Equal(t, "region", capturedReq.RichParameterValues[0].Name)
 	require.Equal(t, "us-east", capturedReq.RichParameterValues[0].Value)
 }
+
+type fakeCreateWorkspaceMetrics struct {
+	followups []string
+}
+
+func (m *fakeCreateWorkspaceMetrics) RecordTemplateRecommendationFollowup(outcome string) {
+	m.followups = append(m.followups, outcome)
+}
+
+// TestCreateWorkspace_RecordsRecommendationFollowup verifies the create path
+// classifies the chosen template against a prior list_templates recommendation
+// shared through the tracker, and records the follow-up metric.
+func TestCreateWorkspace_RecordsRecommendationFollowup(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := newCreateWorkspaceMockStore(ctrl)
+
+	ownerID := uuid.New()
+	orgID := uuid.New()
+	chatID := uuid.New()
+	templateID := uuid.New()
+	workspaceID := uuid.New()
+
+	db.EXPECT().GetChatByID(gomock.Any(), chatID).Return(database.Chat{ID: chatID}, nil)
+	db.EXPECT().UpdateChatWorkspaceBinding(gomock.Any(), gomock.Any()).Return(database.Chat{ID: chatID}, nil)
+	db.EXPECT().GetAuthorizationUserRoles(gomock.Any(), ownerID).Return(database.GetAuthorizationUserRolesRow{
+		ID: ownerID, Roles: []string{}, Groups: []string{}, Status: database.UserStatusActive,
+	}, nil)
+	db.EXPECT().GetTemplateByID(gomock.Any(), templateID).Return(database.Template{
+		ID: templateID, OrganizationID: orgID,
+	}, nil)
+	db.EXPECT().GetChatWorkspaceTTL(gomock.Any()).Return("0s", nil)
+	// Empty agent list short-circuits the agent-ready wait.
+	db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspaceID).
+		Return([]database.WorkspaceAgent{}, nil)
+
+	// A nil-build workspace skips the build-completion wait.
+	createFn := func(_ context.Context, _ uuid.UUID, req codersdk.CreateWorkspaceRequest) (codersdk.Workspace, error) {
+		return codersdk.Workspace{ID: workspaceID, Name: req.Name, OwnerName: "testuser"}, nil
+	}
+
+	// Seed the tracker so the chat already has a recommendation for templateID.
+	tracker := NewRecommendationTracker(nil, 0, 0)
+	tracker.Record(chatID, templateID, []uuid.UUID{templateID}, 1)
+	metrics := &fakeCreateWorkspaceMetrics{}
+
+	tool := CreateWorkspace(db, orgID, chatID, CreateWorkspaceOptions{
+		OwnerID:         ownerID,
+		CreateFn:        createFn,
+		WorkspaceMu:     &sync.Mutex{},
+		Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+		Metrics:         metrics,
+		Recommendations: tracker,
+	})
+
+	input := fmt.Sprintf(`{"template_id":%q}`, templateID.String())
+	resp, err := tool.Run(context.Background(), fantasy.ToolCall{ID: "call-1", Name: "create_workspace", Input: input})
+	require.NoError(t, err)
+	require.False(t, resp.IsError)
+
+	require.Equal(t, []string{recommendationFollowupAccepted}, metrics.followups)
+	// The recommendation was consumed: a repeat classification finds nothing.
+	require.Equal(t, recommendationFollowupNoRecord, tracker.Classify(chatID, templateID))
+}

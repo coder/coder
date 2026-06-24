@@ -186,7 +186,11 @@ type Server struct {
 	chatWorker        *chatWorker
 	messagePartBuffer *messagepartbuffer.Buffer
 	streamSyncPoller  *streamSyncPoller
-	recordingSem      chan struct{}
+	// templateRecommendations tracks list_templates recommendations to classify
+	// the template a later create_workspace builds. In-memory and best-effort;
+	// see chattool.RecommendationTracker.
+	templateRecommendations *chattool.RecommendationTracker
+	recordingSem            chan struct{}
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	aiGatewayRoutingEnabled  bool
@@ -3310,6 +3314,7 @@ func New(ps pubsub.Pubsub, cfg Config) *Server {
 		panic("chatd: create chat worker: " + err.Error())
 	}
 	p.chatWorker = chatWorker
+	p.templateRecommendations = chattool.NewRecommendationTracker(clk, 0, 0)
 
 	//nolint:gocritic // The chat processor uses a scoped chatd context.
 	ctx = dbauthz.AsChatd(ctx)
@@ -4009,6 +4014,9 @@ func (p *Server) appendRootChatTools(
 			Logger:             p.logger,
 			Clock:              p.clock,
 			AllowedTemplateIDs: p.chatTemplateAllowlist,
+			ChatID:             opts.chat.ID,
+			Metrics:            p.metrics,
+			Recommendations:    p.templateRecommendations,
 		}),
 		chattool.ReadTemplate(p.db, opts.chat.OrganizationID, chattool.ReadTemplateOptions{
 			OwnerID:            opts.chat.OwnerID,
@@ -4023,6 +4031,8 @@ func (p *Server) appendRootChatTools(
 			OnChatUpdated:                  onChatUpdated,
 			Logger:                         p.logger,
 			AllowedTemplateIDs:             p.chatTemplateAllowlist,
+			Metrics:                        p.metrics,
+			Recommendations:                p.templateRecommendations,
 		}),
 		chattool.StartWorkspace(p.db, opts.chat.ID, chattool.StartWorkspaceOptions{
 			OwnerID:       opts.chat.OwnerID,

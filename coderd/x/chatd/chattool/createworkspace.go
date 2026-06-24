@@ -62,7 +62,16 @@ type AgentConnFunc func(
 	agentID uuid.UUID,
 ) (workspacesdk.AgentConn, func(), error)
 
-// CreateWorkspaceOptions configures the create_workspace tool.
+// CreateWorkspaceMetrics records create_workspace telemetry. It is implemented
+// by *chatloop.Metrics and declared here (rather than imported) because
+// chatloop imports chattool, so chattool must not import chatloop.
+type CreateWorkspaceMetrics interface {
+	RecordTemplateRecommendationFollowup(outcome string)
+}
+
+// CreateWorkspaceOptions configures the create_workspace tool. Metrics and
+// Recommendations are optional telemetry hooks that classify how the chosen
+// template related to the prior list_templates recommendation for this chat.
 type CreateWorkspaceOptions struct {
 	OwnerID                        uuid.UUID
 	CreateFn                       CreateWorkspaceFn
@@ -72,6 +81,8 @@ type CreateWorkspaceOptions struct {
 	OnChatUpdated                  func(database.Chat)
 	Logger                         slog.Logger
 	AllowedTemplateIDs             func() map[uuid.UUID]bool
+	Metrics                        CreateWorkspaceMetrics
+	Recommendations                *RecommendationTracker
 }
 
 type createWorkspaceArgs struct {
@@ -277,6 +288,10 @@ func CreateWorkspace(db database.Store, organizationID, chatID uuid.UUID, option
 				options.OnChatUpdated(updatedChat)
 			}
 
+			// Only genuine creations reach here; the idempotent
+			// existing-workspace path returns earlier.
+			recordRecommendationFollowup(ctx, options, chatID, workspace.ID, templateID)
+
 			// Wait for the build to complete and the agent to
 			// come online so subsequent tools can use the
 			// workspace immediately.
@@ -360,6 +375,29 @@ type existingWorkspaceResult struct {
 	BuildErr    error
 	// Err is non-nil when the check itself failed.
 	Err error
+}
+
+// recordRecommendationFollowup classifies how a freshly created workspace's
+// template related to the prior list_templates recommendation for the chat and
+// records it as a metric plus a structured log. Classification is best-effort:
+// it degrades to "no_recent_list_templates" when no in-memory record exists
+// (restart, replica handoff, expiry, or list_templates was never called).
+func recordRecommendationFollowup(
+	ctx context.Context,
+	options CreateWorkspaceOptions,
+	chatID, workspaceID, templateID uuid.UUID,
+) {
+	followup := options.Recommendations.Classify(chatID, templateID)
+	if options.Metrics != nil {
+		options.Metrics.RecordTemplateRecommendationFollowup(followup)
+	}
+	options.Logger.Info(ctx, "create_workspace recommendation follow-up",
+		slog.F("chat_id", chatID),
+		slog.F("owner_id", options.OwnerID),
+		slog.F("workspace_id", workspaceID),
+		slog.F("template_id", templateID),
+		slog.F("recommendation_followup", followup),
+	)
 }
 
 // checkExistingWorkspace checks whether the given chat
