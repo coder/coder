@@ -18,7 +18,7 @@ import (
 // [http.Request] are included here; tests can access headers and path
 // via [RecordedRequest.Request].
 type RecordedRequest struct {
-	// Request is a shallow clone of the original [http.Request].
+	// Request is a clone of the original [http.Request].
 	Request *http.Request
 	// ProviderName is the AI provider instance name passed to
 	// [TransportFactory.TransportFor].

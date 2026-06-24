@@ -31,13 +31,13 @@ import (
 //
 // t provides cleanup and fatal helpers.
 //
-// api must carry DeploymentValues, Database, Pubsub,
+// api is the coderd API to wire the daemon onto. It must carry the
+// same fields cli/server.go uses: DeploymentValues, Database, Pubsub,
 // CreateInMemoryAIBridgeServer, and RegisterInMemoryAIBridgedHTTPHandler.
-// These are the same fields cli/server.go uses to wire the production daemon.
 //
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
-// runs. Use [aibridged.NewMetrics] to create one.
+// runs. Use [aibridged.NewMetrics] to create one, or nil for a throwaway.
 func StartTestAIBridgeDaemon(
 	ctx context.Context,
 	t testing.TB,
@@ -91,8 +91,8 @@ type testPoolReloader struct {
 }
 
 func (r *testPoolReloader) Reload(ctx context.Context) error {
-	// Record the attempt before any work, matching production's ordering
-	// so the gap between attempt and success reveals a mid-reload hang.
+	// Stamp the attempt before building providers so the gap between
+	// attempt and success timestamps reveals a mid-reload hang.
 	r.metrics.RecordReloadAttempt()
 	providers, outcomes, err := cli.BuildProviders(ctx, r.db, r.cfg, r.logger, nil)
 	if err != nil {
