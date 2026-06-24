@@ -34,17 +34,23 @@ func Test_originLocalURL(t *testing.T) {
 		for _, p := range maliciousPaths {
 			loc := originLocalURL(p).String()
 
-			// Model browser URL normalization: tab/newline/CR are stripped and a
-			// backslash is treated like a forward slash before resolving.
-			browserLoc := strings.NewReplacer("\t", "", "\n", "", "\r", "").Replace(loc)
-			browserLoc = strings.ReplaceAll(browserLoc, "\\", "/")
-			require.Falsef(t, strings.HasPrefix(browserLoc, "//"),
-				"path %q produced off-origin Location %q (browser-normalized %q)", p, loc, browserLoc)
-
+			// The Location must parse as a relative, same-origin reference.
+			require.Falsef(t, strings.HasPrefix(loc, "//"),
+				"path %q produced scheme-relative Location %q", p, loc)
 			parsed, err := url.Parse(loc)
 			require.NoErrorf(t, err, "path %q produced unparseable Location %q", p, loc)
 			require.Emptyf(t, parsed.Scheme, "path %q produced Location %q with a scheme", p, loc)
 			require.Emptyf(t, parsed.Host, "path %q produced Location %q with a host", p, loc)
+
+			// It must also be free of raw bytes a browser would normalize back
+			// into an authority before resolving (a backslash becomes "/", and
+			// tab/newline/CR are stripped, either of which could re-form "//host").
+			// url.URL.String() guarantees this by percent-encoding them; we assert
+			// it here rather than reproducing browser normalization in the code.
+			for _, raw := range []string{`\`, "\t", "\n", "\r"} {
+				require.NotContainsf(t, loc, raw,
+					"path %q produced Location %q containing a raw %q", p, loc, raw)
+			}
 		}
 	})
 
