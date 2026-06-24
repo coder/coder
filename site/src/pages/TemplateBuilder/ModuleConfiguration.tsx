@@ -4,6 +4,7 @@ import { Button } from "#/components/Button/Button";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
@@ -73,14 +74,14 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
 			)}
 
-			{children}
+			<ConfigurationFieldContainer>{children}</ConfigurationFieldContainer>
 		</section>
 	);
 };

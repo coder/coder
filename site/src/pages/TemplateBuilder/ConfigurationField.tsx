@@ -1,4 +1,4 @@
-import type { FC, ReactNode } from "react";
+import type { FC, PropsWithChildren, ReactNode } from "react";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
@@ -320,6 +320,16 @@ const SwitchGroupField: FC<SwitchGroupFieldDefinition> = ({
 					/>
 				))}
 			</div>
+		</div>
+	);
+};
+
+export const ConfigurationFieldContainer: FC<PropsWithChildren> = ({
+	children,
+}) => {
+	return (
+		<div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+			{children}
 		</div>
 	);
 };

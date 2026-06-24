@@ -13,7 +13,10 @@ import {
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
-import { ConfigurationField } from "./ConfigurationField";
+import {
+	ConfigurationField,
+	ConfigurationFieldContainer,
+} from "./ConfigurationField";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
 interface ModuleSettingsStepProps {
@@ -153,9 +156,11 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 										label="Advanced settings"
 										className="mt-4"
 									>
-										{optionalFields.map((f) => (
-											<ConfigurationField key={f.id} field={f} />
-										))}
+										<ConfigurationFieldContainer>
+											{optionalFields.map((f) => (
+												<ConfigurationField key={f.id} field={f} />
+											))}
+										</ConfigurationFieldContainer>
 									</CollapsibleSummary>
 								)}
 							</ModuleConfiguration>
