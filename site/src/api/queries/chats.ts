@@ -420,6 +420,7 @@ export const mergeWatchedChatSummary = (
 	const isTitleEvent = eventKind === "title_change";
 	const isStatusEvent = eventKind === "status_change";
 	const isSummaryEvent = eventKind === "summary_change";
+	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
 	const isContextDirtyEvent = eventKind === "context_dirty";
 	const updatedAtComparison = compareUpdatedAtInstants(
@@ -460,6 +461,14 @@ export const mergeWatchedChatSummary = (
 		isFreshEnough || isSummaryEvent
 			? watchedChat.last_turn_summary
 			: cachedChat.last_turn_summary;
+	// The whole-chat summary is delivered via its own chat_summary_change event
+	// and preserves updated_at, so apply it even when the cached timestamp is
+	// newer. A distinct event ensures it only touches summary, not
+	// last_turn_summary.
+	const nextSummary =
+		isFreshEnough || isChatSummaryEvent
+			? watchedChat.summary
+			: cachedChat.summary;
 	const nextHasUnread =
 		isFreshEnough && isStatusEvent && watchedChat.id !== activeChatId
 			? true
@@ -478,6 +487,7 @@ export const mergeWatchedChatSummary = (
 		nextBuildId === cachedChat.build_id &&
 		nextLastModelConfigId === cachedChat.last_model_config_id &&
 		nextLastTurnSummary === cachedChat.last_turn_summary &&
+		nextSummary === cachedChat.summary &&
 		nextHasUnread === cachedChat.has_unread &&
 		nextUpdatedAt === cachedChat.updated_at &&
 		nextContext === cachedChat.context
@@ -494,6 +504,7 @@ export const mergeWatchedChatSummary = (
 		build_id: nextBuildId,
 		last_model_config_id: nextLastModelConfigId,
 		last_turn_summary: nextLastTurnSummary,
+		summary: nextSummary,
 		has_unread: nextHasUnread,
 		updated_at: nextUpdatedAt,
 		context: nextContext,

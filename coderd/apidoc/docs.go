@@ -16704,6 +16704,10 @@ const docTemplate = `{
                 "status": {
                     "$ref": "#/definitions/codersdk.ChatStatus"
                 },
+                "summary": {
+                    "description": "Summary is the persisted whole-chat summary shown in the chat summary\npopover. It is generated asynchronously in the background and may be nil\nuntil the first summary has been produced.",
+                    "type": "string"
+                },
                 "title": {
                     "type": "string"
                 },
@@ -17820,6 +17824,7 @@ const docTemplate = `{
             "enum": [
                 "status_change",
                 "summary_change",
+                "chat_summary_change",
                 "title_change",
                 "created",
                 "deleted",
@@ -17830,6 +17835,7 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatWatchEventKindStatusChange",
                 "ChatWatchEventKindSummaryChange",
+                "ChatWatchEventKindChatSummaryChange",
                 "ChatWatchEventKindTitleChange",
                 "ChatWatchEventKindCreated",
                 "ChatWatchEventKindDeleted",

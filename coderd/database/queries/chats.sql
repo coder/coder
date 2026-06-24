@@ -34,6 +34,8 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        updated_chats.summary,
+        updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
         updated_chats.history_version,
         updated_chats.queue_version,
@@ -100,6 +102,8 @@ chats_expanded AS (
         updated_chats.plan_mode,
         updated_chats.client_type,
         updated_chats.last_turn_summary,
+        updated_chats.summary,
+        updated_chats.summary_generated_at,
         updated_chats.snapshot_version,
         updated_chats.history_version,
         updated_chats.queue_version,
@@ -765,6 +769,8 @@ chats_expanded AS (
         inserted_chat.plan_mode,
         inserted_chat.client_type,
         inserted_chat.last_turn_summary,
+        inserted_chat.summary,
+        inserted_chat.summary_generated_at,
         inserted_chat.snapshot_version,
         inserted_chat.history_version,
         inserted_chat.queue_version,
@@ -873,6 +879,19 @@ WHERE
 RETURNING
     *;
 
+-- name: UpdateChatMessageCostSource :execrows
+-- Tags a chat_message with a cost_source so its spend is attributable to a
+-- specific feature (for example 'summary' or 'title') rather than ordinary
+-- turn spend. Used to mark the hidden accounting rows written for background
+-- summary and manual title generation without threading a new field through
+-- the shared InsertChatMessages batch insert.
+UPDATE
+    chat_messages
+SET
+    cost_source = NULLIF(@cost_source::text, '')
+WHERE
+    id = @id::bigint;
+
 -- name: UpdateChatByID :one
 WITH updated_chat AS (
 UPDATE
@@ -913,6 +932,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -979,6 +1000,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1043,6 +1066,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1107,6 +1132,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1171,6 +1198,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1234,6 +1263,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1297,6 +1328,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1334,6 +1367,25 @@ SET
     last_turn_summary = NULLIF(REGEXP_REPLACE(
         sqlc.narg('last_turn_summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
     ), '')
+WHERE
+    id = @id::uuid
+    AND history_version = @expected_history_version::bigint;
+
+-- name: UpdateChatSummary :execrows
+-- Updates the persisted whole-chat summary shown in the chat summary popover.
+-- Empty or whitespace-only summaries are stored as NULL so callers cannot
+-- accidentally persist blank text. summary_generated_at records when the
+-- summary was produced and drives the background regeneration cadence.
+-- This intentionally preserves updated_at. The staleness guard uses
+-- history_version, mirroring UpdateChatLastTurnSummary, so background writes
+-- racing a newer durable history change lose while worker lifecycle
+-- transitions that do not change message history cannot reject a fresh write.
+UPDATE chats
+SET
+    summary = NULLIF(REGEXP_REPLACE(
+        sqlc.narg('summary')::text, '^[[:space:]]+|[[:space:]]+$', '', 'g'
+    ), ''),
+    summary_generated_at = NOW()
 WHERE
     id = @id::uuid
     AND history_version = @expected_history_version::bigint;
@@ -1378,6 +1430,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1594,6 +1648,8 @@ chats_expanded AS (
         acquired_chats.plan_mode,
         acquired_chats.client_type,
         acquired_chats.last_turn_summary,
+        acquired_chats.summary,
+        acquired_chats.summary_generated_at,
         acquired_chats.snapshot_version,
         acquired_chats.history_version,
         acquired_chats.queue_version,
@@ -1662,6 +1718,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -1730,6 +1788,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -2005,6 +2065,8 @@ chats_expanded AS (
         locked_chat.plan_mode,
         locked_chat.client_type,
         locked_chat.last_turn_summary,
+        locked_chat.summary,
+        locked_chat.summary_generated_at,
         locked_chat.snapshot_version,
         locked_chat.history_version,
         locked_chat.queue_version,
@@ -2065,6 +2127,8 @@ chats_expanded AS (
         shared_chat.plan_mode,
         shared_chat.client_type,
         shared_chat.last_turn_summary,
+        shared_chat.summary,
+        shared_chat.summary_generated_at,
         shared_chat.snapshot_version,
         shared_chat.history_version,
         shared_chat.queue_version,
@@ -2744,6 +2808,8 @@ chats_expanded AS (
         bumped_chat.plan_mode,
         bumped_chat.client_type,
         bumped_chat.last_turn_summary,
+        bumped_chat.summary,
+        bumped_chat.summary_generated_at,
         bumped_chat.snapshot_version,
         bumped_chat.history_version,
         bumped_chat.queue_version,
@@ -2815,6 +2881,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,
@@ -2878,6 +2946,8 @@ chats_expanded AS (
         updated_chat.plan_mode,
         updated_chat.client_type,
         updated_chat.last_turn_summary,
+        updated_chat.summary,
+        updated_chat.summary_generated_at,
         updated_chat.snapshot_version,
         updated_chat.history_version,
         updated_chat.queue_version,

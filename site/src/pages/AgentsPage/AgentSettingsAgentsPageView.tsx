@@ -25,6 +25,7 @@ export interface AgentSettingsAgentsPageViewProps {
 	isSaveAdminOverridesError: boolean;
 	generalModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	titleGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
+	summaryGenerationModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	exploreModelOverrideData?: TypesGen.ChatModelOverrideResponse;
 	modelConfigsData: TypesGen.ChatModelConfig[] | undefined;
 	modelConfigsError: unknown;
@@ -35,6 +36,9 @@ export interface AgentSettingsAgentsPageViewProps {
 	onSaveTitleGenerationModel: SaveModelOverride;
 	isSavingTitleGenerationModel: boolean;
 	isSaveTitleGenerationModelError: boolean;
+	onSaveSummaryGenerationModel: SaveModelOverride;
+	isSavingSummaryGenerationModel: boolean;
+	isSaveSummaryGenerationModelError: boolean;
 	onSaveExploreModelOverride: SaveModelOverride;
 	isSavingExploreModelOverride: boolean;
 	isSaveExploreModelOverrideError: boolean;
@@ -52,6 +56,7 @@ export const AgentSettingsAgentsPageView: FC<
 	isSaveAdminOverridesError,
 	generalModelOverrideData,
 	titleGenerationModelOverrideData,
+	summaryGenerationModelOverrideData,
 	exploreModelOverrideData,
 	modelConfigsData,
 	modelConfigsError,
@@ -62,6 +67,9 @@ export const AgentSettingsAgentsPageView: FC<
 	onSaveTitleGenerationModel,
 	isSavingTitleGenerationModel,
 	isSaveTitleGenerationModelError,
+	onSaveSummaryGenerationModel,
+	isSavingSummaryGenerationModel,
+	isSaveSummaryGenerationModelError,
 	onSaveExploreModelOverride,
 	isSavingExploreModelOverride,
 	isSaveExploreModelOverrideError,
@@ -134,6 +142,31 @@ export const AgentSettingsAgentsPageView: FC<
 					saveErrorMessage="Failed to save title generation model."
 					unsetPlaceholder="Use title default"
 					unavailableModelWarning="The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting."
+					showHeader={false}
+				/>
+			</section>
+			<section
+				aria-label="Summary generation model"
+				className="flex flex-col gap-3"
+			>
+				<SectionHeader
+					label="Summary generation model"
+					description="Choose a model for the generated whole-chat summary shown in the chat summary popover. Leave unset to use the chat's current model. When a model is selected here, Coder uses only that model for summary generation. Recommended summary models are fast and low cost."
+					level="section"
+				/>
+				<SubagentModelOverrideSettings
+					title="Summary generation model"
+					description="Choose a model for generated chat summaries."
+					modelOverrideData={summaryGenerationModelOverrideData}
+					enabledModelConfigs={enabledModelConfigs}
+					modelConfigsError={modelConfigsError}
+					isLoading={isLoadingModelConfigs}
+					onSaveModelOverride={onSaveSummaryGenerationModel}
+					isSaving={isSavingSummaryGenerationModel}
+					isSaveError={isSaveSummaryGenerationModelError}
+					saveErrorMessage="Failed to save summary generation model."
+					unsetPlaceholder="Use chat model"
+					unavailableModelWarning="The selected model is currently unavailable. Summary generation will be skipped until you choose another model or clear this setting."
 					showHeader={false}
 				/>
 			</section>

@@ -462,6 +462,7 @@ type sqlcQuerier interface {
 	// A value of 0 disables chat purging entirely.
 	GetChatRetentionDays(ctx context.Context) (int32, error)
 	GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([]GetChatStreamSyncRowsRow, error)
+	GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error)
 	GetChatSystemPrompt(ctx context.Context) (string, error)
 	// GetChatSystemPromptConfig returns both chat system prompt settings in a
 	// single read to avoid torn reads between separate site-config lookups.
@@ -1350,6 +1351,12 @@ type sqlcQuerier interface {
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
+	// Tags a chat_message with a cost_source so its spend is attributable to a
+	// specific feature (for example 'summary' or 'title') rather than ordinary
+	// turn spend. Used to mark the hidden accounting rows written for background
+	// summary and manual title generation without threading a new field through
+	// the shared InsertChatMessages batch insert.
+	UpdateChatMessageCostSource(ctx context.Context, arg UpdateChatMessageCostSourceParams) (int64, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
@@ -1358,6 +1365,15 @@ type sqlcQuerier interface {
 	UpdateChatRetryState(ctx context.Context, arg UpdateChatRetryStateParams) (Chat, error)
 	UpdateChatStatus(ctx context.Context, arg UpdateChatStatusParams) (Chat, error)
 	UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg UpdateChatStatusPreserveUpdatedAtParams) (Chat, error)
+	// Updates the persisted whole-chat summary shown in the chat summary popover.
+	// Empty or whitespace-only summaries are stored as NULL so callers cannot
+	// accidentally persist blank text. summary_generated_at records when the
+	// summary was produced and drives the background regeneration cadence.
+	// This intentionally preserves updated_at. The staleness guard uses
+	// history_version, mirroring UpdateChatLastTurnSummary, so background writes
+	// racing a newer durable history change lose while worker lifecycle
+	// transitions that do not change message history cannot reject a fresh write.
+	UpdateChatSummary(ctx context.Context, arg UpdateChatSummaryParams) (int64, error)
 	UpdateChatTitleByID(ctx context.Context, arg UpdateChatTitleByIDParams) (Chat, error)
 	UpdateChatWorkspaceBinding(ctx context.Context, arg UpdateChatWorkspaceBindingParams) (Chat, error)
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
@@ -1515,6 +1531,7 @@ type sqlcQuerier interface {
 	UpsertChatPersonalModelOverridesEnabled(ctx context.Context, enabled bool) error
 	UpsertChatPlanModeInstructions(ctx context.Context, value string) error
 	UpsertChatRetentionDays(ctx context.Context, retentionDays int32) error
+	UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error
 	UpsertChatSystemPrompt(ctx context.Context, value string) error
 	UpsertChatTemplateAllowlist(ctx context.Context, templateAllowlist string) error
 	UpsertChatTitleGenerationModelOverride(ctx context.Context, value string) error

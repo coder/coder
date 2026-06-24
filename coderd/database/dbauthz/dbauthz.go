@@ -3432,6 +3432,13 @@ func (q *querier) GetChatStreamSyncRows(ctx context.Context, ids []uuid.UUID) ([
 	return q.db.GetChatStreamSyncRows(ctx, ids)
 }
 
+func (q *querier) GetChatSummaryGenerationModelOverride(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceDeploymentConfig); err != nil {
+		return "", err
+	}
+	return q.db.GetChatSummaryGenerationModelOverride(ctx)
+}
+
 func (q *querier) GetChatSystemPrompt(ctx context.Context) (string, error) {
 	// The system prompt is a deployment-wide setting read during chat
 	// creation by every authenticated user, so no RBAC policy check
@@ -7183,6 +7190,22 @@ func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.Update
 	return q.db.UpdateChatMessageByID(ctx, arg)
 }
 
+func (q *querier) UpdateChatMessageCostSource(ctx context.Context, arg database.UpdateChatMessageCostSourceParams) (int64, error) {
+	// Authorize update on the parent chat of the tagged message.
+	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatMessageCostSource(ctx, arg)
+}
+
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return database.ChatModelConfig{}, err
@@ -7247,6 +7270,17 @@ func (q *querier) UpdateChatStatusPreserveUpdatedAt(ctx context.Context, arg dat
 		return database.Chat{}, err
 	}
 	return q.db.UpdateChatStatusPreserveUpdatedAt(ctx, arg)
+}
+
+func (q *querier) UpdateChatSummary(ctx context.Context, arg database.UpdateChatSummaryParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.UpdateChatSummary(ctx, arg)
 }
 
 func (q *querier) UpdateChatTitleByID(ctx context.Context, arg database.UpdateChatTitleByIDParams) (database.Chat, error) {
@@ -8642,6 +8676,13 @@ func (q *querier) UpsertChatRetentionDays(ctx context.Context, retentionDays int
 		return err
 	}
 	return q.db.UpsertChatRetentionDays(ctx, retentionDays)
+}
+
+func (q *querier) UpsertChatSummaryGenerationModelOverride(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
+		return err
+	}
+	return q.db.UpsertChatSummaryGenerationModelOverride(ctx, value)
 }
 
 func (q *querier) UpsertChatSystemPrompt(ctx context.Context, value string) error {

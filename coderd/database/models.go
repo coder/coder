@@ -4792,6 +4792,8 @@ type Chat struct {
 	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
 	LastTurnSummary          sql.NullString        `db:"last_turn_summary" json:"last_turn_summary"`
+	Summary                  sql.NullString        `db:"summary" json:"summary"`
+	SummaryGeneratedAt       sql.NullTime          `db:"summary_generated_at" json:"summary_generated_at"`
 	SnapshotVersion          int64                 `db:"snapshot_version" json:"snapshot_version"`
 	HistoryVersion           int64                 `db:"history_version" json:"history_version"`
 	QueueVersion             int64                 `db:"queue_version" json:"queue_version"`
@@ -4943,6 +4945,7 @@ type ChatMessage struct {
 	ProviderResponseID  sql.NullString        `db:"provider_response_id" json:"provider_response_id"`
 	APIKeyID            sql.NullString        `db:"api_key_id" json:"api_key_id"`
 	Revision            int64                 `db:"revision" json:"revision"`
+	CostSource          sql.NullString        `db:"cost_source" json:"cost_source"`
 }
 
 type ChatModelConfig struct {
@@ -5023,7 +5026,9 @@ type ChatTable struct {
 	// Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.
 	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
 	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
-	ContextError string `db:"context_error" json:"context_error"`
+	ContextError       string         `db:"context_error" json:"context_error"`
+	Summary            sql.NullString `db:"summary" json:"summary"`
+	SummaryGeneratedAt sql.NullTime   `db:"summary_generated_at" json:"summary_generated_at"`
 }
 
 type ChatUsageLimitConfig struct {

@@ -872,6 +872,216 @@ func generateManualTitle(
 	return title, usage, nil
 }
 
+const chatSummaryGenerationPrompt = "You summarize an AI coding chat for a quick-reference popover. " +
+	"Populate the summary field with 1 to 3 plain sentences describing what the conversation is about and what was accomplished or attempted. " +
+	"Write about the conversation in the third person. " +
+	"Preserve specific identifiers such as PR numbers, repo names, file paths, function names, and error messages. " +
+	"Do not address the user, give instructions, or continue the task. " +
+	"No markdown, lists, headings, code fences, or surrounding quotes."
+
+const (
+	// summaryTranscriptMaxRunes bounds the rendered conversation passed to the
+	// summary model so the call stays cheap and within the context window.
+	// Long chats are bounded by keeping head and tail turns (see
+	// renderChatSummaryTranscript).
+	summaryTranscriptMaxRunes = 16000
+	// summaryTranscriptPerMessageMaxRunes caps any single rendered turn so one
+	// very long message (such as a replayed compaction summary) cannot dominate
+	// the transcript budget.
+	summaryTranscriptPerMessageMaxRunes = 4000
+	// summaryMaxOutputTokens bounds the generated summary length. Combined with
+	// the prompt, this keeps the summary to a short blurb.
+	summaryMaxOutputTokens = 512
+	// summaryMaxRunes rejects pathologically long summaries that ignore the
+	// length instruction.
+	summaryMaxRunes = 1000
+	// summaryMaxSentences rejects pathologically verbose summaries while leaving
+	// slack over the 1-3 sentence target so a slightly long but useful summary
+	// is still stored.
+	summaryMaxSentences = 6
+)
+
+type generatedChatSummary struct {
+	Summary string `json:"summary" description:"1-3 sentence summary of the whole chat"`
+}
+
+// renderChatSummaryTranscript renders compaction-aware chat history into a
+// plain-text transcript for whole-chat summary generation. It includes user and
+// assistant text, intentionally keeping the replayed compaction summary (a
+// model-only compressed message) so the summary still covers pre-compaction
+// content, and skips the system prompt and tool-call/tool-result noise.
+//
+// The history is rendered as plain transcript text rather than replayed as raw
+// fantasy messages so that provider tool-call pairing rules do not apply to
+// historical tool messages during structured (object.Generate) generation.
+func renderChatSummaryTranscript(messages []database.ChatMessage) string {
+	lines := make([]string, 0, len(messages))
+	for _, message := range messages {
+		var role string
+		switch message.Role {
+		case database.ChatMessageRoleUser:
+			role = "user"
+		case database.ChatMessageRoleAssistant:
+			role = "assistant"
+		default:
+			continue
+		}
+
+		// Keep visible turns plus the replayed compaction summary, which is a
+		// model-only compressed message. Other model-only messages (such as
+		// injected context) are skipped as noise.
+		visible := message.Visibility == database.ChatMessageVisibilityBoth ||
+			message.Visibility == database.ChatMessageVisibilityUser
+		compactionSummary := message.Visibility == database.ChatMessageVisibilityModel &&
+			message.Compressed
+		if !visible && !compactionSummary {
+			continue
+		}
+
+		parts, err := chatprompt.ParseContent(message)
+		if err != nil {
+			continue
+		}
+		text := strings.TrimSpace(contentBlocksToText(parts))
+		if text == "" {
+			continue
+		}
+		text = truncateRunes(text, summaryTranscriptPerMessageMaxRunes)
+		lines = append(lines, fmt.Sprintf("[%s]: %s", role, text))
+	}
+	return boundTranscriptHeadTail(lines, summaryTranscriptMaxRunes)
+}
+
+// boundTranscriptHeadTail joins lines, and if the result exceeds maxRunes keeps
+// a head and tail slice within budget with an elision marker in between. This
+// keeps very long chats bounded while preserving both the start (what the chat
+// is about) and the end (what was most recently accomplished).
+func boundTranscriptHeadTail(lines []string, maxRunes int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	total := 0
+	for _, line := range lines {
+		total += len([]rune(line)) + 1
+	}
+	if total <= maxRunes {
+		return strings.Join(lines, "\n")
+	}
+
+	half := maxRunes / 2
+	headEnd := 0
+	headRunes := 0
+	for headEnd < len(lines) {
+		n := len([]rune(lines[headEnd])) + 1
+		if headEnd > 0 && headRunes+n > half {
+			break
+		}
+		headRunes += n
+		headEnd++
+	}
+	tailStart := len(lines)
+	tailRunes := 0
+	for tailStart > headEnd {
+		n := len([]rune(lines[tailStart-1])) + 1
+		if tailRunes+n > half {
+			break
+		}
+		tailRunes += n
+		tailStart--
+	}
+
+	out := make([]string, 0, headEnd+(len(lines)-tailStart)+1)
+	out = append(out, lines[:headEnd]...)
+	if tailStart > headEnd {
+		out = append(out, "[... earlier turns omitted ...]")
+	}
+	out = append(out, lines[tailStart:]...)
+	return strings.Join(out, "\n")
+}
+
+// generateChatSummary generates a 1-3 sentence whole-chat summary from a
+// rendered transcript using structured output. It returns the model usage so
+// callers can record cost. A blank or invalid result returns an error so
+// callers preserve any existing summary rather than clearing it.
+func generateChatSummary(
+	ctx context.Context,
+	model fantasy.LanguageModel,
+	transcript string,
+) (string, fantasy.Usage, error) {
+	transcript = strings.TrimSpace(transcript)
+	if transcript == "" {
+		return "", fantasy.Usage{}, xerrors.New("chat summary transcript was empty")
+	}
+
+	prompt := fantasy.Prompt{
+		{
+			Role: fantasy.MessageRoleSystem,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: chatSummaryGenerationPrompt},
+			},
+		},
+		{
+			Role: fantasy.MessageRoleUser,
+			Content: []fantasy.MessagePart{
+				fantasy.TextPart{Text: transcript},
+			},
+		},
+	}
+
+	maxOutputTokens := int64(summaryMaxOutputTokens)
+	var result *fantasy.ObjectResult[generatedChatSummary]
+	err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var genErr error
+		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, fantasy.ObjectCall{
+			Prompt:            prompt,
+			SchemaName:        "chat_summary",
+			SchemaDescription: "Summarize the whole chat in 1-3 sentences.",
+			MaxOutputTokens:   &maxOutputTokens,
+		})
+		return genErr
+	}, nil)
+	if err != nil {
+		var usage fantasy.Usage
+		var noObjErr *fantasy.NoObjectGeneratedError
+		if errors.As(err, &noObjErr) {
+			usage = noObjErr.Usage
+		}
+		return "", usage, xerrors.Errorf("generate chat summary: %w", err)
+	}
+
+	summary := normalizeShortTextOutput(result.Object.Summary)
+	if err := validateGeneratedChatSummary(summary); err != nil {
+		return "", result.Usage, err
+	}
+	return summary, result.Usage, nil
+}
+
+func validateGeneratedChatSummary(summary string) error {
+	if summary == "" {
+		return xerrors.New("generated chat summary was empty")
+	}
+	if len([]rune(summary)) > summaryMaxRunes {
+		return xerrors.Errorf("generated chat summary exceeded %d runes", summaryMaxRunes)
+	}
+	if countSentenceTerminators(summary) > summaryMaxSentences {
+		return xerrors.Errorf("generated chat summary exceeded %d sentences", summaryMaxSentences)
+	}
+	return nil
+}
+
+// countSentenceTerminators counts sentence-ending punctuation. It is an
+// approximation used only as a safety net against pathologically verbose
+// output, so abbreviations inflating the count slightly is acceptable.
+func countSentenceTerminators(text string) int {
+	count := 0
+	for _, r := range text {
+		if r == '.' || r == '!' || r == '?' {
+			count++
+		}
+	}
+	return count
+}
+
 const turnStatusLabelPrompt = "You write compact chat status labels for a sidebar or push notification. " +
 	"Given a chat title, current chat state, and the agent's latest message, populate the label field with a 2-5 word status label. " +
 	"Describe the chat's current state, not the agent. " +

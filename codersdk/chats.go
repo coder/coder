@@ -107,26 +107,30 @@ const (
 
 // Chat represents a chat session with an AI agent.
 type Chat struct {
-	ID                uuid.UUID       `json:"id" format:"uuid"`
-	OrganizationID    uuid.UUID       `json:"organization_id" format:"uuid"`
-	OwnerID           uuid.UUID       `json:"owner_id" format:"uuid"`
-	OwnerUsername     string          `json:"owner_username,omitempty"`
-	OwnerName         string          `json:"owner_name,omitempty"`
-	WorkspaceID       *uuid.UUID      `json:"workspace_id,omitempty" format:"uuid"`
-	BuildID           *uuid.UUID      `json:"build_id,omitempty" format:"uuid"`
-	AgentID           *uuid.UUID      `json:"agent_id,omitempty" format:"uuid"`
-	ParentChatID      *uuid.UUID      `json:"parent_chat_id,omitempty" format:"uuid"`
-	RootChatID        *uuid.UUID      `json:"root_chat_id,omitempty" format:"uuid"`
-	LastModelConfigID uuid.UUID       `json:"last_model_config_id" format:"uuid"`
-	Title             string          `json:"title"`
-	Status            ChatStatus      `json:"status"`
-	PlanMode          ChatPlanMode    `json:"plan_mode,omitempty"`
-	LastError         *ChatError      `json:"last_error,omitempty"`
-	LastTurnSummary   *string         `json:"last_turn_summary"`
-	DiffStatus        *ChatDiffStatus `json:"diff_status,omitempty"`
-	CreatedAt         time.Time       `json:"created_at" format:"date-time"`
-	UpdatedAt         time.Time       `json:"updated_at" format:"date-time"`
-	Archived          bool            `json:"archived"`
+	ID                uuid.UUID    `json:"id" format:"uuid"`
+	OrganizationID    uuid.UUID    `json:"organization_id" format:"uuid"`
+	OwnerID           uuid.UUID    `json:"owner_id" format:"uuid"`
+	OwnerUsername     string       `json:"owner_username,omitempty"`
+	OwnerName         string       `json:"owner_name,omitempty"`
+	WorkspaceID       *uuid.UUID   `json:"workspace_id,omitempty" format:"uuid"`
+	BuildID           *uuid.UUID   `json:"build_id,omitempty" format:"uuid"`
+	AgentID           *uuid.UUID   `json:"agent_id,omitempty" format:"uuid"`
+	ParentChatID      *uuid.UUID   `json:"parent_chat_id,omitempty" format:"uuid"`
+	RootChatID        *uuid.UUID   `json:"root_chat_id,omitempty" format:"uuid"`
+	LastModelConfigID uuid.UUID    `json:"last_model_config_id" format:"uuid"`
+	Title             string       `json:"title"`
+	Status            ChatStatus   `json:"status"`
+	PlanMode          ChatPlanMode `json:"plan_mode,omitempty"`
+	LastError         *ChatError   `json:"last_error,omitempty"`
+	LastTurnSummary   *string      `json:"last_turn_summary"`
+	// Summary is the persisted whole-chat summary shown in the chat summary
+	// popover. It is generated asynchronously in the background and may be nil
+	// until the first summary has been produced.
+	Summary    *string         `json:"summary"`
+	DiffStatus *ChatDiffStatus `json:"diff_status,omitempty"`
+	CreatedAt  time.Time       `json:"created_at" format:"date-time"`
+	UpdatedAt  time.Time       `json:"updated_at" format:"date-time"`
+	Archived   bool            `json:"archived"`
 	// Shared is true when this chat's root chat has explicit user or group ACL entries.
 	Shared       bool               `json:"shared"`
 	PinOrder     int32              `json:"pin_order"`
@@ -735,9 +739,10 @@ type UpdateChatPlanModeInstructionsRequest struct {
 type ChatModelOverrideContext string
 
 const (
-	ChatModelOverrideContextGeneral         ChatModelOverrideContext = "general"
-	ChatModelOverrideContextExplore         ChatModelOverrideContext = "explore"
-	ChatModelOverrideContextTitleGeneration ChatModelOverrideContext = "title_generation"
+	ChatModelOverrideContextGeneral           ChatModelOverrideContext = "general"
+	ChatModelOverrideContextExplore           ChatModelOverrideContext = "explore"
+	ChatModelOverrideContextTitleGeneration   ChatModelOverrideContext = "title_generation"
+	ChatModelOverrideContextSummaryGeneration ChatModelOverrideContext = "summary_generation"
 )
 
 // Valid reports whether the override context is one of the supported values.
@@ -745,7 +750,8 @@ func (c ChatModelOverrideContext) Valid() bool {
 	switch c {
 	case ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
-		ChatModelOverrideContextTitleGeneration:
+		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextSummaryGeneration:
 		return true
 	default:
 		return false
@@ -758,6 +764,7 @@ func AllChatModelOverrideContexts() []ChatModelOverrideContext {
 		ChatModelOverrideContextGeneral,
 		ChatModelOverrideContextExplore,
 		ChatModelOverrideContextTitleGeneration,
+		ChatModelOverrideContextSummaryGeneration,
 	}
 }
 
@@ -1763,13 +1770,18 @@ func NewDynamicTool[T any](
 type ChatWatchEventKind string
 
 const (
-	ChatWatchEventKindStatusChange     ChatWatchEventKind = "status_change"
-	ChatWatchEventKindSummaryChange    ChatWatchEventKind = "summary_change"
-	ChatWatchEventKindTitleChange      ChatWatchEventKind = "title_change"
-	ChatWatchEventKindCreated          ChatWatchEventKind = "created"
-	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
-	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
-	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
+	ChatWatchEventKindStatusChange  ChatWatchEventKind = "status_change"
+	ChatWatchEventKindSummaryChange ChatWatchEventKind = "summary_change"
+	// ChatWatchEventKindChatSummaryChange delivers updates to the persisted
+	// whole-chat summary field. It is distinct from SummaryChange, which is
+	// bound to last_turn_summary, so the frontend can apply only the summary
+	// field without disturbing last_turn_summary.
+	ChatWatchEventKindChatSummaryChange ChatWatchEventKind = "chat_summary_change"
+	ChatWatchEventKindTitleChange       ChatWatchEventKind = "title_change"
+	ChatWatchEventKindCreated           ChatWatchEventKind = "created"
+	ChatWatchEventKindDeleted           ChatWatchEventKind = "deleted"
+	ChatWatchEventKindDiffStatusChange  ChatWatchEventKind = "diff_status_change"
+	ChatWatchEventKindActionRequired    ChatWatchEventKind = "action_required"
 	// ChatWatchEventKindContextDirty signals that the chat's pinned
 	// workspace context drifted from the agent's latest pushed snapshot.
 	// The chat stays usable; a refresh re-pins it to the latest snapshot.

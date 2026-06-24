@@ -2956,6 +2956,12 @@ func recordManualTitleUsage(
 			if len(messages) != 1 {
 				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
 			}
+			if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
+				ID:         messages[0].ID,
+				CostSource: chatCostSourceTitle,
+			}); err != nil {
+				return xerrors.Errorf("tag manual title usage cost source: %w", err)
+			}
 			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
 				return xerrors.Errorf("soft delete manual title usage message: %w", err)
 			}
@@ -4667,6 +4673,7 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 	switch status {
 	case database.ChatStatusWaiting:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
+		p.maybeGenerateChatSummaryAsync(ctx, chat, runResult, logger)
 
 	case database.ChatStatusPending:
 		p.setLastTurnSummaryAsync(ctx, chat, fallbackTurnStatusLabel(status), logger)
@@ -4888,6 +4895,328 @@ func (p *Server) updateLastTurnSummary(
 	updatedChat := chat
 	updatedChat.LastTurnSummary = lastTurnSummary
 	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindSummaryChange, nil)
+}
+
+const (
+	// summaryFirstTurnThreshold is the minimum number of completed turns before
+	// the first whole-chat summary is generated.
+	summaryFirstTurnThreshold = 1
+	// summaryRefreshTurnThreshold is the number of completed turns since the
+	// last summary before it is regenerated. It is a tunable cadence knob that
+	// bounds eager LLM spend.
+	summaryRefreshTurnThreshold = 3
+	// summaryMinTranscriptRunes skips summary generation for very short chats
+	// where the title already conveys the content.
+	summaryMinTranscriptRunes = 200
+	// chatSummaryWorkTimeout bounds the whole background summary operation
+	// (load, model resolution, generation, persistence).
+	chatSummaryWorkTimeout = 120 * time.Second
+	// chatSummaryGenerateTimeout bounds the model call itself.
+	chatSummaryGenerateTimeout = 60 * time.Second
+)
+
+// chatCostSource values tag hidden accounting rows so non-turn spend is
+// attributable per feature in cost reporting. Ordinary turn spend is left NULL.
+const (
+	chatCostSourceSummary = "summary"
+	chatCostSourceTitle   = "title"
+)
+
+// maybeGenerateChatSummaryAsync launches background whole-chat summary
+// generation after a successful turn on a root chat. It is best-effort: it runs
+// detached from the request context so the user's turn is never blocked, and
+// logs and swallows errors.
+func (p *Server) maybeGenerateChatSummaryAsync(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	if chat.ParentChatID.Valid {
+		return
+	}
+	// This helper runs during processChat cleanup, while processChat is still
+	// counted in p.inflight. Do not take inflightMu here because drainInflight
+	// holds it while waiting.
+	p.inflight.Go(func() {
+		p.generateAndStoreChatSummary(context.WithoutCancel(ctx), chat, runResult, logger)
+	})
+}
+
+// generateAndStoreChatSummary regenerates the whole-chat summary when the
+// cadence gate allows, then stores it and records its cost. It is best-effort
+// and never clears an existing summary on failure.
+func (p *Server) generateAndStoreChatSummary(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) {
+	ctx, cancel := context.WithTimeout(ctx, chatSummaryWorkTimeout)
+	defer cancel()
+
+	//nolint:gocritic // Narrow daemon access for best-effort summary generation.
+	authCtx := dbauthz.AsChatd(ctx)
+
+	messages, err := p.db.GetChatMessagesForPromptByChatID(authCtx, chat.ID)
+	if err != nil {
+		logger.Debug(ctx, "failed to load messages for chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+
+	if !shouldGenerateChatSummary(chat, messages) {
+		return
+	}
+
+	transcript := renderChatSummaryTranscript(messages)
+	if len([]rune(transcript)) < summaryMinTranscriptRunes {
+		logger.Debug(ctx, "skipping chat summary for short transcript",
+			slog.F("chat_id", chat.ID),
+			slog.F("transcript_runes", len([]rune(transcript))),
+		)
+		return
+	}
+
+	model, modelConfig, ok := p.resolveChatSummaryModel(authCtx, chat, runResult, logger)
+	if !ok {
+		return
+	}
+
+	summaryCtx, cancelGen := context.WithTimeout(ctx, chatSummaryGenerateTimeout)
+	defer cancelGen()
+	summary, usage, genErr := generateChatSummary(summaryCtx, model, transcript)
+
+	// Record cost whenever the model reported usage, even on failure, so spend
+	// is attributed. The active API key is best-effort from the latest turn.
+	if usage != (fantasy.Usage{}) {
+		activeAPIKeyID, _ := activeTurnAPIKeyIDFromMessages(messages)
+		if _, recordErr := recordChatSummaryUsage(authCtx, p.db, chat, modelConfig, usage, activeAPIKeyID); recordErr != nil {
+			logger.Warn(ctx, "failed to record chat summary usage",
+				slog.F("chat_id", chat.ID), slog.Error(recordErr))
+		}
+	}
+
+	if genErr != nil {
+		logger.Debug(ctx, "failed to generate chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(genErr))
+		return
+	}
+
+	p.updateChatSummary(ctx, chat, chat.HistoryVersion, summary, logger)
+}
+
+// resolveChatSummaryModel resolves the model for summary generation. It prefers
+// the deployment summary-generation override when set; a configured-but-unusable
+// override is a hard failure that skips generation (preserving any existing
+// summary). Otherwise it falls back to the chat's configured model.
+func (p *Server) resolveChatSummaryModel(
+	ctx context.Context,
+	chat database.Chat,
+	runResult runChatResult,
+	logger slog.Logger,
+) (fantasy.LanguageModel, database.ChatModelConfig, bool) {
+	overrideConfig, overrideModel, _, _, overrideSet, overrideErr := p.resolveSummaryGenerationModelOverride(
+		ctx, chat, runResult.ProviderKeys, runResult.ModelBuildOptions,
+	)
+	if overrideErr != nil {
+		if overrideSet {
+			logger.Warn(ctx, "summary generation model override unavailable, skipping summary generation",
+				slog.F("chat_id", chat.ID),
+				slog.F("override_context", summaryGenerationOverrideContext),
+				slog.Error(overrideErr),
+			)
+			return nil, database.ChatModelConfig{}, false
+		}
+		logger.Debug(ctx, "failed to resolve summary generation model override",
+			slog.F("chat_id", chat.ID),
+			slog.F("override_context", summaryGenerationOverrideContext),
+			slog.Error(overrideErr),
+		)
+	}
+	if overrideSet {
+		return overrideModel, overrideConfig, true
+	}
+
+	//nolint:dogsled // resolveChatModel returns rich routing metadata; summary generation only needs the model and its config.
+	model, dbConfig, _, _, _, _, _, err := p.resolveChatModel(ctx, chat, runResult.ModelBuildOptions)
+	if err != nil {
+		logger.Debug(ctx, "failed to resolve chat model for summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return nil, database.ChatModelConfig{}, false
+	}
+	return model, dbConfig, true
+}
+
+// shouldGenerateChatSummary applies the cadence gate: generate the first summary
+// once enough turns exist, then regenerate every summaryRefreshTurnThreshold
+// completed turns since the last summary.
+func shouldGenerateChatSummary(chat database.Chat, messages []database.ChatMessage) bool {
+	if !chat.Summary.Valid {
+		return countCompletedTurnsSince(messages, time.Time{}) >= summaryFirstTurnThreshold
+	}
+	var marker time.Time
+	if chat.SummaryGeneratedAt.Valid {
+		marker = chat.SummaryGeneratedAt.Time
+	}
+	return countCompletedTurnsSince(messages, marker) >= summaryRefreshTurnThreshold
+}
+
+// countCompletedTurnsSince counts visible user messages created after the given
+// time. Each visible user message starts one turn, so this counts turns
+// regardless of how many tool-call steps each turn produced. Hidden model-only
+// user messages (injected context, the replayed compaction summary) are not
+// turns. A zero time counts all turns.
+func countCompletedTurnsSince(messages []database.ChatMessage, after time.Time) int {
+	count := 0
+	for _, message := range messages {
+		if message.Role != database.ChatMessageRoleUser {
+			continue
+		}
+		if message.Visibility != database.ChatMessageVisibilityBoth &&
+			message.Visibility != database.ChatMessageVisibilityUser {
+			continue
+		}
+		if !after.IsZero() && !message.CreatedAt.After(after) {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// updateChatSummary writes the persisted whole-chat summary for a chat. Callers
+// should pass a detached context because this is a best-effort background write.
+// It never clears an existing summary: a blank summary is a no-op.
+func (p *Server) updateChatSummary(
+	ctx context.Context,
+	chat database.Chat,
+	expectedHistoryVersion int64,
+	summary string,
+	logger slog.Logger,
+) {
+	summary = strings.TrimSpace(summary)
+	if summary == "" {
+		return
+	}
+	sqlSummary := sql.NullString{String: summary, Valid: true}
+
+	//nolint:gocritic // Narrow daemon access for best-effort summary cache writes.
+	updateCtx := dbauthz.AsChatd(ctx)
+	updateCtx, cancel := context.WithTimeout(updateCtx, turnStatusLabelWriteTimeout)
+	defer cancel()
+
+	affected, err := p.db.UpdateChatSummary(updateCtx, database.UpdateChatSummaryParams{
+		ID:                     chat.ID,
+		ExpectedHistoryVersion: expectedHistoryVersion,
+		Summary:                sqlSummary,
+	})
+	if err != nil {
+		logger.Warn(updateCtx, "failed to update chat summary",
+			slog.F("chat_id", chat.ID), slog.Error(err))
+		return
+	}
+	if affected == 0 {
+		logger.Info(updateCtx, "skipped stale chat summary update",
+			slog.F("chat_id", chat.ID),
+			slog.F("summary_length", len(summary)),
+			slog.F("expected_history_version", expectedHistoryVersion),
+		)
+		return
+	}
+
+	updatedChat := chat
+	updatedChat.Summary = sqlSummary
+	p.publishChatPubsubEvent(updatedChat, codersdk.ChatWatchEventKindChatSummaryChange, nil)
+}
+
+// recordChatSummaryUsage records the cost of a background summary generation as
+// a hidden, soft-deleted accounting row tagged with cost_source='summary'. It
+// mirrors recordManualTitleUsage but does not update the chat title.
+func recordChatSummaryUsage(
+	ctx context.Context,
+	store database.Store,
+	chat database.Chat,
+	modelConfig database.ChatModelConfig,
+	usage fantasy.Usage,
+	activeAPIKeyID string,
+) (database.Chat, error) {
+	if usage == (fantasy.Usage{}) {
+		return chat, nil
+	}
+
+	callConfig := codersdk.ChatModelCallConfig{}
+	if len(modelConfig.Options) > 0 {
+		if err := json.Unmarshal(modelConfig.Options, &callConfig); err != nil {
+			return database.Chat{}, xerrors.Errorf("parse model call config: %w", err)
+		}
+	}
+	totalCostMicros := chatcost.CalculateTotalCostMicros(
+		fantasyUsageToChatMessageUsage(usage),
+		callConfig.Cost,
+	)
+
+	// Use a valid empty JSON array for the content column.
+	content := "[]"
+
+	updatedChat := chat
+	err := store.InTx(func(tx database.Store) error {
+		lockedChat, err := tx.GetChatByIDForUpdate(ctx, chat.ID)
+		if err != nil {
+			return xerrors.Errorf("lock chat for summary usage: %w", err)
+		}
+		updatedChat = lockedChat
+
+		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			ChatID:              chat.ID,
+			CreatedBy:           []uuid.UUID{chat.OwnerID},
+			APIKeyID:            []string{activeAPIKeyID},
+			ModelConfigID:       []uuid.UUID{modelConfig.ID},
+			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
+			Content:             []string{content},
+			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
+			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
+			InputTokens:         []int64{usage.InputTokens},
+			OutputTokens:        []int64{usage.OutputTokens},
+			TotalTokens:         []int64{usage.TotalTokens},
+			ReasoningTokens:     []int64{usage.ReasoningTokens},
+			CacheCreationTokens: []int64{usage.CacheCreationTokens},
+			CacheReadTokens:     []int64{usage.CacheReadTokens},
+			ContextLimit:        []int64{modelConfig.ContextLimit},
+			Compressed:          []bool{false},
+			TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
+			RuntimeMs:           []int64{0},
+			ProviderResponseID:  []string{""},
+		})
+		if err != nil {
+			return xerrors.Errorf("insert summary usage message: %w", err)
+		}
+		if len(messages) != 1 {
+			return xerrors.Errorf("expected 1 summary usage message, got %d", len(messages))
+		}
+		if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
+			ID:         messages[0].ID,
+			CostSource: chatCostSourceSummary,
+		}); err != nil {
+			return xerrors.Errorf("tag summary usage cost source: %w", err)
+		}
+		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+			return xerrors.Errorf("soft delete summary usage message: %w", err)
+		}
+		if lockedChat.LastModelConfigID != modelConfig.ID {
+			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+				ID:                chat.ID,
+				LastModelConfigID: lockedChat.LastModelConfigID,
+			}); err != nil {
+				return xerrors.Errorf("restore chat model config after summary usage: %w", err)
+			}
+		}
+		return nil
+	}, nil)
+	if err != nil {
+		return database.Chat{}, err
+	}
+	return updatedChat, nil
 }
 
 func (p *Server) webpushConfigured() bool {

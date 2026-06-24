@@ -930,6 +930,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 			return []database.ChatMessage{{ID: 91}}, nil
 		},
 	)
+	usageTx.EXPECT().UpdateChatMessageCostSource(gomock.Any(), database.UpdateChatMessageCostSourceParams{
+		ID:         91,
+		CostSource: "title",
+	}).Return(int64(1), nil)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
 		ID:    chatID,
@@ -1110,6 +1114,10 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 			return []database.ChatMessage{{ID: 91}}, nil
 		},
 	)
+	usageTx.EXPECT().UpdateChatMessageCostSource(gomock.Any(), database.UpdateChatMessageCostSourceParams{
+		ID:         91,
+		CostSource: "title",
+	}).Return(int64(1), nil)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
 		ID:    chatID,

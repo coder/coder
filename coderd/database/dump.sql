@@ -1893,7 +1893,8 @@ CREATE TABLE chat_messages (
     deleted boolean DEFAULT false NOT NULL,
     provider_response_id text,
     api_key_id text,
-    revision bigint NOT NULL
+    revision bigint NOT NULL,
+    cost_source text
 );
 
 CREATE SEQUENCE chat_messages_id_seq
@@ -2018,6 +2019,8 @@ CREATE TABLE chats (
     context_dirty_since timestamp with time zone,
     context_dirty_resources jsonb,
     context_error text DEFAULT ''::text NOT NULL,
+    summary text,
+    summary_generated_at timestamp with time zone,
     CONSTRAINT chat_acl_only_on_root_chats CHECK ((((parent_chat_id IS NULL) AND (root_chat_id IS NULL)) OR ((user_acl = '{}'::jsonb) AND (group_acl = '{}'::jsonb)))),
     CONSTRAINT chat_group_acl_not_null_jsonb CHECK (((group_acl IS NOT NULL) AND (jsonb_typeof(group_acl) = 'object'::text))),
     CONSTRAINT chat_user_acl_not_null_jsonb CHECK (((user_acl IS NOT NULL) AND (jsonb_typeof(user_acl) = 'object'::text))),
@@ -2118,6 +2121,8 @@ CREATE VIEW chats_expanded AS
     c.plan_mode,
     c.client_type,
     c.last_turn_summary,
+    c.summary,
+    c.summary_generated_at,
     c.snapshot_version,
     c.history_version,
     c.queue_version,

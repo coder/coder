@@ -188,6 +188,14 @@ const AgentsRouteElement = () => (
 		onSaveTitleGenerationModel={fn()}
 		isSavingTitleGenerationModel={false}
 		isSaveTitleGenerationModelError={false}
+		summaryGenerationModelOverrideData={{
+			context: "summary_generation",
+			model_config_id: "",
+			is_malformed: false,
+		}}
+		onSaveSummaryGenerationModel={fn()}
+		isSavingSummaryGenerationModel={false}
+		isSaveSummaryGenerationModelError={false}
 		onSaveExploreModelOverride={fn()}
 		isSavingExploreModelOverride={false}
 		isSaveExploreModelOverrideError={false}

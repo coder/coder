@@ -1703,6 +1703,9 @@ func Chat(c database.Chat, diffStatus *database.ChatDiffStatus, files []database
 	if c.LastTurnSummary.Valid {
 		chat.LastTurnSummary = &c.LastTurnSummary.String
 	}
+	if c.Summary.Valid {
+		chat.Summary = &c.Summary.String
+	}
 	if c.PlanMode.Valid {
 		chat.PlanMode = codersdk.ChatPlanMode(c.PlanMode.ChatPlanMode)
 	}

@@ -2095,6 +2095,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
       "shared": true,
       "status": "waiting",
+      "summary": "string",
       "title": "string",
       "updated_at": "2019-08-24T14:15:22Z",
       "warnings": [
@@ -2187,6 +2188,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
   "shared": true,
   "status": "waiting",
+  "summary": "string",
   "title": "string",
   "updated_at": "2019-08-24T14:15:22Z",
   "warnings": [
@@ -2227,6 +2229,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `root_chat_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `shared`               | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
 | `status`               | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `summary`              | string                                                          | false    |              | Summary is the persisted whole-chat summary shown in the chat summary popover. It is generated asynchronously in the background and may be nil until the first summary has been produced.                                                                                  |
 | `title`                | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `updated_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 | `warnings`             | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
@@ -3947,6 +3950,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "root_chat_id": "2898031c-fdce-4e3e-8c53-4481dd42fcd7",
     "shared": true,
     "status": "waiting",
+    "summary": "string",
     "title": "string",
     "updated_at": "2019-08-24T14:15:22Z",
     "warnings": [
@@ -3983,9 +3987,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                          |
-|-----------------------------------------------------------------------------------------------------------------------------------|
-| `action_required`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
+| Value(s)                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action_required`, `chat_summary_change`, `context_dirty`, `created`, `deleted`, `diff_status_change`, `status_change`, `summary_change`, `title_change` |
 
 ## codersdk.ConnectionLatency
 

@@ -79,6 +79,7 @@ export const WithParentChat: Story = {
 			title: "Set up CI/CD pipeline",
 			status: "completed",
 			last_turn_summary: null,
+			summary: null,
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
