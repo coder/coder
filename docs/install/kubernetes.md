@@ -118,9 +118,9 @@ coder:
 ```
 
 You can view our
-[Helm README](https://github.com/coder/coder/blob/main/helm/coder#readme) for
+[Helm README](../../helm/coder#readme) for
 details on the values that are available, or you can view the
-[values.yaml](https://github.com/coder/coder/blob/main/helm/coder/values.yaml)
+[values.yaml](../../helm/coder/values.yaml)
 file directly.
 
 We support two release channels: mainline and stable - read the
@@ -135,7 +135,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.2
+        --version 2.34.0
     ```
 
   - **OCI Registry**
@@ -146,7 +146,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.33.2
+        --version 2.34.0
     ```
 
 - **Stable** Coder release:
@@ -159,7 +159,7 @@ We support two release channels: mainline and stable - read the
     helm install coder coder-v2/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.32.1
+        --version 2.33.6
     ```
 
   - **OCI Registry**
@@ -170,7 +170,7 @@ We support two release channels: mainline and stable - read the
     helm install coder oci://ghcr.io/coder/chart/coder \
         --namespace coder \
         --values values.yaml \
-        --version 2.32.1
+        --version 2.33.6
     ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder

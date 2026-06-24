@@ -84,6 +84,226 @@ curl -X GET http://coder-server:8080/.well-known/oauth-protected-resource \
 |--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OAuth2ProtectedResourceMetadata](schemas.md#codersdkoauth2protectedresourcemetadata) |
 
+## Get agent firewall session by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-firewall/sessions/{id}`
+
+### Parameters
+
+| Name | In   | Type         | Required | Description               |
+|------|------|--------------|----------|---------------------------|
+| `id` | path | string(uuid) | true     | Agent firewall session ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "confined_process": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+  "started_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentFirewallSession](schemas.md#codersdkagentfirewallsession) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get agent firewall session logs
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/agent-firewall/sessions/{id}/logs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/agent-firewall/sessions/{id}/logs`
+
+### Parameters
+
+| Name         | In    | Type         | Required | Description                                    |
+|--------------|-------|--------------|----------|------------------------------------------------|
+| `id`         | path  | string(uuid) | true     | Agent firewall session ID                      |
+| `seq_after`  | query | integer      | false    | Inclusive lower bound on sequence number       |
+| `seq_before` | query | integer      | false    | Exclusive upper bound on sequence number       |
+| `limit`      | query | integer      | false    | Maximum number of logs to return (default 100) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "results": [
+    {
+      "allowed": true,
+      "captured_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "detail": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "matched_rule": "string",
+      "method": "string",
+      "proto": "string",
+      "sequence_number": 0,
+      "session_id": "1ffd059c-17ea-40a8-8aef-70fd0307db82"
+    }
+  ]
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                           |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.AgentFirewallSessionLogsResponse](schemas.md#codersdkagentfirewallsessionlogsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## List AI Gateway keys
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/ai-gateway/keys`
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "key_prefix": "string",
+    "last_used_at": "2019-08-24T14:15:22Z",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                            |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.AIGatewayKey](schemas.md#codersdkaigatewaykey) |
+
+<h3 id="list-ai-gateway-keys-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name             | Type              | Required | Restrictions | Description |
+|------------------|-------------------|----------|--------------|-------------|
+| `[array item]`   | array             | false    |              |             |
+| `» created_at`   | string(date-time) | false    |              |             |
+| `» id`           | string(uuid)      | false    |              |             |
+| `» key_prefix`   | string            | false    |              |             |
+| `» last_used_at` | string(date-time) | false    |              |             |
+| `» name`         | string            | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Create AI Gateway key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/ai-gateway/keys \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/ai-gateway/keys`
+
+> Body parameter
+
+```json
+{
+  "name": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                               | Required | Description                   |
+|--------|------|------------------------------------------------------------------------------------|----------|-------------------------------|
+| `body` | body | [codersdk.CreateAIGatewayKeyRequest](schemas.md#codersdkcreateaigatewaykeyrequest) | true     | Create AI Gateway key request |
+
+### Example responses
+
+> 201 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "key": "string",
+  "key_prefix": "string",
+  "name": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                      | Description | Schema                                                                               |
+|--------|--------------------------------------------------------------|-------------|--------------------------------------------------------------------------------------|
+| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.CreateAIGatewayKeyResponse](schemas.md#codersdkcreateaigatewaykeyresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete AI Gateway key
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/ai-gateway/keys/{key} \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/ai-gateway/keys/{key}`
+
+### Parameters
+
+| Name  | In   | Type         | Required | Description |
+|-------|------|--------------|----------|-------------|
+| `key` | path | string(uuid) | true     | Key ID      |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get appearance
 
 ### Code samples
@@ -3418,6 +3638,125 @@ curl -X POST http://coder-server:8080/api/v2/templates/{template}/prebuilds/inva
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get user AI budget override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/users/{user}/ai/budget`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAIBudgetOverride](schemas.md#codersdkuseraibudgetoverride) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Upsert user AI budget override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PUT /api/v2/users/{user}/ai/budget`
+
+> Body parameter
+
+```json
+{
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                               | Required | Description                            |
+|--------|------|----------------------------------------------------------------------------------------------------|----------|----------------------------------------|
+| `user` | path | string                                                                                             | true     | User ID, username, or me               |
+| `body` | body | [codersdk.UpsertUserAIBudgetOverrideRequest](schemas.md#codersdkupsertuseraibudgetoverriderequest) | true     | Upsert user AI budget override request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "group_id": "306db4e0-7449-4501-b76f-075576fe2d8f",
+  "spend_limit_micros": 0,
+  "updated_at": "2019-08-24T14:15:22Z",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserAIBudgetOverride](schemas.md#codersdkuseraibudgetoverride) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Delete user AI budget override
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X DELETE http://coder-server:8080/api/v2/users/{user}/ai/budget \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`DELETE /api/v2/users/{user}/ai/budget`
+
+### Parameters
+
+| Name   | In   | Type   | Required | Description              |
+|--------|------|--------|----------|--------------------------|
+| `user` | path | string | true     | User ID, username, or me |
+
+### Responses
+
+| Status | Meaning                                                         | Description | Schema |
+|--------|-----------------------------------------------------------------|-------------|--------|
+| 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get user quiet hours schedule
 
 ### Code samples
@@ -4520,9 +4859,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description |
-|--------|------|----------------------------------------------|----------|-------------|
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | New user    |
+| Name   | In   | Type                                                 | Required | Description |
+|--------|------|------------------------------------------------------|----------|-------------|
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | New user    |
 
 ### Example responses
 
@@ -4559,9 +4898,9 @@ curl -X POST http://coder-server:8080/scim/v2/Users \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                       |
-|--------|---------------------------------------------------------|-------------|----------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [coderd.SCIMUser](schemas.md#coderdscimuser) |
+| Status | Meaning                                                 | Description | Schema                                               |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -4638,10 +4977,10 @@ curl -X PUT http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description          |
-|--------|------|----------------------------------------------|----------|----------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID              |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Replace user request |
+| Name   | In   | Type                                                 | Required | Description          |
+|--------|------|------------------------------------------------------|----------|----------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID              |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Replace user request |
 
 ### Example responses
 
@@ -4730,10 +5069,10 @@ curl -X PATCH http://coder-server:8080/scim/v2/Users/{id} \
 
 ### Parameters
 
-| Name   | In   | Type                                         | Required | Description         |
-|--------|------|----------------------------------------------|----------|---------------------|
-| `id`   | path | string(uuid)                                 | true     | User ID             |
-| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Update user request |
+| Name   | In   | Type                                                 | Required | Description         |
+|--------|------|------------------------------------------------------|----------|---------------------|
+| `id`   | path | string(uuid)                                         | true     | User ID             |
+| `body` | body | [legacyscim.SCIMUser](schemas.md#legacyscimscimuser) | true     | Update user request |
 
 ### Example responses
 

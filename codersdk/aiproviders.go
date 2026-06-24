@@ -188,8 +188,9 @@ type AIProviderKey struct {
 
 // CreateAIProviderRequest is the payload for creating a new AI
 // provider. Name and Type are required. APIKeys carries the plaintext
-// keys for OpenAI/Anthropic providers; Bedrock providers authenticate
-// via Settings and must omit APIKeys.
+// keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+// must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+// request-time GitHub OAuth tokens).
 type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
@@ -209,6 +210,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeAnthropic,
 		AIProviderTypeAzure,
 		AIProviderTypeBedrock,
+		AIProviderTypeCopilot,
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
@@ -224,10 +226,30 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
-	if req.Settings.Bedrock != nil && req.Type != AIProviderTypeAnthropic {
+	if req.Settings.Bedrock != nil &&
+		req.Type != AIProviderTypeAnthropic &&
+		req.Type != AIProviderTypeBedrock {
 		validations = append(validations, ValidationError{
 			Field:  "settings",
-			Detail: "bedrock settings are only valid for type=anthropic",
+			Detail: "bedrock settings are only valid for type=anthropic or type=bedrock",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "type=bedrock requires bedrock settings",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=bedrock does not accept api_keys",
+		})
+	}
+	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=copilot does not accept api_keys",
 		})
 	}
 	return validations

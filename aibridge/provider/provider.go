@@ -14,6 +14,11 @@ import (
 
 var ErrUnknownRoute = xerrors.New("unknown route")
 
+// ErrNoCredential is returned when a request resolves to centralized
+// authentication but the provider has no centralized keys configured (and the
+// request is not BYOK), so it cannot be authenticated.
+var ErrNoCredential = xerrors.New("no credential: request is not BYOK and the provider has no centralized keys")
+
 // Provider defines routes (bridged and passed through) for given provider.
 // Bridged routes are processed by dedicated interceptors.
 //
@@ -53,6 +58,8 @@ type Provider interface {
 	// Name returns the provider instance name.
 	// Defaults to Type() when not explicitly configured.
 	Name() string
+	// Enabled reports whether the provider should serve requests.
+	Enabled() bool
 	// BaseURL defines the base URL endpoint for this provider's API.
 	BaseURL() string
 
@@ -80,6 +87,10 @@ type Provider interface {
 	// KeyFailoverConfig returns the per-provider configuration for
 	// automatic key failover on passthrough routes.
 	KeyFailoverConfig(logger slog.Logger) keypool.KeyFailoverConfig
+
+	// KeyPool returns the provider's key pool for centralized keys, or nil
+	// when the provider is BYOK only.
+	KeyPool() *keypool.Pool
 
 	// CircuitBreakerConfig returns the circuit breaker configuration for the provider.
 	CircuitBreakerConfig() *config.CircuitBreaker

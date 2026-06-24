@@ -9,6 +9,9 @@ SUBCOMMANDS:
     create-admin-user           Create a new admin user with the given username,
                                 email and password and adds it to every
                                 organization.
+    fix-oidc-links              Reset OIDC linked IDs that do not match the
+                                expected issuer, allowing users to
+                                re-authenticate.
     postgres-builtin-serve      Run the built-in PostgreSQL deployment.
     postgres-builtin-url        Output the connection URL for the built-in
                                 PostgreSQL deployment.
@@ -113,40 +116,66 @@ AI GATEWAY OPTIONS:
           with AI budgets. "highest" selects the group with the largest spend
           limit, and is currently the only supported value.
 
+      --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
+          Base directory for dumping AI Bridge request/response pairs to disk
+          for debugging. When set, each provider writes under a subdirectory
+          named after the provider. Sensitive headers are redacted. Leave empty
+          to disable.
+
       --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
           Allow users to provide their own LLM API keys or subscriptions. When
           disabled, only centralized key authentication is permitted.
 
       --ai-gateway-anthropic-base-url string, $CODER_AI_GATEWAY_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
-          The base URL of the Anthropic API.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL of the Anthropic
+          API.
 
       --ai-gateway-anthropic-key string, $CODER_AI_GATEWAY_ANTHROPIC_KEY
-          The key to authenticate against the Anthropic API.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The key to authenticate
+          against the Anthropic API.
 
       --ai-gateway-bedrock-access-key string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY
-          The access key to authenticate against the AWS Bedrock API.
-
-      --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
-          The access key secret to use with the access key to authenticate
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The access key to authenticate
           against the AWS Bedrock API.
 
+      --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The access key secret to use
+          with the access key to authenticate against the AWS Bedrock API.
+
       --ai-gateway-bedrock-base-url string, $CODER_AI_GATEWAY_BEDROCK_BASE_URL
-          The base URL to use for the AWS Bedrock API. Use this setting to
-          specify an exact URL to use. Takes precedence over
-          CODER_AI_GATEWAY_BEDROCK_REGION.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL to use for the
+          AWS Bedrock API. Use this setting to specify an exact URL to use.
+          Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
 
       --ai-gateway-bedrock-model string, $CODER_AI_GATEWAY_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
-          The model to use when making requests to the AWS Bedrock API.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The model to use when making
+          requests to the AWS Bedrock API.
 
       --ai-gateway-bedrock-region string, $CODER_AI_GATEWAY_BEDROCK_REGION
-          The AWS Bedrock API region to use. Constructs a base URL to use for
-          the AWS Bedrock API in the form of
-          'https://bedrock-runtime.<region>.amazonaws.com'.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The AWS Bedrock API region to
+          use. Constructs a base URL to use for the AWS Bedrock API in the form
+          of 'https://bedrock-runtime.<region>.amazonaws.com'.
 
       --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
-          The small fast model to use when making requests to the AWS Bedrock
-          API. Claude Code uses Haiku-class models to perform background tasks.
-          See
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The small fast model to use
+          when making requests to the AWS Bedrock API. Claude Code uses
+          Haiku-class models to perform background tasks. See
           https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
 
       --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
@@ -165,10 +194,16 @@ AI GATEWAY OPTIONS:
           to disable (unlimited).
 
       --ai-gateway-openai-base-url string, $CODER_AI_GATEWAY_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
-          The base URL of the OpenAI API.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL of the OpenAI
+          API.
 
       --ai-gateway-openai-key string, $CODER_AI_GATEWAY_OPENAI_KEY
-          The key to authenticate against the OpenAI API.
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The key to authenticate
+          against the OpenAI API.
 
       --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)
           Maximum number of AI Gateway requests per second per replica. Set to 0
@@ -256,8 +291,12 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
           Provide options in "key=value" or "key value" format separated by
-          commas.Using this incorrectly can break SSH to your deployment, use
-          cautiously.
+          commas. Using this incorrectly can break SSH to your deployment, use
+          cautiously. The following options are not allowed: Host, Match,
+          Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand,
+          RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider,
+          SmartcardDevice, XAuthLocation. Option values must not contain
+          newline, carriage return, or NUL characters.
 
       --web-terminal-renderer string, $CODER_WEB_TERMINAL_RENDERER (default: canvas)
           The renderer to use when opening a web terminal. Valid values are
@@ -266,7 +305,8 @@ Clients include the Coder CLI, Coder Desktop, IDE extensions, and the web UI.
       --workspace-hostname-suffix string, $CODER_WORKSPACE_HOSTNAME_SUFFIX (default: coder)
           Workspace hostnames use this suffix in SSH config and Coder Connect on
           Coder Desktop. By default it is coder, resulting in names like
-          myworkspace.coder.
+          myworkspace.coder. The suffix must not start with a dot, and must not
+          contain spaces, newlines, or glob characters (* and ?).
 
 CONFIG OPTIONS: 
 Use a YAML configuration file when your server launch become unwieldy.
@@ -417,8 +457,8 @@ NETWORKING OPTIONS:
           True-Client-Ip, X-Forwarded-For.
 
       --proxy-trusted-origins string-array, $CODER_PROXY_TRUSTED_ORIGINS
-          Origin addresses to respect "proxy-trusted-headers". e.g.
-          192.168.1.0/24.
+          Origin addresses to respect "proxy-trusted-headers" and
+          X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.
 
       --redirect-to-access-url bool, $CODER_REDIRECT_TO_ACCESS_URL
           Specifies whether to redirect requests that do not match the access
@@ -841,6 +881,12 @@ that data type.
           indefinitely). We advise keeping audit logs for at least a year, and
           in accordance with your compliance requirements.
 
+      --boundary-log-retention duration, $CODER_BOUNDARY_LOG_RETENTION (default: 0)
+          How long boundary audit log entries are retained. Boundary logs record
+          HTTP requests processed by a Boundary confinement proxy. Set to 0 to
+          disable automatic deletion (keep indefinitely). Adjust to match your
+          organization's regulatory requirements.
+
       --connection-logs-retention duration, $CODER_CONNECTION_LOGS_RETENTION (default: 0)
           How long connection log entries are retained. Set to 0 to disable
           (keep indefinitely).
@@ -865,7 +911,7 @@ TEMPLATE BUILDER OPTIONS:
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
-      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The base URL of the module registry used by the template builder for
           module source paths.
 
@@ -935,6 +981,10 @@ These options are only available in the Enterprise Edition.
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM
           server. New users are automatically created with OIDC authentication.
+
+      --scim-use-legacy bool, $CODER_SCIM_USE_LEGACY (default: true)
+          Use the legacy SCIM implementation instead of the SCIM 2.0 handler.
+          This is provided for backward compatibility for existing users.
 
 ———
 Run `coder --help` for a list of global options.

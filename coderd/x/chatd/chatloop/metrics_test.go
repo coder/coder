@@ -4,7 +4,6 @@ import (
 	"context"
 	"strconv"
 	"testing"
-	"time"
 
 	"charm.land/fantasy"
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -293,9 +291,10 @@ func TestRecordStreamRetry(t *testing.T) {
 		{name: "overloaded", kind: codersdk.ChatErrorKindOverloaded},
 		{name: "rate_limit", kind: codersdk.ChatErrorKindRateLimit},
 		{name: "timeout", kind: codersdk.ChatErrorKindTimeout},
-		{name: "startup_timeout", kind: codersdk.ChatErrorKindStartupTimeout},
+		{name: "stream_silence_timeout", kind: codersdk.ChatErrorKindStreamSilenceTimeout},
 		{name: "auth", kind: codersdk.ChatErrorKindAuth},
 		{name: "config", kind: codersdk.ChatErrorKindConfig},
+		{name: "missing_key", kind: codersdk.ChatErrorKindMissingKey},
 		{name: "generic", kind: codersdk.ChatErrorKindGeneric},
 		{name: "chain_broken", kind: codersdk.ChatErrorKindGeneric, chainBroken: true},
 	}
@@ -410,116 +409,11 @@ func TestRecordToolError(t *testing.T) {
 	})
 }
 
-func TestRun_RecordsMetrics(t *testing.T) {
+func TestGenerateAssistant_StreamRetryRecordsMetric(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
 	metrics := chatloop.NewMetrics(reg)
-
-	model := &chattest.FakeModel{
-		ProviderName: "test-provider",
-		ModelName:    "test-model",
-		StreamFn: func(_ context.Context, call fantasy.Call) (fantasy.StreamResponse, error) {
-			return func(yield func(fantasy.StreamPart) bool) {
-				parts := []fantasy.StreamPart{
-					{Type: fantasy.StreamPartTypeTextStart, ID: "t1"},
-					{Type: fantasy.StreamPartTypeTextDelta, ID: "t1", Delta: "hello"},
-					{Type: fantasy.StreamPartTypeTextEnd, ID: "t1"},
-					{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
-				}
-				for _, p := range parts {
-					if !yield(p) {
-						return
-					}
-				}
-			}, nil
-		},
-	}
-
-	err := chatloop.Run(context.Background(), chatloop.RunOptions{
-		Model: model,
-		Messages: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "hello"},
-				},
-			},
-		},
-		MaxSteps: 1,
-		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-			return nil
-		},
-		Metrics: metrics,
-	})
-	require.NoError(t, err)
-
-	families, err := reg.Gather()
-	require.NoError(t, err)
-
-	assertProviderModelLabels := func(t *testing.T, metric *dto.Metric) {
-		t.Helper()
-		labels := map[string]string{}
-		for _, lp := range metric.GetLabel() {
-			labels[lp.GetName()] = lp.GetValue()
-		}
-		assert.Equal(t, "test-provider", labels["provider"])
-		assert.Equal(t, "test-model", labels["model"])
-	}
-
-	found := make(map[string]bool)
-	for _, f := range families {
-		found[f.GetName()] = true
-
-		switch f.GetName() {
-		case "coderd_chatd_steps_total":
-			require.Len(t, f.GetMetric(), 1)
-			assert.Equal(t, float64(1), f.GetMetric()[0].GetCounter().GetValue(),
-				"steps_total should be 1 after one step")
-			assertProviderModelLabels(t, f.GetMetric()[0])
-		case "coderd_chatd_message_count":
-			require.Len(t, f.GetMetric(), 1)
-			assert.Equal(t, uint64(1), f.GetMetric()[0].GetHistogram().GetSampleCount(),
-				"message_count should have 1 observation")
-			assertProviderModelLabels(t, f.GetMetric()[0])
-		case "coderd_chatd_prompt_size_bytes":
-			require.Len(t, f.GetMetric(), 1)
-			assert.Equal(t, uint64(1), f.GetMetric()[0].GetHistogram().GetSampleCount(),
-				"prompt_size_bytes should have 1 observation")
-			assertProviderModelLabels(t, f.GetMetric()[0])
-		case "coderd_chatd_ttft_seconds":
-			require.Len(t, f.GetMetric(), 1)
-			assert.Equal(t, uint64(1), f.GetMetric()[0].GetHistogram().GetSampleCount(),
-				"ttft_seconds should have 1 observation")
-			assertProviderModelLabels(t, f.GetMetric()[0])
-		}
-	}
-
-	assert.True(t, found["coderd_chatd_steps_total"], "steps_total not recorded")
-	assert.True(t, found["coderd_chatd_message_count"], "message_count not recorded")
-	assert.True(t, found["coderd_chatd_prompt_size_bytes"], "prompt_size_bytes not recorded")
-	assert.True(t, found["coderd_chatd_ttft_seconds"], "ttft_seconds not recorded")
-}
-
-// TestRun_StreamRetry_RecordsMetric exercises the end-to-end retry
-// path: a retryable error on the first Stream call, success on the
-// second. Asserts both the metric and the back-compat OnRetry
-// callback fire.
-//
-// Note: chatretry.Retry uses time.NewTimer (not quartz.Clock), so
-// this test pays chatretry.InitialDelay (1s) of real wall-clock
-// time per retry. Keep it to one retry.
-func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
-	t.Parallel()
-
-	reg := prometheus.NewRegistry()
-	metrics := chatloop.NewMetrics(reg)
-
-	type retryCall struct {
-		attempt    int
-		classified chatretry.ClassifiedError
-	}
-	var retries []retryCall
 
 	calls := 0
 	model := &chattest.FakeModel{
@@ -528,7 +422,14 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
 			calls++
 			if calls == 1 {
-				return nil, xerrors.New("received status 429 from upstream")
+				return nil, chaterror.WithClassification(
+					xerrors.New("received status 429 from upstream"),
+					chaterror.ClassifiedError{
+						Kind:      codersdk.ChatErrorKindRateLimit,
+						Provider:  "test-provider",
+						Retryable: true,
+					},
+				)
 			}
 			return func(yield func(fantasy.StreamPart) bool) {
 				yield(fantasy.StreamPart{
@@ -539,35 +440,18 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 		},
 	}
 
-	err := chatloop.Run(context.Background(), chatloop.RunOptions{
-		Model:                model,
-		MaxSteps:             1,
-		ContextLimitFallback: 4096,
-		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-			return nil
-		},
-		Metrics: metrics,
-		OnRetry: func(
-			attempt int,
-			_ error,
-			classified chatretry.ClassifiedError,
-			_ time.Duration,
-		) {
-			retries = append(retries, retryCall{
-				attempt:    attempt,
-				classified: classified,
-			})
-		},
+	_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model: model,
+		// ErrorProvider diverges from the transport provider. Error copy must
+		// use it while the retry metric stays on the transport provider.
+		ErrorProvider: "bedrock",
+		Metrics:       metrics,
 	})
-	require.NoError(t, err)
-
-	// Back-compat: OnRetry still fires with classified error.
-	require.Len(t, retries, 1)
-	assert.Equal(t, 1, retries[0].attempt)
-	assert.Equal(t, codersdk.ChatErrorKindRateLimit, retries[0].classified.Kind)
-	assert.Equal(t, "test-provider", retries[0].classified.Provider)
-
-	// Metric assertion.
+	require.Error(t, err)
+	require.Equal(t, 1, calls)
+	// Error classification uses the configured provider.
+	require.Equal(t, "bedrock", chaterror.Classify(err).Provider)
+	// Retry metric keeps the transport provider label, not "bedrock".
 	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
 		"provider":     "test-provider",
 		"model":        "test-model",
@@ -576,149 +460,36 @@ func TestRun_StreamRetry_RecordsMetric(t *testing.T) {
 	})
 }
 
-// TestRun_StreamRetry_CanceledDoesNotIncrement pins the invariant
-// that canceled streams never increment stream_retries_total.
-// chaterror.Classify routes context.Canceled to
-// ClassifiedError{Retryable: false}, so chatretry.Retry returns
-// immediately without calling onRetry. This test guards against
-// future classification changes that could silently introduce
-// misleading retry samples.
-func TestRun_StreamRetry_CanceledDoesNotIncrement(t *testing.T) {
+// TestGenerateAssistant_StreamRetry_ContextCanceledTransportResetIncrements pins the
+// invariant that provider-originated context cancellation is counted as a
+// retryable transport reset when the chat context is still alive.
+func TestGenerateAssistant_StreamRetry_ContextCanceledTransportResetIncrements(t *testing.T) {
 	t.Parallel()
 
 	reg := prometheus.NewRegistry()
 	metrics := chatloop.NewMetrics(reg)
 
+	attempts := 0
 	model := &chattest.FakeModel{
 		ProviderName: "test-provider",
 		ModelName:    "test-model",
 		StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
+			attempts++
 			return nil, context.Canceled
 		},
 	}
 
-	err := chatloop.Run(context.Background(), chatloop.RunOptions{
-		Model:                model,
-		MaxSteps:             1,
-		ContextLimitFallback: 4096,
-		PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-			return nil
-		},
+	_, err := chatloop.GenerateAssistant(context.Background(), chatloop.GenerateAssistantOptions{
+		Model:   model,
 		Metrics: metrics,
 	})
-	// Expect an error (the stream failed); we don't care which error
-	// kind as long as no retry was recorded.
 	require.Error(t, err)
+	require.Equal(t, 1, attempts)
 
-	families, err := reg.Gather()
-	require.NoError(t, err)
-
-	for _, f := range families {
-		if f.GetName() == "coderd_chatd_stream_retries_total" {
-			assert.Empty(t, f.GetMetric(),
-				"stream_retries_total should have no samples after a canceled stream")
-		}
-	}
-}
-
-func TestRun_ToolError_RecordsMetric(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name             string
-		toolFn           func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error)
-		builtinToolNames map[string]bool
-		wantLabel        string
-	}{
-		{
-			name: "builtin_tool_IsError",
-			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{
-					Content: "something went wrong",
-					IsError: true,
-				}, nil
-			},
-			builtinToolNames: map[string]bool{"failing_tool": true},
-			wantLabel:        "failing_tool",
-		},
-		{
-			name: "mcp_tool_IsError",
-			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{
-					Content: "something went wrong",
-					IsError: true,
-				}, nil
-			},
-			builtinToolNames: map[string]bool{},
-			wantLabel:        "failing_tool",
-		},
-		{
-			name: "tool_Run_returns_error",
-			toolFn: func(_ context.Context, _ struct{}, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-				return fantasy.ToolResponse{}, xerrors.New("connection refused")
-			},
-			builtinToolNames: map[string]bool{"failing_tool": true},
-			wantLabel:        "failing_tool",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			reg := prometheus.NewRegistry()
-			metrics := chatloop.NewMetrics(reg)
-
-			failingTool := fantasy.NewAgentTool(
-				"failing_tool",
-				"a tool that always fails",
-				tt.toolFn,
-			)
-
-			model := &chattest.FakeModel{
-				ProviderName: "test-provider",
-				ModelName:    "test-model",
-				StreamFn: func(_ context.Context, _ fantasy.Call) (fantasy.StreamResponse, error) {
-					return func(yield func(fantasy.StreamPart) bool) {
-						parts := []fantasy.StreamPart{
-							{Type: fantasy.StreamPartTypeToolInputStart, ID: "tc1", ToolCallName: "failing_tool"},
-							{Type: fantasy.StreamPartTypeToolInputDelta, ID: "tc1", Delta: `{}`},
-							{Type: fantasy.StreamPartTypeToolInputEnd, ID: "tc1"},
-							{
-								Type:          fantasy.StreamPartTypeToolCall,
-								ID:            "tc1",
-								ToolCallName:  "failing_tool",
-								ToolCallInput: `{}`,
-							},
-							{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonToolCalls},
-						}
-						for _, p := range parts {
-							if !yield(p) {
-								return
-							}
-						}
-					}, nil
-				},
-			}
-
-			err := chatloop.Run(context.Background(), chatloop.RunOptions{
-				Model:            model,
-				MaxSteps:         1,
-				Tools:            []fantasy.AgentTool{failingTool},
-				ActiveTools:      []string{"failing_tool"},
-				BuiltinToolNames: tt.builtinToolNames,
-				PersistStep: func(_ context.Context, _ chatloop.PersistedStep) error {
-					return nil
-				},
-				Metrics: metrics,
-			})
-			require.NoError(t, err)
-
-			requireCounter(t, reg, "coderd_chatd_tool_errors_total", 1, map[string]string{
-				"provider":  "test-provider",
-				"model":     "test-model",
-				"tool_name": tt.wantLabel,
-			})
-		})
-	}
+	requireCounter(t, reg, "coderd_chatd_stream_retries_total", 1, map[string]string{
+		"provider":     "test-provider",
+		"model":        "test-model",
+		"kind":         string(codersdk.ChatErrorKindTimeout),
+		"chain_broken": "false",
+	})
 }

@@ -17,6 +17,7 @@ import type {
 	WorkspaceAgent,
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
+	WorkspaceAgentListeningPortsResponse,
 	WorkspaceAgentLog,
 	WorkspaceBuild,
 	WorkspaceBuildParameter,
@@ -148,6 +149,7 @@ type AutoCreateWorkspaceOptions = {
 	match: string | null;
 	templateVersionId?: string;
 	buildParameters?: WorkspaceBuildParameter[];
+	templateVersionPresetId?: string;
 };
 
 export const autoCreateWorkspace = (queryClient: QueryClient) => {
@@ -158,6 +160,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 			workspaceName,
 			templateVersionId,
 			buildParameters,
+			templateVersionPresetId,
 			match,
 		}: AutoCreateWorkspaceOptions) => {
 			if (match) {
@@ -185,6 +188,7 @@ export const autoCreateWorkspace = (queryClient: QueryClient) => {
 				...templateVersionParameters,
 				name: workspaceName,
 				rich_parameter_values: buildParameters,
+				template_version_preset_id: templateVersionPresetId,
 			});
 		},
 		onSuccess: async () => {
@@ -492,6 +496,13 @@ export const agentLogs = (agentId: string) => {
 		queryFn: () => API.getWorkspaceAgentLogs(agentId),
 		...disabledRefetchOptions,
 	} satisfies UseQueryOptions<WorkspaceAgentLog[]>;
+};
+
+export const agentListeningPorts = (agentId: string) => {
+	return {
+		queryKey: ["portForward", agentId],
+		queryFn: () => API.getAgentListeningPorts(agentId),
+	} satisfies UseQueryOptions<WorkspaceAgentListeningPortsResponse>;
 };
 
 // workspace usage options

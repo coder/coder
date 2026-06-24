@@ -84,21 +84,41 @@ type AuditableGroup struct {
 	Members []GroupMemberTable `json:"members"`
 }
 
-// AuditableGroupAiBudget is the audit-log representation of GroupAiBudget.
+// AuditableGroupAIBudget is the audit-log representation of GroupAIBudget.
 // It enriches the raw record with the group's name and a human-readable
 // spend limit so audit entries can display meaningful values instead of
 // UUIDs and micros.
-type AuditableGroupAiBudget struct {
-	GroupAiBudget
+type AuditableGroupAIBudget struct {
+	GroupAIBudget
 	GroupName  string `json:"group_name"`
 	SpendLimit string `json:"spend_limit"`
 }
 
-func (b GroupAiBudget) Auditable(groupName string) AuditableGroupAiBudget {
-	return AuditableGroupAiBudget{
-		GroupAiBudget: b,
+func (b GroupAIBudget) Auditable(groupName string) AuditableGroupAIBudget {
+	return AuditableGroupAIBudget{
+		GroupAIBudget: b,
 		GroupName:     groupName,
 		SpendLimit:    fmt.Sprintf("$%.2f", float64(b.SpendLimitMicros)/1_000_000),
+	}
+}
+
+// AuditableUserAIBudgetOverride is the audit-log representation of
+// UserAIBudgetOverride. It enriches the raw record with the username, the
+// attributed group's name, and a human-readable spend limit so audit
+// entries can display meaningful values instead of UUIDs and micros.
+type AuditableUserAIBudgetOverride struct {
+	UserAIBudgetOverride
+	Username   string `json:"username"`
+	GroupName  string `json:"group_name"`
+	SpendLimit string `json:"spend_limit"`
+}
+
+func (o UserAIBudgetOverride) Auditable(username, groupName string) AuditableUserAIBudgetOverride {
+	return AuditableUserAIBudgetOverride{
+		UserAIBudgetOverride: o,
+		Username:             username,
+		GroupName:            groupName,
+		SpendLimit:           fmt.Sprintf("$%.2f", float64(o.SpendLimitMicros)/1_000_000),
 	}
 }
 

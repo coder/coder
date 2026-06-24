@@ -56,14 +56,14 @@ type msgOrErr struct {
 	err error
 }
 
-// msgQueue implements a fixed length queue with the ability to replace elements
+// MsgQueue implements a fixed length queue with the ability to replace elements
 // after they are queued (but before they are dequeued).
 //
 // The purpose of this data structure is to build something that works a bit
 // like a golang channel, but if the queue is full, then we can replace the
 // last element with an error so that the subscriber can get notified that some
 // messages were dropped, all without blocking.
-type msgQueue struct {
+type MsgQueue struct {
 	ctx    context.Context
 	cond   *sync.Cond
 	q      [BufferSize]msgOrErr
@@ -74,11 +74,11 @@ type msgQueue struct {
 	le     ListenerWithErr
 }
 
-func newMsgQueue(ctx context.Context, l Listener, le ListenerWithErr) *msgQueue {
+func NewMsgQueue(ctx context.Context, l Listener, le ListenerWithErr) *MsgQueue {
 	if l == nil && le == nil {
 		panic("l or le must be non-nil")
 	}
-	q := &msgQueue{
+	q := &MsgQueue{
 		ctx:  ctx,
 		cond: sync.NewCond(&sync.Mutex{}),
 		l:    l,
@@ -88,7 +88,7 @@ func newMsgQueue(ctx context.Context, l Listener, le ListenerWithErr) *msgQueue 
 	return q
 }
 
-func (q *msgQueue) run() {
+func (q *MsgQueue) run() {
 	for {
 		// wait until there is something on the queue or we are closed
 		q.cond.L.Lock()
@@ -125,7 +125,7 @@ func (q *msgQueue) run() {
 	}
 }
 
-func (q *msgQueue) enqueue(msg []byte) {
+func (q *MsgQueue) Enqueue(msg []byte) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
@@ -149,15 +149,15 @@ func (q *msgQueue) enqueue(msg []byte) {
 	q.cond.Broadcast()
 }
 
-func (q *msgQueue) close() {
+func (q *MsgQueue) Close() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 	defer q.cond.Broadcast()
 	q.closed = true
 }
 
-// dropped records an error in the queue that messages might have been dropped
-func (q *msgQueue) dropped() {
+// Dropped records an error in the queue that messages might have been Dropped
+func (q *MsgQueue) Dropped() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 
@@ -195,7 +195,7 @@ func (l pqListenerShim) NotifyChan() <-chan *pq.Notification {
 }
 
 type queueSet struct {
-	m map[*msgQueue]struct{}
+	m map[*MsgQueue]struct{}
 	// unlistenInProgress will be non-nil if another goroutine is unlistening for the event this
 	// queueSet corresponds to. If non-nil, that goroutine will close the channel when it is done.
 	unlistenInProgress chan struct{}
@@ -203,7 +203,7 @@ type queueSet struct {
 
 func newQueueSet() *queueSet {
 	return &queueSet{
-		m: make(map[*msgQueue]struct{}),
+		m: make(map[*MsgQueue]struct{}),
 	}
 }
 
@@ -243,19 +243,19 @@ const BufferSize = 2048
 
 // Subscribe calls the listener when an event matching the name is received.
 func (p *PGPubsub) Subscribe(event string, listener Listener) (cancel func(), err error) {
-	return p.subscribeQueue(event, newMsgQueue(context.Background(), listener, nil))
+	return p.subscribeQueue(event, NewMsgQueue(context.Background(), listener, nil))
 }
 
 func (p *PGPubsub) SubscribeWithErr(event string, listener ListenerWithErr) (cancel func(), err error) {
-	return p.subscribeQueue(event, newMsgQueue(context.Background(), nil, listener))
+	return p.subscribeQueue(event, NewMsgQueue(context.Background(), nil, listener))
 }
 
-func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), err error) {
+func (p *PGPubsub) subscribeQueue(event string, newQ *MsgQueue) (cancel func(), err error) {
 	defer func() {
 		if err != nil {
 			// if we hit an error, we need to close the queue so we don't
 			// leak its goroutine.
-			newQ.close()
+			newQ.Close()
 			p.subscribesTotal.WithLabelValues("false").Inc()
 		} else {
 			p.subscribesTotal.WithLabelValues("true").Inc()
@@ -325,7 +325,7 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), 
 		func() {
 			p.qMu.Lock()
 			defer p.qMu.Unlock()
-			newQ.close()
+			newQ.Close()
 			qSet, ok := p.queues[event]
 			if !ok {
 				p.logger.Critical(context.Background(), "event was removed before cancel", slog.F("event", event))
@@ -421,9 +421,9 @@ func (p *PGPubsub) listen() {
 }
 
 func (p *PGPubsub) listenReceive(notif *pq.Notification) {
-	sizeLabel := messageSizeNormal
-	if len(notif.Extra) >= colossalThreshold {
-		sizeLabel = messageSizeColossal
+	sizeLabel := MessageSizeNormal
+	if len(notif.Extra) >= ColossalThreshold {
+		sizeLabel = MessageSizeColossal
 	}
 	p.messagesTotal.WithLabelValues(sizeLabel).Inc()
 	p.receivedBytesTotal.Add(float64(len(notif.Extra)))
@@ -436,7 +436,7 @@ func (p *PGPubsub) listenReceive(notif *pq.Notification) {
 	}
 	extra := []byte(notif.Extra)
 	for q := range qSet.m {
-		q.enqueue(extra)
+		q.Enqueue(extra)
 	}
 }
 
@@ -445,7 +445,7 @@ func (p *PGPubsub) recordReconnect() {
 	defer p.qMu.Unlock()
 	for _, qSet := range p.queues {
 		for q := range qSet.m {
-			q.dropped()
+			q.Dropped()
 		}
 	}
 }
@@ -614,10 +614,14 @@ var (
 // notify limit. If we see a lot of colossal packets that's an indication that
 // we might be trying to send too much data over the pubsub and are in danger of
 // failing to publish.
+//
+// These are exported so other pubsub implementations (e.g. the NATS
+// pubsub) classify message size identically, keeping the messages_total
+// "size" label consistent across backends.
 const (
-	colossalThreshold   = 7600
-	messageSizeNormal   = "normal"
-	messageSizeColossal = "colossal"
+	ColossalThreshold   = 7600
+	MessageSizeNormal   = "normal"
+	MessageSizeColossal = "colossal"
 )
 
 // Describe implements, along with Collect, the prometheus.Collector interface

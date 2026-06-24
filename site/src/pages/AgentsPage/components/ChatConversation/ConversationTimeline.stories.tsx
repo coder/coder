@@ -236,6 +236,104 @@ const buildStoryArgs = (...messages: TypesGen.ChatMessage[]) => ({
 	parsedMessages: buildMessages(messages),
 });
 
+const buildParsedReadFileEntry = ({
+	messageId,
+	toolId,
+	path,
+	status,
+	content = "",
+	errorMessage,
+	isError = status === "error",
+}: {
+	messageId: number;
+	toolId: string;
+	path: string;
+	status: "completed" | "error" | "running";
+	content?: string;
+	errorMessage?: string;
+	isError?: boolean;
+}): ParsedMessageEntry => {
+	const args = { path };
+	const result =
+		content || errorMessage
+			? {
+					...(content ? { content } : {}),
+					...(errorMessage ? { error: errorMessage } : {}),
+				}
+			: undefined;
+
+	return {
+		message: {
+			...baseMessage,
+			id: messageId,
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					args,
+				},
+			],
+		},
+		parsed: {
+			markdown: "",
+			reasoning: "",
+			toolCalls: [{ id: toolId, name: "read_file", args }],
+			toolResults: [],
+			tools: [
+				{
+					id: toolId,
+					name: "read_file",
+					args,
+					result,
+					isError,
+					status,
+				},
+			],
+			blocks: [{ type: "tool", id: toolId }],
+			sources: [],
+		},
+	};
+};
+
+const buildReadFileExchange = (
+	callMessageId: number,
+	toolId: string,
+	path: string,
+	content: string,
+): TypesGen.ChatMessage[] => {
+	const args = { path };
+	return [
+		{
+			...baseMessage,
+			id: callMessageId,
+			role: "assistant",
+			content: [
+				{
+					type: "tool-call",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					args,
+				},
+			],
+		},
+		{
+			...baseMessage,
+			id: callMessageId + 1,
+			role: "tool",
+			content: [
+				{
+					type: "tool-result",
+					tool_call_id: toolId,
+					tool_name: "read_file",
+					result: { content },
+				},
+			],
+		},
+	];
+};
+
 const LONG_USER_MESSAGE = [
 	"This is a deliberately long user message that should stay pinned to the",
 	"right edge while the bubble stops short of filling the entire timeline",
@@ -298,13 +396,6 @@ const defaultArgs: Omit<
 const meta: Meta<typeof ConversationTimeline> = {
 	title: "pages/AgentsPage/ChatConversation/ConversationTimeline",
 	component: ConversationTimeline,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
 	beforeEach: () => {
 		attachmentFetchCounts = new Map();
 		mockAttachmentFetch();
@@ -312,6 +403,55 @@ const meta: Meta<typeof ConversationTimeline> = {
 };
 export default meta;
 type Story = StoryObj<typeof ConversationTimeline>;
+
+export const DurableListTemplatesToolLifecycle: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Show me available templates" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "list-templates-1",
+						tool_name: "list_templates",
+						args: {},
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "list-templates-1",
+						tool_name: "list_templates",
+						result: {
+							count: "1",
+							templates:
+								'[{"id":"template-1","name":"docker","display_name":"Docker"}]',
+						},
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getAllByText("Listed 1 template")).toHaveLength(1);
+		expect(canvas.queryByText("Listing templates…")).not.toBeInTheDocument();
+	},
+};
 
 /**
  * User bubbles should stay right-aligned, shrink to fit short content,
@@ -1482,6 +1622,64 @@ export const AssistantMessageCopyButton: Story = {
 	},
 };
 
+/**
+ * Assistant messages that end with a tool call get no copy button,
+ * because the action row would otherwise render directly below the
+ * tool row instead of below copyable text.
+ */
+export const NoCopyButtonAfterTrailingToolCall: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Run the tests" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Running the test suite now." },
+					{
+						type: "tool-call",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						args: { command: "make test" },
+					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "call-exec-1",
+						tool_name: "execute",
+						result: { output: "ok" },
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByText("Running the test suite now.");
+		// The assistant message ends with a tool call, so no copy button.
+		const actions = canvas.getAllByTestId("message-actions");
+		expect(actions).toHaveLength(1);
+		for (const actionRow of actions) {
+			expect(
+				within(actionRow).getByRole("button", { name: "Copy message" }),
+			).toBeInTheDocument();
+		}
+	},
+};
+
 /** Persisted ask-user-question answers survive reloads. */
 export const AskUserQuestionSubmittedAnswer: Story = {
 	args: {
@@ -1771,7 +1969,7 @@ export const MultiAssistantTurnCopyButton: Story = {
 };
 
 /**
- * Regression: thinking-only assistant messages must have consistent
+ * Thinking-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
  * gap that would normally come from the invisible action bar.
  */
@@ -1810,6 +2008,40 @@ export const ThinkingOnlyAssistantSpacing: Story = {
 		// it should still have visible text and a spacer element.
 		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
 		expect(canvas.getByText("Any progress?")).toBeInTheDocument();
+		expect(canvas.getByTestId("assistant-bottom-spacer")).toBeInTheDocument();
+	},
+};
+
+/** No following bubble to space against; the spacer would be a dangling blank. */
+export const NoSpacerAfterTrailingThinkingMessage: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "Explain this code" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "reasoning",
+						text: "Let me think about this step by step.",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Explain this code")).toBeInTheDocument();
+		expect(
+			canvas.queryByTestId("assistant-bottom-spacer"),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -2207,6 +2439,163 @@ export const ThinkingBlockAlwaysCollapsed: Story = {
 	},
 };
 
+export const SequentialReadFilesCollapsed: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "assistant",
+				content: [{ type: "text", text: "I'll inspect the relevant files." }],
+			},
+			...buildReadFileExchange(
+				2,
+				"read-1",
+				"site/src/a.ts",
+				"export const a = 1;",
+			),
+			...buildReadFileExchange(
+				4,
+				"read-2",
+				"site/src/b.ts",
+				"export const b = 2;",
+			),
+			...buildReadFileExchange(
+				6,
+				"read-3",
+				"site/src/c.ts",
+				"export const c = 3;",
+			),
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const groupButton = canvas.getByRole("button", { name: /read 3 files/i });
+		expect(groupButton).toBeInTheDocument();
+		expect(
+			canvas.queryByRole("button", { name: /read a\.ts/i }),
+		).not.toBeInTheDocument();
+		await userEvent.click(groupButton);
+		await waitFor(() => {
+			expect(canvas.getByRole("button", { name: /read a\.ts/i })).toBeVisible();
+			expect(canvas.getByRole("button", { name: /read b\.ts/i })).toBeVisible();
+			expect(canvas.getByRole("button", { name: /read c\.ts/i })).toBeVisible();
+		});
+		const firstFileButton = canvas.getByRole("button", { name: /read a\.ts/i });
+		expect(firstFileButton).toHaveAttribute("aria-expanded", "false");
+
+		await userEvent.click(firstFileButton);
+		await waitFor(() => {
+			expect(firstFileButton).toHaveAttribute("aria-expanded", "true");
+		});
+	},
+};
+
+export const SequentialReadFilesEmptyAndErrorStates: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-empty-1",
+				path: "site/src/empty-a.ts",
+				status: "completed",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-empty-2",
+				path: "site/src/empty-b.ts",
+				status: "completed",
+			}),
+			...buildMessages([
+				{
+					...baseMessage,
+					id: 3,
+					role: "assistant",
+					content: [{ type: "text", text: "Trying a different file set." }],
+				},
+			]),
+			buildParsedReadFileEntry({
+				messageId: 4,
+				toolId: "read-error-1",
+				path: "site/src/missing-a.ts",
+				status: "error",
+				errorMessage: "ENOENT: no such file or directory",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 5,
+				toolId: "read-error-2",
+				path: "site/src/missing-b.ts",
+				status: "error",
+				errorMessage: "permission denied",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const buttons = canvas.getAllByRole("button", { name: /read 2 files/i });
+		expect(buttons).toHaveLength(2);
+
+		await userEvent.click(buttons[0]);
+		await waitFor(() => {
+			expect(canvas.getByText("Read empty-a.ts")).toBeVisible();
+			expect(canvas.getByText("Read empty-b.ts")).toBeVisible();
+		});
+
+		await userEvent.click(buttons[1]);
+		await waitFor(() => {
+			expect(
+				canvas.getByRole("button", { name: /read missing-a\.ts/i }),
+			).toBeVisible();
+			expect(
+				canvas.getByRole("button", { name: /read missing-b\.ts/i }),
+			).toBeVisible();
+		});
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /read missing-a\.ts/i }),
+		);
+		await waitFor(() => {
+			expect(
+				canvas.getByText("ENOENT: no such file or directory"),
+			).toBeVisible();
+		});
+	},
+};
+
+export const SequentialReadFilesRunningState: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: [
+			buildParsedReadFileEntry({
+				messageId: 1,
+				toolId: "read-running-1",
+				path: "site/src/one.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 2,
+				toolId: "read-running-2",
+				path: "site/src/two.ts",
+				status: "running",
+			}),
+			buildParsedReadFileEntry({
+				messageId: 3,
+				toolId: "read-running-3",
+				path: "site/src/three.ts",
+				status: "running",
+			}),
+		] satisfies ParsedMessageEntry[],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /reading 3 files/i }),
+		).toBeInTheDocument();
+	},
+};
+
 /** Collapsed thinking should visually align with adjacent tool calls. */
 export const ThinkingBlockWithToolCall: Story = {
 	parameters: {
@@ -2268,14 +2657,16 @@ export const ThinkingBlockWithToolCall: Story = {
 		const toolButton = canvas.getByRole("button", {
 			name: /read package\.json/i,
 		});
-		const thinkingContainer = thinkingButton.closest("[data-transcript-row]");
-		const toolContainer = toolButton.closest("[data-transcript-row]");
-		expect(thinkingContainer).toBeInstanceOf(HTMLElement);
-		expect(toolContainer).toBeInstanceOf(HTMLElement);
-		expect(toolContainer?.firstElementChild).not.toHaveAttribute("data-state");
-		expect(thinkingContainer?.firstElementChild).not.toHaveAttribute(
-			"data-state",
-		);
+		const thinkingContainer =
+			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton;
+		const toolContainer =
+			toolButton.closest("[data-transcript-row]") ?? toolButton;
+		expect(
+			toolContainer.firstElementChild ?? toolContainer,
+		).not.toHaveAttribute("data-state");
+		expect(
+			thinkingContainer.firstElementChild ?? thinkingContainer,
+		).not.toHaveAttribute("data-state");
 		expect(
 			canvas.queryByTestId("assistant-bottom-spacer"),
 		).not.toBeInTheDocument();
@@ -2362,30 +2753,20 @@ export const ThinkingBlockWithShellTools: Story = {
 			name: /expand process output/i,
 		});
 
-		const thinkingRow = thinkingButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
-		const executeRow = executeButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
-		const processOutputRow = processOutputButton.closest(
-			"[data-transcript-row]",
-		)?.firstElementChild;
+		const wrappers = [
+			thinkingButton.closest("[data-transcript-row]") ?? thinkingButton,
+			executeButton.closest("[data-transcript-row]") ?? executeButton,
+			processOutputButton.closest("[data-transcript-row]") ??
+				processOutputButton,
+		];
 
-		expect(thinkingRow).toBeInstanceOf(HTMLElement);
-		expect(executeRow).toBeInstanceOf(HTMLElement);
-		expect(processOutputRow).toBeInstanceOf(HTMLElement);
-
-		const rowHeights = [thinkingRow, executeRow, processOutputRow].map((row) =>
-			Math.round((row as HTMLElement).getBoundingClientRect().height),
+		const rows = wrappers.map(
+			(wrapper) => wrapper.firstElementChild ?? wrapper,
+		);
+		const rowHeights = rows.map((row) =>
+			Math.round(row.getBoundingClientRect().height),
 		);
 		expect(new Set(rowHeights)).toHaveLength(1);
-
-		const wrappers = [
-			thinkingButton.closest("[data-transcript-row]"),
-			executeButton.closest("[data-transcript-row]"),
-			processOutputButton.closest("[data-transcript-row]"),
-		].map((row) => row as HTMLElement);
 		const gaps = [
 			Math.round(
 				wrappers[1].getBoundingClientRect().top -

@@ -1,0 +1,27 @@
+{
+	"id": "kubernetes",
+	"display_name": "Kubernetes",
+	"os": "linux",
+	"default_context": {
+		"container_image": "codercom/enterprise-base:ubuntu"
+	},
+	"variables": [
+		{
+			"name": "use_kubeconfig",
+			"type": "bool",
+			"description": "Use host kubeconfig. Set to true if the Coder host is running outside the Kubernetes cluster for workspaces.",
+			"default": false,
+			"required": false,
+			"sensitive": false,
+			"computed": false
+		},
+		{
+			"name": "namespace",
+			"type": "string",
+			"description": "The Kubernetes namespace to create workspaces in. Must exist prior to creating workspaces.",
+			"required": true,
+			"sensitive": false,
+			"computed": false
+		}
+	]
+}

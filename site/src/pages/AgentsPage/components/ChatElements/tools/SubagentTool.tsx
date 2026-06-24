@@ -1,6 +1,5 @@
 import {
 	BotIcon,
-	ChevronDownIcon,
 	CircleXIcon,
 	ClockIcon,
 	ExternalLinkIcon,
@@ -11,20 +10,14 @@ import type React from "react";
 import { useState } from "react";
 import { Link, useLocation } from "react-router";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import { cn } from "#/utils/cn";
 import { safeBuildAgentChatPath } from "../../../utils/navigation";
 import { Response } from "../Response";
-import { Shimmer } from "../Shimmer";
-import { TranscriptRow } from "../TranscriptRow";
 import { useDesktopPanel } from "./DesktopPanelContext";
 import { InlineDesktopPreview } from "./InlineDesktopPreview";
 import { RecordingPreview } from "./RecordingPreview";
 import type { SubagentAction, SubagentDescriptor } from "./subagentDescriptor";
-import {
-	isSubagentSuccessStatus,
-	shortDurationMs,
-	type ToolStatus,
-} from "./utils";
+import { ToolCall } from "./ToolCall";
+import { isSubagentSuccessStatus, type ToolStatus } from "./utils";
 
 const SUBAGENT_VERBS: Record<
 	SubagentAction,
@@ -68,11 +61,7 @@ function getSubagentLabel(
 	isTimeout: boolean,
 ): React.ReactNode {
 	if (showDesktopPreview && toolStatus === "running") {
-		return (
-			<Shimmer as="span" className="text-[13px]">
-				Using the computer...
-			</Shimmer>
-		);
+		return "Using the computer...";
 	}
 	if (
 		descriptor.variant === "computer_use" &&
@@ -125,20 +114,22 @@ const SubagentStatusIcon: React.FC<{
 	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const DefaultIcon = iconKind === "monitor" ? MonitorIcon : BotIcon;
 	if (isTimeout && !subagentCompleted) {
-		return <ClockIcon className="size-4 shrink-0 text-current" />;
+		return <ClockIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 	}
 	if ((isError && !subagentCompleted) || toolStatus === "error") {
 		return <CircleXIcon className="size-4 shrink-0 text-current" />;
 	}
 	if (toolStatus === "running") {
 		if (showDesktopPreview) {
-			return <MonitorIcon className="size-4 shrink-0 text-current" />;
+			return (
+				<MonitorIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
+			);
 		}
 		return (
 			<LoaderIcon className="size-4 shrink-0 animate-spin motion-reduce:animate-none text-content-link" />
 		);
 	}
-	return <DefaultIcon className="size-4 shrink-0 text-current" />;
+	return <DefaultIcon className="size-4 shrink-0 stroke-[1.5] text-current" />;
 };
 
 /**
@@ -154,7 +145,6 @@ export const SubagentTool: React.FC<{
 	subagentStatus: string;
 	prompt?: string;
 	message?: string;
-	durationMs?: number;
 	report?: string;
 	toolStatus: ToolStatus;
 	isError: boolean;
@@ -172,7 +162,6 @@ export const SubagentTool: React.FC<{
 	subagentStatus,
 	prompt,
 	message,
-	durationMs,
 	report,
 	toolStatus,
 	isError,
@@ -188,32 +177,30 @@ export const SubagentTool: React.FC<{
 	const hasMessage = Boolean(message?.trim());
 	const hasReport = Boolean(report?.trim());
 	const hasExpandableContent = hasPrompt || hasMessage || hasReport;
-	const durationLabel = shortDurationMs(durationMs);
 	const agentChatPath = safeBuildAgentChatPath({ chatId });
 
 	return (
-		<div className="w-full">
-			<TranscriptRow
-				asChild
-				className={cn(
-					"m-0 w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] text-content-secondary transition-colors",
-					hasExpandableContent && "cursor-pointer hover:text-content-primary",
-				)}
-			>
-				<button
-					type="button"
-					aria-expanded={hasExpandableContent ? expanded : undefined}
-					onClick={() => hasExpandableContent && setExpanded((v) => !v)}
-				>
-					<SubagentStatusIcon
-						subagentStatus={subagentStatus}
-						toolStatus={toolStatus}
-						isError={isError}
-						isTimeout={isTimeout}
-						iconKind={descriptor.iconKind}
-						showDesktopPreview={showDesktopPreview}
-					/>{" "}
-					<span className="min-w-0 truncate text-[13px]">
+		<ToolCall.Root
+			className="w-full"
+			status={toolStatus}
+			isError={isError}
+			hasContent={hasExpandableContent}
+			expanded={expanded}
+			onExpandedChange={setExpanded}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton alwaysButton>
+					<ToolCall.LeadingIcon>
+						<SubagentStatusIcon
+							subagentStatus={subagentStatus}
+							toolStatus={toolStatus}
+							isError={isError}
+							isTimeout={isTimeout}
+							iconKind={descriptor.iconKind}
+							showDesktopPreview={showDesktopPreview}
+						/>
+					</ToolCall.LeadingIcon>
+					<ToolCall.Label>
 						{getSubagentLabel(
 							showDesktopPreview,
 							toolStatus,
@@ -221,32 +208,21 @@ export const SubagentTool: React.FC<{
 							title,
 							isTimeout,
 						)}
-						{agentChatPath && (
-							<Link
-								to={{ pathname: agentChatPath, search: location.search }}
-								onClick={(e) => e.stopPropagation()}
-								className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-								aria-label="View agent"
-							>
-								<ExternalLinkIcon className="size-3" />
-							</Link>
-						)}
-					</span>
-					{hasExpandableContent && (
-						<ChevronDownIcon
-							className={cn(
-								"size-3 shrink-0 text-current transition-transform",
-								expanded ? "rotate-0" : "-rotate-90",
-							)}
-						/>
-					)}
-					{durationLabel && (
-						<span className="ml-auto shrink-0 text-xs">
-							{`Worked for ${durationLabel}`}
-						</span>
-					)}
-				</button>
-			</TranscriptRow>
+					</ToolCall.Label>
+					<ToolCall.Chevron />
+				</ToolCall.HeaderButton>
+				{agentChatPath && (
+					<ToolCall.HeaderActions>
+						<Link
+							to={{ pathname: agentChatPath, search: location.search }}
+							className="inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+							aria-label="View agent"
+						>
+							<ExternalLinkIcon className="size-3" />
+						</Link>
+					</ToolCall.HeaderActions>
+				)}
+			</ToolCall.HeaderLayout>
 
 			{showDesktopPreview && desktopChatId && toolStatus !== "completed" && (
 				<div className="mt-1.5 overflow-hidden rounded-lg border border-solid border-border-default">
@@ -265,41 +241,43 @@ export const SubagentTool: React.FC<{
 					/>
 				</div>
 			)}
-			{expanded && hasPrompt && (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="px-3 py-2">
-						<Response>{prompt ?? ""}</Response>
-					</div>
-				</ScrollArea>
-			)}
+			<ToolCall.Content>
+				{hasPrompt && (
+					<ScrollArea
+						className="mt-1.5 rounded-md border border-solid border-border-default"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<div className="px-3 py-2">
+							<Response>{prompt ?? ""}</Response>
+						</div>
+					</ScrollArea>
+				)}
 
-			{expanded && hasMessage && (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="px-3 py-2">
-						<Response>{message ?? ""}</Response>
-					</div>
-				</ScrollArea>
-			)}
+				{hasMessage && (
+					<ScrollArea
+						className="mt-1.5 rounded-md border border-solid border-border-default"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<div className="px-3 py-2">
+							<Response>{message ?? ""}</Response>
+						</div>
+					</ScrollArea>
+				)}
 
-			{expanded && hasReport && (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<div className="px-3 py-2">
-						<Response>{report ?? ""}</Response>
-					</div>
-				</ScrollArea>
-			)}
-		</div>
+				{hasReport && (
+					<ScrollArea
+						className="mt-1.5 rounded-md border border-solid border-border-default"
+						viewportClassName="max-h-64"
+						scrollBarClassName="w-1.5"
+					>
+						<div className="px-3 py-2">
+							<Response>{report ?? ""}</Response>
+						</div>
+					</ScrollArea>
+				)}
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

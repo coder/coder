@@ -9,7 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
-import { TranscriptRow } from "../TranscriptRow";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -536,17 +536,18 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 
 	if (isError) {
 		return (
-			<div className="w-full">
-				<TranscriptRow
-					role="alert"
-					className="gap-1.5 text-[13px] text-content-secondary"
+			<div className="w-full" role="alert">
+				<ToolCall.Root
+					status={status}
+					isError
+					errorMessage={errorMessage || "Failed to ask questions"}
+					hasContent={false}
 				>
-					<TriangleAlertIcon
-						aria-label="Error"
-						className="size-3.5 shrink-0 text-content-secondary"
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label={errorMessage || "Failed to ask questions"}
 					/>
-					<span>{errorMessage || "Failed to ask questions"}</span>
-				</TranscriptRow>
+				</ToolCall.Root>
 			</div>
 		);
 	}
@@ -555,15 +556,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
-						<span className="text-[13px] text-content-secondary">
-							Asking for clarification...
-						</span>
-						<LoaderIcon
-							data-testid="ask-user-question-loading-icon"
-							className="size-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+					<ToolCall.Root
+						status={status}
+						hasContent={false}
+						role="status"
+						aria-live="polite"
+					>
+						<ToolCall.Header
+							iconName="ask_user_question"
+							label="Asking for clarification..."
 						/>
-					</TranscriptRow>
+					</ToolCall.Root>
 				) : (
 					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
@@ -677,15 +680,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
-					<span className="text-[13px] text-content-secondary">
-						Asking for clarification...
-					</span>
-					<LoaderIcon
-						data-testid="ask-user-question-loading-icon"
-						className="size-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+				<ToolCall.Root
+					status={status}
+					hasContent={false}
+					role="status"
+					aria-live="polite"
+				>
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label="Asking for clarification..."
 					/>
-				</TranscriptRow>
+				</ToolCall.Root>
 			)}
 
 			{isInteractive ? (

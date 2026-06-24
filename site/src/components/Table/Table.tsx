@@ -99,9 +99,8 @@ export const TableRow: React.FC<TableRowProps> = ({
 	return (
 		<tr
 			className={cn(
-				"border-0 border-b border-solid border-border transition-colors",
-				"data-[state=selected]:bg-surface-secondary",
 				tableRowVariants({ hover }),
+				"data-[state=selected]:bg-surface-secondary",
 				className,
 			)}
 			{...props}
@@ -133,12 +132,12 @@ export const TableCell: React.FC<React.ComponentPropsWithRef<"td">> = ({
 }) => {
 	return (
 		<td
+			{...props}
 			className={cn(
 				"border-0 border-t border-border border-solid",
 				"p-3 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 				className,
 			)}
-			{...props}
 		/>
 	);
 };

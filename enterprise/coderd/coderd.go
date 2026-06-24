@@ -45,6 +45,7 @@ import (
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	agplusage "github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/x/nats"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/aiseats"
 	"github.com/coder/coder/v2/enterprise/coderd/connectionlog"
@@ -133,7 +134,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		// This is a fatal error.
 		var derr *dbcrypt.DecryptFailedError
 		if xerrors.As(err, &derr) {
-			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/encryption#disabling-encryption: %w", derr)
+			return nil, xerrors.Errorf("database encrypted with unknown key, either add the key or see https://coder.com/docs/admin/security/database-encryption#disabling-encryption: %w", derr)
 		}
 		return nil, xerrors.Errorf("init database encryption: %w", err)
 	}
@@ -158,10 +159,14 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	var replicaManagerPtr atomic.Pointer[replicasync.Manager]
+	var api *API
 	resolveReplicaAddress := func(
 		_ context.Context,
 		replicaID uuid.UUID,
 	) (string, bool) {
+		if api != nil && api.AGPL != nil && replicaID == api.AGPL.ID && api.AGPL.AccessURL != nil {
+			return api.AGPL.AccessURL.String(), true
+		}
 		manager := replicaManagerPtr.Load()
 		if manager == nil {
 			return "", false
@@ -179,7 +184,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return "", false
 	}
 
-	api := &API{
+	api = &API{
 		ctx:     ctx,
 		cancel:  cancelFunc,
 		Options: options,
@@ -206,17 +211,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		replicaHTTPClient = http.DefaultClient
 	}
 	// Use a closure that captures api by reference so it can access
-	// api.AGPL.ID after coderd.New is called. The SubscribeFn is
-	// only invoked from Subscribe, which happens after init.
-	options.Options.ChatSubscribeFn = entchatd.NewMultiReplicaSubscribeFn(entchatd.MultiReplicaSubscribeConfig{
+	// api.AGPL.ID after coderd.New is called. The parts dialer is
+	// only invoked from stream subscriptions, which happen after init.
+	options.Options.ChatStreamPartsDialer = entchatd.NewStreamPartsDialer(entchatd.StreamPartsDialerConfig{
 		ResolveReplicaAddress: resolveReplicaAddress,
 		ReplicaHTTPClient:     replicaHTTPClient,
 		ReplicaIDFn: func() uuid.UUID {
-			id := api.AGPL.ID
-			if id == uuid.Nil {
-				return uuid.New()
-			}
-			return id
+			return api.AGPL.ID
 		},
 	})
 
@@ -290,12 +291,35 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	// Legacy aibridge routes: kept for backward compatibility.
+	// New endpoints should be added to /ai-gateway only.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge", aibridgeHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	// AI Gateway routes: canonical aliases for the aibridge endpoints.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway", aiGatewayHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/proxy", aiGatewayProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/keys", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiGatewayKeys)
+			r.Post("/", api.postAIGatewayKey)
+			r.Delete("/{key}", api.deleteAIGatewayKey)
+		})
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
@@ -315,6 +339,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				api.RequireFeatureMW(codersdk.FeatureConnectionLog),
 			)
 			r.Get("/", api.connectionLogs)
+		})
+		r.Route("/agent-firewall", func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+				api.RequireFeatureMW(codersdk.FeatureBoundary),
+			)
+			r.Route("/sessions/{id}", func(r chi.Router) {
+				r.Get("/", api.agentFirewallSessionByID)
+				r.Get("/logs", api.agentFirewallSessionLogs)
+			})
 		})
 		r.Route("/licenses", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -596,6 +630,19 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Get("/", api.userQuietHoursSchedule)
 			r.Put("/", api.putUserQuietHoursSchedule)
 		})
+		r.Route("/users/{user}/ai/budget", func(r chi.Router) {
+			// AI cost controls are a paid feature (AI Governance add-on).
+			r.Use(
+				// TODO(AIGOV-443): remove once AI Gateway cost control functionality is stable.
+				httpmw.RequireExperiment(api.AGPL.Experiments, codersdk.ExperimentAIGatewayCostControl),
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+				apiKeyMiddleware,
+				httpmw.ExtractUserParam(options.Database),
+			)
+			r.Get("/", api.userAIBudgetOverride)
+			r.Put("/", api.upsertUserAIBudgetOverride)
+			r.Delete("/", api.deleteUserAIBudgetOverride)
+		})
 		r.Route("/prebuilds", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -622,45 +669,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	if len(options.SCIMAPIKey) != 0 {
-		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
-			r.Use(
-				api.RequireFeatureMW(codersdk.FeatureSCIM),
-			)
-			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
-			r.Post("/Users", api.scimPostUser)
-			r.Route("/Users", func(r chi.Router) {
-				r.Get("/", api.scimGetUsers)
-				r.Post("/", api.scimPostUser)
-				r.Get("/{id}", api.scimGetUser)
-				r.Patch("/{id}", api.scimPatchUser)
-				r.Put("/{id}", api.scimPutUser)
-			})
-			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-				u := r.URL.String()
-				httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-					Message: fmt.Sprintf("SCIM endpoint %s not found", u),
-					Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
-				})
-			})
-		})
-	} else {
-		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
-		// the frontend is the fallback. A html page is not a helpful error for
-		// a SCIM provider. This JSON has a call to action that __may__ resolve
-		// the issue.
-		// Using Mount to cover all subroute possibilities.
-		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
-				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
-				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
-			})
-		})))
+	var mountScimError error
+	api.AGPL.RootHandler.Route("/scim", func(r chi.Router) {
+		mountScimError = api.mountScimRoute(options, r)
+	})
+	if mountScimError != nil {
+		return nil, xerrors.Errorf("mount scim routes: %w", mountScimError)
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
 	// enabled, since it's used to detect other coder servers for licensing.
-	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.Pubsub, &replicasync.Options{
+	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.ReplicaSyncPubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
 		// #nosec G115 - DERP region IDs are small and fit in int32
@@ -754,8 +773,17 @@ type Options struct {
 	// Whether to block non-browser connections.
 	BrowserOnly bool
 	SCIMAPIKey  []byte
+	// UseLegacySCIM opts into the legacy SCIM handler implementation
+	// (imulab/go-scim based). This is provided for backward compatibility
+	// during the transition to the new elimity-com/scim implementation.
+	// It will be removed in a future release.
+	UseLegacySCIM bool
 
 	ExternalTokenEncryption []dbcrypt.Cipher
+
+	// ReplicaManager detects and syncs multiple Coder replicas. When provided,
+	// the API owns and closes it.
+	ReplicaManager *replicasync.Manager
 
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
@@ -965,7 +993,12 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 					coordinator = haCoordinator
 				}
 
-				api.replicaManager.SetCallback(func() {
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(api.replicaManager)
+					api.replicaManager.SetCallback("nats", natsPubsub.RefreshPeers)
+				}
+
+				api.replicaManager.SetCallback("derp", func() {
 					// Only update DERP mesh if the built-in server is enabled.
 					if api.Options.DeploymentValues.DERP.Server.Enable {
 						addresses := make([]string, 0)
@@ -985,11 +1018,16 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 				if api.Options.DeploymentValues.DERP.Server.Enable {
 					api.derpMesh.SetAddresses([]string{}, false)
 				}
-				api.replicaManager.SetCallback(func() {
+				api.replicaManager.SetCallback("derp", func() {
 					// If the amount of replicas change, so should our entitlements.
 					// This is to display a warning in the UI if the user is unlicensed.
 					_ = api.updateEntitlements(api.ctx)
 				})
+
+				if natsPubsub, ok := api.Pubsub.(*nats.Pubsub); ok {
+					natsPubsub.SetPeerFetcher(nats.NopPeerFetcher{})
+					api.replicaManager.SetCallback("nats", nil)
+				}
 			}
 
 			// Recheck changed in case the HA coordinator failed to set up.
@@ -1087,9 +1125,9 @@ func (api *API) CheckBuildUsage(
 	task *database.Task,
 	transition database.WorkspaceTransition,
 ) (wsbuilder.UsageCheckResponse, error) {
-	// If the template version has an external agent, we need to check that the
-	// license is entitled to this feature.
-	if templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
+	// External-agent templates require an entitlement for start builds.
+	if transition == database.WorkspaceTransitionStart &&
+		templateVersion.HasExternalAgent.Valid && templateVersion.HasExternalAgent.Bool {
 		feature, ok := api.Entitlements.Feature(codersdk.FeatureWorkspaceExternalAgent)
 		if !ok || !feature.Enabled {
 			return wsbuilder.UsageCheckResponse{
@@ -1316,7 +1354,8 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// the system will eventually recover as replicas timeout
 		// if their heartbeats stop. The best effort just tries to update the
 		// UI faster if it succeeds.
-		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+		// Postgres pubsub; see PubsubEventLicenses.
+		_ = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()
 	for {
 		select {
@@ -1326,7 +1365,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			// pass
 		}
 		if !subscribed {
-			cancel, err := api.Pubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
+			// Postgres pubsub; see PubsubEventLicenses. ReplicaSyncPubsub is
+			// always set in enterprise startup (replicasync.New requires it when
+			// the API is constructed), so it is safe to use directly here.
+			cancel, err := api.ReplicaSyncPubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
 				// don't block.  If the channel is full, drop the event, as there is a resync
 				// scheduled already.
 				select {

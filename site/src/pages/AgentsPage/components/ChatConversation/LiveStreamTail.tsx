@@ -35,7 +35,6 @@ interface LiveStreamTailContentProps {
 	streamState: StreamState | null;
 	streamTools: readonly MergedTool[];
 	liveStatus: LiveStatusModel;
-	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
@@ -48,7 +47,6 @@ export const LiveStreamTailContent = ({
 	streamState,
 	streamTools,
 	liveStatus,
-	startingResetKey,
 	subagentTitles,
 	subagentVariants,
 	subagentStatusOverrides,
@@ -71,7 +69,13 @@ export const LiveStreamTailContent = ({
 	}
 
 	return (
-		<div className="flex flex-col gap-2">
+		<div
+			className={
+				isTranscriptEmpty
+					? "flex flex-col gap-2"
+					: "mt-2 flex flex-col gap-2 empty:mt-0"
+			}
+		>
 			{shouldRenderEmptyState && (
 				<div className="py-12 text-center text-content-secondary">
 					<p className="text-sm">Start a conversation with your agent.</p>
@@ -82,7 +86,6 @@ export const LiveStreamTailContent = ({
 					streamState={streamState}
 					streamTools={streamTools}
 					liveStatus={liveStatus}
-					startingResetKey={startingResetKey}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
 					subagentStatusOverrides={subagentStatusOverrides}
@@ -90,12 +93,12 @@ export const LiveStreamTailContent = ({
 					mcpServers={mcpServers}
 				/>
 			)}
-			{usageLimitStatus ? (
+			{usageLimitStatus && !usageLimitStatus.provider ? (
 				<Alert
 					severity="info"
 					actions={
 						<Button asChild size="sm">
-							<Link to="/agents/analytics">View Usage</Link>
+							<Link to="/agents/analytics">View usage</Link>
 						</Button>
 					}
 				>
@@ -112,7 +115,6 @@ interface LiveStreamTailProps {
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	isTranscriptEmpty: boolean;
-	startingResetKey?: string;
 	subagentTitles: Map<string, string>;
 	subagentVariants?: Map<string, SubagentVariant>;
 	urlTransform?: UrlTransform;
@@ -123,7 +125,6 @@ export const LiveStreamTail = ({
 	store,
 	persistedError,
 	isTranscriptEmpty,
-	startingResetKey,
 	subagentTitles,
 	subagentVariants,
 	urlTransform,
@@ -160,7 +161,6 @@ export const LiveStreamTail = ({
 			streamState={streamState}
 			streamTools={streamTools}
 			liveStatus={liveStatus}
-			startingResetKey={startingResetKey}
 			subagentTitles={subagentTitles}
 			subagentVariants={subagentVariants}
 			subagentStatusOverrides={subagentStatusOverrides}

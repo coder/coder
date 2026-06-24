@@ -7,9 +7,14 @@ import (
 	"time"
 
 	"golang.org/x/net/http2"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
 )
+
+// ErrProviderTransportReset identifies provider stream cancellations that
+// occur while the caller-owned chat context is still alive.
+var ErrProviderTransportReset = xerrors.New("provider transport reset")
 
 // ClassifiedError is the normalized, user-facing view of an
 // underlying provider or runtime error.
@@ -147,9 +152,10 @@ func Classify(err error) ClassifiedError {
 		statusCode = extractStatusCode(lower)
 	}
 	provider := detectProvider(lower)
-	canceled := errors.Is(err, context.Canceled) || strings.Contains(lower, "context canceled")
+	canceled := errors.Is(err, context.Canceled)
+	providerTransportReset := errors.Is(err, ErrProviderTransportReset)
 	interrupted := containsAny(lower, interruptedPatterns...)
-	if canceled || interrupted {
+	if interrupted {
 		return normalizeClassification(ClassifiedError{
 			Message:    "The request was canceled before it completed.",
 			Detail:     structured.detail,
@@ -195,8 +201,15 @@ func Classify(err error) ClassifiedError {
 	}
 
 	retryableHTTP2StreamReset, hasHTTP2StreamReset := classifyHTTP2StreamReset(err)
+	providerDisabledMatch := containsAny(lower, providerDisabledPatterns...)
 	deadline := errors.Is(err, context.DeadlineExceeded) || strings.Contains(lower, "context deadline exceeded")
 	overloadedMatch := statusCode == 529 || containsAny(lower, overloadedPatterns...)
+	// Usage limits do not have a dedicated status code, so provider
+	// response bodies can be the only reliable signal. Other classes
+	// already have status-code signals or transport wrapper text.
+	usageLimitText := lower + "\n" + strings.ToLower(structured.detail)
+	usageLimitMatch := containsAny(usageLimitText, usageLimitAnyStatusPatterns...) ||
+		(statusCode != 429 && containsAny(usageLimitText, usageLimitPatterns...))
 	authStrong := statusCode == 401 || containsAny(lower, authStrongPatterns...)
 	configMatch := containsAny(lower, configPatterns...)
 	authWeak := statusCode == 403 || containsAny(lower, authWeakPatterns...)
@@ -207,17 +220,23 @@ func Classify(err error) ClassifiedError {
 		// over broader string fallbacks so protocol bugs do not retry.
 		timeoutPatternMatch = false
 	}
-	timeoutMatch := deadline || statusCode == 408 || statusCode == 502 ||
-		statusCode == 503 || statusCode == 504 ||
-		retryableHTTP2StreamReset || timeoutPatternMatch
+	providerTransportResetMatch := providerTransportReset && statusCode == 0
+	timeoutMatch := providerTransportResetMatch || deadline ||
+		statusCode == 408 || statusCode == 502 || statusCode == 503 ||
+		statusCode == 504 || retryableHTTP2StreamReset ||
+		timeoutPatternMatch
 	genericRetryableMatch := statusCode == 500 || containsAny(lower, genericRetryablePatterns...)
 
 	// Config signals should beat ambiguous wrapper signals so
 	// transient-looking errors like "503 invalid model" fail fast.
 	// Overloaded stays ahead because 529/overloaded is a dedicated
 	// provider saturation signal, not a common transport wrapper.
+	// Usage-limit fires before auth so non-429 quota/billing text,
+	// plus insufficient_quota at any status, wins over auth signals.
 	// Strong auth still stays above config because bad credentials are
 	// the root cause when both signals appear.
+	// Provider-disabled must precede timeout because disabled providers
+	// return 503, which matches the timeout rule.
 	rules := []struct {
 		match     bool
 		kind      codersdk.ChatErrorKind
@@ -227,6 +246,11 @@ func Classify(err error) ClassifiedError {
 			match:     overloadedMatch,
 			kind:      codersdk.ChatErrorKindOverloaded,
 			retryable: true,
+		},
+		{
+			match:     usageLimitMatch,
+			kind:      codersdk.ChatErrorKindUsageLimit,
+			retryable: false,
 		},
 		{
 			match:     authStrong,
@@ -242,6 +266,11 @@ func Classify(err error) ClassifiedError {
 			match:     rateLimitMatch && !configMatch,
 			kind:      codersdk.ChatErrorKindRateLimit,
 			retryable: true,
+		},
+		{
+			match:     providerDisabledMatch,
+			kind:      codersdk.ChatErrorKindProviderDisabled,
+			retryable: false,
 		},
 		{
 			match:     timeoutMatch && !configMatch,
@@ -263,8 +292,12 @@ func Classify(err error) ClassifiedError {
 		if !rule.match {
 			continue
 		}
+		detail := structured.detail
+		if rule.kind != codersdk.ChatErrorKindAuth {
+			detail = resolveDiagnosticDetail(structured.detail, err)
+		}
 		return normalizeClassification(ClassifiedError{
-			Detail:     structured.detail,
+			Detail:     detail,
 			Kind:       rule.kind,
 			Provider:   provider,
 			Retryable:  rule.retryable,
@@ -273,8 +306,19 @@ func Classify(err error) ClassifiedError {
 		})
 	}
 
+	if canceled {
+		return normalizeClassification(ClassifiedError{
+			Message:    "The request was canceled before it completed.",
+			Detail:     structured.detail,
+			Kind:       codersdk.ChatErrorKindGeneric,
+			Provider:   provider,
+			StatusCode: statusCode,
+			RetryAfter: structured.retryAfter,
+		})
+	}
+
 	return normalizeClassification(ClassifiedError{
-		Detail:     structured.detail,
+		Detail:     resolveDiagnosticDetail(structured.detail, err),
 		Kind:       codersdk.ChatErrorKindGeneric,
 		Provider:   provider,
 		StatusCode: statusCode,

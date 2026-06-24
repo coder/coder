@@ -18,13 +18,23 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridged"
 	mock "github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
 	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
+
+// singleKeyPool builds a centralized key pool containing a single key.
+func singleKeyPool(t *testing.T, name, key string) *keypool.Pool {
+	t.Helper()
+	pool, err := keypool.New(name, []string{key}, quartz.NewReal(), nil)
+	require.NoError(t, err)
+	return pool
+}
 
 func newTestServer(t *testing.T) (*aibridged.Server, *mock.MockDRPCClient, *mock.MockPooler) {
 	t.Helper()
@@ -196,6 +206,10 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 		expectAbsent  []string
 	}{
 		{
+			// Delegated + centralized: identity comes from the
+			// api key ID on the context, in lieu of a session
+			// token. No header credentials are sent and SessionKey
+			// is empty downstream.
 			name: "valid centralized",
 			applyMocks: func(t *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).DoAndReturn(
@@ -208,7 +222,12 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 							Username: "u",
 						}, nil
 					})
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+						assert.Empty(t, req.SessionKey,
+							"delegated centralized request carries no session token")
+						return mockH, nil
+					})
 			},
 			expectStatus:  http.StatusOK,
 			expectHandled: true,
@@ -222,18 +241,25 @@ func TestServeHTTP_DelegatedAPIKey(t *testing.T) {
 			name: "valid BYOK preserves user credentials",
 			reqHeaders: map[string]string{
 				// Marks BYOK; this header must be stripped before
-				// forwarding upstream.
-				agplaibridge.HeaderCoderToken: "should-not-be-present",
+				// forwarding upstream. Its value is what gets
+				// surfaced downstream as the SessionKey because
+				// ExtractAuthToken prefers HeaderCoderToken.
+				agplaibridge.HeaderCoderToken: "coder-token-byok",
 				// The user's own LLM credential; must be preserved.
 				"Authorization": "Bearer sk-ant-oat01-user-token",
 			},
-			applyMocks: func(_ *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
+			applyMocks: func(t *testing.T, client *mock.MockDRPCClient, pool *mock.MockPooler, mockH *mockHandler) {
 				client.EXPECT().IsAuthorized(gomock.Any(), gomock.Any()).Return(&proto.IsAuthorizedResponse{
 					OwnerId:  uuid.NewString(),
 					ApiKeyId: testKeyID,
 					Username: "u",
 				}, nil)
-				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).Return(mockH, nil)
+				pool.EXPECT().Acquire(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, req aibridged.Request, _ aibridged.ClientFunc, _ aibridged.MCPProxyBuilder) (http.Handler, error) {
+						assert.Equal(t, "coder-token-byok", req.SessionKey,
+							"BYOK delegated request must still surface the extracted Coder token as SessionKey")
+						return mockH, nil
+					})
 			},
 			expectStatus:  http.StatusOK,
 			expectHandled: true,
@@ -630,10 +656,12 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{
 					BaseURL:          upstreamSrv.URL,
+					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
 				}),
 				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
+					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
 				}, nil),
 			}
@@ -737,8 +765,8 @@ func TestRouting(t *testing.T) {
 			client := mock.NewMockDRPCClient(ctrl)
 
 			providers := []aibridge.Provider{
-				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL}, nil),
+				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL, KeyPool: singleKeyPool(t, "openai", "test-key")}),
+				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)

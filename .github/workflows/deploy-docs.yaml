@@ -1,9 +1,20 @@
 name: Update coder.com/docs
 
-# Triggers updates to the public docs at coder.com/docs whenever this
-# branch's docs/** content changes. One preflight job (`changes`) feeds
-# two parallel sibling jobs so that search records, the static cache,
-# and any new routes register at the same time:
+# Triggers updates to the public docs at coder.com/docs from three
+# sources:
+#
+#   * push to main or release/* (docs/** only): markdown edits land in
+#     search and ISR within seconds.
+#   * release.published: when a stable vX.Y.Z release ships on this
+#     repo, the workflow translates the tag to its release/X.Y branch
+#     and reindexes. Eliminates the manual workflow_dispatch step from
+#     the mainline rotation. Prereleases and non-semver tags are
+#     skipped. See DOCS-327.
+#   * workflow_dispatch: operator-driven, with explicit action and ref.
+#
+# One preflight job (`changes`) feeds two parallel sibling jobs so that
+# search records, the static cache, and any new routes register at the
+# same time:
 #
 #   1. algolia-and-isr: HMAC-signed POST to coder.com/api/algolia-docs-sync.
 #      The handler re-extracts records for the (corpus, ref) pair and
@@ -34,7 +45,21 @@ on:
       # Intentionally only docs/**. Edits to this workflow file must not
       # auto-trigger a production reindex; use workflow_dispatch instead.
       # See DOCS-121 (incident) and DOCS-124 (fix).
+      #
+      # docs/.style/** is contributor tooling and never deploys to
+      # coder.com/docs. Negating it here skips the workflow on .style-only
+      # commits. GitHub Actions only suppresses when every changed file
+      # matches a negation, so mixed commits still trigger; the surgical
+      # diff step below drops .style paths from the payload.
       - "docs/**"
+      - "!docs/.style/**"
+  release:
+    # Fires when a draft release is published, when a release goes from
+    # prerelease to non-prerelease, or when a release is created already
+    # published. The Compute step below translates the published tag
+    # (vX.Y.Z) into its release/X.Y branch and skips prereleases. See
+    # DOCS-327 for the rotation context that motivated this trigger.
+    types: [published]
   workflow_dispatch:
     inputs:
       action:
@@ -75,7 +100,8 @@ jobs:
   #   paths_json:        a JSON array of {path, status} objects, or "[]"
   #                      when no markdown changes are eligible for
   #                      surgical mode (manifest-only push, an
-  #                      uncomputable diff, a workflow_dispatch trigger,
+  #                      uncomputable diff, a non-push event
+  #                      (workflow_dispatch or release.published),
   #                      or a diff that exceeds the surgical-mode cap).
   #                      An empty array tells the handler to fall back
   #                      to whole-branch reindex.
@@ -100,10 +126,11 @@ jobs:
             # everything for this (corpus, ref)".
             echo "paths_json=[]" >> "$GITHUB_OUTPUT"
           }
-          # workflow_dispatch never has a diff range; treat as
-          # "manifest unchanged" so the manual reindex/delete path
-          # doesn't trigger a Vercel rebuild it didn't ask for, and as
-          # whole-branch so a manual reindex is exhaustive.
+          # Non-push events (workflow_dispatch, release.published)
+          # have no diff range; treat as "manifest unchanged" so the
+          # manual or release-triggered reindex doesn't fire a Vercel
+          # rebuild it didn't ask for, and as whole-branch so the
+          # resulting reindex is exhaustive.
           if [ "$EVENT_NAME" != "push" ]; then
             echo "manifest_changed=false" >> "$GITHUB_OUTPUT"
             emit_whole_branch_fallback
@@ -154,7 +181,11 @@ jobs:
           # + save) from deleted/renamed-old-side (delete only), and
           # so paths containing whitespace or quotes survive intact.
           DIFF_FILE=$(mktemp)
-          git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' > "$DIFF_FILE"
+          # 'docs/**/*.md' to keep markdown-only paths, ':(exclude)docs/.style/**'
+          # so contributor-tooling pages never reach the surgical-reindex payload
+          # on mixed commits. The trigger filter already short-circuits .style-only
+          # pushes; this is defense in depth.
+          git diff --name-status -z "$BEFORE_SHA" "$AFTER_SHA" -- 'docs/**/*.md' ':(exclude)docs/.style/**' > "$DIFF_FILE"
           # Parse the NUL-delimited diff into <path>\t<status> lines.
           # `--name-status -z` uses NUL between fields and between
           # records, with a special twist for renames: the record is
@@ -247,10 +278,40 @@ jobs:
           INPUT_ACTION: ${{ inputs.action }}
           INPUT_REF: ${{ inputs.ref }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
           set -euo pipefail
-          ACTION="${INPUT_ACTION:-index}"
-          REF="${INPUT_REF:-$GITHUB_REF_NAME}"
+          ACTION=""
+          REF=""
+          # release.published path: translate a stable vX.Y.Z tag into
+          # its release/X.Y branch and let the rest of the step
+          # validate. Skip prereleases and any tag that does not match
+          # the plain semver shape; backports (vX.Y.<patch>) are
+          # in-scope because they may carry doc updates worth
+          # reindexing. See DOCS-327. The handler's allowlist gates the
+          # downstream POST, so an unsupported minor still no-ops
+          # rather than reindexing something we did not intend.
+          #
+          # Tested in test-deploy-docs-release.sh. Keep that script in
+          # sync with any changes to this block.
+          if [ "${EVENT_NAME:-}" = "release" ]; then
+            if [ "${RELEASE_PRERELEASE:-false}" = "true" ]; then
+              echo "::notice::Skipping prerelease ${RELEASE_TAG:-<unknown>}; no docs reindex."
+              exit 0
+            fi
+            if [[ "${RELEASE_TAG:-}" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+$ ]]; then
+              ACTION="index"
+              REF="release/${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+              echo "::notice::Release ${RELEASE_TAG} resolved to ref ${REF}."
+            else
+              echo "::notice::Skipping ${RELEASE_TAG:-<unknown>}: not a plain vX.Y.Z release tag."
+              exit 0
+            fi
+          fi
+          ACTION="${ACTION:-${INPUT_ACTION:-index}}"
+          REF="${REF:-${INPUT_REF:-$GITHUB_REF_NAME}}"
           # Reject newlines/carriage returns in either input. GitHub
           # Actions parses GITHUB_OUTPUT line-by-line with last-writer-
           # wins, so a newline in $REF would let an operator dispatch
@@ -303,6 +364,14 @@ jobs:
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
 
       - name: POST to coder.com docs indexer
+        # Sentinel guard. The Compute step has two release-event
+        # early-exit paths (prerelease skip, non-semver tag skip) that
+        # succeed without writing action/ref to GITHUB_OUTPUT. Without
+        # this guard, the POST would still fire with empty ACTION and
+        # REF env vars, sending stray no-op traffic to the production
+        # handler. The step only writes `action` on the success path,
+        # so its presence is a reliable proceed signal. See DOCS-327.
+        if: steps.input.outputs.action != ''
         env:
           ACTION: ${{ steps.input.outputs.action }}
           REF: ${{ steps.input.outputs.ref }}

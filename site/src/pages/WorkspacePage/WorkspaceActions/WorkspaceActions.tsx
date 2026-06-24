@@ -9,7 +9,6 @@ import {
 } from "#/modules/workspaces/actions";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import { WorkspaceMoreActions } from "#/modules/workspaces/WorkspaceMoreActions/WorkspaceMoreActions";
-import { mustUpdateWorkspace } from "#/utils/workspace";
 import {
 	ActivateButton,
 	CancelButton,
@@ -71,13 +70,8 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 		},
 	);
 
-	const mustUpdate = mustUpdateWorkspace(
-		workspace,
-		permissions.updateWorkspaceVersion,
-	);
 	const tooltipText = getTooltipText(
 		workspace,
-		mustUpdate,
 		permissions.updateWorkspaceVersion,
 	);
 
@@ -116,7 +110,6 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 			<StartButton
 				workspace={workspace}
 				handleAction={handleStart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
@@ -125,17 +118,16 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				loading
 				workspace={workspace}
 				handleAction={handleStart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
+
 		stop: <StopButton handleAction={handleStop} />,
 		stopping: <StopButton loading handleAction={handleStop} />,
 		restart: (
 			<RestartButton
 				workspace={workspace}
 				handleAction={handleRestart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
@@ -144,10 +136,10 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 				loading
 				workspace={workspace}
 				handleAction={handleRestart}
-				disabled={mustUpdate}
 				tooltipText={tooltipText}
 			/>
 		),
+
 		deleting: <DisabledButton label="Deleting" />,
 		canceling: <DisabledButton label="Canceling..." />,
 		deleted: <DisabledButton label="Deleted" />,
@@ -203,18 +195,9 @@ export const WorkspaceActions: FC<WorkspaceActionsProps> = ({
 
 function getTooltipText(
 	workspace: Workspace,
-	mustUpdate: boolean,
 	canChangeVersions: boolean,
 ): string {
-	if (!mustUpdate && !canChangeVersions) {
-		return "";
-	}
-
-	if (
-		!mustUpdate &&
-		canChangeVersions &&
-		workspace.template_require_active_version
-	) {
+	if (canChangeVersions && workspace.template_require_active_version) {
 		return "This template requires automatic updates on workspace startup, but template administrators can ignore this policy.";
 	}
 

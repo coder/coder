@@ -2,9 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
+import { MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
+import { MockUserOwner, MockWorkspace } from "#/testHelpers/entities";
 import {
 	draftInputStorageKeyPrefix,
 	getPersistedDraftInputValue,
+	getWorkspaceOptionsWithLinkedWorkspace,
 	restoreOptimisticRequestSnapshot,
 	runPromoteQueuedMessage,
 	submitEditAndScroll,
@@ -77,21 +81,41 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
-type Deferred<T> = {
-	promise: Promise<T>;
-	resolve: (value: T | PromiseLike<T>) => void;
-	reject: (reason?: unknown) => void;
-};
+describe("getWorkspaceOptionsWithLinkedWorkspace", () => {
+	it("includes a missing linked workspace only when the current user owns it", () => {
+		const existingWorkspace = {
+			...MockWorkspace,
+			id: "existing-workspace",
+		};
+		const ownerWorkspaceOptions = [existingWorkspace];
+		const linkedWorkspace = {
+			...MockWorkspace,
+			id: "linked-workspace",
+			owner_id: MockUserOwner.id,
+		};
 
-const createDeferred = <T>(): Deferred<T> => {
-	let resolve!: (value: T | PromiseLike<T>) => void;
-	let reject!: (reason?: unknown) => void;
-	const promise = new Promise<T>((res, rej) => {
-		resolve = res;
-		reject = rej;
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				linkedWorkspace,
+				MockUserOwner.id,
+			),
+		).toEqual([linkedWorkspace, existingWorkspace]);
+
+		const sharedWorkspace = {
+			...linkedWorkspace,
+			owner_id: "another-user",
+		};
+
+		expect(
+			getWorkspaceOptionsWithLinkedWorkspace(
+				ownerWorkspaceOptions,
+				sharedWorkspace,
+				MockUserOwner.id,
+			),
+		).toBe(ownerWorkspaceOptions);
 	});
-	return { promise, resolve, reject };
-};
+});
 
 describe("waitForPendingChatSettingsSyncs", () => {
 	it("waits for plan-mode and workspace updates before resolving", async () => {
@@ -186,19 +210,22 @@ describe("restoreOptimisticRequestSnapshot", () => {
 });
 
 describe("runPromoteQueuedMessage", () => {
-	const makeQueuedMessage = (id: number, text: string, chatID = "chat-1") =>
-		({
-			id,
-			chat_id: chatID,
-			created_at: "2025-01-01T00:00:00Z",
-			content: [{ type: "text", text }],
-		}) as ChatQueuedMessage;
+	const buildQueuedMessage = (
+		id: number,
+		text: string,
+		chatID = "chat-1",
+	): ChatQueuedMessage => ({
+		...MockChatQueuedMessage,
+		id,
+		chat_id: chatID,
+		content: [{ type: "text", text }],
+	});
 
 	it("suppresses the promoted ID and removes it optimistically", async () => {
 		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
+		const c = buildQueuedMessage(3, "C");
 		store.setQueuedMessages([a, b, c]);
 		store.setChatStatus("running");
 
@@ -225,8 +252,8 @@ describe("runPromoteQueuedMessage", () => {
 
 	it("rolls back queue and status, clears suppression, and rethrows on API error", async () => {
 		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
+		const a = buildQueuedMessage(1, "A");
+		const b = buildQueuedMessage(2, "B");
 		store.setQueuedMessages([a, b]);
 		store.setChatStatus("waiting");
 
@@ -301,6 +328,9 @@ describe("useConversationEditingState", () => {
 			);
 		});
 		expect(localStorage.getItem(expectedKey)).toBe("work in progress");
+		// handleContentChange persists only; it must not advance the seed.
+		expect(result.current.editorInitialValue).toBe("");
+		expect(result.current.initialEditorState).toBeUndefined();
 
 		act(() => {
 			// Even though the serialized state is non-empty (Lexical always
@@ -309,6 +339,27 @@ describe("useConversationEditingState", () => {
 			result.current.handleContentChange("", '{"root":{"children":[]}}', false);
 		});
 		expect(localStorage.getItem(expectedKey)).toBeNull();
+
+		unmount();
+	});
+
+	it("carries a draft typed during loading into the seed for the loaded editor", () => {
+		const { result, unmount } = renderEditing();
+
+		// handleContentChange persists but does not advance the seed.
+		const editorState =
+			'{"root":{"children":[{"text":"typed while loading"}]}}';
+		act(() => {
+			result.current.handleLoadingDraftChange(
+				"typed while loading",
+				editorState,
+				false,
+			);
+		});
+
+		expect(localStorage.getItem(expectedKey)).toBe(editorState);
+		expect(result.current.editorInitialValue).toBe("typed while loading");
+		expect(result.current.initialEditorState).toBe(editorState);
 
 		unmount();
 	});

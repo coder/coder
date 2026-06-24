@@ -1127,7 +1127,7 @@ func TestAIProviders(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:     "anthropic-bedrock",
-			Type:     database.AiProviderTypeAnthropic,
+			Type:     database.AIProviderTypeAnthropic,
 			BaseUrl:  "https://bedrock-runtime.us-west-2.amazonaws.com/",
 			Settings: sql.NullString{String: settings, Valid: true},
 		})
@@ -1195,6 +1195,7 @@ func TestAIProviders(t *testing.T) {
 		const newSettings = `{"_type":"bedrock","_version":1,"region":"us-east-1","model":"anthropic.claude-sonnet-4-5-20250929-v1:0","access_key":"AKIA-test","access_key_secret":"test-secret"}`
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
@@ -1211,6 +1212,7 @@ func TestAIProviders(t *testing.T) {
 		provider := insertProvider(t, crypt, ciphers)
 		updated, err := crypt.UpdateAIProvider(ctx, database.UpdateAIProviderParams{
 			ID:          provider.ID,
+			Type:        provider.Type,
 			DisplayName: provider.DisplayName,
 			Enabled:     provider.Enabled,
 			BaseUrl:     provider.BaseUrl,
@@ -1235,7 +1237,7 @@ func TestAIProviderKeys(t *testing.T) {
 		t.Helper()
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{
 			Name:    "openai-test",
-			Type:    database.AiProviderTypeOpenai,
+			Type:    database.AIProviderTypeOpenai,
 			BaseUrl: "https://api.openai.com/v1/",
 		})
 		key := dbgen.AIProviderKey(t, crypt, database.AIProviderKey{
@@ -1321,7 +1323,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		t *testing.T,
 		crypt *dbCrypt,
 		ciphers []Cipher,
-	) (database.AIProvider, database.UserAiProviderKey) {
+	) (database.AIProvider, database.UserAIProviderKey) {
 		t.Helper()
 		user := dbgen.User(t, crypt, database.User{})
 		provider := dbgen.AIProvider(t, crypt, database.AIProvider{})
@@ -1341,7 +1343,7 @@ func TestUserAIProviderKeys(t *testing.T) {
 		return provider, key
 	}
 
-	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAiProviderKey {
+	getRawUserAIProviderKey := func(t *testing.T, store database.Store, userID uuid.UUID, providerID uuid.UUID) database.UserAIProviderKey {
 		t.Helper()
 		key, err := store.GetUserAIProviderKeyByProviderID(ctx, database.GetUserAIProviderKeyByProviderIDParams{
 			UserID:       userID,
@@ -1762,5 +1764,178 @@ func TestUserSecrets(t *testing.T) {
 		require.Error(t, err)
 		var derr *DecryptFailedError
 		require.ErrorAs(t, err, &derr)
+	})
+}
+
+func TestGitSSHKey(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const (
+		initialPrivate = "private-key-initial"
+		updatedPrivate = "private-key-updated"
+		publicKey      = "public-key"
+	)
+
+	insertGitSSHKey := func(t *testing.T, store database.Store, ciphers []Cipher) database.GitSSHKey {
+		t.Helper()
+		user := dbgen.User(t, store, database.User{})
+		key, err := store.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, key.PrivateKey)
+		require.Equal(t, publicKey, key.PublicKey)
+		if len(ciphers) > 0 {
+			require.True(t, key.PrivateKeyKeyID.Valid)
+			require.Equal(t, ciphers[0].HexDigest(), key.PrivateKeyKeyID.String)
+		}
+		return key
+	}
+
+	t.Run("InsertGitSSHKeyEncryptsPrivateKey", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		// Raw row should be ciphertext under the primary cipher.
+		rawKey, err := db.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		require.NotEqual(t, initialPrivate, rawKey.PrivateKey)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, initialPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+		// Public key is not encrypted.
+		require.Equal(t, publicKey, rawKey.PublicKey)
+	})
+
+	t.Run("GetGitSSHKeyDecryptsEncryptedRow", func(t *testing.T) {
+		t.Parallel()
+		_, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		got, err := crypt.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, got.PrivateKey)
+		require.True(t, got.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), got.PrivateKeyKeyID.String)
+	})
+
+	t.Run("GetGitSSHKeyReadsPlaintextRow", func(t *testing.T) {
+		// Pre-existing plaintext rows (private_key_key_id IS NULL) must remain readable.
+		t.Parallel()
+		db, crypt, _ := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		inserted, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.False(t, inserted.PrivateKeyKeyID.Valid)
+
+		got, err := crypt.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, got.PrivateKey)
+		require.False(t, got.PrivateKeyKeyID.Valid)
+	})
+
+	t.Run("UpdateGitSSHKeyReEncrypts", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		key := insertGitSSHKey(t, crypt, ciphers)
+
+		updated, err := crypt.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+			UserID:     key.UserID,
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: updatedPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, updatedPrivate, updated.PrivateKey)
+		require.True(t, updated.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), updated.PrivateKeyKeyID.String)
+
+		rawKey, err := db.GetGitSSHKey(ctx, key.UserID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, updatedPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+	})
+
+	t.Run("UpdateGitSSHKeyEncryptsPlaintextRow", func(t *testing.T) {
+		// A row that started life as plaintext must get encrypted on the next write.
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		_, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+
+		_, err = crypt.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+			UserID:     user.ID,
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: updatedPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawKey.PrivateKey, updatedPrivate)
+		require.True(t, rawKey.PrivateKeyKeyID.Valid)
+		require.Equal(t, ciphers[0].HexDigest(), rawKey.PrivateKeyKeyID.String)
+	})
+
+	t.Run("GetGitSSHKeyDecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, db, database.User{})
+		_, err := db.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:          user.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			PrivateKey:      fakeBase64RandomData(t, 32),
+			PrivateKeyKeyID: sql.NullString{String: ciphers[0].HexDigest(), Valid: true},
+			PublicKey:       publicKey,
+		})
+		require.NoError(t, err)
+
+		_, err = crypt.GetGitSSHKey(ctx, user.ID)
+		require.Error(t, err)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("NoCipherPassthrough", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		user := dbgen.User(t, crypt, database.User{})
+		key, err := crypt.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
+			UserID:     user.ID,
+			CreatedAt:  dbtime.Now(),
+			UpdatedAt:  dbtime.Now(),
+			PrivateKey: initialPrivate,
+			PublicKey:  publicKey,
+		})
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, key.PrivateKey)
+		require.False(t, key.PrivateKeyKeyID.Valid)
+
+		rawKey, err := db.GetGitSSHKey(ctx, user.ID)
+		require.NoError(t, err)
+		require.Equal(t, initialPrivate, rawKey.PrivateKey)
+		require.False(t, rawKey.PrivateKeyKeyID.Valid)
 	})
 }

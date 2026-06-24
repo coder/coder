@@ -13,7 +13,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/pretty"
 )
 
@@ -48,15 +49,14 @@ func TestGroupEdit(t *testing.T) {
 			"-r", user3.ID.String(),
 		)
 
-		pty := ptytest.New(t)
-
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, anotherClient, conf)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		err := inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully patched group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, expectedName)))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Successfully patched group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, expectedName)))
 	})
 
 	t.Run("InvalidUserInput", func(t *testing.T) {

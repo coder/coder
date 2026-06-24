@@ -1,0 +1,137 @@
+{
+  "id": "vscode-web",
+  "display_name": "VS Code Web",
+  "description": "VS Code Web - Visual Studio Code in the browser",
+  "icon": "/icon/code.svg",
+  "category": "IDE",
+  "tags": [
+    "ide",
+    "vscode",
+    "web"
+  ],
+  "compatible_os": [
+    "linux"
+  ],
+  "conflicts_with": [
+    "code-server"
+  ],
+  "pinned_version": "1.5.0",
+  "variables": [
+    {
+      "name": "accept_license",
+      "type": "bool",
+      "description": "Accept the VS Code Server license. https://code.visualstudio.com/license/server",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "agent_id",
+      "type": "string",
+      "description": "The ID of a Coder agent.",
+      "required": false,
+      "sensitive": false,
+      "computed": true
+    },
+    {
+      "name": "auto_install_extensions",
+      "type": "bool",
+      "description": "Automatically install recommended extensions when VS Code Web starts.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "commit_id",
+      "type": "string",
+      "description": "Specify the commit ID of the VS Code Web binary to pin to a specific version. If left empty, the latest stable version is used.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "disable_trust",
+      "type": "bool",
+      "description": "Disables workspace trust protection for VS Code Web.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "extensions_dir",
+      "type": "string",
+      "description": "Override the directory to store extensions in.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "folder",
+      "type": "string",
+      "description": "The folder to open in vscode-web.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "offline",
+      "type": "bool",
+      "description": "Just run VS Code Web in the background, don't fetch it from the internet.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "platform",
+      "type": "string",
+      "description": "The platform to use for the VS Code Web.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "port",
+      "type": "number",
+      "description": "The port to run VS Code Web on.",
+      "default": 13338,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "telemetry_level",
+      "type": "string",
+      "description": "Set the telemetry level for VS Code Web.",
+      "default": "error",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "use_cached",
+      "type": "bool",
+      "description": "Uses cached copy of VS Code Web in the background, otherwise fetches it from internet.",
+      "default": false,
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    },
+    {
+      "name": "workspace",
+      "type": "string",
+      "description": "Path to a .code-workspace file to open in vscode-web.",
+      "default": "",
+      "required": false,
+      "sensitive": false,
+      "computed": false
+    }
+  ]
+}

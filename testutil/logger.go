@@ -32,6 +32,7 @@ func IgnoreLoggedError(entry slog.SinkEntry) bool {
 	if xerrors.Is(err, yamux.ErrSessionShutdown) {
 		return true
 	}
+
 	// Canceled queries usually happen when we're shutting down tests, and so
 	// ignoring them should reduce flakiness.  This also includes
 	// context.Canceled and context.DeadlineExceeded errors, even if they are

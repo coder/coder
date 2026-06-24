@@ -1,11 +1,11 @@
-# User secrets (Early Access)
+# User secrets (Beta)
 
 User secrets let you store secret values in Coder and make them available in
 every workspace you own.
 
 > [!NOTE]
-> User secrets are in Early Access and may change. For more information, see
-> [feature stages](../install/releases/feature-stages.md#early-access-features).
+> User secrets are in Beta and may change. For more information, see
+> [feature stages](../install/releases/feature-stages.md#beta).
 
 ## How user secrets work
 
@@ -28,6 +28,13 @@ create or update them.
 > Anyone with shell or file access to a workspace can read secrets injected into
 > that workspace. Do not share a workspace that has injected secrets with users
 > who should not access those values.
+
+### Storage and encryption
+
+Coder stores user secret values in the database. When
+[database encryption](../admin/security/database-encryption.md) is enabled,
+Coder encrypts secret values at rest. Otherwise, values are stored in plaintext
+in the database.
 
 ## How your secrets reach a workspace
 
@@ -76,6 +83,52 @@ If you set two file secrets that resolve to the same absolute path (for
 example `~/config` and `/home/coder/config`), only one of them ends up on
 disk; the workspace agent logs a warning to help spot this. Use
 distinct paths to avoid the collision.
+
+## Limits
+
+User secrets are subject to the following limits. Coder enforces these when you
+create or update a secret and rejects the request with an explanatory 400 when
+you exceed one. Delete or shrink an existing secret to make room.
+
+| Cap                                      | Value     |
+|------------------------------------------|-----------|
+| Total secrets per user                   | 50        |
+| Combined stored value bytes per user     | 200 KiB   |
+| Combined stored env-injected value bytes | 24 KiB    |
+| Per-secret value bytes                   | 24 KiB    |
+| Env var name length                      | 256 bytes |
+
+Only secrets created with `--env` count against the env-injected budget. Coder
+injects these into the workspace agent's process environment, which on Windows
+has a ~32 KiB total budget. The 24 KiB ceiling leaves room for Coder's own
+variables (`CODER_*`, `PATH`, `HOME`, ...) plus any template-defined env. To
+inject a value larger than this budget, use `--file` instead; file secrets do
+not count against the env budget.
+
+The per-secret cap matches the env aggregate cap because a value larger than
+the env aggregate could never be injected successfully as an environment
+variable.
+
+These caps measure stored bytes, which is what Coder writes to the database.
+In deployments with
+[database encryption](../admin/security/database-encryption.md) enabled,
+stored bytes exceed the raw value.
+
+## Manage secrets from the dashboard
+
+You can create, edit, and delete user secrets from the Coder dashboard:
+
+1. Click your avatar in the top right.
+1. Select **Account**.
+1. Select **Secrets**.
+
+From this page you can add a new secret, update an existing secret's value,
+description, or environment variable and file targets, and delete secrets you
+no longer need.
+
+The rest of this guide shows the equivalent CLI commands. The same behaviors,
+limits, and injection rules apply whether you manage secrets from the
+dashboard or the CLI.
 
 ## Create a secret
 

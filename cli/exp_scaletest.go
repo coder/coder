@@ -70,6 +70,7 @@ func (r *RootCmd) scaletestCmd() *serpent.Command {
 			r.scaletestSMTP(),
 			r.scaletestPrebuilds(),
 			r.scaletestBridge(),
+			r.scaletestChat(),
 			r.scaletestLLMMock(),
 		},
 	}
@@ -395,6 +396,7 @@ type workspaceTargetFlags struct {
 	template         string
 	targetWorkspaces string
 	useHostLogin     bool
+	allowEmpty       bool
 }
 
 // attach adds the workspace target flags to the given options set.
@@ -404,13 +406,13 @@ func (f *workspaceTargetFlags) attach(opts *serpent.OptionSet) {
 			Flag:          "template",
 			FlagShorthand: "t",
 			Env:           "CODER_SCALETEST_TEMPLATE",
-			Description:   "Name or ID of the template. Traffic generation will be limited to workspaces created from this template.",
+			Description:   "Name or ID of the template. Only workspaces created from this template are targeted.",
 			Value:         serpent.StringOf(&f.template),
 		},
 		serpent.Option{
 			Flag:        "target-workspaces",
 			Env:         "CODER_SCALETEST_TARGET_WORKSPACES",
-			Description: "Target a specific range of workspaces in the format [START]:[END] (exclusive). Example: 0:10 will target the 10 first alphabetically sorted workspaces (0-9).",
+			Description: "Target a specific range of matching workspaces in the format [START]:[END] (exclusive). Example: 0:10 targets the first 10 matching workspaces returned by the workspace query.",
 			Value:       serpent.StringOf(&f.targetWorkspaces),
 		},
 		serpent.Option{
@@ -462,6 +464,9 @@ func (f *workspaceTargetFlags) getTargetedWorkspaces(ctx context.Context, client
 
 	// Validate range
 	if len(workspaces) == 0 {
+		if f.allowEmpty {
+			return nil, nil
+		}
 		return nil, xerrors.Errorf("no scaletest workspaces exist")
 	}
 	if targetEnd > len(workspaces) {

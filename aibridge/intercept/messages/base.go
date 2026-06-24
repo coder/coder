@@ -66,31 +66,30 @@ var bedrockSupportedBetaFlags = map[string]bool{
 }
 
 type interceptionBase struct {
-	id           uuid.UUID
-	providerName string
-	reqPayload   RequestPayload
+	id         uuid.UUID
+	reqPayload RequestPayload
 
-	cfg        aibconfig.Anthropic
+	cfg        intercept.Config
+	cred       intercept.Credential
 	bedrockCfg *aibconfig.AWSBedrock
 
 	// clientHeaders are the original HTTP headers from the client request.
-	clientHeaders  http.Header
-	authHeaderName string
+	clientHeaders http.Header
 
-	tracer trace.Tracer
 	logger slog.Logger
+	tracer trace.Tracer
 
-	recorder   recorder.Recorder
-	mcpProxy   mcp.ServerProxier
-	credential intercept.CredentialInfo
+	recorder recorder.Recorder
+	mcpProxy mcp.ServerProxier
 }
 
 func (i *interceptionBase) ID() uuid.UUID {
 	return i.id
 }
 
-func (i *interceptionBase) Credential() intercept.CredentialInfo {
-	return i.credential
+// Credential returns the credential resolved for this interception.
+func (i *interceptionBase) Credential() intercept.Credential {
+	return i.cred
 }
 
 func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpProxy mcp.ServerProxier) {
@@ -124,7 +123,7 @@ func (i *interceptionBase) baseTraceAttributes(r *http.Request, streaming bool) 
 		attribute.String(tracing.RequestPath, r.URL.Path),
 		attribute.String(tracing.InterceptionID, i.id.String()),
 		attribute.String(tracing.InitiatorID, aibcontext.ActorIDFromContext(r.Context())),
-		attribute.String(tracing.Provider, i.providerName),
+		attribute.String(tracing.Provider, i.cfg.ProviderName),
 		attribute.String(tracing.Model, i.Model()),
 		attribute.Bool(tracing.Streaming, streaming),
 		attribute.Bool(tracing.IsBedrock, i.bedrockCfg != nil),
@@ -205,50 +204,37 @@ func (i *interceptionBase) isSmallFastModel() bool {
 	return strings.Contains(i.reqPayload.model(), "haiku")
 }
 
-// newMessagesService builds the SDK service used for upstream
-// calls. BYOK auth is set here. Centralized auth is set
-// per-attempt by the failover loop.
+// newMessagesService builds the SDK service used for upstream calls.
 func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...option.RequestOption) (anthropic.MessageService, error) {
-	// TODO(ssncferreira): validate auth is configured per
-	// https://github.com/coder/aibridge/issues/266.
-
-	// BYOK auth.
-	if i.cfg.KeyPool == nil {
-		if i.cfg.BYOKBearerToken != "" {
-			// BYOK Bearer: Authorization header.
-			i.logger.Debug(ctx, "using byok access token auth",
-				slog.F("bearer_hint", utils.MaskSecret(i.cfg.BYOKBearerToken)),
-			)
-			opts = append(opts, option.WithAuthToken(i.cfg.BYOKBearerToken))
-		} else {
-			// BYOK X-Api-Key.
-			i.logger.Debug(ctx, "using api key auth",
-				slog.F("api_key_hint", utils.MaskSecret(i.cfg.Key)),
-			)
-			opts = append(opts, option.WithAPIKey(i.cfg.Key))
+	// Only BYOK sets its credential here. Centralized keys are injected
+	// per-attempt in the failover loop.
+	if byok, ok := intercept.AsBYOK(i.cred); ok {
+		i.logger.Debug(ctx, "using byok auth",
+			slog.F("auth_header", byok.Header), slog.F("key_hint", byok.Hint()),
+		)
+		switch byok.Header {
+		case intercept.AuthHeaderAuthorization:
+			opts = append(opts, option.WithAuthToken(byok.Secret))
+		case intercept.AuthHeaderXAPIKey:
+			opts = append(opts, option.WithAPIKey(byok.Secret))
+		default:
+			return anthropic.MessageService{}, xerrors.Errorf("unexpected byok auth header: %q", byok.Header)
 		}
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
-
-	// Add extra headers if configured.
-	// Some providers require additional headers that are not added by the SDK.
-	// TODO(ssncferreira): remove as part of https://github.com/coder/aibridge/issues/192
-	for key, value := range i.cfg.ExtraHeaders {
-		opts = append(opts, option.WithHeader(key, value))
-	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.authHeaderName)
+			req.Header = intercept.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader())
 			return next(req)
 		}))
 	}
 
 	// Add API dump middleware if configured
-	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.providerName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
+	if mw := apidump.NewBridgeMiddleware(i.cfg.APIDumpDir, i.cfg.ProviderName, i.Model(), i.id, i.logger, quartz.NewReal()); mw != nil {
 		opts = append(opts, option.WithMiddleware(mw))
 	}
 
@@ -329,6 +315,12 @@ func (*interceptionBase) withAWSBedrockOptions(ctx context.Context, cfg *aibconf
 	}
 
 	var out []option.RequestOption
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+		}
+		return next(req)
+	}))
 	out = append(out, bedrock.WithConfig(awsCfg))
 
 	// If a custom base URL is set, override the default endpoint constructed by the bedrock middleware.
@@ -570,22 +562,25 @@ func accumulateUsage(dest, src any) {
 // its status code. Returns true if the status was a key-specific
 // failover trigger so callers can retry with the next key.
 func (i *interceptionBase) markKeyOnError(ctx context.Context, key *keypool.Key, err error) bool {
-	if i.cfg.KeyPool == nil {
+	cp, ok := intercept.AsCentralizedPool(i.cred)
+	if !ok {
 		return false
 	}
 	var apiErr *anthropic.Error
 	if !errors.As(err, &apiErr) {
 		return false
 	}
-	return keypool.MarkKeyOnStatus(
-		ctx, key, apiErr.Response,
-		i.logger, i.providerName,
+	return cp.Pool.MarkKeyOnStatus(
+		ctx, key, apiErr.Response, i.logger,
 	)
 }
 
 // ResponseErrorFromKeyPool translates a *keypool.Error into
 // a developer-facing ResponseError shaped for the Anthropic API.
 func ResponseErrorFromKeyPool(keyPoolErr *keypool.Error) *ResponseError {
+	if keyPoolErr == nil {
+		return nil
+	}
 	switch keyPoolErr.Kind {
 	case keypool.ErrorKindPermanent:
 		return newResponseError(

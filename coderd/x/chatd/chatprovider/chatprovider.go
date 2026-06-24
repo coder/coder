@@ -2,7 +2,9 @@ package chatprovider
 
 import (
 	"context"
+	"mime"
 	"net/http"
+	neturl "net/url"
 	"sort"
 	"strings"
 
@@ -35,11 +37,6 @@ var supportedProviderNames = []string{
 	fantasyvercel.Name,
 }
 
-var envPresetProviderNames = []string{
-	fantasyopenai.Name,
-	fantasyanthropic.Name,
-}
-
 var providerDisplayNameByName = map[string]string{
 	fantasyanthropic.Name:    "Anthropic",
 	fantasyazure.Name:        "Azure OpenAI",
@@ -49,22 +46,6 @@ var providerDisplayNameByName = map[string]string{
 	fantasyopenaicompat.Name: "OpenAI Compatible",
 	fantasyopenrouter.Name:   "OpenRouter",
 	fantasyvercel.Name:       "Vercel AI Gateway",
-}
-
-// SupportedProviders returns all chat providers supported by Fantasy.
-func SupportedProviders() []string {
-	return append([]string(nil), supportedProviderNames...)
-}
-
-// IsEnvPresetProvider reports whether provider supports env presets.
-func IsEnvPresetProvider(provider string) bool {
-	normalized := NormalizeProvider(provider)
-	for _, candidate := range envPresetProviderNames {
-		if candidate == normalized {
-			return true
-		}
-	}
-	return false
 }
 
 // ProviderDisplayName returns a default display name for a provider.
@@ -96,12 +77,57 @@ func InlineImageCapBytes(provider string) (int, bool) {
 	}
 }
 
+// AcceptsFilePartMediaType reports whether provider accepts mediaType
+// as a file content part rather than silently dropping it. modelID
+// distinguishes API paths within a provider (e.g. OpenAI Responses vs
+// Chat Completions). Unknown providers return false so callers convert
+// text-family content to text and guarantee the model still sees it.
+func AcceptsFilePartMediaType(provider, modelID, mediaType string) bool {
+	baseType := mediaType
+	if parsed, _, err := mime.ParseMediaType(mediaType); err == nil {
+		baseType = parsed
+	}
+	isImage := strings.HasPrefix(baseType, "image/")
+	isText := strings.HasPrefix(baseType, "text/")
+	// Audio types are included for matrix completeness but are not
+	// currently reachable: no audio type is in the storable attachment
+	// allowlist (codersdk.AllChatAttachmentMediaTypes).
+	isAudio := baseType == "audio/wav" || baseType == "audio/mpeg" || baseType == "audio/mp3"
+	isPDF := baseType == "application/pdf"
+
+	switch NormalizeProvider(provider) {
+	case fantasygoogle.Name:
+		// Google passes any file part through unfiltered.
+		return true
+	case fantasyanthropic.Name, fantasybedrock.Name:
+		// Bedrock wraps the anthropic client, so it shares the same
+		// file-part acceptance, including text/* as native documents.
+		return isImage || isText || isPDF
+	case fantasyopenai.Name, fantasyazure.Name:
+		// chatd configures both with WithUseResponsesAPI, but only
+		// Responses-capable models actually use it. Non-Responses models
+		// fall through to the Chat Completions path, which accepts
+		// text/* and audio as native file parts (same as openaicompat).
+		if fantasyopenai.IsResponsesModel(modelID) {
+			return isImage || isPDF
+		}
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenaicompat.Name:
+		return isImage || isText || isAudio || isPDF
+	case fantasyopenrouter.Name, fantasyvercel.Name:
+		return isImage || isAudio || isPDF
+	default:
+		return false
+	}
+}
+
 // ProviderAPIKeys contains API keys for provider calls.
 type ProviderAPIKeys struct {
 	OpenAI            string
 	Anthropic         string
 	ByProvider        map[string]string
 	BaseURLByProvider map[string]string
+	RegionByProvider  map[string]string
 }
 
 // Empty reports whether no provider keys or base URL overrides are set.
@@ -109,7 +135,8 @@ func (k ProviderAPIKeys) Empty() bool {
 	return k.OpenAI == "" &&
 		k.Anthropic == "" &&
 		len(k.ByProvider) == 0 &&
-		len(k.BaseURLByProvider) == 0
+		len(k.BaseURLByProvider) == 0 &&
+		len(k.RegionByProvider) == 0
 }
 
 // UserProviderKey is a user-supplied API key for a specific provider.
@@ -131,6 +158,7 @@ type ConfiguredProvider struct {
 	Provider                   string
 	APIKey                     string
 	BaseURL                    string
+	Region                     string
 	CentralAPIKeyEnabled       bool
 	AllowUserAPIKey            bool
 	AllowCentralAPIKeyFallback bool
@@ -186,8 +214,61 @@ func (k ProviderAPIKeys) BaseURL(provider string) string {
 	return strings.TrimSpace(k.BaseURLByProvider[normalized])
 }
 
-// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
-func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+// Region returns the configured region for a provider.
+func (k ProviderAPIKeys) Region(provider string) string {
+	normalized := NormalizeProvider(provider)
+	if normalized == "" || k.RegionByProvider == nil {
+		return ""
+	}
+	return strings.TrimSpace(k.RegionByProvider[normalized])
+}
+
+// ProviderBaseURLHostname returns the normalized hostname from a provider base URL.
+func ProviderBaseURLHostname(baseURL string) string {
+	parsed, ok := parseProviderBaseURL(baseURL)
+	if !ok {
+		return ""
+	}
+	return strings.ToLower(parsed.Hostname())
+}
+
+func parseProviderBaseURL(baseURL string) (*neturl.URL, bool) {
+	baseURL = strings.TrimSpace(baseURL)
+	if baseURL == "" {
+		return nil, false
+	}
+	parsed, err := neturl.Parse(baseURL)
+	if err == nil && parsed.Hostname() == "" && !strings.Contains(baseURL, "://") {
+		parsed, err = neturl.Parse("https://" + baseURL)
+	}
+	if err != nil {
+		return nil, false
+	}
+	return parsed, true
+}
+
+// setRegion records a normalized, non-empty region for a provider. The
+// RegionByProvider map is allocated lazily so an unused set stays nil, which
+// keeps Empty() and value comparisons stable.
+func (k *ProviderAPIKeys) setRegion(provider, region string) {
+	if provider == "" {
+		return
+	}
+	if region = strings.TrimSpace(region); region == "" {
+		return
+	}
+	if k.RegionByProvider == nil {
+		k.RegionByProvider = map[string]string{}
+	}
+	k.RegionByProvider[provider] = region
+}
+
+// mergedFromFallback seeds a ProviderAPIKeys from a fallback set, normalizing
+// provider names and dropping blank values. ByProvider and BaseURLByProvider
+// are always non-nil; RegionByProvider stays nil until a region is set. The
+// legacy OpenAI/Anthropic keys are mirrored into ByProvider so callers can
+// look them up by provider name.
+func mergedFromFallback(fallback ProviderAPIKeys) ProviderAPIKeys {
 	merged := ProviderAPIKeys{
 		OpenAI:            strings.TrimSpace(fallback.OpenAI),
 		Anthropic:         strings.TrimSpace(fallback.Anthropic),
@@ -195,30 +276,34 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		BaseURLByProvider: map[string]string{},
 	}
 	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if key := strings.TrimSpace(apiKey); key != "" {
+				merged.ByProvider[normalized] = key
+			}
 		}
 	}
 	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
+		if normalized := NormalizeProvider(provider); normalized != "" {
+			if url := strings.TrimSpace(baseURL); url != "" {
+				merged.BaseURLByProvider[normalized] = url
+			}
 		}
 	}
-
+	for provider, region := range fallback.RegionByProvider {
+		merged.setRegion(NormalizeProvider(provider), region)
+	}
 	if merged.OpenAI != "" {
 		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
 	}
 	if merged.Anthropic != "" {
 		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
 	}
+	return merged
+}
+
+// MergeProviderAPIKeys overlays configured provider keys over fallback keys.
+func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvider) ProviderAPIKeys {
+	merged := mergedFromFallback(fallback)
 
 	for _, provider := range providers {
 		normalizedProvider := NormalizeProvider(provider.Provider)
@@ -232,6 +317,7 @@ func MergeProviderAPIKeys(fallback ProviderAPIKeys, providers []ConfiguredProvid
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		switch normalizedProvider {
 		case fantasyopenai.Name:
@@ -257,36 +343,7 @@ func ResolveUserProviderKeys(
 	providers []ConfiguredProvider,
 	userKeys []UserProviderKey,
 ) (ProviderAPIKeys, map[string]ProviderAvailability) {
-	merged := ProviderAPIKeys{
-		OpenAI:            strings.TrimSpace(fallback.OpenAI),
-		Anthropic:         strings.TrimSpace(fallback.Anthropic),
-		ByProvider:        map[string]string{},
-		BaseURLByProvider: map[string]string{},
-	}
-	for provider, apiKey := range fallback.ByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if key := strings.TrimSpace(apiKey); key != "" {
-			merged.ByProvider[normalizedProvider] = key
-		}
-	}
-	for provider, baseURL := range fallback.BaseURLByProvider {
-		normalizedProvider := NormalizeProvider(provider)
-		if normalizedProvider == "" {
-			continue
-		}
-		if url := strings.TrimSpace(baseURL); url != "" {
-			merged.BaseURLByProvider[normalizedProvider] = url
-		}
-	}
-	if merged.OpenAI != "" {
-		merged.ByProvider[fantasyopenai.Name] = merged.OpenAI
-	}
-	if merged.Anthropic != "" {
-		merged.ByProvider[fantasyanthropic.Name] = merged.Anthropic
-	}
+	merged := mergedFromFallback(fallback)
 
 	userKeyByProviderID := make(map[uuid.UUID]string, len(userKeys))
 	for _, userKey := range userKeys {
@@ -308,6 +365,7 @@ func ResolveUserProviderKeys(
 		if url := strings.TrimSpace(provider.BaseURL); url != "" {
 			merged.BaseURLByProvider[normalizedProvider] = url
 		}
+		merged.setRegion(normalizedProvider, provider.Region)
 
 		var userKey string
 		if provider.ProviderID != uuid.Nil {
@@ -511,17 +569,28 @@ func (*ModelCatalog) ListConfiguredProviderAvailability(
 }
 
 // PruneDisabledProviderKeys removes entries from keys that do not
-// belong to an enabled provider. It clears ByProvider and
-// BaseURLByProvider entries for disabled providers and zeroes the
-// legacy OpenAI and Anthropic fields when those providers are not
-// enabled.
+// belong to an enabled provider. It clears ByProvider,
+// BaseURLByProvider, and RegionByProvider entries for disabled
+// providers and zeroes the legacy OpenAI and Anthropic fields when
+// those providers are not enabled.
 func PruneDisabledProviderKeys(keys *ProviderAPIKeys, enabledProviders map[string]struct{}) {
 	for provider := range keys.ByProvider {
 		if _, ok := enabledProviders[provider]; ok {
 			continue
 		}
 		delete(keys.ByProvider, provider)
+	}
+	for provider := range keys.BaseURLByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
 		delete(keys.BaseURLByProvider, provider)
+	}
+	for provider := range keys.RegionByProvider {
+		if _, ok := enabledProviders[provider]; ok {
+			continue
+		}
+		delete(keys.RegionByProvider, provider)
 	}
 	if _, ok := enabledProviders[NormalizeProvider("openai")]; !ok {
 		keys.OpenAI = ""
@@ -573,6 +642,21 @@ func orderProviders(providerSet map[string]struct{}) []string {
 	return ordered
 }
 
+// isGatewayProvider reports whether the provider routes requests to
+// multiple upstream model providers using a "<provider>/<model>" model
+// identifier, where the slash is part of the upstream model ID rather
+// than a hint.
+func isGatewayProvider(provider string) bool {
+	switch provider {
+	case fantasyvercel.Name,
+		fantasyopenrouter.Name,
+		fantasyopenaicompat.Name:
+		return true
+	default:
+		return false
+	}
+}
+
 // NormalizeProvider canonicalizes a provider name.
 func NormalizeProvider(provider string) string {
 	switch strings.ToLower(strings.TrimSpace(provider)) {
@@ -603,6 +687,15 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 		return "", "", xerrors.New("model is required")
 	}
 
+	// Gateway providers (vercel, openrouter, openai-compat) treat the
+	// "<provider>/<model>" slash as part of the upstream model ID, so
+	// parseCanonicalModelRef would incorrectly strip the prefix and
+	// route to the embedded provider name instead. Honor an explicit
+	// gateway hint before attempting canonical-ref parsing.
+	if normalized := NormalizeProvider(providerHint); normalized != "" && isGatewayProvider(normalized) {
+		return normalized, modelName, nil
+	}
+
 	if provider, modelID, ok := parseCanonicalModelRef(modelName); ok {
 		return provider, modelID, nil
 	}
@@ -626,6 +719,9 @@ func ResolveModelWithProviderHint(modelName, providerHint string) (provider stri
 	}
 	if isChatModelForProvider(fantasyopenai.Name, normalized) {
 		return fantasyopenai.Name, modelName, nil
+	}
+	if isChatModelForProvider(fantasygoogle.Name, normalized) {
+		return fantasygoogle.Name, modelName, nil
 	}
 
 	return "", "", xerrors.Errorf("unknown model %q", modelName)
@@ -722,338 +818,28 @@ func ReasoningEffortFromChat(provider string, value *string) *string {
 	}
 }
 
-// MergeMissingModelCostConfig fills unset pricing metadata from defaults.
-func MergeMissingModelCostConfig(
-	dst **codersdk.ModelCostConfig,
-	defaults *codersdk.ModelCostConfig,
-) {
-	if defaults == nil {
-		return
-	}
-	if *dst == nil {
-		copied := *defaults
-		*dst = &copied
-		return
+// AnthropicThinkingDisplayFromChat normalizes chat-config thinking display
+// values for Anthropic and returns the canonical provider display value.
+func AnthropicThinkingDisplayFromChat(value *string) *fantasyanthropic.ThinkingDisplay {
+	if value == nil {
+		return nil
 	}
 
-	current := *dst
-	if current.InputPricePerMillionTokens == nil {
-		current.InputPricePerMillionTokens = defaults.InputPricePerMillionTokens
-	}
-	if current.OutputPricePerMillionTokens == nil {
-		current.OutputPricePerMillionTokens = defaults.OutputPricePerMillionTokens
-	}
-	if current.CacheReadPricePerMillionTokens == nil {
-		current.CacheReadPricePerMillionTokens = defaults.CacheReadPricePerMillionTokens
-	}
-	if current.CacheWritePricePerMillionTokens == nil {
-		current.CacheWritePricePerMillionTokens = defaults.CacheWritePricePerMillionTokens
-	}
-}
-
-// MergeMissingProviderOptions fills unset provider option fields from defaults.
-func MergeMissingProviderOptions(
-	dst **codersdk.ChatModelProviderOptions,
-	defaults *codersdk.ChatModelProviderOptions,
-) {
-	if defaults == nil {
-		return
-	}
-	if *dst == nil {
-		copied := *defaults
-		*dst = &copied
-		return
+	normalized := strings.ToLower(strings.TrimSpace(*value))
+	if normalized == "" {
+		return nil
 	}
 
-	current := *dst
-	for _, provider := range []string{
-		fantasyopenai.Name,
-		fantasyanthropic.Name,
-		fantasygoogle.Name,
-		fantasyopenaicompat.Name,
-		fantasyopenrouter.Name,
-		fantasyvercel.Name,
-	} {
-		switch provider {
-		case fantasyopenai.Name:
-			if defaults.OpenAI == nil {
-				continue
-			}
-			if current.OpenAI == nil {
-				copied := *defaults.OpenAI
-				current.OpenAI = &copied
-				continue
-			}
-			dstOpenAI := current.OpenAI
-			defaultOpenAI := defaults.OpenAI
-			if dstOpenAI.Include == nil {
-				dstOpenAI.Include = defaultOpenAI.Include
-			}
-			if dstOpenAI.Instructions == nil {
-				dstOpenAI.Instructions = defaultOpenAI.Instructions
-			}
-			if dstOpenAI.LogitBias == nil {
-				dstOpenAI.LogitBias = defaultOpenAI.LogitBias
-			}
-			if dstOpenAI.LogProbs == nil {
-				dstOpenAI.LogProbs = defaultOpenAI.LogProbs
-			}
-			if dstOpenAI.TopLogProbs == nil {
-				dstOpenAI.TopLogProbs = defaultOpenAI.TopLogProbs
-			}
-			if dstOpenAI.MaxToolCalls == nil {
-				dstOpenAI.MaxToolCalls = defaultOpenAI.MaxToolCalls
-			}
-			if dstOpenAI.ParallelToolCalls == nil {
-				dstOpenAI.ParallelToolCalls = defaultOpenAI.ParallelToolCalls
-			}
-			if dstOpenAI.User == nil {
-				dstOpenAI.User = defaultOpenAI.User
-			}
-			if dstOpenAI.ReasoningEffort == nil {
-				dstOpenAI.ReasoningEffort = defaultOpenAI.ReasoningEffort
-			}
-			if dstOpenAI.ReasoningSummary == nil {
-				dstOpenAI.ReasoningSummary = defaultOpenAI.ReasoningSummary
-			}
-			if dstOpenAI.MaxCompletionTokens == nil {
-				dstOpenAI.MaxCompletionTokens = defaultOpenAI.MaxCompletionTokens
-			}
-			if dstOpenAI.TextVerbosity == nil {
-				dstOpenAI.TextVerbosity = defaultOpenAI.TextVerbosity
-			}
-			if dstOpenAI.Prediction == nil {
-				dstOpenAI.Prediction = defaultOpenAI.Prediction
-			}
-			if dstOpenAI.Store == nil {
-				dstOpenAI.Store = defaultOpenAI.Store
-			}
-			if dstOpenAI.Metadata == nil {
-				dstOpenAI.Metadata = defaultOpenAI.Metadata
-			}
-			if dstOpenAI.PromptCacheKey == nil {
-				dstOpenAI.PromptCacheKey = defaultOpenAI.PromptCacheKey
-			}
-			if dstOpenAI.SafetyIdentifier == nil {
-				dstOpenAI.SafetyIdentifier = defaultOpenAI.SafetyIdentifier
-			}
-			if dstOpenAI.ServiceTier == nil {
-				dstOpenAI.ServiceTier = defaultOpenAI.ServiceTier
-			}
-			if dstOpenAI.StructuredOutputs == nil {
-				dstOpenAI.StructuredOutputs = defaultOpenAI.StructuredOutputs
-			}
-			if dstOpenAI.StrictJSONSchema == nil {
-				dstOpenAI.StrictJSONSchema = defaultOpenAI.StrictJSONSchema
-			}
-
-		case fantasyanthropic.Name:
-			if defaults.Anthropic == nil {
-				continue
-			}
-			if current.Anthropic == nil {
-				copied := *defaults.Anthropic
-				current.Anthropic = &copied
-				continue
-			}
-			dstAnthropic := current.Anthropic
-			defaultAnthropic := defaults.Anthropic
-			if dstAnthropic.SendReasoning == nil {
-				dstAnthropic.SendReasoning = defaultAnthropic.SendReasoning
-			}
-			if dstAnthropic.Thinking == nil {
-				dstAnthropic.Thinking = defaultAnthropic.Thinking
-			} else if defaultAnthropic.Thinking != nil &&
-				dstAnthropic.Thinking.BudgetTokens == nil {
-				dstAnthropic.Thinking.BudgetTokens = defaultAnthropic.Thinking.BudgetTokens
-			}
-			if dstAnthropic.Effort == nil {
-				dstAnthropic.Effort = defaultAnthropic.Effort
-			}
-			if dstAnthropic.DisableParallelToolUse == nil {
-				dstAnthropic.DisableParallelToolUse = defaultAnthropic.DisableParallelToolUse
-			}
-
-		case fantasygoogle.Name:
-			if defaults.Google == nil {
-				continue
-			}
-			if current.Google == nil {
-				copied := *defaults.Google
-				current.Google = &copied
-				continue
-			}
-			dstGoogle := current.Google
-			defaultGoogle := defaults.Google
-			if dstGoogle.ThinkingConfig == nil {
-				dstGoogle.ThinkingConfig = defaultGoogle.ThinkingConfig
-			} else if defaultGoogle.ThinkingConfig != nil {
-				if dstGoogle.ThinkingConfig.ThinkingBudget == nil {
-					dstGoogle.ThinkingConfig.ThinkingBudget = defaultGoogle.ThinkingConfig.ThinkingBudget
-				}
-				if dstGoogle.ThinkingConfig.IncludeThoughts == nil {
-					dstGoogle.ThinkingConfig.IncludeThoughts = defaultGoogle.ThinkingConfig.IncludeThoughts
-				}
-			}
-			if strings.TrimSpace(dstGoogle.CachedContent) == "" {
-				dstGoogle.CachedContent = defaultGoogle.CachedContent
-			}
-			if dstGoogle.SafetySettings == nil {
-				dstGoogle.SafetySettings = defaultGoogle.SafetySettings
-			}
-			if strings.TrimSpace(dstGoogle.Threshold) == "" {
-				dstGoogle.Threshold = defaultGoogle.Threshold
-			}
-
-		case fantasyopenaicompat.Name:
-			if defaults.OpenAICompat == nil {
-				continue
-			}
-			if current.OpenAICompat == nil {
-				copied := *defaults.OpenAICompat
-				current.OpenAICompat = &copied
-				continue
-			}
-			dstCompat := current.OpenAICompat
-			defaultCompat := defaults.OpenAICompat
-			if dstCompat.User == nil {
-				dstCompat.User = defaultCompat.User
-			}
-			if dstCompat.ReasoningEffort == nil {
-				dstCompat.ReasoningEffort = defaultCompat.ReasoningEffort
-			}
-
-		case fantasyopenrouter.Name:
-			if defaults.OpenRouter == nil {
-				continue
-			}
-			if current.OpenRouter == nil {
-				copied := *defaults.OpenRouter
-				current.OpenRouter = &copied
-				continue
-			}
-			dstRouter := current.OpenRouter
-			defaultRouter := defaults.OpenRouter
-			if dstRouter.Reasoning == nil {
-				dstRouter.Reasoning = defaultRouter.Reasoning
-			} else if defaultRouter.Reasoning != nil {
-				if dstRouter.Reasoning.Enabled == nil {
-					dstRouter.Reasoning.Enabled = defaultRouter.Reasoning.Enabled
-				}
-				if dstRouter.Reasoning.Exclude == nil {
-					dstRouter.Reasoning.Exclude = defaultRouter.Reasoning.Exclude
-				}
-				if dstRouter.Reasoning.MaxTokens == nil {
-					dstRouter.Reasoning.MaxTokens = defaultRouter.Reasoning.MaxTokens
-				}
-				if dstRouter.Reasoning.Effort == nil {
-					dstRouter.Reasoning.Effort = defaultRouter.Reasoning.Effort
-				}
-			}
-			if dstRouter.ExtraBody == nil {
-				dstRouter.ExtraBody = defaultRouter.ExtraBody
-			}
-			if dstRouter.IncludeUsage == nil {
-				dstRouter.IncludeUsage = defaultRouter.IncludeUsage
-			}
-			if dstRouter.LogitBias == nil {
-				dstRouter.LogitBias = defaultRouter.LogitBias
-			}
-			if dstRouter.LogProbs == nil {
-				dstRouter.LogProbs = defaultRouter.LogProbs
-			}
-			if dstRouter.ParallelToolCalls == nil {
-				dstRouter.ParallelToolCalls = defaultRouter.ParallelToolCalls
-			}
-			if dstRouter.User == nil {
-				dstRouter.User = defaultRouter.User
-			}
-			if dstRouter.Provider == nil {
-				dstRouter.Provider = defaultRouter.Provider
-			} else if defaultRouter.Provider != nil {
-				if dstRouter.Provider.Order == nil {
-					dstRouter.Provider.Order = defaultRouter.Provider.Order
-				}
-				if dstRouter.Provider.AllowFallbacks == nil {
-					dstRouter.Provider.AllowFallbacks = defaultRouter.Provider.AllowFallbacks
-				}
-				if dstRouter.Provider.RequireParameters == nil {
-					dstRouter.Provider.RequireParameters = defaultRouter.Provider.RequireParameters
-				}
-				if dstRouter.Provider.DataCollection == nil {
-					dstRouter.Provider.DataCollection = defaultRouter.Provider.DataCollection
-				}
-				if dstRouter.Provider.Only == nil {
-					dstRouter.Provider.Only = defaultRouter.Provider.Only
-				}
-				if dstRouter.Provider.Ignore == nil {
-					dstRouter.Provider.Ignore = defaultRouter.Provider.Ignore
-				}
-				if dstRouter.Provider.Quantizations == nil {
-					dstRouter.Provider.Quantizations = defaultRouter.Provider.Quantizations
-				}
-				if dstRouter.Provider.Sort == nil {
-					dstRouter.Provider.Sort = defaultRouter.Provider.Sort
-				}
-			}
-
-		case fantasyvercel.Name:
-			if defaults.Vercel == nil {
-				continue
-			}
-			if current.Vercel == nil {
-				copied := *defaults.Vercel
-				current.Vercel = &copied
-				continue
-			}
-			dstVercel := current.Vercel
-			defaultVercel := defaults.Vercel
-			if dstVercel.Reasoning == nil {
-				dstVercel.Reasoning = defaultVercel.Reasoning
-			} else if defaultVercel.Reasoning != nil {
-				if dstVercel.Reasoning.Enabled == nil {
-					dstVercel.Reasoning.Enabled = defaultVercel.Reasoning.Enabled
-				}
-				if dstVercel.Reasoning.MaxTokens == nil {
-					dstVercel.Reasoning.MaxTokens = defaultVercel.Reasoning.MaxTokens
-				}
-				if dstVercel.Reasoning.Effort == nil {
-					dstVercel.Reasoning.Effort = defaultVercel.Reasoning.Effort
-				}
-				if dstVercel.Reasoning.Exclude == nil {
-					dstVercel.Reasoning.Exclude = defaultVercel.Reasoning.Exclude
-				}
-			}
-			if dstVercel.ProviderOptions == nil {
-				dstVercel.ProviderOptions = defaultVercel.ProviderOptions
-			} else if defaultVercel.ProviderOptions != nil {
-				if dstVercel.ProviderOptions.Order == nil {
-					dstVercel.ProviderOptions.Order = defaultVercel.ProviderOptions.Order
-				}
-				if dstVercel.ProviderOptions.Models == nil {
-					dstVercel.ProviderOptions.Models = defaultVercel.ProviderOptions.Models
-				}
-			}
-			if dstVercel.User == nil {
-				dstVercel.User = defaultVercel.User
-			}
-			if dstVercel.LogitBias == nil {
-				dstVercel.LogitBias = defaultVercel.LogitBias
-			}
-			if dstVercel.LogProbs == nil {
-				dstVercel.LogProbs = defaultVercel.LogProbs
-			}
-			if dstVercel.TopLogProbs == nil {
-				dstVercel.TopLogProbs = defaultVercel.TopLogProbs
-			}
-			if dstVercel.ParallelToolCalls == nil {
-				dstVercel.ParallelToolCalls = defaultVercel.ParallelToolCalls
-			}
-			if dstVercel.ExtraBody == nil {
-				dstVercel.ExtraBody = defaultVercel.ExtraBody
-			}
-		}
+	display := chatutil.NormalizedEnumValue(
+		normalized,
+		string(fantasyanthropic.ThinkingDisplaySummarized),
+		string(fantasyanthropic.ThinkingDisplayOmitted),
+	)
+	if display == nil {
+		return nil
 	}
+	valueCopy := fantasyanthropic.ThinkingDisplay(*display)
+	return &valueCopy
 }
 
 // Header constants sent on upstream LLM API requests so that
@@ -1092,22 +878,6 @@ func CoderHeaders(chat database.Chat) map[string]string {
 		h[HeaderCoderWorkspaceID] = chat.WorkspaceID.UUID.String()
 	}
 	return h
-}
-
-// CoderHeadersFromIDs is a convenience form of CoderHeaders for call
-// sites that do not have a full database.Chat in scope.
-func CoderHeadersFromIDs(
-	ownerID uuid.UUID,
-	chatID uuid.UUID,
-	parentChatID uuid.NullUUID,
-	workspaceID uuid.NullUUID,
-) map[string]string {
-	return CoderHeaders(database.Chat{
-		ID:           chatID,
-		OwnerID:      ownerID,
-		ParentChatID: parentChatID,
-		WorkspaceID:  workspaceID,
-	})
 }
 
 // ModelFromConfig resolves a provider/model pair and constructs a fantasy
@@ -1174,6 +944,9 @@ func ModelFromConfig(
 		bedrockOpts := []fantasybedrock.Option{
 			fantasybedrock.WithUserAgent(userAgent),
 		}
+		if region := providerKeys.Region(provider); region != "" {
+			bedrockOpts = append(bedrockOpts, fantasybedrock.WithRegion(region))
+		}
 		if apiKey != "" {
 			bedrockOpts = append(bedrockOpts, fantasybedrock.WithAPIKey(apiKey))
 		}
@@ -1219,6 +992,7 @@ func ModelFromConfig(
 		}
 		providerClient, err = fantasyopenai.New(options...)
 	case fantasyopenaicompat.Name:
+		httpClient = withOpenAICompatRequestPatches(httpClient, baseURL, modelID)
 		options := []fantasyopenaicompat.Option{
 			fantasyopenaicompat.WithAPIKey(apiKey),
 			fantasyopenaicompat.WithUserAgent(userAgent),
@@ -1358,6 +1132,7 @@ func anthropicProviderOptionsFromChatConfig(
 	result := &fantasyanthropic.ProviderOptions{
 		SendReasoning:          options.SendReasoning,
 		Effort:                 anthropicEffortFromChat(options.Effort),
+		ThinkingDisplay:        AnthropicThinkingDisplayFromChat(options.ThinkingDisplay),
 		DisableParallelToolUse: options.DisableParallelToolUse,
 	}
 	if options.Thinking != nil && options.Thinking.BudgetTokens != nil {

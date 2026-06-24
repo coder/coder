@@ -1,0 +1,183 @@
+name: Setup mise
+description: Install mise tools from SHA256-pinned binaries, with CI-layer caching.
+inputs:
+  install-args:
+    description: Tool names or extra arguments passed to mise install. --locked is added by default.
+    required: false
+    default: ""
+  locked:
+    description: Whether to pass --locked to mise install.
+    required: false
+    default: "true"
+  cache-key-prefix:
+    description: Prefix for mise tool cache keys.
+    required: false
+    default: mise-ci-v1
+  mise-version:
+    description: mise version to install.
+    required: false
+    default: "2026.5.12"
+  mise-sha256:
+    description: SHA256 checksum for the mise binary.
+    required: false
+    default: ""
+  use-cache:
+    description: Whether to restore and save mise tool caches.
+    required: false
+    default: "true"
+runs:
+  using: composite
+  steps:
+    - name: Compute mise cache key
+      id: cache-key
+      shell: bash
+      env:
+        CACHE_KEY_PREFIX: ${{ inputs.cache-key-prefix }}
+        INPUT_INSTALL_ARGS: ${{ inputs.install-args }}
+        INPUT_LOCKED: ${{ inputs.locked }}
+        MISE_VERSION: ${{ inputs.mise-version }}
+        RUNNER_ARCH: ${{ runner.arch }}
+        RUNNER_OS: ${{ runner.os }}
+      run: |
+        set -euo pipefail
+
+        case "${INPUT_LOCKED}" in
+          true)
+            if [[ -n "${INPUT_INSTALL_ARGS}" ]]; then
+              install_args="--locked ${INPUT_INSTALL_ARGS}"
+            else
+              install_args="--locked"
+            fi
+            ;;
+          false)
+            install_args="${INPUT_INSTALL_ARGS}"
+            ;;
+          *)
+            echo "::error::locked must be true or false."
+            exit 1
+            ;;
+        esac
+
+        install_args_hash="$(printf '%s' "$install_args" | git hash-object --stdin)"
+        files_hash="$(git hash-object mise.toml mise.lock | git hash-object --stdin)"
+        key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-${files_hash}"
+        restore_key="${CACHE_KEY_PREFIX}-${RUNNER_OS}-${RUNNER_ARCH}-${MISE_VERSION}-${install_args_hash}-"
+
+        {
+          echo "install-args<<EOF"
+          echo "${install_args}"
+          echo "EOF"
+          echo "key=$key"
+          echo "restore-key=$restore_key"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Select mise checksum
+      id: checksum
+      shell: bash
+      env:
+        CHECKSUMS_FILE: ${{ github.action_path }}/checksums.toml
+        INPUT_MISE_SHA256: ${{ inputs.mise-sha256 }}
+        MISE_CHECKSUM_SCRIPT: ${{ github.workspace }}/scripts/mise_checksum.sh
+        MISE_VERSION: ${{ inputs.mise-version }}
+        RUNNER_ARCH: ${{ runner.arch }}
+        RUNNER_OS: ${{ runner.os }}
+      run: |
+        set -euo pipefail
+
+        checksum="${INPUT_MISE_SHA256}"
+        if [[ -z "${checksum}" ]]; then
+          case "${RUNNER_OS}-${RUNNER_ARCH}" in
+            Linux-X64)
+              target="linux-x64"
+              ;;
+            Linux-ARM64)
+              target="linux-arm64"
+              ;;
+            macOS-X64)
+              target="macos-x64"
+              ;;
+            macOS-ARM64)
+              target="macos-arm64"
+              ;;
+            Windows-X64)
+              target="windows-x64"
+              ;;
+            *)
+              echo "::error::No mise checksum is pinned for ${RUNNER_OS}-${RUNNER_ARCH}."
+              exit 1
+              ;;
+          esac
+
+          checksum="$("${MISE_CHECKSUM_SCRIPT}" "${CHECKSUMS_FILE}" "${MISE_VERSION}" "${target}")"
+          if [[ -z "${checksum}" ]]; then
+            echo "::error::No mise checksum is pinned for mise ${MISE_VERSION} on ${target}."
+            exit 1
+          fi
+        fi
+
+        echo "sha256=${checksum}" >> "$GITHUB_OUTPUT"
+
+    - name: Configure mise data directory
+      id: mise-data-dir
+      shell: bash
+      env:
+        RUNNER_OS: ${{ runner.os }}
+      run: | # zizmor: ignore[github-env] MISE_DATA_DIR uses only runner-provided paths.
+        set -euo pipefail
+
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+          data_dir="${LOCALAPPDATA:-${USERPROFILE}\\AppData\\Local}\\mise"
+        else
+          data_dir="${RUNNER_TEMP}/mise-data"
+        fi
+
+        {
+          printf 'path=%s\n' "${data_dir}"
+        } >> "$GITHUB_OUTPUT"
+        printf 'MISE_DATA_DIR=%s\n' "${data_dir}" >> "$GITHUB_ENV"
+
+    - name: Cache mise tools
+      if: ${{ inputs.use-cache == 'true' && github.ref == 'refs/heads/main' }}
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cache/mise
+          ${{ steps.mise-data-dir.outputs.path }}
+        key: ${{ steps.cache-key.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.restore-key }}
+
+    - name: Restore mise tools
+      if: ${{ inputs.use-cache == 'true' && github.ref != 'refs/heads/main' }}
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: |
+          ~/.cache/mise
+          ${{ steps.mise-data-dir.outputs.path }}
+        key: ${{ steps.cache-key.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.restore-key }}
+
+    - name: Install mise tools
+      uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      with:
+        version: ${{ inputs.mise-version }}
+        sha256: ${{ steps.checksum.outputs.sha256 }}
+        mise_dir: ${{ steps.mise-data-dir.outputs.path }}
+        install_args: ${{ steps.cache-key.outputs.install-args }}
+        cache: "false"
+        # Do not export mise's resolved env (every tool install dir) into
+        # GITHUB_ENV. Tools resolve through the shims dir on GITHUB_PATH, so
+        # the export only bloats PATH. On Windows the mise go shim re-prepends
+        # those dirs at invocation, and the resulting PATH crosses cmd.exe's
+        # ~8191 character limit, which makes cmd.exe drop PATH entirely and
+        # fail to resolve native executables in subprocesses spawned by tests.
+        env: false
+
+    - name: Add Git usr/bin to PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      # GITHUB_PATH is the casing-safe channel and keeps the entry short.
+      # cmd.exe subprocesses spawned by Go tests need MSYS coreutils such as
+      # printf, which live here.
+      run: echo "C:\Program Files\Git\usr\bin" >> "$GITHUB_PATH"

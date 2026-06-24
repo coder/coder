@@ -386,6 +386,67 @@ func TestUserOAuth2Github(t *testing.T) {
 
 		require.Equal(t, http.StatusForbidden, resp.StatusCode)
 	})
+	t.Run("EmailFallbackBlockedByExistingLink", func(t *testing.T) {
+		t.Parallel()
+
+		// A victim already has a GitHub link bound to a specific GitHub user
+		// ID. An attacker authenticates with a different GitHub user ID but
+		// the victim's verified email. The email fallback must not hand the
+		// attacker the victim's account, even with signups enabled.
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			GithubOAuth2Config: &coderd.GithubOAuth2Config{
+				OAuth2Config:  &testutil.OAuth2Config{},
+				AllowSignups:  true,
+				AllowEveryone: true,
+				ListOrganizationMemberships: func(_ context.Context, _ *http.Client) ([]*github.Membership, error) {
+					return []*github.Membership{}, nil
+				},
+				TeamMembership: func(_ context.Context, _ *http.Client, _, _, _ string) (*github.Membership, error) {
+					return nil, xerrors.New("no teams")
+				},
+				AuthenticatedUser: func(_ context.Context, _ *http.Client) (*github.User, error) {
+					// Attacker's GitHub ID differs from the victim's link.
+					return &github.User{
+						ID:    github.Int64(200),
+						Login: github.String("attacker"),
+						Name:  github.String("Attacker"),
+					}, nil
+				},
+				ListEmails: func(_ context.Context, _ *http.Client) ([]*github.UserEmail, error) {
+					return []*github.UserEmail{{
+						Email:    github.String("victim@coder.com"),
+						Verified: github.Bool(true),
+						Primary:  github.Bool(true),
+					}}, nil
+				},
+			},
+		})
+
+		// Seed the victim with an existing GitHub link (a different linked_id).
+		victim := dbgen.User(t, db, database.User{
+			Email:     "victim@coder.com",
+			LoginType: database.LoginTypeGithub,
+		})
+		const victimLinkedID = "100"
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    victim.ID,
+			LoginType: database.LoginTypeGithub,
+			LinkedID:  victimLinkedID,
+		})
+
+		resp := oauth2Callback(t, owner)
+		require.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"attacker with a different GitHub ID must not authenticate as the victim")
+
+		// The victim's link must be untouched.
+		victimLink, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    victim.ID,
+			LoginType: database.LoginTypeGithub,
+		})
+		require.NoError(t, err)
+		require.Equal(t, victimLinkedID, victimLink.LinkedID,
+			"victim's linked_id must remain unchanged")
+	})
 	t.Run("Signup", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
@@ -1067,7 +1128,8 @@ func TestUserOIDC(t *testing.T) {
 				"sub": uuid.NewString(),
 			},
 			AccessTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
 			},
 			IgnoreUserInfo: true,
 			AllowSignups:   true,
@@ -1090,14 +1152,38 @@ func TestUserOIDC(t *testing.T) {
 		{
 			Name: "EmailOnly",
 			IDTokenClaims: jwt.MapClaims{
-				"email": "kyle@kwc.io",
-				"sub":   uuid.NewString(),
+				"email":          "kyle@kwc.io",
+				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
 			},
+		},
+		{
+			Name: "EmailVerifiedAsStringTrue",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": "true",
+				"sub":            uuid.NewString(),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle", u.Username)
+			},
+		},
+		{
+			Name: "EmailVerifiedAsStringFalse",
+			IDTokenClaims: jwt.MapClaims{
+				"email":          "kyle@kwc.io",
+				"email_verified": "false",
+				"sub":            uuid.NewString(),
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusForbidden,
 		},
 		{
 			Name: "EmailNotVerified",
@@ -1356,6 +1442,7 @@ func TestUserOIDC(t *testing.T) {
 			// See: https://github.com/coder/coder/issues/4472
 			Name: "UsernameIsEmail",
 			IDTokenClaims: jwt.MapClaims{
+				"email_verified":     true,
 				"preferred_username": "kyle@kwc.io",
 				"sub":                uuid.NewString(),
 			},
@@ -1405,9 +1492,10 @@ func TestUserOIDC(t *testing.T) {
 		{
 			Name: "GroupsDoesNothing",
 			IDTokenClaims: jwt.MapClaims{
-				"email":  "coolin@coder.com",
-				"groups": []string{"pingpong"},
-				"sub":    uuid.NewString(),
+				"email":          "coolin@coder.com",
+				"email_verified": true,
+				"groups":         []string{"pingpong"},
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1580,6 +1668,57 @@ func TestUserOIDC(t *testing.T) {
 		})
 	}
 
+	// Absent email_verified claim tests use a FakeIDP that suppresses the
+	// default email_verified=true injection so the handler's absent-claim
+	// branch is exercised end-to-end.
+	t.Run("EmailVerifiedMissing", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+	})
+
+	t.Run("EmailVerifiedMissingIgnored", func(t *testing.T) {
+		t.Parallel()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+			oidctest.WithOmitEmailVerifiedDefault(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.IgnoreEmailVerified = true
+		})
+		client := coderdtest.New(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+		})
+		userClient, _ := fake.Login(t, client, jwt.MapClaims{
+			"email": "kyle@kwc.io",
+			"sub":   uuid.NewString(),
+		})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		user, err := userClient.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, "kyle", user.Username)
+	})
+
 	t.Run("OIDCDormancy", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -1609,8 +1748,9 @@ func TestUserOIDC(t *testing.T) {
 		auditor.ResetLogs()
 
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
-			"email": user.Email,
-			"sub":   uuid.NewString(),
+			"email":          user.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1622,6 +1762,290 @@ func TestUserOIDC(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Equal(t, codersdk.UserStatusActive, me.Status)
+	})
+
+	// Tests that an attacker with a different OIDC subject but the same
+	// email cannot hijack an existing linked account. The email fallback
+	// must be restricted to first-time linking only.
+	t.Run("OIDCEmailFallbackBlockedByExistingLink", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name         string
+			allowSignups bool
+		}{
+			{"SignupsDisabled", false},
+			{"SignupsEnabled", true},
+		} {
+			tc := tc
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				fake := oidctest.NewFakeIDP(t,
+					oidctest.WithRefresh(func(_ string) error {
+						return xerrors.New("refreshing token should never occur")
+					}),
+					oidctest.WithServing(),
+				)
+				cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+					cfg.AllowSignups = tc.allowSignups
+				})
+
+				logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+					OIDCConfig: cfg,
+					Logger:     &logger,
+				})
+
+				// Create a victim user with an existing OIDC link.
+				// Use the fake IDP's issuer so the linked_id format is
+				// realistic (same issuer, different subject).
+				victim := dbgen.User(t, db, database.User{
+					LoginType: database.LoginTypeOIDC,
+				})
+				victimLinkedID := fake.IssuerURL().String() + "||" + "victim-subject"
+				dbgen.UserLink(t, db, database.UserLink{
+					UserID:    victim.ID,
+					LoginType: database.LoginTypeOIDC,
+					LinkedID:  victimLinkedID,
+				})
+
+				// Attacker tries to login with a different subject but the
+				// same email. The email fallback is blocked because the victim
+				// already has a user_link with a different linked_id.
+				_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+					"email": victim.Email,
+					"sub":   "attacker-subject",
+				})
+				require.Equal(t, http.StatusForbidden, resp.StatusCode,
+					"attacker must not authenticate as the victim")
+
+				// Verify the victim's link is unchanged.
+				victimLink, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+					UserID:    victim.ID,
+					LoginType: database.LoginTypeOIDC,
+				})
+				require.NoError(t, err)
+				require.Equal(t, victimLinkedID, victimLink.LinkedID,
+					"victim's linked_id must remain unchanged")
+			})
+		}
+	})
+
+	// Tests that a first-time OIDC user can still link via email when no
+	// user_link exists (e.g. a dormant OIDC user created via SCIM or API).
+	t.Run("OIDCFirstTimeLinkByEmailAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Create a user with OIDC login type but NO user_link.
+		// This simulates a user created via SCIM or the API.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		// Login with a new OIDC subject and matching email.
+		// This should succeed because no user_link exists.
+		sub := uuid.NewString()
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   sub,
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, me.ID,
+			"should authenticate as the existing user")
+
+		// Verify the created link has a populated linked_id.
+		link, err := db.GetUserLinkByUserIDLoginType(
+			dbauthz.AsSystemRestricted(context.Background()),
+			database.GetUserLinkByUserIDLoginTypeParams{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+		require.NoError(t, err)
+		expectedLinkedID := fake.IssuerURL().String() + "||" + sub
+		require.Equal(t, expectedLinkedID, link.LinkedID,
+			"link should have the correct linked_id after first-time linking")
+	})
+
+	// Tests that a legacy user with an empty linked_id can still login
+	// and that their linked_id is backfilled with the correct value.
+	t.Run("OIDCLegacyLinkBackfill", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Create a legacy user with an empty linked_id.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  "", // Legacy: empty linked_id
+		})
+
+		sub := uuid.NewString()
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   sub,
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, me.ID,
+			"legacy user should still be able to login via email fallback")
+
+		// Verify the linked_id was backfilled with the correct value.
+		link, err := db.GetUserLinkByUserIDLoginType(
+			dbauthz.AsSystemRestricted(context.Background()),
+			database.GetUserLinkByUserIDLoginTypeParams{
+				UserID:    user.ID,
+				LoginType: database.LoginTypeOIDC,
+			})
+		require.NoError(t, err)
+		expectedLinkedID := fake.IssuerURL().String() + "||" + sub
+		require.Equal(t, expectedLinkedID, link.LinkedID,
+			"linked_id should be backfilled with the correct value after login")
+	})
+
+	// Tests that changing the OIDC issuer URL blocks an existing user whose
+	// linked_id was recorded under the old issuer. This is a deliberate
+	// breaking change: before this fix the email fallback silently rescued
+	// such users. Now the login is rejected because the existing link's
+	// linked_id (old issuer) differs from the newly computed one (new issuer).
+	t.Run("OIDCEmailFallbackBlockedByIssuerChange", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Seed a user whose link was created under a different (old) issuer
+		// but with the same subject the IdP presents on login.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		const sub = "stable-subject"
+		oldLinkedID := "https://old-issuer.example.com||" + sub
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  oldLinkedID,
+		})
+
+		// Login presents the same subject but the current issuer, so the
+		// computed linked_id differs from the stored one and is blocked.
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   sub,
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"issuer change must block the email fallback for an existing link")
+
+		// The stored link must remain unchanged.
+		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(ctx), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, oldLinkedID, link.LinkedID,
+			"linked_id must not be modified when the login is blocked")
+	})
+
+	t.Run("OIDCSuspended", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Pre-existing OIDC user that has been suspended by an admin.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+			Status:    database.UserStatusSuspended,
+		})
+
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   uuid.NewString(),
+		})
+		// The OIDC handler should reject the login with an explanatory
+		// 403 instead of silently issuing a session and letting the SPA
+		// bounce the user back to /login with no message.
+		require.Equal(t, http.StatusForbidden, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.Contains(t, string(body), "suspended", "error page should explain why login was rejected")
+
+		// The user's status must remain suspended; nothing in the OAuth
+		// transaction should have been committed.
+		//nolint:gocritic // System read for verification.
+		dbUser, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), user.ID)
+		require.NoError(t, err)
+		require.Equal(t, database.UserStatusSuspended, dbUser.Status)
 	})
 
 	t.Run("OIDCConvert", func(t *testing.T) {
@@ -1648,8 +2072,9 @@ func TestUserOIDC(t *testing.T) {
 		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
 		claims := jwt.MapClaims{
-			"email": userData.Email,
-			"sub":   uuid.NewString(),
+			"email":          userData.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
@@ -1719,8 +2144,9 @@ func TestUserOIDC(t *testing.T) {
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 		claims := jwt.MapClaims{
-			"email": userData.Email,
-			"sub":   uuid.NewString(),
+			"email":          userData.Email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
@@ -1790,8 +2216,9 @@ func TestUserOIDC(t *testing.T) {
 
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
-			"email": "jon@coder.com",
-			"sub":   uuid.NewString(),
+			"email":          "jon@coder.com",
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 
 		userClient, _ := fake.Login(t, client, claims)
@@ -1805,8 +2232,9 @@ func TestUserOIDC(t *testing.T) {
 		// Pass a different subject field so that we prompt creating a
 		// new user
 		userClient, _ = fake.Login(t, client, jwt.MapClaims{
-			"email": "jon@example2.com",
-			"sub":   "diff",
+			"email":          "jon@example2.com",
+			"email_verified": true,
+			"sub":            "diff",
 		})
 		numLogs++ // add an audit log for login
 
@@ -2171,9 +2599,10 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	//nolint:bodyclose
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
-		"iss":   secondaryURLString,
-		"email": "alice@coder.com",
-		"sub":   uuid.NewString(),
+		"iss":            secondaryURLString,
+		"email":          "alice@coder.com",
+		"email_verified": true,
+		"sub":            uuid.NewString(),
 	})
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)

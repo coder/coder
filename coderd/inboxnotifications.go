@@ -37,6 +37,7 @@ var fallbackIcons = map[uuid.UUID]string{
 	notifications.TemplateWorkspaceDormant:           codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceAutoUpdated:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceMarkedForDeletion: codersdk.InboxNotificationFallbackIconWorkspace,
+	notifications.TemplateWorkspaceAutostopReminder:  codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceManualBuildFailed: codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfMemory:       codersdk.InboxNotificationFallbackIconWorkspace,
 	notifications.TemplateWorkspaceOutOfDisk:         codersdk.InboxNotificationFallbackIconWorkspace,
@@ -224,7 +225,7 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, logger, conn)
 
 	encoder := json.NewEncoder(wsNetConn)
 

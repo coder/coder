@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -231,6 +232,59 @@ func TestPostLogin(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	// "hunter2" was the input of the previous hardcoded simulated hash, which
+	// an empty stored hash wrongly matched; this is a regression test.
+	t.Run("NonexistentUser401", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "does-not-exist@coder.com",
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+	})
+
+	// Attempting built-in login as an SSO user returns a 401 to avoid
+	// divulging login type.
+	t.Run("SSOReturns401", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// An SSO user has no password hash stored. Create one directly in the
+		// database since the API requires OIDC to be configured. dbgen.User
+		// substitutes a random hash for an empty one, so clear it explicitly.
+		ssoUser := dbgen.User(t, db, database.User{
+			Email:     "sso-user@coder.com",
+			LoginType: database.LoginTypeOIDC,
+		})
+		//nolint:gocritic // Test setup requires a system context to clear the hash.
+		err := db.UpdateUserHashedPassword(dbauthz.AsSystemRestricted(ctx), database.UpdateUserHashedPasswordParams{
+			ID:             ssoUser.ID,
+			HashedPassword: []byte{},
+		})
+		require.NoError(t, err)
+
+		anonClient := codersdk.New(client.URL)
+		_, err = anonClient.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    ssoUser.Email,
+			Password: "hunter2",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Equal(t, "Incorrect email or password.", apiErr.Message)
+		// The login type must not be leaked.
+		require.NotContains(t, apiErr.Message, string(codersdk.LoginTypeOIDC))
 	})
 
 	t.Run("Suspended", func(t *testing.T) {
@@ -941,8 +995,9 @@ func TestPostUsers(t *testing.T) {
 
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
-			"email": email,
-			"sub":   uuid.NewString(),
+			"email":          email,
+			"email_verified": true,
+			"sub":            uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")
@@ -1515,6 +1570,57 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Error(t, err)
 		cerr = coderdtest.SDKError(t, err)
 		require.Equal(t, http.StatusNotFound, cerr.StatusCode())
+	})
+
+	t.Run("UserAdminCannotResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		err := userAdmin.UpdateUserPassword(ctx, owner.UserID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.Error(t, err, "user-admin should not be able to reset owner password")
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Only owners can change the password of an owner")
+	})
+
+	t.Run("OwnerCanResetOwnerPassword", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherOwner, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			Email:           "another-owner@coder.com",
+			Username:        "another-owner",
+			Password:        "SomeStrongPassword!",
+			OrganizationIDs: []uuid.UUID{owner.OrganizationID},
+		})
+		require.NoError(t, err)
+		_, err = client.UpdateUserRoles(ctx, anotherOwner.ID.String(), codersdk.UpdateRoles{
+			Roles: []string{rbac.RoleOwner().String()},
+		})
+		require.NoError(t, err)
+
+		err = client.UpdateUserPassword(ctx, anotherOwner.ID.String(), codersdk.UpdateUserPasswordRequest{
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "owner should be able to reset another owner's password")
+
+		_, err = client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    "another-owner@coder.com",
+			Password: "SomeNewStrongPassword!",
+		})
+		require.NoError(t, err, "other owner should login with the new password")
 	})
 
 	t.Run("PasswordsMustDiffer", func(t *testing.T) {
@@ -2423,7 +2529,7 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 		require.Equal(t, field, sdkErr.Validations[0].Field)
 	}
 
-	t.Run("defaults to auto", func(t *testing.T) {
+	t.Run("defaults shell tools to always collapsed", func(t *testing.T) {
 		t.Parallel()
 
 		client, _ := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
@@ -2433,8 +2539,8 @@ func TestAgentDisplayModePreferences(t *testing.T) {
 
 		settings, err := client.GetUserPreferenceSettings(ctx, codersdk.Me)
 		require.NoError(t, err)
-		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.ShellToolDisplayMode)
-		require.Equal(t, codersdk.AgentDisplayModeAuto, settings.CodeDiffDisplayMode)
+		require.Equal(t, codersdk.AgentDisplayModeAlwaysCollapsed, settings.ShellToolDisplayMode)
+		require.Empty(t, settings.CodeDiffDisplayMode)
 	})
 
 	t.Run("round-trips shell tool display mode", func(t *testing.T) {

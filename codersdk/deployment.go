@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
@@ -588,6 +589,15 @@ var AIBudgetPolicies = []string{
 	string(AIBudgetPolicyHighest),
 }
 
+// NewAIBudgetPolicyFromString converts s to an AIBudgetPolicy, falling back to
+// AIBudgetPolicyHighest when s is empty or not a recognized policy.
+func NewAIBudgetPolicyFromString(s string) AIBudgetPolicy {
+	if slices.Contains(AIBudgetPolicies, s) {
+		return AIBudgetPolicy(s)
+	}
+	return AIBudgetPolicyHighest
+}
+
 // AIBudgetPeriod determines when accumulated AI spend resets to zero,
 // aligned to UTC calendar boundaries.
 type AIBudgetPeriod string
@@ -638,6 +648,7 @@ type DeploymentValues struct {
 	AgentFallbackTroubleshootingURL         serpent.URL                          `json:"agent_fallback_troubleshooting_url,omitempty" typescript:",notnull"`
 	BrowserOnly                             serpent.Bool                         `json:"browser_only,omitempty" typescript:",notnull"`
 	SCIMAPIKey                              serpent.String                       `json:"scim_api_key,omitempty" typescript:",notnull"`
+	UseLegacySCIM                           serpent.Bool                         `json:"scim_use_legacy,omitempty" typescript:",notnull"`
 	ExternalTokenEncryptionKeys             serpent.StringArray                  `json:"external_token_encryption_keys,omitempty" typescript:",notnull"`
 	Provisioner                             ProvisionerConfig                    `json:"provisioner,omitempty" typescript:",notnull"`
 	RateLimit                               RateLimitConfig                      `json:"rate_limit,omitempty" typescript:",notnull"`
@@ -705,16 +716,113 @@ func (c SSHConfig) ParseOptions() (map[string]string, error) {
 	return m, nil
 }
 
-// ParseSSHConfigOption parses a single ssh config option into it's key/value pair.
+// ParseSSHConfigOption parses a single ssh config option into its key/value pair.
 func ParseSSHConfigOption(opt string) (key string, value string, err error) {
-	// An equal sign or whitespace is the separator between the key and value.
+	if strings.ContainsAny(opt, "\r\n\x00") {
+		return "", "", xerrors.Errorf("config-ssh option %q must not contain carriage return, newline, or NUL characters", opt)
+	}
+
+	// An equal sign or a space is the separator between the key and value.
 	idx := strings.IndexFunc(opt, func(r rune) bool {
 		return r == ' ' || r == '='
 	})
 	if idx == -1 {
-		return "", "", xerrors.Errorf("invalid config-ssh option %q", opt)
+		return "", "", xerrors.Errorf("config-ssh option %q is missing a key/value separator ('=' or ' ')", opt)
 	}
 	return opt[:idx], opt[idx+1:], nil
+}
+
+// isSingleHostPatternToken reports whether s is safe to write as a single SSH
+// host pattern token. Whitespace or control characters could break out into
+// additional SSH config directives.
+func isSingleHostPatternToken(s string) bool {
+	return !strings.ContainsFunc(s, func(r rune) bool {
+		return unicode.IsSpace(r) || unicode.IsControl(r)
+	})
+}
+
+// ValidateWorkspaceHostnameSuffix validates a deployment-provided SSH hostname
+// suffix before it is made available to clients.
+func ValidateWorkspaceHostnameSuffix(suffix string) error {
+	// The suffix is implicitly prefixed with a dot when matching, so a leading
+	// dot is a config error: it forces the suffix to be a separate DNS label
+	// rather than an ordinary string suffix. E.g. "coder" matches "en.coder"
+	// but not "encoder".
+	if strings.HasPrefix(suffix, ".") {
+		return xerrors.Errorf("workspace hostname suffix %q must not start with a leading dot", suffix)
+	}
+	if strings.ContainsAny(suffix, "*?") {
+		return xerrors.Errorf("workspace hostname suffix %q must not contain glob characters", suffix)
+	}
+	if !isSingleHostPatternToken(suffix) {
+		return xerrors.Errorf("workspace hostname suffix %q must not contain whitespace or control characters", suffix)
+	}
+	return nil
+}
+
+// ValidateWorkspaceHostnamePrefix validates a deployment-provided SSH hostname
+// prefix before it is made available to clients. Unlike the suffix, a prefix
+// may legitimately contain a trailing dot (the default is "coder."), so only
+// the single-token requirement is enforced.
+func ValidateWorkspaceHostnamePrefix(prefix string) error {
+	if !isSingleHostPatternToken(prefix) {
+		return xerrors.Errorf("workspace hostname prefix %q must not contain whitespace or control characters", prefix)
+	}
+	return nil
+}
+
+// ValidateSSHConfigOptions validates deployment SSH settings before they are
+// written to users' local SSH configs.
+func ValidateSSHConfigOptions(options map[string]string) error {
+	// Sort the keys so that, when several options are invalid, the surfaced
+	// error is deterministic across restarts rather than dependent on map
+	// iteration order.
+	keys := make([]string, 0, len(options))
+	for key := range options {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	for _, key := range keys {
+		if err := ValidateSSHConfigOption(key, options[key]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ValidateSSHConfigOption validates one deployment SSH option before it is
+// written to users' local SSH configs.
+func ValidateSSHConfigOption(key, value string) error {
+	if key == "" {
+		return xerrors.New("ssh config option key must not be empty")
+	}
+	if strings.ContainsAny(key, "=\r\n\x00") || strings.ContainsFunc(key, unicode.IsSpace) {
+		return xerrors.Errorf("ssh config option key %q is invalid", key)
+	}
+	// These options are rejected because, written into a user's SSH config by a
+	// deployment, they can execute code, load shared libraries, or override
+	// Coder's managed SSH settings on the client machine. When extending this
+	// list, classify the directive against these categories; the newline and
+	// whitespace checks above already prevent multi-line injection, so only
+	// single-line dangerous directives belong here.
+	switch strings.ToLower(key) {
+	// Structural directives that escape Coder's managed block.
+	case "host", "match", "include",
+		// Directives that run an attacker-supplied command string.
+		"proxycommand", "localcommand", "permitlocalcommand", "remotecommand", "knownhostscommand",
+		// Directives that dlopen an attacker-controlled shared library.
+		"pkcs11provider", "securitykeyprovider", "smartcarddevice",
+		// Directives that execute a command for X11 authentication.
+		"xauthlocation":
+		return xerrors.Errorf("ssh config option %q is not allowed: it can execute code, load shared libraries, or override Coder's managed SSH settings on client machines", key)
+	// ProxyJump conflicts with Coder's managed ProxyCommand.
+	case "proxyjump":
+		return xerrors.Errorf("ssh config option %q is not allowed: it conflicts with Coder's managed ProxyCommand", key)
+	}
+	if strings.ContainsAny(value, "\r\n\x00") {
+		return xerrors.Errorf("ssh config option %q must not contain carriage return, newline, or NUL characters", key)
+	}
+	return nil
 }
 
 // SessionLifetime refers to "sessions" authenticating into Coderd. Coder has
@@ -857,6 +965,8 @@ type OIDCConfig struct {
 	// situations where the OIDC callback domain is different from the ACCESS_URL
 	// domain.
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
+
+	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -1095,6 +1205,12 @@ type RetentionConfig struct {
 	// Logs from the latest build are always retained regardless of age.
 	// Defaults to 7 days to preserve existing behavior.
 	WorkspaceAgentLogs serpent.Duration `json:"workspace_agent_logs" typescript:",notnull"`
+	// BoundaryLogs controls how long boundary audit log entries are
+	// retained. Boundary logs record every HTTP request processed by
+	// a Boundary confinement proxy. Set to 0 to disable automatic
+	// deletion (keep indefinitely). Adjust to match your
+	// organization's regulatory requirements.
+	BoundaryLogs serpent.Duration `json:"boundary_logs" typescript:",notnull"`
 }
 
 type NotificationsConfig struct {
@@ -1688,7 +1804,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	workspaceHostnameSuffix := serpent.Option{
 		Name:        "Workspace Hostname Suffix",
-		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder.",
+		Description: "Workspace hostnames use this suffix in SSH config and Coder Connect on Coder Desktop. By default it is coder, resulting in names like myworkspace.coder. The suffix must not start with a dot, and must not contain spaces, newlines, or glob characters (* and ?).",
 		Flag:        "workspace-hostname-suffix",
 		Env:         "CODER_WORKSPACE_HOSTNAME_SUFFIX",
 		YAML:        "workspaceHostnameSuffix",
@@ -1699,6 +1815,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 
 	// AI Gateway options
+	aiGatewayProviderSeedingDeprecated := "Deprecated: manage AI Providers from the Coder UI or HTTP API. If set, this option seeds provider configuration at startup only exactly once. It will not be used in service runtime. "
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
 		Description: "Whether to start an in-memory AI Gateway instance.",
@@ -1711,7 +1828,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayOpenAIBaseURL := serpent.Option{
 		Name:        "AI Gateway OpenAI Base URL",
-		Description: "The base URL of the OpenAI API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the OpenAI API.",
 		Flag:        "ai-gateway-openai-base-url",
 		Env:         "CODER_AI_GATEWAY_OPENAI_BASE_URL",
 		Value:       &c.AI.BridgeConfig.LegacyOpenAI.BaseURL,
@@ -1721,7 +1838,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayOpenAIKey := serpent.Option{
 		Name:        "AI Gateway OpenAI Key",
-		Description: "The key to authenticate against the OpenAI API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the OpenAI API.",
 		Flag:        "ai-gateway-openai-key",
 		Env:         "CODER_AI_GATEWAY_OPENAI_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyOpenAI.Key,
@@ -1731,7 +1848,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayAnthropicBaseURL := serpent.Option{
 		Name:        "AI Gateway Anthropic Base URL",
-		Description: "The base URL of the Anthropic API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL of the Anthropic API.",
 		Flag:        "ai-gateway-anthropic-base-url",
 		Env:         "CODER_AI_GATEWAY_ANTHROPIC_BASE_URL",
 		Value:       &c.AI.BridgeConfig.LegacyAnthropic.BaseURL,
@@ -1741,7 +1858,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayAnthropicKey := serpent.Option{
 		Name:        "AI Gateway Anthropic Key",
-		Description: "The key to authenticate against the Anthropic API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The key to authenticate against the Anthropic API.",
 		Flag:        "ai-gateway-anthropic-key",
 		Env:         "CODER_AI_GATEWAY_ANTHROPIC_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyAnthropic.Key,
@@ -1750,30 +1867,28 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 	}
 	aiGatewayBedrockBaseURL := serpent.Option{
-		Name: "AI Gateway Bedrock Base URL",
-		Description: "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence " +
-			"over CODER_AI_GATEWAY_BEDROCK_REGION.",
-		Flag:    "ai-gateway-bedrock-base-url",
-		Env:     "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
-		Value:   &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
-		Default: "",
-		Group:   &deploymentGroupAIGateway,
-		YAML:    "bedrock_base_url",
+		Name:        "AI Gateway Bedrock Base URL",
+		Description: aiGatewayProviderSeedingDeprecated + "The base URL to use for the AWS Bedrock API. Use this setting to specify an exact URL to use. Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.",
+		Flag:        "ai-gateway-bedrock-base-url",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_BASE_URL",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.BaseURL,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_base_url",
 	}
 	aiGatewayBedrockRegion := serpent.Option{
-		Name: "AI Gateway Bedrock Region",
-		Description: "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of " +
-			"'https://bedrock-runtime.<region>.amazonaws.com'.",
-		Flag:    "ai-gateway-bedrock-region",
-		Env:     "CODER_AI_GATEWAY_BEDROCK_REGION",
-		Value:   &c.AI.BridgeConfig.LegacyBedrock.Region,
-		Default: "",
-		Group:   &deploymentGroupAIGateway,
-		YAML:    "bedrock_region",
+		Name:        "AI Gateway Bedrock Region",
+		Description: aiGatewayProviderSeedingDeprecated + "The AWS Bedrock API region to use. Constructs a base URL to use for the AWS Bedrock API in the form of 'https://bedrock-runtime.<region>.amazonaws.com'.",
+		Flag:        "ai-gateway-bedrock-region",
+		Env:         "CODER_AI_GATEWAY_BEDROCK_REGION",
+		Value:       &c.AI.BridgeConfig.LegacyBedrock.Region,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "bedrock_region",
 	}
 	aiGatewayBedrockAccessKey := serpent.Option{
 		Name:        "AI Gateway Bedrock Access Key",
-		Description: "The access key to authenticate against the AWS Bedrock API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The access key to authenticate against the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-access-key",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKey,
@@ -1783,7 +1898,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayBedrockAccessKeySecret := serpent.Option{
 		Name:        "AI Gateway Bedrock Access Key Secret",
-		Description: "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The access key secret to use with the access key to authenticate against the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-access-key-secret",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.AccessKeySecret,
@@ -1793,7 +1908,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayBedrockModel := serpent.Option{
 		Name:        "AI Gateway Bedrock Model",
-		Description: "The model to use when making requests to the AWS Bedrock API.",
+		Description: aiGatewayProviderSeedingDeprecated + "The model to use when making requests to the AWS Bedrock API.",
 		Flag:        "ai-gateway-bedrock-model",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_MODEL",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.Model,
@@ -1803,7 +1918,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 	}
 	aiGatewayBedrockSmallFastModel := serpent.Option{
 		Name:        "AI Gateway Bedrock Small Fast Model",
-		Description: "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
+		Description: aiGatewayProviderSeedingDeprecated + "The small fast model to use when making requests to the AWS Bedrock API. Claude Code uses Haiku-class models to perform background tasks. See https://docs.claude.com/en/docs/claude-code/settings#environment-variables.",
 		Flag:        "ai-gateway-bedrock-small-fastmodel",
 		Env:         "CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL",
 		Value:       &c.AI.BridgeConfig.LegacyBedrock.SmallFastModel,
@@ -1862,6 +1977,16 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		Default:     "false",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "structured_logging",
+	}
+	aiGatewayAPIDumpDir := serpent.Option{
+		Name:        "AI Gateway API Dump Directory",
+		Description: "Base directory for dumping AI Bridge request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
+		Flag:        "ai-gateway-dump-dir",
+		Env:         "CODER_AI_GATEWAY_DUMP_DIR",
+		Value:       &c.AI.BridgeConfig.APIDumpDir,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "api_dump_dir",
 	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
@@ -2880,6 +3005,23 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			// So hide it, and only surface it to the small number of users that need it.
 			Hidden: true,
 		},
+		{
+			Name: "OIDC Auto Repair Links",
+			Description: "OIDC based users require the IdP issuer and subject in the claims to be static. " +
+				"If a new provider is configured, this option is required to be 'true'. It will reset any existing users to the " +
+				"previous provider, and match by email on their next login.",
+			Required:   false,
+			Default:    "true",
+			Flag:       "oidc-repair-links",
+			Env:        "CODER_OIDC_REPAIR_LINKS",
+			YAML:       "oidc-repair-links",
+			Value:      &c.OIDC.AutoRepairLinks,
+			Group:      &deploymentGroupOIDC,
+			UseInstead: nil,
+			// This flag should be removed after validation in real deployments. Leaving it
+			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
 		// Telemetry settings
 		telemetryEnable,
 		{
@@ -3244,7 +3386,7 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name:        "Proxy Trusted Origins",
 			Flag:        "proxy-trusted-origins",
 			Env:         "CODER_PROXY_TRUSTED_ORIGINS",
-			Description: "Origin addresses to respect \"proxy-trusted-headers\". e.g. 192.168.1.0/24.",
+			Description: "Origin addresses to respect \"proxy-trusted-headers\" and X-Forwarded-Host for subdomain app routing. e.g. 192.168.1.0/24.",
 			Value:       &c.ProxyTrustedOrigins,
 			Group:       &deploymentGroupNetworking,
 			YAML:        "proxyTrustedOrigins",
@@ -3438,6 +3580,18 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Value:       &c.SCIMAPIKey,
 		},
 		{
+			Name: "SCIM Use Legacy",
+			// The legacy SCIM is a weird mix of SCIM 1.0 and SCIM 2.0
+			Description: "Use the legacy SCIM implementation instead of the SCIM 2.0 handler. This is provided for backward compatibility for existing users.",
+			Flag:        "scim-use-legacy",
+			Env:         "CODER_SCIM_USE_LEGACY",
+			YAML:        "scimUseLegacy",
+			// TODO: When SCIM 2.0 has been tested more, flip this to false to default to the new scim
+			Default:     "true",
+			Annotations: serpent.Annotations{}.Mark(annotationEnterpriseKey, "true"),
+			Value:       &c.UseLegacySCIM,
+		},
+		{
 			Name:        "External Token Encryption Keys",
 			Description: "Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The value must be a comma-separated list of base64-encoded keys. Each key, when base64-decoded, must be exactly 32 bytes in length. The first key will be used to encrypt new values. Subsequent keys will be used as a fallback when decrypting. During normal operation it is recommended to only set one key unless you are in the process of rotating keys with the `coder server dbcrypt rotate` command.",
 			Flag:        "external-token-encryption-keys",
@@ -3540,8 +3694,13 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 		{
 			Name: "SSH Config Options",
 			Description: "These SSH config options will override the default SSH config options. " +
-				"Provide options in \"key=value\" or \"key value\" format separated by commas." +
-				"Using this incorrectly can break SSH to your deployment, use cautiously.",
+				"Provide options in \"key=value\" or \"key value\" format separated by commas. " +
+				"Using this incorrectly can break SSH to your deployment, use cautiously. " +
+				"The following options are not allowed: " +
+				"Host, Match, Include, ProxyCommand, ProxyJump, LocalCommand, PermitLocalCommand, " +
+				"RemoteCommand, KnownHostsCommand, PKCS11Provider, SecurityKeyProvider, " +
+				"SmartcardDevice, XAuthLocation. " +
+				"Option values must not contain newline, carriage return, or NUL characters.",
 			Flag:   "ssh-config-options",
 			Env:    "CODER_SSH_CONFIG_OPTIONS",
 			YAML:   "sshConfigOptions",
@@ -4048,6 +4207,17 @@ Write out the current server config as YAML to stdout.`,
 			Group:       &deploymentGroupChat,
 			YAML:        "debugLoggingEnabled",
 		},
+		{
+			Name:        "Chat: AI Gateway Routing Enabled",
+			Description: "Route chat model requests through AI Gateway when both chat routing and AI Gateway are enabled. Otherwise, chat calls AI providers directly. Pending chats without API key metadata may need a retry or temporary direct routing.",
+			Flag:        "chat-ai-gateway-routing-enabled",
+			Env:         "CODER_CHAT_AI_GATEWAY_ROUTING_ENABLED",
+			Value:       &c.AI.Chat.AIGatewayRoutingEnabled,
+			Default:     "true",
+			Group:       &deploymentGroupChat,
+			YAML:        "aiGatewayRoutingEnabled",
+			Hidden:      true,
+		},
 		// AI Bridge Options (deprecated in favor of AI Gateway options)
 		{
 			Name:        "AI Bridge Enabled",
@@ -4275,6 +4445,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
 			Description: "Deprecated: use --ai-gateway-allow-byok or CODER_AI_GATEWAY_ALLOW_BYOK instead. Allow users to provide their own LLM API keys or subscriptions. When disabled, only centralized key authentication is permitted.",
@@ -4567,6 +4738,17 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		{
+			Name:        "Boundary Log Retention",
+			Description: "How long boundary audit log entries are retained. Boundary logs record HTTP requests processed by a Boundary confinement proxy. Set to 0 to disable automatic deletion (keep indefinitely). Adjust to match your organization's regulatory requirements.",
+			Flag:        "boundary-log-retention",
+			Env:         "CODER_BOUNDARY_LOG_RETENTION",
+			Value:       &c.Retention.BoundaryLogs,
+			Default:     "0",
+			Group:       &deploymentGroupRetention,
+			YAML:        "boundary_logs",
+			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+		},
+		{
 			Name: "Enable Authorization Recordings",
 			Description: "All api requests will have a header including all authorization calls made during the request. " +
 				"This is used for debugging purposes and only available for dev builds.",
@@ -4594,7 +4776,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     "https://registry.coder.com",
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -4632,6 +4814,10 @@ type AIBridgeConfig struct {
 	CircuitBreakerInterval         serpent.Duration `json:"circuit_breaker_interval" typescript:",notnull"`
 	CircuitBreakerTimeout          serpent.Duration `json:"circuit_breaker_timeout" typescript:",notnull"`
 	CircuitBreakerMaxRequests      serpent.Int64    `json:"circuit_breaker_max_requests" typescript:",notnull"`
+	// APIDumpDir is the base directory under which each provider's
+	// request/response dumps are written, in a subdirectory named after
+	// the provider. Empty disables dumping.
+	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
 }
 
 type AIBridgeOpenAIConfig struct {
@@ -4658,7 +4844,9 @@ type AIBridgeBedrockConfig struct {
 // CODER_AIBRIDGE_PROVIDER_<N>_<KEY> is also accepted as a deprecated alias.
 // This follows the same indexed pattern as ExternalAuthConfig.
 type AIProviderConfig struct {
-	// Type is the provider type: "openai", "anthropic", or "copilot".
+	// Type is the provider type. Valid values are: "openai",
+	// "anthropic", "azure", "bedrock", "google", "openai-compat",
+	// "openrouter", "vercel", "copilot".
 	Type string `json:"type"`
 	// Name is the unique instance identifier used for routing.
 	// Defaults to Type if not provided.
@@ -4669,8 +4857,6 @@ type AIProviderConfig struct {
 	Keys []string `json:"-"`
 	// BaseURL is the base URL of the upstream provider API.
 	BaseURL string `json:"base_url"`
-	// DumpDir is the directory path for dumping API requests and responses.
-	DumpDir string `json:"dump_dir,omitempty"`
 
 	// Bedrock fields (only applicable when Type == "anthropic").
 	BedrockBaseURL string `json:"-"`
@@ -4701,8 +4887,9 @@ type AIBridgeProxyConfig struct {
 }
 
 type ChatConfig struct {
-	AcquireBatchSize    serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
-	DebugLoggingEnabled serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AcquireBatchSize        serpent.Int64 `json:"acquire_batch_size" typescript:",notnull"`
+	DebugLoggingEnabled     serpent.Bool  `json:"debug_logging_enabled" typescript:",notnull"`
+	AIGatewayRoutingEnabled serpent.Bool  `json:"ai_gateway_routing_enabled" typescript:",notnull" swaggerignore:"true"`
 }
 
 type AIConfig struct {
@@ -4964,6 +5151,10 @@ const (
 	ExperimentOAuth2                Experiment = "oauth2"                  // Enables OAuth2 provider functionality.
 	ExperimentMCPServerHTTP         Experiment = "mcp-server-http"         // Enables the MCP HTTP server functionality.
 	ExperimentWorkspaceBuildUpdates Experiment = "workspace-build-updates" // Enables publishing workspace build updates to the all builds pubsub channel.
+	ExperimentNATSPubsub            Experiment = "nats_pubsub"             // Enables embedded NATS pubsub.
+	ExperimentMinimumImplicitMember Experiment = "minimum-implicit-member" // Allows organizations to deviate from the default organization-member roles, in support of Gateway Accounts.
+	ExperimentAIGatewayCostControl  Experiment = "ai-gateway-cost-control" // Enables AI Gateway cost control functionality.
+	ExperimentAgentAppTabs          Experiment = "agent-app-tabs"          // Enables workspace-app and port preview tabs in the Coder Agents right panel.
 )
 
 func (e Experiment) DisplayName() string {
@@ -4982,6 +5173,14 @@ func (e Experiment) DisplayName() string {
 		return "MCP HTTP Server Functionality"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
+	case ExperimentNATSPubsub:
+		return "NATS Pubsub"
+	case ExperimentMinimumImplicitMember:
+		return "Gateway Accounts (minimum implicit member)"
+	case ExperimentAIGatewayCostControl:
+		return "AI Gateway Cost Control"
+	case ExperimentAgentAppTabs:
+		return "Coder Agents App and Port Tabs"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -4998,7 +5197,11 @@ var ExperimentsKnown = Experiments{
 	ExperimentWorkspaceUsage,
 	ExperimentOAuth2,
 	ExperimentMCPServerHTTP,
+	ExperimentNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
+	ExperimentMinimumImplicitMember,
+	ExperimentAIGatewayCostControl,
+	ExperimentAgentAppTabs,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5190,6 +5393,23 @@ type SSHConfigResponse struct {
 	// HostnameSuffix is the suffix to append to workspace names for SSH hostnames.
 	HostnameSuffix   string            `json:"hostname_suffix"`
 	SSHConfigOptions map[string]string `json:"ssh_config_options"`
+}
+
+// Validate checks that the deployment-provided SSH configuration is safe to
+// write into a user's local SSH config. Validating here ensures a deployment
+// can never serve config that the client would reject.
+func (r SSHConfigResponse) Validate() error {
+	if r.HostnamePrefix != "" {
+		if err := ValidateWorkspaceHostnamePrefix(r.HostnamePrefix); err != nil {
+			return err
+		}
+	}
+	if r.HostnameSuffix != "" {
+		if err := ValidateWorkspaceHostnameSuffix(r.HostnameSuffix); err != nil {
+			return err
+		}
+	}
+	return ValidateSSHConfigOptions(r.SSHConfigOptions)
 }
 
 // SSHConfiguration returns information about the SSH configuration for the

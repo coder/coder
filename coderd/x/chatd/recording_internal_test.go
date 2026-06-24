@@ -188,7 +188,7 @@ func TestWaitAgentComputerUseRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	server.drainInflight()
+	WaitUntilIdleForTest(server)
 
 	// Now wire up the mock agent connection.
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
@@ -274,7 +274,7 @@ func TestWaitAgentComputerUseRecordingWithThumbnail(t *testing.T) {
 		"parent-recording-thumb", "computer-use-child-thumb",
 	)
 
-	server.drainInflight()
+	WaitUntilIdleForTest(server)
 
 	server.agentConnFn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 		require.Equal(t, agent.ID, agentID)
@@ -368,7 +368,7 @@ func TestWaitAgentNonComputerUseNoRecording(t *testing.T) {
 
 	// Wait for background processing triggered by CreateChat to
 	// settle before setting up the mock agent connection.
-	server.drainInflight()
+	WaitUntilIdleForTest(server)
 
 	// Wire up the mock agent connection. The mock has zero
 	// expectations — gomock will fail if StartDesktopRecording
@@ -520,7 +520,7 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 	mockConn := agentconnmock.NewMockAgentConn(ctrl)
 
 	// Use the mock clock server; don't set agentConnFn yet.
-	server := newInternalTestServerWithClock(t, db, ps, chatprovider.ProviderAPIKeys{}, mClock)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
 
 	user, org, model := seedInternalChatDeps(t, db)
 	workspace, _, agent := seedWorkspaceBinding(t, db, user.ID)
@@ -1057,7 +1057,7 @@ func TestStopAndStoreRecording_UnknownPartIgnored(t *testing.T) {
 }
 
 // TestStopAndStoreRecording_MalformedContentType verifies that a
-// response with an unparseable Content-Type returns an empty result.
+// response with an unparsable Content-Type returns an empty result.
 func TestStopAndStoreRecording_MalformedContentType(t *testing.T) {
 	t.Parallel()
 

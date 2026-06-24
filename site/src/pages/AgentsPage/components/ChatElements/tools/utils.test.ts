@@ -27,7 +27,6 @@ import {
 	parseServerEditDiffText,
 	parseServerEditResults,
 	sanitizeExecuteModelIntent,
-	shortDurationMs,
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
 	toProviderLabel,
@@ -100,47 +99,6 @@ describe("toProviderLabel", () => {
 
 	it("returns default label when all are empty", () => {
 		expect(toProviderLabel("", "", "")).toBe("Git provider");
-	});
-});
-
-describe("shortDurationMs", () => {
-	it("returns empty string for undefined", () => {
-		expect(shortDurationMs(undefined)).toBe("");
-	});
-
-	it("returns empty string for negative values", () => {
-		expect(shortDurationMs(-1)).toBe("");
-		expect(shortDurationMs(-1000)).toBe("");
-	});
-
-	it("returns 0s for zero milliseconds", () => {
-		expect(shortDurationMs(0)).toBe("0s");
-	});
-
-	it("formats sub-second durations", () => {
-		expect(shortDurationMs(500)).toBe("1s");
-		expect(shortDurationMs(100)).toBe("0s");
-	});
-
-	it("formats seconds", () => {
-		expect(shortDurationMs(1000)).toBe("1s");
-		expect(shortDurationMs(30_000)).toBe("30s");
-		expect(shortDurationMs(59_000)).toBe("59s");
-		expect(shortDurationMs(59_499)).toBe("59s");
-	});
-
-	it("formats minutes", () => {
-		expect(shortDurationMs(59_500)).toBe("1m");
-		expect(shortDurationMs(60_000)).toBe("1m");
-		expect(shortDurationMs(300_000)).toBe("5m");
-		expect(shortDurationMs(3_540_000)).toBe("59m");
-		expect(shortDurationMs(3_569_999)).toBe("59m");
-	});
-
-	it("formats hours", () => {
-		expect(shortDurationMs(3_570_000)).toBe("1h");
-		expect(shortDurationMs(3_600_000)).toBe("1h");
-		expect(shortDurationMs(7_200_000)).toBe("2h");
 	});
 });
 
@@ -763,6 +721,57 @@ describe("parseEditFilesArgs", () => {
 		expect(parsed[0].edits[0].replace).toBe("");
 	});
 
+	it("accepts old_text/new_text field names", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "before", new_text: "after" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result).toHaveLength(1);
+		expect(result[0].edits).toHaveLength(1);
+		expect(result[0].edits[0]).toEqual({ search: "before", replace: "after" });
+	});
+
+	it("prefers old_text/new_text over search/replace when both present", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [
+						{
+							old_text: "from-old-text",
+							new_text: "from-new-text",
+							search: "from-search",
+							replace: "from-replace",
+						},
+					],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({
+			search: "from-old-text",
+			replace: "from-new-text",
+		});
+	});
+
+	it("preserves deletion via old_text/new_text (empty new_text)", () => {
+		const args = {
+			files: [
+				{
+					path: "a.ts",
+					edits: [{ old_text: "remove me", new_text: "" }],
+				},
+			],
+		};
+		const result = parseEditFilesArgs(args);
+		expect(result[0].edits[0]).toEqual({ search: "remove me", replace: "" });
+	});
+
 	// During streaming the model may emit a file entry before any
 	// edit is complete. Every edit has a missing replace, so all are
 	// filtered out. The file entry survives with an empty edits
@@ -981,24 +990,35 @@ describe("constants", () => {
 		expect(DIFFS_FONT_STYLE).toHaveProperty("--diffs-line-height", "1.5");
 	});
 
-	it("fileViewerCSS is a non-empty string", () => {
-		expect(typeof fileViewerCSS).toBe("string");
-		expect(fileViewerCSS.length).toBeGreaterThan(0);
+	it("DIFFS_FONT_STYLE uses theme-aware diff variables", () => {
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-addition-color-override",
+			"hsl(var(--git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-deletion-color-override",
+			"hsl(var(--git-deleted))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-addition-override",
+			"hsl(var(--surface-git-added))",
+		);
+		expect(DIFFS_FONT_STYLE).toHaveProperty(
+			"--diffs-bg-deletion-override",
+			"hsl(var(--surface-git-deleted))",
+		);
 	});
 
-	it("diffViewerCSS includes border-left style", () => {
-		expect(diffViewerCSS).toContain("border-left");
+	it("fileViewerCSS keeps file viewer backgrounds transparent", () => {
+		expect(fileViewerCSS).toContain("background-color: transparent");
+		expect(fileViewerCSS).toContain("[data-diffs-header]");
+		expect(fileViewerCSS).not.toContain("[data-code]");
 	});
 
-	it("diffViewerCSS uses theme-aware changed line backgrounds", () => {
-		expect(diffViewerCSS).toContain("--diffs-addition-color-override");
-		expect(diffViewerCSS).toContain("--diffs-deletion-color-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-addition-override");
-		expect(diffViewerCSS).toContain("--diffs-bg-deletion-override");
-		expect(diffViewerCSS).toContain("var(--surface-git-added)");
-		expect(diffViewerCSS).toContain("var(--surface-git-deleted)");
-		expect(diffViewerCSS).toContain("[data-line-type='change-addition']");
-		expect(diffViewerCSS).toContain("[data-line-type='change-deletion']");
+	it("diffViewerCSS keeps hunk separator styling scoped", () => {
+		expect(diffViewerCSS).toContain("[data-separator='line-info']");
+		expect(diffViewerCSS).toContain("[data-separator-content]");
+		expect(diffViewerCSS).not.toContain("[data-diffs-header]");
 	});
 });
 
@@ -1054,6 +1074,27 @@ describe("parseServerEditResults", () => {
 });
 
 describe("parseServerEditDiffText", () => {
+	const changedLineContents = (
+		diff: NonNullable<ReturnType<typeof parseServerEditDiffText>>,
+	) =>
+		diff.hunks.flatMap((hunk) =>
+			hunk.hunkContent.flatMap((content) => {
+				if (content.type !== "change") {
+					return [];
+				}
+				return [
+					...diff.deletionLines.slice(
+						content.deletionLineIndex,
+						content.deletionLineIndex + content.deletions,
+					),
+					...diff.additionLines.slice(
+						content.additionLineIndex,
+						content.additionLineIndex + content.additions,
+					),
+				].map((line) => line.trimEnd());
+			}),
+		);
+
 	it("returns null for an empty string (no-op edit)", () => {
 		expect(parseServerEditDiffText("")).toBeNull();
 	});
@@ -1064,6 +1105,46 @@ describe("parseServerEditDiffText", () => {
 		);
 		expect(diff).not.toBeNull();
 		expect(diff?.name).toBe("/abs/a.txt");
+	});
+
+	it("parses quoted git diff headers", () => {
+		const diff = parseServerEditDiffText(
+			[
+				'diff --git "a/path with spaces.ts" "b/path with spaces.ts"',
+				"index 1111111..2222222 100644",
+				'--- "a/path with spaces.ts"',
+				'+++ "b/path with spaces.ts"',
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("path with spaces.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
+	});
+
+	it("parses diffs that include git patch footer metadata", () => {
+		const diff = parseServerEditDiffText(
+			[
+				"diff --git a/example.ts b/example.ts",
+				"index 1111111..2222222 100644",
+				"--- a/example.ts",
+				"+++ b/example.ts",
+				"@@ -1 +1 @@",
+				"-old value",
+				"+new value",
+				"-- ",
+				"2.45.0",
+				"",
+			].join("\n"),
+		);
+
+		expect(diff).not.toBeNull();
+		expect(diff?.name).toBe("example.ts");
+		expect(changedLineContents(diff!)).toEqual(["old value", "new value"]);
 	});
 });
 

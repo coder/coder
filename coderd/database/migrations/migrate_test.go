@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1500,6 +1501,85 @@ func TestMigration000504AIProvidersBackfillOverridesNameConflict(t *testing.T) {
 	require.Equal(t, "https://api.openai.example.com/v1", fresh.BaseURL)
 	require.False(t, fresh.Deleted)
 	require.True(t, fresh.Enabled)
+}
+
+// TestMigration000504AIProvidersBackfillEnumInSingleTxn reproduces the
+// production migration path, where every pending migration runs inside a
+// single transaction (see pgTxnDriver). Migration 000499 widens
+// ai_provider_type with ALTER TYPE ... ADD VALUE, and 000504 casts existing
+// chat_providers rows to that enum. Postgres forbids using an enum value
+// added by ADD VALUE within the same transaction, so when a legacy provider
+// uses one of the new values (for example openai-compat) the batch fails with
+// "unsafe use of new value". The per-step Stepper used by the other tests
+// commits each migration separately and cannot surface this.
+func TestMigration000504AIProvidersBackfillEnumInSingleTxn(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+	// Apply everything through 498 and commit, so chat_providers exists and is
+	// populated before the batch under test runs, matching a deployment that
+	// ran an earlier migration batch before this one.
+	applyMigrationsInTxn(ctx, t, sqlDB, 1, 498)
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	providerID := uuid.New()
+
+	// A legacy provider whose type is one of the values added in 000499.
+	_, err := sqlDB.ExecContext(ctx, `
+		INSERT INTO chat_providers (id, provider, display_name, api_key, enabled, base_url, created_at, updated_at)
+		VALUES ($1, 'openai-compat', 'OpenAI Compatible', '', TRUE, 'https://api.example.com/v1', $2, $2)
+	`, providerID, now)
+	require.NoError(t, err)
+
+	// Apply 000499 through 000504 in a single transaction, as production does.
+	applyMigrationsInTxn(ctx, t, sqlDB, 499, 504)
+
+	var typ string
+	err = sqlDB.QueryRowContext(ctx,
+		`SELECT type FROM ai_providers WHERE id = $1`, providerID,
+	).Scan(&typ)
+	require.NoError(t, err)
+	require.Equal(t, "openai-compat", typ)
+}
+
+// applyMigrationsInTxn executes the up SQL for every migration whose version is
+// in [from, to] inside a single transaction, mirroring pgTxnDriver. The whole
+// batch commits or rolls back together.
+func applyMigrationsInTxn(ctx context.Context, t *testing.T, sqlDB *sql.DB, from, to int) {
+	t.Helper()
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	var files []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".up.sql") {
+			continue
+		}
+		var version int
+		if _, err := fmt.Sscanf(name, "%06d_", &version); err != nil {
+			continue
+		}
+		if version >= from && version <= to {
+			files = append(files, name)
+		}
+	}
+	slices.Sort(files)
+
+	tx, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer tx.Rollback()
+
+	for _, name := range files {
+		query, err := os.ReadFile(name)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, string(query))
+		require.NoErrorf(t, err, "apply migration %s", name)
+	}
+	require.NoError(t, tx.Commit())
 }
 
 func TestMigration000498SoftDeleteStaleWorkspaceAgents(t *testing.T) {

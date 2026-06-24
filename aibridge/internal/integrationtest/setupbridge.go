@@ -216,10 +216,10 @@ func setupInjectedToolTest(
 	// Setup mock server for multi-turn interaction.
 	// First request → tool call response
 	// Second request → final response.
-	firstResp := newFixtureResponse(fix)
-	toolResp := newFixtureToolResponse(fix)
+	firstResp := testutil.NewFixtureResponse(fix)
+	toolResp := testutil.NewFixtureToolResponse(fix)
 	toolResp.OnRequest = toolRequestValidatorFn
-	upstream := newMockUpstream(ctx, t, firstResp, toolResp)
+	upstream := testutil.NewMockUpstream(ctx, t, firstResp, toolResp)
 
 	mockMCP := setupMCPForTest(t, tracer)
 

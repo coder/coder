@@ -1,0 +1,33 @@
+
+variable "auth_tarball" {
+  description = "Base64 encoded, zstd compressed tarball of a pre-authenticated ~/.local/share/amazon-q directory."
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+module "amazon-q" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/amazon-q/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+  agent_config = {{ .Variables.agent_config }}
+  agentapi_chat_based_path = {{ .Variables.agentapi_chat_based_path }}
+  agentapi_version = {{ .Variables.agentapi_version }}
+  ai_prompt = {{ .Variables.ai_prompt }}
+  amazon_q_version = {{ .Variables.amazon_q_version }}
+  auth_tarball = var.auth_tarball
+  cli_app = {{ .Variables.cli_app }}
+  cli_app_display_name = {{ .Variables.cli_app_display_name }}
+  coder_mcp_instructions = {{ .Variables.coder_mcp_instructions }}
+  icon = {{ .Variables.icon }}
+  install_agentapi = {{ .Variables.install_agentapi }}
+  install_amazon_q = {{ .Variables.install_amazon_q }}
+  post_install_script = {{ .Variables.post_install_script }}
+  pre_install_script = {{ .Variables.pre_install_script }}
+  q_install_url = {{ .Variables.q_install_url }}
+  report_tasks = {{ .Variables.report_tasks }}
+  system_prompt = {{ .Variables.system_prompt }}
+  trust_all_tools = {{ .Variables.trust_all_tools }}
+  web_app_display_name = {{ .Variables.web_app_display_name }}
+  workdir = {{ .Variables.workdir }}
+}
