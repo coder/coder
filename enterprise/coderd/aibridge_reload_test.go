@@ -8,10 +8,12 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -68,7 +70,8 @@ func TestAIBridgeProviderHotReload(t *testing.T) {
 		},
 	})
 
-	metrics := coderdtest.StartTestAIBridgeDaemon(t, testutil.Context(t, testutil.WaitLong), api.AGPL, nil)
+	metrics := aibridged.NewMetrics(prometheus.NewRegistry())
+	coderdtest.StartTestAIBridgeDaemon(t, testutil.Context(t, testutil.WaitLong), api.AGPL, metrics)
 
 	// requireProviderStatus polls until the provider_info series for
 	// (name, status) settles to value 1. Reloads happen via pubsub, so

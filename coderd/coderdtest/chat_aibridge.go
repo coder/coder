@@ -33,14 +33,14 @@ import (
 // Pass a test-scoped context so the daemon shuts down when the test ends.
 //
 // metrics is the registry the daemon reports provider reload events to.
-// Pass nil to create a fresh registry; the returned metrics is what the
-// daemon reports to, regardless of who supplied it.
+// The caller owns the metrics instance and can assert on it after the daemon
+// runs. Use [aibridged.NewMetrics] to create one.
 func StartTestAIBridgeDaemon(
 	t *testing.T,
 	ctx context.Context,
 	api *coderd.API,
 	metrics *aibridged.Metrics,
-) *aibridged.Metrics {
+) {
 	t.Helper()
 
 	logger := slogtest.Make(t, nil).Named("aibridged").Leveled(slog.LevelDebug)
@@ -77,7 +77,6 @@ func StartTestAIBridgeDaemon(
 	t.Cleanup(func() { _ = srv.Close() })
 
 	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
-	return metrics
 }
 
 type testPoolReloader struct {
