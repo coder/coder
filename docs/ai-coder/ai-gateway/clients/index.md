@@ -18,12 +18,12 @@ There are two ways to connect AI tools to AI Gateway:
 
 ## Base URLs
 
-Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/aibridge/openai/v1`.
+Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 
 The exact configuration method varies by client, some use environment variables, others use configuration files or UI settings:
 
-- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
-- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
+- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/openai/v1`
+- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
@@ -78,7 +78,7 @@ resource "coder_agent" "dev" {
     os   = "linux"
     dir  = local.repo_dir
     env = {
-        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
+        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic",
         ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
     }
     ... # other agent configuration
@@ -100,7 +100,7 @@ For headless scenarios, first [create a service account](../../../admin/users/he
 For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
 
 ```sh
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
