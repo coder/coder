@@ -443,6 +443,9 @@ type sqlcQuerier interface {
 	GetChatMessagesByRevisionForStream(ctx context.Context, arg GetChatMessagesByRevisionForStreamParams) ([]ChatMessage, error)
 	GetChatMessagesForPromptByChatID(ctx context.Context, chatID uuid.UUID) ([]ChatMessage, error)
 	GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	// The provider column is resolved from the linked ai_providers.type
+	// (the canonical source of truth) rather than the denormalized text
+	// column on chat_model_configs, which can be stale for legacy rows.
 	GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	// Returns all model configurations for telemetry snapshot collection.
 	GetChatModelConfigsForTelemetry(ctx context.Context) ([]GetChatModelConfigsForTelemetryRow, error)
@@ -535,6 +538,9 @@ type sqlcQuerier interface {
 	// Providers can be disabled independently of their model configs.
 	// Check both to ensure the selected config is actually usable.
 	GetEnabledChatModelConfigByID(ctx context.Context, id uuid.UUID) (ChatModelConfig, error)
+	// The provider column is resolved from the linked ai_providers.type
+	// (the canonical source of truth) rather than the denormalized text
+	// column on chat_model_configs, which can be stale for legacy rows.
 	GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error)
 	GetEnabledMCPServerConfigs(ctx context.Context) ([]MCPServerConfig, error)
 	// GetExternalAgentTokensByTemplateID returns the auth tokens for all

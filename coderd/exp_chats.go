@@ -6868,29 +6868,9 @@ func (api *API) listChatModelConfigs(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Fetch AI providers so the provider field in each model config reflects
-	// the linked ai_providers.type, correcting stale denormalized text for
-	// legacy rows. Use the chatd context unconditionally, matching the pattern
-	// in createChatModelConfig and updateChatModelConfig.
-	//nolint:gocritic // All authenticated users need to resolve provider types for display.
-	aiProviders, err := api.Database.GetAIProviders(dbauthz.AsChatd(ctx), database.GetAIProvidersParams{
-		IncludeDisabled: true,
-	})
-	if err != nil && !dbauthz.IsNotAuthorizedError(err) {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to load AI providers for model configs.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	providerTypeOverrides := make(map[uuid.UUID]string, len(aiProviders))
-	for _, p := range aiProviders {
-		providerTypeOverrides[p.ID] = string(p.Type)
-	}
-
 	resp := make([]codersdk.ChatModelConfig, 0, len(configs))
 	for _, config := range configs {
-		resp = append(resp, convertChatModelConfig(config, providerTypeOverrides))
+		resp = append(resp, convertChatModelConfig(config))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -7103,7 +7083,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
 }
 
 func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7335,7 +7315,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
 }
 
 func (api *API) deleteChatModelConfig(rw http.ResponseWriter, r *http.Request) {
@@ -7507,24 +7487,14 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-// convertChatModelConfig converts a database chat model config to its SDK
-// form. When providerTypeOverrides is non-nil and the config has a valid
-// ai_provider_id, the provider field is set from the linked ai_providers row
-// type, correcting stale denormalized text in the provider column.
-func convertChatModelConfig(config database.ChatModelConfig, providerTypeOverrides map[uuid.UUID]string) codersdk.ChatModelConfig {
+func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModelConfig {
 	var aiProviderID *uuid.UUID
 	if config.AIProviderID.Valid {
 		aiProviderID = &config.AIProviderID.UUID
 	}
-	provider := config.Provider
-	if providerTypeOverrides != nil && config.AIProviderID.Valid {
-		if override, ok := providerTypeOverrides[config.AIProviderID.UUID]; ok && override != "" {
-			provider = override
-		}
-	}
 	return codersdk.ChatModelConfig{
 		ID:                   config.ID,
-		Provider:             provider,
+		Provider:             config.Provider,
 		AIProviderID:         aiProviderID,
 		Model:                config.Model,
 		DisplayName:          config.DisplayName,

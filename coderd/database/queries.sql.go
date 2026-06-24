@@ -5102,18 +5102,37 @@ func (q *sqlQuerier) GetChatModelConfigByID(ctx context.Context, id uuid.UUID) (
 
 const getChatModelConfigs = `-- name: GetChatModelConfigs :many
 SELECT
-    id, provider, model, display_name, created_by, updated_by, enabled, is_default, deleted, deleted_at, created_at, updated_at, context_limit, compression_threshold, options, ai_provider_id
+    cmc.id,
+    COALESCE(ap.type::text, cmc.provider) AS provider,
+    cmc.model,
+    cmc.display_name,
+    cmc.created_by,
+    cmc.updated_by,
+    cmc.enabled,
+    cmc.is_default,
+    cmc.deleted,
+    cmc.deleted_at,
+    cmc.created_at,
+    cmc.updated_at,
+    cmc.context_limit,
+    cmc.compression_threshold,
+    cmc.options,
+    cmc.ai_provider_id
 FROM
-    chat_model_configs
+    chat_model_configs cmc
+    LEFT JOIN ai_providers ap ON ap.id = cmc.ai_provider_id AND ap.deleted = FALSE
 WHERE
-    deleted = FALSE
+    cmc.deleted = FALSE
 ORDER BY
-    provider ASC,
-    model ASC,
-    updated_at DESC,
-    id DESC
+    cmc.provider ASC,
+    cmc.model ASC,
+    cmc.updated_at DESC,
+    cmc.id DESC
 `
 
+// The provider column is resolved from the linked ai_providers.type
+// (the canonical source of truth) rather than the denormalized text
+// column on chat_model_configs, which can be stale for legacy rows.
 func (q *sqlQuerier) GetChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getChatModelConfigs)
 	if err != nil {
@@ -5231,11 +5250,25 @@ func (q *sqlQuerier) GetEnabledChatModelConfigByID(ctx context.Context, id uuid.
 
 const getEnabledChatModelConfigs = `-- name: GetEnabledChatModelConfigs :many
 SELECT
-    cmc.id, cmc.provider, cmc.model, cmc.display_name, cmc.created_by, cmc.updated_by, cmc.enabled, cmc.is_default, cmc.deleted, cmc.deleted_at, cmc.created_at, cmc.updated_at, cmc.context_limit, cmc.compression_threshold, cmc.options, cmc.ai_provider_id
+    cmc.id,
+    COALESCE(ap.type::text, cmc.provider) AS provider,
+    cmc.model,
+    cmc.display_name,
+    cmc.created_by,
+    cmc.updated_by,
+    cmc.enabled,
+    cmc.is_default,
+    cmc.deleted,
+    cmc.deleted_at,
+    cmc.created_at,
+    cmc.updated_at,
+    cmc.context_limit,
+    cmc.compression_threshold,
+    cmc.options,
+    cmc.ai_provider_id
 FROM
     chat_model_configs cmc
-JOIN
-    ai_providers ap ON ap.id = cmc.ai_provider_id
+    JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE
     cmc.enabled = TRUE
     AND cmc.deleted = FALSE
@@ -5248,6 +5281,9 @@ ORDER BY
     cmc.id DESC
 `
 
+// The provider column is resolved from the linked ai_providers.type
+// (the canonical source of truth) rather than the denormalized text
+// column on chat_model_configs, which can be stale for legacy rows.
 func (q *sqlQuerier) GetEnabledChatModelConfigs(ctx context.Context) ([]ChatModelConfig, error) {
 	rows, err := q.db.QueryContext(ctx, getEnabledChatModelConfigs)
 	if err != nil {
