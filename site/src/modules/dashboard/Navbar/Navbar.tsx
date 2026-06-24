@@ -28,7 +28,9 @@ export const Navbar: FC = () => {
 	const canViewAIBridge =
 		featureVisibility.aibridge && permissions.viewAnyAIBridgeInterception;
 	const canViewAISettings =
-		permissions.viewAnyAIProvider || permissions.viewAIGatewayKeys;
+		permissions.viewAnyAIProvider ||
+		permissions.viewAIGatewayKeys ||
+		permissions.editDeploymentConfig;
 	const canCreateChat = permissions.createChat;
 
 	const uniqueLinks = new Map<string, LinkConfig>();
