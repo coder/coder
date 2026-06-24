@@ -92,7 +92,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 
 	return (
 		<form className="flex flex-col gap-10 pb-8" onSubmit={form.handleSubmit}>
-			<section className="flex flex-col gap-4 max-w-md">
+			<section className="flex max-w-xl flex-col gap-4">
 				<div className="flex flex-col gap-2">
 					<h2 className="text-xl font-semibold text-content-primary m-0">
 						General
