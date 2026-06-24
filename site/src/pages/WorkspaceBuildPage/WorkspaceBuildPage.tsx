@@ -27,7 +27,7 @@ const WorkspaceBuildPage: FC = () => {
 	});
 	const workspaceQuery = useQuery({
 		...workspaceByOwnerAndName(username, workspaceName),
-		// We don't want to fetch the workspace if the build is not found.
+		// We only want to fetch the workspace if the build is not found.
 		// This is so we can gather why the build is not found, specifically
 		// catching the case where the workspace has been deleted.
 		enabled:
