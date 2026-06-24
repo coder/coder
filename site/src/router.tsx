@@ -371,9 +371,7 @@ const AgentSettingsGeneralPage = lazy(
 const AgentSettingsCompactionPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
 );
-const AgentSettingsInstructionsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsInstructionsPage"),
-);
+
 const AgentSettingsExperimentsPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsExperimentsPage"),
 );
@@ -391,9 +389,6 @@ const AgentSettingsPersonalSkillsPage = lazy(
 );
 const AgentSettingsAPIKeysPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
-);
-const AgentSettingsMCPServersPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsMCPServersPage"),
 );
 const AgentSettingsSpendPage = lazy(
 	() => import("./pages/AgentsPage/AgentSettingsSpendPage"),
@@ -448,6 +443,9 @@ const AISettingsGatewayKeysPage = lazy(
 const AISettingsModelsPage = lazy(
 	() => import("./pages/AISettingsPage/ModelsPage/ModelsPage"),
 );
+const AISettingsInstructionsPage = lazy(
+	() => import("./pages/AISettingsPage/InstructionsPage/InstructionsPage"),
+);
 const AISettingsTemplatesPage = lazy(
 	() => import("./pages/AISettingsPage/TemplatesPage/TemplatesPage"),
 );
@@ -457,6 +455,21 @@ const AISettingsAddModelPage = lazy(
 const AISettingsUpdateModelPage = lazy(
 	() =>
 		import("./pages/AISettingsPage/ModelsPage/UpdateModelPage/UpdateModelPage"),
+);
+const AISettingsMCPServersPage = lazy(
+	() => import("./pages/AISettingsPage/MCPServersPage/MCPServersPage"),
+);
+const AISettingsAddMCPServerPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/MCPServersPage/AddMCPServerPage/AddMCPServerPage"
+		),
+);
+const AISettingsUpdateMCPServerPage = lazy(
+	() =>
+		import(
+			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
+		),
 );
 
 const AISettingsIndexPage = () => {
@@ -468,6 +481,10 @@ const AISettingsIndexPage = () => {
 
 	if (permissions.viewAIGatewayKeys) {
 		return <Navigate to="/ai/settings/gateway-keys" replace />;
+	}
+
+	if (permissions.editDeploymentConfig) {
+		return <Navigate to="/ai/settings/models" replace />;
 	}
 
 	return <AISettingsProvidersPage />;
@@ -755,12 +772,25 @@ export const router = createBrowserRouter(
 						/>
 						<Route index element={<AISettingsIndexPage />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
+						<Route
+							path="instructions"
+							element={<AISettingsInstructionsPage />}
+						/>
 						<Route path="lifecycle" element={<AISettingsLifecyclePage />} />
 						<Route path="templates" element={<AISettingsTemplatesPage />} />
 						<Route path="models/add" element={<AISettingsAddModelPage />} />
 						<Route
 							path="models/:modelId"
 							element={<AISettingsUpdateModelPage />}
+						/>
+						<Route path="mcp-servers" element={<AISettingsMCPServersPage />} />
+						<Route
+							path="mcp-servers/add"
+							element={<AISettingsAddMCPServerPage />}
+						/>
+						<Route
+							path="mcp-servers/:serverId"
+							element={<AISettingsUpdateMCPServerPage />}
 						/>
 						<Route path="add" element={<AISettingsAddProviderPage />} />
 						<Route
@@ -829,7 +859,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="instructions"
-							element={<AgentSettingsInstructionsPage />}
+							element={<Navigate to="/ai/settings/instructions" replace />}
 						/>
 						<Route
 							path="experiments"
@@ -860,7 +890,7 @@ export const router = createBrowserRouter(
 						/>
 						<Route
 							path="mcp-servers"
-							element={<AgentSettingsMCPServersPage />}
+							element={<Navigate to="/ai/settings/mcp-servers" replace />}
 						/>
 						<Route path="spend" element={<AgentSettingsSpendPage />} />
 						<Route path="limits" element={<Navigate to="spend" replace />} />

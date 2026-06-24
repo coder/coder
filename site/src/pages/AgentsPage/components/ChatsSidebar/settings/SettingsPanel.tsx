@@ -180,9 +180,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={ServerIcon}
 						label="MCP servers"
-						active={settingsSection === "mcp-servers"}
-						to="/agents/settings/mcp-servers"
-						state={location.state}
+						active={false}
+						to="/ai/settings/mcp-servers"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={LayoutTemplateIcon}
@@ -201,9 +201,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
 						label="Instructions"
-						active={settingsSection === "instructions"}
-						to="/agents/settings/instructions"
-						state={location.state}
+						active={false}
+						to="/ai/settings/instructions"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={FlaskConicalIcon}

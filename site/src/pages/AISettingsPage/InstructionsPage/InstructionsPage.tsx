@@ -8,9 +8,10 @@ import {
 } from "#/api/queries/chats";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsInstructionsPageView } from "./AgentSettingsInstructionsPageView";
+import { pageTitle } from "#/utils/page";
+import { InstructionsPageView } from "./InstructionsPageView";
 
-const AgentSettingsInstructionsPage: FC = () => {
+const InstructionsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 
@@ -31,16 +32,22 @@ const AgentSettingsInstructionsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsInstructionsPageView
+			<title>{pageTitle("Instructions", "AI Settings")}</title>
+
+			<InstructionsPageView
 				systemPromptData={systemPromptQuery.data}
 				planModeInstructionsData={planModeInstructionsQuery.data}
-				onSaveSystemPrompt={saveSystemPromptMutation.mutate}
-				isSavingSystemPrompt={saveSystemPromptMutation.isPending}
-				isSaveSystemPromptError={saveSystemPromptMutation.isError}
-				onSavePlanModeInstructions={savePlanModeInstructionsMutation.mutate}
-				isSavingPlanModeInstructions={
+				onSaveSystemPrompt={saveSystemPromptMutation.mutateAsync}
+				onSavePlanModeInstructions={
+					savePlanModeInstructionsMutation.mutateAsync
+				}
+				onResetSystemPromptSave={saveSystemPromptMutation.reset}
+				onResetPlanModeInstructionsSave={savePlanModeInstructionsMutation.reset}
+				isSaving={
+					saveSystemPromptMutation.isPending ||
 					savePlanModeInstructionsMutation.isPending
 				}
+				isSaveSystemPromptError={saveSystemPromptMutation.isError}
 				isSavePlanModeInstructionsError={
 					savePlanModeInstructionsMutation.isError
 				}
@@ -49,4 +56,4 @@ const AgentSettingsInstructionsPage: FC = () => {
 	);
 };
 
-export default AgentSettingsInstructionsPage;
+export default InstructionsPage;

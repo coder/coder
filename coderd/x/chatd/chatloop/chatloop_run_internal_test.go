@@ -914,6 +914,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"screenshot"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -961,6 +962,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"screenshot"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
 		)
 
 		media, ok := result.Result.(fantasy.ToolResultOutputContentMedia)
@@ -1003,6 +1005,7 @@ func TestExecuteSingleTool_MediaBase64Encoding(t *testing.T) {
 			[]string{"echo"},
 			map[string]struct{}{},
 			nil,
+			defaultToolResultBytes,
 		)
 
 		textOutput, ok := result.Result.(fantasy.ToolResultOutputContentText)

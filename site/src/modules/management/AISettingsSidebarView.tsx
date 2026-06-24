@@ -36,6 +36,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/instructions">
+						Instructions
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/lifecycle">
 						Lifecycle
 					</SidebarNavItem>
@@ -43,6 +48,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/templates">
 						Templates
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/mcp-servers">
+						MCP servers
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
