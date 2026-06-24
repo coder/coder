@@ -3,6 +3,7 @@ import { MockCoderMCPServer } from "../testFixtures";
 import {
 	buildCreateMCPServerConfigRequest,
 	buildInitialMCPServerFormValues,
+	buildUpdateMCPServerConfigRequest,
 	canSubmitMCPServerForm,
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
@@ -58,6 +59,40 @@ describe("mcpServerFormLogic", () => {
 
 		expect(unchanged.oauth2_client_secret).toBeUndefined();
 		expect(changed.oauth2_client_secret).toBe("new-secret");
+	});
+
+	it("does not send placeholder API key values unless the value changes", () => {
+		const unchanged = buildCreateMCPServerConfigRequest(
+			validValues({
+				authType: "api_key",
+				apiKeyValue: "••••••••••••••••",
+				apiKeyTouched: false,
+			}),
+		);
+		const changed = buildCreateMCPServerConfigRequest(
+			validValues({
+				authType: "api_key",
+				apiKeyValue: "new-key",
+				apiKeyTouched: true,
+			}),
+		);
+
+		expect(unchanged.api_key_value).toBeUndefined();
+		expect(changed.api_key_value).toBe("new-key");
+	});
+
+	it("omits enabled from update requests", () => {
+		const request = buildUpdateMCPServerConfigRequest(
+			validValues({ enabled: false }),
+		);
+		expect(request.enabled).toBeUndefined();
+	});
+
+	it("initializes slugTouched true for edit and false for create", () => {
+		const createValues = buildInitialMCPServerFormValues();
+		expect(createValues.slugTouched).toBe(false);
+		const editValues = buildInitialMCPServerFormValues(MockCoderMCPServer);
+		expect(editValues.slugTouched).toBe(true);
 	});
 
 	it("only sends touched custom headers with non-empty keys", () => {

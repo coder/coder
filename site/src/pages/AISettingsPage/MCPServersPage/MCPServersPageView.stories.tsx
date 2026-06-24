@@ -76,4 +76,10 @@ export const LoadError: Story = {
 		error: new Error("Failed to load MCP servers"),
 		servers: [],
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByText("No MCP servers configured"),
+		).not.toBeInTheDocument();
+	},
 };

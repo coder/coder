@@ -27,6 +27,7 @@ import {
 interface MCPServerFormFieldsProps {
 	form: FormikContextType<MCPServerFormValues>;
 	isSaving: boolean;
+	isDisabled: boolean;
 	canSubmit: boolean;
 	isEditing: boolean;
 	onCancel: () => void;
@@ -41,6 +42,7 @@ interface MCPServerFormFieldsProps {
 export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	form,
 	isSaving,
+	isDisabled,
 	canSubmit,
 	isEditing,
 	onCancel,
@@ -52,7 +54,6 @@ export const MCPServerFormFields: FC<MCPServerFormFieldsProps> = ({
 	setShowBehavior,
 }) => {
 	const formId = useId();
-	const isDisabled = isSaving;
 
 	return (
 		<div className="border border-solid p-6 rounded-lg">

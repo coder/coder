@@ -74,7 +74,10 @@ const UpdateMCPServerPage: FC = () => {
 								},
 								onError: (error) => {
 									toast.error(
-										getErrorMessage(error, "Failed to update MCP server."),
+										getErrorMessage(
+											error,
+											`Failed to ${enabled ? "enable" : "disable"} MCP server.`,
+										),
 									);
 								},
 							},

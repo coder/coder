@@ -33,7 +33,6 @@ const UpdateMCPServerPageView: FC<UpdateMCPServerPageViewProps> = ({
 				server={server}
 				isSaving={isSaving}
 				isDeleting={isDeleting}
-				onCreateServer={async () => {}}
 				onUpdateServer={onUpdateServer}
 				onDeleteServer={onDeleteServer}
 				onToggleEnabled={onToggleEnabled}

@@ -21,9 +21,7 @@ const AddMCPServerPageView: FC<AddMCPServerPageViewProps> = ({
 			<title>{pageTitle("Add server", "AI Settings")}</title>
 			<MCPServerForm
 				isSaving={isSaving}
-				isDeleting={false}
 				onCreateServer={onCreateServer}
-				onUpdateServer={async () => {}}
 				onCancel={onCancel}
 			/>
 		</>

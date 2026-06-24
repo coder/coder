@@ -36,7 +36,7 @@ interface MCPServerFormHeaderProps {
 	title: string;
 	iconUrl: string;
 	isEditing: boolean;
-	isSaving: boolean;
+	isDisabled: boolean;
 	onRequestDelete: () => void;
 	onToggleEnabled?: (enabled: boolean) => void;
 }
@@ -46,7 +46,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 	title,
 	iconUrl,
 	isEditing,
-	isSaving,
+	isDisabled,
 	onRequestDelete,
 	onToggleEnabled,
 }) => {
@@ -61,7 +61,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 								variant="subtle"
 								size="icon"
 								type="button"
-								disabled={isSaving}
+								disabled={isDisabled}
 								aria-label="Server actions"
 							>
 								<EllipsisVerticalIcon />
@@ -106,7 +106,7 @@ export const MCPServerFormHeader: FC<MCPServerFormHeaderProps> = ({
 									<Switch
 										checked={server.enabled}
 										onCheckedChange={(checked) => onToggleEnabled?.(checked)}
-										disabled={isSaving}
+										disabled={isDisabled}
 										aria-label="Server enabled"
 									/>
 								</span>

@@ -70,7 +70,7 @@ const MCPServersPageView: FC<MCPServersPageViewProps> = ({
 				<TableBody>
 					{isLoading ? (
 						<TableLoader />
-					) : servers.length === 0 ? (
+					) : !error && servers.length === 0 ? (
 						<TableEmpty
 							message="No MCP servers configured"
 							description="Add a server to give agents access to external tools."

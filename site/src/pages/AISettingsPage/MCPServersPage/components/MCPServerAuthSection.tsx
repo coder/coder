@@ -16,6 +16,8 @@ import {
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
 
+const SECRET_PLACEHOLDER = "••••••••••••••••";
+
 interface MCPServerAuthSectionProps {
 	form: FormikContextType<MCPServerFormValues>;
 	formId: string;
@@ -97,6 +99,7 @@ const OAuth2Fields: FC<MCPServerAuthSectionProps> = ({
 					onValueChange={(value) =>
 						void form.setFieldValue("oauth2ClientSecret", value)
 					}
+					onReset={() => void form.setFieldValue("oauth2SecretTouched", false)}
 					disabled={disabled}
 				/>
 			</Field>
@@ -153,6 +156,7 @@ const APIKeyFields: FC<MCPServerAuthSectionProps> = ({
 				touched={form.values.apiKeyTouched}
 				onTouch={() => void form.setFieldValue("apiKeyTouched", true)}
 				onValueChange={(value) => void form.setFieldValue("apiKeyValue", value)}
+				onReset={() => void form.setFieldValue("apiKeyTouched", false)}
 				disabled={disabled}
 			/>
 		</Field>
@@ -165,8 +169,9 @@ const SecretInput: FC<{
 	touched: boolean;
 	onTouch: () => void;
 	onValueChange: (value: string) => void;
+	onReset: () => void;
 	disabled: boolean;
-}> = ({ id, value, touched, onTouch, onValueChange, disabled }) => (
+}> = ({ id, value, touched, onTouch, onValueChange, onReset, disabled }) => (
 	<Input
 		id={id}
 		className="font-mono shadow-none [-webkit-text-security:disc]"
@@ -185,6 +190,12 @@ const SecretInput: FC<{
 			if (!touched && value !== "") {
 				onValueChange("");
 				onTouch();
+			}
+		}}
+		onBlur={() => {
+			if (touched && value === "") {
+				onValueChange(SECRET_PLACEHOLDER);
+				onReset();
 			}
 		}}
 		disabled={disabled}
@@ -248,10 +259,7 @@ const CustomHeaderInput: FC<{
 	disabled: boolean;
 }> = ({ formId, header, index, headers, setHeaders, disabled }) => (
 	<>
-		<Field
-			label={index === 0 ? "Header" : "Header name"}
-			htmlFor={`${formId}-custom-header-${index}`}
-		>
+		<Field label="Header name" htmlFor={`${formId}-custom-header-${index}`}>
 			<Input
 				id={`${formId}-custom-header-${index}`}
 				className="shadow-none"
@@ -264,10 +272,7 @@ const CustomHeaderInput: FC<{
 				disabled={disabled}
 			/>
 		</Field>
-		<Field
-			label={index === 0 ? "Value" : "Header value"}
-			htmlFor={`${formId}-custom-value-${index}`}
-		>
+		<Field label="Header value" htmlFor={`${formId}-custom-value-${index}`}>
 			<Input
 				id={`${formId}-custom-value-${index}`}
 				className="shadow-none"

@@ -9,9 +9,9 @@ import MCPServersPageView from "./MCPServersPageView";
 const MCPServersPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const serversQuery = useQuery(mcpServerConfigs());
-	const servers = (serversQuery.data ?? [])
-		.slice()
-		.sort((a, b) => a.display_name.localeCompare(b.display_name));
+	const servers = (serversQuery.data ?? []).toSorted((a, b) =>
+		a.display_name.localeCompare(b.display_name),
+	);
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>

@@ -13,13 +13,24 @@ import {
 	type MCPServerFormValues,
 } from "./mcpServerFormLogic";
 
-interface MCPServerFormProps {
-	server?: TypesGen.MCPServerConfig;
+type MCPServerFormCreateProps = {
+	server?: undefined;
 	isSaving: boolean;
-	isDeleting: boolean;
+	isDeleting?: false;
 	onCreateServer: (
 		req: TypesGen.CreateMCPServerConfigRequest,
 	) => Promise<unknown>;
+	onUpdateServer?: undefined;
+	onDeleteServer?: undefined;
+	onToggleEnabled?: undefined;
+	onCancel: () => void;
+};
+
+type MCPServerFormEditProps = {
+	server: TypesGen.MCPServerConfig;
+	isSaving: boolean;
+	isDeleting: boolean;
+	onCreateServer?: undefined;
 	onUpdateServer: (
 		serverId: string,
 		req: TypesGen.UpdateMCPServerConfigRequest,
@@ -27,19 +38,22 @@ interface MCPServerFormProps {
 	onDeleteServer?: (serverId: string) => Promise<void>;
 	onToggleEnabled?: (enabled: boolean) => void;
 	onCancel: () => void;
-}
+};
+
+type MCPServerFormProps = MCPServerFormCreateProps | MCPServerFormEditProps;
 
 export const MCPServerForm: FC<MCPServerFormProps> = ({
 	server,
 	isSaving,
-	isDeleting,
+	isDeleting = false,
 	onCreateServer,
 	onUpdateServer,
 	onDeleteServer,
 	onToggleEnabled,
 	onCancel,
 }) => {
-	const isEditing = Boolean(server);
+	const isEditing = server !== undefined;
+
 	const [showDetails, setShowDetails] = useState(false);
 	const [showAuth, setShowAuth] = useState(false);
 	const [showBehavior, setShowBehavior] = useState(false);
@@ -49,12 +63,12 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 		initialValues: buildInitialMCPServerFormValues(server),
 		onSubmit: async (values) => {
 			if (isSaving) return;
-			if (server) {
+			if (server && onUpdateServer) {
 				await onUpdateServer(
 					server.id,
 					buildUpdateMCPServerConfigRequest(values),
 				);
-			} else {
+			} else if (onCreateServer) {
 				await onCreateServer(buildCreateMCPServerConfigRequest(values));
 			}
 		},
@@ -76,7 +90,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				title={title}
 				iconUrl={form.values.iconURL}
 				isEditing={isEditing}
-				isSaving={isSaving}
+				isDisabled={isDisabled}
 				onRequestDelete={() => setConfirmingDelete(true)}
 				onToggleEnabled={onToggleEnabled}
 			/>
@@ -84,6 +98,7 @@ export const MCPServerForm: FC<MCPServerFormProps> = ({
 				<MCPServerFormFields
 					form={form}
 					isSaving={isSaving}
+					isDisabled={isDisabled}
 					canSubmit={canSubmit}
 					isEditing={isEditing}
 					onCancel={onCancel}

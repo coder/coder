@@ -82,7 +82,7 @@ export const buildInitialMCPServerFormValues = (
 ): MCPServerFormValues => ({
 	displayName: server?.display_name ?? "",
 	slug: server?.slug ?? "",
-	slugTouched: false,
+	slugTouched: Boolean(server),
 	description: server?.description ?? "",
 	iconURL: server?.icon_url ?? "",
 	url: server?.url ?? "",
@@ -149,7 +149,8 @@ export const buildCreateMCPServerConfigRequest = (
 	if (values.authType === "oauth2") {
 		const oauth2ClientSecret =
 			values.oauth2SecretTouched &&
-			values.oauth2ClientSecret !== SECRET_PLACEHOLDER
+			values.oauth2ClientSecret !== SECRET_PLACEHOLDER &&
+			values.oauth2ClientSecret !== ""
 				? values.oauth2ClientSecret
 				: undefined;
 
@@ -165,7 +166,9 @@ export const buildCreateMCPServerConfigRequest = (
 
 	if (values.authType === "api_key") {
 		const apiKeyValue =
-			values.apiKeyTouched && values.apiKeyValue !== SECRET_PLACEHOLDER
+			values.apiKeyTouched &&
+			values.apiKeyValue !== SECRET_PLACEHOLDER &&
+			values.apiKeyValue !== ""
 				? values.apiKeyValue
 				: undefined;
 
@@ -193,10 +196,13 @@ export const buildCreateMCPServerConfigRequest = (
 export const buildUpdateMCPServerConfigRequest = (
 	values: MCPServerFormValues,
 ): TypesGen.UpdateMCPServerConfigRequest => {
-	const request = buildCreateMCPServerConfigRequest(values);
+	const base = buildCreateMCPServerConfigRequest(values);
+	// The edit-page header toggle owns `enabled`; the form's copy is stale
+	// relative to the toggle, so omit it from the update payload.
+	const { enabled: _enabled, ...updateFields } = base;
 	return {
-		...request,
-		tool_allow_list: [...(request.tool_allow_list ?? [])],
-		tool_deny_list: [...(request.tool_deny_list ?? [])],
+		...updateFields,
+		tool_allow_list: [...(base.tool_allow_list ?? [])],
+		tool_deny_list: [...(base.tool_deny_list ?? [])],
 	};
 };
