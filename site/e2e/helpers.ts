@@ -893,10 +893,14 @@ export const createServer = async (port: number): Promise<MockServer> => {
 		app,
 		close: () =>
 			new Promise<void>((resolve, reject) => {
-				// closeAllConnections (Node >= 18.2 / 16.17) forces lingering
-				// keep-alives to terminate so server.close() is bounded.
-				server.closeAllConnections?.();
+				// Call server.close() first so the listener stops accepting
+				// new connections, then closeAllConnections() (Node >= 18.2 /
+				// 16.17) drops lingering keep-alives so close() resolves
+				// promptly. Inverting this order races: a connection accepted
+				// between closeAllConnections() and close() is not force-
+				// closed and keeps close() pending until keep-alive timeout.
 				server.close((err) => (err ? reject(err) : resolve()));
+				server.closeAllConnections?.();
 			}),
 	};
 };
