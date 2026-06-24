@@ -47,6 +47,9 @@ type ComposeResult struct {
 	// ModulesTF is the concatenated rendered module blocks. Empty when
 	// no modules are selected.
 	ModulesTF []byte
+	// Readme is the full README.md content from the base template.
+	// Empty when the base has no README.
+	Readme []byte
 }
 
 // Compose renders a base template and selected modules into Terraform
@@ -59,7 +62,10 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 	}
 
 	if len(req.Modules) == 0 {
-		return &ComposeResult{MainTF: formatHCL(mainTF)}, nil
+		return &ComposeResult{
+			MainTF: formatHCL(mainTF),
+			Readme: []byte(BaseReadme(req.BaseTemplateID)),
+		}, nil
 	}
 
 	agentName, err := ExtractAgentResourceName(mainTF)
@@ -82,10 +88,12 @@ func Compose(req ComposeRequest) (*ComposeResult, error) {
 		return nil, err
 	}
 
-	return &ComposeResult{
+	result := &ComposeResult{
 		MainTF:    formatHCL(mainTF),
 		ModulesTF: formatHCL(modulesTF),
-	}, nil
+		Readme:    []byte(BaseReadme(req.BaseTemplateID)),
+	}
+	return result, nil
 }
 
 // formatHCL applies canonical HCL formatting to src. If src is not valid
@@ -104,12 +112,75 @@ func renderBase(baseTemplateID string, baseVars map[string]string) ([]byte, erro
 	if renderCtx.Variables == nil {
 		renderCtx.Variables = make(map[string]string)
 	}
-	maps.Copy(renderCtx.Variables, baseVars)
+
+	vars, err := mergeBaseVariables(baseTemplateID, baseVars)
+	if err != nil {
+		return nil, xerrors.Errorf("base %q: %w", baseTemplateID, err)
+	}
+	maps.Copy(renderCtx.Variables, vars)
+
 	mainTF, err := RenderBaseTemplate(baseTemplateID, "main.tf.tmpl", renderCtx)
 	if err != nil {
 		return nil, xerrors.Errorf("render base template: %w", err)
 	}
 	return mainTF, nil
+}
+
+// mergeBaseVariables builds the final Variables map for a base template.
+// It starts with manifest defaults, overlays caller-supplied values,
+// validates types, and converts to HCL literals.
+func mergeBaseVariables(baseTemplateID string, callerVars map[string]string) (map[string]string, error) {
+	allVars := BaseVariables(baseTemplateID)
+	if len(allVars) == 0 && len(callerVars) == 0 {
+		return make(map[string]string), nil
+	}
+
+	allowedVars := make(map[string]ModuleVariable, len(allVars))
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		allowedVars[v.Name] = v
+	}
+
+	// Validate caller-supplied keys and values.
+	for k, val := range callerVars {
+		v, ok := allowedVars[k]
+		if !ok {
+			return nil, xerrors.Errorf("unknown variable %q", k)
+		}
+		if err := validateVariableValue(v, val); err != nil {
+			return nil, xerrors.Errorf("variable %q: %w", k, err)
+		}
+	}
+
+	// Build merged map from manifest defaults.
+	merged := make(map[string]string, len(allVars))
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if len(v.Default) > 0 && isSimpleJSONValue(v.Default) {
+			merged[v.Name] = string(v.Default)
+		}
+	}
+
+	// Overlay validated caller values, converting to HCL literals.
+	for k, val := range callerVars {
+		merged[k] = toHCLLiteral(allowedVars[k], val)
+	}
+
+	// Ensure all required variables without defaults have a value.
+	for _, v := range allVars {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if v.Required && merged[v.Name] == "" {
+			return nil, xerrors.Errorf("variable %q is required", v.Name)
+		}
+	}
+
+	return merged, nil
 }
 
 // loadCatalogMap loads the module catalog and returns it as a map keyed
@@ -248,6 +319,17 @@ func mergeModuleVariables(manifest ModuleManifest, callerVars map[string]string)
 	for k, val := range callerVars {
 		merged[k] = toHCLLiteral(allowedVars[k], val)
 	}
+
+	// Ensure all required variables without defaults have a value.
+	for _, v := range manifest.Variables {
+		if v.Computed || v.Sensitive {
+			continue
+		}
+		if v.Required && merged[v.Name] == "" {
+			return nil, xerrors.Errorf("variable %q is required", v.Name)
+		}
+	}
+
 	return merged, nil
 }
 
@@ -371,6 +453,12 @@ func BundleTar(result *ComposeResult) ([]byte, error) {
 	if len(result.ModulesTF) > 0 {
 		if err := writeTarFile(tw, "modules.tf", result.ModulesTF); err != nil {
 			return nil, xerrors.Errorf("write modules.tf to tar: %w", err)
+		}
+	}
+
+	if len(result.Readme) > 0 {
+		if err := writeTarFile(tw, "README.md", result.Readme); err != nil {
+			return nil, xerrors.Errorf("write README.md to tar: %w", err)
 		}
 	}
 

@@ -171,6 +171,40 @@ func TestManager_AddSourceIsIdempotent(t *testing.T) {
 	require.Len(t, sources, 1)
 }
 
+// TestManager_SourceIdentityIsLexicalAndStable verifies the same configured
+// source added before and after its symlink target exists collapses to one
+// source keyed by the lexical (configured) path, not the resolved target.
+func TestManager_SourceIdentityIsLexicalAndStable(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	root := testutil.TempDirResolved(t)
+	target := filepath.Join(root, "target")
+	link := filepath.Join(root, "link")
+	require.NoError(t, os.Symlink(target, link))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return root },
+		AllowedRoots: []string{root},
+	})
+
+	// Target missing: identity is the lexical link path.
+	added1, err := m.AddSource(agentcontext.Source{Path: link})
+	require.NoError(t, err)
+	require.Equal(t, link, added1.Path)
+
+	// Once the target exists the link resolves, but the same configured
+	// path must still dedupe to one source.
+	require.NoError(t, os.MkdirAll(target, 0o755))
+	added2, err := m.AddSource(agentcontext.Source{Path: link})
+	require.NoError(t, err)
+	require.Equal(t, link, added2.Path,
+		"expected the source identity to stay the lexical link path")
+
+	require.Len(t, m.Sources(), 1)
+}
+
 func TestManager_RemoveSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()

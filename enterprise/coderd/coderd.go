@@ -1354,7 +1354,8 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// the system will eventually recover as replicas timeout
 		// if their heartbeats stop. The best effort just tries to update the
 		// UI faster if it succeeds.
-		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+		// Postgres pubsub; see PubsubEventLicenses.
+		_ = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()
 	for {
 		select {
@@ -1364,7 +1365,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			// pass
 		}
 		if !subscribed {
-			cancel, err := api.Pubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
+			// Postgres pubsub; see PubsubEventLicenses. ReplicaSyncPubsub is
+			// always set in enterprise startup (replicasync.New requires it when
+			// the API is constructed), so it is safe to use directly here.
+			cancel, err := api.ReplicaSyncPubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
 				// don't block.  If the channel is full, drop the event, as there is a resync
 				// scheduled already.
 				select {

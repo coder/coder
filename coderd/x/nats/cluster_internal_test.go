@@ -48,6 +48,20 @@ func Test_parsePeerAddresses(t *testing.T) {
 		}, routeStrings(routes))
 	})
 
+	// Regression: in production the relay URL host carries the coderd HTTP
+	// port (e.g. 8080), and routes must be rewritten to the NATS cluster
+	// port. This only works because New defaults ClusterPort to
+	// defaultClusterPort; if it were left at the zero value the rewrite
+	// would be skipped and routes would dial the HTTP port.
+	t.Run("RewritesRelayHTTPPort", func(t *testing.T) {
+		t.Parallel()
+		ps := &Pubsub{}
+		ps.opts.ClusterPort = defaultClusterPort
+		routes, err := ps.parsePeerAddresses([]string{"http://10.0.0.7:8080"})
+		require.NoError(t, err)
+		require.Equal(t, []string{"nats://10.0.0.7:6222"}, routeStrings(routes))
+	})
+
 	t.Run("Empty", func(t *testing.T) {
 		t.Parallel()
 		ps := &Pubsub{}
@@ -184,6 +198,20 @@ type testPeerFetcher struct {
 
 func (f *testPeerFetcher) PrimaryPeerAddresses() []string {
 	return f.addresses
+}
+
+// TestPubsub_New_DefaultsClusterPort guards the production wiring: New
+// must persist the default cluster port onto opts so the peer route
+// rewrite in parsePeerAddresses recognizes prod and forces routes to the
+// NATS port. The cli constructs Options without a ClusterPort, so leaving
+// it at the zero value made every replica dial peers at the relay URL's
+// HTTP port instead of the NATS route port.
+func TestPubsub_New_DefaultsClusterPort(t *testing.T) {
+	t.Parallel()
+	// defaultTestOptions disables clustering (no fixed-port listener to
+	// collide with parallel tests) and leaves ClusterPort unset.
+	ps := newTestPubsub(t, defaultTestOptions())
+	require.Equal(t, defaultClusterPort, ps.opts.ClusterPort)
 }
 
 func TestPubsub_setPeerAddresses(t *testing.T) {
