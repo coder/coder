@@ -263,6 +263,78 @@ func TestCoderConnectDialer_Overridden(t *testing.T) {
 	assert.Equal(t, custom, dialer)
 }
 
+func TestProbeCoderConnect(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Reachable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dialer := &probeCoderConnectDialer{}
+		t.Cleanup(func() {
+			if dialer.peerConn != nil {
+				_ = dialer.peerConn.Close()
+			}
+		})
+
+		err := probeCoderConnect(ctx, dialer, "dev.myworkspace.myuser.coder")
+		require.NoError(t, err)
+		require.Equal(t, "tcp", dialer.network)
+		require.Equal(t, "dev.myworkspace.myuser.coder:4", dialer.addr)
+		require.True(t, dialer.deadlineSet)
+		require.Positive(t, time.Until(dialer.deadline))
+		require.LessOrEqual(t, time.Until(dialer.deadline), coderConnectLivenessProbeTimeout)
+		require.True(t, dialer.connClosed)
+	})
+
+	t.Run("Unreachable", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dialErr := xerrors.New("stale coder connect tunnel")
+		dialer := &probeCoderConnectDialer{err: dialErr}
+
+		err := probeCoderConnect(ctx, dialer, "dev.myworkspace.myuser.coder")
+		require.ErrorIs(t, err, dialErr)
+		require.Equal(t, "tcp", dialer.network)
+		require.Equal(t, "dev.myworkspace.myuser.coder:4", dialer.addr)
+		require.True(t, dialer.deadlineSet)
+	})
+}
+
+type probeCoderConnectDialer struct {
+	err         error
+	network     string
+	addr        string
+	deadline    time.Time
+	deadlineSet bool
+	peerConn    net.Conn
+	connClosed  bool
+}
+
+func (d *probeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	d.network = network
+	d.addr = addr
+	d.deadline, d.deadlineSet = ctx.Deadline()
+	if d.err != nil {
+		return nil, d.err
+	}
+	conn, peerConn := net.Pipe()
+	d.peerConn = peerConn
+	return &probeCoderConnectConn{
+		Conn:   conn,
+		closed: &d.connClosed,
+	}, nil
+}
+
+type probeCoderConnectConn struct {
+	net.Conn
+	closed *bool
+}
+
+func (c *probeCoderConnectConn) Close() error {
+	*c.closed = true
+	return c.Conn.Close()
+}
+
 func TestCoderConnectStdio(t *testing.T) {
 	t.Parallel()
 

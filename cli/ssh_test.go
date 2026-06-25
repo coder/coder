@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -2179,7 +2180,9 @@ func TestSSH_CoderConnect(t *testing.T) {
 		inv, root := clitest.New(t, "ssh", workspace.Name, "--network-info-dir", "/net", "--stdio")
 		clitest.SetupConfig(t, client, root)
 
-		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
+		dialer := &fakeCoderConnectDialer{}
+		t.Cleanup(dialer.close)
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, dialer)
 		ctx = withCoderConnectRunning(ctx)
 
 		errCh := make(chan error, 1)
@@ -2194,11 +2197,74 @@ func TestSSH_CoderConnect(t *testing.T) {
 		err := testutil.TryReceive(ctx, t, errCh)
 		// Our mock dialer will always fail with this error, if it was called
 		require.ErrorContains(t, err, "dial coder connect host \"dev.myworkspace.myuser.coder:22\" over tcp")
+		require.True(t, dialer.hasAddr("dev.myworkspace.myuser.coder:4"))
+		require.True(t, dialer.hasAddr("dev.myworkspace.myuser.coder:22"))
 
 		// The network info file should be created since we passed `--stdio`
 		entries, err := afero.ReadDir(fs, "/net")
 		require.NoError(t, err)
 		require.True(t, len(entries) > 0)
+	})
+
+	t.Run("StaleDNSFallsBack", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+
+		_ = agenttest.New(t, client.URL, agentToken)
+		coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name)
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		dialer := &fakeCoderConnectDialer{
+			probeErr: xerrors.New("stale coder connect tunnel"),
+		}
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, dialer)
+		ctx = withCoderConnectRunning(ctx)
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&testutil.ReaderWriterConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		err = session.Run("exit")
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		<-cmdDone
+		require.True(t, dialer.hasAddr("dev.myworkspace.myuser.coder:4"))
+		require.False(t, dialer.hasAddr("dev.myworkspace.myuser.coder:22"))
 	})
 
 	t.Run("Disabled", func(t *testing.T) {
@@ -2225,7 +2291,9 @@ func TestSSH_CoderConnect(t *testing.T) {
 		inv.Stdout = serverInput
 		inv.Stderr = io.Discard
 
-		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, &fakeCoderConnectDialer{})
+		dialer := &fakeCoderConnectDialer{}
+		t.Cleanup(dialer.close)
+		ctx = cli.WithTestOnlyCoderConnectDialer(ctx, dialer)
 		ctx = withCoderConnectRunning(ctx)
 
 		cmdDone := tGo(t, func() {
@@ -2457,10 +2525,43 @@ func TestSSH_OneShotCommandMode(t *testing.T) {
 	})
 }
 
-type fakeCoderConnectDialer struct{}
+type fakeCoderConnectDialer struct {
+	mu        sync.Mutex
+	probeErr  error
+	addrs     []string
+	peerConns []net.Conn
+}
 
-func (*fakeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *fakeCoderConnectDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	d.mu.Lock()
+	d.addrs = append(d.addrs, addr)
+	d.mu.Unlock()
+
+	if strings.HasSuffix(addr, ":4") {
+		if d.probeErr != nil {
+			return nil, d.probeErr
+		}
+		conn, peerConn := net.Pipe()
+		d.mu.Lock()
+		d.peerConns = append(d.peerConns, peerConn)
+		d.mu.Unlock()
+		return conn, nil
+	}
 	return nil, xerrors.Errorf("dial coder connect host %q over %s", addr, network)
+}
+
+func (d *fakeCoderConnectDialer) hasAddr(addr string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return slices.Contains(d.addrs, addr)
+}
+
+func (d *fakeCoderConnectDialer) close() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	for _, conn := range d.peerConns {
+		_ = conn.Close()
+	}
 }
 
 // tGoContext runs fn in a goroutine passing a context that will be
