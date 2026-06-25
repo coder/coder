@@ -435,8 +435,29 @@ func (server *Server) prepareGeneration(
 		}))
 	}
 
+	// Apply the per-chat built-in tool allow-list (chat.BuiltinTools)
+	// before MCP, workspace MCP, dynamic, and provider tools are added, so
+	// only Coder built-in tools are affected. A NULL column allows all
+	// built-ins; a non-NULL value keeps only the named tools, with an empty
+	// list removing every built-in tool (e.g. an MCP-only chat). The filter
+	// is subtractive and composes with the plan-mode and explore-mode
+	// filters applied later.
+	builtinAllow, restrictBuiltins, err := parseBuiltinToolAllowSet(chat.BuiltinTools)
+	if err != nil {
+		cleanup()
+		return generationPrepared{}, err
+	}
+	if restrictBuiltins {
+		tools = slices.DeleteFunc(tools, func(t fantasy.AgentTool) bool {
+			return !builtinAllow[t.Info().Name]
+		})
+	}
+
+	// The advisor is exclusive only when its tool survives the allow-list.
 	var exclusiveToolNames map[string]bool
-	if advisorRuntime != nil {
+	if advisorRuntime != nil && slices.ContainsFunc(tools, func(t fantasy.AgentTool) bool {
+		return t.Info().Name == chatadvisor.ToolName
+	}) {
 		exclusiveToolNames = map[string]bool{chatadvisor.ToolName: true}
 	}
 

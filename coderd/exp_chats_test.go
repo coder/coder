@@ -317,6 +317,116 @@ func insertAssistantCostMessage(
 	})
 }
 
+func TestPostChatsBuiltinTools(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OmittedPersistsNull", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+		})
+		require.NoError(t, err)
+
+		row, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		// A nil allow-list leaves the column NULL so all built-ins remain.
+		require.False(t, row.BuiltinTools.Valid)
+	})
+
+	t.Run("EmptyPersistsEmptyArray", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			BuiltinTools:   &[]codersdk.ChatBuiltinToolName{},
+		})
+		require.NoError(t, err)
+
+		row, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		// An explicit empty list removes every built-in tool.
+		require.True(t, row.BuiltinTools.Valid)
+		require.JSONEq(t, `[]`, string(row.BuiltinTools.RawMessage))
+	})
+
+	t.Run("SubsetPersisted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			BuiltinTools: &[]codersdk.ChatBuiltinToolName{
+				codersdk.ChatBuiltinToolReadFile,
+				codersdk.ChatBuiltinToolExecute,
+			},
+		})
+		require.NoError(t, err)
+
+		row, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.True(t, row.BuiltinTools.Valid)
+		require.JSONEq(t, `["read_file","execute"]`, string(row.BuiltinTools.RawMessage))
+	})
+
+	t.Run("DuplicatesCollapsed", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client, db := newChatClientWithDatabase(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			BuiltinTools: &[]codersdk.ChatBuiltinToolName{
+				codersdk.ChatBuiltinToolReadFile,
+				codersdk.ChatBuiltinToolReadFile,
+			},
+		})
+		require.NoError(t, err)
+
+		row, err := db.GetChatByID(dbauthz.AsSystemRestricted(ctx), chat.ID)
+		require.NoError(t, err)
+		require.JSONEq(t, `["read_file"]`, string(row.BuiltinTools.RawMessage))
+	})
+
+	t.Run("InvalidNameRejected", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		client := newChatClient(t)
+		user := coderdtest.CreateFirstUser(t, client.Client)
+		_ = createChatModelConfig(t, client)
+
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "hello"}},
+			BuiltinTools:   &[]codersdk.ChatBuiltinToolName{"not_a_real_tool"},
+		})
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid built-in tool name.", sdkErr.Message)
+	})
+}
+
 func TestPostChats(t *testing.T) {
 	t.Parallel()
 

@@ -471,6 +471,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"context_dirty_resources":     ActionIgnore, // Agent-pushed context snapshot state.
 		"context_error":               ActionIgnore, // Agent-pushed context snapshot state.
 		"dynamic_tools":               ActionIgnore, // Internal lifecycle.
+		"builtin_tools":               ActionTrack,  // Restricts which built-in tools the chat exposes.
 		"plan_mode":                   ActionIgnore, // Can flip back and forth during a session.
 		"client_type":                 ActionIgnore, // Set at creation.
 		"snapshot_version":            ActionIgnore, // Internal state machine version.

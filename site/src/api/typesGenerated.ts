@@ -1633,6 +1633,54 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
+export type ChatBuiltinToolName =
+	| "ask_user_question"
+	| "attach_file"
+	| "close_agent"
+	| "create_workspace"
+	| "edit_files"
+	| "execute"
+	| "list_templates"
+	| "message_agent"
+	| "process_list"
+	| "process_output"
+	| "process_signal"
+	| "propose_plan"
+	| "read_file"
+	| "read_skill"
+	| "read_skill_file"
+	| "read_template"
+	| "spawn_agent"
+	| "start_workspace"
+	| "stop_workspace"
+	| "wait_agent"
+	| "write_file";
+
+export const ChatBuiltinToolNames: ChatBuiltinToolName[] = [
+	"ask_user_question",
+	"attach_file",
+	"close_agent",
+	"create_workspace",
+	"edit_files",
+	"execute",
+	"list_templates",
+	"message_agent",
+	"process_list",
+	"process_output",
+	"process_signal",
+	"propose_plan",
+	"read_file",
+	"read_skill",
+	"read_skill_file",
+	"read_template",
+	"spawn_agent",
+	"start_workspace",
+	"stop_workspace",
+	"wait_agent",
+	"write_file",
+];
+
+// From codersdk/chats.go
 export type ChatBusyBehavior = "interrupt" | "queue";
 
 export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
@@ -3532,6 +3580,19 @@ export interface CreateChatRequest {
 	readonly unsafe_dynamic_tools?: readonly DynamicTool[];
 	readonly plan_mode?: ChatPlanMode;
 	readonly client_type?: ChatClientType;
+	/**
+	 * BuiltinTools optionally restricts which built-in (Coder-provided)
+	 * tools the chat exposes to the model. The pointer distinguishes
+	 * three states:
+	 *   - nil (omitted): all built-in tools are available (the default).
+	 *   - empty slice: no built-in tools are available, e.g. an
+	 *     MCP-only chat. External MCP, workspace MCP, dynamic, and
+	 *     provider-native tools (such as web_search) are unaffected.
+	 *   - non-empty slice: only the listed built-in tools are available.
+	 * Unknown names are rejected. The allow-list is subtractive and
+	 * composes with plan-mode and explore-mode tool restrictions.
+	 */
+	readonly builtin_tools?: ChatBuiltinToolName[];
 }
 
 // From codersdk/users.go

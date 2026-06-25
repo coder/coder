@@ -1144,6 +1144,11 @@ type CreateOptions struct {
 	MCPServerIDs       []uuid.UUID
 	Labels             database.StringMap
 	DynamicTools       json.RawMessage
+	// BuiltinTools optionally restricts which built-in tools the chat
+	// exposes to the model. nil allows all built-in tools (the default);
+	// a non-nil slice keeps only the named tools, with an empty slice
+	// removing every built-in tool (e.g. an MCP-only chat).
+	BuiltinTools *[]string
 }
 
 // SendMessageBusyBehavior controls what happens when a chat is already active.
@@ -1267,6 +1272,18 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 		return database.Chat{}, xerrors.Errorf("marshal labels: %w", err)
 	}
 
+	// A nil BuiltinTools allow-list leaves the column NULL (all built-in
+	// tools available). A non-nil slice persists a JSON array, with an
+	// empty array removing every built-in tool.
+	builtinToolsRaw := pqtype.NullRawMessage{}
+	if opts.BuiltinTools != nil {
+		builtinToolsJSON, marshalErr := json.Marshal(*opts.BuiltinTools)
+		if marshalErr != nil {
+			return database.Chat{}, xerrors.Errorf("marshal builtin tools: %w", marshalErr)
+		}
+		builtinToolsRaw = pqtype.NullRawMessage{RawMessage: builtinToolsJSON, Valid: true}
+	}
+
 	userPrompt := SanitizePromptText(opts.SystemPrompt)
 	workspaceAwareness := workspaceDetachedAwareness
 	if opts.WorkspaceID.Valid {
@@ -1326,6 +1343,7 @@ func (p *Server) CreateChat(ctx context.Context, opts CreateOptions) (database.C
 			RawMessage: opts.DynamicTools,
 			Valid:      len(opts.DynamicTools) > 0,
 		},
+		BuiltinTools:    builtinToolsRaw,
 		ClientType:      opts.ClientType,
 		InitialMessages: initialMessages,
 	})
@@ -4648,6 +4666,28 @@ func parseDynamicToolNames(raw pqtype.NullRawMessage) (map[string]bool, error) {
 		names[t.Name] = true
 	}
 	return names, nil
+}
+
+// parseBuiltinToolAllowSet unmarshals the builtin_tools JSON column into an
+// allow-set of tool names. The second return reports whether an allow-list
+// is configured (the column is non-NULL). When false, all built-in tools
+// are allowed. When true, only the named tools are allowed; a non-NULL
+// empty list allows none (e.g. an MCP-only chat).
+func parseBuiltinToolAllowSet(raw pqtype.NullRawMessage) (map[string]bool, bool, error) {
+	if !raw.Valid {
+		return nil, false, nil
+	}
+	var names []codersdk.ChatBuiltinToolName
+	if len(raw.RawMessage) > 0 {
+		if err := json.Unmarshal(raw.RawMessage, &names); err != nil {
+			return nil, false, xerrors.Errorf("unmarshal builtin tools: %w", err)
+		}
+	}
+	allow := make(map[string]bool, len(names))
+	for _, n := range names {
+		allow[string(n)] = true
+	}
+	return allow, true, nil
 }
 
 // maybeFinalizeTurnStatusLabelAndPush updates the cached turn status label

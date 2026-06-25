@@ -277,6 +277,37 @@ metadata, execute shell commands for exploration, and read process output.
 file under `.coder/plans/`. MCP, dynamic, provider-native, and computer-use
 tools are blocked.
 
+### Restricting built-in tools
+
+When you create a chat through the experimental chats API, the optional
+`builtin_tools` field controls which built-in tools the agent exposes to the
+model:
+
+- Omit the field (or send `null`) to keep all built-in tools. This is the
+  default and matches the behavior of chats created in the web UI.
+- Send an empty array (`[]`) to remove every built-in tool. The agent then
+  reasons and acts only through the MCP servers attached with
+  `mcp_server_ids`.
+- Send a list of tool names to expose only those built-in tools.
+
+The allow-list applies to the agent's built-in tools. External MCP tools,
+workspace MCP tools, client-executed dynamic tools, and provider-native tools
+such as `web_search` are added separately and are not affected. The
+restriction is subtractive, so it composes with the plan-mode and sub-agent
+restrictions: a tool blocked by either of those stays blocked. Unknown tool
+names are rejected with a `400` response.
+
+For example, this request creates an MCP-only chat with no built-in tools:
+
+```json
+{
+  "organization_id": "<organization-id>",
+  "content": [{ "type": "text", "text": "..." }],
+  "mcp_server_ids": ["<mcp-server-id>"],
+  "builtin_tools": []
+}
+```
+
 ## Plan mode
 
 Plan mode lets you ask the agent to investigate first and present a plan before

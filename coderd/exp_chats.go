@@ -1214,6 +1214,32 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Validate the optional built-in tool allow-list. A nil pointer keeps
+	// all built-in tools available; a non-nil list restricts the chat to
+	// the named tools, with an empty list removing every built-in tool
+	// (e.g. an MCP-only chat). Unknown names are rejected and duplicates
+	// are collapsed.
+	var builtinTools *[]string
+	if req.BuiltinTools != nil {
+		seen := make(map[codersdk.ChatBuiltinToolName]struct{}, len(*req.BuiltinTools))
+		names := make([]string, 0, len(*req.BuiltinTools))
+		for _, name := range *req.BuiltinTools {
+			if !name.Valid() {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Invalid built-in tool name.",
+					Detail:  fmt.Sprintf("got %q, want one of %v", name, codersdk.AllChatBuiltinToolNames()),
+				})
+				return
+			}
+			if _, ok := seen[name]; ok {
+				continue
+			}
+			seen[name] = struct{}{}
+			names = append(names, string(name))
+		}
+		builtinTools = &names
+	}
+
 	clientType := database.ChatClientTypeApi
 	if req.ClientType != "" {
 		clientType = database.ChatClientType(req.ClientType)
@@ -1240,6 +1266,7 @@ func (api *API) postChats(rw http.ResponseWriter, r *http.Request) {
 		MCPServerIDs:       mcpServerIDs,
 		Labels:             labels,
 		DynamicTools:       dynamicToolsJSON,
+		BuiltinTools:       builtinTools,
 		// IMPORTANT: users can only create root chats at the time of writing.
 		ParentChatID: uuid.NullUUID{},
 	})

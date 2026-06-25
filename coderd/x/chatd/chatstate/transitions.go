@@ -33,6 +33,7 @@ type CreateChatInput struct {
 	MCPServerIDs      []uuid.UUID
 	Labels            pqtype.NullRawMessage
 	DynamicTools      pqtype.NullRawMessage
+	BuiltinTools      pqtype.NullRawMessage
 	ClientType        database.ChatClientType
 	InitialMessages   []Message
 }
@@ -93,6 +94,7 @@ func CreateChat(
 			MCPServerIDs:      input.MCPServerIDs,
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
+			BuiltinTools:      input.BuiltinTools,
 			ClientType:        input.ClientType,
 		})
 		if err != nil {

@@ -252,6 +252,9 @@ Experimental: this endpoint is subject to change.
 
 ```json
 {
+  "builtin_tools": [
+    "read_file"
+  ],
   "client_type": "ui",
   "content": [
     {

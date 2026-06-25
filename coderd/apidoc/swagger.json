@@ -15046,6 +15046,55 @@
 				}
 			}
 		},
+		"codersdk.ChatBuiltinToolName": {
+			"type": "string",
+			"enum": [
+				"read_file",
+				"write_file",
+				"edit_files",
+				"attach_file",
+				"execute",
+				"process_output",
+				"process_list",
+				"process_signal",
+				"ask_user_question",
+				"list_templates",
+				"read_template",
+				"create_workspace",
+				"start_workspace",
+				"stop_workspace",
+				"propose_plan",
+				"spawn_agent",
+				"wait_agent",
+				"message_agent",
+				"close_agent",
+				"read_skill",
+				"read_skill_file"
+			],
+			"x-enum-varnames": [
+				"ChatBuiltinToolReadFile",
+				"ChatBuiltinToolWriteFile",
+				"ChatBuiltinToolEditFiles",
+				"ChatBuiltinToolAttachFile",
+				"ChatBuiltinToolExecute",
+				"ChatBuiltinToolProcessOutput",
+				"ChatBuiltinToolProcessList",
+				"ChatBuiltinToolProcessSignal",
+				"ChatBuiltinToolAskUserQuestion",
+				"ChatBuiltinToolListTemplates",
+				"ChatBuiltinToolReadTemplate",
+				"ChatBuiltinToolCreateWorkspace",
+				"ChatBuiltinToolStartWorkspace",
+				"ChatBuiltinToolStopWorkspace",
+				"ChatBuiltinToolProposePlan",
+				"ChatBuiltinToolSpawnAgent",
+				"ChatBuiltinToolWaitAgent",
+				"ChatBuiltinToolMessageAgent",
+				"ChatBuiltinToolCloseAgent",
+				"ChatBuiltinToolReadSkill",
+				"ChatBuiltinToolReadSkillFile"
+			]
+		},
 		"codersdk.ChatBusyBehavior": {
 			"type": "string",
 			"enum": ["queue", "interrupt"],
@@ -16378,6 +16427,13 @@
 		"codersdk.CreateChatRequest": {
 			"type": "object",
 			"properties": {
+				"builtin_tools": {
+					"description": "BuiltinTools optionally restricts which built-in (Coder-provided)\ntools the chat exposes to the model. The pointer distinguishes\nthree states:\n  - nil (omitted): all built-in tools are available (the default).\n  - empty slice: no built-in tools are available, e.g. an\n    MCP-only chat. External MCP, workspace MCP, dynamic, and\n    provider-native tools (such as web_search) are unaffected.\n  - non-empty slice: only the listed built-in tools are available.\nUnknown names are rejected. The allow-list is subtractive and\ncomposes with plan-mode and explore-mode tool restrictions.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.ChatBuiltinToolName"
+					}
+				},
 				"client_type": {
 					"$ref": "#/definitions/codersdk.ChatClientType"
 				},
