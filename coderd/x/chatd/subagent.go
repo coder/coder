@@ -73,8 +73,9 @@ const (
 	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
 
-	defaultListAgentsLimit = 10
-	maxListAgentsLimit     = 50
+	defaultListAgentsLimit       = 10
+	maxListAgentsLimit           = 50
+	subagentRecordingStopTimeout = 90 * time.Second
 )
 
 // computerUseSubagentSystemPrompt is the system prompt prepended to
@@ -736,19 +737,12 @@ func (p *Server) subagentTools(
 							return subagentErrorResponse(checkErr, targetChatInfo), nil
 						}
 						if !done {
-							timeoutChat := database.Chat{ID: targetChatID}
-							if targetChatInfo != nil {
-								timeoutChat = *targetChatInfo
-							}
-							if refreshed, refErr := p.db.GetChatByID(ctx, targetChatID); refErr == nil {
-								timeoutChat = refreshed
-							}
 							return toolJSONResponse(withSubagentType(map[string]any{
 								"chat_id":   targetChatID.String(),
-								"title":     timeoutChat.Title,
-								"status":    string(timeoutChat.Status),
+								"title":     checkedChat.Title,
+								"status":    string(checkedChat.Status),
 								"timed_out": true,
-							}, timeoutChat)), nil
+							}, checkedChat)), nil
 						}
 						// The agent completed in the gap. Classify through
 						// the same handler as the normal poll path. If the
@@ -825,19 +819,25 @@ func (p *Server) subagentTools(
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
+				interrupted := false
+				if args.Interrupt && targetChatInfo != nil {
+					interrupted = targetChatInfo.Status == database.ChatStatusRunning ||
+						targetChatInfo.Status == database.ChatStatusPending
+				}
 				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id":     targetChat.ID.String(),
 					"title":       targetChat.Title,
 					"status":      string(targetChat.Status),
-					"interrupted": args.Interrupt,
+					"interrupted": interrupted,
 				}, targetChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"interrupt_agent",
 			"Interrupt a spawned child agent's current work. The "+
-				"agent's current turn is halted; it transitions to waiting "+
-				"and can be resumed with message_agent or left idle.",
+				"agent stops working and settles into waiting; the status "+
+				"may briefly read interrupting before the worker finalizes. "+
+				"Resume with message_agent or leave it idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -1121,6 +1121,9 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	// Delegated chats cannot call list_agents or message_agent, so
+	// strip the root-only orchestration guidance from their prompt.
+	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
 	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
 		return database.Chat{}, limitErr
@@ -1381,7 +1384,7 @@ func (p *Server) waitAgentSuccessResponse(
 	if recordingID != "" && agentConn != nil {
 		// Use a fresh context for cleanup so a canceled
 		// parent context does not prevent recording storage.
-		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), subagentRecordingStopTimeout)
 		defer stopCancel()
 		recResult = p.stopAndStoreRecording(stopCtx, agentConn,
 			recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
@@ -1447,8 +1450,10 @@ func (p *Server) checkSubagentCompletion(
 		return database.Chat{}, "", false, xerrors.Errorf("get chat: %w", err)
 	}
 
-	if chat.Status == database.ChatStatusPending || chat.Status == database.ChatStatusRunning {
-		return database.Chat{}, "", false, nil
+	if chat.Status == database.ChatStatusPending ||
+		chat.Status == database.ChatStatusRunning ||
+		chat.Status == database.ChatStatusInterrupting {
+		return chat, "", false, nil
 	}
 
 	report, err := latestSubagentAssistantMessage(ctx, p.db, chatID)

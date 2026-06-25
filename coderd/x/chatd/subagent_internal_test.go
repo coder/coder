@@ -3782,6 +3782,62 @@ func TestWaitAgentErrorStatusReturnsStructuredPayload(t *testing.T) {
 	require.NotContains(t, result, "timed_out")
 }
 
+func TestWaitAgentTimeoutGapCompletesWithError(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	mClock := quartz.NewMock(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{}, withInternalTestServerClock(mClock))
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+
+	WaitUntilIdleForTest(server)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	timerTrap := mClock.Trap().NewTimer("chatd", "subagent_await")
+
+	type toolResult struct {
+		resp fantasy.ToolResponse
+	}
+	resultCh := make(chan toolResult, 1)
+	oneSecond := 1
+	go func() {
+		resp := runSubagentTool(
+			ctx,
+			t,
+			server,
+			parent,
+			parent.LastModelConfigID,
+			"wait_agent",
+			waitAgentArgs{ChatID: child.ID.String(), TimeoutSeconds: &oneSecond},
+		)
+		resultCh <- toolResult{resp: resp}
+	}()
+
+	// Wait for the timer to be created, then advance past it.
+	timerTrap.MustWait(ctx).MustRelease(ctx)
+	timerTrap.Close()
+
+	// Flip the child to error before the timer fires so the
+	// timeout-gap branch (checkSubagentCompletion after timeout)
+	// classifies it through handleSubagentDone.
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusError, "provider overloaded")
+	insertAssistantMessage(t, db, child.ID, model.ID, "partial progress")
+
+	mClock.Advance(time.Second).MustWait(ctx)
+
+	result := testutil.RequireReceive(ctx, t, resultCh)
+	m := requireToolResponseMap(t, result.resp, false)
+
+	require.Equal(t, string(database.ChatStatusError), m["status"])
+	require.Equal(t, "provider overloaded", m["last_error"])
+	require.Equal(t, "partial progress", m["report"])
+	require.Equal(t, child.ID.String(), m["chat_id"])
+	require.Equal(t, subagentTypeGeneral, m["type"])
+	require.NotContains(t, m, "timed_out")
+}
+
 func listAgentsChatIDs(t *testing.T, result map[string]any) []string {
 	t.Helper()
 	agents, ok := result["agents"].([]any)

@@ -1097,8 +1097,15 @@ export const ListAgentsCompleted: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
+		const header = canvas.getByRole("button", { name: /Listed 3 of 3 agents/ });
+		expect(header).toBeInTheDocument();
+		// Expand to verify agent rows and links render.
+		await userEvent.click(header);
 		expect(
-			canvas.getByRole("button", { name: /Listed 3 of 3 agents/ }),
+			canvas.getByText("Repository review (general, completed)"),
+		).toBeInTheDocument();
+		expect(
+			canvas.getByText("Inspect repository (explore, running)"),
 		).toBeInTheDocument();
 	},
 };
@@ -1133,6 +1140,22 @@ export const ListAgentsEmpty: Story = {
 	},
 };
 
+export const ListAgentsError: Story = {
+	args: {
+		name: "list_agents",
+		status: "error",
+		isError: true,
+		args: {},
+		result: "list_agents is only available on root chats",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
+	},
+};
+
+// ---------------------------------------------------------------------------
+// ListTemplates stories
 // ---------------------------------------------------------------------------
 // ListTemplates stories
 // ---------------------------------------------------------------------------

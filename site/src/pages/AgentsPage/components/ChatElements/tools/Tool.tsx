@@ -499,7 +499,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
 	const prompt = parsedArgs ? asString(parsedArgs.prompt) : "";
 	const subagentMessage = parsedArgs ? asString(parsedArgs.message) : "";
-
 	const rawTitle = getProvidedSubagentTitle({
 		args: parsedArgs ?? args,
 		result: rec ?? result,
@@ -1107,10 +1106,9 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer =
-			isSubagentToolName(name) && name !== "list_agents"
-				? SubagentRenderer
-				: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer = isSubagentToolName(name)
+			? SubagentRenderer
+			: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;
