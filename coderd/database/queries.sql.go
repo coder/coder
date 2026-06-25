@@ -137,20 +137,27 @@ func (q *sqlQuerier) DeleteAIGatewayKey(ctx context.Context, id uuid.UUID) (Dele
 	return i, err
 }
 
-const getAIGatewayKeyIDByHashedSecret = `-- name: GetAIGatewayKeyIDByHashedSecret :one
-SELECT id
+const getAIGatewayKeyByHashedSecret = `-- name: GetAIGatewayKeyByHashedSecret :one
+SELECT id, created_at, name, secret_prefix, hashed_secret, last_used_at
 FROM ai_gateway_keys
 WHERE hashed_secret = $1
 `
 
 // Authenticates a standalone AI Gateway replica by its hashed key secret,
-// returning the key ID used to record liveness. The lookup is an exact match
-// on a unique index, so a returned row is itself proof the secret is valid.
-func (q *sqlQuerier) GetAIGatewayKeyIDByHashedSecret(ctx context.Context, hashedSecret []byte) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, getAIGatewayKeyIDByHashedSecret, hashedSecret)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+// returning the matched key. The lookup is an exact match on a unique index,
+// so a returned row is itself proof the secret is valid.
+func (q *sqlQuerier) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error) {
+	row := q.db.QueryRowContext(ctx, getAIGatewayKeyByHashedSecret, hashedSecret)
+	var i AIGatewayKey
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.Name,
+		&i.SecretPrefix,
+		&i.HashedSecret,
+		&i.LastUsedAt,
+	)
+	return i, err
 }
 
 const insertAIGatewayKey = `-- name: InsertAIGatewayKey :one
@@ -233,7 +240,7 @@ func (q *sqlQuerier) ListAIGatewayKeys(ctx context.Context) ([]ListAIGatewayKeys
 	return items, nil
 }
 
-const updateAIGatewayKeyLastUsedAt = `-- name: UpdateAIGatewayKeyLastUsedAt :exec
+const updateAIGatewayKeyLastUsedAt = `-- name: UpdateAIGatewayKeyLastUsedAt :execrows
 UPDATE ai_gateway_keys
 SET last_used_at = NOW()
 WHERE id = $1
@@ -242,9 +249,12 @@ WHERE id = $1
 // Records liveness for an active Gateway DRPC session. The database sets the
 // timestamp so it stays consistent regardless of clock drift between API
 // replicas.
-func (q *sqlQuerier) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, updateAIGatewayKeyLastUsedAt, id)
-	return err
+func (q *sqlQuerier) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateAIGatewayKeyLastUsedAt, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const deleteAIProviderKey = `-- name: DeleteAIProviderKey :exec

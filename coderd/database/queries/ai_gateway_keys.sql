@@ -12,15 +12,15 @@ ORDER BY created_at ASC;
 DELETE FROM ai_gateway_keys WHERE id = $1
 RETURNING id, name, secret_prefix, created_at, last_used_at;
 
--- name: GetAIGatewayKeyIDByHashedSecret :one
+-- name: GetAIGatewayKeyByHashedSecret :one
 -- Authenticates a standalone AI Gateway replica by its hashed key secret,
--- returning the key ID used to record liveness. The lookup is an exact match
--- on a unique index, so a returned row is itself proof the secret is valid.
-SELECT id
+-- returning the matched key. The lookup is an exact match on a unique index,
+-- so a returned row is itself proof the secret is valid.
+SELECT *
 FROM ai_gateway_keys
 WHERE hashed_secret = $1;
 
--- name: UpdateAIGatewayKeyLastUsedAt :exec
+-- name: UpdateAIGatewayKeyLastUsedAt :execrows
 -- Records liveness for an active Gateway DRPC session. The database sets the
 -- timestamp so it stays consistent regardless of clock drift between API
 -- replicas.

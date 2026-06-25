@@ -1947,19 +1947,19 @@ func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
 }
 
-// GetAIGatewayKeyIDByHashedSecret mocks base method.
-func (m *MockStore) GetAIGatewayKeyIDByHashedSecret(ctx context.Context, hashedSecret []byte) (uuid.UUID, error) {
+// GetAIGatewayKeyByHashedSecret mocks base method.
+func (m *MockStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetAIGatewayKeyIDByHashedSecret", ctx, hashedSecret)
-	ret0, _ := ret[0].(uuid.UUID)
+	ret := m.ctrl.Call(m, "GetAIGatewayKeyByHashedSecret", ctx, hashedSecret)
+	ret0, _ := ret[0].(database.AIGatewayKey)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetAIGatewayKeyIDByHashedSecret indicates an expected call of GetAIGatewayKeyIDByHashedSecret.
-func (mr *MockStoreMockRecorder) GetAIGatewayKeyIDByHashedSecret(ctx, hashedSecret any) *gomock.Call {
+// GetAIGatewayKeyByHashedSecret indicates an expected call of GetAIGatewayKeyByHashedSecret.
+func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyIDByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyIDByHashedSecret), ctx, hashedSecret)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
 }
 
 // GetAIModelPriceByProviderModel mocks base method.
@@ -9519,11 +9519,12 @@ func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *
 }
 
 // UpdateAIGatewayKeyLastUsedAt mocks base method.
-func (m *MockStore) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) error {
+func (m *MockStore) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateAIGatewayKeyLastUsedAt", ctx, id)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // UpdateAIGatewayKeyLastUsedAt indicates an expected call of UpdateAIGatewayKeyLastUsedAt.

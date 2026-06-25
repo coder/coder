@@ -14958,7 +14958,7 @@ func TestAIGatewayKeysQueries(t *testing.T) {
 	requireAIGatewayKeysRow(t, keys[0], second, secondRow.CreatedAt)
 }
 
-func TestGetAIGatewayKeyIDByHashedSecret(t *testing.T) {
+func TestGetAIGatewayKeyByHashedSecret(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -14972,18 +14972,21 @@ func TestGetAIGatewayKeyIDByHashedSecret(t *testing.T) {
 	_, err = db.InsertAIGatewayKey(ctx, second)
 	require.NoError(t, err)
 
-	id, err := db.GetAIGatewayKeyIDByHashedSecret(ctx, first.HashedSecret)
+	key, err := db.GetAIGatewayKeyByHashedSecret(ctx, first.HashedSecret)
 	require.NoError(t, err)
-	require.Equal(t, first.ID, id)
+	require.Equal(t, first.ID, key.ID)
+	require.Equal(t, first.Name, key.Name)
+	require.Equal(t, first.SecretPrefix, key.SecretPrefix)
+	require.Equal(t, first.HashedSecret, key.HashedSecret)
 
-	id, err = db.GetAIGatewayKeyIDByHashedSecret(ctx, second.HashedSecret)
+	key, err = db.GetAIGatewayKeyByHashedSecret(ctx, second.HashedSecret)
 	require.NoError(t, err)
-	require.Equal(t, second.ID, id)
+	require.Equal(t, second.ID, key.ID)
 
 	// An unknown secret returns no rows
-	id, err = db.GetAIGatewayKeyIDByHashedSecret(ctx, []byte("does-not-exist"))
+	key, err = db.GetAIGatewayKeyByHashedSecret(ctx, []byte("does-not-exist"))
 	require.ErrorIs(t, err, sql.ErrNoRows)
-	require.Empty(t, id)
+	require.Empty(t, key.ID)
 }
 
 func TestUpdateAIGatewayKeyLastUsedAt(t *testing.T) {
@@ -15002,8 +15005,9 @@ func TestUpdateAIGatewayKeyLastUsedAt(t *testing.T) {
 	require.Len(t, keys, 1)
 	require.False(t, keys[0].LastUsedAt.Valid)
 
-	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
+	rows, err := db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
 	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
 
 	keys, err = db.ListAIGatewayKeys(ctx)
 	require.NoError(t, err)
@@ -15014,16 +15018,18 @@ func TestUpdateAIGatewayKeyLastUsedAt(t *testing.T) {
 	require.False(t, keys[0].LastUsedAt.Time.Before(row.CreatedAt))
 
 	// Updating a key that does not exist is a no-op, not an error.
-	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, uuid.New())
+	rows, err = db.UpdateAIGatewayKeyLastUsedAt(ctx, uuid.New())
 	require.NoError(t, err)
+	require.EqualValues(t, 0, rows)
 
 	// Set last_used_at to old time to confirm the update overwrites it with a fresh timestamp.
 	staleTime := row.CreatedAt.Add(-time.Hour)
 	_, err = sqlDB.ExecContext(ctx, "UPDATE ai_gateway_keys SET last_used_at = $1 WHERE id = $2", staleTime, params.ID)
 	require.NoError(t, err)
 
-	err = db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
+	rows, err = db.UpdateAIGatewayKeyLastUsedAt(ctx, params.ID)
 	require.NoError(t, err)
+	require.EqualValues(t, 1, rows)
 
 	keys, err = db.ListAIGatewayKeys(ctx)
 	require.NoError(t, err)
