@@ -77,13 +77,13 @@ done
 
 # Sadly, manifests don't seem to support labels.
 log "--- Creating multi-arch Docker image ($target)"
-retry 5 5 -- docker manifest create \
+retry 3 10 -- docker manifest create \
 	"$target" \
 	"${create_args[@]}"
 
 if [[ "$push" == 1 ]]; then
 	log "--- Pushing multi-arch Docker image ($target)"
-	retry 5 5 -- docker manifest push "$target"
+	retry 3 10 -- docker manifest push "$target"
 fi
 
 echo "$target"
