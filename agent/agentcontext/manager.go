@@ -175,10 +175,7 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 
 	// Start gated: m.snapshot stays the zero value (version 0) until
-	// SetReady runs the first resolve. The push loop treats version 0 as
-	// the pre-ready placeholder and withholds it, keeping pre-startup
-	// partial state out of every snapshot.
-
+	// SetReady runs the first resolve.
 	return m
 }
 
@@ -448,9 +445,7 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ErrManagerClosed
 	}
 	if !m.ready {
-		// Gated: return the version-0 placeholder instead of walking the
-		// filesystem; callers can treat version 0 as "still initializing"
-		// until SetReady fires.
+		// Gated until SetReady: return the version-0 placeholder, no scan.
 		snap := m.snapshot
 		m.mu.Unlock()
 		return snap, nil
@@ -638,8 +633,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// duration of the pass.
 	m.mu.Lock()
 	if !m.ready {
-		// Gated: keep the version-0 placeholder and skip the walk and
-		// broadcast.
+		// Gated until SetReady: no scan, no broadcast.
 		m.mu.Unlock()
 		return
 	}
