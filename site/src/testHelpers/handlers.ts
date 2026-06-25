@@ -218,6 +218,10 @@ export const handlers = [
 			status: 201,
 		});
 	}),
+	http.post("/api/v2/users/:userId/secrets/batch", () => {
+		// The server validates contents; the mock returns a fixed result.
+		return HttpResponse.json(M.MockImportedUserSecrets, { status: 201 });
+	}),
 	http.patch(
 		"/api/v2/users/:userId/secrets/:name",
 		async ({ request, params }) => {
