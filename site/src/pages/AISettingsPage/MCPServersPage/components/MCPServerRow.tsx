@@ -19,7 +19,7 @@ export const MCPServerRow: FC<MCPServerRowProps> = ({ server, onClick }) => {
 
 	return (
 		<TableRow {...clickableProps}>
-			<TableCell className="h-[72px] w-1/2">
+			<TableCell className="min-w-0 px-4 py-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<MCPServerIcon
 						iconUrl={server.icon_url}

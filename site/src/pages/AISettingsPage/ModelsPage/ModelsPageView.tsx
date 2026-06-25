@@ -134,7 +134,7 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						</TableHead>
 					</TableRow>
 				</TableHeader>
-				<TableBody>
+				<TableBody size="lg">
 					{isLoading ? (
 						<TableLoader />
 					) : models.length === 0 ? (
