@@ -673,10 +673,10 @@ describe("aiProviderToFormValues", () => {
 		expect(values.smallFastModel).toBe("anthropic.claude-haiku-4-5");
 	});
 
-	it("seeds Bedrock form values from an explicit Bedrock provider type", () => {
+	it("seeds Bedrock form values from a legacy anthropic-typed provider", () => {
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
-			type: "bedrock",
+			type: "anthropic",
 		};
 		const values = aiProviderToFormValues(provider);
 		expect(values.type).toBe("bedrock");
