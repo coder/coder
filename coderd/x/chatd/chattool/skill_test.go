@@ -35,13 +35,14 @@ func responseName(t *testing.T, resp fantasy.ToolResponse) string {
 	return payload.Name
 }
 
-// responseDir extracts the "dir" field from a read_skill response. It is
-// empty when the field is absent, as it is for personal skills.
+// responseDir extracts the "skill_directory" field from a read_skill
+// response. It is empty when the field is absent, as it is for personal
+// skills.
 func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
 	t.Helper()
 
 	var payload struct {
-		Dir string `json:"dir"`
+		Dir string `json:"skill_directory"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
 	return payload.Dir
@@ -393,7 +394,7 @@ func TestReadSkillTool(t *testing.T) {
 		assert.Contains(t, resp.Content, `"files":[]`)
 		// Personal skills are database-backed and have no directory.
 		assert.Empty(t, responseDir(t, resp))
-		assert.NotContains(t, resp.Content, `"dir"`)
+		assert.NotContains(t, resp.Content, `"skill_directory"`)
 	})
 
 	t.Run("PersonalQualifiedAliasPreservesAlias", func(t *testing.T) {
