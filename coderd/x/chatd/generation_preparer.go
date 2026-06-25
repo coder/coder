@@ -245,7 +245,15 @@ func (server *Server) prepareGeneration(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(modelConfig.Provider), logger)
+		// Key the file-part acceptance on model.Provider() (the fantasy
+		// transport identity), not the configured provider, because
+		// aibridge routing rewrites the provider (e.g. Bedrock to the
+		// Anthropic transport). The conversion that actually drops or
+		// accepts a file part is the one for model.Provider().
+		acceptsFilePart := func(mediaType string) bool {
+			return chatprovider.AcceptsFilePartMediaType(model.Provider(), model.Model(), mediaType)
+		}
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows, server.chatFileResolver(modelConfig.Provider), logger, acceptsFilePart)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}

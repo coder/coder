@@ -170,6 +170,10 @@ type CreateTemplateRequest struct {
 	// duration for all workspaces created from this template. Defaults to 1h
 	// but can be set to 0 to disable activity bumping.
 	ActivityBumpMillis *int64 `json:"activity_bump_ms,omitempty"`
+	// TimeTilAutostopNotifyMillis allows optionally specifying the duration
+	// before the autostop deadline at which a reminder notification is sent for
+	// workspaces created from this template. Defaults to 0 (disabled).
+	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
 	// for workspaces created from this template. This is an enterprise feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`

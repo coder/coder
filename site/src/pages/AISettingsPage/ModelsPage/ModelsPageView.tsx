@@ -35,9 +35,10 @@ import { ModelRow } from "./components/ModelRow";
 
 const MODELS_PAGE_SIZE = 10;
 
-const AddModelDropdown: FC<{ providerStates: readonly ProviderState[] }> = ({
-	providerStates,
-}) => {
+const AddModelDropdown: FC<{
+	providerStates: readonly ProviderState[];
+	align?: "start" | "end";
+}> = ({ providerStates, align = "end" }) => {
 	const navigate = useNavigate();
 	const manageableProviderStates = providerStates.filter(
 		canManageProviderModels,
@@ -52,7 +53,7 @@ const AddModelDropdown: FC<{ providerStates: readonly ProviderState[] }> = ({
 					<ChevronDownIcon className="ml-1 size-icon-xs" />
 				</Button>
 			</DropdownMenuTrigger>
-			<DropdownMenuContent align="end" className="min-w-56">
+			<DropdownMenuContent align={align} className="min-w-56">
 				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
 					Select a provider
 				</div>
@@ -140,6 +141,12 @@ const ModelsPageView: FC<ModelsPageViewProps> = ({
 						<TableEmpty
 							message="No models configured"
 							description="Configured models will appear here."
+							cta={
+								<AddModelDropdown
+									providerStates={providerStates}
+									align="start"
+								/>
+							}
 						/>
 					) : (
 						pagedItems.map((model) => (

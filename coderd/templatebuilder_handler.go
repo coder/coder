@@ -74,12 +74,13 @@ func (api *API) templateBuilderBases(rw http.ResponseWriter, r *http.Request) {
 		}
 		vars := baseVariablesToSDK(templatebuilder.BaseVariables(id))
 		bases = append(bases, codersdk.TemplateBuilderBase{
-			ID:          ex.ID,
-			Name:        ex.Name,
-			Description: ex.Description,
-			Icon:        ex.Icon,
-			OS:          string(templatebuilder.BaseTemplateOS(id)),
-			Variables:   vars,
+			ID:            ex.ID,
+			Name:          ex.Name,
+			Description:   ex.Description,
+			Icon:          ex.Icon,
+			OS:            string(templatebuilder.BaseTemplateOS(id)),
+			Variables:     vars,
+			Prerequisites: templatebuilder.BasePrerequisites(id),
 		})
 	}
 
@@ -422,7 +423,7 @@ func (api *API) templateBuilderCreateTemplate(rw http.ResponseWriter, r *http.Re
 			UpdatedAt:       dbtime.Now(),
 			Name:            versionName,
 			Message:         "",
-			Readme:          "",
+			Readme:          string(result.Readme),
 			JobID:           provisionerJob.ID,
 			CreatedBy:       apiKey.UserID,
 			SourceExampleID: sql.NullString{},

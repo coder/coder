@@ -23739,7 +23739,7 @@ func (q *sqlQuerier) DeleteReplicasUpdatedBefore(ctx context.Context, updatedAt 
 }
 
 const getReplicaByID = `-- name: GetReplicaByID :one
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE id = $1
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary", cluster_host, nats_port FROM replicas WHERE id = $1
 `
 
 func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error) {
@@ -23758,12 +23758,14 @@ func (q *sqlQuerier) GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica,
 		&i.Version,
 		&i.Error,
 		&i.Primary,
+		&i.ClusterHost,
+		&i.NATSPort,
 	)
 	return i, err
 }
 
 const getReplicasUpdatedAfter = `-- name: GetReplicasUpdatedAfter :many
-SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary" FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
+SELECT id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary", cluster_host, nats_port FROM replicas WHERE updated_at > $1 AND stopped_at IS NULL
 `
 
 func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error) {
@@ -23788,6 +23790,8 @@ func (q *sqlQuerier) GetReplicasUpdatedAfter(ctx context.Context, updatedAt time
 			&i.Version,
 			&i.Error,
 			&i.Primary,
+			&i.ClusterHost,
+			&i.NATSPort,
 		); err != nil {
 			return nil, err
 		}
@@ -23813,8 +23817,10 @@ INSERT INTO replicas (
     relay_address,
     version,
     database_latency,
-	"primary"
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
+	"primary",
+    cluster_host,
+    nats_port
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary", cluster_host, nats_port
 `
 
 type InsertReplicaParams struct {
@@ -23828,6 +23834,8 @@ type InsertReplicaParams struct {
 	Version         string    `db:"version" json:"version"`
 	DatabaseLatency int32     `db:"database_latency" json:"database_latency"`
 	Primary         bool      `db:"primary" json:"primary"`
+	ClusterHost     string    `db:"cluster_host" json:"cluster_host"`
+	NATSPort        int32     `db:"nats_port" json:"nats_port"`
 }
 
 func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams) (Replica, error) {
@@ -23842,6 +23850,8 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		arg.Version,
 		arg.DatabaseLatency,
 		arg.Primary,
+		arg.ClusterHost,
+		arg.NATSPort,
 	)
 	var i Replica
 	err := row.Scan(
@@ -23857,6 +23867,8 @@ func (q *sqlQuerier) InsertReplica(ctx context.Context, arg InsertReplicaParams)
 		&i.Version,
 		&i.Error,
 		&i.Primary,
+		&i.ClusterHost,
+		&i.NATSPort,
 	)
 	return i, err
 }
@@ -23872,8 +23884,10 @@ UPDATE replicas SET
     version = $8,
     error = $9,
     database_latency = $10,
-	"primary" = $11
-WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary"
+	"primary" = $11,
+    cluster_host = $12,
+    nats_port = $13
+WHERE id = $1 RETURNING id, created_at, started_at, stopped_at, updated_at, hostname, region_id, relay_address, database_latency, version, error, "primary", cluster_host, nats_port
 `
 
 type UpdateReplicaParams struct {
@@ -23888,6 +23902,8 @@ type UpdateReplicaParams struct {
 	Error           string       `db:"error" json:"error"`
 	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
 	Primary         bool         `db:"primary" json:"primary"`
+	ClusterHost     string       `db:"cluster_host" json:"cluster_host"`
+	NATSPort        int32        `db:"nats_port" json:"nats_port"`
 }
 
 func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams) (Replica, error) {
@@ -23903,6 +23919,8 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		arg.Error,
 		arg.DatabaseLatency,
 		arg.Primary,
+		arg.ClusterHost,
+		arg.NATSPort,
 	)
 	var i Replica
 	err := row.Scan(
@@ -23918,6 +23936,8 @@ func (q *sqlQuerier) UpdateReplica(ctx context.Context, arg UpdateReplicaParams)
 		&i.Version,
 		&i.Error,
 		&i.Primary,
+		&i.ClusterHost,
+		&i.NATSPort,
 	)
 	return i, err
 }
@@ -26837,7 +26857,8 @@ SET
 	autostart_block_days_of_week = $9,
 	failure_ttl = $10,
 	time_til_dormant = $11,
-	time_til_dormant_autodelete = $12
+	time_til_dormant_autodelete = $12,
+	time_til_autostop_notify = $13
 WHERE
 	id = $1
 `
@@ -26855,6 +26876,7 @@ type UpdateTemplateScheduleByIDParams struct {
 	FailureTTL                    int64     `db:"failure_ttl" json:"failure_ttl"`
 	TimeTilDormant                int64     `db:"time_til_dormant" json:"time_til_dormant"`
 	TimeTilDormantAutoDelete      int64     `db:"time_til_dormant_autodelete" json:"time_til_dormant_autodelete"`
+	TimeTilAutostopNotify         int64     `db:"time_til_autostop_notify" json:"time_til_autostop_notify"`
 }
 
 func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateTemplateScheduleByIDParams) error {
@@ -26871,6 +26893,7 @@ func (q *sqlQuerier) UpdateTemplateScheduleByID(ctx context.Context, arg UpdateT
 		arg.FailureTTL,
 		arg.TimeTilDormant,
 		arg.TimeTilDormantAutoDelete,
+		arg.TimeTilAutostopNotify,
 	)
 	return err
 }
@@ -27693,6 +27716,33 @@ func (q *sqlQuerier) GetTemplateVersionTerraformValues(ctx context.Context, temp
 		&i.ProvisionerdVersion,
 	)
 	return i, err
+}
+
+const hasTemplateVersionsUsingCachedModuleFileInOrg = `-- name: HasTemplateVersionsUsingCachedModuleFileInOrg :one
+SELECT EXISTS (
+	SELECT 1
+	FROM template_version_terraform_values tvtv
+	JOIN template_versions tv
+		ON tv.id = tvtv.template_version_id
+	WHERE tvtv.cached_module_files = $1::uuid
+		AND tv.organization_id = $2::uuid
+)
+`
+
+type HasTemplateVersionsUsingCachedModuleFileInOrgParams struct {
+	FileID         uuid.UUID `db:"file_id" json:"file_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+// Reports whether the given file is referenced as cached module files by any
+// template version in the given organization. Used to authorize provisioner
+// module-file downloads so a daemon cannot read another organization's cached
+// Terraform module source.
+func (q *sqlQuerier) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasTemplateVersionsUsingCachedModuleFileInOrg, arg.FileID, arg.OrganizationID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const insertTemplateVersionTerraformValuesByJobID = `-- name: InsertTemplateVersionTerraformValuesByJobID :exec
