@@ -2571,7 +2571,7 @@ type GetUserAISpendSinceRow struct {
 	SpendMicros      int64     `db:"spend_micros" json:"spend_micros"`
 }
 
-// Total spend for (user_id, effective_group_id) on or after period_start.
+// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
 // The period_start parameter is normalized to its UTC calendar day.
 func (q *sqlQuerier) GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserAISpendSince, arg.UserID, arg.EffectiveGroupID, arg.PeriodStart)

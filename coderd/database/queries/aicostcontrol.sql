@@ -90,7 +90,7 @@ ON CONFLICT (user_id, effective_group_id, day) DO UPDATE SET
 RETURNING *;
 
 -- name: GetUserAISpendSince :one
--- Total spend for (user_id, effective_group_id) on or after period_start.
+-- Total spend for (user_id, effective_group_id) on or after period_start until NOW.
 -- The period_start parameter is normalized to its UTC calendar day.
 SELECT
 	@user_id::uuid AS user_id,

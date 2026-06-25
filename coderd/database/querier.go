@@ -813,7 +813,7 @@ type sqlcQuerier interface {
 	// Filters to active, non-deleted, non-system users to match the canonical
 	// seat count query (GetActiveAISeatCount).
 	GetUserAISeatStates(ctx context.Context, userIds []uuid.UUID) ([]uuid.UUID, error)
-	// Total spend for (user_id, effective_group_id) on or after period_start.
+	// Total spend for (user_id, effective_group_id) on or after period_start until NOW.
 	// The period_start parameter is normalized to its UTC calendar day.
 	GetUserAISpendSince(ctx context.Context, arg GetUserAISpendSinceParams) (GetUserAISpendSinceRow, error)
 	// GetUserActivityInsights returns the ranking with top active users.
