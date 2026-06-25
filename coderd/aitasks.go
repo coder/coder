@@ -121,24 +121,10 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Generate task name and display name if either is not provided
-	if taskName == "" || taskDisplayName == "" {
-		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
-
-		if taskName == "" {
-			taskName = generatedTaskName.Name
-		}
-		if taskDisplayName == "" {
-			taskDisplayName = generatedTaskName.DisplayName
-		}
-	}
-
-	createReq := codersdk.CreateWorkspaceRequest{
-		Name:                    taskName,
-		TemplateVersionID:       req.TemplateVersionID,
-		TemplateVersionPresetID: req.TemplateVersionPresetID,
-	}
-
+	// Resolve the workspace owner before generating a task name so required
+	// external auth can be enforced up front. createWorkspace performs the same
+	// validation, but checking here keeps the Tasks API aligned with the gates
+	// the UI presents and avoids generating a name for a task that is rejected.
 	var owner workspaceOwner
 	if mems.User != nil {
 		// This user fetch is an optimization path for the most common case of creating a
@@ -175,6 +161,32 @@ func (api *API) tasksCreate(rw http.ResponseWriter, r *http.Request) {
 
 		// Update workspace owner information for audit in case it changed.
 		taskResourceInfo.WorkspaceOwner = owner.Username
+	}
+
+	// Required external auth is otherwise only enforced once createWorkspace
+	// runs. Validate it here so the Tasks API rejects an owner who is missing a
+	// required provider before any task name generation or row insertion.
+	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		httperror.WriteResponseError(ctx, rw, err)
+		return
+	}
+
+	// Generate task name and display name if either is not provided
+	if taskName == "" || taskDisplayName == "" {
+		generatedTaskName := taskname.Generate(ctx, api.Logger, req.Input)
+
+		if taskName == "" {
+			taskName = generatedTaskName.Name
+		}
+		if taskDisplayName == "" {
+			taskDisplayName = generatedTaskName.DisplayName
+		}
+	}
+
+	createReq := codersdk.CreateWorkspaceRequest{
+		Name:                    taskName,
+		TemplateVersionID:       req.TemplateVersionID,
+		TemplateVersionPresetID: req.TemplateVersionPresetID,
 	}
 
 	// Track insert from preCreateInTX.
