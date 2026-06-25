@@ -322,10 +322,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
-	// /ai-gateway/serve is the DRPC-over-WebSocket endpoint that standalone AI
-	// Gateway replicas connect to. It authenticates with a gateway key instead
-	// of a user session, and deliberately sits outside the /ai-gateway catch-all
-	// so the catch-all's overload middleware does not apply to it.
+	// /ai-gateway/serve provides the DRPC-over-WebSocket that standalone AI Gateway
+	// replicas connect to. It authenticates with a gateway key instead of a user session.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Route("/ai-gateway/serve", func(r chi.Router) {
 			r.Use(

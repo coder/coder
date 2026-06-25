@@ -268,8 +268,7 @@ export interface AIGatewayKey {
 
 // From codersdk/client.go
 /**
- * AIGatewayKeyHeader contains the authentication key for a standalone AI
- * Gateway replica connecting to coderd.
+ * AIGatewayKeyHeader contains the authentication key for a standalone AI Gateway replica.
  */
 export const AIGatewayKeyHeader = "X-AI-Governance-Gateway-Key";
 
