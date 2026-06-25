@@ -520,6 +520,8 @@ type WorkspaceFilter struct {
 	Name string `json:"name,omitempty" typescript:"-"`
 	// Status is a workspace status, which is really the status of the latest build
 	Status string `json:"status,omitempty" typescript:"-"`
+	// Organization is an organization name or ID
+	Organization string `json:"organization,omitempty" typescript:"-"`
 	// Offset is the number of workspaces to skip before returning results.
 	Offset int `json:"offset,omitempty" typescript:"-"`
 	// Limit is a limit on the number of workspaces returned.
@@ -552,6 +554,9 @@ func (f WorkspaceFilter) asRequestOption() RequestOption {
 		}
 		if f.Status != "" {
 			params = append(params, fmt.Sprintf("status:%q", f.Status))
+		}
+		if f.Organization != "" {
+			params = append(params, fmt.Sprintf("organization:%q", f.Organization))
 		}
 		if f.Shared != nil {
 			params = append(params, fmt.Sprintf("shared:%v", *f.Shared))
