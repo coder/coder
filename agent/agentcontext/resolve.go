@@ -953,8 +953,10 @@ type MCPTool struct {
 // Snapshot is the immutable bundle of resources produced by a
 // single resolver pass.
 type Snapshot struct {
-	// Version is monotonically increasing per Manager
-	// instance; resets when the agent process restarts.
+	// Version is monotonically increasing per Manager instance; resets
+	// when the agent process restarts. Version 0 is the gated pre-ready
+	// placeholder (the first real resolve is version 1), which the push
+	// loop withholds.
 	Version uint64
 	// AggregateHash is sha256 over a canonical encoding of
 	// (ID, Kind, Source, ContentHash, Status) for every
