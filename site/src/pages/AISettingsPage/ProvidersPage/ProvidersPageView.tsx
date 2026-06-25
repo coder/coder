@@ -106,7 +106,7 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 						<TableHead className="w-22">Status</TableHead>
 					</TableRow>
 				</TableHeader>
-				<TableBody>
+				<TableBody size="lg">
 					{isLoading || isFetching ? (
 						<TableLoader />
 					) : providers.length === 0 ? (
