@@ -375,6 +375,40 @@ A dedicated rule for `run` is out of scope for this revision.
 *Enforced by `Coder.PlainLanguage` (planned),
 with the industry-term exception scoped in the rule.*
 
+## Keep internal-only references out of published docs
+
+The published documentation,
+including the contribution guides,
+is public.
+Every reader and every contributor,
+whether a community contributor or a Coder employee,
+must be able to open every resource linked from the docs.
+A link that only employees can open excludes community contributors,
+so it does not belong on a published page.
+
+Keep these out of published pages:
+
+- Issue-tracker identifiers and URLs (for example, an `ABC-123` identifier or a `linear.app` link).
+- Private or internal-only repositories and their URLs.
+- Internal-only chat threads, design docs, dashboards, runbooks, and wikis.
+- Any link gated behind employee-only access.
+
+Track the work in the surfaces built for it.
+A pull request description, a commit message, or a code-review comment is the right place to cite an internal issue ID or a private link,
+because every contributor on that change can read it there.
+The published page stays the same for everyone.
+
+**Do**:
+
+> The provisioner retries the build 3 times before it fails.
+
+**Don't**:
+
+> The provisioner retries the build 3 times before it fails.
+> For the backstory, refer to [ABC-123](https://linear.app/acme/issue/ABC-123).
+
+*Documentation-only. Planned Vale rule `Coder.InternalReferences`.*
+
 ## Related
 
 - [Style guide landing page](./README.md)

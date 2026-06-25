@@ -146,17 +146,22 @@ The rules in this section cover block-level structures that stand on their own l
 Every fenced code block declares a language.
 Use the most specific language tag available:
 
-- `sh` for shell sessions.
-- `console` for interactive command-line entries (the convention used in [`docs/about/contributing/documentation.md`](../../about/contributing/documentation.md) for user-typed CLI input).
-- `tf` for Terraform.
+- `sh` for shell scripts and multi-line shell snippets.
+- `console` for an interactive command-line session, where the reader sees the typed command and its output. The Coder CLI reference uses `console` for `coder` command usage.
+- `powershell` for Windows command-line blocks. PowerShell is the default Windows shell in the Coder docs.
+- `tf` for Terraform and HCL.
 - `yaml` for YAML.
 - `go` for Go.
 - `json` for JSON.
 - `text` for plain text with no syntax to highlight.
 
-The docs site renderer uses [Prism](https://prismjs.com/) for syntax highlighting.
-The full list of supported languages lives in the [Prism supported-languages reference](https://prismjs.com/#supported-languages).
-For a language not on that list,
+The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core),
+which detects the language from the code content,
+not from the fence label.
+The fence label still drives highlighting on GitHub and in most editors,
+and `markdownlint` rule `MD040` requires one,
+so always declare the most specific language.
+For content with no sensible language tag,
 fall back to `text`.
 
 **Do**:
