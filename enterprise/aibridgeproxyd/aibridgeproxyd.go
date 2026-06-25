@@ -187,7 +187,7 @@ type requestContext struct {
 	Dumper RoundTripDumper
 }
 
-// Options configures the AI Bridge Proxy server.
+// Options configures the AI Gateway Proxy server.
 type Options struct {
 	// ListenAddr is the address the proxy server will listen on.
 	ListenAddr string
@@ -1132,7 +1132,7 @@ func (s *Server) readErrorBodyForLog(resp *http.Response, logger slog.Logger) st
 	return string(body)
 }
 
-// Handler returns an HTTP handler for the AI Bridge Proxy's HTTP endpoints.
+// Handler returns an HTTP handler for the AI Gateway Proxy's HTTP endpoints.
 // This is separate from the proxy server itself and is used by coderd to
 // serve endpoints like the CA certificate.
 func (s *Server) Handler() http.Handler {

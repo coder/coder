@@ -19,12 +19,12 @@
 //     ai_provider_keys, attached to one AI Provider.
 //   - User AI Provider Key: a user-owned credential attached to one user and
 //     one AI Provider.
-//   - BYOK: the deployment-level AI Bridge policy that controls whether user
+//   - BYOK: the deployment-level AI Gateway policy that controls whether user
 //     keys may be written or used. Disabling BYOK does not delete stored user
 //     keys.
-//   - AI Bridge: the product area that introduced AI provider records. Agents
+//   - AI Gateway: the product area that introduced AI provider records. Agents
 //     consume the same records through chatd, but this package does not define
-//     the full AI Bridge runtime roadmap.
+//     the full AI Gateway runtime roadmap.
 //
 // Model configs should use provider IDs for identity. Provider types choose
 // runtime implementation details. Provider names are instance identifiers for

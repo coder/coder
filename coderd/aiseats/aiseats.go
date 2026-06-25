@@ -15,7 +15,7 @@ type Reason struct {
 	Description string
 }
 
-// ReasonAIBridge constructs a reason for usage originating from AI Bridge.
+// ReasonAIBridge constructs a reason for usage originating from AI Gateway.
 func ReasonAIBridge(description string) Reason {
 	return Reason{EventType: database.AISeatUsageReasonAibridge, Description: description}
 }

@@ -610,7 +610,7 @@ externalAuthLoop:
 //     bridge requests will not conform to.
 //  2. The code mixes many different concerns, and handles HTTP responses too, which is undesirable here.
 //  3. The core logic would need to be extracted, but that will surely be a complex & time-consuming distraction right now.
-//  4. Once we have an Early Access release of AI Bridge, we need to return to this.
+//  4. Once we have an Early Access release of AI Gateway, we need to return to this.
 //
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
 func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
@@ -682,7 +682,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}, nil
 }
 
-// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+// Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 func getCoderMCPServerConfig(experiments codersdk.Experiments, accessURL string) (*proto.MCPServerConfig, error) {
 	// Both the MCP & OAuth2 experiments are currently required in order to use our
 	// internal MCP server.

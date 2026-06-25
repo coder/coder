@@ -18,9 +18,9 @@ import (
 
 var _ io.Closer = &Server{}
 
-// Server provides the AI Bridge functionality.
+// Server provides the AI Gateway functionality.
 // It is responsible for:
-//   - receiving requests on /api/v2/aibridged/*
+//   - receiving requests on the AI Gateway API paths
 //   - manipulating the requests
 //   - relaying requests to upstream AI services and relaying responses to caller
 //

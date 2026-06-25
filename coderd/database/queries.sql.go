@@ -349,7 +349,7 @@ ORDER BY
 `
 
 // Returns all keys for a provider, ordered by created_at ASC so the
-// oldest key is returned first. AI Bridge currently uses the oldest
+// oldest key is returned first. AI Gateway currently uses the oldest
 // key per provider; multiple keys are stored to support future
 // failover and rotation flows.
 func (q *sqlQuerier) GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error) {
@@ -1694,7 +1694,7 @@ type ListAIBridgeInterceptionsTelemetrySummariesRow struct {
 	Client   string `db:"client" json:"client"`
 }
 
-// Finds all unique AI Bridge interception telemetry summaries combinations
+// Finds all unique AI Gateway interception telemetry summaries combinations
 // (provider, model, client) in the given timeframe for telemetry reporting.
 func (q *sqlQuerier) ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAIBridgeInterceptionsTelemetrySummaries, arg.EndedAtAfter, arg.EndedAtBefore)

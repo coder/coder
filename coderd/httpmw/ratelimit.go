@@ -100,7 +100,7 @@ func RateLimit(count int, window time.Duration) func(http.Handler) http.Handler 
 // This differs from [RateLimit] in several ways:
 //   - It extracts the token directly from request headers (Authorization Bearer
 //     or X-Api-Key) rather than from the request context, making it suitable for
-//     endpoints that handle authentication internally (like AI Bridge) rather than
+//     endpoints that handle authentication internally (like AI Gateway) rather than
 //     via [ExtractAPIKeyMW] middleware.
 //   - It does not support the bypass header for Owners.
 //   - It does not key by endpoint, so the limit applies across all endpoints using

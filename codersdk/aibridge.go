@@ -189,7 +189,7 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 	}
 }
 
-// AIBridgeListSessions returns AI Bridge sessions with the given filter.
+// AIBridgeListSessions returns AI Gateway sessions with the given filter.
 func (c *Client) AIBridgeListSessions(ctx context.Context, filter AIBridgeListSessionsFilter) (AIBridgeListSessionsResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/ai-gateway/sessions", nil, filter.asRequestOption(), filter.Pagination.asRequestOption())
 	if err != nil {

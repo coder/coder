@@ -1594,7 +1594,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	t.Run("NoAddon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
-		// License without addon and AI Bridge disabled should NOT show warning.
+		// License without addon and AI Gateway disabled should NOT show warning.
 		lo := (&coderdenttest.LicenseOptions{
 			AccountType: "salesforce",
 			AccountID:   "test",
@@ -1621,7 +1621,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	t.Run("NoAddon_AIBridgeOn", func(t *testing.T) {
 		t.Parallel()
-		// License without addon and AI Bridge enabled SHOULD show warning.
+		// License without addon and AI Gateway enabled SHOULD show warning.
 		lo := (&coderdenttest.LicenseOptions{
 			AccountType: "salesforce",
 			AccountID:   "test",
@@ -1649,7 +1649,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	t.Run("Addon_AIBridgeOff", func(t *testing.T) {
 		t.Parallel()
-		// License with addon and AI Bridge disabled should NOT show warning.
+		// License with addon and AI Gateway disabled should NOT show warning.
 		lo := (&coderdenttest.LicenseOptions{
 			AccountType: "salesforce",
 			AccountID:   "test",
@@ -1680,7 +1680,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	t.Run("Addon_AIBridgeOn", func(t *testing.T) {
 		t.Parallel()
-		// License with addon and AI Bridge enabled should NOT show warning.
+		// License with addon and AI Gateway enabled should NOT show warning.
 		lo := (&coderdenttest.LicenseOptions{
 			AccountType: "salesforce",
 			AccountID:   "test",
@@ -1712,7 +1712,7 @@ func TestAIBridgeSoftWarning(t *testing.T) {
 
 	t.Run("NoLicense_AIBridgeOn", func(t *testing.T) {
 		t.Parallel()
-		// No license with AI Bridge enabled should NOT show the soft warning
+		// No license with AI Gateway enabled should NOT show the soft warning
 		// (it will show the generic "not entitled" warning instead).
 		entitlements, err := license.LicensesEntitlements(context.Background(), time.Now(), []database.License{}, aiBridgeEnabledEnablements, coderdenttest.Keys, license.FeatureArguments{})
 		require.NoError(t, err)
@@ -2167,13 +2167,13 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// AI Bridge should be enabled without warning when addon is present.
+		// AI Gateway should be enabled without warning when addon is present.
 		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
+		require.True(t, aibridgeFeature.Enabled, "AI Gateway should be enabled when addon is present and enablements are set")
 		aiBridgeWarningMessage := "The AI Governance add-on is required to use AI Gateway. Please reach out to your account team or sales@coder.com to learn more."
-		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Bridge warning should not appear when AI Governance addon is present")
+		require.NotContains(t, entitlements.Warnings, aiBridgeWarningMessage, "AI Gateway warning should not appear when AI Governance addon is present")
 
-		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
+		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Gateway should be entitled when addon is present")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
@@ -2199,11 +2199,11 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
-		// AI Bridge should not be entitled.
+		// TODO: Readd this test once AI Gateway is enforced as an add-on license.
+		// AI Gateway should not be entitled.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon is absent")
-		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon is absent")
+		// require.False(t, aibridgeFeature.Enabled, "AI Gateway should not be enabled when addon is absent")
+		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Gateway should not be entitled when addon is absent")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
@@ -2237,11 +2237,11 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
+		// TODO: Readd this test once AI Gateway is enforced as an add-on license.
 		// AI Governance features should be enabled but in grace period.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		// require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled during grace period")
-		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Bridge should be in grace period")
+		// require.True(t, aibridgeFeature.Enabled, "AI Gateway should be enabled during grace period")
+		// require.Equal(t, codersdk.EntitlementGracePeriod, aibridgeFeature.Entitlement, "AI Gateway should be in grace period")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
@@ -2268,10 +2268,10 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, entitlements.HasLicense)
 
-		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
+		// TODO: Readd this test once AI Gateway is enforced as an add-on license.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled without enablements")
-		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should still be entitled")
+		// require.False(t, aibridgeFeature.Enabled, "AI Gateway should not be enabled without enablements")
+		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Gateway should still be entitled")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
@@ -2305,11 +2305,11 @@ func TestAIGovernanceAddon(t *testing.T) {
 		require.Len(t, entitlements.Errors, 1)
 		require.Equal(t, "Feature AI Governance User Limit must be set when using the AI Governance addon.", entitlements.Errors[0])
 
-		// TODO: Readd this test once AI Bridge is enforced as an add-on license.
+		// TODO: Readd this test once AI Gateway is enforced as an add-on license.
 		// AI Governance features should not be entitled when validation fails.
 		// aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
-		// require.False(t, aibridgeFeature.Enabled, "AI Bridge should not be enabled when addon validation fails")
-		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Bridge should not be entitled when addon validation fails")
+		// require.False(t, aibridgeFeature.Enabled, "AI Gateway should not be enabled when addon validation fails")
+		// require.Equal(t, codersdk.EntitlementNotEntitled, aibridgeFeature.Entitlement, "AI Gateway should not be entitled when addon validation fails")
 
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]

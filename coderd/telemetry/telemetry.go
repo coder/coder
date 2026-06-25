@@ -2373,7 +2373,7 @@ type AIBridgeInterceptionsSummaryToolCallsCount struct {
 	NonInjected int64 `json:"non_injected"`
 }
 
-// AIBridgeInterceptionsSummary is a summary of aggregated AI Bridge
+// AIBridgeInterceptionsSummary is a summary of aggregated AI Gateway
 // interception data over a period of 1 hour. We send a summary each hour for
 // each unique provider + model + client combination.
 type AIBridgeInterceptionsSummary struct {

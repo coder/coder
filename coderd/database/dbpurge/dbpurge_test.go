@@ -1356,7 +1356,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			user := dbgen.User(t, db, database.User{})
 
-			// Create old AI Bridge interception (should be deleted when retention enabled).
+			// Create old AI Gateway interception (should be deleted when retention enabled).
 			oldInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				ID:          uuid.New(),
 				APIKeyID:    sql.NullString{},
@@ -1404,7 +1404,7 @@ func TestDeleteOldAIBridgeRecords(t *testing.T) {
 				CreatedAt:          afterThreshold,
 			})
 
-			// Create recent AI Bridge interception (should be kept).
+			// Create recent AI Gateway interception (should be kept).
 			recentInterception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 				ID:          uuid.New(),
 				APIKeyID:    sql.NullString{},

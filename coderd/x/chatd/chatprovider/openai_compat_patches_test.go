@@ -30,7 +30,7 @@ func TestModelFromConfig_GeminiOpenAICompatThoughtSignatures(t *testing.T) {
 		require.Equal(t, googleopenai.DummyThoughtSignature, thoughtSignature(t, messages[6], 0))
 	})
 
-	t.Run("Coder AI Bridge Gemini route receives current turn thought signature", func(t *testing.T) {
+	t.Run("Coder AI Gateway Gemini route receives current turn thought signature", func(t *testing.T) {
 		t.Parallel()
 
 		body := generateOpenAICompatRequest(t, "http://coder-aibridge/v1", "gemini-3.5-flash")

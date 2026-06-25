@@ -318,7 +318,7 @@ type sqlcQuerier interface {
 	// re-encrypt rows that belong to soft-deleted providers as well.
 	GetAIProviderKeys(ctx context.Context, includeDeleted bool) ([]AIProviderKey, error)
 	// Returns all keys for a provider, ordered by created_at ASC so the
-	// oldest key is returned first. AI Bridge currently uses the oldest
+	// oldest key is returned first. AI Gateway currently uses the oldest
 	// key per provider; multiple keys are stored to support future
 	// failover and rotation flows.
 	GetAIProviderKeysByProviderID(ctx context.Context, providerID uuid.UUID) ([]AIProviderKey, error)
@@ -1130,7 +1130,7 @@ type sqlcQuerier interface {
 	// new links.
 	LinkChatFiles(ctx context.Context, arg LinkChatFilesParams) (int32, error)
 	ListAIBridgeClients(ctx context.Context, arg ListAIBridgeClientsParams) ([]string, error)
-	// Finds all unique AI Bridge interception telemetry summaries combinations
+	// Finds all unique AI Gateway interception telemetry summaries combinations
 	// (provider, model, client) in the given timeframe for telemetry reporting.
 	ListAIBridgeInterceptionsTelemetrySummaries(ctx context.Context, arg ListAIBridgeInterceptionsTelemetrySummariesParams) ([]ListAIBridgeInterceptionsTelemetrySummariesRow, error)
 	ListAIBridgeModelThoughtsByInterceptionIDs(ctx context.Context, interceptionIds []uuid.UUID) ([]AIBridgeModelThought, error)

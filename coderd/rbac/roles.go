@@ -448,7 +448,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				ResourceUser.Type: {policy.ActionRead, policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 				// Users can create provisioner daemons scoped to themselves.
 				ResourceProvisionerDaemon.Type: {policy.ActionRead, policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
-				// Members can create and update AI Bridge interceptions but
+				// Members can create and update AI Gateway interceptions but
 				// cannot read them back.
 				ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
 				// Workspace agents create boundary logs under their owner's
@@ -478,7 +478,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Allow auditors to query deployment stats and insights.
 			ResourceDeploymentStats.Type:  {policy.ActionRead},
 			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			// Allow auditors to query AI Bridge interceptions.
+			// Allow auditors to query AI Gateway interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
 			ResourceBoundaryLog.Type: {policy.ActionRead},
@@ -1188,7 +1188,7 @@ func OrgMemberPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Members can create and update AI Bridge interceptions they
+		// Members can create and update AI Gateway interceptions they
 		// initiate (dbauthz layer sets WithOwner(InitiatorID)) but
 		// cannot read them back.
 		ResourceAibridgeInterception.Type: {policy.ActionCreate, policy.ActionUpdate},
@@ -1269,7 +1269,7 @@ func OrgServiceAccountPermissions(org OrgSettings) OrgRolePermissions {
 		// sets WithOwner to the user's own ID.
 		ResourceGroupMember.Type: {policy.ActionRead},
 
-		// Service accounts can create and update AI Bridge interceptions
+		// Service accounts can create and update AI Gateway interceptions
 		// they initiate (dbauthz layer sets WithOwner(InitiatorID)) but
 		// cannot read them back. Chat access requires the agents-access
 		// role and is intentionally not granted here.

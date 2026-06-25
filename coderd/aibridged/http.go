@@ -23,12 +23,12 @@ var (
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
 )
 
-// ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
+// ServeHTTP is the entrypoint for requests which will be intercepted by AI Gateway.
 // This function will validate that the given API key may be used to perform the request.
 //
 // An [aibridge.RequestBridge] instance is acquired from a pool based on the API key's
 // owner (referred to as the "initiator"); this instance is responsible for the
-// AI Bridge-specific handling of the request.
+// AI Gateway-specific handling of the request.
 //
 // A [DRPCClient] is provided to the [aibridge.RequestBridge] instance so that data can
 // be passed up to a [DRPCServer] for persistence.

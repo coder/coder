@@ -33,7 +33,7 @@ const (
 	defaultListSessionsLimit = 100
 	defaultListModelsLimit   = 100
 	defaultListClientsLimit  = 100
-	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Bridge
+	// aiBridgeRateLimitWindow is the fixed duration for rate limiting AI Gateway
 	// requests. This is hardcoded to keep configuration simple.
 	aiBridgeRateLimitWindow = time.Second
 )
@@ -120,7 +120,7 @@ func aiBridgeRoutes(api *API, stripPrefix string, middlewares ...func(http.Handl
 	}
 }
 
-// aiBridgeListSessions returns AI Bridge sessions (aggregated interceptions).
+// aiBridgeListSessions returns AI Gateway sessions (aggregated interceptions).
 //
 // @Summary List AI Gateway sessions
 // @Description Alias: also available at /api/v2/aibridge/sessions for backward compatibility.
@@ -439,7 +439,7 @@ func (api *API) aiBridgeGetSessionThreads(rw http.ResponseWriter, r *http.Reques
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// aiBridgeListModels returns all AI Bridge models a user can see.
+// aiBridgeListModels returns all AI Gateway models a user can see.
 //
 // @Summary List AI Gateway models
 // @Description Alias: also available at /api/v2/aibridge/models for backward compatibility.
@@ -492,7 +492,7 @@ func (api *API) aiBridgeListModels(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, models)
 }
 
-// aiBridgeListClients returns all AI Bridge clients a user can see.
+// aiBridgeListClients returns all AI Gateway clients a user can see.
 //
 // @Summary List AI Gateway clients
 // @Description Alias: also available at /api/v2/aibridge/clients for backward compatibility.

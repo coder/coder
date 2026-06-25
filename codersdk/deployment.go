@@ -1113,11 +1113,11 @@ type ExternalAuthConfig struct {
 	ExtraTokenKeys      []string `json:"-" yaml:"extra_token_keys"`
 	DeviceFlow          bool     `json:"device_flow" yaml:"device_flow"`
 	DeviceCodeURL       string   `json:"device_code_url" yaml:"device_code_url"`
-	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	// Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	MCPURL string `json:"mcp_url" yaml:"mcp_url"`
-	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	// Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	MCPToolAllowRegex string `json:"mcp_tool_allow_regex" yaml:"mcp_tool_allow_regex"`
-	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	// Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	MCPToolDenyRegex string `json:"mcp_tool_deny_regex" yaml:"mcp_tool_deny_regex"`
 	// Regex allows API requesters to match an auth config by
 	// a string (e.g. coder.com) instead of by it's type.
@@ -4218,7 +4218,7 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "aiGatewayRoutingEnabled",
 			Hidden:      true,
 		},
-		// AI Bridge Options (deprecated in favor of AI Gateway options)
+		// AI Gateway Options (deprecated, kept for backward compatibility)
 		{
 			Name:        "AI Bridge Enabled",
 			Description: "Deprecated: use --ai-gateway-enabled or CODER_AI_GATEWAY_ENABLED instead. Whether to start an in-memory aibridged instance.",
@@ -4796,7 +4796,7 @@ type AIBridgeConfig struct {
 	// Providers holds provider instances populated from CODER_AI_GATEWAY_PROVIDER_<N>_<KEY>
 	// env vars and/or the deprecated LegacyOpenAI/LegacyAnthropic/LegacyBedrock fields above.
 	Providers []AIProviderConfig `json:"providers,omitempty"`
-	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	// Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
 	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`

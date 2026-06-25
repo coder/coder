@@ -291,7 +291,7 @@ func computeProviderHash(c canonicalAIProvider) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// providersFromEnv normalizes the deployment-values AI Bridge config
+// providersFromEnv normalizes the deployment-values AI Gateway config
 // (legacy single-provider env vars and indexed CODER_AIBRIDGE_PROVIDER_<N>_*
 // env vars) into the deduplicated set of providers we want present in
 // the database. Conflicts between legacy and indexed providers under

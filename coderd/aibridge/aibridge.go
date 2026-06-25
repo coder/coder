@@ -1,4 +1,4 @@
-// Package aibridge provides utilities for the AI Bridge feature.
+// Package aibridge provides utilities for the AI Gateway feature.
 package aibridge
 
 import (
@@ -9,10 +9,10 @@ import (
 // HeaderCoderToken is a header set by clients opting into BYOK
 // (Bring Your Own Key) mode. It carries the Coder token so
 // that Authorization and X-Api-Key can carry the user's own LLM
-// credentials. When present, AI Bridge forwards the user's LLM
+// credentials. When present, AI Gateway forwards the user's LLM
 // headers unchanged instead of injecting the centralized key.
 //
-// The AI Bridge proxy also sets this header automatically for clients
+// The AI Gateway proxy also sets this header automatically for clients
 // that use per-user LLM credentials but cannot set custom headers.
 const HeaderCoderToken = "X-Coder-AI-Governance-Token" //nolint:gosec // This is a header name, not a credential.
 
@@ -35,7 +35,7 @@ const (
 	BaseURLChatGPT  = "https://" + HostChatGPT + "/backend-api/codex"
 )
 
-// API route prefixes for the AI Gateway and legacy AI Bridge endpoints.
+// API route prefixes for the AI Gateway and legacy AI Gateway endpoints.
 const (
 	// AIGatewayRootPath is the URL prefix the AI Gateway handler
 	// registers all of its routes under.

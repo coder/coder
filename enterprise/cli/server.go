@@ -162,7 +162,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 		usageCron.Start(ctx)
 		closers.Add(usageCron)
 
-		// In-memory AI Bridge Proxy daemon. The bridge daemon itself is
+		// In-memory AI Gateway Proxy daemon. The bridge daemon itself is
 		// started unconditionally by AGPL cli/server.go (chatd uses its
 		// in-memory roundtripper regardless of license); only the proxy
 		// daemon remains enterprise-gated by config.

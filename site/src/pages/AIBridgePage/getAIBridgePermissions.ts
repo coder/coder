@@ -2,7 +2,7 @@ import type { Entitlements } from "#/api/typesGenerated";
 import type { Permissions } from "#/modules/permissions";
 
 // Users are allowed to view their own request logs via the API,
-// but an AI Bridge page is only visible if the feature is enabled and
+// but an AI Gateway page is only visible if the feature is enabled and
 // the user has the `viewAnyAIBridgeInterception` permission. (as it's
 // defined in the Admin settings dropdown).
 export const getAIBridgePermissions = (
@@ -10,7 +10,7 @@ export const getAIBridgePermissions = (
 	permissions: Permissions,
 ) => {
 	// the user is entitled if they have either "entitled" or "grace_period"
-	// status for the AI Bridge feature
+	// status for the AI Gateway feature
 	const isEntitled =
 		entitlements.features.aibridge.entitlement === "entitled" ||
 		entitlements.features.aibridge.entitlement === "grace_period";

@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// API route prefixes for the AI Gateway Proxy and legacy AI Bridge Proxy endpoints.
+// API route prefixes for the AI Gateway Proxy and legacy AI Gateway Proxy endpoints.
 const (
 	AIGatewayProxyPath = agplaibridge.AIGatewayRootPath + "/proxy"
 	AIBridgeProxyPath  = agplaibridge.AIBridgeRootPath + "/proxy"

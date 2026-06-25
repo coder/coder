@@ -127,7 +127,7 @@ export const WithAIBudgetsSpendUnavailable: Story = {
 	},
 };
 
-// AI Bridge hidden: no AI budget column.
+// AI Gateway hidden: no AI budget column.
 export const WithoutAIBudgetColumn: Story = {
 	args: {
 		groups: [aiGroup("ai-hidden", "No AI column")],

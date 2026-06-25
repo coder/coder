@@ -286,7 +286,7 @@ func withRefreshProviders(fn aibridgeproxyd.RefreshProvidersFunc) testProxyOptio
 	}
 }
 
-// newTestProxy creates a new AI Bridge Proxy server for testing.
+// newTestProxy creates a new AI Gateway Proxy server for testing.
 // It uses the shared MITM certificate and registers cleanup automatically.
 // It waits for the proxy server to be ready before returning.
 func newTestProxy(t *testing.T, opts ...testProxyOption) *aibridgeproxyd.Server {

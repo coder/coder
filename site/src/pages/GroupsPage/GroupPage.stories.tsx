@@ -377,7 +377,7 @@ export const WithMemberAIBudgetFromAnotherGroup: Story = {
 	},
 };
 
-// AI Bridge hidden: neither the AI budget nor the budget type column renders.
+// AI Gateway hidden: neither the AI budget nor the budget type column renders.
 export const WithoutMemberAIBudgetColumn: Story = {
 	parameters: {
 		queries: [

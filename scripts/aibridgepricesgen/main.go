@@ -1,5 +1,5 @@
 // aibridgepricesgen fetches model pricing from models.dev and writes a JSON
-// seed file consumable by the AI Bridge cost-control loader. Output is sorted
+// seed file consumable by the AI Gateway cost-control loader. Output is sorted
 // by (provider, model) so regenerations produce minimal diffs.
 //
 // Run via the gen/aibridge-prices Make target. Kept out of `make gen` because

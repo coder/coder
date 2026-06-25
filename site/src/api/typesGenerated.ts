@@ -59,7 +59,7 @@ export interface AIBridgeConfig {
 	 */
 	readonly providers?: readonly AIProviderConfig[];
 	/**
-	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
 	readonly retention: number;
@@ -4647,15 +4647,15 @@ export interface ExternalAuthConfig {
 	readonly device_flow: boolean;
 	readonly device_code_url: string;
 	/**
-	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_url: string;
 	/**
-	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_allow_regex: string;
 	/**
-	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
+	 * @deprecated Injected MCP in AI Gateway is deprecated and will be removed in a future release.
 	 */
 	readonly mcp_tool_deny_regex: string;
 	/**

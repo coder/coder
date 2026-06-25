@@ -24,7 +24,7 @@ func ShouldPatchOpenAICompatRequest(baseURL string, modelID string) bool {
 	return isCoderAIBridgeEndpoint(baseURL) && isGeminiModelID(modelID)
 }
 
-// ShouldPatchGoogleUpstreamRequest reports whether an AI Bridge upstream
+// ShouldPatchGoogleUpstreamRequest reports whether an AI Gateway upstream
 // OpenAI-compatible request should carry Gemini thought signatures.
 func ShouldPatchGoogleUpstreamRequest(baseURL string) bool {
 	return isDirectGeminiOpenAIEndpoint(baseURL)

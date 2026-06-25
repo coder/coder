@@ -37,7 +37,7 @@ type openAICompatRequestPatchTransport struct {
 	Base http.RoundTripper
 	// BaseURL is the configured provider base URL, used to detect direct Gemini endpoints.
 	BaseURL string
-	// ModelID is the configured model ID, used to detect Gemini routes through Coder AI Bridge.
+	// ModelID is the configured model ID, used to detect Gemini routes through Coder AI Gateway.
 	ModelID string
 }
 
