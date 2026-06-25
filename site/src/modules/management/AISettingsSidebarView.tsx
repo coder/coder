@@ -22,14 +22,37 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 						AI Governance
 					</SidebarNavItem>
 				)}
-				{permissions.viewAnyAIProvider && (
-					<SidebarNavItem href="/ai/settings" end>
-						Providers
-					</SidebarNavItem>
-				)}
 				{permissions.viewAIGatewayKeys && (
 					<SidebarNavItem href="/ai/settings/gateway-keys">
 						AI Gateway Keys
+					</SidebarNavItem>
+				)}
+				{permissions.viewAnyAIProvider && (
+					<SidebarNavItem href="/ai/settings/providers">
+						Providers
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/models">Models</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/instructions">
+						Instructions
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/lifecycle">
+						Lifecycle
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/templates">
+						Templates
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/mcp-servers">
+						MCP servers
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (

@@ -37,7 +37,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
@@ -66,7 +66,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 		req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
 
@@ -96,7 +96,7 @@ func TestAIBridgeProxyCertificateRetrieval(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		// Make a request to the proxy CA cert endpoint without authentication.
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/aibridge/proxy/ca-cert.pem", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, client.URL.String()+"/api/v2/ai-gateway/proxy/ca-cert.pem", nil)
 		require.NoError(t, err)
 
 		// No session token header set.

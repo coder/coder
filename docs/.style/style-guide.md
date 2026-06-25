@@ -76,7 +76,8 @@ The repo-root `.vale.ini` configures Vale to read styles from
 - Coder-specific custom rules in `docs/.style/styles/Coder/`
 
 The rationale for the cherry-picked base styles and the severity
-policy lives in the follow-up PR that lands `.vale.ini`.
+policy lives in `.vale.ini`'s inline comments. Run `make lint/prose`
+to reproduce the baseline locally.
 
 ## Editor setup
 

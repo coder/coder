@@ -291,16 +291,27 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		return api.refreshEntitlements(ctx)
 	}
 
+	// Legacy aibridge routes: kept for backward compatibility.
+	// New endpoints should be added to /ai-gateway only.
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge", aibridgeHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge", aibridgeHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/proxy", aibridgeproxyHandler(api, apiKeyMiddleware))
+		r.Route("/aibridge/proxy", aibridgeProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	// AI Gateway routes: canonical aliases for the aibridge endpoints.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway", aiGatewayHTTPHandler(api, apiKeyMiddleware))
 	})
 
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
-		r.Route("/aibridge/keys", func(r chi.Router) {
+		r.Route("/ai-gateway/proxy", aiGatewayProxyHTTPHandler(api, apiKeyMiddleware))
+	})
+
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/keys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				api.RequireFeatureMW(codersdk.FeatureAIBridge),
@@ -1343,7 +1354,8 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 		// the system will eventually recover as replicas timeout
 		// if their heartbeats stop. The best effort just tries to update the
 		// UI faster if it succeeds.
-		_ = api.Pubsub.Publish(PubsubEventLicenses, []byte("going away"))
+		// Postgres pubsub; see PubsubEventLicenses.
+		_ = api.ReplicaSyncPubsub.Publish(PubsubEventLicenses, []byte("going away"))
 	}()
 	for {
 		select {
@@ -1353,7 +1365,10 @@ func (api *API) runEntitlementsLoop(ctx context.Context) {
 			// pass
 		}
 		if !subscribed {
-			cancel, err := api.Pubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
+			// Postgres pubsub; see PubsubEventLicenses. ReplicaSyncPubsub is
+			// always set in enterprise startup (replicasync.New requires it when
+			// the API is constructed), so it is safe to use directly here.
+			cancel, err := api.ReplicaSyncPubsub.Subscribe(PubsubEventLicenses, func(_ context.Context, _ []byte) {
 				// don't block.  If the channel is full, drop the event, as there is a resync
 				// scheduled already.
 				select {

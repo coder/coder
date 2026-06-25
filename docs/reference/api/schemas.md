@@ -654,6 +654,8 @@
   "started_at": "2019-08-24T14:15:22Z",
   "threads": [
     {
+      "agent_firewall_sequence_number": 0,
+      "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
       "agentic_actions": [
         {
           "model": "string",
@@ -791,6 +793,8 @@
 
 ```json
 {
+  "agent_firewall_sequence_number": 0,
+  "agent_firewall_session_id": "3735294f-18b1-4e7a-a269-99c30f0b30e7",
   "agentic_actions": [
     {
       "model": "string",
@@ -850,18 +854,20 @@
 
 ### Properties
 
-| Name              | Type                                                                                   | Required | Restrictions | Description |
-|-------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `agentic_actions` | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |             |
-| `credential_hint` | string                                                                                 | false    |              |             |
-| `credential_kind` | string                                                                                 | false    |              |             |
-| `ended_at`        | string                                                                                 | false    |              |             |
-| `id`              | string                                                                                 | false    |              |             |
-| `model`           | string                                                                                 | false    |              |             |
-| `prompt`          | string                                                                                 | false    |              |             |
-| `provider`        | string                                                                                 | false    |              |             |
-| `started_at`      | string                                                                                 | false    |              |             |
-| `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |             |
+| Name                             | Type                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                               |
+|----------------------------------|----------------------------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_firewall_sequence_number` | integer                                                                                | false    |              | Agent firewall sequence number is the firewall sequence number from the root interception. Used to determine the position of this LLM request in the firewall event stream. Nil when the request did not pass through the agent firewall. |
+| `agent_firewall_session_id`      | string                                                                                 | false    |              | Agent firewall session ID links this thread to an agent firewall confinement session. Nil when the request did not pass through the agent firewall.                                                                                       |
+| `agentic_actions`                | array of [codersdk.AIBridgeAgenticAction](#codersdkaibridgeagenticaction)              | false    |              |                                                                                                                                                                                                                                           |
+| `credential_hint`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `credential_kind`                | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `ended_at`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `started_at`                     | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `token_usage`                    | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                                                                                                                                           |
 
 ## codersdk.AIBridgeToolCall
 
@@ -2009,7 +2015,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "context": {
         "dirty": true,
         "dirty_since": "2019-08-24T14:15:22Z",
-        "error": "string"
+        "error": "string",
+        "resources": [
+          {
+            "error": "string",
+            "kind": "instruction_file",
+            "size_bytes": 0,
+            "skill_description": "string",
+            "skill_name": "string",
+            "source": "string",
+            "status": "ok",
+            "tools": [
+              {
+                "description": "string",
+                "name": "string"
+              }
+            ]
+          }
+        ]
       },
       "created_at": "2019-08-24T14:15:22Z",
       "diff_status": {
@@ -2057,70 +2080,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         "retryable": true,
         "status_code": 0
       },
-      "last_injected_context": [
-        {
-          "args": [
-            0
-          ],
-          "args_delta": "string",
-          "completed_at": "2019-08-24T14:15:22Z",
-          "content": "string",
-          "context_file_agent_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "context_file_content": "string",
-          "context_file_directory": "string",
-          "context_file_os": "string",
-          "context_file_path": "string",
-          "context_file_skill_meta_file": "string",
-          "context_file_truncated": true,
-          "created_at": "2019-08-24T14:15:22Z",
-          "data": [
-            0
-          ],
-          "end_line": 0,
-          "file_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "file_name": "string",
-          "is_error": true,
-          "is_media": true,
-          "mcp_server_config_id": {
-            "uuid": "string",
-            "valid": true
-          },
-          "media_type": "string",
-          "name": "string",
-          "parsed_commands": [
-            [
-              "string"
-            ]
-          ],
-          "provider_executed": true,
-          "provider_metadata": [
-            0
-          ],
-          "result": [
-            0
-          ],
-          "result_delta": "string",
-          "result_reset": true,
-          "signature": "string",
-          "skill_description": "string",
-          "skill_dir": "string",
-          "skill_name": "string",
-          "source_id": "string",
-          "start_line": 0,
-          "text": "string",
-          "title": "string",
-          "tool_call_id": "string",
-          "tool_name": "string",
-          "type": "text",
-          "url": "string"
-        }
-      ],
       "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
       "last_turn_summary": "string",
       "mcp_server_ids": [
@@ -2148,7 +2107,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "context": {
     "dirty": true,
     "dirty_since": "2019-08-24T14:15:22Z",
-    "error": "string"
+    "error": "string",
+    "resources": [
+      {
+        "error": "string",
+        "kind": "instruction_file",
+        "size_bytes": 0,
+        "skill_description": "string",
+        "skill_name": "string",
+        "source": "string",
+        "status": "ok",
+        "tools": [
+          {
+            "description": "string",
+            "name": "string"
+          }
+        ]
+      }
+    ]
   },
   "created_at": "2019-08-24T14:15:22Z",
   "diff_status": {
@@ -2196,70 +2172,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "retryable": true,
     "status_code": 0
   },
-  "last_injected_context": [
-    {
-      "args": [
-        0
-      ],
-      "args_delta": "string",
-      "completed_at": "2019-08-24T14:15:22Z",
-      "content": "string",
-      "context_file_agent_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "context_file_content": "string",
-      "context_file_directory": "string",
-      "context_file_os": "string",
-      "context_file_path": "string",
-      "context_file_skill_meta_file": "string",
-      "context_file_truncated": true,
-      "created_at": "2019-08-24T14:15:22Z",
-      "data": [
-        0
-      ],
-      "end_line": 0,
-      "file_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "file_name": "string",
-      "is_error": true,
-      "is_media": true,
-      "mcp_server_config_id": {
-        "uuid": "string",
-        "valid": true
-      },
-      "media_type": "string",
-      "name": "string",
-      "parsed_commands": [
-        [
-          "string"
-        ]
-      ],
-      "provider_executed": true,
-      "provider_metadata": [
-        0
-      ],
-      "result": [
-        0
-      ],
-      "result_delta": "string",
-      "result_reset": true,
-      "signature": "string",
-      "skill_description": "string",
-      "skill_dir": "string",
-      "skill_name": "string",
-      "source_id": "string",
-      "start_line": 0,
-      "text": "string",
-      "title": "string",
-      "tool_call_id": "string",
-      "tool_name": "string",
-      "type": "text",
-      "url": "string"
-    }
-  ],
   "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
   "last_turn_summary": "string",
   "mcp_server_ids": [
@@ -2286,40 +2198,39 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                    | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
-|-------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `archived`              | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `build_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `children`              | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
-| `client_type`           | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `context`               | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
-| `created_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `diff_status`           | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
-| `files`                 | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
-| `has_unread`            | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
-| `id`                    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `labels`                | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| » `[any property]`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_error`            | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_injected_context` | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart)   | false    |              | Last injected context holds the most recently persisted injected context parts (AGENTS.md files and skills). It is updated only when context changes, on first workspace attach or agent change.                                                                           |
-| `last_model_config_id`  | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `last_turn_summary`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `mcp_server_ids`        | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `organization_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_id`              | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_name`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `owner_username`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `parent_chat_id`        | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `pin_order`             | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
-| `plan_mode`             | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
-| `root_chat_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `shared`                | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
-| `status`                | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
-| `title`                 | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `updated_at`            | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
-| `warnings`              | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
-| `workspace_id`          | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| Name                   | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `archived`             | boolean                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `build_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `children`             | array of [codersdk.Chat](#codersdkchat)                         | false    |              | Children holds child (subagent) chats nested under this root chat. Always initialized to an empty slice so the JSON field is present as []. Child chats cannot create their own subagents, so nesting depth is capped at 1 and this slice is always empty for child chats. |
+| `client_type`          | [codersdk.ChatClientType](#codersdkchatclienttype)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `context`              | [codersdk.ChatContext](#codersdkchatcontext)                    | false    |              | Context reports the chat's pinned workspace-context state and whether it has drifted from the agent's latest pushed snapshot. Nil when the chat has no pinned context yet.                                                                                                 |
+| `created_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `diff_status`          | [codersdk.ChatDiffStatus](#codersdkchatdiffstatus)              | false    |              |                                                                                                                                                                                                                                                                            |
+| `files`                | array of [codersdk.ChatFileMetadata](#codersdkchatfilemetadata) | false    |              |                                                                                                                                                                                                                                                                            |
+| `has_unread`           | boolean                                                         | false    |              | Has unread is true when assistant messages exist beyond the owner's read cursor, which updates on stream connect and disconnect.                                                                                                                                           |
+| `id`                   | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `labels`               | object                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| » `[any property]`     | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_error`           | [codersdk.ChatError](#codersdkchaterror)                        | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_model_config_id` | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `last_turn_summary`    | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `mcp_server_ids`       | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `organization_id`      | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_id`             | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_name`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `owner_username`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `parent_chat_id`       | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `pin_order`            | integer                                                         | false    |              |                                                                                                                                                                                                                                                                            |
+| `plan_mode`            | [codersdk.ChatPlanMode](#codersdkchatplanmode)                  | false    |              |                                                                                                                                                                                                                                                                            |
+| `root_chat_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `shared`               | boolean                                                         | false    |              | Shared is true when this chat's root chat has explicit user or group ACL entries.                                                                                                                                                                                          |
+| `status`               | [codersdk.ChatStatus](#codersdkchatstatus)                      | false    |              |                                                                                                                                                                                                                                                                            |
+| `title`                | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `updated_at`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
+| `warnings`             | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                            |
+| `workspace_id`         | string                                                          | false    |              |                                                                                                                                                                                                                                                                            |
 
 ## codersdk.ChatACL
 
@@ -2425,17 +2336,112 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 {
   "dirty": true,
   "dirty_since": "2019-08-24T14:15:22Z",
-  "error": "string"
+  "error": "string",
+  "resources": [
+    {
+      "error": "string",
+      "kind": "instruction_file",
+      "size_bytes": 0,
+      "skill_description": "string",
+      "skill_name": "string",
+      "source": "string",
+      "status": "ok",
+      "tools": [
+        {
+          "description": "string",
+          "name": "string"
+        }
+      ]
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name          | Type    | Required | Restrictions | Description                                                                              |
-|---------------|---------|----------|--------------|------------------------------------------------------------------------------------------|
-| `dirty`       | boolean | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash. |
-| `dirty_since` | string  | false    |              | Dirty since is when drift was first detected; nil when not dirty.                        |
-| `error`       | string  | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).  |
+| Name          | Type                                                                  | Required | Restrictions | Description                                                                                                                                                                                                                                |
+|---------------|-----------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `dirty`       | boolean                                                               | false    |              | Dirty is true when the agent's latest snapshot hash differs from the chat's pinned hash.                                                                                                                                                   |
+| `dirty_since` | string                                                                | false    |              | Dirty since is when drift was first detected; nil when not dirty.                                                                                                                                                                          |
+| `error`       | string                                                                | false    |              | Error is the snapshot-level error copied from the pinned snapshot (empty when healthy).                                                                                                                                                    |
+| `resources`   | array of [codersdk.ChatContextResource](#codersdkchatcontextresource) | false    |              | Resources is the chat's pinned context (instruction files and skills) the prompt is built from, metadata only (no bodies). It is populated only on the single-chat GET response; list and watch payloads leave it nil to stay lightweight. |
+
+## codersdk.ChatContextResource
+
+```json
+{
+  "error": "string",
+  "kind": "instruction_file",
+  "size_bytes": 0,
+  "skill_description": "string",
+  "skill_name": "string",
+  "source": "string",
+  "status": "ok",
+  "tools": [
+    {
+      "description": "string",
+      "name": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                | Type                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                |
+|---------------------|--------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `error`             | string                                                                   | false    |              | Error explains a non-ok Status; empty when healthy. May also carry a non-fatal warning when Status is ok.                                                                                                                                                                  |
+| `kind`              | [codersdk.ChatContextResourceKind](#codersdkchatcontextresourcekind)     | false    |              |                                                                                                                                                                                                                                                                            |
+| `size_bytes`        | integer                                                                  | false    |              | Size bytes is the original payload size in bytes.                                                                                                                                                                                                                          |
+| `skill_description` | string                                                                   | false    |              |                                                                                                                                                                                                                                                                            |
+| `skill_name`        | string                                                                   | false    |              | Skill name and SkillDescription are populated only for skill kinds.                                                                                                                                                                                                        |
+| `source`            | string                                                                   | false    |              | Source is the resource locator: the canonical file path for an instruction file, the skill directory for a skill, the file path for an MCP config, or the server name for an MCP server.                                                                                   |
+| `status`            | [codersdk.ChatContextResourceStatus](#codersdkchatcontextresourcestatus) | false    |              | Status is the resource's health. Non-ok resources (invalid, unreadable, oversize, excluded) are still reported so the UI can surface why a resource was dropped from the prompt instead of silently omitting it; their body-specific fields (skill name, tools) are empty. |
+| `tools`             | array of [codersdk.ChatContextTool](#codersdkchatcontexttool)            | false    |              | Tools lists the tools exposed by an MCP server. Populated only for the mcp_server kind; nil otherwise.                                                                                                                                                                     |
+
+## codersdk.ChatContextResourceKind
+
+```json
+"instruction_file"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                |
+|---------------------------------------------------------|
+| `instruction_file`, `mcp_config`, `mcp_server`, `skill` |
+
+## codersdk.ChatContextResourceStatus
+
+```json
+"ok"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                              |
+|-------------------------------------------------------|
+| `excluded`, `invalid`, `ok`, `oversize`, `unreadable` |
+
+## codersdk.ChatContextTool
+
+```json
+{
+  "description": "string",
+  "name": "string"
+}
+```
+
+### Properties
+
+| Name          | Type   | Required | Restrictions | Description                                                                                                       |
+|---------------|--------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
+| `description` | string | false    |              | Description is the tool's human-readable summary; may be empty.                                                   |
+| `name`        | string | false    |              | Name is the tool name with the "<server>__" prefix the agent adds stripped, so it reads as the server exposes it. |
 
 ## codersdk.ChatDiffContents
 
@@ -3861,7 +3867,24 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "context": {
       "dirty": true,
       "dirty_since": "2019-08-24T14:15:22Z",
-      "error": "string"
+      "error": "string",
+      "resources": [
+        {
+          "error": "string",
+          "kind": "instruction_file",
+          "size_bytes": 0,
+          "skill_description": "string",
+          "skill_name": "string",
+          "source": "string",
+          "status": "ok",
+          "tools": [
+            {
+              "description": "string",
+              "name": "string"
+            }
+          ]
+        }
+      ]
     },
     "created_at": "2019-08-24T14:15:22Z",
     "diff_status": {
@@ -3909,70 +3932,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "retryable": true,
       "status_code": 0
     },
-    "last_injected_context": [
-      {
-        "args": [
-          0
-        ],
-        "args_delta": "string",
-        "completed_at": "2019-08-24T14:15:22Z",
-        "content": "string",
-        "context_file_agent_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "context_file_content": "string",
-        "context_file_directory": "string",
-        "context_file_os": "string",
-        "context_file_path": "string",
-        "context_file_skill_meta_file": "string",
-        "context_file_truncated": true,
-        "created_at": "2019-08-24T14:15:22Z",
-        "data": [
-          0
-        ],
-        "end_line": 0,
-        "file_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "file_name": "string",
-        "is_error": true,
-        "is_media": true,
-        "mcp_server_config_id": {
-          "uuid": "string",
-          "valid": true
-        },
-        "media_type": "string",
-        "name": "string",
-        "parsed_commands": [
-          [
-            "string"
-          ]
-        ],
-        "provider_executed": true,
-        "provider_metadata": [
-          0
-        ],
-        "result": [
-          0
-        ],
-        "result_delta": "string",
-        "result_reset": true,
-        "signature": "string",
-        "skill_description": "string",
-        "skill_dir": "string",
-        "skill_name": "string",
-        "source_id": "string",
-        "start_line": 0,
-        "text": "string",
-        "title": "string",
-        "tool_call_id": "string",
-        "tool_name": "string",
-        "type": "text",
-        "url": "string"
-      }
-    ],
     "last_model_config_id": "30ebb95f-c255-4759-9429-89aa4ec1554c",
     "last_turn_summary": "string",
     "mcp_server_ids": [
@@ -4819,7 +4778,8 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -4848,6 +4808,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `template_use_classic_parameter_flow` | boolean                                                                        | false    |              | Template use classic parameter flow allows optionally specifying whether the template should use the classic parameter flow. The default if unset is true, and is why `*bool` is used here. When dynamic parameters becomes the default, this will default to false.                                                |
 |`template_version_id`|string|true||Template version ID is an in-progress or completed job to use as an initial version of the template.
 This is required on creation to enable a user-flow of validating a template works. There is no reason the data-model cannot support empty templates, but it doesn't make sense for users.|
+|`time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled).|
 
 ## codersdk.CreateTemplateVersionDryRunRequest
 
@@ -11732,6 +11693,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -11774,6 +11736,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `organization_name`                | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `provisioner`                      | string                                                                         | false    |              |                                                                                                                                                                                                 |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates that workspaces are built with the active template version.                                                                                                     |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.                                     |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                 |
 | `updated_at`                       | string                                                                         | false    |              |                                                                                                                                                                                                 |
@@ -11965,6 +11928,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "id": "string",
   "name": "string",
   "os": "string",
+  "prerequisites": "string",
   "variables": [
     {
       "default": [
@@ -11982,14 +11946,15 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 
 ### Properties
 
-| Name          | Type                                                                                      | Required | Restrictions | Description |
-|---------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `description` | string                                                                                    | false    |              |             |
-| `icon`        | string                                                                                    | false    |              |             |
-| `id`          | string                                                                                    | false    |              |             |
-| `name`        | string                                                                                    | false    |              |             |
-| `os`          | string                                                                                    | false    |              |             |
-| `variables`   | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
+| Name            | Type                                                                                      | Required | Restrictions | Description |
+|-----------------|-------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `description`   | string                                                                                    | false    |              |             |
+| `icon`          | string                                                                                    | false    |              |             |
+| `id`            | string                                                                                    | false    |              |             |
+| `name`          | string                                                                                    | false    |              |             |
+| `os`            | string                                                                                    | false    |              |             |
+| `prerequisites` | string                                                                                    | false    |              |             |
+| `variables`     | array of [codersdk.TemplateBuilderModuleVariable](#codersdktemplatebuildermodulevariable) | false    |              |             |
 
 ## codersdk.TemplateBuilderBasesResponse
 
@@ -12002,6 +11967,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "id": "string",
       "name": "string",
       "os": "string",
+      "prerequisites": "string",
       "variables": [
         {
           "default": [
@@ -12191,6 +12157,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -13316,6 +13283,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -13346,6 +13314,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `max_port_share_level`             | [codersdk.WorkspaceAgentPortShareLevel](#codersdkworkspaceagentportsharelevel) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `name`                             | string                                                                         | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `require_active_version`           | boolean                                                                        | false    |              | Require active version mandates workspaces built using this template use the active version of the template. This option has no effect on template admins.                                                                                                                                                                                                                         |
+| `time_til_autostop_notify_ms`      | integer                                                                        | false    |              | Time til autostop notify ms allows optionally specifying the duration before the autostop deadline at which a reminder notification is sent for workspaces created from this template. Defaults to 0 (disabled). Omitting the field keeps the existing value.                                                                                                                      |
 | `time_til_dormant_autodelete_ms`   | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `time_til_dormant_ms`              | integer                                                                        | false    |              |                                                                                                                                                                                                                                                                                                                                                                                    |
 | `update_workspace_dormant_at`      | boolean                                                                        | false    |              | Update workspace dormant at updates the dormant_at field of workspaces spawned from the template. This is useful for preventing dormant workspaces being immediately deleted when updating the dormant_ttl field to a new, shorter value.                                                                                                                                          |

@@ -79,6 +79,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -138,6 +139,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -199,7 +201,8 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "name": "string",
   "require_active_version": true,
   "template_use_classic_parameter_flow": true,
-  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1"
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "time_til_autostop_notify_ms": 0
 }
 ```
 
@@ -265,6 +268,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/templa
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -417,6 +421,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/templat
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -839,6 +844,7 @@ To include deprecated templates, specify `deprecated:true` in the search query.
     "organization_name": "string",
     "provisioner": "terraform",
     "require_active_version": true,
+    "time_til_autostop_notify_ms": 0,
     "time_til_dormant_autodelete_ms": 0,
     "time_til_dormant_ms": 0,
     "updated_at": "2019-08-24T14:15:22Z",
@@ -898,6 +904,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 |`» organization_name`|string(url)|false|||
 |`» provisioner`|string|false|||
 |`» require_active_version`|boolean|false||Require active version mandates that workspaces are built with the active template version.|
+|`» time_til_autostop_notify_ms`|integer|false||Time til autostop notify ms is the duration before the workspace's autostop deadline at which a reminder notification is sent. 0 disables the notification.|
 |`» time_til_dormant_autodelete_ms`|integer|false|||
 |`» time_til_dormant_ms`|integer|false|||
 |`» updated_at`|string(date-time)|false|||
@@ -1043,6 +1050,7 @@ curl -X GET http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",
@@ -1147,6 +1155,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "max_port_share_level": "owner",
   "name": "string",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "update_workspace_dormant_at": true,
@@ -1217,6 +1226,7 @@ curl -X PATCH http://coder-server:8080/api/v2/templates/{template} \
   "organization_name": "string",
   "provisioner": "terraform",
   "require_active_version": true,
+  "time_til_autostop_notify_ms": 0,
   "time_til_dormant_autodelete_ms": 0,
   "time_til_dormant_ms": 0,
   "updated_at": "2019-08-24T14:15:22Z",

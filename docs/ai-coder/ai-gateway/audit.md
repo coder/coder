@@ -47,7 +47,7 @@ not just what was called.
 
 ### Sessions list
 
-The sessions page (`http://<deployment-url>/aibridge/sessions`) lists all sessions in
+The sessions page (`http://<deployment-url>/ai-gateway/sessions`) lists all sessions in
 reverse-chronological order. Each row shows the last prompt, initiator, provider,
 client, token usage, thread count, and timestamp.
 

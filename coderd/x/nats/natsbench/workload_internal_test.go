@@ -52,7 +52,8 @@ func TestAwaitDeliveryExactCount(t *testing.T) {
 
 	dur, err := w.awaitDelivery(ctx, time.Now())
 	require.NoError(t, err)
-	require.Positive(t, dur)
+	// Windows doesn't have high resolution timers, so dur can occasionally be 0 on that platform.
+	require.GreaterOrEqual(t, dur, time.Duration(0))
 	require.EqualValues(t, 3, w.totalDelivered())
 }
 
@@ -75,6 +76,7 @@ func TestAwaitDeliveryQuiescence(t *testing.T) {
 
 	dur, err := w.awaitDelivery(ctx, time.Now())
 	require.NoError(t, err)
+	// Windows doesn't have high resolution timers, so dur can occasionally be 0 on that platform.
 	require.GreaterOrEqual(t, dur, time.Duration(0))
 
 	select {

@@ -11,7 +11,7 @@ AI Gateway records the last `user` prompt, token usage, model reasoning, and eve
 
 ![User Leaderboard](../../images/aibridge/grafana_user_leaderboard.png)
 
-We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](https://github.com/coder/coder/blob/main/examples/monitoring/dashboards/grafana/aibridge/README.md).
+We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](../../../examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
@@ -98,7 +98,7 @@ AI Gateway interception data can be exported for external analysis, compliance r
 You can retrieve AI Gateway sessions via the Coder API, with filtering and pagination support.
 
 ```sh
-curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
+curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
@@ -131,7 +131,7 @@ Available query filters:
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 
-See the [API documentation](../../reference/api/aibridge.md) for full details.
+See the [API documentation](../../reference/api/aigateway.md) for full details.
 
 ## Data Retention
 

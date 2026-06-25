@@ -52,12 +52,13 @@ type TemplateBuilderModulesResponse struct {
 // TemplateBuilderBase is the API response type for a base template
 // returned by GET /api/v2/templatebuilder/bases.
 type TemplateBuilderBase struct {
-	ID          string                          `json:"id"`
-	Name        string                          `json:"name"`
-	Description string                          `json:"description"`
-	Icon        string                          `json:"icon"`
-	OS          string                          `json:"os"`
-	Variables   []TemplateBuilderModuleVariable `json:"variables"`
+	ID            string                          `json:"id"`
+	Name          string                          `json:"name"`
+	Description   string                          `json:"description"`
+	Icon          string                          `json:"icon"`
+	OS            string                          `json:"os"`
+	Variables     []TemplateBuilderModuleVariable `json:"variables"`
+	Prerequisites string                          `json:"prerequisites"`
 }
 
 // TemplateBuilderBasesResponse is the response body for listing template builder bases.

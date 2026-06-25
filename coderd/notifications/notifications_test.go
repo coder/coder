@@ -844,6 +844,19 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
+			name: "TemplateWorkspaceAutostopReminder",
+			id:   notifications.TemplateWorkspaceAutostopReminder,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"deadline":  "2024-03-15 14:00 UTC",
+				},
+			},
+		},
+		{
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{

@@ -48,7 +48,7 @@ type RoundTripDumper interface {
 const (
 	// ProxyAuthRealm is the realm used in Proxy-Authenticate challenges.
 	// The realm helps clients identify which credentials to use.
-	ProxyAuthRealm = `"Coder AI Bridge Proxy"`
+	ProxyAuthRealm = `"Coder AI Gateway Proxy"`
 )
 
 // proxyAuthRequiredMsg is the response body for 407 responses.
@@ -127,6 +127,8 @@ type Server struct {
 	listener       net.Listener
 	tlsEnabled     bool
 	coderAccessURL *url.URL
+	// coderAccessPort is the resolved port for the Coder access URL.
+	coderAccessPort string
 	// refreshProviders fetches the live provider snapshot on Reload.
 	// Nil disables hot-reload.
 	refreshProviders RefreshProvidersFunc
@@ -265,7 +267,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			coderAccessPort = "80"
 		}
 	}
-	coderAccessURL.Host = net.JoinHostPort(coderAccessURL.Hostname(), coderAccessPort)
 
 	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
 	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
@@ -325,6 +326,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy:                proxy,
 		tlsEnabled:           opts.TLSCertFile != "",
 		coderAccessURL:       coderAccessURL,
+		coderAccessPort:      coderAccessPort,
 		refreshProviders:     opts.RefreshProviders,
 		allowedPorts:         allowedPorts,
 		caCert:               certPEM,
@@ -801,7 +803,7 @@ func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
 	// block connections to its own deployment. Hostname-based (not IP-based)
 	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
 	// The port is normalized at startup to handle URLs without explicit ports.
-	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessURL.Port() {
+	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessPort {
 		return false
 	}
 
@@ -912,7 +914,7 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		)
 
 		resp := goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusProxyAuthRequired, "Proxy authentication required")
-		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Bridge Proxy"`)
+		resp.Header.Set("Proxy-Authenticate", `Basic realm="Coder AI Gateway Proxy"`)
 		return req, resp
 	}
 
@@ -968,16 +970,16 @@ func (s *Server) handleRequest(req *http.Request, ctx *goproxy.ProxyCtx) (*http.
 		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Proxy misconfigured")
 	}
 
-	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), "api/v2/aibridge", reqCtx.Provider, originalPath)
+	aiBridgeURL, err := url.JoinPath(s.coderAccessURL.String(), agplaibridge.AIGatewayRootPath, reqCtx.Provider, originalPath)
 	if err != nil {
 		logger.Error(s.ctx, "failed to build aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to build AI Gateway URL")
 	}
 
 	aiBridgeParsedURL, err := url.Parse(aiBridgeURL)
 	if err != nil {
 		logger.Error(s.ctx, "failed to parse aibridged URL", slog.Error(err))
-		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Bridge URL")
+		return req, goproxy.NewResponse(req, goproxy.ContentTypeText, http.StatusInternalServerError, "Failed to parse AI Gateway URL")
 	}
 
 	// Preserve query parameters from the original request.

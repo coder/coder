@@ -911,7 +911,7 @@ TEMPLATE BUILDER OPTIONS:
           Disable the template builder feature for guided template creation.
           When disabled, all /api/v2/templatebuilder/* endpoints return 404.
 
-      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: https://registry.coder.com)
+      --template-builder-registry-url string, $CODER_TEMPLATE_BUILDER_REGISTRY_URL (default: registry.coder.com)
           The base URL of the module registry used by the template builder for
           module source paths.
 

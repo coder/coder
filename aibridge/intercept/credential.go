@@ -28,7 +28,7 @@ const (
 // before failover selects a key, and a key resolved dynamically at request time.
 const (
 	hintFailoverKey     = "<failover key>"
-	hintBedrockChainKey = "<aws chain credentials>"
+	hintBedrockChainKey = "<aws chain>"
 )
 
 // Credential is the per-request upstream authentication for an interception:

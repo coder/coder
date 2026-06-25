@@ -4776,7 +4776,7 @@ Write out the current server config as YAML to stdout.`,
 			Flag:        "template-builder-registry-url",
 			Env:         "CODER_TEMPLATE_BUILDER_REGISTRY_URL",
 			Value:       &c.TemplateBuilder.RegistryURL,
-			Default:     "https://registry.coder.com",
+			Default:     "registry.coder.com",
 			Group:       &deploymentGroupTemplateBuilder,
 			YAML:        "registryURL",
 		},
@@ -5208,7 +5208,9 @@ var ExperimentsKnown = Experiments{
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentMinimumImplicitMember,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

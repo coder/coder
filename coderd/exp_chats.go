@@ -2042,6 +2042,23 @@ func (api *API) getChat(rw http.ResponseWriter, r *http.Request) {
 
 	sdkChat := db2sdk.Chat(chat, diffStatus, chatFiles)
 
+	// Enrich the lightweight context summary with the chat's pinned
+	// resources (metadata only). This detail is computed on read and only
+	// attached on the single-chat GET; list and watch payloads stay
+	// lightweight. A failure here is non-fatal: the chat is still usable
+	// without the detail, so we log and return the rest of the response.
+	if sdkChat.Context != nil && api.chatDaemon != nil {
+		resources, err := api.chatDaemon.ContextResources(ctx, chat)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to compute chat context resources",
+				slog.F("chat_id", chat.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.Context.Resources = resources
+		}
+	}
+
 	// For root chats, embed children so callers get a complete
 	// tree in a single response.
 	if !chat.ParentChatID.Valid {
@@ -2647,7 +2664,26 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.Chat(updated, nil, nil))
+	sdkChat := db2sdk.Chat(updated, nil, nil)
+
+	// Enrich the context summary with the freshly pinned resources so the
+	// client reflects the refresh immediately, without a full reload. This
+	// mirrors getChat; we pass the re-pinned chat so the detail reflects the
+	// post-refresh state. A failure here is non-fatal: the refresh already
+	// succeeded, so we log and return the rest of the response.
+	if sdkChat.Context != nil && api.chatDaemon != nil {
+		resources, err := api.chatDaemon.ContextResources(ctx, updated)
+		if err != nil {
+			api.Logger.Error(ctx, "failed to compute chat context resources after refresh",
+				slog.F("chat_id", updated.ID),
+				slog.Error(err),
+			)
+		} else {
+			sdkChat.Context.Resources = resources
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, sdkChat)
 }
 
 // patchChat updates a chat resource. Supports updating labels,
@@ -6129,10 +6165,10 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 	}
 	// application/octet-stream means the client could not classify the file
 	// ahead of time, so we defer to byte classification below.
-	if contentType != "application/octet-stream" && !chatfiles.IsAllowedStoredMediaType(contentType) {
+	if contentType != "application/octet-stream" && !chatfiles.IsAllowedPromptInputMediaType(contentType) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Unsupported file type.",
-			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
 		})
 		return
 	}
@@ -6163,7 +6199,7 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Verify the actual content matches an allowed file type so that
+	// Classify the actual content before applying the upload policy so
 	// a client cannot spoof Content-Type to serve active content.
 	filename, detected, err := chatfiles.PrepareStoredFile(filename, filename, data)
 	if err != nil {
@@ -6173,17 +6209,19 @@ func (api *API) postChatFile(rw http.ResponseWriter, r *http.Request) {
 				Message: "Filename is required.",
 				Detail:  "Provide a filename in the Content-Disposition header.",
 			})
-		case errors.Is(err, chatfiles.ErrUnsupportedStoredFileType):
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Unsupported file type.",
-				Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedStoredMediaTypesString()),
-			})
 		default:
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Invalid file.",
 				Detail:  err.Error(),
 			})
 		}
+		return
+	}
+	if !chatfiles.IsAllowedPromptInputMediaType(detected) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unsupported file type.",
+			Detail:  fmt.Sprintf("Allowed types: %s.", chatfiles.AllowedPromptInputMediaTypesString()),
+		})
 		return
 	}
 	// The compatibility check below is security-critical: it keeps exact
@@ -6332,6 +6370,12 @@ func createChatInputFromParts(
 				return nil, "", nil, &codersdk.Response{
 					Message: "Internal error.",
 					Detail:  fmt.Sprintf("Failed to retrieve file for %s[%d].", fieldName, i),
+				}
+			}
+			if !chatfiles.IsAllowedPromptInputMediaType(chatFile.Mimetype) {
+				return nil, "", nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].file_id references a file type that cannot be used as prompt input. Allowed types: %s.", fieldName, i, chatfiles.AllowedPromptInputMediaTypesString()),
 				}
 			}
 			content = append(content, codersdk.ChatMessageFile(part.FileID, chatFile.Mimetype, chatFile.Name))

@@ -75,7 +75,7 @@ const stepCircleVariants = cva(
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-secondary",
+				upcoming: "border-border text-content-disabled",
 			},
 		},
 	},
@@ -86,7 +86,7 @@ const stepLabelVariants = cva("font-normal mr-2", {
 		variant: {
 			complete: "text-content-primary",
 			current: "text-content-primary",
-			upcoming: "text-content-secondary",
+			upcoming: "text-content-disabled",
 		},
 	},
 });
@@ -154,7 +154,7 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 					alt={`${template.name} icon`}
 					className="w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
 				/>
-				<span className="ml-2">{template.name}</span>
+				<span className="ml-2 text-content-secondary">{template.name}</span>
 			</div>
 		</StepDivider>
 	);
@@ -183,7 +183,9 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 							className="block w-6 h-6 p-1 rounded-sm border border-border border-solid bg-surface-secondary"
 						/>
 					</div>
-					<span className="ml-2">{module.name}</span>
+					<span className="flex-1 ml-2 text-content-secondary">
+						{module.name}
+					</span>
 					<div className="h-[1lh] content-center">
 						<Button
 							size="xs"
