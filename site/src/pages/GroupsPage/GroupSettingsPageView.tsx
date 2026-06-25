@@ -62,34 +62,28 @@ const AIBudgetFeedback: FC<AIBudgetFeedbackProps> = ({
 	}
 
 	const budgetValue = monthlyBudgetPerMember.trim();
-	if (budgetValue === "") {
-		return (
-			<>
-				<span className="text-left text-xs text-content-secondary">
-					This group has{" "}
-					<span className="font-medium text-content-primary">
-						unlimited budget
-					</span>
-					.
-				</span>
-				<Alert severity="info">
-					Members in this group have no spending cap.
-				</Alert>
-			</>
-		);
-	}
-
 	const budgetAmount = Number(budgetValue);
-	if (budgetAmount === 0) {
+
+	// Empty means unlimited spend; $0 disables AI access. Both states show an
+	// explanatory alert alongside the summary line.
+	if (budgetValue === "" || budgetAmount === 0) {
+		const { label, message } =
+			budgetValue === ""
+				? {
+						label: "unlimited budget",
+						message: "Members in this group have no spending cap.",
+					}
+				: {
+						label: "no budget",
+						message: "A $0 limit disables AI access for this group.",
+					};
 		return (
 			<>
 				<span className="text-left text-xs text-content-secondary">
 					This group has{" "}
-					<span className="font-medium text-content-primary">no budget</span>.
+					<span className="font-medium text-content-primary">{label}</span>.
 				</span>
-				<Alert severity="info">
-					A $0 limit disables AI access for this group.
-				</Alert>
+				<Alert severity="info">{message}</Alert>
 			</>
 		);
 	}
