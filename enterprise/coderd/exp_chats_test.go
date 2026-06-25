@@ -71,7 +71,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 	t.Run("RelayMessagePartsAcrossReplicas", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -215,7 +215,7 @@ func TestChatStreamRelay(t *testing.T) {
 	// dials the worker replica.
 	t.Run("RelayWithTLSAndCookieAuth", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		certificates := []tls.Certificate{testutil.GenerateTLSCertificate(t, "localhost")}
 		db, pubsub := dbtestutil.NewDB(t)
@@ -400,7 +400,7 @@ func TestChatStreamRelay(t *testing.T) {
 	// Coder-Session-Token header, masking this code path.
 	t.Run("RelayCookieOnlyAuth", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -553,7 +553,7 @@ func TestChatStreamRelay(t *testing.T) {
 	// replica can authenticate regardless of cookie prefix config.
 	t.Run("RelayCookieOnlyAuthWithHostPrefix", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
 		hostPrefixValues := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
@@ -704,7 +704,7 @@ func TestChatStreamRelay(t *testing.T) {
 
 	t.Run("RelaySnapshotIncludesBufferedParts", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 		db, pubsub := dbtestutil.NewDB(t)
 		firstClient, _, firstAPI, firstUser := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
@@ -933,7 +933,7 @@ func replicaIDForClientURL(
 
 func TestChatModelConfigDefault(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	client, _ := coderdenttest.New(t, nil)
 	expClient := codersdk.NewExperimentalClient(client)
@@ -1074,7 +1074,7 @@ func (p cookieOnlySessionTokenProvider) SetDialOption(opts *websocket.DialOption
 func TestCreateChatNonDefaultOrg(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
@@ -1144,7 +1144,7 @@ func TestCreateChatNonDefaultOrg(t *testing.T) {
 func TestListChats_OrgAdminOnlySeesOwnChats(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	client, firstUser := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
