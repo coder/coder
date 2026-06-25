@@ -1,4 +1,4 @@
-# Quickstart
+# Launch your first workspace
 
 Follow this guide to get your first Coder development environment
 running in under 10 minutes. This guide covers the essential concepts and shows
@@ -7,32 +7,12 @@ This workspace includes a basic set of tools to edit most code bases.
 
 ## What you'll do
 
-In this quickstart, you'll:
+In this guide, you'll do the following:
 
 - ✅ Install Coder server.
 - ✅ Create a **template** (blueprint for dev environments).
 - ✅ Launch a **workspace** (your actual dev environment).
 - ✅ Connect from your favorite IDE.
-
-## A 30-second metaphor for Coder
-
-Before diving in, the following table breaks down the core concepts that power Coder,
-explained through a cooking analogy:
-
-| Component      | What It Is                                                                           | Real-World Analogy             |
-|----------------|--------------------------------------------------------------------------------------|--------------------------------|
-| **You**        | The engineer/developer/builder working                                               | The head chef cooking the meal |
-| **Templates**  | A Terraform blueprint that defines your dev environment (OS, tools, resources)       | Recipe for a meal              |
-| **Workspaces** | The actual running environment created from the template                             | The cooked meal                |
-| **Users**      | A developer who launches the workspace from a template and does their work inside it | The people eating the meal     |
-
-**Putting it Together:** Coder separates who _defines_ environments from who _uses_ them. Admins create and manage Templates, the recipes, while developers use those Templates to launch Workspaces, the meals.
-
-## Prerequisites
-
-- A machine with 2+ CPU cores and 4GB+ RAM
-- Familiarity with running commands in the terminal
-- 10 minutes of your time
 
 > [!TIP]
 > If you use a coding agent like Claude Code, the [coder/skills](https://github.com/coder/skills) `setup` skill can train the coding agent on the following steps (install a container runtime, install Coder, create your first template, and launch a workspace).
@@ -201,7 +181,7 @@ lines of output, so you might have to scroll up to find it.
    You can also choose to **Continue with GitHub** instead of creating an admin
    account. Coder automatically grants admin permissions to the first user that signs in.
 
-   ![Welcome to Coder - Create admin user](../images/screenshots/welcome-create-admin-user.png)
+   ![Welcome to Coder - Create admin user](../../images/screenshots/welcome-create-admin-user.png)
 
 ## Step 4: Create your first template and workspace
 
@@ -223,7 +203,7 @@ Templates define what's in your development environment. The following is a basi
 
 4. Select **Save**.
 
-   ![Create template](../images/screenshots/create-template.png)
+   ![Create template](../../images/screenshots/create-template.png)
 
 **What just happened?** You defined a template — a reusable blueprint for dev
 environments — in your Coder deployment. It's now stored in your organization's
@@ -236,7 +216,7 @@ from it. Now it's time launch a workspace.
 
 2. Give the workspace a name. If you need a suggestion for a workspace, you can select the automatically generated name next to the **Need a suggestion?** label.
 
-3. In this window are [parameters](../admin/templates/extending-templates/parameters.md) that customize the workspace's behavior. Set the following based on your needs:
+3. In this window are [parameters](../../admin/templates/extending-templates/parameters.md) that customize the workspace's behavior. Set the following based on your needs:
 
    - **Programming Languages**: the languages to pre-install in your workspace. You can use more than one if you want.
    - **IDEs & Editors**: the IDEs and editors you want to configure for quick access once the workspace is running. You can choose more than one if you want.
@@ -248,7 +228,7 @@ from it. Now it's time launch a workspace.
 
 After a short wait (10-15 seconds on most modern computers), Coder will start your new workspace:
 
-![getting-started-workspace is running](../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
+![getting-started-workspace is running](../../images/screenshots/workspace-running-with-topbar.png)_Workspace is running_
 
 ## Step 6: Connect your IDE
 
@@ -260,7 +240,7 @@ but the process is similar for other IDEs and editors.
 After VS Code loads the remote environment, you can select **Open Folder** to
 explore directories in the Docker container or work on something new.
 
-![Changing directories in VS Code](../images/screenshots/change-directory-vscode.png)
+![Changing directories in VS Code](../../images/screenshots/change-directory-vscode.png)
 
 If you didn't clone an existing Git repository when you created your
 workspace, you can clone it manually if you want:
@@ -290,19 +270,6 @@ You now have:
 - A template defining your environment.
 - A workspace running that environment.
 - IDE access to code remotely.
-
-### What's next?
-
-Now that you have your own workspace running, you can start exploring more
-advanced capabilities that Coder offers.
-
-- [Try Coder Agents](../ai-coder/agents/getting-started.md), the chat
-  interface and API for delegating development work to coding agents in your
-  Coder deployment.
-
-- [Read about managing Workspaces for your team](../user-guides/workspace-management.md)
-
-- [Read about implementing monitoring tools for your Coder Deployment](../admin/monitoring/index.md)
 
 ## Troubleshooting
 
@@ -447,3 +414,17 @@ then start the server again.
    ```shell
    coder server
    ```
+
+### What's next?
+
+Now that you have a running Coder server and a running workspace, you can move on to part 2 of the Quickstart series, [Customize workspace startup](./customize-workspace-startup.md).
+
+You can also start exploring more advanced capabilities that Coder offers:
+
+- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat
+  interface and API for delegating development work to coding agents in your
+  Coder deployment.
+
+- [Read about managing workspaces for your team](../../user-guides/workspace-management.md).
+
+- [Implement monitoring tools for your Coder deployment](../../admin/monitoring/index.md).
