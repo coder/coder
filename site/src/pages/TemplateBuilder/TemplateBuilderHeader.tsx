@@ -1,12 +1,10 @@
-import type { ComponentProps, FC } from "react";
+import type { FC, PropsWithChildren } from "react";
 
-export const TemplateBuilderTitle: FC<ComponentProps<"h2">> = ({
-	children,
-}) => {
+export const TemplateBuilderTitle: FC<PropsWithChildren> = ({ children }) => {
 	return <h2 className="text-xl font-semibold mb-1">{children}</h2>;
 };
 
-export const TemplateBuilderSubtitle: FC<ComponentProps<"p">> = ({
+export const TemplateBuilderSubtitle: FC<PropsWithChildren> = ({
 	children,
 }) => {
 	return (
