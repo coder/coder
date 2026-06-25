@@ -51,10 +51,9 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// nolint:gocritic // System must look up the AI Gateway key to authenticate the request.
+	// nolint:gocritic // AI Gateway doesn't have Coder identity.System must look up the AI Gateway key to authenticate the request.
 	gatewayKey, err := api.Database.GetAIGatewayKeyByHashedSecret(dbauthz.AsSystemRestricted(r.Context()), apikey.HashSecret(key))
 	if err != nil {
-		// The lookup is an exact match, missing row means key is invalid.
 		if httpapi.Is404Error(err) {
 			httpapi.Write(r.Context(), rw, http.StatusUnauthorized, codersdk.Response{
 				Message: "AI Gateway key invalid.",
@@ -83,7 +82,7 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	// keyCtx has the lifetime of the authenticated session.
 	// It is canceled when the request ends or when the
 	// authenticating key is deleted (from aiGatewayTrackKeyUsage).
-	// The connection and DRPC server contexts derive from it,
+	// The connection / DRPC server context derive from it,
 	// canceling keyCtx tears down the session.
 	keyCtx, keyCtxCancel := context.WithCancel(r.Context())
 	defer keyCtxCancel()
@@ -125,7 +124,6 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Multiplex the incoming connection using yamux.
 	config := yamux.DefaultConfig()
 	config.LogOutput = io.Discard
 	connCtx, wsNetConn := codersdk.WebsocketNetConn(keyCtx, conn, websocket.MessageBinary)
@@ -137,14 +135,9 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The served DRPC services run with the aibridged authz subject. Layering it
-	// onto connCtx keeps srvCtx canceling together with keyCtx.
-	// nolint:gocritic // A standalone AI Gateway acts as the AI Bridge daemon.
-	srvCtx := dbauthz.AsAIBridged(connCtx)
-
 	mux := drpcmux.New()
 	srv, err := aibridgedserver.NewServer(
-		srvCtx,
+		connCtx,
 		api.Database,
 		logger,
 		api.AccessURL.String(),
@@ -155,7 +148,7 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		if !xerrors.Is(err, context.Canceled) {
-			logger.Error(srvCtx, "create aibridge server", slog.Error(err))
+			logger.Error(connCtx, "create aibridge server", slog.Error(err))
 		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("create aibridge server: %s", err))
 		return
@@ -172,19 +165,19 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 				if xerrors.Is(err, io.EOF) {
 					return
 				}
-				logger.Debug(srvCtx, "drpc server error", slog.Error(err))
+				logger.Debug(connCtx, "drpc server error", slog.Error(err))
 			},
 		},
 	)
 
 	// Log the request immediately instead of after it completes.
-	if rl := loggermw.RequestLoggerFromContext(srvCtx); rl != nil {
-		rl.WriteLog(srvCtx, http.StatusAccepted)
+	if rl := loggermw.RequestLoggerFromContext(connCtx); rl != nil {
+		rl.WriteLog(connCtx, http.StatusAccepted)
 	}
 
-	logger.Info(srvCtx, "opened AI Gateway connection")
-	err = server.Serve(srvCtx, session)
-	logger.Info(srvCtx, "closed AI Gateway connection", slog.Error(err))
+	logger.Info(connCtx, "opened AI Gateway connection")
+	err = server.Serve(connCtx, session)
+	logger.Info(connCtx, "closed AI Gateway connection", slog.Error(err))
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("serve: %s", err))
 		return
@@ -201,10 +194,7 @@ func aiGatewayUpdateKeyLastUsed(ctx context.Context, api *API, keyID uuid.UUID) 
 	return rows > 0, nil
 }
 
-// aiGatewayTrackKeyUsage refreshes last_used_at for keyID on a fixed interval
-// until ctx is canceled. The caller records the initial usage; this loop
-// handles subsequent refreshes and cancels the session via cancel if the key
-// no longer exists.
+// aiGatewayTrackKeyUsage refreshes last_used_at for keyID on a fixed interval until ctx is canceled.
 func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, api *API, keyID uuid.UUID, logger slog.Logger) {
 	ticker, done := api.NewTicker(aiGatewayKeyLastUsedInterval)
 	defer done()

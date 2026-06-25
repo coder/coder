@@ -25,7 +25,7 @@ import (
 // gateway key and API version. On a successful WebSocket upgrade it returns a
 // yamux session and http.StatusSwitchingProtocols. Otherwise it returns a nil
 // session and the HTTP status code coderd responded with.
-func dialAIBridgeServe(ctx context.Context, t *testing.T, client *codersdk.Client, key, version string) (*yamux.Session, int) {
+func dialAIBridgeServe(ctx context.Context, t *testing.T, client *codersdk.Client, key string, version string) (*yamux.Session, int) {
 	t.Helper()
 
 	serverURL, err := client.URL.Parse("/api/v2/ai-gateway/serve")
@@ -68,153 +68,156 @@ func dialAIBridgeServe(ctx context.Context, t *testing.T, client *codersdk.Clien
 	return session, http.StatusSwitchingProtocols
 }
 
-func TestAIBridgeServe(t *testing.T) {
+func TestAIBridgeServeSuccess(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Success", func(t *testing.T) {
-		t.Parallel()
-		client, firstUser := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
+	client, firstUser := coderdenttest.New(t, aibridgeOpts(t))
+	ctx := testutil.Context(t, testutil.WaitLong)
 
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-success"})
-		require.NoError(t, err)
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-success"})
+	require.NoError(t, err)
 
-		session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusSwitchingProtocols, status)
-		require.NotNil(t, session)
+	session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
+	require.Equal(t, http.StatusSwitchingProtocols, status)
+	require.NotNil(t, session)
 
-		// The Authorizer service should be served and authorize the owner's
-		// session token, exercising a full DRPC round trip over the WebSocket.
-		authorizer := aibridgedproto.NewDRPCAuthorizerClient(drpcsdk.MultiplexedConn(session))
-		resp, err := authorizer.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{
-			Key: client.SessionToken(),
-		})
-		require.NoError(t, err)
-		require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
+	// The Authorizer service should be served and authorize the owner's
+	// session token, exercising a full DRPC round trip over the WebSocket.
+	authorizer := aibridgedproto.NewDRPCAuthorizerClient(drpcsdk.MultiplexedConn(session))
+	resp, err := authorizer.IsAuthorized(ctx, &aibridgedproto.IsAuthorizedRequest{
+		Key: client.SessionToken(),
+	})
+	require.NoError(t, err)
+	require.Equal(t, firstUser.UserID.String(), resp.GetOwnerId())
 
-		// The session records liveness for the authenticating key.
-		require.Eventually(t, func() bool {
-			//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-			keys, err := client.ListAIGatewayKeys(ctx)
-			if err != nil {
-				return false
-			}
-			for _, k := range keys {
-				if k.ID == created.ID {
-					return k.LastUsedAt != nil
-				}
-			}
+	// The session records liveness for the authenticating key.
+	require.Eventually(t, func() bool {
+		//nolint:gocritic // Owner role is needed for gateway key management.
+		keys, err := client.ListAIGatewayKeys(ctx)
+		if err != nil {
 			return false
-		}, testutil.WaitMedium, testutil.IntervalFast)
-	})
-
-	t.Run("MissingKey", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		_, status := dialAIBridgeServe(ctx, t, client, "", aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusUnauthorized, status)
-	})
-
-	t.Run("InvalidKey", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		_, status := dialAIBridgeServe(ctx, t, client, "not-a-real-key", aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusUnauthorized, status)
-	})
-
-	t.Run("RevokedKey", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-revoked"})
-		require.NoError(t, err)
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		require.NoError(t, client.DeleteAIGatewayKey(ctx, created.ID))
-
-		_, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusUnauthorized, status)
-	})
-
-	t.Run("IncompatibleVersion", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-badversion"})
-		require.NoError(t, err)
-
-		_, status := dialAIBridgeServe(ctx, t, client, created.Key, "999.0")
-		require.Equal(t, http.StatusBadRequest, status)
-	})
-
-	t.Run("MissingVersion", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-missing-version"})
-		require.NoError(t, err)
-
-		_, status := dialAIBridgeServe(ctx, t, client, created.Key, "")
-		require.Equal(t, http.StatusBadRequest, status)
-	})
-
-	t.Run("DeletedKeyClosesActiveSession", func(t *testing.T) {
-		t.Parallel()
-		tick := make(chan time.Time, 1)
-		opts := aibridgeOpts(t)
-		opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
-			return tick, func() {}
 		}
-
-		client, _ := coderdenttest.New(t, opts)
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-delete-active"})
-		require.NoError(t, err)
-
-		session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusSwitchingProtocols, status)
-		require.NotNil(t, session)
-
-		//nolint:gocritic // Owner role is irrelevant for gateway key management here.
-		require.NoError(t, client.DeleteAIGatewayKey(ctx, created.ID))
-
-		tick <- time.Now()
-		require.Eventually(t, func() bool {
-			select {
-			case <-session.CloseChan():
-				return true
-			default:
-				return false
+		for _, k := range keys {
+			if k.ID == created.ID {
+				return k.LastUsedAt != nil
 			}
-		}, testutil.WaitShort, testutil.IntervalFast)
-	})
+		}
+		return false
+	}, testutil.WaitMedium, testutil.IntervalFast)
+}
 
-	t.Run("MissingEntitlement", func(t *testing.T) {
-		t.Parallel()
-		// Enable the bridge config but do not grant the FeatureAIBridge license.
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{DeploymentValues: dv},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{},
-			},
+func TestAIBridgeServeKeyAndVersionValidationErr(t *testing.T) {
+	t.Parallel()
+
+	client, _ := coderdenttest.New(t, aibridgeOpts(t))
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-quick-failures"})
+	require.NoError(t, err)
+	validKey := created.Key
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	revoked, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-revoked"})
+	require.NoError(t, err)
+	require.NoError(t, client.DeleteAIGatewayKey(ctx, revoked.ID))
+
+	tests := []struct {
+		name       string
+		key        string
+		version    string
+		wantStatus int
+	}{
+		{
+			name:       "MissingKey",
+			key:        "",
+			version:    aibridgedproto.CurrentVersion.String(),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "InvalidKey",
+			key:        "not-a-real-key",
+			version:    aibridgedproto.CurrentVersion.String(),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "RevokedKey",
+			key:        revoked.Key,
+			version:    aibridgedproto.CurrentVersion.String(),
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "IncompatibleVersion",
+			key:        validKey,
+			version:    "999.0",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "MissingVersion",
+			key:        validKey,
+			version:    "",
+			wantStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, status := dialAIBridgeServe(t.Context(), t, client, tc.key, tc.version)
+			require.Equal(t, tc.wantStatus, status)
 		})
-		ctx := testutil.Context(t, testutil.WaitLong)
+	}
+}
 
-		_, status := dialAIBridgeServe(ctx, t, client, "any-key", aibridgedproto.CurrentVersion.String())
-		require.Equal(t, http.StatusForbidden, status)
+func TestAIBridgeServeMissingEntitlement(t *testing.T) {
+	t.Parallel()
+
+	// Enable the bridge config but do not grant the FeatureAIBridge license.
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	client, _ := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{},
+		},
 	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	_, status := dialAIBridgeServe(ctx, t, client, "any-key", aibridgedproto.CurrentVersion.String())
+	require.Equal(t, http.StatusForbidden, status)
+}
+
+func TestAIBridgeServeDeletedKeyClosesActiveSession(t *testing.T) {
+	t.Parallel()
+
+	tick := make(chan time.Time, 1)
+	opts := aibridgeOpts(t)
+	opts.Options.NewTicker = func(time.Duration) (<-chan time.Time, func()) {
+		return tick, func() {}
+	}
+
+	client, _ := coderdenttest.New(t, opts)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	created, err := client.CreateAIGatewayKey(ctx, codersdk.CreateAIGatewayKeyRequest{Name: "serve-delete-active"})
+	require.NoError(t, err)
+
+	session, status := dialAIBridgeServe(ctx, t, client, created.Key, aibridgedproto.CurrentVersion.String())
+	require.Equal(t, http.StatusSwitchingProtocols, status)
+	require.NotNil(t, session)
+
+	//nolint:gocritic // Owner role is needed for gateway key management.
+	require.NoError(t, client.DeleteAIGatewayKey(ctx, created.ID))
+
+	tick <- time.Now() // trigger aiGatewayTrackKeyUsage.
+	require.Eventually(t, func() bool {
+		select {
+		case <-session.CloseChan():
+			return true
+		default:
+			return false
+		}
+	}, testutil.WaitShort, testutil.IntervalFast)
 }

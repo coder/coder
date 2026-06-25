@@ -600,7 +600,7 @@ externalAuthLoop:
 // AI Gateway key, which are fully trusted. Standalone AI Gateway authenticates its
 // own users and acts on their behalf, much like a provisioner daemon. A Gateway key
 // holder can therefore act as any user without that user's secret. Per-user
-// authorization on this surface is a known gap to tighten later.
+// authorization on this surface is a known gap.
 //
 // NOTE: this should really be using the code from [httpmw.ExtractAPIKey]. That function not only validates the key
 // but handles many other cases like updating last used, expiry, etc. This code does not currently use it for
