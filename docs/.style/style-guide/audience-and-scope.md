@@ -45,7 +45,7 @@ For Windsurf, refer to [Windsurf](./windsurf.md).
 # Connect to your Coder workspace
 
 This page covers Visual Studio Code, Cursor, Windsurf, JetBrains, Vim, the web terminal, and SSH.
-Operators provisioning the workspace template should refer to the section below on template configuration.
+Operators provisioning the workspace template should refer to the template configuration page.
 ```
 
 ## Pick one outcome per page
@@ -145,7 +145,7 @@ Conventions:
 - The first paragraph names the audience and confirms the outcome.
 - The first paragraph also links to sibling pages for adjacent audiences or outcomes when those exist.
 
-Do not put a metadata line such as `*Audience: a developer.*` above the first paragraph.
+Do not put a metadata line such as `*Audience: a developer.*` before the first paragraph.
 The audience appears in the prose itself.
 Do not use the [persona names](#personas-the-coder-docs-serve) inside the page body either.
 Persona names are vocabulary for writers planning the page, not for readers reading it.
@@ -181,7 +181,7 @@ If the page teaches a single outcome, rename the title and rewrite the opening p
 Some pages walk through steps that only one role should run.
 If a reader from the wrong role follows the steps, they may misconfigure the deployment, escalate their own permissions, or break something for everyone else.
 
-For pages of that kind, add an `IMPORTANT` callout at the top of the page that names the required role and tells the wrong-role reader who to ask.
+For pages of that kind, add an `IMPORTANT` callout at the beginning of the page that names the required role and tells the wrong-role reader who to ask.
 
 **Do**:
 

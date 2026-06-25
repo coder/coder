@@ -10,7 +10,7 @@ They cover heading structure, inclusive language, link text, images, plain Engli
 ## Heading structure and placement
 
 Each page has exactly one H1.
-The H1 is the page title and appears once at the top of the page.
+The H1 is the page title and appears once at the beginning of the page.
 Subsequent headings descend by one level at a time.
 A page goes H1, then H2, then H3.
 A page does not jump from H2 to H4.
@@ -28,12 +28,12 @@ Skipping a level breaks the outline.
 # Configure your workspace
 
 This page walks through the configuration options exposed on a Coder workspace.
-The sections below cover SSH access and environment variables.
+The following sections cover SSH access and environment variables.
 
 ## Set up SSH access
 
 SSH access uses the agent that runs inside your workspace.
-Two client setups are documented below.
+Two client setups are documented in the following sections.
 
 ### Connect through JetBrains Toolbox
 
@@ -124,7 +124,7 @@ Screen readers announce link text out of context too, which is the [WCAG 2.1 Lev
 Every image declares descriptive alt text.
 The alt text describes what the image shows or what purpose it serves.
 It is not a caption.
-Captions go below the image in a `<small>` tag.
+Captions follow the image in a `<small>` tag.
 
 Aim for one or two sentences that convey the same information a sighted reader would extract from the image.
 Lead with the subject, not "An image of" or "A screenshot showing".
@@ -132,7 +132,7 @@ Lead with the subject, not "An image of" or "A screenshot showing".
 ```markdown
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
-<small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
+<small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
 For complex diagrams that cannot be summarized in alt text, provide a longer description in the body of the page and reference it from the alt text.
@@ -151,6 +151,49 @@ Empty alt text tells the screen reader to skip the image rather than announce a 
 Decorative images are rare in the Coder docs.
 Most images shown to a reader are screenshots or diagrams that convey information, and those images need descriptive alt text.
 When in doubt, write descriptive alt text.
+
+*Documentation-only.
+No Vale rule.*
+
+## Directional language
+
+Screen-reader users navigate documents linearly and do not experience the visual layout.
+Phrases like "see below", "above the table", or "the menu on the left" lose meaning when the reader cannot see where elements sit on the page.
+Sighted readers also benefit from semantic references when the page gets restructured or they jump in through an anchor link.
+
+Refer to content by section heading, by document order (`the previous section`, `the following section`), or by anchor link.
+Refer to UI elements by their label, not by their position on the screen.
+
+**Do**:
+
+> See the [Latin abbreviations rule](#latin-abbreviations) for the comma convention.
+>
+> Add a `<small>` caption after the image.
+>
+> Open the **Workspaces** sidebar to switch templates.
+
+**Don't**:
+
+> See the table below for the comma convention.
+>
+> Add a `<small>` caption underneath the image.
+>
+> Open the menu on the left to switch templates.
+
+Common replacements:
+
+| Avoid                        | Prefer                                                  |
+|------------------------------|---------------------------------------------------------|
+| see below                    | see the following section, see the `[Section](#anchor)` |
+| see above                    | see the previous section, see earlier                   |
+| top of the page              | beginning of the page                                   |
+| bottom of the page           | end of the page                                         |
+| the menu on the left         | the **Sidebar** menu                                    |
+| the right side of the screen | the **Details** panel                                   |
+| scroll down                  | scroll to the `[Section](#anchor)`, scroll to the end   |
+
+The rule covers prose.
+Idiomatic stack metaphors like "built on top of Terraform" and phrasal verbs like "set up", "back up", "log in", and "shut down" are not directional and stay as-is.
 
 *Documentation-only.
 No Vale rule.*
@@ -190,13 +233,13 @@ Planned Vale rule `Coder.Idioms`.*
 The following Latin abbreviations are fine in Coder docs.
 Use them when they fit the sentence; the English equivalent is also fine.
 
-| Abbreviation | Meaning                                        | Notes                                                                          |
-|--------------|------------------------------------------------|--------------------------------------------------------------------------------|
-| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause, as described below. |
-| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause, as described below. |
-| `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.`     |
-| `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                             |
-| `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.         |
+| Abbreviation | Meaning                                        | Notes                                                                      |
+|--------------|------------------------------------------------|----------------------------------------------------------------------------|
+| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause.                 |
+| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause.                 |
+| `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.` |
+| `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                         |
+| `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.     |
 
 **Prefer parentheses around `e.g.` and `i.e.` clauses.** The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
 

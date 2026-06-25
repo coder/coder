@@ -4,7 +4,7 @@ This is the canonical prose style guide for the Coder documentation.
 It tells you *how* to write the words that go in the docs.
 For decisions about what belongs in the docs and what does not, refer to [`content-guidelines.md`](../content-guidelines.md).
 
-Each rule on the pages below is a policy decision the Coder docs team has made.
+Each rule on the linked pages is a policy decision the Coder docs team has made.
 Where a Vale rule already enforces the policy, the rule name is listed in a parenthetical so you can reproduce the warning locally.
 Where the rule is documentation-only, the parenthetical says so.
 The doctrine for adding Vale rules lives in [`README.md`](../README.md).

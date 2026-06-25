@@ -381,12 +381,12 @@ Place image assets under the matching subdirectory of `docs/images/`.
 Use lowercase filenames with hyphens between words (`template-insights-dashboard.png`).
 Reference the asset with a relative path from the Markdown source.
 
-Captions go below the image in a `<small>` tag.
+Captions follow the image in a `<small>` tag.
 
 ```markdown
 ![Template Insights dashboard with weekly active users and connection latency charts](../../images/admin/templates/template-insights.png)
 
-<small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
+<small>The Template Insights dashboard with active-user and connection-latency widgets.</small>
 ```
 
 For alt text and decorative-image conventions, refer to [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images) and [Decorative images](./accessibility-and-inclusion.md#decorative-images).
@@ -426,7 +426,7 @@ When a screenshot is the right answer:
 
 > ![Workspace settings page with Autostart set to Weekdays at 9 AM](../../images/workspaces/autostart.png)
 >
-> Configure autostart as shown above.
+> Configure autostart as shown in the screenshot.
 
 The authoritative screenshot policy, including the obfuscation, PHI, and PII rules, lives in [`content-guidelines.md`](../content-guidelines.md).
 

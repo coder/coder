@@ -64,7 +64,7 @@ The rule targets verb forms (`installing`, `configuring`, `deploying`), not the 
 When the `-ing` word is the actual subject the section describes (a feature, a noun, or an attribute), the heading is fine.
 When the `-ing` word is the verb form of a task the section walks through, rewrite as an imperative or as the noun form.
 
-*Enforced by `Coder.GerundHeading`, with the exceptions above scoped in the rule.*
+*Enforced by `Coder.GerundHeading`, with the exceptions listed earlier scoped in the rule.*
 
 ## No trailing punctuation in headings
 
