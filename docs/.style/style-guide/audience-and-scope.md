@@ -234,6 +234,54 @@ who has access to both the Coder control plane and the Okta tenant.
 The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`),
 not the writer-facing persona name (`Perry the Platform Engineer`).
 
+## Give the audience only what it needs
+
+Choosing the audience is also choosing what to leave out.
+A page written for a known audience gives that reader what they need to reach the outcome,
+and nothing that belongs to a different audience.
+
+Knowing the audience means knowing what that audience can already do.
+When the page assumes a reader who runs their own Coder deployment,
+that reader is their own administrator.
+Do not hedge a step with "ask your administrator" or "if you have permission".
+Those caveats are written for a reader this page does not target,
+and they make the real reader doubt whether the step is meant for them.
+
+Before you add a caveat, a permission note, or an "if you don't have access" aside,
+check it against the audience and the full context of the page:
+
+- Does the reader this page targets actually hit this limitation?
+- Has the page already established that this reader has the access?
+- Does the caveat help this reader, or only a reader who belongs on a different page?
+
+If the caveat serves a different audience,
+cut it,
+or move it to the page that audience reads.
+
+**Do** (a local-first Quickstart, where the reader started the server two pages earlier):
+
+> Configure a GitHub provider on your deployment,
+> then create the workspace again.
+
+**Don't**:
+
+> Configure a GitHub provider on your deployment.
+> If you are not a deployment administrator,
+> ask your administrator to do this for you.
+
+The **Don't** aside is correct on an enterprise how-to page,
+where the reader may not own the deployment.
+On a Quickstart that walked the same reader through starting the server,
+the reader already has the access,
+so the aside only adds doubt.
+
+A page may assume a persona,
+as long as it knows which persona it assumes
+and matches its depth and its caveats to what that persona can already do.
+This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout):
+add a prerequisite callout when the reader might be the wrong role,
+and cut wrong-role caveats when the audience is, by definition, the right role.
+
 ## Personas the Coder docs serve
 
 When deciding which audience a page targets,

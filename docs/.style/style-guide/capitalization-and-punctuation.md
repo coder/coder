@@ -146,7 +146,56 @@ or a period and a new sentence (for a thought that stands on its own).
 
 *Enforced by `scripts/check_emdash.sh` (existing CI script) and `Coder.EmDash` (planned).*
 
-## Oxford comma
+## Commas
+
+### Comma after an introductory element
+
+Place a comma after an introductory word, phrase, or clause that comes before the main clause.
+The comma marks where the introduction ends and the main clause begins.
+
+**Do**:
+
+> In this guide, you add Ruby as a parameter option.
+>
+> After you authorize Coder, the workspace starts.
+>
+> To pull the template, run `coder templates pull`.
+
+**Don't**:
+
+> In this guide you add Ruby as a parameter option.
+>
+> After you authorize Coder the workspace starts.
+
+*Documentation-only. No Vale rule.*
+
+### No comma in a short compound predicate
+
+When `and`, `or`, or `but` joins two verbs that share one subject,
+do not put a comma before the conjunction.
+The comma belongs there only when the conjunction joins two independent clauses,
+each with its own subject.
+
+**Do**:
+
+> Log in to Coder and select **Templates**.
+>
+> The agent opens a tunnel and forwards traffic over it.
+
+**Don't**:
+
+> Log in to Coder, and select **Templates**.
+>
+> The agent opens a tunnel, and forwards traffic over it.
+
+When each side of the conjunction is a full clause with its own subject,
+the comma returns:
+
+> Log in to Coder, and the dashboard opens.
+
+*Documentation-only. No Vale rule.*
+
+### Oxford comma
 
 Use a comma before the conjunction in a list of three or more items.
 
@@ -159,6 +208,30 @@ Use a comma before the conjunction in a list of three or more items.
 > The provisioner builds, configures and starts the workspace.
 
 *Enforced by `Google.OxfordComma`.*
+
+### Semantic line breaks do not change punctuation
+
+[Semantic line breaks](./formatting.md#semantic-line-breaks) change where a source line ends,
+not how the sentence is punctuated.
+The rendered output joins the lines back into one paragraph,
+so write every comma and period exactly as if the sentence were on a single line.
+A line break is not a substitute for a comma.
+
+**Do**:
+
+> In this guide,
+> you add Ruby as an option,
+> watch it fail,
+> and fix it.
+
+**Don't**:
+
+> In this guide
+> you add Ruby as an option
+> watch it fail
+> and fix it.
+
+*Documentation-only. No Vale rule.*
 
 ## US-style quotation
 

@@ -128,30 +128,53 @@ Use plain present tense for behavior the product already exhibits.
 
 *Documentation-only. No Vale rule.*
 
-## Don't end sentences with prepositions
+## Trailing prepositions are a judgment call
 
-Rewrite sentences so they do not end with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`).
-Sentences that end with a preposition often leave the object implicit,
-which adds a small comprehension cost for every reader.
+A sentence that ends with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`) can leave its object implicit,
+which adds a small comprehension cost.
+Avoiding the trailing preposition, though, can produce a more awkward sentence.
+There is no one-size-fits-all rule.
+Read both versions and keep the one that reads more naturally.
 
-The rule has an exception:
-if the rewrite produces a clunky or unidiomatic sentence,
-keep the trailing preposition.
-Readability beats strict adherence.
+Lean toward rewriting when the trailing preposition is redundant,
+or when the reordered version is still easy to read:
 
 **Do**:
 
-> Use this command when the destination is a reference page or a specification,
-> or any resource the reader should consult before continuing this doc.
->
 > The CLI prompts you for the directory in which to store the template.
+>
+> Where is the config file?
 
 **Don't**:
 
-> Use this command when the destination is a reference page or a specification,
-> or any resource the reader is expected to consult and return from.
->
 > The CLI prompts you for the directory you want to store the template in.
+>
+> Where is the config file at?
+
+The second **Don't** keeps a redundant `at`.
+"Where is the config file?" says the same thing.
+
+Keep the trailing preposition when avoiding it contorts the sentence:
+
+**Do**:
+
+> This is some nonsense that I will not put up with.
+>
+> Open the repository you want to clone from.
+
+**Don't**:
+
+> This is some nonsense up with which I will not put.
+>
+> Open the repository from which you want to clone.
+
+The first **Don't** is the classic over-correction:
+the rewrite is harder to read than the preposition it avoids.
+
+When both versions read equally well,
+the writer chooses.
+Treat avoiding a trailing preposition as a default to reach for,
+not a rule to enforce.
 
 *Documentation-only. No Vale rule.*
 

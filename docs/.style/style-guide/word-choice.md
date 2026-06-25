@@ -176,6 +176,12 @@ Reserve **see** for the rare case where the prose describes what a reader observ
 The plain-language alternatives carry register information that "see" does not,
 and reserving "see" for its observational meaning improves clarity for every reader.
 
+The same reservation covers "see" used to mean "understand" or "find out".
+In a list of outcomes,
+"learn why the build fails" or "find out why the build fails" names what the reader gains.
+"See why the build fails" borrows the observational sense of "see" for a comprehension outcome,
+so prefer "learn" or "find out".
+
 **Do**:
 
 > For the full command list,
@@ -184,6 +190,8 @@ and reserving "see" for its observational meaning improves clarity for every rea
 > Check out the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
 >
 > Visit the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
+>
+> Add a Ruby option, then learn why the option alone does not install the toolchain.
 
 **Don't**:
 
@@ -193,6 +201,8 @@ and reserving "see" for its observational meaning improves clarity for every rea
 > See the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
 >
 > See the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
+>
+> Add a Ruby option, then see why the option alone does not install the toolchain.
 
 *Enforced by `Coder.SeeAlternatives` (planned).*
 

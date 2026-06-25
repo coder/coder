@@ -146,14 +146,26 @@ The rules in this section cover block-level structures that stand on their own l
 Every fenced code block declares a language.
 Use the most specific language tag available:
 
-- `sh` for shell scripts and multi-line shell snippets.
-- `console` for an interactive command-line session, where the reader sees the typed command and its output. The Coder CLI reference uses `console` for `coder` command usage.
+- `sh` for a shell command or a shell script. Use `sh` when the block is input the reader types or a script they save, and the block does not also show output.
+- `console` for an interactive session that shows the typed command and its output together. Prefix each typed line with `$`.
 - `powershell` for Windows command-line blocks. PowerShell is the default Windows shell in the Coder docs.
 - `tf` for Terraform and HCL.
 - `yaml` for YAML.
 - `go` for Go.
 - `json` for JSON.
-- `text` for plain text with no syntax to highlight.
+- `text` for command output shown on its own, and for any block with no syntax to highlight.
+
+`bash` and `shell` are aliases of `sh`.
+Use `sh` so the corpus stays consistent.
+
+A command with no output shown is `sh`, not `console`.
+To show a command together with its output,
+either use one `console` block with `$` before the typed line,
+or split the command into an `sh` block and the output into a `text` block.
+
+The auto-generated Coder CLI reference under `docs/reference/cli/` labels its command-usage blocks `console`.
+That output is generated.
+Do not copy the pattern into hand-written pages.
 
 The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core),
 which detects the language from the code content,
@@ -168,7 +180,13 @@ fall back to `text`.
 
 ````markdown
 ```sh
-coder login --token <token>
+coder templates push -d ~/coder-quickstart -y quickstart
+```
+
+```console
+$ coder templates list
+NAME        LAST UPDATED
+quickstart  2 minutes ago
 ```
 ````
 
@@ -178,9 +196,17 @@ coder login --token <token>
 ```
 coder login --token <token>
 ```
+
+```console
+coder templates push -d ~/coder-quickstart -y quickstart
+```
 ````
 
-*Enforced by `markdownlint` rule `MD040`.*
+The first **Don't** omits the language.
+The second labels a bare command `console` but shows no output,
+so `sh` is correct.
+
+*Enforced by `markdownlint` rule `MD040` for the missing-language case.*
 
 ### Callouts
 
@@ -306,6 +332,41 @@ The provisioner supports:
 
 The first **Don't** mixes punctuation styles and uses non-imperative leads.
 The second mixes punctuation inside one list and uses periods on single-word labels.
+
+For a "Learn more" or "See also" list of links,
+treat each item as a label:
+no terminal period,
+and no leading "And" or "Or".
+When such a list needs a lead-in,
+end the lead-in with a colon on a clause that stands on its own,
+rather than dangling the colon off a sentence the bullets then finish.
+
+**Do**:
+
+```markdown
+You have two options:
+
+- Install the tool with `apt-get` in the template's startup script.
+- Bake the tool into the workspace image.
+```
+
+```markdown
+## Learn more
+
+- [Extending templates](./extending-templates.md)
+- [Terraform modules](https://developer.hashicorp.com/terraform/language/modules)
+```
+
+**Don't**:
+
+```markdown
+Install it where it persists across rebuilds:
+
+- Add it to the template's startup script with `apt-get`.
+- Or bake it into the workspace image.
+```
+
+The **Don't** dangles the colon off a sentence and starts a bullet with "Or".
 
 *Documentation-only. No Vale rule.*
 
