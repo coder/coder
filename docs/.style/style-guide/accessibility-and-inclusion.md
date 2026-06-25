@@ -221,6 +221,32 @@ The one allowed exception is `etc.` inside compact contexts where prose alternat
 such as a table cell or a CLI help string.
 Prose outside those contexts uses the English form.
 
+<details>
+<summary>Why the rule exists</summary>
+
+The rule is plain-language guidance,
+not a strict accessibility requirement.
+WCAG 2.1 does not ban Latin abbreviations.
+Success Criteria [3.1.3 Unusual Words](https://www.w3.org/TR/WCAG21/#unusual-words) and [3.1.4 Abbreviations](https://www.w3.org/TR/WCAG21/#abbreviations) are Level AAA mechanisms that recommend providing expansions when an abbreviation is outside the reader's working vocabulary.
+The Coder docs avoid the abbreviations entirely instead of expanding them inline,
+which is a simpler reader experience.
+
+The substantive rationale is plain language for international and non-native-English readers.
+Major technical-docs style guides converge on the same recommendation:
+
+- The [Google developer documentation style guide](https://developers.google.com/style/abbreviations) tells writers to avoid Latin abbreviations because they are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
+- The [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/) instructs writers to use English equivalents in customer-facing content.
+- The [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/) tells US federal writers to use plain English in place of Latin abbreviations.
+- The [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) flags Latin abbreviations as unnecessary jargon.
+
+Other technical-docs teams use Latin abbreviations freely and the prose still parses.
+The Coder docs treat the rule as a preference,
+not a hard policy.
+The planned `Coder.LatinAbbreviations` Vale rule will ship at `warning` severity
+so authors see the suggestion without being blocked.
+
+</details>
+
 *Documentation-only. Planned Vale rules `Coder.Idioms` and `Coder.LatinAbbreviations`.*
 
 ## Page descriptions

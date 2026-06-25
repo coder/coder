@@ -70,39 +70,46 @@ where the canonical form is lowercase by convention.
 
 *Enforced by `Coder.BrandNames`.*
 
-## Dev Container terminology
+## Dev container terminology
 
-A development container that follows the [Dev Container specification](https://containers.dev/) follows two casings depending on context:
+The open standard at [containers.dev](https://containers.dev/) uses two forms in its own documentation:
 
-- **`Dev Container`** (capitalized, two words) when the prose names the specification,
-  the feature category,
-  or the proper noun.
-- **`dev container`** (lowercase, two words) when the prose refers to an instance or uses the term as a generic noun.
+- **`Development Container Specification`** (or **`Dev Container Spec`** for short) when naming the open specification, the Features ecosystem, or the Templates ecosystem.
+- **`dev container`** (lowercase, two words) for the category and for any instance.
 
-The rule parallels the `Coder` versus `workspace` distinction:
-the proper noun is capitalized,
-specific instances are not.
+The Coder docs follow the same conventions.
 
 `envbuilder` is the implementation tool Coder uses to build dev containers.
 It is not itself the concept,
 so it stays in backticks as a tool name.
 
+> [!NOTE]
+> The Coder feature that integrates the open standard with Coder workspaces is named `Dev Containers` in product context.
+> The capitalization there comes from the [Coder product and feature names](#coder-product-and-feature-names) rule for Coder features,
+> not from the underlying concept.
+
+| Do                                  | Don't                                                |
+|-------------------------------------|------------------------------------------------------|
+| Development Container Specification | DevContainer Specification                           |
+| Dev Container Spec                  | dev container spec (as the proper-noun shorthand)    |
+| dev container                       | Dev Container, DevContainer, devcontainer (in prose) |
+| `devcontainer.json`                 | `dev-container.json`, `DevContainer.json`            |
+| `envbuilder`                        | EnvBuilder, Envbuilder, env builder                  |
+
 **Do**:
 
-> Coder supports Dev Containers as a workspace runtime.
-> The template defines the Dev Container in a `devcontainer.json` file.
+> Coder builds dev containers that conform to the Development Container Specification.
+> The template defines the dev container in a `devcontainer.json` file.
 > The provisioner builds the dev container with `envbuilder` and starts the agent inside it.
 
 **Don't**:
 
-> Coder supports dev containers as a workspace runtime.
-> (Generic noun used where the proper noun is meant.)
->
 > Coder supports DevContainers as a workspace runtime.
-> (Wrong casing.)
+> (Wrong casing. The spec writes the abbreviated form as two words.)
 >
-> The provisioner builds the Dev Container with envbuilder.
-> (Tool name not in backticks; instance capitalized.)
+> Coder supports Dev Containers as a workspace runtime.
+> (Capital-D `Dev Container` is reserved for the proper-noun shorthand `Dev Container Spec`.
+> The category is lowercase.)
 
 *Enforced by `Coder.DevContainer` (planned).*
 
