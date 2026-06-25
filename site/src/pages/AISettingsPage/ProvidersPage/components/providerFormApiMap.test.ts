@@ -723,7 +723,7 @@ describe("aiProviderToFormValues", () => {
 
 	it("handles a Bedrock provider whose settings are null", () => {
 		// `isBedrockProvider` will return false, so the provider falls
-		// through to the anthropic branch. The helper must not throw.
+		// through to the generic branch. The helper must not throw.
 		const provider: AIProvider = {
 			...MockAIProviderBedrock,
 			settings: null as unknown as AIProvider["settings"],
