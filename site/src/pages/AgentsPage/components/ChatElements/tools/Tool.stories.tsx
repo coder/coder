@@ -1116,6 +1116,23 @@ export const ListAgentsRunning: Story = {
 	},
 };
 
+export const ListAgentsEmpty: Story = {
+	args: {
+		name: "list_agents",
+		status: "completed",
+		args: {},
+		result: {
+			agents: [],
+			total: 0,
+			has_more: false,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Listed 0 agents")).toBeInTheDocument();
+	},
+};
+
 // ---------------------------------------------------------------------------
 // ListTemplates stories
 // ---------------------------------------------------------------------------
@@ -2230,6 +2247,31 @@ export const SubagentWaitTimedOutTitleFromMap: Story = {
 		const canvas = within(canvasElement);
 		expect(canvas.getByText("Refactor auth module")).toBeInTheDocument();
 		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+	},
+};
+
+export const SubagentWaitTimedOutStructured: Story = {
+	args: {
+		name: "wait_agent",
+		status: "completed",
+		isError: false,
+		args: { chat_id: "timed-out-child" },
+		result: {
+			chat_id: "timed-out-child",
+			title: "Fix login bug",
+			status: "running",
+			timed_out: true,
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Should show clock icon for timeout.
+		expect(canvasElement.querySelector(".lucide-clock")).not.toBeNull();
+		// Should NOT show red alert icon.
+		expect(canvasElement.querySelector(".lucide-circle-alert")).toBeNull();
+		// Should show timeout verb.
+		expect(canvas.getByText(/Timed out waiting for/)).toBeInTheDocument();
+		expect(canvas.getByText("Fix login bug")).toBeInTheDocument();
 	},
 };
 

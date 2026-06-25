@@ -21,12 +21,11 @@ export const ListAgentsTool: React.FC<{
 	const hasContent = agents.length > 0;
 	const isRunning = status === "running";
 
-	const label =
-		isRunning || total === 0
-			? "Listing agents"
-			: total === 1
-				? "Listed 1 agent"
-				: `Listed ${total} agents`;
+	const label = isRunning
+		? "Listing agents"
+		: total === 1
+			? "Listed 1 agent"
+			: `Listed ${total} agents`;
 
 	return (
 		<ToolCall.Root

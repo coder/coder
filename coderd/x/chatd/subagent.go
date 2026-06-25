@@ -835,9 +835,9 @@ func (p *Server) subagentTools(
 		),
 		fantasy.NewAgentTool(
 			"interrupt_agent",
-			"Interrupt a spawned child agent's current work. The agent "+
-				"stops and waits; resume it with message_agent or leave it "+
-				"idle.",
+			"Interrupt a spawned child agent's current work. The "+
+				"agent's current turn is halted; it transitions to waiting "+
+				"and can be resumed with message_agent or left idle.",
 			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -907,6 +907,9 @@ func (p *Server) subagentTools(
 				}
 
 				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return fantasy.NewTextErrorResponse("list_agents is only available on root chats"), nil
+				}
 				rows, err := p.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
 					ParentIds: []uuid.UUID{parent.ID},
 					// Exclude archived children by default. Do not pass an
@@ -917,34 +920,21 @@ func (p *Server) subagentTools(
 					return fantasy.NewTextErrorResponse(xerrors.Errorf("list child agents: %w", err).Error()), nil
 				}
 
-				children := make([]database.Chat, 0, len(rows))
-				for _, row := range rows {
-					children = append(children, row.Chat)
-				}
-				// Sort most recently active first with a stable id
-				// tiebreak. The shared query's own ordering is not
-				// altered because it backs the chats sidebar; paginate
-				// here instead.
-				slices.SortStableFunc(children, func(a, b database.Chat) int {
-					if c := b.UpdatedAt.Compare(a.UpdatedAt); c != 0 {
+				slices.SortStableFunc(rows, func(a, b database.GetChildChatsByParentIDsRow) int {
+					if c := b.Chat.UpdatedAt.Compare(a.Chat.UpdatedAt); c != 0 {
 						return c
 					}
-					return strings.Compare(b.ID.String(), a.ID.String())
+					return strings.Compare(b.Chat.ID.String(), a.Chat.ID.String())
 				})
 
-				total := len(children)
-				start := offset
-				if start > total {
-					start = total
-				}
-				end := start + limit
-				if end > total {
-					end = total
-				}
-				page := children[start:end]
+				total := len(rows)
+				start := min(offset, total)
+				end := min(start+limit, total)
+				page := rows[start:end]
 
 				agents := make([]map[string]any, 0, len(page))
-				for _, child := range page {
+				for _, row := range page {
+					child := row.Chat
 					agents = append(agents, withSubagentType(map[string]any{
 						"chat_id":    child.ID.String(),
 						"title":      child.Title,

@@ -3963,4 +3963,19 @@ func TestListAgents(t *testing.T) {
 		require.Equal(t, float64(0), result["total"])
 		require.Empty(t, listAgentsChatIDs(t, result))
 	})
+
+	t.Run("DelegatedChatRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := chatdTestContext(t)
+		parent := newParent(t, ctx, "list-agents-delegated")
+		child := newChild(t, ctx, parent, "delegated-caller", database.NullChatMode{})
+
+		resp := runSubagentTool(
+			ctx, t, server, child, child.LastModelConfigID,
+			"list_agents", listAgentsArgs{},
+		)
+		require.True(t, resp.IsError, "list_agents on a delegated chat must return an error")
+		msg := resp.Content
+		require.Contains(t, msg, "only available on root chats")
+	})
 }

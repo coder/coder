@@ -530,12 +530,14 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	}
 
 	// Detect timeout from the result. A timed-out wait_agent
-	// typically returns an error string or an object with an
-	// error field containing "timed out".
+	// returns a structured payload with timed_out: true
+	// (IsError=false), or an error string containing "timed out".
 	const resultStr = typeof result === "string" ? result : "";
 	const errorStr = rec ? asString(rec.error) : "";
 	let isTimeout = false;
-	if (subagentIsError) {
+	if (rec && rec.timed_out === true) {
+		isTimeout = true;
+	} else if (subagentIsError) {
 		const timedOutInResult = resultStr.toLowerCase().includes("timed out");
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
