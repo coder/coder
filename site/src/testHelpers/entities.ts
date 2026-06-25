@@ -619,6 +619,28 @@ export const MockUserSecrets: TypesGen.UserSecret[] = [
 	},
 ];
 
+// MockImportedUserSecrets is the result returned by the bulk import endpoint.
+export const MockImportedUserSecrets: TypesGen.UserSecret[] = [
+	{
+		id: "imported-database-url",
+		name: "DATABASE_URL",
+		description: "Imported from a secrets file.",
+		env_name: "DATABASE_URL",
+		file_path: "",
+		created_at: "2026-05-04T00:00:00Z",
+		updated_at: "2026-05-04T00:00:00Z",
+	},
+	{
+		id: "imported-api-token",
+		name: "API_TOKEN",
+		description: "Imported from a secrets file.",
+		env_name: "API_TOKEN",
+		file_path: "",
+		created_at: "2026-05-04T00:00:00Z",
+		updated_at: "2026-05-04T00:00:00Z",
+	},
+];
+
 export const MockTasksTabVisible: boolean = false;
 
 export const MockOrganizationMember: TypesGen.OrganizationMemberWithUserData = {
