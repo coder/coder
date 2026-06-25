@@ -18,7 +18,7 @@ const AddProviderPage: React.FC = () => {
 	if (!provider) {
 		return (
 			<div className="flex flex-col items-start gap-4 pt-4 px-6">
-				<Link to="/ai/settings">
+				<Link to="/ai/settings/providers">
 					<Button variant="subtle">
 						<ArrowLeftIcon />
 						<span>Back to providers</span>

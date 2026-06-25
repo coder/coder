@@ -13,6 +13,10 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
 import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,
@@ -176,11 +180,11 @@ export const ModuleSelectStep: FC<ModuleSelectStepProps> = ({
 
 	return (
 		<div>
-			<h2 className="text-lg font-semibold mb-1">Select modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
+			<TemplateBuilderTitle>Select modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Add pre-built tools and integrations. Module versions are pinned at
 				selection.
-			</p>
+			</TemplateBuilderSubtitle>
 
 			<SearchField
 				value={moduleSearchText}

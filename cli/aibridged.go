@@ -175,7 +175,7 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 		if row.Enabled {
 			enabledCount++
 		}
-		prov, err := buildAIProviderFromRow(row, keysByProvider[row.ID], cfg, metrics)
+		prov, err := buildAIProviderFromRow(ctx, row, keysByProvider[row.ID], cfg, metrics)
 		if err != nil {
 			outcome.Status = aibridged.ProviderStatusError
 			outcome.Err = err
@@ -210,6 +210,7 @@ func BuildProviders(ctx context.Context, db database.Store, cfg codersdk.AIBridg
 // Disabled: true; settings decode, key loading, and credential checks
 // are skipped because the provider will never call upstream.
 func buildAIProviderFromRow(
+	ctx context.Context,
 	row database.AIProvider,
 	keys []database.AIProviderKey,
 	cfg codersdk.AIBridgeConfig,
@@ -284,14 +285,14 @@ func buildAIProviderFromRow(
 				return nil, xerrors.Errorf("anthropic key pool: %w", err)
 			}
 		}
-		return aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		return aibridge.NewAnthropicProvider(ctx, aibridge.AnthropicConfig{
 			Name:             row.Name,
 			BaseURL:          row.BaseUrl,
 			KeyPool:          pool,
 			APIDumpDir:       dumpDir,
 			CircuitBreaker:   cbCfg,
 			SendActorHeaders: sendActorHeaders,
-		}, bedrock), nil
+		}, bedrock)
 
 	case database.AIProviderTypeCopilot:
 		// Copilot is always BYOK; the per-user token is supplied on each
@@ -348,6 +349,7 @@ func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderS
 		AccessKeySecret: accessKeySecret,
 		Model:           bedrockSettings.Model,
 		SmallFastModel:  bedrockSettings.SmallFastModel,
+		RoleARN:         bedrockSettings.RoleARN,
 	}
 }
 

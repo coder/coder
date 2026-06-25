@@ -5,7 +5,7 @@ import (
 )
 
 // hopByHopHeaders are connection-level headers specific to the connection
-// between client and AI Bridge, not meant for the upstream.
+// between client and AI Gateway, not meant for the upstream.
 // See https://www.rfc-editor.org/rfc/rfc2616#section-13.5.1
 var hopByHopHeaders = []string{
 	"Connection",

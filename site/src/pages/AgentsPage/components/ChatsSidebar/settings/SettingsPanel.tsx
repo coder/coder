@@ -167,7 +167,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						icon={PlugIcon}
 						label="Providers"
 						active={false}
-						to="/ai/settings"
+						to="/ai/settings/providers"
 						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
@@ -180,16 +180,16 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={ServerIcon}
 						label="MCP servers"
-						active={settingsSection === "mcp-servers"}
-						to="/agents/settings/mcp-servers"
-						state={location.state}
+						active={false}
+						to="/ai/settings/mcp-servers"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={LayoutTemplateIcon}
 						label="Templates"
-						active={settingsSection === "templates"}
-						to="/agents/settings/templates"
-						state={location.state}
+						active={false}
+						to="/ai/settings/templates"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={CoinsIcon}
@@ -201,9 +201,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
 						label="Instructions"
-						active={settingsSection === "instructions"}
-						to="/agents/settings/instructions"
-						state={location.state}
+						active={false}
+						to="/ai/settings/instructions"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={FlaskConicalIcon}
@@ -215,9 +215,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={RefreshCwIcon}
 						label="Lifecycle"
-						active={settingsSection === "lifecycle"}
-						to="/agents/settings/lifecycle"
-						state={location.state}
+						active={false}
+						to="/ai/settings/lifecycle"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 				</nav>
 			)}
