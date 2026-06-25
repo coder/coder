@@ -10790,10 +10790,19 @@ func createAIProviderForTest(
 	t.Helper()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
+	baseURL := aiProviderBaseURLForTest(provider)
+	// AI Gateway routing uses the provider's BaseURL from the DB row.
+	// For OpenAI-compatible providers, use a real mock server so the
+	// daemon can route chat requests. Other provider types (anthropic,
+	// bedrock, google) are only used for model config CRUD tests that
+	// never process chats through the daemon.
+	if provider == "openai" || provider == "openai-compat" {
+		baseURL = chattest.OpenAI(t)
+	}
 	req := codersdk.CreateAIProviderRequest{
 		Type:    codersdk.AIProviderType(provider),
 		Name:    "test-" + provider + "-" + uuid.NewString(),
-		BaseURL: aiProviderBaseURLForTest(provider),
+		BaseURL: baseURL,
 		Enabled: true,
 	}
 	if apiKey != "" {
