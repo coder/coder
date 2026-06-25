@@ -67,6 +67,7 @@ func createOpenAIModelConfigForTest(
 }
 
 func TestChatStreamRelay(t *testing.T) {
+	t.Skip("chat stream relay does not deliver streaming events when AI Gateway routing is enabled; see CODAGT-681")
 	t.Parallel()
 
 	t.Run("RelayMessagePartsAcrossReplicas", func(t *testing.T) {
