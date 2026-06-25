@@ -52,7 +52,7 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// nolint:gocritic // System must look up the AI Gateway key to authenticate the request.
-	keyID, err := api.Database.GetAIGatewayKeyIDByHashedSecret(dbauthz.AsSystemRestricted(r.Context()), apikey.HashSecret(key))
+	gatewayKey, err := api.Database.GetAIGatewayKeyByHashedSecret(dbauthz.AsSystemRestricted(r.Context()), apikey.HashSecret(key))
 	if err != nil {
 		// The lookup is an exact match, missing row means key is invalid.
 		if httpapi.Is404Error(err) {
@@ -75,7 +75,9 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		slog.F("ai_gateway_client_build_version", clientCoderVersion),
 		slog.F("ai_gateway_server_api_version", aibridgedproto.CurrentVersion.String()),
 		slog.F("ai_gateway_server_build_version", buildinfo.Version),
-		slog.F("ai_gateway_key_id", keyID),
+		slog.F("ai_gateway_key_id", gatewayKey.ID),
+		slog.F("ai_gateway_key_name", gatewayKey.Name),
+		slog.F("ai_gateway_key_prefix", gatewayKey.SecretPrefix),
 	)
 
 	// keyCtx has the lifetime of the authenticated session.
@@ -87,10 +89,10 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	defer keyCtxCancel()
 
 	// Mark key as used as soon as the request is authenticated.
-	if _, err := aiGatewayUpdateKeyLastUsed(keyCtx, api, keyID); err != nil {
+	if _, err := aiGatewayUpdateKeyLastUsed(keyCtx, api, gatewayKey.ID); err != nil {
 		logger.Warn(keyCtx, "update ai gateway key last used", slog.Error(err))
 	}
-	go aiGatewayTrackKeyUsage(keyCtx, keyCtxCancel, api, keyID, logger)
+	go aiGatewayTrackKeyUsage(keyCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
 	if err := aibridgedproto.CurrentVersion.Validate(clientAPIVersion); err != nil {
 		httpapi.Write(keyCtx, rw, http.StatusBadRequest, codersdk.Response{
