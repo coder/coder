@@ -4,6 +4,7 @@ import RadioGroup from "@mui/material/RadioGroup";
 import TextField from "@mui/material/TextField";
 import type { FC } from "react";
 import type { TemplateVersionVariable } from "#/api/typesGenerated";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 
 const isBoolean = (variable: TemplateVersionVariable) => {
 	return variable.type === "bool";
@@ -13,17 +14,32 @@ interface VariableLabelProps {
 	variable: TemplateVersionVariable;
 }
 
+const descriptionId = (variable: TemplateVersionVariable) =>
+	`${variable.name}-description`;
+
 const VariableLabel: FC<VariableLabelProps> = ({ variable }) => {
 	return (
-		<label htmlFor={variable.name}>
-			<span className="mb-1 block text-sm text-content-secondary">
-				var.{variable.name}
-				{!variable.required && " (optional)"}
-			</span>
-			<span className="block text-base font-semibold text-content-primary">
-				{variable.description}
-			</span>
-		</label>
+		<div className="flex flex-col">
+			<label htmlFor={variable.name}>
+				<span className="block text-sm text-content-secondary">
+					var.{variable.name}
+					{!variable.required && " (optional)"}
+				</span>
+			</label>
+			{/*
+			 * The description is rendered as Markdown and kept outside the <label>
+			 * so interactive content like links is not nested inside it (which would
+			 * steal clicks meant for the link to focus the field). It is associated
+			 * with the field via aria-describedby instead.
+			 */}
+			{variable.description && (
+				<div id={descriptionId(variable)}>
+					<MemoizedMarkdown className="mt-1 text-base font-semibold text-content-primary">
+						{variable.description}
+					</MemoizedMarkdown>
+				</div>
+			)}
+		</div>
 	);
 };
 
@@ -65,6 +81,9 @@ const VariableField: FC<VariableInputProps> = ({
 		return (
 			<RadioGroup
 				id={variable.name}
+				aria-describedby={
+					variable.description ? descriptionId(variable) : undefined
+				}
 				defaultValue={variable.default_value}
 				onChange={(event) => {
 					onChange(event.target.value);
@@ -90,6 +109,9 @@ const VariableField: FC<VariableInputProps> = ({
 		<TextField
 			autoComplete="off"
 			id={variable.name}
+			aria-describedby={
+				variable.description ? descriptionId(variable) : undefined
+			}
 			size="small"
 			disabled={disabled}
 			placeholder={variable.sensitive ? "" : variable.default_value}

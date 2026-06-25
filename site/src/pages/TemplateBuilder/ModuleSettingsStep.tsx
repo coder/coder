@@ -7,6 +7,7 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
+import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
@@ -27,13 +28,18 @@ function variableToField(
 	onChange: (name: string, value: string) => void,
 ): ConfigurationFieldDefinition {
 	const id = `mod-${moduleId}-${variable.name}`;
+	const description = variable.description ? (
+		<MemoizedMarkdown className="text-xs text-content-secondary">
+			{variable.description}
+		</MemoizedMarkdown>
+	) : undefined;
 
 	if (variable.type === "bool") {
 		return {
 			type: "switch",
 			id,
 			label: variable.name,
-			description: variable.description || undefined,
+			description,
 			required: variable.required,
 			checked: value === "true",
 			onCheckedChange: (checked) =>
@@ -45,7 +51,7 @@ function variableToField(
 		type: "text",
 		id,
 		label: variable.name,
-		description: variable.description || undefined,
+		description,
 		required: variable.required,
 		placeholder: variable.required ? "Required" : "Optional",
 		field: {
