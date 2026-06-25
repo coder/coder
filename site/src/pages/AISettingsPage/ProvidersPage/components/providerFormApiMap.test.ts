@@ -659,6 +659,6 @@ describe("aiProviderToFormValues", () => {
 			settings: null as unknown as AIProvider["settings"],
 		};
 		const values = aiProviderToFormValues(provider);
-		expect(values.type).toBe("anthropic");
+		expect(values.type).toBe("bedrock");
 	});
 });
