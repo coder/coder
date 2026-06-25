@@ -62,7 +62,7 @@ const BuildStatsItem: FC<BuildStatsItemProps> = ({ children, label }) => {
 	);
 };
 
-export type DeletedWorkspaceBannerProps = Readonly<{
+type DeletedWorkspaceBannerProps = Readonly<{
 	createWorkspaceLink: string;
 	templateName: string;
 }>;
@@ -87,19 +87,15 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	if (buildError) {
-		if (deletedWorkspaceBanner) {
-			return (
-				<Margins>
+		return (
+			<Margins>
+				{deletedWorkspaceBanner ? (
 					<div className="my-4">
 						<WorkspaceDeletedBanner {...deletedWorkspaceBanner} />
 					</div>
-				</Margins>
-			);
-		}
-
-		return (
-			<Margins>
-				<ErrorAlert error={buildError} className="my-4" />
+				) : (
+					<ErrorAlert error={buildError} className="my-4" />
+				)}
 			</Margins>
 		);
 	}

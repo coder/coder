@@ -28,7 +28,9 @@ const WorkspaceBuildPage: FC = () => {
 
 	// We only want to fetch the workspace if the build is not found. This is so
 	// we can gather why the build is not found, specifically catching the case
-	// where the workspace has been deleted.
+	// where the workspace has been deleted. The build endpoint returns 404 today;
+	// 410 Gone is the semantically correct status for a deleted workspace's build
+	// and is what we'd like to migrate to in the future, so we accept both here.
 	const shouldCheckDeletedWorkspace =
 		isAxiosError(wsBuildQuery.error) &&
 		(wsBuildQuery.error.response?.status === 404 ||
