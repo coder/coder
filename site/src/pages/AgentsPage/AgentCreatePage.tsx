@@ -1,6 +1,6 @@
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -11,6 +11,7 @@ import {
 	mcpServerConfigs,
 	userChatPersonalModelOverrides,
 } from "#/api/queries/chats";
+import { preferenceSettings } from "#/api/queries/users";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useWebpushNotifications } from "#/contexts/useWebpushNotifications";
@@ -20,9 +21,9 @@ import {
 	type CreateChatOptions,
 } from "./components/AgentCreateForm";
 import { AgentPageHeader } from "./components/AgentPageHeader";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { ChimeButton } from "./components/ChimeButton";
 import { WebPushButton } from "./components/WebPushButton";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { getChimeEnabled, setChimeEnabled } from "./utils/chime";
 import {
 	countConfiguredProviderConfigs,
@@ -34,6 +35,7 @@ const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 
 const AgentCreatePage: FC = () => {
 	const queryClient = useQueryClient();
+	const location = useLocation();
 	const navigate = useNavigate();
 	const { permissions } = useAuthenticated();
 
@@ -46,6 +48,7 @@ const AgentCreatePage: FC = () => {
 	const personalModelOverridesQuery = useQuery(
 		userChatPersonalModelOverrides(),
 	);
+	const preferencesQuery = useQuery(preferenceSettings());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -69,12 +72,6 @@ const AgentCreatePage: FC = () => {
 		chatModelConfigsQuery.isSuccess && chatModelsQuery.isSuccess
 			? catalogModelOptions.length
 			: undefined;
-	const agentSetupNotice =
-		providerCount !== undefined &&
-		modelCount !== undefined &&
-		(providerCount === 0 || modelCount === 0) ? (
-			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
-		) : undefined;
 
 	const handleCreateChat = async ({
 		message,
@@ -109,7 +106,10 @@ const AgentCreatePage: FC = () => {
 		if (model) {
 			localStorage.setItem(lastModelConfigIDStorageKey, model);
 		}
-		navigate(buildAgentChatPath({ chatId: createdChat.id }));
+		navigate({
+			pathname: buildAgentChatPath({ chatId: createdChat.id }),
+			search: location.search,
+		});
 	};
 
 	const rootPersonalModelOverride = personalModelOverridesQuery.data?.enabled
@@ -148,12 +148,18 @@ const AgentCreatePage: FC = () => {
 			</AgentPageHeader>
 			<AgentCreateForm
 				onCreateChat={handleCreateChat}
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				isCreating={createMutation.isPending}
 				createError={createMutation.error}
 				canCreateChat={permissions.createChat}
 				modelCatalog={chatModelsQuery.data}
 				modelOptions={catalogModelOptions}
-				agentSetupNotice={agentSetupNotice}
+				canConfigureAgentSetup={permissions.editDeploymentConfig}
+				providerCount={providerCount}
+				modelCount={modelCount}
 				modelConfigs={chatModelConfigsQuery.data ?? []}
 				isModelCatalogLoading={chatModelsQuery.isLoading}
 				isModelConfigsLoading={chatModelConfigsQuery.isLoading}

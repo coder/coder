@@ -90,7 +90,7 @@ func (api *API) workspace(rw http.ResponseWriter, r *http.Request) {
 	}
 	if workspace.Deleted && !showDeleted {
 		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
-			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?deleted=true' and trying again.", workspace.ID.String()),
+			Message: fmt.Sprintf("Workspace %q was deleted, you can view this workspace by specifying '?include_deleted=true' and trying again.", workspace.ID.String()),
 		})
 		return
 	}
@@ -157,7 +157,7 @@ func (api *API) workspaces(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	queryStr := r.URL.Query().Get("q")
-	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout)
+	filter, errs := searchquery.Workspaces(ctx, api.Database, queryStr, page, api.AgentInactiveDisconnectTimeout, apiKey.UserID)
 	if len(errs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid workspace search query.",
@@ -794,7 +794,6 @@ func createWorkspace(
 			Experiments(api.Experiments).
 			DeploymentValues(api.DeploymentValues).
 			RichParameterValues(req.RichParameterValues).
-			Logger(api.Logger.Named("wsbuilder")).
 			BuildMetrics(api.WorkspaceBuilderMetrics)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
@@ -1449,29 +1448,24 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 			)
 		}
 
-		tmpl, tmplErr := api.Database.GetTemplateByID(ctx, newWorkspace.TemplateID)
-		if tmplErr != nil {
-			api.Logger.Warn(
-				ctx,
-				"failed to fetch the template of the workspace marked as dormant",
-				slog.Error(err),
-				slog.F("workspace_id", newWorkspace.ID),
-				slog.F("template_id", newWorkspace.TemplateID),
-			)
-		}
-
-		if initiatorErr == nil && tmplErr == nil {
-			dormantTime := dbtime.Time(now).Add(time.Duration(tmpl.TimeTilDormant))
+		if initiatorErr == nil {
+			labels := map[string]string{
+				"name":   newWorkspace.Name,
+				"reason": "a " + initiator.Username + " request",
+			}
+			// DeletingAt is set by the UPDATE only when the template's
+			// time_til_dormant_autodelete is non-zero, so skip the label when
+			// auto-delete is disabled so the body omits the deletion
+			// timeline.
+			if newWorkspace.DeletingAt.Valid {
+				labels["timeTilDelete"] = humanize.Time(newWorkspace.DeletingAt.Time)
+			}
 			_, err = api.NotificationsEnqueuer.Enqueue(
 				// nolint:gocritic // Need notifier actor to enqueue notifications
 				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
-				map[string]string{
-					"name":           newWorkspace.Name,
-					"reason":         "a " + initiator.Username + " request",
-					"timeTilDormant": humanize.Time(dormantTime),
-				},
+				labels,
 				"api",
 				newWorkspace.ID,
 				newWorkspace.OwnerID,
@@ -2034,7 +2028,7 @@ func (api *API) watchWorkspaceSSE(rw http.ResponseWriter, r *http.Request) {
 // @Success 200 {object} codersdk.ServerSentEvent
 // @Router /api/v2/workspaces/{workspace}/watch-ws [get]
 func (api *API) watchWorkspaceWS(rw http.ResponseWriter, r *http.Request) {
-	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger))
+	api.watchWorkspace(rw, r, httpapi.OneWayWebSocketEventSender(api.Logger, api.wsWatcher))
 }
 
 func (api *API) watchWorkspace(
@@ -2231,7 +2225,7 @@ func (api *API) watchAllWorkspaceBuilds(rw http.ResponseWriter, r *http.Request)
 	_ = conn.CloseRead(context.Background())
 
 	ctx, cancel := context.WithCancel(ctx)
-	go httpapi.HeartbeatClose(ctx, api.Logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.Logger, conn)
 	defer cancel()
 
 	enc := wsjson.NewEncoder[codersdk.WorkspaceBuildUpdate](conn, websocket.MessageText)
@@ -2306,13 +2300,13 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This is largely based on the template ACL implementation, and is far from
-	// ideal. Usually, when we use the System context it's because we need to
-	// run some query that won't actually be exposed to the user. That is not
-	// the case here. This data goes directly to an unauthorized user. We are
-	// just straight up breaking security promises.
-	//
-	// TODO: This needs to be fixed before GA. Currently in beta.
+	// Callers are authorized to read this workspace, not necessarily the
+	// users and groups on its ACL. We deliberately use the System context to
+	// look up that data, but only return minimal identity information that is
+	// safe to expose to anyone who can read the ACL: MinimalUser for ACL users
+	// (no email or other PII) and group identity plus a member count for ACL
+	// groups (no member roster). This mirrors the chat ACL and template
+	// available-ACL endpoints.
 
 	// Fetch all of the users and their organization memberships
 	userIDs := make([]uuid.UUID, 0, len(workspaceACL.Users))
@@ -2324,7 +2318,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 		userIDs = append(userIDs, id)
 	}
-	// For context see https://github.com/coder/coder/pull/19375
+	// ACL users are returned as MinimalUser, which contains no PII, so it is
+	// safe to fetch them under the System context.
 	// nolint:gocritic
 	dbUsers, err := api.Database.GetUsersByIDs(dbauthz.AsSystemRestricted(ctx), userIDs)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2356,7 +2351,8 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 	// before making the DB call.
 	dbGroups := make([]database.GetGroupsRow, 0)
 	if len(groupIDs) > 0 {
-		// For context see https://github.com/coder/coder/pull/19375
+		// Group identity must be visible to anyone who can read the ACL so
+		// that owners and shared users can see and manage entries.
 		// nolint:gocritic
 		dbGroups, err = api.Database.GetGroups(dbauthz.AsSystemRestricted(ctx), database.GetGroupsParams{GroupIds: groupIDs})
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
@@ -2365,26 +2361,30 @@ func (api *API) workspaceACL(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Fetch member counts for all groups in a single query to avoid an N+1
+	// lookup. We intentionally do not populate the per-group member rosters:
+	// callers authorized to read the ACL are not necessarily authorized to
+	// read group membership, and the roster includes member PII. Only the
+	// total member count is returned (see Group.TotalMemberCount).
+	// nolint:gocritic
+	countRows, err := api.Database.GetGroupMembersCountByGroupIDs(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersCountByGroupIDsParams{
+		GroupIds:      groupIDs,
+		IncludeSystem: false,
+	})
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	countByGroup := make(map[uuid.UUID]int64, len(countRows))
+	for _, row := range countRows {
+		countByGroup[row.GroupID] = row.MemberCount
+	}
+
 	groups := make([]codersdk.WorkspaceGroup, 0, len(dbGroups))
 	for _, it := range dbGroups {
-		var members []database.GroupMember
-		// For context see https://github.com/coder/coder/pull/19375
-		// nolint:gocritic
-		members, err = api.Database.GetGroupMembersByGroupID(dbauthz.AsSystemRestricted(ctx), database.GetGroupMembersByGroupIDParams{
-			GroupID:       it.Group.ID,
-			IncludeSystem: false,
-		})
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
 		groups = append(groups, codersdk.WorkspaceGroup{
-			Group: db2sdk.Group(database.GetGroupsRow{
-				Group:                   it.Group,
-				OrganizationName:        it.OrganizationName,
-				OrganizationDisplayName: it.OrganizationDisplayName,
-			}, members, len(members)),
-			Role: convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
+			Group: db2sdk.Group(it, nil, int(countByGroup[it.Group.ID])),
+			Role:  convertToWorkspaceRole(workspaceACL.Groups[it.Group.ID.String()].Permissions),
 		})
 	}
 
@@ -2431,10 +2431,16 @@ func (api *API) patchWorkspaceACL(rw http.ResponseWriter, r *http.Request) {
 
 	apiKey := httpmw.APIKey(r)
 	if _, ok := req.UserRoles[apiKey.UserID.String()]; ok {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "You cannot change your own workspace sharing role.",
-		})
-		return
+		// Block changing your own sharing role unless you can share any
+		// workspace in the organization. This keeps a user whose only access is
+		// this share from destructively demoting themselves, while letting org
+		// and deployment admins manage their own access.
+		if !api.Authorize(r, policy.ActionShare, rbac.ResourceWorkspace.InOrg(workspace.OrganizationID)) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "You cannot change your own workspace sharing role.",
+			})
+			return
+		}
 	}
 
 	validErrs := acl.Validate(ctx, api.Database, WorkspaceACLUpdateValidator(req))

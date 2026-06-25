@@ -1,6 +1,6 @@
 # AI Gateway
 
-![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
+![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)
 
 AI Gateway is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
@@ -18,6 +18,10 @@ AI Gateway solves 3 key problems:
    use.
 
 > [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+>
 > AI Gateway was previously known as "AI Bridge". Some configuration
 > options, environment variables, and API paths still use the old name
 > and will be updated in a future release.

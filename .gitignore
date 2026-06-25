@@ -13,6 +13,14 @@ node_modules/
 vendor/
 yarn-error.log
 
+# Vale (prose linter) pulls package contents into docs/.style/styles/ on
+# `vale sync`. Each synced package directory and the sync sentinel are
+# gitignored. The Coder/ directory next to them is tracked because it
+# holds our custom rules.
+docs/.style/.vale-synced
+docs/.style/styles/*/
+!docs/.style/styles/Coder/
+
 # Test output files
 test-output/
 
@@ -96,6 +104,15 @@ __debug_bin*
 # Local agent configuration
 AGENTS.local.md
 
+# mise local overrides
+mise.local.toml
+.mise.local.toml
+mise.*.local.toml
+.mise.*.local.toml
+
+# `mise oci build` writes its OCI image layout here by default.
+mise-oci/
+
 /.env
 
 # Ignore plans written by AI agents.
@@ -106,3 +123,9 @@ license.txt
 
 # Agent planning documents (local working files).
 docs/plans/
+
+# Local audit reports (e.g. site/scripts/audit-docs-paths.mjs output).
+# The file is for local inspection only.
+docs/.audit/
+
+/release-action

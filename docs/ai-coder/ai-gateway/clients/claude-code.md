@@ -1,12 +1,17 @@
 # Claude Code
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 Claude Code can be configured using environment variables. All modes require a **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)** for authentication with AI Gateway.
 
 ## Centralized API Key
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
@@ -16,7 +21,7 @@ export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your personal Anthropic API key, forwarded to Anthropic.
 export ANTHROPIC_API_KEY="<your-anthropic-api-key>"
@@ -32,7 +37,7 @@ unset ANTHROPIC_AUTH_TOKEN
 
 ```bash
 # AI Gateway base URL.
-export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="<your-deployment-url>/api/v2/ai-gateway/anthropic"
 
 # Your Coder API token, used for authentication with AI Gateway.
 export ANTHROPIC_CUSTOM_HEADERS="X-Coder-AI-Governance-Token: <your-coder-api-token>"
@@ -50,11 +55,11 @@ Template admins can pre-configure Claude Code for a seamless experience. Admins 
 
 ```hcl
 module "claude-code" {
-  source          = "registry.coder.com/coder/claude-code/coder"
-  version         = "4.7.3"
-  agent_id        = coder_agent.main.id
-  workdir         = "/path/to/project"  # Set to your project directory
-  enable_aibridge = true
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "4.7.3"
+  agent_id          = coder_agent.main.id
+  workdir           = "/path/to/project"  # Set to your project directory
+  enable_ai_gateway = true
 }
 ```
 
@@ -71,14 +76,14 @@ resource "coder_ai_task" "task" {
 data "coder_task" "me" {}
 
 module "claude-code" {
-  source         = "registry.coder.com/coder/claude-code/coder"
-  version        = "4.7.3"
-  agent_id       = coder_agent.main.id
-  workdir        = "/path/to/project"  # Set to your project directory
-  ai_prompt      = data.coder_task.me.prompt
+  source            = "registry.coder.com/coder/claude-code/coder"
+  version           = "4.7.3"
+  agent_id          = coder_agent.main.id
+  workdir           = "/path/to/project"  # Set to your project directory
+  ai_prompt         = data.coder_task.me.prompt
 
-  # Route through AI Gateway (Premium feature)
-  enable_aibridge = true
+  # Route through AI Gateway (AI Governance Add-On)
+  enable_ai_gateway = true
 }
 ```
 

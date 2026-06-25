@@ -1,8 +1,9 @@
 # Database Encryption
 
-By default, Coder stores external user tokens in plaintext in the database.
-Database Encryption allows Coder administrators to encrypt these tokens at-rest,
-preventing attackers with database access from using them to impersonate users.
+By default, Coder stores external user tokens and other sensitive values in
+plaintext in the database. Database Encryption allows Coder administrators to
+encrypt these values at-rest, preventing attackers with database access from
+reading or misusing them.
 
 ## How it works
 
@@ -24,6 +25,7 @@ The following database fields are currently encrypted:
 - `external_auth_links.oauth_refresh_token`
 - `crypto_keys.secret`
 - `user_secrets.value`
+- `gitsshkeys.private_key`
 
 Additional database fields may be encrypted in the future.
 

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/pretty"
 	"github.com/coder/serpent"
@@ -22,6 +23,7 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 		icon                           string
 		defaultTTL                     time.Duration
 		activityBump                   time.Duration
+		timeTilAutostopNotify          time.Duration
 		autostopRequirementDaysOfWeek  []string
 		autostopRequirementWeeks       int64
 		autostartRequirementDaysOfWeek []string
@@ -88,6 +90,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			// Default values
+			if !userSetOption(inv, "name") {
+				name = template.Name
+			}
+
 			if !userSetOption(inv, "description") {
 				description = template.Description
 			}
@@ -106,6 +112,10 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 
 			if !userSetOption(inv, "activity-bump") {
 				activityBump = time.Duration(template.ActivityBumpMillis) * time.Millisecond
+			}
+
+			if !userSetOption(inv, "autostop-reminder") {
+				timeTilAutostopNotify = time.Duration(template.TimeTilAutostopNotifyMillis) * time.Millisecond
 			}
 
 			if !userSetOption(inv, "allow-user-autostop") {
@@ -169,12 +179,13 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			}
 
 			req := codersdk.UpdateTemplateMeta{
-				Name:               name,
-				DisplayName:        &displayName,
-				Description:        &description,
-				Icon:               &icon,
-				DefaultTTLMillis:   defaultTTL.Milliseconds(),
-				ActivityBumpMillis: activityBump.Milliseconds(),
+				Name:                        &name,
+				DisplayName:                 &displayName,
+				Description:                 &description,
+				Icon:                        &icon,
+				DefaultTTLMillis:            ptr.Ref(defaultTTL.Milliseconds()),
+				ActivityBumpMillis:          ptr.Ref(activityBump.Milliseconds()),
+				TimeTilAutostopNotifyMillis: ptr.Ref(timeTilAutostopNotify.Milliseconds()),
 				AutostopRequirement: &codersdk.TemplateAutostopRequirement{
 					DaysOfWeek: autostopRequirementDaysOfWeek,
 					Weeks:      autostopRequirementWeeks,
@@ -182,15 +193,19 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 					DaysOfWeek: autostartRequirementDaysOfWeek,
 				},
-				FailureTTLMillis:               failureTTL.Milliseconds(),
-				TimeTilDormantMillis:           dormancyThreshold.Milliseconds(),
-				TimeTilDormantAutoDeleteMillis: dormancyAutoDeletion.Milliseconds(),
-				AllowUserCancelWorkspaceJobs:   allowUserCancelWorkspaceJobs,
-				AllowUserAutostart:             allowUserAutostart,
-				AllowUserAutostop:              allowUserAutostop,
-				RequireActiveVersion:           requireActiveVersion,
+				FailureTTLMillis:               ptr.Ref(failureTTL.Milliseconds()),
+				TimeTilDormantMillis:           ptr.Ref(dormancyThreshold.Milliseconds()),
+				TimeTilDormantAutoDeleteMillis: ptr.Ref(dormancyAutoDeletion.Milliseconds()),
+				AllowUserCancelWorkspaceJobs:   &allowUserCancelWorkspaceJobs,
+				AllowUserAutostart:             &allowUserAutostart,
+				AllowUserAutostop:              &allowUserAutostop,
+				RequireActiveVersion:           &requireActiveVersion,
 				DeprecationMessage:             deprecated,
-				DisableEveryoneGroupAccess:     disableEveryoneGroup,
+				DisableEveryoneGroupAccess:     &disableEveryoneGroup,
+				// TODO(Emyrk): now that the API accepts partial updates,
+				// rewrite this CLI to only set pointers for flags the user
+				// explicitly provided via userSetOption. The current
+				// fetch-then-resend-everything dance is no longer required.
 			}
 
 			_, err = client.UpdateTemplateMeta(inv.Context(), template.ID, req)
@@ -238,6 +253,11 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 			Flag:        "activity-bump",
 			Description: "Edit the template activity bump - workspaces created from this template will have their shutdown time bumped by this value when activity is detected. Maps to \"Activity bump\" in the UI.",
 			Value:       serpent.DurationOf(&activityBump),
+		},
+		{
+			Flag:        "autostop-reminder",
+			Description: "Edit how long before the autostop deadline a reminder notification is sent for workspaces created from this template, in Go duration format (e.g. 1h, 30m). Set to 0 to disable.",
+			Value:       serpent.DurationOf(&timeTilAutostopNotify),
 		},
 		{
 			Flag:        "autostart-requirement-weekdays",

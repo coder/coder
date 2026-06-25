@@ -134,7 +134,7 @@ resource "docker_container" "workspace" {
 }
 
 // Rich parameters
-// See: https://coder.com/docs/templates/parameters
+// See: https://coder.com/docs/admin/templates/extending-templates/parameters
 
 data "coder_parameter" "project_id" {
   name         = "project_id"
@@ -252,7 +252,7 @@ data "coder_parameter" "enable_monitoring" {
 }
 
 // Build options (ephemeral parameters)
-// See: https://coder.com/docs/templates/parameters#ephemeral-parameters
+// See: https://coder.com/docs/admin/templates/extending-templates/parameters#ephemeral-parameters
 
 data "coder_parameter" "pause-startup" {
   name         = "pause-startup"

@@ -477,35 +477,6 @@ export interface InitComplete {
   moduleFilesHash: Uint8Array;
 }
 
-/**
- * UserSecretValue carries a single user secret to a provisioner. env_name and
- * file_path describe the bindings the user requested when creating the secret.
- * The terraform provisioner exposes secrets via CODER_SECRET_ENV_* and
- * CODER_SECRET_FILE_* environment variables consumed by terraform-provider-coder's
- * coder_secret data source
- */
-export interface UserSecretValue {
-  /**
-   * Environment variable name the user selected (e.g. "GITHUB_TOKEN"). Intended
-   * to be treated as an opaque lookup key, i.e. consumers must preserve it
-   * verbatim when matching against a data.coder_secret.env_name attribute.
-   * Consumers can assume names are POSIX-compliant. Optional: env_name and
-   * file_path are independent.
-   */
-  envName: string;
-  /**
-   * Filesystem path the user requested this secret be bound to (e.g. "~/creds"
-   * or "/etc/creds"). This path is not expanded. Expansion happens only where
-   * the secret is actually materialized on disk. Intended to be treated as an
-   * opaque lookup key, i.e. consumers must preserve it verbatim when matching
-   * against a data.coder_secret.file attribute. Optional; env_name and
-   * file_path are independent.
-   */
-  filePath: string;
-  /** Secret value, which may be arbitrary binary data. */
-  value: Uint8Array;
-}
-
 /** PlanRequest asks the provisioner to plan what resources & parameters it will create */
 export interface PlanRequest {
   metadata: Metadata | undefined;
@@ -515,13 +486,6 @@ export interface PlanRequest {
   previousParameterValues: RichParameterValue[];
   /** state is the provisioner state (if any) */
   state: Uint8Array;
-  /**
-   * User secrets to make available during plan. Not carried on ApplyRequest
-   * because plan evaluates data.coder_secret references and bakes the
-   * resolved values into plan state, so apply does not need the raw secrets.
-   * Provisioner-specific handling is documented on the UserSecretValue message.
-   */
-  userSecrets: UserSecretValue[];
 }
 
 /** PlanComplete indicates a request to plan completed. */
@@ -562,11 +526,8 @@ export interface GraphComplete {
   externalAuthProviders: ExternalAuthProviderResource[];
   presets: Preset[];
   /**
-   * Whether a template has any `coder_ai_task` resources defined, even if not planned for creation.
-   * During a template import, a plan is run which may not yield in any `coder_ai_task` resources, but nonetheless we
-   * still need to know that such resources are defined.
-   *
-   * See `hasAITaskResources` in provisioner/terraform/resources.go for more details.
+   * Whether actual `coder_ai_task` resource instances exist.
+   * Resources defined with count = 0 do not set this flag.
    */
   hasAiTasks: boolean;
   aiTasks: AITask[];
@@ -1515,21 +1476,6 @@ export const InitComplete = {
   },
 };
 
-export const UserSecretValue = {
-  encode(message: UserSecretValue, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.envName !== "") {
-      writer.uint32(10).string(message.envName);
-    }
-    if (message.filePath !== "") {
-      writer.uint32(18).string(message.filePath);
-    }
-    if (message.value.length !== 0) {
-      writer.uint32(26).bytes(message.value);
-    }
-    return writer;
-  },
-};
-
 export const PlanRequest = {
   encode(message: PlanRequest, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.metadata !== undefined) {
@@ -1549,9 +1495,6 @@ export const PlanRequest = {
     }
     if (message.state.length !== 0) {
       writer.uint32(50).bytes(message.state);
-    }
-    for (const v of message.userSecrets) {
-      UserSecretValue.encode(v!, writer.uint32(58).fork()).ldelim();
     }
     return writer;
   },

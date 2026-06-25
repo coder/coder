@@ -3,24 +3,38 @@ package chatadvisor
 import (
 	"context"
 	"strings"
+	"time"
 
 	"charm.land/fantasy"
 	"golang.org/x/xerrors"
 
+	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
+	"github.com/coder/coder/v2/codersdk"
 )
+
+// RunAdvisorOptions carries optional streaming callbacks for a
+// single RunAdvisor invocation.
+type RunAdvisorOptions struct {
+	OnAdviceDelta func(delta string)
+	OnAdviceReset func()
+}
 
 // RunAdvisor executes a single, tool-less nested advisor call.
 func (rt *Runtime) RunAdvisor(
 	ctx context.Context,
 	question string,
 	conversationSnapshot []fantasy.Message,
+	opts *RunAdvisorOptions,
 ) (AdvisorResult, error) {
 	// Model, MaxUsesPerRun, and MaxOutputTokens are validated by NewRuntime.
 	// Runtime fields are unexported so callers cannot bypass that.
-	if strings.TrimSpace(question) == "" {
+	question = strings.TrimSpace(question)
+	if question == "" {
 		return AdvisorResult{}, xerrors.New("advisor question is required")
 	}
+	question = stringutil.Truncate(question, advisorQuestionMaxRunes)
 
 	if !rt.tryAcquire() {
 		return AdvisorResult{
@@ -36,20 +50,33 @@ func (rt *Runtime) RunAdvisor(
 	nestedProviderOptions := cloneProviderOptions(rt.cfg.ProviderOptions)
 	resetProviderOptionsForNestedCall(nestedProviderOptions)
 
-	var persistedStep chatloop.PersistedStep
-	runOpts := chatloop.RunOptions{
+	assistantOpts := chatloop.GenerateAssistantOptions{
 		Model:           rt.cfg.Model,
 		Messages:        BuildAdvisorMessages(question, conversationSnapshot),
-		MaxSteps:        1,
 		ModelConfig:     rt.cfg.ModelConfig,
 		ProviderOptions: nestedProviderOptions,
-		PersistStep: func(_ context.Context, step chatloop.PersistedStep) error {
-			persistedStep = step
-			return nil
-		},
+	}
+	if opts != nil && opts.OnAdviceDelta != nil {
+		assistantOpts.PublishMessagePart = func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			if role != codersdk.ChatMessageRoleAssistant ||
+				part.Type != codersdk.ChatMessagePartTypeText ||
+				part.Text == "" {
+				return
+			}
+			opts.OnAdviceDelta(part.Text)
+		}
 	}
 
-	if err := chatloop.Run(ctx, runOpts); err != nil {
+	var outcome chatloop.AssistantOutcome
+	if err := chatretry.Retry(ctx, func(retryCtx context.Context) error {
+		var err error
+		outcome, err = chatloop.GenerateAssistant(retryCtx, assistantOpts)
+		return err
+	}, func(int, error, chatretry.ClassifiedError, time.Duration) {
+		if opts != nil && opts.OnAdviceReset != nil {
+			opts.OnAdviceReset()
+		}
+	}); err != nil {
 		// Refund the use so a transient provider failure does not
 		// permanently exhaust the per-run advisor budget.
 		rt.release()
@@ -60,7 +87,7 @@ func (rt *Runtime) RunAdvisor(
 		}, nil
 	}
 
-	advice := extractAdvisorText(persistedStep)
+	advice := extractAdvisorText(outcome.Step)
 	if advice == "" {
 		// Refund: the run did not produce advice, so the contract
 		// "increments on every successful advisor call" treats this

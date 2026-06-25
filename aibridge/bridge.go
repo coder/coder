@@ -2,6 +2,7 @@ package aibridge
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -20,6 +21,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/circuitbreaker"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
+	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
@@ -30,6 +32,26 @@ import (
 const (
 	// The duration after which an async recording will be aborted.
 	recordingTimeout = time.Second * 5
+
+	// maxRequestBodyBytes caps the request body size for AI Gateway
+	// provider endpoints to prevent denial-of-service via memory exhaustion.
+	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
+	// and 20 MB on Amazon Bedrock.
+	// See https://docs.anthropic.com/en/api/overview#request-size-limits
+	// OpenAI and GitHub Copilot do not document an equivalent HTTP body size limit.
+	// Using highest documented provider limit (32 MiB).
+	//
+	// NOTE: aibridge does not currently proxy file-upload endpoints
+	// (e.g. /v1/files). Those endpoints accept much larger bodies
+	// (up to 500 MB for Anthropic, 50 MB for OpenAI). If file-upload
+	// routes are added, they will need a per-route limit instead of
+	// this single global cap.
+	maxRequestBodyBytes = 32 << 20 // 32 MiB
+
+	// ErrorCodeProviderDisabled is the code written in the response
+	// body when a request targets a configured-but-disabled provider.
+	// Paired with HTTP 503.
+	ErrorCodeProviderDisabled = "provider_disabled"
 )
 
 // RequestBridge is an [http.Handler] which is capable of masquerading as AI providers' APIs;
@@ -96,6 +118,14 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	mux := http.NewServeMux()
 
 	for _, prov := range providers {
+		// Disabled providers serve a 503 sentinel on every path under
+		// "/<name>/". Bound to the bare name (not RoutePrefix) so paths
+		// outside the provider's normal "/v1" subtree are also caught.
+		if !prov.Enabled() {
+			prefix := fmt.Sprintf("/%s/", prov.Name())
+			mux.HandleFunc(prefix, disabledProviderHandler(prov.Name(), logger))
+			continue
+		}
 		// Create per-provider circuit breaker if configured
 		cfg := prov.CircuitBreakerConfig()
 		providerName := prov.Name()
@@ -170,6 +200,20 @@ func NewRequestBridge(ctx context.Context, providers []provider.Provider, rec re
 	}, nil
 }
 
+// disabledProviderHandler returns 503 with a body containing
+// [ErrorCodeProviderDisabled] and the provider name for every request
+// targeting name.
+func disabledProviderHandler(name string, logger slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		logger.Debug(r.Context(), "refusing request for disabled ai provider",
+			slog.F("provider", name),
+			slog.F("path", r.URL.Path),
+			slog.F("method", r.Method),
+		)
+		http.Error(w, fmt.Sprintf("%s: AI provider %q is disabled", ErrorCodeProviderDisabled, name), http.StatusServiceUnavailable)
+	}
+}
+
 // newInterceptionProcessor returns an [http.HandlerFunc] which is capable of creating a new interceptor and processing a given request
 // using [Provider] p, recording all usage events using [Recorder] rec.
 // If cbs is non-nil, circuit breaker protection is applied per endpoint/model tuple.
@@ -186,8 +230,12 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		interceptor, err := p.CreateInterceptor(w, r.WithContext(ctx), tracer)
 		if err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to create interceptor: %v", err))
-			logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
-			http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
+			if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+				writeRequestBodyTooLarge(w)
+			} else {
+				logger.Warn(ctx, "failed to create interceptor", slog.Error(err), slog.F("path", r.URL.Path))
+				http.Error(w, fmt.Sprintf("failed to create %q interceptor", r.URL.Path), http.StatusInternalServerError)
+			}
 			return
 		}
 
@@ -205,9 +253,16 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			return
 		}
 
+		cred := interceptor.Credential()
 		traceAttrs := interceptor.TraceAttributes(r)
 		span.SetAttributes(traceAttrs...)
 		ctx = tracing.WithInterceptionAttributesInContext(ctx, traceAttrs)
+		// Attach the interception ID and credential kind to the context so every
+		// log line emitted with it can be correlated to the interception.
+		ctx = slog.With(ctx,
+			slog.F("interception_id", interceptor.ID()),
+			slog.F("credential_kind", string(cred.Kind())),
+		)
 		r = r.WithContext(ctx)
 
 		// Record usage in the background to not block request flow.
@@ -219,7 +274,6 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		asyncRecorder.WithClient(string(client))
 		interceptor.Setup(logger, asyncRecorder, mcpProxy)
 
-		cred := interceptor.Credential()
 		if err := rec.RecordInterception(ctx, &recorder.InterceptionRecord{
 			ID:                    interceptor.ID().String(),
 			InitiatorID:           actor.ID,
@@ -231,8 +285,8 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 			Client:                string(client),
 			ClientSessionID:       sessionID,
 			CorrelatingToolCallID: interceptor.CorrelatingToolCallID(),
-			CredentialKind:        string(cred.Kind),
-			CredentialHint:        cred.Hint,
+			CredentialKind:        string(cred.Kind()),
+			CredentialHint:        cred.Hint(),
 		}); err != nil {
 			span.SetStatus(codes.Error, fmt.Sprintf("failed to record interception: %v", err))
 			logger.Warn(ctx, "failed to record interception", slog.Error(err))
@@ -244,15 +298,14 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		log := logger.With(
 			slog.F("route", route),
 			slog.F("provider", p.Name()),
-			slog.F("interception_id", interceptor.ID()),
 			slog.F("user_agent", r.UserAgent()),
 			slog.F("streaming", interceptor.Streaming()),
-			slog.F("credential_kind", string(cred.Kind)),
-			slog.F("credential_hint", cred.Hint),
-			slog.F("credential_length", cred.Length),
 		)
 
-		log.Debug(ctx, "interception started")
+		log.Debug(ctx, "interception started",
+			slog.F("credential_hint", cred.Hint()),
+			slog.F("credential_length", cred.Length()),
+		)
 		if m != nil {
 			m.InterceptionsInflight.WithLabelValues(p.Name(), interceptor.Model(), route).Add(1)
 			defer func() {
@@ -261,26 +314,42 @@ func newInterceptionProcessor(p provider.Provider, cbs *circuitbreaker.ProviderC
 		}
 
 		// Process request with circuit breaker protection if configured
-		if err := cbs.Execute(route, interceptor.Model(), w, func(rw http.ResponseWriter) error {
+		execErr := cbs.Execute(route, interceptor.Model(), w, func(rw http.ResponseWriter) error {
 			return interceptor.ProcessRequest(rw, r)
-		}); err != nil {
+		})
+		// For a centralized pool, the hint now reflects the last key the
+		// failover loop attempted.
+		credCtx := intercept.WithCredentialInfo(ctx, cred)
+		if execErr != nil {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusFailed, route, r.Method, actor.ID, string(client)).Add(1)
 			}
-			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", err))
-			log.Warn(ctx, "interception failed", slog.Error(err))
+			span.SetStatus(codes.Error, fmt.Sprintf("interception failed: %v", execErr))
+			log.Warn(credCtx, "interception failed", slog.Error(execErr))
 		} else {
 			if m != nil {
 				m.InterceptionCount.WithLabelValues(p.Name(), interceptor.Model(), metrics.InterceptionCountStatusCompleted, route, r.Method, actor.ID, string(client)).Add(1)
 			}
-			log.Debug(ctx, "interception ended")
+			log.Debug(credCtx, "interception ended")
 		}
 
-		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{ID: interceptor.ID().String()})
+		_ = asyncRecorder.RecordInterceptionEnded(ctx, &recorder.InterceptionRecordEnded{
+			ID:             interceptor.ID().String(),
+			CredentialHint: cred.Hint(),
+		})
 
 		// Ensure all recording have completed before completing request.
 		asyncRecorder.Wait()
 	}
+}
+
+// writeRequestBodyTooLarge writes a human-readable 413 response indicating that
+// the request body exceeded maxRequestBodyBytes.
+func writeRequestBodyTooLarge(w http.ResponseWriter) {
+	http.Error(w, fmt.Sprintf(
+		"Request body too large. The maximum allowed request body size is %dMiB.",
+		maxRequestBodyBytes>>20,
+	), http.StatusRequestEntityTooLarge)
 }
 
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
@@ -305,6 +374,9 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		b.inflightWG.Done()
 	}()
 
+	// Enforce the request body size limit. MaxBytesReader counts bytes as
+	// they are read from the connection and fails when the limit is exceeded.
+	r.Body = http.MaxBytesReader(rw, r.Body, maxRequestBodyBytes)
 	b.mux.ServeHTTP(rw, r.WithContext(ctx))
 }
 

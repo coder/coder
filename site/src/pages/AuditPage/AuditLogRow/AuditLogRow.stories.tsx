@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import type { AuditLog } from "#/api/typesGenerated";
 import { Table, TableBody } from "#/components/Table/Table";
 import { chromatic } from "#/testHelpers/chromatic";
 import {
@@ -184,6 +185,90 @@ export const WithConnectionType: Story = {
 				icon: "",
 			},
 			user: null,
+		},
+	},
+};
+
+const MockChatAuditLog: AuditLog = {
+	...MockAuditLog,
+	resource_type: "chat",
+	resource_id: "c542b43f-4375-421a-a7e0-b39187e35131",
+	resource_target: "c542b43f",
+	resource_icon: "",
+	resource_link: "/agents/c542b43f-4375-421a-a7e0-b39187e35131",
+	description: "{user} updated chat {target}",
+	additional_fields: {},
+};
+
+export const WithChatACLDiff: Story = {
+	parameters: { chromatic },
+	args: {
+		auditLog: {
+			...MockChatAuditLog,
+			id: "1d718c45-5dfb-4f24-9546-4f61fa8e3402",
+			action: "write",
+			description: "{user} updated sharing for chat {target}",
+			diff: {
+				user_acl: {
+					old: {},
+					new: {
+						"9a68e35d-bf3a-43bd-8e68-130df721cc71": {
+							permissions: ["read"],
+						},
+					},
+					secret: false,
+				},
+				group_acl: {
+					old: {},
+					new: {
+						"6d130d81-017e-44ff-8fca-3a38623dcb14": {
+							permissions: ["read"],
+						},
+					},
+					secret: false,
+				},
+			},
+		},
+		defaultIsDiffOpen: true,
+	},
+};
+
+export const WithArchivedChatDescription: Story = {
+	args: {
+		auditLog: {
+			...MockChatAuditLog,
+			id: "57329396-084a-4074-9930-385a7eed858a",
+			action: "write",
+			description: "{user} archived chat {target}",
+			diff: {
+				archived: {
+					old: false,
+					new: true,
+					secret: false,
+				},
+			},
+		},
+	},
+};
+
+export const WithUpdatedChatSharingDescription: Story = {
+	args: {
+		auditLog: {
+			...MockChatAuditLog,
+			id: "8f26cabf-8867-4d2f-942d-77e759a16c1c",
+			action: "write",
+			description: "{user} updated sharing for chat {target}",
+			diff: {
+				user_acl: {
+					old: {},
+					new: {
+						"9a68e35d-bf3a-43bd-8e68-130df721cc71": {
+							permissions: ["read"],
+						},
+					},
+					secret: false,
+				},
+			},
 		},
 	},
 };

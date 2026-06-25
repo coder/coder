@@ -1,17 +1,7 @@
-import {
-	ExternalLinkIcon,
-	LoaderIcon,
-	MonitorIcon,
-	TriangleAlertIcon,
-} from "lucide-react";
+import { ExternalLinkIcon } from "lucide-react";
 import type React from "react";
 import { Link } from "react-router";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
-import { ToolCollapsible } from "./ToolCollapsible";
+import { ToolCall } from "./ToolCall";
 import { asRecord, asString, type ToolStatus } from "./utils";
 import { WorkspaceBuildLogSection } from "./WorkspaceBuildLogSection";
 
@@ -30,6 +20,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage?: string;
 	buildId?: string;
 	created?: boolean;
+	labelOverride?: string;
 }> = ({
 	workspaceName,
 	resultJson,
@@ -38,6 +29,7 @@ export const CreateWorkspaceTool: React.FC<{
 	errorMessage,
 	buildId,
 	created = true,
+	labelOverride,
 }) => {
 	const isRunning = status === "running";
 	let rec: Record<string, unknown> | null = null;
@@ -46,7 +38,6 @@ export const CreateWorkspaceTool: React.FC<{
 			const parsed = JSON.parse(resultJson);
 			rec = asRecord(parsed);
 		} catch {
-			// resultJson might already be an object or invalid JSON
 			rec = asRecord(resultJson);
 		}
 	}
@@ -56,55 +47,49 @@ export const CreateWorkspaceTool: React.FC<{
 
 	const label = isRunning
 		? "Creating workspace…"
-		: isError
-			? `Failed to create ${wsName || "workspace"}`
-			: created === false
-				? `Workspace ${wsName} already exists`
-				: wsName
-					? `Created ${wsName}`
-					: "Created workspace";
+		: labelOverride
+			? labelOverride
+			: isError
+				? `Failed to create ${wsName || "workspace"}`
+				: created === false
+					? `Workspace ${wsName} already exists`
+					: wsName
+						? `Created ${wsName}`
+						: "Created workspace";
 
 	const hasBuildLogs = isRunning || Boolean(buildId);
 
-	const header = (
-		<>
-			<MonitorIcon className="h-4 w-4 shrink-0 text-current" />
-			<span className="text-[13px]">{label}</span>
-			{isError && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-					</TooltipTrigger>
-					<TooltipContent>
-						{errorMessage || "Failed to create workspace"}
-					</TooltipContent>
-				</Tooltip>
-			)}
-			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-			)}
-			{workspaceLink && !isRunning && (
-				<Link
-					to={workspaceLink}
-					onClick={(e) => e.stopPropagation()}
-					className="ml-1 inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
-					aria-label="View workspace"
-				>
-					<ExternalLinkIcon className="h-3 w-3" />
-				</Link>
-			)}
-		</>
-	);
-
 	return (
-		<div className="w-full">
-			<ToolCollapsible
-				header={header}
-				hasContent={hasBuildLogs}
-				defaultExpanded={isRunning}
-			>
+		<ToolCall.Root
+			className="w-full"
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || "Failed to create workspace"}
+			hasContent={hasBuildLogs}
+			defaultExpanded={isRunning}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.HeaderButton>
+					<ToolCall.LeadingIcon name="create_workspace" />
+					<ToolCall.Label>{label}</ToolCall.Label>
+					<ToolCall.Status />
+					<ToolCall.Chevron />
+				</ToolCall.HeaderButton>
+				{workspaceLink && !isRunning && (
+					<ToolCall.HeaderActions>
+						<Link
+							to={workspaceLink}
+							className="inline-flex align-middle text-content-secondary opacity-50 transition-opacity hover:opacity-100"
+							aria-label="View workspace"
+						>
+							<ExternalLinkIcon className="size-3" />
+						</Link>
+					</ToolCall.HeaderActions>
+				)}
+			</ToolCall.HeaderLayout>
+			<ToolCall.Content>
 				<WorkspaceBuildLogSection status={status} buildId={buildId} />
-			</ToolCollapsible>
-		</div>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

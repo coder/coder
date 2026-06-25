@@ -1,5 +1,10 @@
 # JetBrains IDEs
 
+> [!NOTE]
+> AI Gateway requires the [AI Governance Add-On](../../ai-governance.md).
+> As of Coder v2.32, deployments without the add-on will not be able to
+> access AI Gateway.
+
 JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via the [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key) feature.
 
 ## Prerequisites
@@ -12,7 +17,7 @@ JetBrains IDE (IntelliJ IDEA, PyCharm, WebStorm, etc.) support AI Gateway via th
 1. **Open Settings**: Go to **Settings** > **Tools** > **AI Assistant** > **Models & API Keys**.
 1. **Configure Provider**: Go to **Third-party AI providers**.
 1. **Choose Provider**: Choose **OpenAI-compatible**.
-1. **URL**: `https://coder.example.com/api/v2/aibridge/openai/v1`
+1. **URL**: `https://coder.example.com/api/v2/ai-gateway/openai/v1`
 1. **API Key**: Paste your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 1. **Apply**: Click **Apply** and **OK**.
 

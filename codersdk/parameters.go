@@ -162,27 +162,18 @@ type PreviewParameterValidation struct {
 }
 
 type DynamicParametersRequest struct {
-	// ID identifies the request for response ordering. Websocket response
-	// IDs are monotonically increasing and may exceed the request ID when
-	// server-side events trigger additional renders.
+	// ID identifies the request. The response contains the same
+	// ID so that the client can match it to the request.
 	ID     int               `json:"id"`
 	Inputs map[string]string `json:"inputs"`
 	// OwnerID if uuid.Nil, it defaults to `codersdk.Me`
 	OwnerID uuid.UUID `json:"owner_id,omitempty" format:"uuid"`
 }
 
-type SecretRequirementStatus struct {
-	Env         string `json:"env,omitempty"`
-	File        string `json:"file,omitempty"`
-	HelpMessage string `json:"help_message"`
-	Satisfied   bool   `json:"satisfied"`
-}
-
 type DynamicParametersResponse struct {
-	ID                 int                       `json:"id"`
-	Diagnostics        []FriendlyDiagnostic      `json:"diagnostics"`
-	Parameters         []PreviewParameter        `json:"parameters"`
-	SecretRequirements []SecretRequirementStatus `json:"secret_requirements,omitempty"`
+	ID          int                  `json:"id"`
+	Diagnostics []FriendlyDiagnostic `json:"diagnostics"`
+	Parameters  []PreviewParameter   `json:"parameters"`
 	// TODO: Workspace tags
 }
 

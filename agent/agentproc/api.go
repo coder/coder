@@ -11,10 +11,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -35,10 +38,10 @@ type API struct {
 }
 
 // NewAPI creates a new process API handler.
-func NewAPI(logger slog.Logger, execer agentexec.Execer, updateEnv func(current []string) (updated []string, err error), pathStore *agentgit.PathStore, workingDir func() string) *API {
+func NewAPI(logger slog.Logger, execer agentexec.Execer, fs afero.Fs, pathStore *agentgit.PathStore, envInfo usershell.EnvInfoer, updateEnv func(current []string) (updated []string, err error), workingDir func() string) *API {
 	return &API{
 		logger:    logger,
-		manager:   newManager(logger, execer, updateEnv, workingDir),
+		manager:   newManager(logger, execer, fs, envInfo, updateEnv, workingDir),
 		pathStore: pathStore,
 	}
 }
@@ -80,8 +83,8 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	var chatID string
-	if id, _, ok := agentgit.ExtractChatContext(r); ok {
-		chatID = id.String()
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		chatID = chatContext.ID.String()
 	}
 
 	proc, err := api.manager.start(req, chatID)
@@ -97,8 +100,8 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 	// file changes made by the command are visible in the scan.
 	// If a workdir is provided, track it as a path as well.
 	if api.pathStore != nil {
-		if chatID, ancestorIDs, ok := agentgit.ExtractChatContext(r); ok {
-			allIDs := append([]uuid.UUID{chatID}, ancestorIDs...)
+		if chatContext, ok := agentchat.FromContext(ctx); ok {
+			allIDs := append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...)
 			go func() {
 				<-proc.done
 				if req.WorkDir != "" {
@@ -121,8 +124,8 @@ func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var chatID string
-	if id, _, ok := agentgit.ExtractChatContext(r); ok {
-		chatID = id.String()
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		chatID = chatContext.ID.String()
 	}
 
 	infos := api.manager.list(chatID)
@@ -150,6 +153,7 @@ func (api *API) handleListProcesses(rw http.ResponseWriter, r *http.Request) {
 // handleProcessOutput returns the output of a process.
 func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	logger := api.logger.With(agentchat.Fields(ctx)...)
 
 	id := chi.URLParam(r, "id")
 	proc, ok := api.manager.get(id)
@@ -163,8 +167,8 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 	// Enforce chat ID isolation. If the request carries
 	// a chat context, only allow access to processes
 	// belonging to that chat.
-	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
-		if proc.chatID != "" && proc.chatID != chatID.String() {
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
+		if proc.chatID != "" && proc.chatID != chatContext.ID.String() {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("Process %q not found.", id),
 			})
@@ -184,7 +188,7 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// Add headroom beyond the wait timeout so there's time to
 		// write the response after the blocking wait completes.
 		if err := rc.SetWriteDeadline(time.Now().Add(maxWaitDuration + 30*time.Second)); err != nil {
-			api.logger.Error(ctx, "extend write deadline for blocking process output",
+			logger.Error(ctx, "extend write deadline for blocking process output",
 				slog.Error(err),
 			)
 		}
@@ -198,8 +202,13 @@ func (api *API) handleProcessOutput(rw http.ResponseWriter, r *http.Request) {
 		// Fall through to read snapshot below.
 	}
 
-	output, truncated := proc.output()
+	// Read info before output to avoid a TOCTOU race. The exit
+	// goroutine completes all buffer writes (cmd.Wait) before
+	// setting running=false, so if info reports the process as
+	// exited, the subsequent output read is guaranteed to reflect
+	// the final buffer state.
 	info := proc.info()
+	output, truncated := proc.output()
 
 	httpapi.Write(ctx, rw, http.StatusOK, workspacesdk.ProcessOutputResponse{
 		Output:    output,
@@ -216,9 +225,9 @@ func (api *API) handleSignalProcess(rw http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Enforce chat ID isolation.
-	if chatID, _, ok := agentgit.ExtractChatContext(r); ok {
+	if chatContext, ok := agentchat.FromContext(ctx); ok {
 		proc, procOK := api.manager.get(id)
-		if procOK && proc.chatID != "" && proc.chatID != chatID.String() {
+		if procOK && proc.chatID != "" && proc.chatID != chatContext.ID.String() {
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: fmt.Sprintf("Process %q not found.", id),
 			})

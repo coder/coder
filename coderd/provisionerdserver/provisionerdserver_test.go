@@ -2,6 +2,7 @@ package provisionerdserver_test
 
 import (
 	"context"
+	crand "crypto/rand"
 	"database/sql"
 	"encoding/json"
 	"io"
@@ -25,7 +26,10 @@ import (
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcmux"
+	"storj.io/drpc/drpcserver"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd"
@@ -51,6 +55,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage/usagetypes"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
@@ -626,7 +631,7 @@ func TestAcquireJob(t *testing.T) {
 					WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 					WorkspaceBuildId:              build.ID.String(),
 					WorkspaceOwnerLoginType:       string(user.LoginType),
-					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}},
+					WorkspaceOwnerRbacRoles:       []*sdkproto.Role{{Name: rbac.RoleOrgMember(), OrgId: pd.OrganizationID.String()}, {Name: "member", OrgId: ""}, {Name: rbac.RoleOrgAuditor(), OrgId: pd.OrganizationID.String()}, {Name: rbac.RoleOrgWorkspaceAccess(), OrgId: pd.OrganizationID.String()}},
 					TaskId:                        task.ID.String(),
 					TaskPrompt:                    task.Prompt,
 				}
@@ -855,368 +860,6 @@ func TestAcquireJob(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.JSONEq(t, string(want), string(got))
-		})
-		t.Run(tc.name+"_UserSecrets", func(t *testing.T) {
-			t.Parallel()
-			srv, db, ps, pd := setup(t, false, nil)
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			user := dbgen.User(t, db, database.User{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
-
-			// Create secrets: 4 valid + 1 that should be filtered out.
-			insert1 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "github-token", EnvName: "GITHUB_TOKEN", Value: "ghp_xxxx"}
-			secret1 := dbgen.UserSecret(t, db, insert1, func(p *database.CreateUserSecretParams) { p.FilePath = "" })
-
-			insert2 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "ssh-key", FilePath: "~/.ssh/id_rsa", Value: "private-key"}
-			secret2 := dbgen.UserSecret(t, db, insert2, func(p *database.CreateUserSecretParams) { p.EnvName = "" })
-
-			insert3 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "both", EnvName: "BOTH", FilePath: "/etc/both", Value: "both-val"}
-			secret3 := dbgen.UserSecret(t, db, insert3)
-
-			insert4 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "empty-value", Value: "", EnvName: "EMPTY_VALUE", FilePath: "/etc/empty-value"}
-			secret4 := dbgen.UserSecret(t, db, insert4, func(p *database.CreateUserSecretParams) { p.Value = "" })
-
-			insert5 := database.UserSecret{ID: uuid.New(), UserID: user.ID, Name: "no-injection", Value: "no-injection"}
-			_ = dbgen.UserSecret(t, db, insert5, func(p *database.CreateUserSecretParams) { p.EnvName = ""; p.FilePath = "" })
-
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      user.ID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				OrganizationID: pd.OrganizationID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          uuid.New(),
-			})
-			// Import version job
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         file.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-					TemplateVersionID: version.ID,
-				})),
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			buildID := uuid.New()
-			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: buildID,
-				})),
-				Tags: pd.Tags,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				ID:                buildID,
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             dbJob.ID,
-				TemplateVersionID: version.ID,
-				Transition:        database.WorkspaceTransitionStart,
-				Reason:            database.BuildReasonInitiator,
-			})
-
-			startPublished := make(chan struct{})
-			var closed bool
-			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
-				wspubsub.HandleWorkspaceEvent(
-					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
-						if err != nil {
-							return
-						}
-						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
-							if !closed {
-								close(startPublished)
-								closed = true
-							}
-						}
-					}))
-			require.NoError(t, err)
-			defer closeStartSubscribe()
-
-			// Grab jobs until we find the workspace build job.
-			var job *proto.AcquiredJob
-			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-				job, err = tc.acquire(ctx, srv)
-				require.NoError(t, err)
-				_, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_)
-				return ok
-			}, testutil.IntervalMedium)
-
-			select {
-			case <-startPublished:
-			case <-time.After(testutil.WaitShort):
-				t.Fatalf("timed out waiting for workspace build job to start")
-			}
-
-			wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
-			require.Len(t, wb.UserSecrets, 4, "expected 4 secrets (the one with empty env_name and file_path should be filtered)")
-
-			// Re-sort by (env_name+file_path) before asserting field values.
-			// The terraform-provider-coder contract does not require a
-			// specific secret order, so this test intentionally does not
-			// assert the order produced by ListUserSecretsWithValues.
-			slices.SortFunc(wb.UserSecrets, func(a, b *sdkproto.UserSecretValue) int {
-				return strings.Compare(a.EnvName+a.FilePath, b.EnvName+b.FilePath)
-			})
-
-			// After sorting: []{secret3, secret4, secret1, secret2}
-			require.Equal(t, secret3.EnvName, wb.UserSecrets[0].EnvName)
-			require.Equal(t, secret3.FilePath, wb.UserSecrets[0].FilePath)
-			require.Equal(t, []byte(secret3.Value), wb.UserSecrets[0].Value)
-
-			require.Equal(t, secret4.EnvName, wb.UserSecrets[1].EnvName)
-			require.Equal(t, secret4.FilePath, wb.UserSecrets[1].FilePath)
-			require.Equal(t, []byte(secret4.Value), wb.UserSecrets[1].Value)
-
-			require.Equal(t, secret1.EnvName, wb.UserSecrets[2].EnvName)
-			require.Equal(t, secret1.FilePath, wb.UserSecrets[2].FilePath)
-			require.Equal(t, []byte(secret1.Value), wb.UserSecrets[2].Value)
-
-			require.Equal(t, secret2.EnvName, wb.UserSecrets[3].EnvName)
-			require.Equal(t, secret2.FilePath, wb.UserSecrets[3].FilePath)
-			require.Equal(t, []byte(secret2.Value), wb.UserSecrets[3].Value)
-		})
-
-		for _, transitionCase := range []struct {
-			name       string
-			transition database.WorkspaceTransition
-		}{
-			{
-				name:       "Stop",
-				transition: database.WorkspaceTransitionStop,
-			},
-			{
-				name:       "Delete",
-				transition: database.WorkspaceTransitionDelete,
-			},
-		} {
-			t.Run(tc.name+"_UserSecrets"+transitionCase.name+"Transition", func(t *testing.T) {
-				// Secrets must never be populated on non-start transitions. The
-				// terraform-provider-coder data source intentionally returns empty
-				// values on stop/delete so that workspaces with revoked or deleted
-				// secrets can still be torn down.
-				t.Parallel()
-				srv, db, ps, pd := setup(t, false, nil)
-				ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-				defer cancel()
-
-				user := dbgen.User(t, db, database.User{})
-				dbgen.OrganizationMember(t, db, database.OrganizationMember{
-					UserID:         user.ID,
-					OrganizationID: pd.OrganizationID,
-				})
-				dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
-
-				// Give the owner a secret so we can prove it is not forwarded on a
-				// transition.
-				authCtx := dbauthz.AsSystemRestricted(ctx)
-				_, err := db.CreateUserSecret(authCtx, database.CreateUserSecretParams{
-					ID:      uuid.New(),
-					UserID:  user.ID,
-					Name:    "github-token",
-					EnvName: "GITHUB_TOKEN",
-					Value:   "must-not-leak",
-				})
-				require.NoError(t, err)
-
-				template := dbgen.Template(t, db, database.Template{
-					Name:           "template",
-					Provisioner:    database.ProvisionerTypeEcho,
-					OrganizationID: pd.OrganizationID,
-					CreatedBy:      user.ID,
-				})
-				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-					CreatedBy:      user.ID,
-					OrganizationID: pd.OrganizationID,
-					TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-					JobID:          uuid.New(),
-				})
-				_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					OrganizationID: pd.OrganizationID,
-					ID:             version.JobID,
-					InitiatorID:    user.ID,
-					FileID:         file.ID,
-					Provisioner:    database.ProvisionerTypeEcho,
-					StorageMethod:  database.ProvisionerStorageMethodFile,
-					Type:           database.ProvisionerJobTypeTemplateVersionImport,
-					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-						TemplateVersionID: version.ID,
-					})),
-				})
-				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-					TemplateID:     template.ID,
-					OwnerID:        user.ID,
-					OrganizationID: pd.OrganizationID,
-				})
-				buildID := uuid.New()
-				dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					OrganizationID: pd.OrganizationID,
-					InitiatorID:    user.ID,
-					Provisioner:    database.ProvisionerTypeEcho,
-					StorageMethod:  database.ProvisionerStorageMethodFile,
-					FileID:         file.ID,
-					Type:           database.ProvisionerJobTypeWorkspaceBuild,
-					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-						WorkspaceBuildID: buildID,
-					})),
-					Tags: pd.Tags,
-				})
-				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					ID:                buildID,
-					WorkspaceID:       workspace.ID,
-					BuildNumber:       1,
-					JobID:             dbJob.ID,
-					TemplateVersionID: version.ID,
-					Transition:        transitionCase.transition,
-					Reason:            database.BuildReasonInitiator,
-				})
-
-				var job *proto.AcquiredJob
-				for {
-					job, err = tc.acquire(ctx, srv)
-					require.NoError(t, err)
-					if _, ok := job.Type.(*proto.AcquiredJob_WorkspaceBuild_); ok {
-						break
-					}
-				}
-
-				wb := job.Type.(*proto.AcquiredJob_WorkspaceBuild_).WorkspaceBuild
-				require.Empty(t, wb.UserSecrets)
-			})
-		}
-
-		t.Run(tc.name+"_UserSecretsDBError", func(t *testing.T) {
-			// A DB failure fetching user secrets must surface as a provisioner
-			// job failure rather than being silently treated as "no secrets".
-			// Silent treatment would let a transient DB error cause a
-			// workspace to build without the secrets it needs, producing a
-			// confusing downstream terraform error about missing secrets that
-			// the user actually owns.
-			t.Parallel()
-			srv, db, ps, pd := setup(t, true, &overrides{
-				wrapDB: func(inner database.Store) database.Store {
-					return &errOnListUserSecretsWithValues{Store: inner}
-				},
-			})
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-			defer cancel()
-
-			user := dbgen.User(t, db, database.User{})
-			dbgen.OrganizationMember(t, db, database.OrganizationMember{
-				UserID:         user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			dbgen.GitSSHKey(t, db, database.GitSSHKey{UserID: user.ID})
-
-			template := dbgen.Template(t, db, database.Template{
-				Name:           "template",
-				Provisioner:    database.ProvisionerTypeEcho,
-				OrganizationID: pd.OrganizationID,
-				CreatedBy:      user.ID,
-			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				OrganizationID: pd.OrganizationID,
-				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
-				JobID:          uuid.New(),
-			})
-			_ = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				ID:             version.JobID,
-				InitiatorID:    user.ID,
-				FileID:         file.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-					TemplateVersionID: version.ID,
-				})),
-			})
-			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-				TemplateID:     template.ID,
-				OwnerID:        user.ID,
-				OrganizationID: pd.OrganizationID,
-			})
-			buildID := uuid.New()
-			dbJob := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-				OrganizationID: pd.OrganizationID,
-				InitiatorID:    user.ID,
-				Provisioner:    database.ProvisionerTypeEcho,
-				StorageMethod:  database.ProvisionerStorageMethodFile,
-				FileID:         file.ID,
-				Type:           database.ProvisionerJobTypeWorkspaceBuild,
-				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-					WorkspaceBuildID: buildID,
-				})),
-				Tags: pd.Tags,
-			})
-			_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-				ID:                buildID,
-				WorkspaceID:       workspace.ID,
-				BuildNumber:       1,
-				JobID:             dbJob.ID,
-				TemplateVersionID: version.ID,
-				// Only start transitions fetch secrets.
-				Transition: database.WorkspaceTransitionStart,
-				Reason:     database.BuildReasonInitiator,
-			})
-
-			var acquireErr error
-			for {
-				// Keep acquiring until we either get our build back (possible
-				// for the Deprecated path to return an empty AcquiredJob once
-				// its long-poll window elapses on unrelated jobs) or propagate
-				// an error.
-				job, err := tc.acquire(ctx, srv)
-				if err != nil {
-					acquireErr = err
-					break
-				}
-				if job != nil && job.JobId != "" {
-					t.Fatalf("expected acquire to error, got job %s", job.JobId)
-				}
-			}
-			require.ErrorContains(t, acquireErr, "request job was invalidated",
-				"DB error should surface as a job invalidation")
-			require.ErrorContains(t, acquireErr, "get user secrets",
-				"error should identify the failing operation")
-			require.ErrorContains(t, acquireErr, "ListUserSecretsWithValues query failed",
-				"underlying DB error message should be preserved")
-
-			// Confirm the provisioner job itself was marked as failed so the
-			// workspace build does not remain stuck in-progress.
-			authCtx := dbauthz.AsSystemRestricted(ctx)
-			gotJob, err := db.GetProvisionerJobByID(authCtx, dbJob.ID)
-			require.NoError(t, err)
-			require.True(t, gotJob.Error.Valid, "job should be marked with an error")
-			require.Contains(t, gotJob.Error.String, "get user secrets")
-			require.True(t, gotJob.CompletedAt.Valid, "job should be marked complete")
 		})
 	}
 }
@@ -2710,6 +2353,109 @@ func TestCompleteJob(t *testing.T) {
 			})
 		}
 	})
+	t.Run("WorkspaceBuild_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		// Given: a victim workspace whose agent owns an app with a known UUID.
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		// Given: an attacker workspace with a running build job acquired by the
+		// provisioner daemon.
+		attackerUser := dbgen.User(t, db, database.User{})
+		attackerTemplate := dbgen.Template(t, db, database.Template{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		attackerVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID:     uuid.NullUUID{UUID: attackerTemplate.ID, Valid: true},
+			JobID:          uuid.New(),
+		})
+		attackerWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     attackerTemplate.ID,
+			OwnerID:        attackerUser.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		attackerBuildID := uuid.New()
+		attackerJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			InitiatorID: attackerUser.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: attackerBuildID,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                attackerBuildID,
+			JobID:             attackerJob.ID,
+			WorkspaceID:       attackerWorkspace.ID,
+			TemplateVersionID: attackerVersion.ID,
+			InitiatorID:       attackerUser.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID:  pd.OrganizationID,
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+			ProvisionerTags: must(json.Marshal(attackerJob.Tags)),
+		})
+		require.NoError(t, err)
+
+		// When: the attacker's build completes with an app that reuses the
+		// victim's app UUID but points at the attacker's (new) agent.
+		attackerAgent := &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "attacker-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: attackerJob.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State: []byte{},
+					Resources: []*sdkproto.Resource{{
+						Name:   "example",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{attackerAgent},
+					}},
+				},
+			},
+		})
+		// Then: the build is rejected with the cross-tenant rebind error.
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID:   attackerJob.ID,
+				appID:   victimAppID,
+				slug:    "attacker-app",
+				agentID: attackerAgent.Id,
+			},
+		)
+
+		// And: the victim's app remains bound to the victim agent, unchanged.
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
+	})
 	t.Run("TemplateDryRun", func(t *testing.T) {
 		t.Parallel()
 		srv, db, _, pd := setup(t, false, &overrides{})
@@ -2758,6 +2504,161 @@ func TestCompleteJob(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("TemplateDryRun_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		user := dbgen.User(t, db, database.User{})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          uuid.New(),
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:            version.JobID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionDryRunJob{
+				TemplateVersionID: version.ID,
+			})),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			OrganizationID:  pd.OrganizationID,
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		dryRunAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "dry-run-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateDryRun_{
+				TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+					Resources: []*sdkproto.Resource{{
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{dryRunAgent},
+					}},
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "dry-run-app",
+			},
+		)
+
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
+	})
+
+	t.Run("TemplateImport_CrossWorkspaceAppRebindRejected", func(t *testing.T) {
+		t.Parallel()
+		logSink := &recordingSlogSink{}
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).AppendSinks(logSink)
+		srv, db, _, pd := setup(t, false, &overrides{provisionerdLogger: &logger})
+
+		victimAppID, victimAgentID, victimSlug := setupWorkspaceAppRebindVictim(
+			t, db, pd.OrganizationID,
+		)
+
+		user := dbgen.User(t, db, database.User{})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			JobID:          uuid.New(),
+		})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:            version.JobID,
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+				TemplateVersionID: version.ID,
+			})),
+			OrganizationID: pd.OrganizationID,
+			Tags:           pd.Tags,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt:       sql.NullTime{Time: dbtime.Now(), Valid: true},
+			OrganizationID:  pd.OrganizationID,
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+		})
+		require.NoError(t, err)
+
+		importAgent := &sdkproto.Agent{
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Apps: []*sdkproto.App{{
+				Id:   victimAppID.String(),
+				Slug: "import-app",
+			}},
+		}
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_TemplateImport_{
+				TemplateImport: &proto.CompletedJob_TemplateImport{
+					StartResources: []*sdkproto.Resource{{
+						Name:   "something",
+						Type:   "aws_instance",
+						Agents: []*sdkproto.Agent{importAgent},
+					}},
+					Plan: []byte("{}"),
+				},
+			},
+		})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "already bound to a workspace-owned agent")
+		assertWorkspaceAppRebindWarning(
+			t,
+			logSink,
+			workspaceAppRebindWarning{
+				jobID: job.ID,
+				appID: victimAppID,
+				slug:  "import-app",
+			},
+		)
+
+		victimApps, err := db.GetWorkspaceAppsByAgentID(ctx, victimAgentID)
+		require.NoError(t, err)
+		require.Len(t, victimApps, 1)
+		require.Equal(t, victimAppID, victimApps[0].ID)
+		require.Equal(t, victimAgentID, victimApps[0].AgentID)
+		require.Equal(t, victimSlug, victimApps[0].Slug)
 	})
 
 	t.Run("Modules", func(t *testing.T) {
@@ -3743,6 +3644,59 @@ func TestCompleteJob(t *testing.T) {
 			}
 		})
 	})
+}
+
+func setupWorkspaceAppRebindVictim(
+	t *testing.T,
+	db database.Store,
+	organizationID uuid.UUID,
+) (appID uuid.UUID, agentID uuid.UUID, slug string) {
+	t.Helper()
+
+	victimUser := dbgen.User(t, db, database.User{})
+	victimTemplate := dbgen.Template(t, db, database.Template{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
+	})
+	victimVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		CreatedBy:      victimUser.ID,
+		OrganizationID: organizationID,
+		TemplateID:     uuid.NullUUID{UUID: victimTemplate.ID, Valid: true},
+	})
+	victimWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		TemplateID:     victimTemplate.ID,
+		OwnerID:        victimUser.ID,
+		OrganizationID: organizationID,
+	})
+	victimJob := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type:           database.ProvisionerJobTypeWorkspaceBuild,
+		OrganizationID: organizationID,
+		StartedAt:      sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+		CompletedAt:    sql.NullTime{Time: time.Now().Add(-time.Hour), Valid: true},
+	})
+	dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             victimJob.ID,
+		WorkspaceID:       victimWorkspace.ID,
+		TemplateVersionID: victimVersion.ID,
+		InitiatorID:       victimUser.ID,
+		Transition:        database.WorkspaceTransitionStart,
+		Reason:            database.BuildReasonInitiator,
+	})
+	victimResource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: victimJob.ID,
+	})
+	victimAgent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: victimResource.ID,
+	})
+	victimAppID := uuid.New()
+	const victimSlug = "code-server"
+	dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
+		ID:      victimAppID,
+		AgentID: victimAgent.ID,
+		Slug:    victimSlug,
+	})
+
+	return victimAppID, victimAgent.ID, victimSlug
 }
 
 type mockPrebuildsOrchestrator struct {
@@ -5143,6 +5097,70 @@ func TestServer_ExpirePrebuildsSessionToken(t *testing.T) {
 	require.ErrorIs(t, err, sql.ErrNoRows, "api key for prebuilds user should be deleted")
 }
 
+type workspaceAppRebindWarning struct {
+	jobID   uuid.UUID
+	appID   uuid.UUID
+	slug    string
+	agentID string
+}
+
+func assertWorkspaceAppRebindWarning(t *testing.T, logSink *recordingSlogSink, want workspaceAppRebindWarning) {
+	t.Helper()
+
+	for _, entry := range logSink.Entries() {
+		if entry.Message != "workspace app rebind rejected by SQL guard" {
+			continue
+		}
+
+		require.Equal(t, slog.LevelWarn, entry.Level)
+		require.Contains(t, entry.File, "coderd/provisionerdserver/provisionerdserver.go")
+		require.NotContains(t, entry.Func, "warnWorkspaceAppRebindRejected")
+		fields := slogFieldsByName(entry.Fields)
+		require.Equal(t, want.jobID.String(), fields["job_id"])
+		require.Equal(t, want.appID.String(), fields["app_id"])
+		require.Equal(t, want.slug, fields["app_slug"])
+		agentID, ok := fields["agent_id"].(string)
+		require.True(t, ok)
+		require.NotEqual(t, uuid.Nil.String(), agentID)
+		if want.agentID != "" {
+			require.Equal(t, want.agentID, agentID)
+		} else {
+			_, err := uuid.Parse(agentID)
+			require.NoError(t, err)
+		}
+		return
+	}
+
+	require.Fail(t, "expected workspace app rebind warning")
+}
+
+type recordingSlogSink struct {
+	mu      sync.Mutex
+	entries []slog.SinkEntry
+}
+
+func (s *recordingSlogSink) LogEntry(_ context.Context, entry slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries = append(s.entries, entry)
+}
+
+func (*recordingSlogSink) Sync() {}
+
+func (s *recordingSlogSink) Entries() []slog.SinkEntry {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]slog.SinkEntry(nil), s.entries...)
+}
+
+func slogFieldsByName(fields []slog.Field) map[string]any {
+	byName := make(map[string]any, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field.Value
+	}
+	return byName
+}
+
 type overrides struct {
 	ctx                         context.Context
 	deploymentValues            *codersdk.DeploymentValues
@@ -5157,9 +5175,7 @@ type overrides struct {
 	auditor                     audit.Auditor
 	notificationEnqueuer        notifications.Enqueuer
 	prebuildsOrchestrator       agplprebuilds.ReconciliationOrchestrator
-	// wrapDB wraps the raw DB before dbauthz.New. Use this to inject
-	// errors or observe calls on specific queries for a single test.
-	wrapDB func(database.Store) database.Store
+	provisionerdLogger          *slog.Logger
 }
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
@@ -5236,6 +5252,10 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	} else {
 		notifEnq = notifications.NewNoopEnqueuer()
 	}
+	provisionerdLogger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors})
+	if ov.provisionerdLogger != nil {
+		provisionerdLogger = *ov.provisionerdLogger
+	}
 
 	daemon, err := db.UpsertProvisionerDaemon(ov.ctx, database.UpsertProvisionerDaemonParams{
 		Name:           "test",
@@ -5260,9 +5280,6 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	// Use an authz wrapped database for the server to ensure permission checks
 	// work.
 	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	if ov.wrapDB != nil {
-		db = ov.wrapDB(db)
-	}
 	serverDB := dbauthz.New(db, authorizer, logger, coderdtest.AccessControlStorePointer())
 	srv, err := provisionerdserver.NewServer(
 		ov.ctx,
@@ -5270,7 +5287,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		&url.URL{},
 		daemon.ID,
 		defOrg.ID,
-		slogtest.Make(t, &slogtest.Options{IgnoreErrors: ignoreLogErrors}),
+		provisionerdLogger,
 		[]database.ProvisionerType{database.ProvisionerTypeEcho},
 		provisionerdserver.Tags(daemon.Tags),
 		serverDB,
@@ -5408,31 +5425,140 @@ func newFakeUsageInserter() (*coderdtest.UsageInserter, *atomic.Pointer[usage.In
 	return fake, poitr
 }
 
-// errListUserSecretsWithValues is the sentinel returned by the test wrapper
-// below. Its message is matched by assertions that verify the underlying DB
-// error propagated through failJob's formatting. The chain is not preserved
-// via errors.Is because failJob uses fmt.Sprintf, not %w.
-var errListUserSecretsWithValues = xerrors.New("ListUserSecretsWithValues query failed")
-
-// errOnListUserSecretsWithValues is a database.Store wrapper that errors only
-// on ListUserSecretsWithValues. All other methods pass through to the
-// underlying store. Used to simulate a transient DB failure on the secret
-// fetch without breaking the rest of the acquire flow (user lookup, job
-// update, etc.).
-type errOnListUserSecretsWithValues struct {
-	database.Store
+// serveProvisionerDaemon serves the provisioner daemon server over an
+// in-memory pipe and returns a connected client, mirroring how coderd serves
+// in-memory provisioner daemons. This exercises the real DRPC streaming path
+// instead of a hand-rolled mock stream.
+func serveProvisionerDaemon(t *testing.T, srv proto.DRPCProvisionerDaemonServer) proto.DRPCProvisionerDaemonClient {
+	t.Helper()
+	clientPipe, serverPipe := drpcsdk.MemTransportPipe()
+	t.Cleanup(func() {
+		_ = clientPipe.Close()
+		_ = serverPipe.Close()
+	})
+	mux := drpcmux.New()
+	require.NoError(t, proto.DRPCRegisterProvisionerDaemon(mux, srv))
+	server := drpcserver.NewWithOptions(mux, drpcserver.Options{
+		Manager: drpcsdk.DefaultDRPCOptions(nil),
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	closed := make(chan struct{})
+	go func() {
+		defer close(closed)
+		_ = server.Serve(ctx, serverPipe)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		<-closed
+	})
+	return proto.NewDRPCProvisionerDaemonClient(clientPipe)
 }
 
-func (*errOnListUserSecretsWithValues) ListUserSecretsWithValues(context.Context, uuid.UUID) ([]database.UserSecret, error) {
-	return nil, errListUserSecretsWithValues
+// insertModuleFile inserts a system-created (CreatedBy=uuid.Nil) tar file and
+// links it as the cached module files of a template version in the given
+// organization, returning the file.
+func insertModuleFile(t *testing.T, db database.Store, orgID uuid.UUID, data []byte) database.File {
+	t.Helper()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	user := dbgen.User(t, db, database.User{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+	})
+	jobID := uuid.New()
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: orgID,
+		CreatedBy:      user.ID,
+		TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+		JobID:          jobID,
+	})
+	// Insert the file directly rather than via dbgen.File: the helper treats a
+	// zero CreatedBy as "unset" and replaces it with a random UUID, but module
+	// files must be system-created (CreatedBy=uuid.Nil) to match the handler's
+	// metadata check.
+	file, err := db.InsertFile(ctx, database.InsertFileParams{
+		ID:        uuid.New(),
+		Hash:      uuid.NewString(),
+		CreatedAt: dbtime.Now(),
+		CreatedBy: uuid.Nil,
+		Mimetype:  "application/x-tar",
+		Data:      data,
+	})
+	require.NoError(t, err)
+	err = db.InsertTemplateVersionTerraformValuesByJobID(ctx, database.InsertTemplateVersionTerraformValuesByJobIDParams{
+		JobID:             version.JobID,
+		CachedPlan:        []byte("{}"),
+		CachedModuleFiles: uuid.NullUUID{UUID: file.ID, Valid: true},
+		UpdatedAt:         dbtime.Now(),
+	})
+	require.NoError(t, err)
+	return file
 }
 
-// InTx must be overridden to keep the wrapped store visible inside a
-// transaction. Without this override, InTx would pass the raw inner store to
-// its closure and tests would see the unwrapped behavior from anywhere that
-// runs inside a transaction.
-func (e *errOnListUserSecretsWithValues) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
-	return e.Store.InTx(func(tx database.Store) error {
-		return fn(&errOnListUserSecretsWithValues{Store: tx})
-	}, opts)
+// TestDownloadFile verifies that a provisioner daemon cannot download cached
+// module archives belonging to other organizations (ANT-2026-22440), while
+// still being able to download module files from its own organization.
+func TestDownloadFile(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RejectsOtherOrgModuleFile", func(t *testing.T) {
+		t.Parallel()
+
+		// The server is scoped to the default organization (org A).
+		srv, db, _, daemon := setup(t, false, &overrides{
+			externalAuthConfigs: []*externalauth.Config{{}},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
+
+		// Create a module file belonging to a different organization (org B).
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		require.NotEqual(t, daemon.OrganizationID, otherOrg.ID)
+
+		moduleData := make([]byte, sdkproto.ChunkSize*2)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
+		file := insertModuleFile(t, db, otherOrg.ID, moduleData)
+
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
+			FileId:     file.ID.String(),
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+
+		// The handler must reject the cross-org download with an error rather
+		// than streaming the file's contents.
+		_, err = provisionersdk.HandleReceivingDataUpload(stream)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "is not a modules file")
+	})
+
+	t.Run("AllowsSameOrgModuleFile", func(t *testing.T) {
+		t.Parallel()
+
+		// The server is scoped to the default organization (org A).
+		srv, db, _, daemon := setup(t, false, &overrides{
+			externalAuthConfigs: []*externalauth.Config{{}},
+		})
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := serveProvisionerDaemon(t, srv)
+
+		moduleData := make([]byte, sdkproto.ChunkSize*2+512)
+		// crand.Read never returns an error as of Go 1.24.
+		_, _ = crand.Read(moduleData)
+		file := insertModuleFile(t, db, daemon.OrganizationID, moduleData)
+
+		stream, err := client.DownloadFile(ctx, &proto.FileRequest{
+			FileId:     file.ID.String(),
+			UploadType: sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES,
+		})
+		require.NoError(t, err)
+
+		builder, err := provisionersdk.HandleReceivingDataUpload(stream)
+		require.NoError(t, err)
+		data, err := builder.Complete()
+		require.NoError(t, err)
+		require.Equal(t, moduleData, data)
+	})
 }

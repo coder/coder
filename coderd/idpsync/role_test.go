@@ -31,6 +31,9 @@ func TestRoleSyncTable(t *testing.T) {
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
 			"legacy-bar", rbac.RoleOrgAuditor(),
+			// Some arbitrary values to attempt to trip up the SQL in the matching.
+			"Role with (Special Characters)",
+			"NULL",
 		},
 		// bad-claim is a number, and will fail any role sync
 		"bad-claim": 100,
@@ -331,6 +334,12 @@ func TestNoopNoDiff(t *testing.T) {
 				Roles:          orgRoles,
 			},
 		},
+	}, nil)
+
+	// SyncRoles fetches the org to union implicit roles into the diff filter.
+	mDB.EXPECT().GetOrganizationByID(gomock.Any(), orgID).Return(database.Organization{
+		ID:                    orgID,
+		DefaultOrgMemberRoles: []string{},
 	}, nil)
 
 	mDB.EXPECT().GetRuntimeConfig(gomock.Any(), gomock.Any()).Return(

@@ -254,7 +254,7 @@ func (c *StoreReconciler) Run(ctx context.Context) {
 			if c.reconciliationDuration != nil {
 				c.reconciliationDuration.Observe(stats.Elapsed.Seconds())
 			}
-			c.logger.Info(ctx, "reconciliation stats",
+			c.logger.Debug(ctx, "reconciliation stats",
 				slog.F("elapsed", stats.Elapsed),
 				slog.F("presets_total", stats.PresetsTotal),
 				slog.F("presets_reconciled", stats.PresetsReconciled),

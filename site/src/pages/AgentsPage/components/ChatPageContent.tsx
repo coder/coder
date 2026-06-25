@@ -1,7 +1,10 @@
 import { type FC, Profiler, type ReactNode, useEffect, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
+import { chatPromptsQuery, refreshChatContext } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import type { AgentChatSendShortcut } from "#/api/typesGenerated";
 import { cn } from "#/utils/cn";
 import { useChatDraftAttachments } from "../hooks/useChatDraftAttachments";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -21,6 +24,7 @@ import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
 import {
 	selectChatStatus,
 	selectHasStreamState,
+	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
 	selectOrderedMessageIDs,
 	selectQueuedMessages,
@@ -30,7 +34,7 @@ import {
 import { LiveStreamTail } from "./ChatConversation/LiveStreamTail";
 import {
 	buildSubagentMaps,
-	getEditableUserMessagePayload,
+	getPendingToolCallIDs,
 	parseMessagesWithMergedTools,
 } from "./ChatConversation/messageParsing";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
@@ -43,7 +47,6 @@ const isChatMessage = (
 ): message is TypesGen.ChatMessage => Boolean(message);
 
 interface ChatPageTimelineProps {
-	chatID?: string;
 	store: ChatStoreHandle;
 	persistedError: ChatDetailError | undefined;
 	onEditUserMessage?: (
@@ -59,7 +62,6 @@ interface ChatPageTimelineProps {
 }
 
 export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
-	chatID,
 	store,
 	persistedError,
 	onEditUserMessage,
@@ -74,6 +76,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
+	const isAwaitingFirstStreamChunk = useChatSelector(
+		store,
+		selectIsAwaitingFirstStreamChunk,
+	);
 	const isChatCompleted = !hasStream && chatStatus !== "pending";
 
 	const messages = orderedMessageIDs
@@ -89,7 +95,10 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	const parsedMessages = parseMessagesWithMergedTools(messages);
+	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
+	const parsedMessages = parseMessagesWithMergedTools(messages, {
+		pendingToolCallIDs,
+	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const onRenderProfiler = useOnRenderProfiler();
@@ -99,7 +108,7 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 			<div
 				data-testid="chat-timeline-wrapper"
 				className={cn(
-					"mx-auto flex w-full flex-col gap-2 py-6",
+					"mx-auto flex w-full flex-col py-6",
 					chatWidthClass(chatFullWidth),
 				)}
 			>
@@ -117,6 +126,8 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 					onImplementPlan={onImplementPlan}
 					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 					isChatCompleted={isChatCompleted}
+					hasActiveStream={hasStream}
+					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
 					urlTransform={urlTransform}
 					mcpServers={mcpServers}
 					showDesktopPreviews={false}
@@ -124,7 +135,6 @@ export const ChatPageTimeline: FC<ChatPageTimelineProps> = ({
 				<LiveStreamTail
 					store={store}
 					persistedError={persistedError}
-					startingResetKey={chatID}
 					isTranscriptEmpty={parsedMessages.length === 0}
 					subagentTitles={subagentTitles}
 					subagentVariants={subagentVariants}
@@ -150,6 +160,7 @@ interface ChatPageInputProps {
 		message: string,
 		attachments?: readonly PendingAttachment[],
 	) => Promise<void> | void;
+	sendShortcut: AgentChatSendShortcut;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
 	onInterrupt: () => void;
@@ -162,7 +173,9 @@ interface ChatPageInputProps {
 	modelOptions: readonly ModelSelectorOption[];
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: ReactNode;
-	agentSetupNotice?: ReactNode;
+	canConfigureAgentSetup: boolean;
+	providerCount?: number;
+	modelCount?: number;
 	planModeEnabled?: boolean;
 	onPlanModeToggle?: (enabled: boolean) => void;
 	isModelCatalogLoading?: boolean;
@@ -195,11 +208,13 @@ interface ChatPageInputProps {
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
 	onMCPAuthComplete?: (serverId: string) => void;
-	lastInjectedContext?: readonly TypesGen.ChatMessagePart[];
+	// Pinned workspace-context state for the chat, surfaced by the
+	// context indicator (dirty marker and pinned resources).
+	chatContext?: TypesGen.ChatContext;
 	workspaceOptions: readonly TypesGen.Workspace[];
 	chatOrganizationId?: string;
 	selectedWorkspaceId: string | null;
-	onWorkspaceChange: (workspaceId: string | null) => void;
+	onWorkspaceChange?: (workspaceId: string | null) => void;
 	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
@@ -214,6 +229,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	store,
 	compressionThreshold,
 	onSend,
+	sendShortcut,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
 	onInterrupt,
@@ -226,7 +242,9 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	modelOptions,
 	modelSelectorPlaceholder,
 	modelSelectorHelp,
-	agentSetupNotice,
+	canConfigureAgentSetup,
+	providerCount,
+	modelCount,
 	planModeEnabled,
 	onPlanModeToggle,
 	isModelCatalogLoading = false,
@@ -246,7 +264,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	onMCPAuthComplete,
-	lastInjectedContext,
+	chatContext,
 	workspaceOptions,
 	chatOrganizationId,
 	selectedWorkspaceId,
@@ -278,26 +296,31 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			return message;
 		})
 		.filter(isChatMessage);
-	// Newest first. messages are in id-ascending order, so reverse
-	// iteration yields the most recent user prompts first. Store the
-	// original text untouched so cycling and re-sending reproduces what
-	// the user originally sent (boundary whitespace can be intentional).
-	const userPromptHistory: string[] = [];
-	for (let index = messages.length - 1; index >= 0; index--) {
-		const message = messages.at(index);
-		if (!message || message.role !== "user") {
-			continue;
-		}
-		const text = getEditableUserMessagePayload(message).text;
-		if (text.trim()) {
-			userPromptHistory.push(text);
-		}
-	}
+	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const userPromptHistory: readonly string[] =
+		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
 	const rawUsage = getLatestContextUsage(messages);
-	const latestContextUsage = rawUsage
-		? { ...rawUsage, compressionThreshold, lastInjectedContext }
-		: rawUsage;
+	const latestContextUsage =
+		rawUsage || chatContext
+			? {
+					...(rawUsage ?? {}),
+					compressionThreshold,
+					context: chatContext,
+				}
+			: rawUsage;
+	const queryClient = useQueryClient();
+	const refreshContextMutation = useMutation(
+		refreshChatContext(queryClient, chatId ?? ""),
+	);
+	const handleRefreshContext = chatId
+		? () =>
+				refreshContextMutation.mutate(undefined, {
+					onSuccess: () => toast.success("Context refreshed."),
+					onError: () => toast.error("Failed to refresh context."),
+				})
+		: undefined;
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -394,8 +417,6 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 	const isStreaming =
 		hasStreamState || chatStatus === "running" || chatStatus === "pending";
 
-	const [chatFullWidth] = useChatFullWidth();
-
 	const inputElement = (
 		<AgentChatInput
 			onSend={(message) => {
@@ -445,6 +466,7 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 					}
 				})();
 			}}
+			sendShortcut={sendShortcut}
 			attachments={attachments}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
@@ -471,6 +493,8 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			onInterrupt={onInterrupt}
 			isInterruptPending={isInterruptPending}
 			contextUsage={latestContextUsage}
+			onRefreshContext={handleRefreshContext}
+			isRefreshingContext={refreshContextMutation.isPending}
 			hasModelOptions={hasModelOptions}
 			selectedModel={selectedModel}
 			onModelChange={onModelChange}
@@ -494,28 +518,22 @@ export const ChatPageInput: FC<ChatPageInputProps> = ({
 			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
+			canConfigureAgentSetup={canConfigureAgentSetup}
+			providerCount={providerCount}
+			modelCount={modelCount}
 		/>
 	);
 
-	if (!agentSetupNotice && !modelSelectorHelp) {
+	if (!modelSelectorHelp) {
 		return inputElement;
 	}
 
 	return (
 		<div>
-			{agentSetupNotice && (
-				<div
-					className={cn("mx-auto w-full pb-2", chatWidthClass(chatFullWidth))}
-				>
-					{agentSetupNotice}
-				</div>
-			)}
 			{inputElement}
-			{modelSelectorHelp && (
-				<div className="px-3 pt-1 text-2xs text-content-secondary">
-					{modelSelectorHelp}
-				</div>
-			)}
+			<div className="px-3 pt-1 text-2xs text-content-secondary">
+				{modelSelectorHelp}
+			</div>
 		</div>
 	);
 };

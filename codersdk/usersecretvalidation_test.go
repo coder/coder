@@ -9,6 +9,43 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+func TestUserSecretNameValid(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		errMsg  string
+	}{
+		{name: "Simple", input: "github-token"},
+		{name: "WithUnderscore", input: "github_token"},
+		{name: "WithDot", input: "github.token"},
+		{name: "Empty", input: "", wantErr: true, errMsg: "required"},
+		{name: "WhitespaceOnly", input: "   ", wantErr: true, errMsg: "required"},
+		{name: "LeadingWhitespace", input: " github", wantErr: true, errMsg: "whitespace"},
+		{name: "TrailingWhitespace", input: "github ", wantErr: true, errMsg: "whitespace"},
+		{name: "Slash", input: "foo/bar", wantErr: true, errMsg: "must not contain"},
+		{name: "Question", input: "foo?bar", wantErr: true, errMsg: "must not contain"},
+		{name: "Fragment", input: "foo#bar", wantErr: true, errMsg: "must not contain"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.UserSecretNameValid(tt.input)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestUserSecretEnvNameValid(t *testing.T) {
 	t.Parallel()
 
@@ -25,6 +62,10 @@ func TestUserSecretEnvNameValid(t *testing.T) {
 		{name: "SingleChar", input: "A"},
 		{name: "WithDigits", input: "A1B2"},
 		{name: "Empty", input: ""},
+
+		// Length cap.
+		{name: "ExactlyAtLengthLimit", input: strings.Repeat("A", codersdk.MaxUserSecretEnvNameLength)},
+		{name: "OverLengthLimit", input: strings.Repeat("A", codersdk.MaxUserSecretEnvNameLength+1), wantErr: true, errMsg: "256 bytes"},
 
 		// Invalid POSIX names.
 		{name: "StartsWithDigit", input: "1FOO", wantErr: true, errMsg: "must start with"},
@@ -177,8 +218,8 @@ func TestUserSecretValueValid(t *testing.T) {
 		{name: "WithNewlines", input: "line1\nline2\nline3"},
 		{name: "WithTabs", input: "key\tvalue"},
 		{name: "NullByte", input: "before\x00after", wantErr: true},
-		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize)},
-		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxSecretValueSize+1), wantErr: true},
+		{name: "ExactlyAtLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes)},
+		{name: "OverLimit", input: strings.Repeat("a", codersdk.MaxUserSecretValueBytes+1), wantErr: true},
 	}
 
 	for _, tt := range tests {

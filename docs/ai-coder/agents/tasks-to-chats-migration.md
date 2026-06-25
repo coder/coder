@@ -68,10 +68,11 @@ With Tasks, LLM credentials are injected into the workspace as environment
 variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
 configured once in the control plane:
 
-1. Navigate to the **Agents** page in the Coder dashboard.
-1. Open **Settings** > **Manage Agents** > **Providers**, pick a provider,
-   enter your API key, and save.
-1. Under **Models**, add at least one model and set it as the default.
+1. Navigate to **Admin settings** > **AI** and select **Providers**.
+1. Add or update a provider with its credentials and upstream endpoint, then
+   save it.
+1. Navigate to **Admin settings** > **AI** > **Models**, add at least one model,
+   and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 
@@ -687,23 +688,14 @@ Chats API returns a `Chat` object with conversation-centric fields:
 
 ## CLI changes
 
-The Tasks CLI (`coder task`) and the Coder Agents CLI are separate. Coder
-ships an experimental TUI for Coder Agents at `coder exp agents` (planned
-to graduate to `coder agents` in the May Beta release per
-[#24432](https://github.com/coder/coder/pull/24432)). The TUI talks to the
-same `/api/experimental/chats` endpoints documented in this guide; for
-automation, prefer direct API calls.
+The Tasks CLI (`coder task`) remains separate from the Coder Agents Chats API.
+Coder no longer ships an interactive Coder Agents TUI. Use the web UI for
+interactive chat and direct API calls for automation.
 
-| Tasks CLI           | Chats equivalent                        |
-|---------------------|-----------------------------------------|
-| `coder task create` | `coder exp agents` TUI or `POST /chats` |
-| `coder task list`   | `coder exp agents` TUI or `GET /chats`  |
-| `coder task logs`   | `GET /chats/{chat}/stream` (WebSocket)  |
-| `coder task pause`  | `POST /chats/{chat}/interrupt`          |
-| `coder task resume` | Send a follow-up message to the chat    |
-
-> [!NOTE]
-> The Coder Agents CLI today is an interactive TUI rather than a set of
-> per-action subcommands like `coder task`. Use `curl`, the SDK, or your
-> HTTP client of choice for non-interactive automation. Dedicated
-> non-interactive subcommands may be added in a future release.
+| Tasks CLI           | Chats equivalent                       |
+|---------------------|----------------------------------------|
+| `coder task create` | Web UI or `POST /chats`                |
+| `coder task list`   | Web UI or `GET /chats`                 |
+| `coder task logs`   | `GET /chats/{chat}/stream` (WebSocket) |
+| `coder task pause`  | `POST /chats/{chat}/interrupt`         |
+| `coder task resume` | Send a follow-up message to the chat   |

@@ -15,6 +15,7 @@ import {
 	watchWorkspace,
 } from "#/api/api";
 import { getErrorMessage, isApiError } from "#/api/errors";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import {
 	chat,
@@ -37,7 +38,7 @@ import {
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { user as userQuery } from "#/api/queries/users";
+import { preferenceSettings } from "#/api/queries/users";
 import {
 	workspaceById,
 	workspaceByIdKey,
@@ -47,6 +48,10 @@ import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatMessagePart } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import {
+	getDefaultOrganizationName,
+	useDashboard,
+} from "#/modules/dashboard/useDashboard";
 import { isMobileViewport } from "#/utils/mobile";
 import { pageTitle } from "#/utils/page";
 import { rewriteLocalhostURL } from "#/utils/portForward";
@@ -58,7 +63,6 @@ import {
 } from "./AgentChatPageView";
 import type { AgentsOutletContext } from "./AgentsPage";
 import type { ChatMessageInputRef } from "./components/AgentChatInput";
-import { AgentSetupNotice } from "./components/AgentSetupNotice";
 import { normalizeChatErrorPayload } from "./components/ChatConversation/chatError";
 import {
 	getParentChatID,
@@ -71,7 +75,7 @@ import {
 	useChatSelector,
 	useChatStore,
 } from "./components/ChatConversation/chatStore";
-import { useWorkspaceCreationWatcher } from "./components/ChatConversation/useWorkspaceCreationWatcher";
+import { useChatToolInvalidations } from "./components/ChatConversation/useChatToolInvalidations";
 import type { PendingAttachment } from "./components/ChatPageContent";
 import {
 	getDefaultMCPSelection,
@@ -80,6 +84,7 @@ import {
 } from "./components/MCPServerPicker";
 import { getModelSelectorHelp } from "./components/ModelSelectorHelp";
 import { useGitWatcher } from "./hooks/useGitWatcher";
+import { getAgentChatSendShortcut } from "./utils/agentChatSendShortcut";
 import { type ParsedDraft, parseStoredDraft } from "./utils/draftStorage";
 import {
 	countConfiguredProviderConfigs,
@@ -102,8 +107,6 @@ export const RIGHT_PANEL_OPEN_KEY = "agents.right-panel-open";
 const lastModelConfigIDStorageKey = "agents.last-model-config-id";
 /** @internal Exported for testing. */
 export const draftInputStorageKeyPrefix = "agents.draft-input.";
-/** @internal localStorage key prefix for the per-chat active sidebar tab. Exported for testing. */
-export const lastActiveSidebarTabStorageKeyPrefix = "agents.last-active-tab.";
 
 const clearChatPlanMode = "" satisfies ChatPlanModeOrClear;
 
@@ -123,49 +126,6 @@ export function getPersistedDraftInputValue(
 	return parseStoredDraft(
 		localStorage.getItem(`${draftInputStorageKeyPrefix}${chatID}`),
 	).text;
-}
-
-/**
- * Read the persisted active sidebar tab ID for a given chat. Returns
- * `null` when no value is stored or the chat ID is missing.
- */
-export function getPersistedSidebarTabId(
-	chatID: string | undefined,
-): string | null {
-	if (!chatID) {
-		return null;
-	}
-	return localStorage.getItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-	);
-}
-
-/**
- * Persist the active sidebar tab ID for a given chat so it can be
- * restored across session switches. No-op when the chat ID is missing.
- */
-export function savePersistedSidebarTabId(
-	chatID: string | undefined,
-	tabID: string,
-): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.setItem(
-		`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`,
-		tabID,
-	);
-}
-
-/**
- * Remove the persisted active sidebar tab ID for a given chat. Called
- * when a chat is archived so a future unarchive starts fresh.
- */
-export function clearPersistedSidebarTabId(chatID: string | undefined): void {
-	if (!chatID) {
-		return;
-	}
-	localStorage.removeItem(`${lastActiveSidebarTabStorageKeyPrefix}${chatID}`);
 }
 
 /** @internal Exported for testing. */
@@ -312,6 +272,32 @@ export const filterWorkspaceOptionsByOrganization = (
 	return workspaceOptions.filter(
 		(workspace) => workspace.organization_id === organizationID,
 	);
+};
+
+/** @internal Exported for testing. */
+export const getWorkspaceOptionsWithLinkedWorkspace = (
+	workspaceOptions: readonly TypesGen.Workspace[],
+	workspace: TypesGen.Workspace | undefined,
+	ownerID: string,
+): readonly TypesGen.Workspace[] => {
+	if (!workspace || workspace.owner_id !== ownerID) {
+		return workspaceOptions;
+	}
+
+	const existingIndex = workspaceOptions.findIndex(
+		(candidate) => candidate.id === workspace.id,
+	);
+	if (existingIndex === -1) {
+		return [workspace, ...workspaceOptions];
+	}
+
+	if (workspaceOptions[existingIndex] === workspace) {
+		return workspaceOptions;
+	}
+
+	const nextWorkspaceOptions = [...workspaceOptions];
+	nextWorkspaceOptions[existingIndex] = workspace;
+	return nextWorkspaceOptions;
 };
 
 const buildAttachmentMediaTypes = (
@@ -583,6 +569,21 @@ export function useConversationEditingState(deps: {
 		}
 	};
 
+	// Separate from handleContentChange, which avoids setState to prevent
+	// per-keystroke re-renders. The loading editor is a different instance
+	// that unmounts on load, so the seed must advance here.
+	const handleLoadingDraftChange = (
+		content: string,
+		serializedEditorState: string,
+		hasFileReferences: boolean,
+	) => {
+		handleContentChange(content, serializedEditorState, hasFileReferences);
+		setDraftState({
+			editorInitialValue: content,
+			initialEditorState: serializedEditorState,
+		});
+	};
+
 	return {
 		inputValueRef,
 		chatInputRef,
@@ -598,6 +599,7 @@ export function useConversationEditingState(deps: {
 		handleCancelQueueEdit,
 		handleSendFromInput,
 		handleContentChange,
+		handleLoadingDraftChange,
 	};
 }
 
@@ -711,6 +713,8 @@ const AgentChatPage: FC = () => {
 	} = useOutletContext<AgentsOutletContext>();
 	const queryClient = useQueryClient();
 	const { permissions, user: currentUser } = useAuthenticated();
+	const { organizations } = useDashboard();
+	const organizationName = getDefaultOrganizationName(organizations);
 	const [selectedModel, setSelectedModel] = useState("");
 	const scrollToBottomRef = useRef<(() => void) | null>(null);
 	const chatInputRef = useRef<ChatMessageInputRef | null>(null);
@@ -760,6 +764,7 @@ const AgentChatPage: FC = () => {
 		...workspaceById(workspaceId ?? ""),
 		enabled: Boolean(workspaceId),
 	});
+	const workspace = workspaceQuery.data;
 
 	const chatModelsQuery = useQuery(chatModels());
 	const chatModelConfigsQuery = useQuery(chatModelConfigs());
@@ -768,11 +773,16 @@ const AgentChatPage: FC = () => {
 		enabled: permissions.editDeploymentConfig,
 	});
 	const userThresholdsQuery = useQuery(userCompactionThresholds());
+	const preferencesQuery = useQuery(preferenceSettings());
 	const desktopEnabledQuery = useQuery(chatDesktopEnabled());
 	const userDebugLoggingQuery = useQuery(userChatDebugLogging());
 	const mcpServersQuery = useQuery(mcpServerConfigs());
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
-	const workspaceOptions = workspacesQuery.data?.workspaces ?? [];
+	const workspaceOptions = getWorkspaceOptionsWithLinkedWorkspace(
+		workspacesQuery.data?.workspaces ?? [],
+		workspace,
+		currentUser.id,
+	);
 	const desktopEnabled = desktopEnabledQuery.data?.enable_desktop ?? false;
 	const debugLoggingEnabled =
 		userDebugLoggingQuery.data?.debug_logging_enabled ?? false;
@@ -871,27 +881,46 @@ const AgentChatPage: FC = () => {
 		});
 	}, [workspaceId, queryClient]);
 	const sshConfigQuery = useQuery(deploymentSSHConfig());
-	const workspace = workspaceQuery.data;
 	const workspaceAgent = getWorkspaceAgent(workspace, undefined);
 	const { proxy } = useProxy();
 
 	const chatRecord = chatQuery.data;
 	const isArchived = chatRecord?.archived ?? false;
+	const isSharedChat = chatRecord?.shared ?? false;
 	const isViewerNotOwner =
 		chatRecord !== undefined && currentUser.id !== chatRecord.owner_id;
-	const chatOwnerQuery = useQuery({
-		...userQuery(chatRecord?.owner_id ?? ""),
-		enabled: isViewerNotOwner && !isArchived,
-	});
-	const chatOwner =
-		isViewerNotOwner && chatRecord !== undefined
+	const isRootChat =
+		chatRecord !== undefined && getParentChatID(chatRecord) === undefined;
+	const shouldCheckCanShareChat = isRootChat;
+	const chatAuthorizationObject =
+		chatRecord !== undefined
 			? {
-					id: chatRecord.owner_id,
-					...(chatOwnerQuery.data?.username
-						? { username: chatOwnerQuery.data.username }
-						: {}),
+					resource_type: "chat" as const,
+					owner_id: chatRecord.owner_id,
+					organization_id: chatRecord.organization_id,
 				}
 			: undefined;
+	const chatAuthorizationChecks: TypesGen.AuthorizationRequest["checks"] = {};
+	if (chatAuthorizationObject !== undefined && shouldCheckCanShareChat) {
+		chatAuthorizationChecks.canShareChat = {
+			object: chatAuthorizationObject,
+			action: "share",
+		};
+	}
+	const chatAuthorizationQuery = useQuery({
+		...checkAuthorization({ checks: chatAuthorizationChecks }),
+		enabled: Object.keys(chatAuthorizationChecks).length > 0,
+	});
+	const canShareChat =
+		isRootChat && Boolean(chatAuthorizationQuery.data?.canShareChat);
+	const chatOwner = isViewerNotOwner
+		? {
+				...(chatRecord?.owner_username
+					? { username: chatRecord.owner_username }
+					: {}),
+				...(chatRecord?.owner_name ? { name: chatRecord.owner_name } : {}),
+			}
+		: undefined;
 	const planModeEnabled = chatRecord?.plan_mode === "plan";
 
 	// Initialize MCP selection from chat record or defaults.
@@ -1046,11 +1075,13 @@ const AgentChatPage: FC = () => {
 		agentStatus: workspaceAgent?.status,
 	});
 
-	// Detect workspace creation so the sidebar can resolve the
-	// workspace and display agent/git info.
-	useWorkspaceCreationWatcher({
+	// Detect completed chat tool results so sidebar data stays in sync
+	// with the server state those tools may have changed.
+	useChatToolInvalidations({
 		store,
 		chatID: agentId,
+		organizationName,
+		username: currentUser.username,
 	});
 
 	const handleCommit = (repoRoot: string) => {
@@ -1114,18 +1145,13 @@ const AgentChatPage: FC = () => {
 		hasConfiguredModels,
 		hasUserFixableModelProviders,
 	});
-	const agentSetupNotice =
-		providerCount !== undefined &&
-		modelCount !== undefined &&
-		(providerCount === 0 || modelCount === 0) ? (
-			<AgentSetupNotice providerCount={providerCount} modelCount={modelCount} />
-		) : undefined;
 	const isSubmissionPending =
 		isSendPending || isEditPending || isInterruptPending;
 	const isChatSettingsPending =
 		isUpdateChatPlanModePending || isUpdateChatWorkspacePending;
 	const isInputDisabled =
-		!hasModelOptions || isArchived || isChatSettingsPending;
+		!hasModelOptions || isArchived || isChatSettingsPending || isViewerNotOwner;
+	const canUpdateChatWorkspace = !isArchived && !isViewerNotOwner;
 	const selectedWorkspaceId = chatQuery.data?.workspace_id ?? null;
 
 	const isWorkspaceLoading =
@@ -1159,9 +1185,11 @@ const AgentChatPage: FC = () => {
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
 		} else if (isApiError(error)) {
+			const detail = error.response?.data?.detail?.trim() || undefined;
 			const reason: ChatDetailError = {
 				kind: "generic",
-				message: error.message || "An unexpected error occurred.",
+				message: getErrorMessage(error, "An unexpected error occurred."),
+				...(detail ? { detail } : {}),
 			};
 			store.setStreamError(reason);
 			setChatErrorReason(agentId, reason);
@@ -1372,10 +1400,28 @@ const AgentChatPage: FC = () => {
 		]);
 
 		if (editedMessageID !== undefined) {
-			const request: TypesGen.EditChatMessageRequest = { content };
 			const originalEditedMessage = chatMessagesList?.find(
 				(existingMessage) => existingMessage.id === editedMessageID,
 			);
+			const originalModelConfigID = originalEditedMessage?.model_config_id;
+			const pickerModelConfigID = effectiveSelectedModel || undefined;
+			const originalIsSelectable =
+				originalModelConfigID !== undefined &&
+				modelOptions.some((opt) => opt.id === originalModelConfigID);
+			// Only override the original model when the user has switched to
+			// a different selectable option. If the original is no longer
+			// selectable, the picker is showing a fallback we should not
+			// silently use; let the backend preserve the original.
+			const editSelectedModelConfigID =
+				pickerModelConfigID &&
+				originalIsSelectable &&
+				pickerModelConfigID !== originalModelConfigID
+					? pickerModelConfigID
+					: undefined;
+			const request: TypesGen.EditChatMessageRequest = {
+				content,
+				model_config_id: editSelectedModelConfigID,
+			};
 			const optimisticMessage = originalEditedMessage
 				? buildOptimisticEditedMessage({
 						requestContent: request.content,
@@ -1404,6 +1450,12 @@ const AgentChatPage: FC = () => {
 					handleUsageLimitError(error);
 				},
 			});
+			if (editSelectedModelConfigID) {
+				localStorage.setItem(
+					lastModelConfigIDStorageKey,
+					editSelectedModelConfigID,
+				);
+			}
 			return;
 		}
 
@@ -1444,7 +1496,7 @@ const AgentChatPage: FC = () => {
 		if (!response.queued) {
 			store.clearStreamState();
 			// Optimistically set status to "running" so the
-			// "Thinking..." indicator appears immediately.
+			// Thinking indicator appears immediately.
 			// The server accepted the message (not queued),
 			// so it will start processing. The WebSocket
 			// status:running event no-ops via the
@@ -1507,7 +1559,16 @@ const AgentChatPage: FC = () => {
 	if (chatQuery.isLoading || chatMessagesQuery.isLoading) {
 		return (
 			<AgentChatPageLoadingView
+				sendShortcut={getAgentChatSendShortcut(
+					preferencesQuery.data?.agent_chat_send_shortcut,
+					preferencesQuery.isLoading,
+				)}
 				titleElement={titleElement}
+				inputRef={editing.chatInputRef}
+				initialValue={editing.editorInitialValue}
+				initialEditorState={editing.initialEditorState}
+				remountKey={editing.remountKey}
+				onContentChange={editing.handleLoadingDraftChange}
 				isInputDisabled={isInputDisabled}
 				effectiveSelectedModel={effectiveSelectedModel}
 				setSelectedModel={setSelectedModel}
@@ -1536,13 +1597,20 @@ const AgentChatPage: FC = () => {
 
 	return (
 		<AgentChatPageView
+			key={agentId}
 			agentId={agentId}
+			sendShortcut={getAgentChatSendShortcut(
+				preferencesQuery.data?.agent_chat_send_shortcut,
+				preferencesQuery.isLoading,
+			)}
 			organizationId={chatQuery.data?.organization_id}
 			chatTitle={chatTitle}
 			parentChat={parentChat}
 			persistedError={persistedError}
 			isArchived={isArchived}
+			isSharedChat={isSharedChat}
 			chatOwner={chatOwner}
+			canShareChat={canShareChat}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatBuildId={chatQuery.data?.build_id}
@@ -1553,7 +1621,9 @@ const AgentChatPage: FC = () => {
 			modelOptions={modelOptions}
 			modelSelectorPlaceholder={modelSelectorPlaceholder}
 			modelSelectorHelp={modelSelectorHelp}
-			agentSetupNotice={agentSetupNotice}
+			canConfigureAgentSetup={permissions.editDeploymentConfig}
+			providerCount={providerCount}
+			modelCount={modelCount}
 			hasModelOptions={hasModelOptions}
 			isModelCatalogLoading={isModelCatalogLoading}
 			planModeEnabled={planModeEnabled}
@@ -1564,7 +1634,9 @@ const AgentChatPage: FC = () => {
 			isInterruptPending={isInterruptPending}
 			workspaceOptions={workspaceOptions}
 			selectedWorkspaceId={selectedWorkspaceId}
-			onWorkspaceChange={handleWorkspaceChange}
+			onWorkspaceChange={
+				canUpdateChatWorkspace ? handleWorkspaceChange : undefined
+			}
 			isWorkspaceLoading={isWorkspaceLoading}
 			isSidebarCollapsed={isSidebarCollapsed}
 			onToggleSidebarCollapsed={onToggleSidebarCollapsed}
@@ -1601,7 +1673,7 @@ const AgentChatPage: FC = () => {
 			selectedMCPServerIds={effectiveMCPServerIds}
 			onMCPSelectionChange={handleMCPSelectionChange}
 			onMCPAuthComplete={handleMCPAuthComplete}
-			lastInjectedContext={chatQuery.data?.last_injected_context}
+			chatContext={chatQuery.data?.context}
 		/>
 	);
 };

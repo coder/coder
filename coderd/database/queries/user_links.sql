@@ -50,6 +50,17 @@ SET
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
 
+-- name: UpdateUserLinkedID :one
+-- Backfills linked_id for legacy user_links that were created before
+-- linked_id tracking was added. Only updates when linked_id is empty
+-- to avoid overwriting a valid binding.
+UPDATE
+	user_links
+SET
+	linked_id = @linked_id
+WHERE
+	user_id = @user_id AND login_type = @login_type AND linked_id = '' RETURNING *;
+
 -- name: OIDCClaimFields :many
 -- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 -- This query is used to generate the list of available sync fields for idp sync settings.
@@ -102,3 +113,36 @@ WHERE
 		ELSE true
 	END
 ;
+
+-- name: CountOIDCLinkedIDsByIssuer :many
+-- Groups OIDC user links by their issuer prefix (the part before "||" in
+-- linked_id) and returns a count for each. Empty linked_ids are reported
+-- with an empty issuer_prefix. Used for analysis before resetting
+-- mismatched links.
+SELECT
+	(CASE
+		WHEN user_links.linked_id = '' THEN ''
+		ELSE split_part(user_links.linked_id, '||', 1)
+	END)::text AS issuer_prefix,
+	COUNT(*)::int AS count
+FROM
+	user_links
+INNER JOIN
+	users ON user_links.user_id = users.id
+WHERE
+	user_links.login_type = 'oidc'
+	AND users.deleted = false
+GROUP BY issuer_prefix;
+
+-- name: UnlinkOIDCUsersByIssuerMismatch :execrows
+-- Resets linked_id to '' for OIDC links where the linked_id is non-empty
+-- and does not begin with the expected issuer prefix. This allows users to
+-- re-authenticate under a new OIDC provider.
+UPDATE user_links
+SET linked_id = ''
+FROM users
+WHERE user_links.user_id = users.id
+	AND user_links.login_type = 'oidc'
+	AND user_links.linked_id != ''
+	AND NOT starts_with(user_links.linked_id, @expected_prefix)
+	AND users.deleted = false;

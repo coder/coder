@@ -41,9 +41,7 @@ export const UserAuthSettingsPageView = ({
 
 				<SettingsHeader
 					actions={
-						<SettingsHeaderDocsLink
-							href={docs("/admin/users/oidc-auth#openid-connect")}
-						/>
+						<SettingsHeaderDocsLink href={docs("/admin/users/oidc-auth")} />
 					}
 				>
 					<SettingsHeaderTitle level="h2" hierarchy="secondary">

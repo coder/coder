@@ -4,20 +4,33 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/usersecretspubsub"
 	"github.com/coder/coder/v2/codersdk"
+)
+
+const (
+	userSecretNameField     = "name"
+	userSecretValueField    = "value"
+	userSecretEnvNameField  = "env_name"
+	userSecretFilePathField = "file_path"
+
+	// These names are raised by the enforce_user_secrets_per_user_limits
+	// trigger with USING CONSTRAINT. They are not table CHECK
+	// constraints, so dbgen does not emit them in check_constraint.go.
+	userSecretsCountLimitConstraint      database.CheckConstraint = "user_secrets_per_user_count_limit"
+	userSecretsTotalBytesLimitConstraint database.CheckConstraint = "user_secrets_per_user_total_bytes_limit"
+	userSecretsEnvBytesLimitConstraint   database.CheckConstraint = "user_secrets_per_user_env_bytes_limit"
 )
 
 // @Summary Create a new user secret
@@ -49,37 +62,8 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Name == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Name is required.",
-		})
-		return
-	}
-	if req.Value == "" {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Value is required.",
-		})
-		return
-	}
-	if err := codersdk.UserSecretValueValid(req.Value); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid secret value.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if err := codersdk.UserSecretEnvNameValid(req.EnvName); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid environment variable name.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	if err := codersdk.UserSecretFilePathValid(req.FilePath); err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid file path.",
-			Detail:  err.Error(),
-		})
+	if validations := createUserSecretValidationErrors(req); len(validations) > 0 {
+		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 		return
 	}
 
@@ -94,11 +78,12 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		FilePath:    req.FilePath,
 	})
 	if err != nil {
-		if database.IsUniqueViolation(err) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "A secret with that name, environment variable, or file path already exists.",
-				Detail:  err.Error(),
-			})
+		if validations := userSecretConflictValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
+			return
+		}
+		if resp, ok := userSecretLimitResponse(err); ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -108,14 +93,6 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	aReq.New = secret
-
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:     usersecretspubsub.EventKindCreated,
-		UserID:   secret.UserID,
-		Name:     secret.Name,
-		EnvName:  secret.EnvName,
-		FilePath: secret.FilePath,
-	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, db2sdk.UserSecretFromFull(secret))
 }
@@ -156,7 +133,7 @@ func (api *API) getUserSecrets(rw http.ResponseWriter, r *http.Request) { //noli
 func (api *API) getUserSecret(rw http.ResponseWriter, r *http.Request) { //nolint:revive // Method name matches route.
 	ctx := r.Context()
 	user := httpmw.UserParam(r)
-	name := chi.URLParam(r, "name")
+	name := chi.URLParam(r, userSecretNameField)
 
 	secret, err := api.Database.GetUserSecretByUserIDAndName(ctx, database.GetUserSecretByUserIDAndNameParams{
 		UserID: user.ID,
@@ -192,7 +169,7 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
-		name              = chi.URLParam(r, "name")
+		name              = chi.URLParam(r, userSecretNameField)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -214,32 +191,9 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if req.EnvName != nil {
-		if err := codersdk.UserSecretEnvNameValid(*req.EnvName); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid environment variable name.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-	if req.FilePath != nil {
-		if err := codersdk.UserSecretFilePathValid(*req.FilePath); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid file path.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-	}
-	if req.Value != nil {
-		if err := codersdk.UserSecretValueValid(*req.Value); err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid secret value.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	if validations := updateUserSecretValidationErrors(req); len(validations) > 0 {
+		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
+		return
 	}
 
 	params := database.UpdateUserSecretByUserIDAndNameParams{
@@ -300,11 +254,12 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 			httpapi.ResourceNotFound(rw)
 			return
 		}
-		if database.IsUniqueViolation(err) {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Update would conflict with an existing secret.",
-				Detail:  err.Error(),
-			})
+		if validations := userSecretConflictValidationErrors(err); len(validations) > 0 {
+			writeUserSecretValidationErrors(ctx, rw, http.StatusConflict, validations)
+			return
+		}
+		if resp, ok := userSecretLimitResponse(err); ok {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, resp)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -313,14 +268,6 @@ func (api *API) patchUserSecret(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:     usersecretspubsub.EventKindUpdated,
-		UserID:   secret.UserID,
-		Name:     secret.Name,
-		EnvName:  secret.EnvName,
-		FilePath: secret.FilePath,
-	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.UserSecretFromFull(secret))
 }
@@ -337,7 +284,7 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
-		name              = chi.URLParam(r, "name")
+		name              = chi.URLParam(r, userSecretNameField)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.UserSecret](rw, &audit.RequestParams{
 			Audit:   *auditor,
@@ -365,22 +312,112 @@ func (api *API) deleteUserSecret(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.Old = deleted
 
-	api.publishUserSecretEvent(ctx, usersecretspubsub.Event{
-		Kind:   usersecretspubsub.EventKindDeleted,
-		UserID: user.ID,
-		Name:   name,
-	})
-
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-func (api *API) publishUserSecretEvent(ctx context.Context, event usersecretspubsub.Event) {
-	if err := usersecretspubsub.Publish(api.Pubsub, event); err != nil {
-		api.Logger.Warn(ctx, "failed to publish user secret event",
-			slog.F("user_id", event.UserID),
-			slog.F("secret_name", event.Name),
-			slog.F("event_kind", event.Kind),
-			slog.Error(err),
-		)
+func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter, status int, validations []codersdk.ValidationError) {
+	httpapi.Write(ctx, rw, status, codersdk.Response{
+		Message:     "Validation failed.",
+		Validations: validations,
+	})
+}
+
+func createUserSecretValidationErrors(req codersdk.CreateUserSecretRequest) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	validations = appendUserSecretValidationError(validations, userSecretNameField, codersdk.UserSecretNameValid(req.Name))
+	if req.Value == "" {
+		validations = append(validations, codersdk.ValidationError{
+			Field:  userSecretValueField,
+			Detail: "Value is required.",
+		})
+	} else {
+		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(req.Value))
+	}
+	validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(req.EnvName))
+	validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(req.FilePath))
+	return validations
+}
+
+func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {
+	var validations []codersdk.ValidationError
+	if req.Value != nil {
+		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(*req.Value))
+	}
+	if req.EnvName != nil {
+		validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(*req.EnvName))
+	}
+	if req.FilePath != nil {
+		validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(*req.FilePath))
+	}
+	return validations
+}
+
+func appendUserSecretValidationError(validations []codersdk.ValidationError, field string, err error) []codersdk.ValidationError {
+	if err == nil {
+		return validations
+	}
+	return append(validations, codersdk.ValidationError{
+		Field:  field,
+		Detail: err.Error(),
+	})
+}
+
+// userSecretLimitResponse maps a per-user-limits trigger violation
+// (raised by enforce_user_secrets_per_user_limits) to a 400. Returns
+// ok=false if err is not such a violation. See
+// codersdk.MaxUserSecretsPerUserCount for the rationale behind the caps.
+func userSecretLimitResponse(err error) (codersdk.Response, bool) {
+	switch {
+	case database.IsCheckViolation(err, userSecretsCountLimitConstraint):
+		return codersdk.Response{
+			Message: "User secrets limit reached.",
+			Detail: fmt.Sprintf(
+				"Each user can have at most %d secrets.",
+				codersdk.MaxUserSecretsPerUserCount,
+			),
+		}, true
+	case database.IsCheckViolation(err, userSecretsTotalBytesLimitConstraint):
+		return codersdk.Response{
+			Message: "User secrets value-bytes limit reached.",
+			Detail: fmt.Sprintf(
+				"Stored bytes of your secret values exceed the per-user "+
+					"budget (%d bytes after encryption, if applicable). "+
+					"Reduce the size or number of your secrets.",
+				codersdk.MaxUserSecretsTotalValueBytes,
+			),
+		}, true
+	case database.IsCheckViolation(err, userSecretsEnvBytesLimitConstraint):
+		return codersdk.Response{
+			Message: "Environment-injected user secrets bytes limit reached.",
+			Detail: fmt.Sprintf(
+				"Stored bytes of env-injected secret values exceed the "+
+					"per-user budget (%d bytes after encryption, if applicable). "+
+					"Clear env_name on large secrets or use file_path instead.",
+				codersdk.MaxUserSecretValueBytes,
+			),
+		}, true
+	}
+	return codersdk.Response{}, false
+}
+
+func userSecretConflictValidationErrors(err error) []codersdk.ValidationError {
+	switch {
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserNameIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretNameField,
+			Detail: "name already in use",
+		}}
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserEnvNameIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretEnvNameField,
+			Detail: "environment variable already in use",
+		}}
+	case database.IsUniqueViolation(err, database.UniqueUserSecretsUserFilePathIndex):
+		return []codersdk.ValidationError{{
+			Field:  userSecretFilePathField,
+			Detail: "file path already in use",
+		}}
+	default:
+		return nil
 	}
 }

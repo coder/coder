@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/agent/agentchat"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -19,7 +20,8 @@ func (a *agent) apiHandler() http.Handler {
 	r.Use(
 		httpmw.Recover(a.logger),
 		tracing.StatusWriterMiddleware,
-		loggermw.Logger(a.logger),
+		loggermw.Logger(a.logger, nil),
+		agentchat.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Write(r.Context(), rw, http.StatusOK, codersdk.Response{
@@ -33,6 +35,9 @@ func (a *agent) apiHandler() http.Handler {
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
 	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
 	r.Mount("/api/v0/context-config", a.contextConfigAPI.Routes())
+	if a.contextAPI != nil {
+		r.Mount("/api/v0/context", a.contextAPI.Routes())
+	}
 
 	if a.devcontainers {
 		r.Mount("/api/v0/containers", a.containerAPI.Routes())

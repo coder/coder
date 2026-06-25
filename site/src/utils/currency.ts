@@ -16,8 +16,21 @@ const usdSubCentCurrencyFormatter = new Intl.NumberFormat("en-US", {
 	signDisplay: "auto",
 });
 
+/** Drops the cents when the amount is a whole dollar, used for budget displays. */
+export const usdBudgetFormatter = new Intl.NumberFormat("en-US", {
+	style: "currency",
+	currency: "USD",
+	minimumFractionDigits: 0,
+	maximumFractionDigits: 2,
+});
+
 export function microsToDollars(micros: number): number {
 	return micros / MICROS_PER_DOLLAR;
+}
+
+/** Formats micros as a whole-dollar USD budget, e.g. "$1,345". */
+export function formatBudgetUSD(micros: number): string {
+	return usdBudgetFormatter.format(microsToDollars(micros));
 }
 
 export function dollarsToMicros(dollars: string | number): number {

@@ -216,8 +216,9 @@ type FakeIDP struct {
 	hookAuthenticateClient func(t testing.TB, req *http.Request) (url.Values, error)
 	serve                  bool
 	// optional middlewares
-	middlewares   chi.Middlewares
-	defaultExpire time.Duration
+	middlewares              chi.Middlewares
+	defaultExpire            time.Duration
+	omitEmailVerifiedDefault bool
 }
 
 func StatusError(code int, err error) error {
@@ -375,6 +376,15 @@ func WithServing() func(*FakeIDP) {
 func WithIssuer(issuer string) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.locked.SetIssuer(issuer)
+	}
+}
+
+// WithOmitEmailVerifiedDefault suppresses the default email_verified=true
+// injection in encodeClaims. Use this for tests that exercise the handler's
+// absent-claim rejection path.
+func WithOmitEmailVerifiedDefault() func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.omitEmailVerifiedDefault = true
 	}
 }
 
@@ -907,6 +917,17 @@ func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
 		claims["iss"] = f.locked.Issuer()
 	}
 
+	// Default email_verified to true so that tests that do not care
+	// about the email_verified flow are not forced to set it.
+	// Tests that need a different value can set it explicitly.
+	// Use WithOmitEmailVerifiedDefault() to suppress this default
+	// for tests that need to exercise the absent-claim path.
+	if !f.omitEmailVerifiedDefault {
+		if _, ok := claims["email_verified"]; !ok {
+			claims["email_verified"] = true
+		}
+	}
+
 	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(f.locked.PrivateKey())
 	require.NoError(t, err)
 
@@ -1413,9 +1434,28 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		}.Encode())
 	}))
 
-	mux.NotFound(func(_ http.ResponseWriter, r *http.Request) {
-		f.logger.Error(r.Context(), "http call not found", slogRequestFields(r)...)
-		t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
+	mux.NotFound(func(rw http.ResponseWriter, r *http.Request) {
+		// When the IDP runs as a real HTTP server (WithServing), OS
+		// port reuse can route stale connections from other tests to
+		// this server. Only fail the test for paths that look like
+		// legitimate IDP requests (OIDC protocol paths). Non-IDP
+		// paths (e.g. /api/v2/.../provisionerdaemons/serve, /derp)
+		// are cross-test contamination; return an error to the caller
+		// so the offending test can be traced, but do not fail this
+		// test.
+		idpPath := strings.HasPrefix(r.URL.Path, "/oauth2/") ||
+			strings.HasPrefix(r.URL.Path, "/.well-known/") ||
+			strings.HasPrefix(r.URL.Path, "/login/") ||
+			strings.HasPrefix(r.URL.Path, "/external-auth-validate/")
+		if idpPath {
+			f.logger.Error(r.Context(), "unexpected IDP request at unhandled path", slogRequestFields(r)...)
+			t.Errorf("unexpected request to IDP at path %q. Not supported", r.URL.Path)
+			http.Error(rw, fmt.Sprintf("unexpected IDP request at path %q", r.URL.Path), http.StatusNotFound)
+		} else {
+			f.logger.Warn(r.Context(), "non-IDP request received, likely cross-test port reuse", slogRequestFields(r)...)
+			t.Logf("ignoring non-IDP request at path %q (likely cross-test port reuse)", r.URL.Path)
+			http.Error(rw, fmt.Sprintf("misdirected request to IDP at path %q", r.URL.Path), http.StatusMisdirectedRequest)
+		}
 	})
 
 	return mux

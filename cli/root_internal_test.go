@@ -473,3 +473,25 @@ func Test_ensureTLSConfig(t *testing.T) {
 		require.Contains(t, err.Error(), "failed to parse CA certificate")
 	})
 }
+
+func TestNewHTTPTransportClonesDefaultTransport(t *testing.T) {
+	t.Parallel()
+
+	transport, err := newHTTPTransport(nil)
+	require.NoError(t, err)
+	require.NotSame(t, http.DefaultTransport, transport)
+	require.IsType(t, &http.Transport{}, transport)
+}
+
+func TestNewHTTPTransportAppliesTLSConfigToClone(t *testing.T) {
+	t.Parallel()
+
+	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS13}
+	transport, err := newHTTPTransport(tlsConfig)
+	require.NoError(t, err)
+	require.NotSame(t, http.DefaultTransport, transport)
+
+	httpTransport, ok := transport.(*http.Transport)
+	require.True(t, ok)
+	require.Same(t, tlsConfig, httpTransport.TLSClientConfig)
+}

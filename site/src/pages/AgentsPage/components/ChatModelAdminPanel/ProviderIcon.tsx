@@ -1,9 +1,9 @@
 import { ServerIcon } from "lucide-react";
 import type { FC } from "react";
 import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
+import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { cn } from "#/utils/cn";
 import { formatProviderLabel } from "../../utils/modelOptions";
-import { normalizeProvider } from "./helpers";
 
 const providerIconMap: Record<string, string> = {
 	openai: "/icon/openai.svg",
@@ -36,7 +36,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 				<ExternalImage
 					src={iconPath}
 					alt={`${formatProviderLabel(provider)} logo`}
-					className="h-3/5 w-3/5"
+					className="size-3/5"
 				/>
 			</div>
 		);
@@ -48,7 +48,7 @@ export const ProviderIcon: FC<ProviderIconProps> = ({
 				className,
 			)}
 		>
-			<ServerIcon className="h-3/5 w-3/5 text-content-secondary" />
+			<ServerIcon className="size-3/5 text-content-secondary" />
 		</div>
 	);
 };

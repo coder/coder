@@ -305,7 +305,7 @@ With autostart enabled:
 
 ## Example Template
 
-The [Docker (Dev Containers)](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)
+The [Docker (Dev Containers)](../../../../examples/templates/docker-devcontainer)
 starter template demonstrates Dev Containers integration using Docker-in-Docker.
 It includes the `devcontainers-cli` module, `git-clone` module, and the
 `coder_devcontainer` resource.

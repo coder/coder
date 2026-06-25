@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isChatAttachmentFile } from "./chatAttachments";
+import {
+	isChatAttachmentFile,
+	renameChatFileForUpload,
+	sanitizeChatFileName,
+} from "./chatAttachments";
 
 describe("isChatAttachmentFile", () => {
 	it("accepts allowlisted MIME types", () => {
@@ -28,5 +32,62 @@ describe("isChatAttachmentFile", () => {
 		});
 
 		expect(isChatAttachmentFile(file)).toBe(false);
+	});
+});
+
+describe("sanitizeChatFileName", () => {
+	it.each([
+		// Already safe.
+		["clean.pdf", "clean.pdf"],
+		// Spaces, parens collapsed into a single underscore each.
+		["My Report (final).pdf", "My_Report_final_.pdf"],
+		// `!` is kept; only `&` and the space become underscores.
+		["weird & stuff!.txt", "weird_stuff!.txt"],
+		// Path separators (forward and backslash) become underscores.
+		["path/with\\slash.png", "path_with_slash.png"],
+		// Leading dots/spaces/underscores are trimmed.
+		["   .leading.dots.txt", "leading.dots.txt"],
+		// Non-ASCII letters survive.
+		["日本語のファイル.txt", "日本語のファイル.txt"],
+		// Emoji survive.
+		["🔥emoji🔥.png", "🔥emoji🔥.png"],
+		// Control characters are stripped (replaced and trimmed).
+		["\u0000\u0001\tcontrol.bin", "control.bin"],
+		// Underscore-only collapses to empty then falls back to "file".
+		["___", "file"],
+		// Empty input falls back to "file".
+		["", "file"],
+		// Trailing problem characters are also trimmed.
+		["foo!.pdf ", "foo!.pdf"],
+	])("sanitizes %j to %j", (input, expected) => {
+		expect(sanitizeChatFileName(input)).toBe(expected);
+	});
+});
+
+describe("renameChatFileForUpload", () => {
+	it("returns the same File reference when the name is already safe", () => {
+		const file = new File(["png"], "clean.png", { type: "image/png" });
+
+		// Identity matters: useFileAttachments keys preview-URL,
+		// upload-state, and text-content Maps on the File object.
+		expect(renameChatFileForUpload(file)).toBe(file);
+	});
+
+	it("returns a new File with a sanitized name when needed", () => {
+		const file = new File(["pdf-bytes"], "My Report (final).pdf", {
+			type: "application/pdf",
+			lastModified: 1_700_000_000_000,
+		});
+
+		const renamed = renameChatFileForUpload(file);
+
+		expect(renamed).not.toBe(file);
+		expect(renamed.name).toBe("My_Report_final_.pdf");
+		expect(renamed.type).toBe("application/pdf");
+		expect(renamed.lastModified).toBe(1_700_000_000_000);
+		// File size preserved; byte content is covered transitively by
+		// the File constructor, and jsdom's Blob backing in this
+		// project is not reliable enough for an explicit text() probe.
+		expect(renamed.size).toBe(file.size);
 	});
 });

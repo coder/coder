@@ -65,13 +65,6 @@ const longAdvice = [
 const meta: Meta<typeof Tool> = {
 	title: "pages/AgentsPage/ChatElements/tools/AdvisorTool",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: { name: "advisor" },
 };
 export default meta;
@@ -118,6 +111,30 @@ export const Running: Story = {
 		expect(
 			canvas.getByText("Reviewing context and preparing guidance."),
 		).toBeInTheDocument();
+	},
+};
+
+export const RunningWithStreamedAdvice: Story = {
+	args: {
+		status: "running",
+		args: { question: sampleQuestion },
+		result: "Use the smaller diff while the advisor is still responding.",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText(sampleQuestion)).toBeInTheDocument();
+		expect(canvas.getByText("Consulting advisor…")).toBeInTheDocument();
+		expect(
+			await canvas.findByText(
+				"Use the smaller diff while the advisor is still responding.",
+			),
+		).toBeInTheDocument();
+		expect(
+			canvas.queryByText("Advisor returned no guidance."),
+		).not.toBeInTheDocument();
+		expect(
+			canvas.queryByText("Reviewing context and preparing guidance."),
+		).not.toBeInTheDocument();
 	},
 };
 

@@ -27,8 +27,9 @@ func TestStart(t *testing.T) {
 	t.Parallel()
 	t.Run("Echo", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		ptty, ps := ptytest.Start(t, pty.Command("cmd.exe", "/c", "echo", "test"))
-		ptty.ExpectMatch("test")
+		ptty.ExpectMatch(ctx, "test")
 		err := ps.Wait()
 		require.NoError(t, err)
 		err = ptty.Close()

@@ -1,11 +1,11 @@
 import type { MinimalUser } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
-import { AIBridgeClientIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeClientIcon";
-import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/RequestLogsPage/icons/AIBridgeProviderIcon";
+import { AIBridgeClientIcon } from "#/pages/AIBridgePage/icons/AIBridgeClientIcon";
+import { AIBridgeProviderIcon } from "#/pages/AIBridgePage/icons/AIBridgeProviderIcon";
 import { formatDateTime } from "#/utils/time";
 import { TokenBadges } from "../TokenBadges";
-import { getProviderDisplayName, getProviderIconName } from "../utils";
+import { getProviderDisplayName } from "../utils";
 
 const Separator = () => <div className="border-0 border-t border-solid my-1" />;
 
@@ -123,10 +123,7 @@ export const SessionSummaryTable = ({
 							key={p}
 							className="gap-1.5 max-w-full min-w-0 overflow-hidden"
 						>
-							<AIBridgeProviderIcon
-								provider={getProviderIconName(p)}
-								className="size-icon-xs"
-							/>
+							<AIBridgeProviderIcon provider={p} className="size-icon-xs" />
 							<span
 								className="truncate min-w-0 flex-1"
 								title={getProviderDisplayName(p)}

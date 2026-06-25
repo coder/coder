@@ -14,9 +14,9 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/tracing"
@@ -29,23 +29,19 @@ type BlockingResponsesInterceptor struct {
 func NewBlockingInterceptor(
 	id uuid.UUID,
 	reqPayload RequestPayload,
-	providerName string,
-	cfg config.OpenAI,
+	cfg intercept.Config,
+	cred intercept.Credential,
 	clientHeaders http.Header,
-	authHeaderName string,
 	tracer trace.Tracer,
-	cred intercept.CredentialInfo,
 ) *BlockingResponsesInterceptor {
 	return &BlockingResponsesInterceptor{
 		responsesInterceptionBase: responsesInterceptionBase{
-			id:             id,
-			providerName:   providerName,
-			reqPayload:     reqPayload,
-			cfg:            cfg,
-			clientHeaders:  clientHeaders,
-			authHeaderName: authHeaderName,
-			tracer:         tracer,
-			credential:     cred,
+			id:            id,
+			reqPayload:    reqPayload,
+			cfg:           cfg,
+			cred:          cred,
+			clientHeaders: clientHeaders,
+			tracer:        tracer,
 		},
 	}
 }
@@ -85,8 +81,17 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	}
 	shouldLoop := true
 
+	// Sum the key attempts across all iterations and record once when the
+	// interception completes.
+	var totalKeyAttempts int
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		defer func() {
+			cp.Pool.RecordAttempts(totalKeyAttempts)
+		}()
+	}
+
 	for shouldLoop {
-		srv := i.newResponsesService()
+		srv := i.newResponsesService(ctx)
 		respCopy = responseCopier{}
 
 		opts := i.requestOptions(&respCopy)
@@ -98,13 +103,16 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 			opts = append(opts, intercept.ActorHeadersAsOpenAIOpts(actor)...)
 		}
 
-		response, upstreamErr = i.newResponse(ctx, srv, opts)
+		var keyAttempts int
+		response, keyAttempts, upstreamErr = i.newResponse(ctx, srv, opts)
+		totalKeyAttempts += keyAttempts
 
 		// The failover loop may return a keypool exhaustion
 		// error. Render it here.
 		if upstreamErr != nil {
-			if keyErr := ProcessKeyPoolError(upstreamErr); keyErr != nil {
-				i.writeUpstreamError(w, keyErr)
+			var keyPoolErr *keypool.Error
+			if errors.As(upstreamErr, &keyPoolErr) {
+				i.writeUpstreamError(w, intercept.ResponseErrorFromKeyPool(keyPoolErr))
 				return xerrors.Errorf("key pool exhausted: %w", upstreamErr)
 			}
 		}
@@ -144,14 +152,16 @@ func (i *BlockingResponsesInterceptor) ProcessRequest(w http.ResponseWriter, r *
 	return errors.Join(upstreamErr, err)
 }
 
-// newResponse routes between BYOK (single attempt) and
-// centralized failover.
-func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
-	// BYOK: single attempt, no failover.
-	if i.cfg.KeyPool == nil {
-		return i.newResponseWithKey(ctx, srv, opts)
+// newResponse routes by credential type, returning the upstream response, the
+// number of key attempts made for this call, and any error. A centralized key
+// pool fails over across keys, while BYOK authenticates with a single, fixed
+// credential baked into srv, so it makes one attempt.
+func (i *BlockingResponsesInterceptor) newResponse(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, int, error) {
+	if cp, ok := intercept.AsCentralizedPool(i.cred); ok {
+		return i.newResponseWithKeyFailover(ctx, srv, cp, opts)
 	}
-	return i.newResponseWithKeyFailover(ctx, srv, opts)
+	response, err := i.newResponseWithKey(intercept.WithCredentialInfo(ctx, i.cred), srv, opts)
+	return response, 0, err
 }
 
 // newResponseWithKey performs a single upstream call.
@@ -163,22 +173,21 @@ func (i *BlockingResponsesInterceptor) newResponseWithKey(ctx context.Context, s
 	return srv.New(ctx, responses.ResponseNewParams{}, opts...)
 }
 
-// newResponseWithKeyFailover walks the centralized key pool,
-// trying each key until one succeeds or the pool is exhausted.
-// Keys are marked temporary on 429 and permanent on 401/403.
-// Errors that aren't key-specific don't trigger failover and
-// are returned to the caller.
-func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, opts []option.RequestOption) (*responses.Response, error) {
-	// TODO(ssncferreira): update the interception's credential
-	// hint with the actually-used key (the successful key on
-	// success, the last tried key on failure) in the upstack PR.
-	walker := i.cfg.KeyPool.Walker()
+// newResponseWithKeyFailover walks the centralized key pool, trying each key
+// until one succeeds or the pool is exhausted. Keys are marked temporary on
+// 429 and permanent on 401/403. Errors that aren't key-specific don't trigger
+// failover and are returned to the caller. It returns the upstream response,
+// the number of key attempts made for this call, and any error.
+func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Context, srv responses.ResponseService, cp *intercept.CentralizedPool, opts []option.RequestOption) (*responses.Response, int, error) {
+	walker := cp.Pool.Walker()
 	for {
-		key, err := walker.Next()
-		if err != nil {
-			return nil, err
+		key, keyPoolErr := cp.NextKey(walker)
+		if keyPoolErr != nil {
+			return nil, walker.Attempts(), keyPoolErr
 		}
 
+		ctx = intercept.WithCredentialInfo(ctx, i.cred)
+		i.logger.Debug(ctx, "using centralized api key")
 		requestOpts := append([]option.RequestOption{}, opts...)
 		requestOpts = append(requestOpts,
 			option.WithAPIKey(key.Value()),
@@ -193,6 +202,6 @@ func (i *BlockingResponsesInterceptor) newResponseWithKeyFailover(ctx context.Co
 		}
 		// Either success (response, nil) or a non-key error
 		// (nil, err): nothing to retry, return as-is.
-		return response, err
+		return response, walker.Attempts(), err
 	}
 }

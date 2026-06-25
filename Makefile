@@ -53,8 +53,8 @@ endif
 	tailnet/tailnettest/coordinateemock.go \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go \
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	agent/agentsocket/proto/agentsocket.pb.go \
@@ -62,7 +62,7 @@ endif
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -167,6 +167,10 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
+
+_gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/aibridgepricesgen
 
 _gen/bin/metricsdocgen: $(wildcard scripts/metricsdocgen/*.go) | _gen
 	@mkdir -p _gen/bin
@@ -724,11 +728,11 @@ endif
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/emdash $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
-# Subset of lint that does not require Go or Node toolchains.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash
+# Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -741,11 +745,8 @@ lint/ts: site/node_modules/.installed
 .PHONY: lint/ts
 
 lint/go:
-	./scripts/check_enterprise_imports.sh
-	./scripts/check_codersdk_imports.sh
-	linter_ver=$$(grep -oE 'GOLANGCI_LINT_VERSION=\S+' dogfood/coder/ubuntu-26.04/Dockerfile | cut -d '=' -f 2)
-	go run github.com/golangci/golangci-lint/cmd/golangci-lint@v$$linter_ver run
-	go tool github.com/coder/paralleltestctx/cmd/paralleltestctx -custom-funcs="testutil.Context" ./...
+	golangci-lint run
+	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
 
@@ -767,6 +768,13 @@ lint/emdash:
 	bash scripts/check_emdash.sh
 .PHONY: lint/emdash
 
+lint/architecture:
+	./scripts/check_architecture.sh
+.PHONY: lint/architecture
+
+lint/agents:
+	./scripts/check_agents_structure.sh
+.PHONY: lint/agents
 
 lint/helm:
 	cd helm/
@@ -781,15 +789,26 @@ lint/actions: lint/actions/actionlint lint/actions/zizmor
 .PHONY: lint/actions
 
 lint/actions/actionlint:
-	go tool github.com/rhysd/actionlint/cmd/actionlint
+	mise exec actionlint -- actionlint
 .PHONY: lint/actions/actionlint
 
+# zizmor uses GH_TOKEN to fetch imported workflows from GitHub; without it,
+# external action references are skipped silently.
 lint/actions/zizmor:
-	./scripts/zizmor.sh \
+	@set -euo pipefail; \
+	if [ -z "$${GH_TOKEN:-}" ] && command -v gh >/dev/null 2>&1; then \
+		GH_TOKEN="$$(gh auth token 2>/dev/null || true)"; \
+		export GH_TOKEN; \
+	fi; \
+	mise exec zizmor -- zizmor \
 		--strict-collection \
 		--persona=regular \
 		.
 .PHONY: lint/actions/zizmor
+
+lint/mise-versions:
+	./scripts/check_mise_versions.sh
+.PHONY: lint/mise-versions
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -802,29 +821,38 @@ lint/migrations:
 	./scripts/check_pg_schema.sh "Fixtures" $(FIXTURE_FILES)
 .PHONY: lint/migrations
 
-TYPOS_VERSION := $(shell grep -oP 'crate-ci/typos@\S+\s+\#\s+v\K[0-9.]+' .github/workflows/ci.yaml)
-
-# Map uname values to typos release asset names.
-TYPOS_ARCH := $(shell uname -m)
-# typos release assets use aarch64, but macOS ARM reports arm64 via uname -m.
-ifeq ($(TYPOS_ARCH),arm64)
-TYPOS_ARCH := aarch64
-endif
-ifeq ($(shell uname -s),Darwin)
-TYPOS_OS := apple-darwin
-else
-TYPOS_OS := unknown-linux-musl
-endif
-
-build/typos-$(TYPOS_VERSION):
-	mkdir -p build/
-	curl -sSfL "https://github.com/crate-ci/typos/releases/download/v$(TYPOS_VERSION)/typos-v$(TYPOS_VERSION)-$(TYPOS_ARCH)-$(TYPOS_OS).tar.gz" \
-		| tar -xzf - -C build/ ./typos
-	mv build/typos "$@"
-
-lint/typos: build/typos-$(TYPOS_VERSION)
-	build/typos-$(TYPOS_VERSION) --config .github/workflows/typos.toml
+lint/typos:
+	typos --config .github/workflows/typos.toml
 .PHONY: lint/typos
+
+# Vale (prose linter).
+#
+# Invoked through `mise exec` like actionlint and zizmor above, so the
+# version pinned in mise.toml ("aqua:errata-ai/vale") is the single source
+# of truth and mise downloads the right OS/arch build. Always pass the full
+# aqua key: the bare `vale` short name ignores the pin and resolves to the
+# latest release.
+
+# `vale sync` pulls the packages listed in .vale.ini's Packages directive
+# into StylesPath (docs/.style/styles/). The .vale-synced sentinel makes
+# sync idempotent across `make lint/prose` calls and lets warm checkouts
+# skip the re-sync entirely. Make rebuilds this target when `.vale.ini`
+# changes.
+docs/.style/.vale-synced: .vale.ini
+	@echo "$(GREEN)==>$(RESET) $(BOLD)vale sync$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale sync
+	@touch $@
+
+# Vale exits non-zero only on error-level alerts. `--no-exit` keeps the
+# target green while the un-overridden Google error-level rules still
+# produce a baseline error count; real failures (bad config, missing
+# files) still propagate. Once the baseline error count reaches zero, drop
+# `--no-exit` and surface error-level violations as real failures. See
+# DOCS-40.
+lint/prose: docs/.style/.vale-synced
+	@echo "$(GREEN)==>$(RESET) $(BOLD)lint/prose$(RESET)"
+	mise exec "aqua:errata-ai/vale" -- vale --no-exit docs/
+.PHONY: lint/prose
 
 # pre-commit and pre-push mirror CI checks locally.
 #
@@ -947,8 +975,8 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/subscriptionmock.go
 
 AIBRIDGED_MOCKS := \
-	enterprise/aibridged/aibridgedmock/clientmock.go \
-	enterprise/aibridged/aibridgedmock/poolmock.go
+	coderd/aibridged/aibridgedmock/clientmock.go \
+	coderd/aibridged/aibridgedmock/poolmock.go
 
 GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
@@ -958,7 +986,7 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	enterprise/aibridged/proto/aibridged.pb.go \
+	coderd/aibridged/proto/aibridged.pb.go \
 	$(DB_GEN_FILES) \
 	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
@@ -968,6 +996,7 @@ GEN_FILES := \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
+	docs/install/releases/feature-stages.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	provisioner/terraform/testdata/version \
@@ -983,11 +1012,24 @@ GEN_FILES := \
 	$(AIBRIDGED_MOCKS)
 
 # all gen targets should be added here and to gen/mark-fresh
-gen: gen/db gen/golden-files $(GEN_FILES)
+# Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
+# start PostgreSQL via testcontainers).
+GEN_SKIP_GOLDEN ?=
+gen: gen/db $(if $(GEN_SKIP_GOLDEN),,gen/golden-files) $(GEN_FILES)
 .PHONY: gen
 
 gen/db: $(DB_GEN_FILES)
 .PHONY: gen/db
+
+# Refresh the AI Bridge pricing seed file from models.dev. Kept out of
+# `make gen`. Phony so each invocation regenerates.
+coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen | _gen
+	@mkdir -p $(dir $@)
+	$(call atomic_write,_gen/bin/aibridgepricesgen)
+.PHONY: coderd/aibridge/prices/data/prices.json
+
+gen/aibridge-prices: coderd/aibridge/prices/data/prices.json
+.PHONY: gen/aibridge-prices
 
 gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
@@ -1013,7 +1055,7 @@ gen/mark-fresh:
 		agent/agentsocket/proto/agentsocket.pb.go \
 		agent/boundarylogproxy/codec/boundary.pb.go \
 		vpn/vpn.pb.go \
-		enterprise/aibridged/proto/aibridged.pb.go \
+		coderd/aibridged/proto/aibridged.pb.go \
 		coderd/database/dump.sql \
 		coderd/database/querier.go \
 		coderd/database/unique_constraint.go \
@@ -1032,6 +1074,7 @@ gen/mark-fresh:
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
+		docs/install/releases/feature-stages.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		site/e2e/provisionerGenerated.ts \
@@ -1102,8 +1145,8 @@ codersdk/workspacesdk/agentconnmock/agentconnmock.go: codersdk/workspacesdk/agen
 	./scripts/format_go_file.sh "$@"
 	touch "$@"
 
-$(AIBRIDGED_MOCKS): enterprise/aibridged/client.go enterprise/aibridged/pool.go
-	go generate ./enterprise/aibridged/aibridgedmock/
+$(AIBRIDGED_MOCKS): coderd/aibridged/client.go coderd/aibridged/pool.go
+	go generate ./coderd/aibridged/aibridgedmock/
 	touch "$@"
 
 agent/agentcontainers/dcspec/dcspec_gen.go: \
@@ -1170,13 +1213,13 @@ agent/boundarylogproxy/codec/boundary.pb.go: agent/boundarylogproxy/codec/bounda
 		--go_opt=paths=source_relative \
 		./agent/boundarylogproxy/codec/boundary.proto
 
-enterprise/aibridged/proto/aibridged.pb.go: enterprise/aibridged/proto/aibridged.proto
+coderd/aibridged/proto/aibridged.pb.go: coderd/aibridged/proto/aibridged.proto
 	./scripts/atomic_protoc.sh \
 		--go_out=. \
 		--go_opt=paths=source_relative \
 		--go-drpc_out=. \
 		--go-drpc_opt=paths=source_relative \
-		./enterprise/aibridged/proto/aibridged.proto
+		./coderd/aibridged/proto/aibridged.proto
 
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) \
 		$(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go') \
@@ -1267,6 +1310,17 @@ docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/queri
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
+docs/install/releases/feature-stages.md: \
+	node_modules/.installed \
+	scripts/release/docs_update_feature_stages.sh \
+	codersdk/deployment.go \
+	docs/manifest.json | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && cp "$@" "$$tmpfile" && \
+		./scripts/release/docs_update_feature_stages.sh "$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
 coderd/apidoc/.gen: \
 	node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
@@ -1274,6 +1328,7 @@ coderd/apidoc/.gen: \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
 	$(wildcard enterprise/wsproxy/wsproxysdk/*.go) \
+	$(wildcard coderd/workspaceconnwatcher/*.go) \
 	$(DB_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	.swaggo \
@@ -1423,8 +1478,16 @@ ifdef TEST_SHORT
 GOTEST_FLAGS += -short
 endif
 
+# RUN is single-quoted for the shell so regex metacharacters survive make.
+# Embedded single quotes are not supported; whichtests only emits RUN values
+# built from ASCII test names so generated regexes stay within this contract.
 ifdef RUN
-GOTEST_FLAGS += -run $(RUN)
+GOTEST_FLAGS += -run '$(RUN)'
+endif
+
+# TEST_SHUFFLE values must be off, on, or an integer seed.
+ifdef TEST_SHUFFLE
+GOTEST_FLAGS += -shuffle=$(TEST_SHUFFLE)
 endif
 
 ifdef TEST_CPUPROFILE
@@ -1577,6 +1640,15 @@ test-postgres-docker:
 	done
 .PHONY: test-postgres-docker
 
+# test-postgres-docker-logs prints the PostgreSQL container's logs. The
+# postgres image logs to stderr (no logging_collector), which Docker captures,
+# so combined with log_statement=all in test-postgres-docker these logs include
+# every executed statement. Redirect to a file to save them, e.g.
+# `make test-postgres-docker-logs > postgres.log`.
+test-postgres-docker-logs:
+	docker logs test-postgres-docker-${POSTGRES_VERSION}
+.PHONY: test-postgres-docker-logs
+
 test-tailnet-integration:
 	env \
 		CODER_TAILNET_TESTS=true \
@@ -1612,9 +1684,6 @@ else
 	pnpm playwright:test
 endif
 .PHONY: test-e2e
-
-dogfood/coder/nix.hash: flake.nix flake.lock
-	sha256sum flake.nix flake.lock >./dogfood/coder/nix.hash
 
 # Count the number of test databases created per test package.
 count-test-databases:

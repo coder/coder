@@ -566,11 +566,6 @@ func (r *RootCmd) configSSH() *serpent.Command {
 				"This might be an issue in Windows machine that use a unix-like shell. " +
 				"This flag forces the use of unix file paths (the forward slash '/').",
 			Value: serpent.BoolOf(&sshConfigOpts.forceUnixSeparators),
-			// On non-windows showing this command is useless because it is a noop.
-			// Hide vs disable it though so if a command is copied from a Windows
-			// machine to a unix machine it will still work and not throw an
-			// "unknown flag" error.
-			Hidden: hideForceUnixSlashes,
 		},
 		cliui.SkipPromptOption(),
 	}
@@ -583,6 +578,10 @@ func mergeSSHOptions(
 ) (
 	sshConfigOptions, error,
 ) {
+	if err := coderd.Validate(); err != nil {
+		return sshConfigOptions{}, xerrors.Errorf("invalid ssh config from coderd: %w", err)
+	}
+
 	// Write agent configuration.
 	defaultOptions := []string{
 		"ConnectTimeout=0",

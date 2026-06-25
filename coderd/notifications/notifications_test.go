@@ -788,11 +788,29 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserEmail:    "bobby@coder.com",
 				UserUsername: "bobby",
 				Labels: map[string]string{
-					"name":           "bobby-workspace",
-					"reason":         "breached the template's threshold for inactivity",
-					"initiator":      "autobuild",
-					"dormancyHours":  "24",
-					"timeTilDormant": "24 hours",
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
+					"timeTilDelete": "24 hours",
+				},
+			},
+		},
+		{
+			// TemplateWorkspaceDormant body should not promise auto-deletion
+			// when the template has no `time_til_dormant_autodelete` set, in
+			// which case the enqueue sites leave `timeTilDelete` unset.
+			name: "TemplateWorkspaceDormant_NoAutoDelete",
+			id:   notifications.TemplateWorkspaceDormant,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":          "bobby-workspace",
+					"reason":        "breached the template's threshold for inactivity",
+					"initiator":     "autobuild",
+					"dormancyHours": "24",
 				},
 			},
 		},
@@ -822,6 +840,19 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 					"reason":         "template updated to new dormancy policy",
 					"dormancyHours":  "24",
 					"timeTilDormant": "24 hours",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceAutostopReminder",
+			id:   notifications.TemplateWorkspaceAutostopReminder,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"deadline":  "2024-03-15 14:00 UTC",
 				},
 			},
 		},
@@ -1510,11 +1541,9 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					assert.NoError(t, srv.Serve(listen))
-				}()
+				})
 
 				// Wait for the server to become pingable.
 				require.Eventually(t, func() bool {
