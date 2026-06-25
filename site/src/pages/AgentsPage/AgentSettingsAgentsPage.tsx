@@ -14,6 +14,7 @@ import {
 import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { pageTitle } from "#/utils/page";
 import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 
 const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
@@ -85,6 +86,7 @@ const AgentSettingsAgentsPage: FC = () => {
 
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
+			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
 			<AgentSettingsAgentsPageView
 				adminOverridesData={personalModelOverridesAdminSettingsQuery.data}
 				adminOverridesError={personalModelOverridesAdminSettingsQuery.error}

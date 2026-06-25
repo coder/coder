@@ -1,4 +1,3 @@
-import { ArrowUpRightIcon } from "lucide-react";
 import type { FC } from "react";
 import {
 	Sidebar as BaseSidebar,
@@ -44,6 +43,11 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 					</SidebarNavItem>
 				)}
 				{permissions.editDeploymentConfig && (
+					<SidebarNavItem href="/ai/settings/coder-agents">
+						Coder Agents
+					</SidebarNavItem>
+				)}
+				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/lifecycle">
 						Lifecycle
 					</SidebarNavItem>
@@ -56,13 +60,6 @@ const AISettingsSidebarView: FC<AISettingsSidebarViewProps> = ({
 				{permissions.editDeploymentConfig && (
 					<SidebarNavItem href="/ai/settings/mcp-servers">
 						MCP servers
-					</SidebarNavItem>
-				)}
-				{permissions.editDeploymentConfig && (
-					<SidebarNavItem href="/agents/settings/agents">
-						<div className="flex flex-row items-center gap-1">
-							Manage Coder Agents <ArrowUpRightIcon size={16} />
-						</div>
 					</SidebarNavItem>
 				)}
 			</div>

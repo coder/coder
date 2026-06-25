@@ -1,10 +1,14 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
+	SettingsHeader,
+	SettingsHeaderDescription,
+	SettingsHeaderTitle,
+} from "#/components/SettingsHeader/SettingsHeader";
+import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
 } from "./components/AdminPersonalModelOverridesSettings";
-import { SectionHeader } from "./components/SectionHeader";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,
@@ -76,30 +80,28 @@ export const AgentSettingsAgentsPageView: FC<
 		isSaveGeneralModelOverrideError;
 
 	return (
-		<div className="flex flex-col gap-8">
-			<SectionHeader
-				label="Agents"
-				description="Configure defaults for delegated agents and other agent-specific capabilities."
-			/>
-			<AdminPersonalModelOverridesSettings
-				adminSettings={adminOverridesData}
-				adminSettingsError={adminOverridesError}
-				onRetryAdminSettings={onRetryAdminOverrides}
-				isRetryingAdminSettings={isRetryingAdminOverrides}
-				onSaveAdminSetting={onSaveAdminOverrides}
-				isSavingAdminSetting={isSavingAdminOverrides}
-				isSaveAdminSettingError={isSaveAdminOverridesError}
-			/>
-			{showGeneralModelSection && onSaveGeneralModelOverride && (
-				<section aria-label="General model" className="flex flex-col gap-3">
-					<SectionHeader
-						label="General model"
-						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
-						level="section"
-					/>
+		<div className="flex max-w-4xl flex-col gap-8">
+			<SettingsHeader>
+				<SettingsHeaderTitle>Coder Agents</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure deployment-wide defaults for Coder Agents and agent-specific
+					capabilities.
+				</SettingsHeaderDescription>
+			</SettingsHeader>
+			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border p-6">
+				<AdminPersonalModelOverridesSettings
+					adminSettings={adminOverridesData}
+					adminSettingsError={adminOverridesError}
+					onRetryAdminSettings={onRetryAdminOverrides}
+					isRetryingAdminSettings={isRetryingAdminOverrides}
+					onSaveAdminSetting={onSaveAdminOverrides}
+					isSavingAdminSetting={isSavingAdminOverrides}
+					isSaveAdminSettingError={isSaveAdminOverridesError}
+				/>
+				{showGeneralModelSection && onSaveGeneralModelOverride && (
 					<SubagentModelOverrideSettings
 						title="General model"
-						description="Deployment-wide model override for delegated subagents with write capabilities, such as editing files or running commands in the workspace."
+						description="Used by delegated agents that can edit files or run commands."
 						modelOverrideData={generalModelOverrideData}
 						enabledModelConfigs={enabledModelConfigs}
 						modelConfigsError={modelConfigsError}
@@ -108,22 +110,11 @@ export const AgentSettingsAgentsPageView: FC<
 						isSaving={isSavingGeneralModelOverride}
 						isSaveError={isSaveGeneralModelOverrideError}
 						saveErrorMessage="Failed to save general model override."
-						showHeader={false}
 					/>
-				</section>
-			)}
-			<section
-				aria-label="Title generation model"
-				className="flex flex-col gap-3"
-			>
-				<SectionHeader
-					label="Title generation model"
-					description="Choose a model for generated chat titles. Leave unset to use Coder's default title algorithm, which currently tries fast title models for configured providers first, for example Claude Haiku, GPT-4o mini, and Gemini Flash, then falls back to the chat's current model. When a model is selected here, Coder uses only that model for title generation. Recommended title models are fast and low cost."
-					level="section"
-				/>
+				)}
 				<SubagentModelOverrideSettings
 					title="Title generation model"
-					description="Choose a model for generated chat titles."
+					description="Choose a fast, low-cost model to name conversations."
 					modelOverrideData={titleGenerationModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
 					modelConfigsError={modelConfigsError}
@@ -134,27 +125,10 @@ export const AgentSettingsAgentsPageView: FC<
 					saveErrorMessage="Failed to save title generation model."
 					unsetPlaceholder="Use title default"
 					unavailableModelWarning="The selected model is currently unavailable. Title generation will be skipped until you choose another model or clear this setting."
-					showHeader={false}
-				/>
-			</section>
-			<section
-				aria-label="Explore subagent model"
-				className="flex flex-col gap-3"
-			>
-				<SectionHeader
-					label="Explore subagent model"
-					description="Deployment-wide model override for read-only Explore subagents."
-					level="section"
 				/>
 				<SubagentModelOverrideSettings
 					title="Explore subagent model"
-					description={
-						<>
-							Deployment-wide model override for read-only Explore subagents
-							launched through the <code>spawn_agent</code> tool with a
-							<code>type=explore</code> argument.
-						</>
-					}
+					description="Used for read-only codebase exploration before work returns to the main agent."
 					modelOverrideData={exploreModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
 					modelConfigsError={modelConfigsError}
@@ -163,9 +137,8 @@ export const AgentSettingsAgentsPageView: FC<
 					isSaving={isSavingExploreModelOverride}
 					isSaveError={isSaveExploreModelOverrideError}
 					saveErrorMessage="Failed to save Explore model override."
-					showHeader={false}
 				/>
-			</section>
+			</div>
 		</div>
 	);
 };
