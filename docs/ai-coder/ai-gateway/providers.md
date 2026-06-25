@@ -157,11 +157,7 @@ To use role assumption:
 2. **Configure the role's trust policy** to allow the gateway's base
    identity to assume it.
 
-3. **Set a region.** Assuming a role requires an STS endpoint, which needs
-   a region. Supply it through the provider's base URL or the AWS environment
-   (`AWS_REGION` / `AWS_DEFAULT_REGION`, etc.).
-
-4. **Enter the Role ARN** when you add or edit the Bedrock provider. It must be a
+3. **Enter the Role ARN** when you add or edit the Bedrock provider. It must be a
    valid IAM role ARN, for example `arn:aws:iam::123456789012:role/BedrockRole`.
 
 Each provider assumes a single role. To use several roles, configure one
