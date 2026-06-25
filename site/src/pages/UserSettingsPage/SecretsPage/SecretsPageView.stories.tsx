@@ -665,10 +665,12 @@ export const ImportSecretsValidationError: Story = {
 		);
 
 		await waitFor(() => expect(onImportSecrets).toHaveBeenCalledTimes(1));
-		await expect(await dialog.findByText("secrets[1].env_name")).toBeVisible();
-		await expect(
-			dialog.getByText("PATH is a reserved environment variable name"),
-		).toBeVisible();
+		await waitFor(() => {
+			expect(dialog.getByText("secrets[1].env_name")).toBeVisible();
+			expect(
+				dialog.getByText("PATH is a reserved environment variable name"),
+			).toBeVisible();
+		});
 		await expect(
 			dialog.getByRole("heading", { name: "Add secret" }),
 		).toBeVisible();
