@@ -760,6 +760,12 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 			expectThinkingType: "adaptive",
 		},
 		{
+			name:               "opus_4_8_model_with_enabled_thinking_is_converted_to_adaptive_and_drops_budget",
+			bedrockModel:       "eu.anthropic.claude-opus-4-8",
+			requestBody:        `{"max_tokens":10000,"thinking":{"type":"enabled","budget_tokens":5000}}`,
+			expectThinkingType: "adaptive",
+		},
+		{
 			// Opus 4.7 on Bedrock rejects output_config.format (structured
 			// outputs) with a 400 even though it accepts output_config.effort.
 			name:                "opus_4_7_model_strips_output_config_format_but_keeps_effort",
