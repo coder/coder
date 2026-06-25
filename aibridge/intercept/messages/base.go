@@ -350,7 +350,7 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		// since Bedrock returns 400 for these models when the legacy shape is
 		// used. Claude Code falls back to the legacy shape when it cannot
 		// read the upstream model's capability metadata (which is the case
-		// when AI Bridge is in the path).
+		// when AI Gateway is in the path).
 		updated, err = i.reqPayload.convertEnabledThinkingForBedrock()
 		if err != nil {
 			i.logger.Warn(context.Background(), "failed to convert enabled thinking for Bedrock", slog.Error(err))
