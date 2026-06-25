@@ -1,22 +1,20 @@
 # Formatting
 
-Coder documentation uses bold for UI elements,
-italics for emphasis,
-and code font for identifiers.
+Coder documentation uses bold for UI elements, italics for emphasis, and code font for identifiers.
 Code blocks declare a language.
 The rules on this page set those defaults and the conventions for callouts, tabs, lists, tables, links, and images.
 
-For descriptive link text and image alt text,
-refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
-The accessibility-driven rules live on that page so heading structure,
-language, link text,
-and alt text stay together.
+For descriptive link text and image alt text, refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
+The accessibility-driven rules live on that page so heading structure, language, link text, and alt text stay together.
 
 ## One sentence per line
 
-Write each sentence on its own Markdown source line. Do not split a sentence across multiple lines, and do not wrap to a fixed column width.
+Write each sentence on its own Markdown source line.
+Do not split a sentence across multiple lines, and do not wrap to a fixed column width.
 
-The payoff is cleaner diffs and easier authoring. A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved. The rule is straightforward to apply for both humans and LLMs: end a sentence, start a new line.
+The payoff is cleaner diffs and easier authoring.
+A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved.
+The rule is straightforward to apply for both humans and LLMs: end a sentence, start a new line.
 
 What counts as a single line:
 
@@ -35,20 +33,19 @@ What does not get its own line:
 
 **Don't** (mid-sentence clause breaks):
 
-> The Coder agent connects to the workspace,
-> opens a Tailscale tunnel,
-> and forwards SSH and IDE traffic over the tunnel.
+> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
 
 **Don't** (fixed column wrap):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel,
-> and forwards SSH and IDE traffic over the tunnel.
+> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
 
 Both **Don't** versions add noise to the source and produce diff churn on small edits.
 
-`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial. Editors that auto-wrap on save should be configured to leave the source alone.
+`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
+Editors that auto-wrap on save should be configured to leave the source alone.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Text formatting
 
@@ -56,12 +53,10 @@ The rules in this section cover inline formatting that lives inside a paragraph.
 
 ### Bold for UI elements
 
-Use bold for the literal text of UI elements the reader interacts with:
-buttons, menu items, page titles, field labels, tab names.
+Use bold for the literal text of UI elements the reader interacts with: buttons, menu items, page titles, field labels, tab names.
 Bold tells the reader "this is the thing you select or read".
 
-When the reader navigates across multiple UI elements,
-join each element with a greater-than sign (`>`) surrounded by spaces.
+When the reader navigates across multiple UI elements, join each element with a greater-than sign (`>`) surrounded by spaces.
 The separator makes the navigation path scannable and matches the convention in Microsoft and Google developer documentation.
 
 **Do**:
@@ -78,7 +73,8 @@ The separator makes the navigation path scannable and matches the convention in 
 >
 > Click **Templates**, then click **Settings**, then click **Schedule**.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Italics for emphasis only
 
@@ -94,7 +90,8 @@ Do not use italics for UI elements, identifiers, or product names.
 
 > Navigate to *Templates* > *Settings*.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Code font
 
@@ -123,7 +120,8 @@ Use backticks (inline code font) for the following:
 >
 > The server returns 404 when the workspace does not exist.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Block elements
 
@@ -134,9 +132,12 @@ The rules in this section cover block-level structures that stand on their own l
 Every fenced code block declares a language.
 Use the most specific language tag available:
 
-- `sh` for a shell command or a shell script. Use `sh` when the block is input the reader types or a script they save, and the block does not also show output.
-- `console` for an interactive session that shows the typed command and its output together. Prefix each typed line with `$`.
-- `powershell` for Windows command-line blocks. PowerShell is the default Windows shell in the Coder docs.
+- `sh` for a shell command or a shell script.
+  Use `sh` when the block is input the reader types or a script they save, and the block does not also show output.
+- `console` for an interactive session that shows the typed command and its output together.
+  Prefix each typed line with `$`.
+- `powershell` for Windows command-line blocks.
+  PowerShell is the default Windows shell in the Coder docs.
 - `tf` for Terraform and HCL.
 - `yaml` for YAML.
 - `go` for Go.
@@ -147,22 +148,15 @@ Use the most specific language tag available:
 Use `sh` so the corpus stays consistent.
 
 A command with no output shown is `sh`, not `console`.
-To show a command together with its output,
-either use one `console` block with `$` before the typed line,
-or split the command into an `sh` block and the output into a `text` block.
+To show a command together with its output, either use one `console` block with `$` before the typed line, or split the command into an `sh` block and the output into a `text` block.
 
 The auto-generated Coder CLI reference under `docs/reference/cli/` labels its command-usage blocks `console`.
 That output is generated.
 Do not copy the pattern into hand-written pages.
 
-The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core),
-which detects the language from the code content,
-not from the fence label.
-The fence label still drives highlighting on GitHub and in most editors,
-and `markdownlint` rule `MD040` requires one,
-so always declare the most specific language.
-For content with no sensible language tag,
-fall back to `text`.
+The docs site highlights code with [Speed-Highlight](https://github.com/speed-highlight/core), which detects the language from the code content, not from the fence label.
+The fence label still drives highlighting on GitHub and in most editors, and `markdownlint` rule `MD040` requires one, so always declare the most specific language.
+For content with no sensible language tag, fall back to `text`.
 
 **Do**:
 
@@ -172,9 +166,7 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ```
 
 ```console
-$ coder templates list
-NAME        LAST UPDATED
-quickstart  2 minutes ago
+$ coder templates list NAME        LAST UPDATED quickstart  2 minutes ago
 ```
 ````
 
@@ -191,8 +183,7 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ````
 
 The first **Don't** omits the language.
-The second labels a bare command `console` but shows no output,
-so `sh` is correct.
+The second labels a bare command `console` but shows no output, so `sh` is correct.
 
 *Enforced by `markdownlint` rule `MD040` for the missing-language case.*
 
@@ -212,19 +203,16 @@ Prose should carry the message.
 
 A follow-up PR will demonstrate each callout rendered against an existing docs page so reviewers can calibrate when each one fits.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Tabs for parallel content
 
-Use tabs when the reader picks one path that applies to their situation:
-installation methods on different operating systems,
-platform-specific commands,
-or API client SDKs in different languages.
+Use tabs when the reader picks one path that applies to their situation: installation methods on different operating systems, platform-specific commands, or API client SDKs in different languages.
 Do not use tabs to hide information the reader needs regardless of choice.
 
 The docs site renders a `<div class="tabs">` wrapper with H3 children as a tabbed interface.
-The H3 heading text becomes the tab label,
-and everything from that H3 to the next H3 (or to the closing `</div>`) becomes the tab panel.
+The H3 heading text becomes the tab label, and everything from that H3 to the next H3 (or to the closing `</div>`) becomes the tab panel.
 
 **Do**:
 
@@ -252,15 +240,14 @@ winget install Coder.Coder
 </div>
 ````
 
-Leave a blank line after the opening `<div>` and before the closing `</div>`
-so the markdown processor parses the inner content as markdown rather than HTML.
+Leave a blank line after the opening `<div>` and before the closing `</div>` so the markdown processor parses the inner content as markdown rather than HTML.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Lists
 
-If a sentence enumerates more than five items,
-rewrite as a bulleted list.
+If a sentence enumerates more than five items, rewrite as a bulleted list.
 A prose list of six or more items reads as a wall of commas.
 A bulleted list is easier to scan and to maintain.
 
@@ -275,8 +262,7 @@ Punctuation on list items follows the structure of each item:
 - **Single-word or short-phrase labels**: no terminal punctuation.
 
 Do not mix the styles inside one list.
-If one item is a complete sentence,
-rewrite the rest so every item is a complete sentence.
+If one item is a complete sentence, rewrite the rest so every item is a complete sentence.
 
 **Do**:
 
@@ -321,13 +307,8 @@ The provisioner supports:
 The first **Don't** mixes punctuation styles and uses non-imperative leads.
 The second mixes punctuation inside one list and uses periods on single-word labels.
 
-For a "Learn more" or "See also" list of links,
-treat each item as a label:
-no terminal period,
-and no leading "And" or "Or".
-When such a list needs a lead-in,
-end the lead-in with a colon on a clause that stands on its own,
-rather than dangling the colon off a sentence the bullets then finish.
+For a "Learn more" or "See also" list of links, treat each item as a label: no terminal period, and no leading "And" or "Or".
+When such a list needs a lead-in, end the lead-in with a colon on a clause that stands on its own, rather than dangling the colon off a sentence the bullets then finish.
 
 **Do**:
 
@@ -356,49 +337,43 @@ Install it where it persists across rebuilds:
 
 The **Don't** dangles the colon off a sentence and starts a bullet with "Or".
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Tables
 
-Use tables to compare options,
-list parameters,
-or show permissions.
+Use tables to compare options, list parameters, or show permissions.
 Keep tables simple.
 Avoid nested formatting and avoid tables that would read better as prose.
 
 Keep tables narrow enough that they fit the readable text column without horizontal scrolling.
-If a column needs more than a short phrase,
-rewrite the cell into the page body or break the table into two narrower tables.
+If a column needs more than a short phrase, rewrite the cell into the page body or break the table into two narrower tables.
 A table that crushes column widths so words split across lines reads worse than the equivalent prose.
 
-If a table needs many columns to capture the data,
-reconsider whether a table is the right structure.
+If a table needs many columns to capture the data, reconsider whether a table is the right structure.
 A definition list or a sequence of subsections may serve the reader better.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ### Links
 
 Use Markdown link syntax (`[text](url)`).
-Prefer relative paths within the docs (`../reference/cli/index.md`) over absolute URLs (`https://coder.com/docs/reference/cli`),
-so the link survives a future move of the docs site.
+Prefer relative paths within the docs (`../reference/cli/index.md`) over absolute URLs (`https://coder.com/docs/reference/cli`), so the link survives a future move of the docs site.
 
 Links to non-docs locations in the Coder codebase (source files, CI workflows, tests) also use relative paths.
 The docs site renderer resolves those paths to the canonical GitHub URLs automatically.
 A relative link to [`scripts/develop.sh`](../../../scripts/develop.sh) reads correctly on GitHub when browsing the repo and on the docs site when reading the published page.
 
-Anchor links to a specific section use the GitHub-flavored slug:
-lowercase the heading,
-replace spaces with hyphens,
-and drop punctuation (`./word-choice.md#refer-to-check-out-visit-not-see`).
+Anchor links to a specific section use the GitHub-flavored slug: lowercase the heading, replace spaces with hyphens, and drop punctuation (`./word-choice.md#refer-to-check-out-visit-not-see`).
 
 External URLs use the full `https://` form.
 Do not strip the protocol.
 
-For the link-text rule that screen readers and reading-out-of-context demand,
-refer to [Descriptive link text](./accessibility-and-inclusion.md#descriptive-link-text).
+For the link-text rule that screen readers and reading-out-of-context demand, refer to [Descriptive link text](./accessibility-and-inclusion.md#descriptive-link-text).
 
-*Documentation-only. No Vale rule for the syntax conventions.*
+*Documentation-only.
+No Vale rule for the syntax conventions.*
 
 ### Images
 
@@ -414,42 +389,33 @@ Captions go below the image in a `<small>` tag.
 <small>The Template Insights dashboard. Active users in the left panel; connection latency in the right panel.</small>
 ```
 
-For alt text and decorative-image conventions,
-refer to [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images) and [Decorative images](./accessibility-and-inclusion.md#decorative-images).
+For alt text and decorative-image conventions, refer to [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images) and [Decorative images](./accessibility-and-inclusion.md#decorative-images).
 
-*Documentation-only for asset path conventions. Alt-text requirement enforced by `markdownlint` rule `MD045`.*
+*Documentation-only for asset path conventions.
+Alt-text requirement enforced by `markdownlint` rule `MD045`.*
 
 ### Screenshots sparingly
 
 Use screenshots only when a sighted reader would be confused without the visual aid.
-A worked example,
-a code block,
-or a precise written instruction is almost always better than a screenshot.
+A worked example, a code block, or a precise written instruction is almost always better than a screenshot.
 
 > If a picture is worth a thousand words, then a good example is worth at least twice that amount.
 >
 > Adapted from Lorna Jane Mitchell's [Short tech writing style guide for developers](https://lornajane.net/posts/2024/short-tech-writing-style-guide-for-developers).
 
 Screenshots carry an ongoing maintenance burden.
-The product UI changes,
-strings get renamed,
-themes get retuned,
-and a screenshot that was accurate at merge time silently rots.
-Readers who hit a stale screenshot lose confidence in the page,
-and a reader using a screen reader cannot use the screenshot at all.
-The writer who adds a screenshot owns the cost of replacing it
-every time the captured surface changes.
+The product UI changes, strings get renamed, themes get retuned, and a screenshot that was accurate at merge time silently rots.
+Readers who hit a stale screenshot lose confidence in the page, and a reader using a screen reader cannot use the screenshot at all.
+The writer who adds a screenshot owns the cost of replacing it every time the captured surface changes.
 
 When a screenshot is the right answer:
 
 - Capture the minimum surface area.
   Crop to the smallest region that resolves the confusion the page is addressing.
-- Provide alt text that conveys the purpose of the screenshot,
-  per [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images).
+- Provide alt text that conveys the purpose of the screenshot, per [Alt text for images](./accessibility-and-inclusion.md#alt-text-for-images).
 - Pair the screenshot with the written instruction.
   The written instruction is the source of truth.
-  The screenshot is a check on the reader's understanding,
-  not a replacement for the words.
+  The screenshot is a check on the reader's understanding, not a replacement for the words.
 
 **Do**:
 
@@ -462,11 +428,10 @@ When a screenshot is the right answer:
 >
 > Configure autostart as shown above.
 
-The authoritative screenshot policy,
-including the obfuscation, PHI, and PII rules,
-lives in [`content-guidelines.md`](../content-guidelines.md).
+The authoritative screenshot policy, including the obfuscation, PHI, and PII rules, lives in [`content-guidelines.md`](../content-guidelines.md).
 
-*Documentation-only. Enforcement is editorial.*
+*Documentation-only.
+Enforcement is editorial.*
 
 ## Related
 

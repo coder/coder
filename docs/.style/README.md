@@ -56,8 +56,7 @@ directory from the surgical-reindex payload on mixed commits.
   `markdownlint-cli2 --fix $(find docs -name '*.md')`.
 - `make fmt/markdown` (markdown-table-formatter) reflows tables here for
   the same reason.
-- Vale lints the entire `docs/**/*.md` set,
-  including `docs/.style/style-guide/`.
+- Vale lints the entire `docs/**/*.md` set, including `docs/.style/style-guide/`.
   Refer to the repo-root `.vale.ini` for the active configuration.
   Run `make lint/prose` locally to reproduce.
 
@@ -81,8 +80,8 @@ with another style or contributing doc in the repo, it governs.
 
 ## Editing the style guide
 
-Open a PR against the appropriate subpage of `docs/.style/style-guide/`. Follow-up PRs add each
-rule and the matching style-guide section together.
+Open a PR against the appropriate subpage of `docs/.style/style-guide/`.
+Follow-up PRs add each rule and the matching style-guide section together.
 
 ## Adding a Vale rule
 
@@ -93,10 +92,7 @@ The PR that adds a rule is the rule's complete unit:
 1. **Cleanup commit**: fix every existing-content violation of the new
    rule so `make lint/prose` reports zero findings for it.
    The cleanup ships in the same PR as the enable, ordered first.
-2. **Enable commit**:
-   add the rule to `.vale.ini` at its chosen severity,
-   write a corresponding section under the matching subpage of `docs/.style/style-guide/`,
-   and add the custom rule YAML under `docs/.style/styles/Coder/` if applicable.
+2. **Enable commit**: add the rule to `.vale.ini` at its chosen severity, write a corresponding section under the matching subpage of `docs/.style/style-guide/`, and add the custom rule YAML under `docs/.style/styles/Coder/` if applicable.
    The rule's `message:` field points at the relevant style-guide subpage anchor.
 
 Severity is a deliberate per-rule choice:

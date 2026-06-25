@@ -1,19 +1,14 @@
 # Voice and tone
 
-Coder documentation addresses the reader directly,
-uses active voice,
-and describes the product in the present tense.
+Coder documentation addresses the reader directly, uses active voice, and describes the product in the present tense.
 The rules on this page set those defaults.
 
-For pronoun conventions that center inclusive language,
-refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
+For pronoun conventions that center inclusive language, refer to [Accessibility and inclusion](./accessibility-and-inclusion.md).
 
 ## Address the reader directly
 
 Use the second person ("you") in prose that gives the reader an instruction or describes what the reader sees, types, or gets back.
-Second person is direct,
-scales across audiences,
-and avoids the ambiguity of "the user" (which user?) or generic constructions.
+Second person is direct, scales across audiences, and avoids the ambiguity of "the user" (which user?) or generic constructions.
 
 **Do**:
 
@@ -23,12 +18,12 @@ and avoids the ambiguity of "the user" (which user?) or generic constructions.
 
 > Users can connect to workspaces over SSH after the user has installed the Coder CLI.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Avoid first-person singular
 
-First-person singular pronouns (`I`, `my`, `me`, `mine`, `I'm`, `I've`) imply a single author speaking to a single reader,
-which is the wrong register for product documentation.
+First-person singular pronouns (`I`, `my`, `me`, `mine`, `I'm`, `I've`) imply a single author speaking to a single reader, which is the wrong register for product documentation.
 Rewrite in the second person or in a neutral voice.
 
 **Do**:
@@ -44,10 +39,8 @@ Rewrite in the second person or in a neutral voice.
 ## Reserve first-person plural for Coder Technologies
 
 `We`, `us`, and `our` refer to **Coder Technologies, Inc.**, the company that makes the Coder platform.
-For formal references to the company,
-use the full name ("Coder Technologies, Inc.").
-For informal references in body prose,
-use `we`, `us`, or `our`.
+For formal references to the company, use the full name ("Coder Technologies, Inc.").
+For informal references in body prose, use `we`, `us`, or `our`.
 
 Do not use first-person plural for:
 
@@ -59,8 +52,7 @@ Do not use first-person plural for:
 
 **Do**:
 
-> For more information about enterprise licensing,
-> [contact us](https://coder.com/contact/sales).
+> For more information about enterprise licensing, [contact us](https://coder.com/contact/sales).
 >
 > Coder Technologies, Inc. publishes a new agent binary in each release.
 >
@@ -78,16 +70,14 @@ Do not use first-person plural for:
 The first **Don't** uses "we" to mean the product rather than the company.
 Rewrite with the product, release, or feature as the subject ("Each release includes ...").
 The second **Don't** uses "we" to refer to the product's release behavior.
-The third **Don't** uses "we" to mean "the docs and the reader together",
-which obscures who runs the command.
+The third **Don't** uses "we" to mean "the docs and the reader together", which obscures who runs the command.
 
 *Enforced by `Coder.FirstPersonPlural`.*
 
 ## Active voice by default
 
 Active voice puts the actor first and reads faster.
-Passive voice is acceptable when the actor is genuinely unknown or irrelevant (`The token is rotated every 24 hours.`),
-but the default is active.
+Passive voice is acceptable when the actor is genuinely unknown or irrelevant (`The token is rotated every 24 hours.`), but the default is active.
 
 **Do**:
 
@@ -97,7 +87,9 @@ but the default is active.
 
 > The agent token is rotated every 24 hours by Coder.
 
-*Documentation-only. No Vale rule. Imprecise rules like `Google.Passive` and `write-good.Passive` fire on every passive construction including the legitimate ones, so they stay out of the package per the rule-authoring doctrine.*
+*Documentation-only.
+No Vale rule.
+Imprecise rules like `Google.Passive` and `write-good.Passive` fire on every passive construction including the legitimate ones, so they stay out of the package per the rule-authoring doctrine.*
 
 ## Present tense by default
 
@@ -113,31 +105,28 @@ Reserve future tense for:
 
 > The provisioner reads the template files and creates the workspace.
 >
-> If you delete the template,
-> Coder will refuse to create new workspaces from it.
+> If you delete the template, Coder will refuse to create new workspaces from it.
 
 **Don't**:
 
 > The provisioner will read the template files and will create the workspace.
 >
-> When you run the install script,
-> it will download the latest release.
+> When you run the install script, it will download the latest release.
 
 The second **Don't** uses future tense to describe normal behavior of the install script.
 Use plain present tense for behavior the product already exhibits.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Trailing prepositions are a judgment call
 
-A sentence that ends with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`) can leave its object implicit,
-which adds a small comprehension cost.
+A sentence that ends with a preposition (`with`, `to`, `from`, `for`, `on`, `of`, `at`, `by`, `into`, `over`, `under`, `about`) can leave its object implicit, which adds a small comprehension cost.
 Avoiding the trailing preposition, though, can produce a more awkward sentence.
 There is no one-size-fits-all rule.
 Read both versions and keep the one that reads more naturally.
 
-Lean toward rewriting when the trailing preposition is redundant,
-or when the reordered version is still easy to read:
+Lean toward rewriting when the trailing preposition is redundant, or when the reordered version is still easy to read:
 
 **Do**:
 
@@ -168,15 +157,13 @@ Keep the trailing preposition when avoiding it contorts the sentence:
 >
 > Open the repository from which you want to clone.
 
-The first **Don't** is the classic over-correction:
-the rewrite is harder to read than the preposition it avoids.
+The first **Don't** is the classic over-correction: the rewrite is harder to read than the preposition it avoids.
 
-When both versions read equally well,
-the writer chooses.
-Treat avoiding a trailing preposition as a default to reach for,
-not a rule to enforce.
+When both versions read equally well, the writer chooses.
+Treat avoiding a trailing preposition as a default to reach for, not a rule to enforce.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Related
 

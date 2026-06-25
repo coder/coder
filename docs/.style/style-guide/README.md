@@ -2,14 +2,11 @@
 
 This is the canonical prose style guide for the Coder documentation.
 It tells you *how* to write the words that go in the docs.
-For decisions about what belongs in the docs and what does not,
-refer to [`content-guidelines.md`](../content-guidelines.md).
+For decisions about what belongs in the docs and what does not, refer to [`content-guidelines.md`](../content-guidelines.md).
 
 Each rule on the pages below is a policy decision the Coder docs team has made.
-Where a Vale rule already enforces the policy,
-the rule name is listed in a parenthetical so you can reproduce the warning locally.
-Where the rule is documentation-only,
-the parenthetical says so.
+Where a Vale rule already enforces the policy, the rule name is listed in a parenthetical so you can reproduce the warning locally.
+Where the rule is documentation-only, the parenthetical says so.
 The doctrine for adding Vale rules lives in [`README.md`](../README.md).
 
 ## How to use this guide
@@ -41,27 +38,32 @@ The style guide subpages dogfood them so contributors can see the rules in actio
 
 ### One sentence per line
 
-Source lines in Coder documentation follow a one-sentence-per-line policy. Each sentence sits on its own Markdown source line. Sentences are not split across lines, and lines do not wrap to a fixed column width.
+Source lines in Coder documentation follow a one-sentence-per-line policy.
+Each sentence sits on its own Markdown source line.
+Sentences are not split across lines, and lines do not wrap to a fixed column width.
 
-The rendered Markdown joins lines inside a paragraph back together, so the source line breaks do not appear in the rendered output. Reviewers reading the diff do encounter them, and they make diffs land cleanly at the sentence level.
+The rendered Markdown joins lines inside a paragraph back together, so the source line breaks do not appear in the rendered output.
+Reviewers reading the diff do encounter them, and they make diffs land cleanly at the sentence level.
 
-`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial. Editors that auto-wrap on save should be configured to leave the source alone.
+`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial.
+Editors that auto-wrap on save should be configured to leave the source alone.
 
 #### Incremental adoption
 
-The Coder docs corpus predates this convention. Much of the existing prose still wraps to a fixed column width or runs on a single long line, and some paragraphs on the other pages of this style guide still carry semantic line breaks (sembr) from earlier commits in this PR. The convention is adopted incrementally.
+The Coder docs corpus predates this convention.
+Much of the existing prose still wraps to a fixed column width or runs on a single long line, and some paragraphs on the other pages of this style guide still carry semantic line breaks (sembr) from earlier commits in this PR.
+The convention is adopted incrementally.
 
-When a contributor edits any line inside a paragraph, the entire paragraph is reformatted to one sentence per line as part of the same edit. The contributor does not reformat surrounding paragraphs they did not otherwise touch.
+When a contributor edits any line inside a paragraph, the entire paragraph is reformatted to one sentence per line as part of the same edit.
+The contributor does not reformat surrounding paragraphs they did not otherwise touch.
 
-For this rule, a bullet item, a numbered list entry, and a blockquote line are each their own paragraph. Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and table rows are governed by `markdown-table-formatter`.
+For this rule, a bullet item, a numbered list entry, and a blockquote line are each their own paragraph.
+Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and table rows are governed by `markdown-table-formatter`.
 
 ### The style guide does not use "see" for navigation
 
 The [Word choice page](./word-choice.md) bans "see" as a navigational verb across all docs.
-The style guide itself follows the rule:
-"refer to" for formal cross-references,
-"check out" for informal pointers in tutorial-style passages,
-"visit" for external URLs.
+The style guide itself follows the rule: "refer to" for formal cross-references, "check out" for informal pointers in tutorial-style passages, "visit" for external URLs.
 Reserve "see" for the rare case where the prose describes what a reader observes in the product UI.
 
 ## Vale enforcement
@@ -91,8 +93,7 @@ Run `make lint/prose` to reproduce the baseline locally.
 
 A public-facing prose summary lives today at [`docs/about/contributing/documentation.md`](../../about/contributing/documentation.md).
 A follow-up PR will redirect that page to this guide.
-Until then,
-follow the public summary for anything the subpages of this guide do not cover.
+Until then, follow the public summary for anything the subpages of this guide do not cover.
 New prose rules land here.
 The public page is frozen pending the redirect.
 

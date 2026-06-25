@@ -4,41 +4,26 @@ Every page in the Coder documentation targets one audience working toward one ou
 The audience determines vocabulary, depth, and the prior knowledge the page assumes.
 The outcome determines what the page covers and where it stops.
 
-Pages that try to serve two audiences,
-or chain multiple unrelated outcomes,
-serve none of their readers well.
-A reader who is one persona away from the page's target
-has to skip past content that does not apply to them,
-guess which sentences are for them,
-and trust the writer not to have buried a step they need
-inside a section labeled for someone else.
+Pages that try to serve two audiences, or chain multiple unrelated outcomes, serve none of their readers well.
+A reader who is one persona away from the page's target has to skip past content that does not apply to them, guess which sentences are for them, and trust the writer not to have buried a step they need inside a section labeled for someone else.
 
-The single canonical Coder example is
-**install Coder**.
+The single canonical Coder example is **install Coder**.
 An end user wants to connect their local editor to a Coder workspace and start coding.
 A platform engineer wants to deploy the Coder control plane to their company's Kubernetes cluster.
-Both groups search for "install Coder."
-A page that tries to cover both
-forces the end user to read past Helm chart values,
-and forces the platform engineer to read past Visual Studio Code download links.
-Two pages,
-one per audience and one per outcome,
-serve both groups better than one page that combines them.
+Both groups search for "install Coder.
+A page that tries to cover both forces the end user to read past Helm chart values, and forces the platform engineer to read past Visual Studio Code download links.
+Two pages, one per audience and one per outcome, serve both groups better than one page that combines them.
 
 ## Pick one audience per page
 
 Choose the audience before you choose the words.
 The audience determines:
 
-- The product vocabulary the reader already knows
-  (for example, whether `workspace` needs a definition).
-- The infrastructure context the reader brings
-  (for example, whether Kubernetes is assumed).
-- The level of depth the reader expects
-  (overview, how-to, reference, or in-depth tutorial).
+- The product vocabulary the reader already knows (for example, whether `workspace` needs a definition).
+- The infrastructure context the reader brings (for example, whether Kubernetes is assumed).
+- The level of depth the reader expects (overview, how-to, reference, or in-depth tutorial).
 
-If a topic genuinely needs to serve two audiences,
-write two pages and cross-link them.
+If a topic genuinely needs to serve two audiences, write two pages and cross-link them.
 Resist the temptation to write one page with audience-tagged sections.
 Section tags do not save readers from scanning content that does not apply to them.
 
@@ -65,24 +50,19 @@ Operators provisioning the workspace template should refer to the section below 
 
 ## Pick one outcome per page
 
-The outcome is the specific task,
-or the small set of related tasks,
-the page helps the reader accomplish.
+The outcome is the specific task, or the small set of related tasks, the page helps the reader accomplish.
 A how-to page covers one task.
 A tutorial covers one chained workflow.
-A reference page covers one stable surface
-(one CLI command, one API endpoint, one schema).
+A reference page covers one stable surface (one CLI command, one API endpoint, one schema).
 An overview page introduces one concept.
 
-If the page has more than one outcome,
-split it.
+If the page has more than one outcome, split it.
 "Configure SSO with Okta" is one outcome.
 "Configure SSO" is not.
 "Deploy Coder on AWS" is one outcome.
 "Deploy Coder" is not.
 
-A page that helps the reader accomplish two unrelated outcomes
-hides each outcome from the readers who need the other.
+A page that helps the reader accomplish two unrelated outcomes hides each outcome from the readers who need the other.
 
 **Do**:
 
@@ -106,9 +86,7 @@ SAML providers, GitHub OAuth, password authentication, and the API token model.
 ## Hub pages and category landing pages
 
 Some pages exist to orient the reader and route them to the child page that owns the actual content.
-A hub page may have a broad title and a short body
-when its job is to direct the reader to a child page,
-not to teach.
+A hub page may have a broad title and a short body when its job is to direct the reader to a child page, not to teach.
 
 Hub pages are not an exemption from the audience and outcome rules.
 The audience is the reader looking for the right child page.
@@ -159,9 +137,7 @@ Cross-references to sibling sections of the docs are valid when that is where th
 ## Declare audience and scope up front
 
 The first paragraph of the page names the audience and the outcome.
-The reader should know within the first two or three sentences
-whether the page is for them
-and whether it covers their task.
+The reader should know within the first two or three sentences whether the page is for them and whether it covers their task.
 
 Conventions:
 
@@ -172,10 +148,8 @@ Conventions:
 Do not put a metadata line such as `*Audience: a developer.*` above the first paragraph.
 The audience appears in the prose itself.
 Do not use the [persona names](#personas-the-coder-docs-serve) inside the page body either.
-Persona names are vocabulary for writers planning the page,
-not for readers reading it.
-Name the audience by the role the reader recognizes from their own work
-(`developer`, `template author`, `Coder deployment administrator`, `organization owner`).
+Persona names are vocabulary for writers planning the page, not for readers reading it.
+Name the audience by the role the reader recognizes from their own work (`developer`, `template author`, `Coder deployment administrator`, `organization owner`).
 
 **Do**:
 
@@ -199,23 +173,15 @@ This page covers many topics related to running Coder on Kubernetes.
 
 The Don't title does not name an outcome.
 The body does not name an audience.
-If the page is a hub that routes the reader,
-use the pattern in [Hub pages and category landing pages](#hub-pages-and-category-landing-pages).
-If the page teaches a single outcome,
-rename the title and rewrite the opening paragraph.
+If the page is a hub that routes the reader, use the pattern in [Hub pages and category landing pages](#hub-pages-and-category-landing-pages).
+If the page teaches a single outcome, rename the title and rewrite the opening paragraph.
 
 ### Gate privileged pages with a prerequisite callout
 
 Some pages walk through steps that only one role should run.
-If a reader from the wrong role follows the steps,
-they may misconfigure the deployment,
-escalate their own permissions,
-or break something for everyone else.
+If a reader from the wrong role follows the steps, they may misconfigure the deployment, escalate their own permissions, or break something for everyone else.
 
-For pages of that kind,
-add an `IMPORTANT` callout at the top of the page
-that names the required role
-and tells the wrong-role reader who to ask.
+For pages of that kind, add an `IMPORTANT` callout at the top of the page that names the required role and tells the wrong-role reader who to ask.
 
 **Do**:
 
@@ -231,73 +197,52 @@ who has access to both the Coder control plane and the Okta tenant.
 > ask your administrator to complete the steps for you.
 ```
 
-The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`),
-not the writer-facing persona name (`Perry the Platform Engineer`).
+The prerequisite callout uses the role the reader recognizes (`Coder deployment administrator`), not the writer-facing persona name (`Perry the Platform Engineer`).
 
 ## Give the audience only what it needs
 
 Choosing the audience is also choosing what to leave out.
-A page written for a known audience gives that reader what they need to reach the outcome,
-and nothing that belongs to a different audience.
+A page written for a known audience gives that reader what they need to reach the outcome, and nothing that belongs to a different audience.
 
 Knowing the audience means knowing what that audience can already do.
-When the page assumes a reader who runs their own Coder deployment,
-that reader is their own administrator.
+When the page assumes a reader who runs their own Coder deployment, that reader is their own administrator.
 Do not hedge a step with "ask your administrator" or "if you have permission".
-Those caveats are written for a reader this page does not target,
-and they make the real reader doubt whether the step is meant for them.
+Those caveats are written for a reader this page does not target, and they make the real reader doubt whether the step is meant for them.
 
-Before you add a caveat, a permission note, or an "if you don't have access" aside,
-check it against the audience and the full context of the page:
+Before you add a caveat, a permission note, or an "if you don't have access" aside, check it against the audience and the full context of the page:
 
 - Does the reader this page targets actually hit this limitation?
 - Has the page already established that this reader has the access?
 - Does the caveat help this reader, or only a reader who belongs on a different page?
 
-If the caveat serves a different audience,
-cut it,
-or move it to the page that audience reads.
+If the caveat serves a different audience, cut it, or move it to the page that audience reads.
 
 **Do** (a local-first Quickstart, where the reader started the server two pages earlier):
 
-> Configure a GitHub provider on your deployment,
-> then create the workspace again.
+> Configure a GitHub provider on your deployment, then create the workspace again.
 
 **Don't**:
 
 > Configure a GitHub provider on your deployment.
-> If you are not a deployment administrator,
-> ask your administrator to do this for you.
+> If you are not a deployment administrator, ask your administrator to do this for you.
 
-The **Don't** aside is correct on an enterprise how-to page,
-where the reader may not own the deployment.
-On a Quickstart that walked the same reader through starting the server,
-the reader already has the access,
-so the aside only adds doubt.
+The **Don't** aside is correct on an enterprise how-to page, where the reader may not own the deployment.
+On a Quickstart that walked the same reader through starting the server, the reader already has the access, so the aside only adds doubt.
 
-A page may assume a persona,
-as long as it knows which persona it assumes
-and matches its depth and its caveats to what that persona can already do.
-This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout):
-add a prerequisite callout when the reader might be the wrong role,
-and cut wrong-role caveats when the audience is, by definition, the right role.
+A page may assume a persona, as long as it knows which persona it assumes and matches its depth and its caveats to what that persona can already do.
+This is the complement of [gating privileged pages](#gate-privileged-pages-with-a-prerequisite-callout): add a prerequisite callout when the reader might be the wrong role, and cut wrong-role caveats when the audience is, by definition, the right role.
 
 ## Personas the Coder docs serve
 
-When deciding which audience a page targets,
-match the reader to one of the canonical personas the Coder docs serve.
-Each persona summary captures who the reader is,
-what they need from the docs,
-and the Coder surface they typically work with.
+When deciding which audience a page targets, match the reader to one of the canonical personas the Coder docs serve.
+Each persona summary captures who the reader is, what they need from the docs, and the Coder surface they typically work with.
 
-If a page does not cleanly target one of these personas,
-revisit the scope.
+If a page does not cleanly target one of these personas, revisit the scope.
 A page without a clear persona is a page that serves no one well.
 
 The persona names are vocabulary for writers planning a page.
 They do not appear in published prose.
-Inside a page, name the audience by the role the reader recognizes from their own work
-(`developer`, `template author`, `Coder deployment administrator`).
+Inside a page, name the audience by the role the reader recognizes from their own work (`developer`, `template author`, `Coder deployment administrator`).
 
 ### Primary personas
 
@@ -326,8 +271,7 @@ They do not need template authoring or infrastructure context.
 
 *Coder surface:* workspaces, web terminal, IDE and notebook integrations (VS Code, Jupyter, RStudio), dotfiles, port forwarding, SSH, file uploads and downloads.
 
-> [!NOTE]
-> Elliot is a stopgap umbrella persona for non-developer end users.
+> [!NOTE] Elliot is a stopgap umbrella persona for non-developer end users.
 > The Coder docs team plans to revisit the persona model with product and design once the broader audience is mapped out.
 
 #### Ada the Infrastructure Admin
@@ -397,7 +341,8 @@ They run their team inside the guardrails Perry or Ada set up.
 
 *Coder surface:* groups, group memberships, group-owned secrets, group-scoped templates, group audit logs.
 
-*Documentation-only. No Vale rule.*
+*Documentation-only.
+No Vale rule.*
 
 ## Related
 
