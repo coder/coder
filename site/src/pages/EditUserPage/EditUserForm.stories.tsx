@@ -50,8 +50,10 @@ export const EditAvatar: Story = {
 		const canvas = within(canvasElement);
 		const field = canvas.getByLabelText("Avatar URL");
 		await userEvent.clear(field);
-		await userEvent.type(field, "/emojis/1f680.png");
-		await expect(field).toHaveValue("/emojis/1f680.png");
+		// Typing happens one character at a time, so the value passes through
+		// incomplete states like "https:" that must not crash the preview.
+		await userEvent.type(field, "https://example.com/avatar.png");
+		await expect(field).toHaveValue("https://example.com/avatar.png");
 	},
 };
 
