@@ -98,9 +98,10 @@ type Manager struct {
 	// observe a change.
 	trigger chan struct{}
 
-	// ready gates collection: while false (until the first SetReady
-	// call) the Manager publishes only the empty version-0 snapshot and
-	// never walks the filesystem. Guarded by mu.
+	// ready gates collection. While false (until the first SetReady
+	// call) the Manager does not scan; Snapshot() returns the empty
+	// version-0 value, which the push loop never sends to coderd.
+	// Guarded by mu.
 	ready bool
 
 	// running tracks Run lifetime.
@@ -541,12 +542,10 @@ func (m *Manager) Trigger() {
 	m.signal()
 }
 
-// SetReady releases the collection gate. The first call performs the
-// first real resolve and broadcasts it, so the push loop ships the
-// complete inventory instead of pre-startup partial state. SetReady is
-// idempotent. The agent calls it once the workspace reaches lifecycle
-// ready (or a terminal start_error / start_timeout, so a failed startup
-// still surfaces whatever context exists rather than gating forever).
+// SetReady starts context collection: the agent calls it once startup
+// scripts finish (or terminally fail) so context is never collected
+// from a half-built workspace. Idempotent; the first call triggers the
+// first resolve and push.
 func (m *Manager) SetReady() {
 	m.mu.Lock()
 	if m.ready || m.closed {

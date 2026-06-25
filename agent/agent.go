@@ -1552,10 +1552,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
-				// Startup finished (success or terminal failure). Release
-				// the context manager's gate so it collects and pushes the
-				// now-complete inventory instead of pre-startup partial
-				// state.
+				// Startup finished (success or terminal failure): release
+				// the context gate. MCP servers connect below and
+				// re-trigger a push once up, so we don't block readiness
+				// on them.
 				a.contextManager.SetReady()
 
 				// Connect to workspace MCP servers after the
