@@ -410,6 +410,30 @@ describe("providerFormValuesToCreate", () => {
 			});
 			expect(req.api_keys).toBeUndefined();
 		});
+
+		it("includes role_arn when a role ARN is provided", () => {
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				roleArn: "arn:aws:iam::123456789012:role/BedrockRole",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBe("arn:aws:iam::123456789012:role/BedrockRole");
+		});
+
+		it("omits role_arn when the form value is blank", () => {
+			const req = providerFormValuesToCreate(baseBedrockFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBeUndefined();
+		});
+
+		it("trims whitespace around the role ARN", () => {
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				roleArn: "  arn:aws:iam::123456789012:role/BedrockRole  ",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBe("arn:aws:iam::123456789012:role/BedrockRole");
+		});
 	});
 
 	describe("Copilot", () => {
@@ -562,6 +586,32 @@ describe("providerFormValuesToUpdate", () => {
 			expect(s.access_key).toBeUndefined();
 			expect(s.access_key_secret).toBeUndefined();
 		});
+
+		it("sends role_arn even when the access keys are kept", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseBedrockFormValues,
+					accessKey: SAVED_CREDENTIAL_MASK,
+					accessKeySecret: SAVED_CREDENTIAL_MASK,
+					roleArn: "arn:aws:iam::123456789012:role/BedrockRole",
+				},
+				MockAIProviderBedrock,
+			);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBe("arn:aws:iam::123456789012:role/BedrockRole");
+		});
+
+		it("omits role_arn when the field is cleared", () => {
+			const req = providerFormValuesToUpdate(
+				{
+					...baseBedrockFormValues,
+					roleArn: "",
+				},
+				MockAIProviderBedrock,
+			);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.role_arn).toBeUndefined();
+		});
 	});
 
 	describe("Copilot", () => {
@@ -636,6 +686,23 @@ describe("aiProviderToFormValues", () => {
 		const values = aiProviderToFormValues(MockAIProviderBedrock);
 		expect(values.accessKey).toBe("");
 		expect(values.accessKeySecret).toBe("");
+	});
+
+	it("round-trips role_arn back into the form", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			settings: settings({
+				_type: "bedrock",
+				role_arn: "arn:aws:iam::123456789012:role/BedrockRole",
+			}),
+		};
+		const values = aiProviderToFormValues(provider);
+		expect(values.roleArn).toBe("arn:aws:iam::123456789012:role/BedrockRole");
+	});
+
+	it("seeds an empty role ARN when the provider has none", () => {
+		const values = aiProviderToFormValues(MockAIProviderBedrock);
+		expect(values.roleArn).toBe("");
 	});
 
 	it("seeds Copilot form values without a credential field", () => {
