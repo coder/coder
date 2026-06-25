@@ -72,6 +72,9 @@ func NewMockAIBridgeTransport(t testing.TB, targetBaseURL string, opts ...MockAI
 
 // TransportFor implements [aibridge.TransportFactory].
 func (f *MockAIBridgeTransport) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
+	if len(providerName) == 0 {
+		return nil, xerrors.New("provider name is required")
+	}
 	return mockRoundTripper{factory: f, providerName: providerName, source: source}, nil
 }
 
