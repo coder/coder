@@ -93,7 +93,7 @@ with AWS credentials rather than a registered API key. Configure:
 
 Do not attach API keys to a Bedrock provider.
 
-AI Gateway resolves AWS credentials one of two ways:
+AI Gateway resolves AWS credentials one of three ways:
 
 - **AWS SDK default credential chain (recommended).** When no explicit
   credentials are configured, the AWS SDK resolves them automatically
@@ -105,6 +105,11 @@ AI Gateway resolves AWS credentials one of two ways:
   and `bedrock:InvokeModelWithResponseStream` for the configured models.
 - **Static credentials.** Provide an access key and secret for an IAM
   user with the same Bedrock permissions.
+- **Assumed IAM role.** Set a **Role ARN** to have the gateway assume
+  that role before calling Bedrock, signing requests with the resulting
+  temporary credentials. This works on top of either of the above base
+  identities and supports cross-account Bedrock access. See
+  [Assuming an IAM role](#assuming-an-iam-role).
 
 #### Obtaining static Bedrock credentials
 
@@ -132,6 +137,31 @@ user and generate a static access key:
    the Bedrock provider from the dashboard or the
    [AI Providers API](../../reference/api/aiproviders.md), along with the
    region (or base URL) and model identifiers.
+
+#### Assuming an IAM role
+
+Set the optional **Role ARN** field to have the gateway assume an IAM
+role before calling Bedrock. The base identity (static credentials or the
+default credential chain) signs an STS `AssumeRole` call, and the
+temporary credentials it returns sign Bedrock requests. The field is
+optional: a provider with no Role ARN authenticates with its base
+identity directly, exactly as described above.
+
+To use role assumption:
+
+1. **Create the IAM role** in the target account and grant it
+   `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` for
+   the configured models. The base identity does not need Bedrock
+   permissions itself; the assumed role does.
+
+2. **Configure the role's trust policy** to allow the gateway's base
+   identity to assume it.
+
+3. **Enter the Role ARN** when you add or edit the Bedrock provider. It must be a
+   valid IAM role ARN, for example `arn:aws:iam::123456789012:role/BedrockRole`.
+
+Each provider assumes a single role. To use several roles, configure one
+provider per role.
 
 ### GitHub Copilot
 
