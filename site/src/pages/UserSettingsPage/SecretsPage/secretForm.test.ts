@@ -5,6 +5,7 @@ import {
 	buildUpdateUserSecretRequest,
 	getCreateSecretRequiredFieldErrors,
 	mapSecretApiErrorToFormErrors,
+	secretsFileFormatFromFilename,
 } from "./secretForm";
 
 const existingSecrets: UserSecret[] = [
@@ -116,6 +117,31 @@ describe("payload builders", () => {
 		).toEqual({
 			value: "",
 		});
+	});
+});
+
+describe("secretsFileFormatFromFilename", () => {
+	it.each([
+		["a.env", "env"],
+		[".env", "env"],
+		["prod.env", "env"],
+		["config.json", "json"],
+		["values.yaml", "yaml"],
+		["values.yml", "yaml"],
+		["CONFIG.JSON", "json"],
+		["Values.YML", "yaml"],
+		["secrets.ENV", "env"],
+	])("maps %s to the %s format", (filename, format) => {
+		expect(secretsFileFormatFromFilename(filename)).toBe(format);
+	});
+
+	it.each([
+		["foo.txt"],
+		["noextension"],
+		["archive.tar.gz"],
+		[""],
+	])("returns undefined for unsupported filename %s", (filename) => {
+		expect(secretsFileFormatFromFilename(filename)).toBeUndefined();
 	});
 });
 

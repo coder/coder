@@ -5,6 +5,7 @@ import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	createUserSecret,
 	deleteUserSecret,
+	importUserSecrets,
 	updateUserSecret,
 	userSecrets,
 } from "#/api/queries/userSecrets";
@@ -24,6 +25,9 @@ const SecretsPage: FC = () => {
 	);
 	const deleteSecretMutation = useMutation(
 		deleteUserSecret(queryClient, me.id),
+	);
+	const importSecretsMutation = useMutation(
+		importUserSecrets(queryClient, me.id),
 	);
 
 	return (
@@ -53,6 +57,15 @@ const SecretsPage: FC = () => {
 				});
 				toast.success(`Updated secret "${secret.name}" successfully.`);
 				return secret;
+			}}
+			onImportSecrets={async (request) => {
+				const secrets = await importSecretsMutation.mutateAsync(request);
+				toast.success(
+					`Imported ${secrets.length} secret${
+						secrets.length === 1 ? "" : "s"
+					} successfully.`,
+				);
+				return secrets;
 			}}
 			onDeleteSecret={async (secret) => {
 				try {
