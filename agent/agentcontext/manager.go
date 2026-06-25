@@ -99,7 +99,7 @@ type Manager struct {
 	trigger chan struct{}
 
 	// ready gates collection: while false (until the first SetReady
-	// call) the Manager publishes only the Initializing snapshot and
+	// call) the Manager publishes only the empty version-0 snapshot and
 	// never walks the filesystem. Guarded by mu.
 	ready bool
 
@@ -114,9 +114,9 @@ type Manager struct {
 }
 
 // NewManager validates options and canonicalizes initial sources. The
-// returned Manager is gated, so its first snapshot is the Initializing
-// placeholder and the first real resolve runs on SetReady. Call Run to
-// start the watcher and re-resolve goroutine.
+// returned Manager is gated, so its first snapshot is the empty
+// version-0 placeholder and the first real resolve runs on SetReady.
+// Call Run to start the watcher and re-resolve goroutine.
 func NewManager(opts ManagerOptions) *Manager {
 	clock := opts.Clock
 	if clock == nil {
@@ -174,10 +174,10 @@ func NewManager(opts ManagerOptions) *Manager {
 		m.addSourceLocked(identity)
 	}
 
-	// Start gated: until SetReady the Manager publishes only this
-	// placeholder, keeping pre-startup partial state out of every
-	// snapshot and the push loop.
-	m.snapshot = Snapshot{Initializing: true}
+	// Start gated: m.snapshot stays the zero value (version 0) until
+	// SetReady runs the first resolve. The push loop treats version 0 as
+	// the pre-ready placeholder and withholds it, keeping pre-startup
+	// partial state out of every snapshot.
 
 	return m
 }
@@ -448,8 +448,9 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ErrManagerClosed
 	}
 	if !m.ready {
-		// Gated: return the placeholder instead of walking the filesystem,
-		// so callers see "initializing" until SetReady fires.
+		// Gated: return the version-0 placeholder instead of walking the
+		// filesystem; callers can treat version 0 as "still initializing"
+		// until SetReady fires.
 		snap := m.snapshot
 		m.mu.Unlock()
 		return snap, nil
@@ -637,7 +638,8 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// duration of the pass.
 	m.mu.Lock()
 	if !m.ready {
-		// Gated: keep the placeholder and skip the walk and broadcast.
+		// Gated: keep the version-0 placeholder and skip the walk and
+		// broadcast.
 		m.mu.Unlock()
 		return
 	}

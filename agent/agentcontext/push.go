@@ -101,13 +101,13 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	changes, unsub := m.SubscribeChanges()
 	defer unsub()
 
-	// Skip Initializing snapshots (published while the Manager is gated).
-	// The SetReady broadcast wakes this loop with the first real
-	// snapshot, sent with Initial=true.
+	// Skip the gated placeholder: the Manager holds a version-0 snapshot
+	// until SetReady. The SetReady broadcast wakes this loop with the
+	// first real snapshot (version 1+), sent with Initial=true.
 	initial := true
 	for {
 		snap := m.Snapshot()
-		if snap.Initializing {
+		if snap.Version == 0 {
 			select {
 			case <-ctx.Done():
 				return ctx.Err()

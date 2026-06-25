@@ -18,7 +18,7 @@
 //   - A fixed-location fsnotify watcher that signals a re-resolve
 //     when any recognized file changes.
 //   - A readiness gate (Manager.SetReady). The Manager starts gated,
-//     publishing only an Initializing snapshot until the agent calls
+//     publishing only an empty version-0 snapshot until the agent calls
 //     SetReady from the workspace lifecycle transition once startup
 //     scripts finish. This keeps pre-startup partial state out of
 //     coderd and chats.

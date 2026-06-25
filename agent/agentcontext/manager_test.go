@@ -53,7 +53,7 @@ func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontex
 }
 
 // newPendingTestManager builds a gated Manager (first snapshot is the
-// Initializing placeholder at version 0) for tests that drive SetReady
+// empty version-0 placeholder) for tests that drive SetReady
 // themselves.
 func newPendingTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
@@ -386,8 +386,8 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 // TestManager_WithholdsCollectionUntilReady reproduces the boot-time
 // race: collecting before startup finishes sees instruction-file
 // symlinks (CLAUDE.md / .cursorrules -> AGENTS.md) with no target yet.
-// The gated snapshot is Initializing with no resources or errors;
-// after SetReady the symlinks resolve cleanly.
+// The gated snapshot is the version-0 placeholder with no resources or
+// errors; after SetReady the symlinks resolve cleanly.
 func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
@@ -403,19 +403,18 @@ func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 		WorkingDir: func() string { return dir },
 	})
 
-	// Before SetReady the snapshot is the initializing placeholder: no
-	// resources, no errors, Initializing=true. The broken symlinks are
-	// NOT reported as issues.
+	// Before SetReady the snapshot is the version-0 placeholder: no
+	// resources and no errors. The broken symlinks are NOT reported.
 	snap := m.Snapshot()
-	require.True(t, snap.Initializing, "gated snapshot must be marked initializing")
+	require.Zero(t, snap.Version, "gated snapshot must be the version-0 placeholder")
 	require.Empty(t, snap.Resources, "gated snapshot must not collect a partial inventory")
 	require.Empty(t, snap.SnapshotError, "gated snapshot must not surface transient errors")
 
-	// Resync stays gated too, so in-workspace callers see Initializing
+	// Resync stays gated too, so callers see the version-0 placeholder
 	// instead of a partial result.
 	rs, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
-	require.True(t, rs.Initializing)
+	require.Zero(t, rs.Version)
 	require.Empty(t, rs.Resources)
 
 	// Startup finishes: AGENTS.md now exists, so the symlinks resolve.
@@ -425,7 +424,7 @@ func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	m.SetReady()
 
 	snap = m.Snapshot()
-	require.False(t, snap.Initializing, "post-ready snapshot must not be initializing")
+	require.NotZero(t, snap.Version, "post-ready snapshot must be a real resolve")
 	require.NotEmpty(t, snap.Resources, "post-ready snapshot must include resolved files")
 	require.Empty(t, snap.SnapshotError)
 	var instr int
@@ -448,18 +447,17 @@ func TestManager_SetReadyIsIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "rules")
 
-	// Gated: first snapshot is the version-0 Initializing placeholder.
+	// Gated: first snapshot is the version-0 placeholder.
 	m := newPendingTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return dir },
 	})
 	snap := m.Snapshot()
-	require.True(t, snap.Initializing)
+	require.Zero(t, snap.Version)
 	require.Empty(t, snap.Resources)
 
 	// First SetReady resolves once: version 1 with the inventory.
 	m.SetReady()
 	snap = m.Snapshot()
-	require.False(t, snap.Initializing)
 	require.Equal(t, uint64(1), snap.Version)
 	require.Len(t, snap.Resources, 1)
 
@@ -467,7 +465,6 @@ func TestManager_SetReadyIsIdempotent(t *testing.T) {
 	m.SetReady()
 	m.SetReady()
 	snap = m.Snapshot()
-	require.False(t, snap.Initializing)
 	require.Equal(t, uint64(1), snap.Version)
 	require.Len(t, snap.Resources, 1)
 }
