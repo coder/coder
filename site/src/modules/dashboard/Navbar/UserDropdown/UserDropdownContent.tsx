@@ -1,4 +1,5 @@
 import {
+	BuildingIcon,
 	CircleUserIcon,
 	CopyIcon,
 	LogOutIcon,
@@ -26,6 +27,7 @@ interface UserDropdownContentProps {
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	showOrganizations: boolean;
 }
 
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
@@ -33,6 +35,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	buildInfo,
 	supportLinks,
 	onSignOut,
+	showOrganizations,
 }) => {
 	const { showCopiedSuccess, copyToClipboard } = useClipboard();
 
@@ -59,6 +62,14 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					<span>Account</span>
 				</Link>
 			</DropdownMenuItem>
+			{showOrganizations && (
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">
+						<BuildingIcon />
+						<span>Organizations</span>
+					</Link>
+				</DropdownMenuItem>
+			)}
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
 				<span>Sign Out</span>

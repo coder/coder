@@ -17,6 +17,7 @@ const renderUserDropdownContent = (props: { onSignOut: () => void }) => {
 					user={MockUserOwner}
 					onSignOut={props.onSignOut}
 					supportLinks={[]}
+					showOrganizations={false}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>,

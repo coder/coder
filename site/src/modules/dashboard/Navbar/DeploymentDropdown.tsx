@@ -9,35 +9,20 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { linkToAuditing } from "#/modules/navigation";
+import {
+	type AdminPermissions,
+	hasAnyAdminPermission,
+} from "./adminPermissions";
 
-interface DeploymentDropdownProps {
-	canViewDeployment: boolean;
+type DeploymentDropdownProps = AdminPermissions & {
 	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewConnectionLog: boolean;
-	canViewAIBridge: boolean;
-	canViewAISettings: boolean;
-	canViewHealth: boolean;
-}
+};
 
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
-	canViewDeployment,
 	canViewOrganizations,
-	canViewAuditLog,
-	canViewConnectionLog,
-	canViewAIBridge,
-	canViewAISettings,
-	canViewHealth,
+	...adminPerms
 }) => {
-	if (
-		!canViewAuditLog &&
-		!canViewConnectionLog &&
-		!canViewDeployment &&
-		!canViewOrganizations &&
-		!canViewAIBridge &&
-		!canViewAISettings &&
-		!canViewHealth
-	) {
+	if (!hasAnyAdminPermission(adminPerms)) {
 		return null;
 	}
 
@@ -52,13 +37,8 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 
 			<DropdownMenuContent align="end" className="w-[180px] min-w-auto">
 				<DeploymentDropdownContent
-					canViewDeployment={canViewDeployment}
 					canViewOrganizations={canViewOrganizations}
-					canViewAuditLog={canViewAuditLog}
-					canViewConnectionLog={canViewConnectionLog}
-					canViewAIBridge={canViewAIBridge}
-					canViewAISettings={canViewAISettings}
-					canViewHealth={canViewHealth}
+					{...adminPerms}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>
@@ -67,6 +47,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 
 const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
+	canViewOrganizations,
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
@@ -80,9 +61,11 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/organizations">Organizations</Link>
-			</DropdownMenuItem>
+			{canViewOrganizations && (
+				<DropdownMenuItem asChild>
+					<Link to="/organizations">Organizations</Link>
+				</DropdownMenuItem>
+			)}
 			{canViewAISettings && (
 				<DropdownMenuItem asChild>
 					<Link to="/ai/settings">AI</Link>

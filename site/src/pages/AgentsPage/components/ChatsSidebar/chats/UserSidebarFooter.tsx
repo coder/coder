@@ -45,6 +45,8 @@ export const UserSidebarFooter: FC = () => {
 								) ?? []
 							}
 							onSignOut={signOut}
+							// Agents sidebar has its own navigation; org link is accessible from the main navbar.
+							showOrganizations={false}
 						/>
 					</DropdownMenuContent>
 				</DropdownMenu>

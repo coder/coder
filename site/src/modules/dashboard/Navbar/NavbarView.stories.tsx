@@ -115,6 +115,23 @@ export const ForMember: Story = {
 	},
 };
 
+export const ForMemberWithOrgAccess: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewAISettings: false,
+		canViewOrganizations: true,
+		canCreateChat: false,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Avatar button renders fallback initials, not the full username.
+		await userEvent.click(canvas.getByRole("button", { name: /te/i }));
+	},
+};
+
 export const ForMemberWithAgentsAccess: Story = {
 	args: {
 		user: MockUserMember,

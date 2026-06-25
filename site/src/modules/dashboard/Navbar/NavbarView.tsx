@@ -21,6 +21,7 @@ import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { SupportIcon } from "./SupportIcon";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
+import { hasAnyAdminPermission } from "./adminPermissions";
 
 interface NavbarViewProps {
 	user: TypesGen.User;
@@ -60,6 +61,14 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	proxyContextValue,
 }) => {
 	const prerelease = getPrereleaseFlag(buildInfo);
+	const hasAdminPermissions = hasAnyAdminPermission({
+		canViewDeployment,
+		canViewAuditLog,
+		canViewConnectionLog,
+		canViewHealth,
+		canViewAIBridge,
+		canViewAISettings,
+	});
 
 	return (
 		<div
@@ -153,6 +162,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
+						// Non-admin org members see Organizations here; admins see it in Admin settings.
+						showOrganizations={canViewOrganizations && !hasAdminPermissions}
 					/>
 				</div>
 
@@ -166,6 +177,8 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
+						canViewAIBridge={canViewAIBridge}
+						canViewAISettings={canViewAISettings}
 						canViewHealth={canViewHealth}
 					/>
 				</div>

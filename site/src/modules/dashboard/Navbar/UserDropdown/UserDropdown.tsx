@@ -13,6 +13,7 @@ interface UserDropdownProps {
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
+	showOrganizations: boolean;
 }
 
 export const UserDropdown: FC<UserDropdownProps> = ({
@@ -20,6 +21,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	user,
 	supportLinks,
 	onSignOut,
+	showOrganizations,
 }) => {
 	return (
 		<DropdownMenu>
@@ -38,6 +40,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					buildInfo={buildInfo}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
+					showOrganizations={showOrganizations}
 				/>
 			</DropdownMenuContent>
 		</DropdownMenu>

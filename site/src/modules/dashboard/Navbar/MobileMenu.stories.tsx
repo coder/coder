@@ -44,6 +44,8 @@ const meta: Meta<typeof MobileMenu> = {
 		canViewDeployment: true,
 		canViewHealth: true,
 		canViewOrganizations: true,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	decorators: [withNavbarMock],
 };
@@ -68,6 +70,8 @@ export const Auditor: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -79,6 +83,8 @@ export const OrgAdmin: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: true,
+		canViewAIBridge: false,
+		canViewAISettings: false,
 	},
 	play: openAdminSettings,
 };
@@ -90,6 +96,28 @@ export const Member: Story = {
 		canViewDeployment: false,
 		canViewHealth: false,
 		canViewOrganizations: false,
+		canViewAIBridge: false,
+		canViewAISettings: false,
+	},
+};
+
+export const MemberWithOrgAccess: Story = {
+	args: {
+		user: MockUserMember,
+		canViewAuditLog: false,
+		canViewDeployment: false,
+		canViewHealth: false,
+		canViewOrganizations: true,
+		canViewAIBridge: false,
+		canViewAISettings: false,
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const menuItem = await body.findByRole("menuitem", {
+			name: /user settings/i,
+		});
+		await user.click(menuItem);
 	},
 };
 
