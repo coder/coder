@@ -189,7 +189,7 @@ export const AllOverridesUnset: Story = {
 			"Explore subagent model",
 		]);
 		await canvas.findByText(
-			"Choose a fast, low-cost model to name conversations.",
+			"Leave unset to use Coder's title default, which prefers fast models from configured providers.",
 		);
 
 		const unsetSections = [
@@ -252,9 +252,7 @@ export const PersonalOverridesLoadError: Story = {
 		const canvas = within(canvasElement);
 
 		expect(
-			await canvas.findByText(
-				"Failed to load personal model override settings.",
-			),
+			await canvas.findByText("Failed to load personal model overrides."),
 		).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Loading personal model override settings..."),

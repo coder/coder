@@ -6,7 +6,6 @@ import { TemporarySavedState } from "#/components/TemporarySavedState/TemporaryS
 interface AgentSettingLayoutProps {
 	title: string;
 	description?: ReactNode;
-	leftControl?: ReactNode;
 	children?: ReactNode;
 	error?: ReactNode;
 	showSave: boolean;
@@ -19,7 +18,6 @@ interface AgentSettingLayoutProps {
 export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 	title,
 	description,
-	leftControl,
 	children,
 	error,
 	showSave,
@@ -32,19 +30,21 @@ export const AgentSettingLayout: FC<AgentSettingLayoutProps> = ({
 		Boolean(children) || showSave || isSavedVisible || isSaving;
 
 	return (
-		<form className="flex flex-col" onSubmit={onSubmit} noValidate>
-			<div className="flex items-center gap-2">
-				{leftControl}
-				<div className="min-w-0 flex-1">
-					<h3 className="m-0 text-sm font-normal leading-6 text-content-primary">
-						{title}
-					</h3>
-					{description && (
-						<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
-							{description}
-						</p>
-					)}
-				</div>
+		<form
+			aria-label={title}
+			className="flex flex-col"
+			onSubmit={onSubmit}
+			noValidate
+		>
+			<div className="min-w-0">
+				<h3 className="m-0 text-sm font-normal leading-6 text-content-primary">
+					{title}
+				</h3>
+				{description && (
+					<p className="mt-1 mb-0 text-sm font-normal leading-6 text-content-secondary">
+						{description}
+					</p>
+				)}
 			</div>
 			{shouldShowControls && (
 				<div className="mt-4 flex flex-wrap items-start gap-3">

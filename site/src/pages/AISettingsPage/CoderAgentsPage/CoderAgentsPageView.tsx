@@ -112,7 +112,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 				)}
 				<SubagentModelOverrideSettings
 					title="Title generation model"
-					description="Choose a fast, low-cost model to name conversations."
+					description="Leave unset to use Coder's title default, which prefers fast models from configured providers."
 					modelOverrideData={titleGenerationModelOverrideData}
 					enabledModelConfigs={enabledModelConfigs}
 					modelConfigsError={modelConfigsError}

@@ -69,9 +69,7 @@ export const LoadError: Story = {
 		const canvas = within(canvasElement);
 
 		expect(
-			await canvas.findByText(
-				"Failed to load personal model override settings.",
-			),
+			await canvas.findByText("Failed to load personal model overrides."),
 		).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Loading personal model override settings..."),

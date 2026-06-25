@@ -3,9 +3,9 @@ import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
-import type { ModelSelectorOption } from "../../../AgentsPage/components/ChatElements/ModelSelector";
-import { ModelSelector } from "../../../AgentsPage/components/ChatElements/ModelSelector";
-import { ModelOverrideAlerts } from "../../../AgentsPage/components/ModelOverrideAlerts";
+import type { ModelSelectorOption } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
+import { ModelSelector } from "#/pages/AgentsPage/components/ChatElements/ModelSelector";
+import { ModelOverrideAlerts } from "#/pages/AgentsPage/components/ModelOverrideAlerts";
 import { AgentSettingLayout } from "./AgentSettingLayout";
 
 export interface MutationCallbacks {
@@ -38,7 +38,6 @@ interface SubagentModelOverrideSettingsProps {
 	saveErrorMessage: string;
 	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
-	showHeader?: boolean;
 	disabled?: boolean;
 }
 

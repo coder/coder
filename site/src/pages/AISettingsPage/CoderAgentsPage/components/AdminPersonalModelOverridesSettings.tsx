@@ -1,6 +1,7 @@
 import { useFormik } from "formik";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -64,11 +65,16 @@ export const AdminPersonalModelOverridesSettings: FC<
 	});
 	const isDisabled = isSavingAdminSetting || !hasLoadedAdminSettings;
 	const showSave = form.dirty || isSavingAdminSetting || isSavedVisible;
-	const hasError =
+	const showStatusArea =
 		hasAdminSettingsError || !hasLoadedAdminSettings || isSaveAdminSettingError;
 
 	return (
-		<form className="flex flex-col" onSubmit={form.handleSubmit} noValidate>
+		<form
+			aria-label="Allow personal model overrides"
+			className="flex flex-col"
+			onSubmit={form.handleSubmit}
+			noValidate
+		>
 			<div className="flex min-h-8 items-center gap-2 font-sans text-sm font-normal leading-6 text-content-primary">
 				<Switch
 					checked={form.values.allow_users}
@@ -79,8 +85,11 @@ export const AdminPersonalModelOverridesSettings: FC<
 					type="button"
 					disabled={isDisabled}
 				/>
-				<div className="flex min-w-0 items-center gap-1.5">
+				<div className="flex min-w-0 flex-col">
 					<span>Allow personal model overrides</span>
+					<span className="text-content-secondary">
+						Saved user preferences are preserved but ignored while disabled.
+					</span>
 				</div>
 			</div>
 			{showSave && (
@@ -100,13 +109,11 @@ export const AdminPersonalModelOverridesSettings: FC<
 					)}
 				</div>
 			)}
-			{hasError && (
+			{showStatusArea && (
 				<div className="text-xs text-content-destructive">
 					{hasAdminSettingsError && (
 						<div className="flex flex-col gap-2 text-content-primary">
-							<p className="m-0 text-content-destructive">
-								Failed to load personal model override settings.
-							</p>
+							<ErrorAlert error={adminSettingsError} />
 							{onRetryAdminSettings && (
 								<Button
 									disabled={isRetryingAdminSettings}
