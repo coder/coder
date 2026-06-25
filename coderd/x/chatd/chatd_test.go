@@ -12580,6 +12580,189 @@ func TestAdvisorChainMode_SnapshotKeepsFullHistory(t *testing.T) {
 		"advisor snapshot must retain the turn 1 assistant message even when chain mode is active")
 }
 
+// TestProviderSwitchSanitizesAndRestoresPEToolHistory verifies the A→B→A
+// provider-switch contract:
+//
+//  1. A turn using model MA (backed by provider A) produces a
+//     provider-executed (PE) tool call in the DB.
+//  2. A subsequent turn using model MB (backed by provider B) does NOT
+//     send that PE tool call to provider B.
+//  3. A further turn back to MA sends the PE tool call to provider A again.
+//  4. The DB row is never mutated; the filter is read-time only.
+func TestProviderSwitchSanitizesAndRestoresPEToolHistory(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	const peToolCallID = "pe_switch_test_id"
+
+	var (
+		rawBodiesA [][]byte
+		rawBodiesB [][]byte
+		muA        sync.Mutex
+		muB        sync.Mutex
+	)
+
+	serverAURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		body := make([]byte, len(req.RawBody))
+		copy(body, req.RawBody)
+		muA.Lock()
+		rawBodiesA = append(rawBodiesA, body)
+		muA.Unlock()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from A")...)
+	})
+	serverBURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse(`{"title":"switch-test"}`)
+		}
+		body := make([]byte, len(req.RawBody))
+		copy(body, req.RawBody)
+		muB.Lock()
+		rawBodiesB = append(rawBodiesB, body)
+		muB.Unlock()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("answer from B")...)
+	})
+
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
+	})
+
+	// Both providers use openai-compat so requests go through the Chat
+	// Completions API. That format inlines PE tool calls as literal JSON
+	// fields, making it straightforward to assert their presence or absence
+	// in the raw request body.
+	//
+	// dbgen.ChatProvider creates an AIProvider + AIProviderKey in one call,
+	// which ModelFromConfig requires to avoid missingProviderAPIKeyError.
+	// Two openai-compat providers are allowed when each model config carries
+	// an explicit AIProviderID (which bypasses the unique-type check).
+	cpA := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverAURL,
+	})
+	cpB := dbgen.ChatProvider(t, db, database.ChatProvider{
+		Provider: "openai-compat",
+		BaseUrl:  serverBURL,
+	})
+
+	ma := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model A",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpA.ID, Valid: true},
+	})
+	mb := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Provider:     "openai-compat",
+		Model:        "gpt-4o-mini",
+		DisplayName:  "Model B",
+		Enabled:      true,
+		AIProviderID: uuid.NullUUID{UUID: cpB.ID, Valid: true},
+	})
+
+	server := newActiveTestServer(t, db, ps)
+
+	// Turn 1: initial chat with MA.
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		APIKeyID:           testAPIKeyID(t, db, user.ID),
+		Title:              "provider-switch-test",
+		ModelConfigID:      ma.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Inject a PE tool call+result attributed to MA into the existing history,
+	// simulating a web_search that provider A executed during turn 1.
+	insertChatMessageParts(ctx, t, db, chat.ID, database.ChatMessageRoleAssistant, ma.ID, uuid.Nil,
+		[]codersdk.ChatMessagePart{
+			{
+				Type:             codersdk.ChatMessagePartTypeToolCall,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Args:             json.RawMessage(`{"query":"coder"}`),
+				ProviderExecuted: true,
+			},
+			{
+				Type:             codersdk.ChatMessagePartTypeToolResult,
+				ToolCallID:       peToolCallID,
+				ToolName:         "web_search",
+				Result:           json.RawMessage(`"search results"`),
+				ProviderExecuted: true,
+			},
+			codersdk.ChatMessageText("here is the answer"),
+		},
+	)
+
+	// Turn 2: send with MB. Provider B must not see the PE parts from A.
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: mb.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("continue with B")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// Turn 3: switch back to MA. Provider A must see its own PE parts again.
+	_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:        chat.ID,
+		CreatedBy:     user.ID,
+		APIKeyID:      testAPIKeyID(t, db, user.ID),
+		ModelConfigID: ma.ID,
+		Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText("back to A")},
+	})
+	require.NoError(t, err)
+	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+	// --- DB invariant: the PE row must be unchanged ---
+	allMessages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
+		ChatID: chat.ID,
+	})
+	require.NoError(t, err)
+	var peRowFound bool
+	for _, msg := range allMessages {
+		if msg.Role != database.ChatMessageRoleAssistant || msg.ModelConfigID.UUID != ma.ID {
+			continue
+		}
+		parts, parseErr := chatprompt.ParseContent(msg)
+		require.NoError(t, parseErr)
+		for _, p := range parts {
+			if p.ProviderExecuted && p.ToolCallID == peToolCallID {
+				peRowFound = true
+			}
+		}
+	}
+	require.True(t, peRowFound, "PE tool call must still be in the DB after provider switches")
+
+	// --- Turn 2 (provider B): PE tool call ID must not appear in the request ---
+	muB.Lock()
+	bodiesB := slices.Clone(rawBodiesB)
+	muB.Unlock()
+	require.Len(t, bodiesB, 1, "expected exactly one streaming request to provider B")
+	require.NotContains(t, string(bodiesB[0]), peToolCallID,
+		"provider B must not receive the PE tool call from provider A")
+
+	// --- Turn 3 (provider A): PE tool call ID must appear in the request ---
+	muA.Lock()
+	bodiesA := slices.Clone(rawBodiesA)
+	muA.Unlock()
+	// bodiesA[0] is turn 1, bodiesA[1] is turn 3.
+	require.GreaterOrEqual(t, len(bodiesA), 2, "expected at least two streaming requests to provider A")
+	require.Contains(t, string(bodiesA[len(bodiesA)-1]), peToolCallID,
+		"provider A must receive its own PE tool call when switching back")
+}
+
 func seedAdvisorConfig(
 	ctx context.Context,
 	t *testing.T,
