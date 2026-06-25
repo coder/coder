@@ -150,6 +150,11 @@ export const UserAIBudgetOverrideDialog: FC<
 					<OverrideForm
 						user={user}
 						currentGroup={budgetGroup}
+						defaultGroupId={
+							effectiveGroupId === undefined
+								? currentGroup.id
+								: effectiveGroupId
+						}
 						override={budgetOverrideQuery.data ?? null}
 						groupBudget={groupBudgetQuery.data ?? null}
 						userGroups={userGroupsQuery.data ?? []}
@@ -167,6 +172,8 @@ export const UserAIBudgetOverrideDialog: FC<
 interface OverrideFormProps {
 	user: ReducedUser;
 	currentGroup: Group;
+	// Group marked "(default)" in the picker; null marks none.
+	defaultGroupId: string | null;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
@@ -180,6 +187,7 @@ interface OverrideFormProps {
 const OverrideForm: FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
+	defaultGroupId,
 	override,
 	groupBudget,
 	userGroups,
@@ -199,6 +207,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
 		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
 	});
+	const [budgetTouched, setBudgetTouched] = useState(false);
 	const [selectedGroupId, setSelectedGroupId] = useState(
 		override?.group_id ?? currentGroup.id,
 	);
@@ -220,7 +229,8 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	// A "0" budget is valid and disables AI; empty or negative is not.
 	const budgetAmount = Number(budgetDollars);
 	const budgetValid = budgetDollars.trim() !== "" && budgetAmount >= 0;
-	const budgetInvalid = overrideEnabled && !budgetValid;
+	// Hold the error until the field is touched, so it doesn't flag immediately.
+	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
 	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
@@ -229,7 +239,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 
 	const groupLabel = (group: Group) =>
-		group.id === currentGroup.id
+		group.id === defaultGroupId
 			? `${groupDisplayName(group)} (default)`
 			: groupDisplayName(group);
 
@@ -321,6 +331,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								id={budgetId}
 								value={budgetDollars}
 								onChange={(event) => setBudgetDollars(event.target.value)}
+								onBlur={() => setBudgetTouched(true)}
 								type="number"
 								min="0"
 								step="1"

@@ -310,6 +310,29 @@ export const WithMemberAIBudget: Story = {
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${memberWithoutSpend.id}`),
 		).toHaveTextContent("-");
+
+		// Column header tooltips.
+		const body = within(document.body);
+		await userEvent.click(
+			within(canvas.getByText("AI budget")).getByRole("button", {
+				name: "More info",
+			}),
+		);
+		await expect(
+			await body.findByText(
+				"A member's AI spend against their budget for the current period.",
+			),
+		).toBeInTheDocument();
+		await userEvent.click(
+			within(canvas.getByText("Budget type")).getByRole("button", {
+				name: "More info",
+			}),
+		);
+		await expect(
+			await body.findByText(
+				"Whether a member's budget comes from their group or an individual override.",
+			),
+		).toBeInTheDocument();
 	},
 };
 
@@ -422,5 +445,110 @@ export const OpenAIBudgetFromMemberMenu: Story = {
 			await body.findByText("Custom monthly budget"),
 		).toBeInTheDocument();
 		await expect(await body.findByText("developer")).toBeInTheDocument();
+	},
+};
+
+// effective_group_id null: spend greys out, dialog marks no "(default)".
+export const WithMemberAIBudgetWithoutEffectiveGroup: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: [
+					memberWithSpend(MockUserOwner, {
+						effective_group_id: null,
+						limit_source: "group",
+					}),
+				],
+				count: 1,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup2],
+			},
+			{ key: groupAIBudget(MockGroupWithoutMembers.id).queryKey, data: null },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		const cell = await canvas.findByTestId(
+			`member-ai-budget-${MockUserOwner.id}`,
+		);
+		await expect(cell).toHaveTextContent("$1,345");
+		await expect(cell).not.toHaveTextContent("USD");
+		// Generic fallback when no group name resolves.
+		await userEvent.click(
+			within(cell).getByRole("button", { name: "More info" }),
+		);
+		await expect(
+			await body.findByText(/set by another group/),
+		).toBeInTheDocument();
+		await userEvent.keyboard("{Escape}");
+
+		await userEvent.click(
+			canvas.getAllByRole("button", { name: "Open menu" })[0],
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "AI Budget" }),
+		);
+		await userEvent.click(await body.findByText("Override group budget"));
+		await expect(
+			await body.findByText("Custom monthly budget"),
+		).toBeInTheDocument();
+		await expect(body.queryByText(/\(default\)/)).not.toBeInTheDocument();
+	},
+};
+
+// Governed by the viewed group: the dialog marks it "(default)".
+export const OpenAIBudgetForCurrentGroupMember: Story = {
+	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
+		queries: [
+			groupQuery(MockGroupWithoutMembers),
+			groupMembersQuery({
+				users: [
+					memberWithSpend(MockUserOwner, {
+						effective_group_id: MockGroupWithoutMembers.id,
+						limit_source: "group",
+					}),
+				],
+				count: 1,
+			}),
+			permissionsQuery({ canUpdateGroup: true }),
+			{ key: getUserAIBudgetOverrideQueryKey(MockUserOwner.id), data: null },
+			{
+				key: getGroupsForUserQueryKey(
+					MockUserOwner.id,
+					MockGroupWithoutMembers.organization_id,
+				),
+				data: [MockGroup2],
+			},
+			{ key: groupAIBudget(MockGroupWithoutMembers.id).queryKey, data: null },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+
+		await userEvent.click(
+			canvas.getAllByRole("button", { name: "Open menu" })[0],
+		);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: "AI Budget" }),
+		);
+		await userEvent.click(await body.findByText("Override group budget"));
+		await expect(
+			await body.findByText("Front-End (default)"),
+		).toBeInTheDocument();
 	},
 };

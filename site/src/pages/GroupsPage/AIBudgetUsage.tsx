@@ -22,7 +22,9 @@ export const AIBudgetUsage: FC<{
 			<span className={severityTextClassName(severity)}>
 				{formatBudgetUSD(currentSpend)}
 			</span>{" "}
-			/ {formatBudgetUSD(spendLimit)}{" "}
+			<span className="text-content-primary">
+				/ {formatBudgetUSD(spendLimit)}
+			</span>{" "}
 			<span className="text-content-disabled">USD</span>
 		</span>
 	);
