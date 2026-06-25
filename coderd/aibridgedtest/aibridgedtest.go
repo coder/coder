@@ -12,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel"
 
 	"cdr.dev/slog/v3"
-	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -37,7 +36,7 @@ func StartTestAIBridgeDaemon(
 ) {
 	t.Helper()
 
-	logger := slogtest.Make(t, nil).Named("aibridged").Leveled(slog.LevelDebug)
+	logger := api.Logger.Named("aibridged").Leveled(slog.LevelDebug)
 	cfg := api.DeploymentValues.AI.BridgeConfig
 	tracer := otel.Tracer("aibridge-test")
 
