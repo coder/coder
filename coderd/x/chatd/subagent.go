@@ -893,13 +893,7 @@ func (p *Server) subagentTools(
 
 				limit := defaultListAgentsLimit
 				if args.Limit != nil {
-					limit = *args.Limit
-				}
-				if limit <= 0 {
-					limit = defaultListAgentsLimit
-				}
-				if limit > maxListAgentsLimit {
-					limit = maxListAgentsLimit
+					limit = min(max(*args.Limit, 1), maxListAgentsLimit)
 				}
 				offset := 0
 				if args.Offset != nil && *args.Offset > 0 {

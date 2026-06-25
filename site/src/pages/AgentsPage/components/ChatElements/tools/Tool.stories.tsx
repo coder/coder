@@ -1098,7 +1098,7 @@ export const ListAgentsCompleted: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("button", { name: /Listed 3 agents/ }),
+			canvas.getByRole("button", { name: /Listed 3 of 3 agents/ }),
 		).toBeInTheDocument();
 	},
 };
