@@ -19,7 +19,7 @@ import (
 // TestAgent_ContextStatePushed verifies the agent's
 // agentcontext.Manager pushes its workspace context to coderd over the
 // v2.10 PushContextState RPC, and that the readiness gate
-// (GateUntilReady + SetReady, wired to the lifecycle transition) holds
+// (SetReady, wired to the lifecycle transition) holds
 // the push until startup completes. The first push the agent sends
 // therefore already contains the seeded AGENTS.md with Initial=true:
 // the agent never ships a pre-startup empty or partial snapshot, and

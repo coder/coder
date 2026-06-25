@@ -975,8 +975,8 @@ type Snapshot struct {
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
 	// Initializing reports that the Manager is gated until the agent
-	// signals startup completion (see ManagerOptions.GateUntilReady and
-	// Manager.SetReady). While true, Resources and SnapshotError are
+	// signals startup completion (see Manager.SetReady). While true,
+	// Resources and SnapshotError are
 	// empty: the Manager deliberately withholds collection so
 	// pre-startup partial state (instruction-file symlinks whose target
 	// has not been checked out, skills that have not synced, MCP servers

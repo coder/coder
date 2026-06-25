@@ -513,14 +513,6 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
-		// Gate collection until startup scripts finish. SetReady is
-		// called from the lifecycle transition in handleManifest. Without
-		// this the Manager resolves and pushes at boot, before
-		// instruction-file symlinks (CLAUDE.md / .cursorrules ->
-		// AGENTS.md) resolve, before skills sync, and before MCP servers
-		// connect, which surfaces transient "unreadable" issues and a
-		// partial inventory in chat.
-		GateUntilReady: true,
 		// The manager surfaces MCP servers and their tools as
 		// KindMCPServer resources by reading the shared MCP engine's
 		// catalog (a.mcpManager). That engine owns the single set of

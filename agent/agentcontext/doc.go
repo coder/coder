@@ -17,15 +17,14 @@
 //     the tree downward or up to a parent directory.
 //   - A fixed-location fsnotify watcher that signals a re-resolve
 //     when any recognized file changes.
-//   - An optional readiness gate (ManagerOptions.GateUntilReady plus
-//     Manager.SetReady). While gated the Manager publishes only an
-//     Initializing snapshot and the push loop ships nothing, so
-//     pre-startup partial state (instruction-file symlinks whose
-//     target has not been checked out, skills that have not synced,
-//     MCP servers that have not connected) never reaches coderd or
-//     hydrates a chat. The agent enables the gate and calls SetReady
-//     from the workspace lifecycle transition once startup scripts
-//     finish.
+//   - A readiness gate (Manager.SetReady). The Manager always starts
+//     gated: until SetReady fires it publishes only an Initializing
+//     snapshot and the push loop ships nothing, so pre-startup partial
+//     state (instruction-file symlinks whose target has not been
+//     checked out, skills that have not synced, MCP servers that have
+//     not connected) never reaches coderd or hydrates a chat. The
+//     agent calls SetReady from the workspace lifecycle transition
+//     once startup scripts finish.
 //   - An HTTP API at /api/v0/context/sources for source CRUD
 //     and /api/v0/context/resync for synchronous push barriers.
 //   - A Pusher abstraction so the latest Snapshot can be shipped

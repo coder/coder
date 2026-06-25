@@ -44,6 +44,22 @@ func TestMain(m *testing.M) {
 
 func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
+	m := newPendingTestManager(t, opts)
+	// The Manager always starts gated. Most tests want the eager, ready
+	// behavior, so release the gate here: SetReady performs the first
+	// resolve inline (Run is not active yet), leaving the resolved
+	// inventory at version 1. Gate-specific tests call
+	// newPendingTestManager directly and drive SetReady themselves.
+	m.SetReady()
+	return m
+}
+
+// newPendingTestManager builds a Manager and leaves the readiness gate
+// closed, so its first snapshot is the Initializing placeholder at
+// version 0. Gate tests use it to assert pre-ready behavior before
+// calling SetReady.
+func newPendingTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
+	t.Helper()
 	opts.Logger = testutil.Logger(t).Named("agentcontext-test")
 	m := agentcontext.NewManager(opts)
 	t.Cleanup(func() { _ = m.Close() })
@@ -370,16 +386,16 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.Equal(t, late, snap.Resources[0].SourcePath)
 }
 
-// TestManager_GateUntilReadyWithholdsPartialState reproduces the
+// TestManager_WithholdsCollectionUntilReady reproduces the
 // boot-time race the agent hit: when context is collected before
 // startup scripts finish, instruction-file symlinks (CLAUDE.md /
 // .cursorrules -> AGENTS.md) have no target yet, so an eager resolve
 // reports them as StatusUnreadable and ships a partial inventory.
-// With GateUntilReady the Manager withholds collection until
+// The Manager always starts gated and withholds collection until
 // SetReady: the pre-ready snapshot is Initializing with no resources
 // and no errors, and the post-ready snapshot has the resolved files
 // with no spurious issues.
-func TestManager_GateUntilReadyWithholdsPartialState(t *testing.T) {
+func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
@@ -392,9 +408,8 @@ func TestManager_GateUntilReadyWithholdsPartialState(t *testing.T) {
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, "CLAUDE.md")))
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, ".cursorrules")))
 
-	m := newTestManager(t, agentcontext.ManagerOptions{
-		WorkingDir:     func() string { return dir },
-		GateUntilReady: true,
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
 	})
 
 	// Before SetReady the snapshot is the initializing placeholder: no
@@ -435,29 +450,39 @@ func TestManager_GateUntilReadyWithholdsPartialState(t *testing.T) {
 	require.Equal(t, 1, instr)
 }
 
-// TestManager_SetReadyIdempotentAndUngatedNoop verifies SetReady is
-// safe to call repeatedly and is a no-op for a Manager that was not
-// gated (the default), which collects eagerly at construction.
-func TestManager_SetReadyIdempotentAndUngatedNoop(t *testing.T) {
+// TestManager_SetReadyIsIdempotent verifies SetReady releases the gate
+// exactly once: the first call performs the initial resolve, and
+// repeated calls neither panic nor re-resolve (the version and
+// inventory stay put).
+func TestManager_SetReadyIsIdempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "rules")
 
-	// Ungated (default): the eager snapshot is already populated and not
-	// Initializing.
-	m := newTestManager(t, agentcontext.ManagerOptions{
+	// The Manager starts gated: the first snapshot is the Initializing
+	// placeholder at version 0 with no resources.
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return dir },
 	})
 	snap := m.Snapshot()
+	require.True(t, snap.Initializing)
+	require.Empty(t, snap.Resources)
+
+	// The first SetReady resolves once: version advances to 1 with the
+	// resolved inventory.
+	m.SetReady()
+	snap = m.Snapshot()
 	require.False(t, snap.Initializing)
+	require.Equal(t, uint64(1), snap.Version)
 	require.Len(t, snap.Resources, 1)
 
-	// SetReady on an ungated Manager is a no-op: it must not panic or
-	// change the inventory, and stays safe across repeated calls.
+	// Further SetReady calls are no-ops: no panic, no re-resolve, and the
+	// version and inventory are unchanged.
 	m.SetReady()
 	m.SetReady()
 	snap = m.Snapshot()
 	require.False(t, snap.Initializing)
+	require.Equal(t, uint64(1), snap.Version)
 	require.Len(t, snap.Resources, 1)
 }
 

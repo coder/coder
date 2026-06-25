@@ -102,7 +102,7 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	defer unsub()
 
 	// First push uses the snapshot computed once the Manager is ready.
-	// While the Manager is gated (GateUntilReady) it publishes an
+	// While the Manager is gated (until SetReady) it publishes an
 	// Initializing snapshot; skip those so coderd never persists, and a
 	// chat never hydrates against, pre-startup partial state. The
 	// SetReady broadcast wakes this loop with the first real snapshot,
