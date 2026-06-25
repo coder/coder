@@ -12,7 +12,7 @@ import { Loader } from "#/components/Loader/Loader";
 import { SearchField } from "#/components/SearchField/SearchField";
 import { Tabs, TabsList, TabsTrigger } from "#/components/Tabs/Tabs";
 import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
-import { useFuzzySearch } from "#/hooks/useFuzzySearch";
+import { useFuzzySearch } from "#/pages/TemplateBuilder/hooks/useFuzzySearch";
 import { ModuleCard } from "./ModuleCard";
 import {
 	moduleHasConfigurableVars,
