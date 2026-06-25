@@ -43,6 +43,10 @@ const renderSubagentLabel = (
 				return providedTitle
 					? `Interrupting ${providedTitle}`
 					: `Interrupting ${fallbackTitle}`;
+			case "list":
+				return providedTitle
+					? `Listing ${providedTitle}`
+					: `Listing ${fallbackTitle}`;
 		}
 	})();
 

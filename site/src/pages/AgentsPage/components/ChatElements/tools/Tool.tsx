@@ -1106,9 +1106,10 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = isSubagentToolName(name)
-			? SubagentRenderer
-			: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer =
+			isSubagentToolName(name) && name !== "list_agents"
+				? SubagentRenderer
+				: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;

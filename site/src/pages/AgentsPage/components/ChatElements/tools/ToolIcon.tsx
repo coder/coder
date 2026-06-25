@@ -115,8 +115,6 @@ export const ToolIcon: React.FC<{
 			return <ServerIcon className={base} />;
 		case "start_workspace":
 			return <PowerIcon className={base} />;
-		case "list_agents":
-			return <BotIcon className={base} />;
 		case "chat_summarized":
 			return <BotIcon className={base} />;
 		case "thinking":

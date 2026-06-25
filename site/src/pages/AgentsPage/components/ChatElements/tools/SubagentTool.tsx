@@ -47,6 +47,12 @@ const SUBAGENT_VERBS: Record<
 		error: "Failed to interrupt ",
 		timeout: "Timed out interrupting ",
 	},
+	list: {
+		completed: "Listed ",
+		running: "Listing ",
+		error: "Failed to list ",
+		timeout: "Timed out listing ",
+	},
 };
 
 /**

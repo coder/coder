@@ -1152,7 +1152,7 @@ describe("getSubagentDescriptor", () => {
 		}
 	});
 
-	it("does not return a subagent descriptor for list_agents", () => {
+	it("renders list_agents with a fixed generic affordance", () => {
 		const descriptor = getSubagentDescriptor({
 			name: "list_agents",
 			args: {},
@@ -1168,8 +1168,13 @@ describe("getSubagentDescriptor", () => {
 			},
 		});
 
-		// list_agents is routed to ListAgentsRenderer, not the
-		// SubagentRenderer, so it has no subagent descriptor.
-		expect(descriptor).toBeNull();
+		// The list result has no single top-level type, so the descriptor
+		// must not derive a variant from per-agent types.
+		expect(descriptor).toMatchObject({
+			action: "list",
+			variant: "general",
+			iconKind: "bot",
+			supportsDesktopAffordance: false,
+		});
 	});
 });
