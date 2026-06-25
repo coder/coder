@@ -120,6 +120,39 @@ their organization. Users can be in multiple organizations.
 
 ![Workspace List](../../images/admin/users/organizations/workspace-list.png)
 
+## Configurable default member roles
+
+> [!NOTE]
+> Configurable default member roles are in
+> [Early Access](../../install/releases/feature-stages.md#early-access-features),
+> gated behind the `minimum-implicit-member` experiment.
+
+Each organization carries a `default_org_member_roles` list of built-in role
+names. Coder unions this list into every member's effective roles at request
+time, so changes propagate to all members on the next request without
+re-issuing tokens or editing per-user role assignments.
+
+The default value is `["organization-workspace-access"]`. With that default,
+every organization member can read, build, ssh into, and execute commands in
+workspaces they own. Removing `organization-workspace-access` from the list,
+or replacing it with another set of built-in roles, lets you create
+organization members that don't have workspace operations by default.
+
+To edit `default_org_member_roles` in the dashboard, go to
+**Admin settings** > **Organizations** > **Roles** > **Default Roles**.
+
+### Limitations
+
+- `default_org_member_roles` accepts built-in role names only:
+  `organization-admin`, `organization-auditor`, `organization-user-admin`,
+  `organization-template-admin`, `organization-workspace-creation-ban`, and
+  `organization-workspace-access`. Custom organization roles are rejected
+  today; assign them directly to members instead.
+- Enabling the experiment changes how `organization-member` behaves
+  deployment-wide. Review [Groups and Roles](./groups-roles.md) and the
+  per-organization [audit log](../security/audit-logs.md) before enabling
+  on a deployment with existing custom RBAC.
+
 ## Next steps
 
 - [Organizations - best practices](../../tutorials/best-practices/organizations.md)

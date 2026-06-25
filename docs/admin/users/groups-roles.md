@@ -31,6 +31,12 @@ Roles determine which actions users can take within the platform.
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
 
+In Premium deployments, the implicit `organization-member` role can also be
+trimmed per organization. See
+[Configurable default member roles](./organizations.md#configurable-default-member-roles)
+for how to remove workspace operations from the default member set under the
+`minimum-implicit-member` experiment.
+
 ## Custom Roles
 
 > [!NOTE]
