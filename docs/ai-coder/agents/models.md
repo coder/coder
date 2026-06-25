@@ -61,7 +61,7 @@ implements the APIs Coder sends.
 
 For the default Agents path through AI Gateway, set the endpoint/base URL to
 the upstream provider or proxy endpoint. Do not set it to Coder's public AI
-Gateway route, such as `https://<coder-host>/api/v2/aibridge/openai/v1`.
+Gateway route, such as `https://<coder-host>/api/v2/ai-gateway/openai/v1`.
 
 OpenAI-shaped provider types require the upstream OpenAI-compatible prefix in
 the endpoint/base URL because Coder appends request suffixes such as

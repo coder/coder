@@ -192,7 +192,7 @@ provider of type `openai` with a specific name and base URL:
 | Base URL | `https://chatgpt.com/backend-api/codex` |
 
 The name must be exactly `chatgpt`. It determines the route clients use
-to reach the provider: `/api/v2/aibridge/chatgpt/v1`. If no provider
+to reach the provider: `/api/v2/ai-gateway/chatgpt/v1`. If no provider
 with this name exists, requests to that route fail with
 `404 route not supported`.
 
