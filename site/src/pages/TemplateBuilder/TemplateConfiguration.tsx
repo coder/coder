@@ -37,8 +37,10 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					)}
 				</figure>
 				<div>
-					<h3 className="text-sm font-semibold text-content-primary">{name}</h3>
-					<p className="text-sm font-normal text-content-secondary inline">
+					<h3 className="mb-0 text-sm font-semibold text-content-primary">
+						{name}
+					</h3>
+					<p className="text-xs font-normal text-content-secondary inline">
 						{description}
 					</p>
 					{detailsUrl && (
@@ -46,7 +48,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 							href={detailsUrl}
 							target="_blank"
 							size="sm"
-							className="text-sm font-normal ml-1"
+							className="text-xs font-normal ml-1"
 						>
 							View details
 						</Link>
