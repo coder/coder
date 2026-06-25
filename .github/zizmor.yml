@@ -7,3 +7,9 @@ rules:
       # or execute untrusted PR code.
       - "backport.yaml"
       - "cherry-pick.yaml"
+      # flake-bot triggers on `workflow_run` (ci completion) by design. It
+      # only acts on main-push failures (or manual workflow_dispatch), checks
+      # out the already-merged main commit, routes all untrusted event values
+      # through env vars, and performs all writes with a least-privilege
+      # GitHub App token rather than the workflow token.
+      - "flake-bot.yaml"
