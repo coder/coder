@@ -29,6 +29,7 @@ interface NavbarViewProps {
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
+	canManageOrganizations: boolean;
 	canViewAuditLog: boolean;
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
@@ -51,6 +52,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	canViewDeployment,
 	canViewOrganizations,
+	canManageOrganizations,
 	canViewHealth,
 	canViewAuditLog,
 	canViewConnectionLog,
@@ -128,7 +130,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				<div className="hidden md:block">
 					<DeploymentDropdown
 						canViewAuditLog={canViewAuditLog}
-						canViewOrganizations={canViewOrganizations}
+						canViewOrganizations={canManageOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewConnectionLog={canViewConnectionLog}
 						canViewAIBridge={canViewAIBridge}
@@ -153,6 +155,9 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						buildInfo={buildInfo}
 						supportLinks={supportLinks?.filter((link) => !isNavbarLink(link))}
 						onSignOut={onSignOut}
+						canViewOrganizations={
+							canViewOrganizations && !canManageOrganizations
+						}
 					/>
 				</div>
 
@@ -165,6 +170,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewAuditLog={canViewAuditLog}
 						canViewConnectionLog={canViewConnectionLog}
 						canViewOrganizations={canViewOrganizations}
+						canManageOrganizations={canManageOrganizations}
 						canViewDeployment={canViewDeployment}
 						canViewHealth={canViewHealth}
 					/>

@@ -36,6 +36,7 @@ export const withDashboardProvider = (
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
 		canViewOrganizationSettings = false,
+		canManageOrganizationSettings = false,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -64,6 +65,7 @@ export const withDashboardProvider = (
 				organizations,
 				showOrganizations,
 				canViewOrganizationSettings,
+				canManageOrganizationSettings,
 			}}
 		>
 			<Story />
@@ -76,10 +78,10 @@ type CallbackFn = (ev?: MessageEvent) => void;
 
 // parameters.webSocket accepts two formats:
 //
-//   Array — events are delivered to every socket (backward-compatible):
+//   Array, events are delivered to every socket (backward-compatible):
 //     webSocket: [{ event: "message", data: "..." }]
 //
-//   Record keyed by URL substring — events are delivered only to
+//   Record keyed by URL substring, events are delivered only to
 //   sockets whose URL contains the key:
 //     webSocket: {
 //       "/api/experimental/chats/": [{ event: "message", data: "..." }],

@@ -19,6 +19,8 @@ declare module "@storybook/react-vite" {
 		experiments?: Experiments;
 		showOrganizations?: boolean;
 		organizations?: Organization[];
+		canViewOrganizationSettings?: boolean;
+		canManageOrganizationSettings?: boolean;
 		queries?: { key: QueryKey; data: unknown; isError?: boolean }[];
 		webSocket?: WebSocketEvent[] | Record<string, WebSocketEvent[]>;
 		user?: User;

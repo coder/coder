@@ -8,13 +8,17 @@ import { MockUserOwner } from "#/testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "#/testHelpers/renderHelpers";
 import { UserDropdownContent } from "./UserDropdownContent";
 
-const renderUserDropdownContent = (props: { onSignOut: () => void }) => {
+const renderUserDropdownContent = (props: {
+	canViewOrganizations?: boolean;
+	onSignOut: () => void;
+}) => {
 	return render(
 		<DropdownMenu defaultOpen>
 			<DropdownMenuTrigger>Open</DropdownMenuTrigger>
 			<DropdownMenuContent>
 				<UserDropdownContent
 					user={MockUserOwner}
+					canViewOrganizations={props.canViewOrganizations}
 					onSignOut={props.onSignOut}
 					supportLinks={[]}
 				/>
@@ -42,5 +46,20 @@ describe("UserDropdownContent", () => {
 		await waitForLoaderToBeRemoved();
 		screen.getByText("Sign Out").click();
 		expect(onSignOut).toBeCalledTimes(1);
+	});
+
+	it("can show the organizations item", async () => {
+		renderUserDropdownContent({
+			canViewOrganizations: true,
+			onSignOut: vi.fn(),
+		});
+		await waitForLoaderToBeRemoved();
+
+		const link = screen.getByText("Organizations").closest("a");
+		if (!link) {
+			throw new Error("Anchor tag not found for the organizations menu item");
+		}
+
+		expect(link.getAttribute("href")).toBe("/organizations");
 	});
 });

@@ -13,13 +13,18 @@ import { NavbarView } from "./NavbarView";
 export const Navbar: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const { appearance, canViewOrganizationSettings } = useDashboard();
+	const {
+		appearance,
+		canManageOrganizationSettings,
+		canViewOrganizationSettings,
+	} = useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
+	const canManageOrganizations = canManageOrganizationSettings;
 	const canViewHealth = permissions.viewDebugInfo;
 	const canViewAuditLog =
 		featureVisibility.audit_log && permissions.viewAnyAuditLog;
@@ -47,6 +52,7 @@ export const Navbar: FC = () => {
 			onSignOut={signOut}
 			canViewDeployment={canViewDeployment}
 			canViewOrganizations={canViewOrganizations}
+			canManageOrganizations={canManageOrganizations}
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			canViewConnectionLog={canViewConnectionLog}

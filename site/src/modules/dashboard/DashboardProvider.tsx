@@ -16,7 +16,10 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
-import { canViewAnyOrganization } from "#/modules/permissions";
+import {
+	canManageAnyOrganization,
+	canViewAnyOrganization,
+} from "#/modules/permissions";
 import { selectFeatureVisibility } from "./entitlements";
 
 export interface DashboardValue {
@@ -27,6 +30,7 @@ export interface DashboardValue {
 	organizations: readonly Organization[];
 	showOrganizations: boolean;
 	canViewOrganizationSettings: boolean;
+	canManageOrganizationSettings: boolean;
 }
 
 export const DashboardContext = createContext<DashboardValue | undefined>(
@@ -69,6 +73,11 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 		entitlementsQuery.data,
 	).multiple_organizations;
 	const showOrganizations = hasMultipleOrganizations || organizationsEnabled;
+	const canManageOrganizationSettings =
+		showOrganizations && canManageAnyOrganization(permissions);
+	const canViewOrganizationSettings =
+		showOrganizations &&
+		(canViewAnyOrganization(permissions) || canManageOrganizationSettings);
 
 	return (
 		<DashboardContext.Provider
@@ -79,8 +88,8 @@ export const DashboardProvider: FC<PropsWithChildren> = ({ children }) => {
 				buildInfo: buildInfoQuery.data,
 				organizations: organizationsQuery.data,
 				showOrganizations,
-				canViewOrganizationSettings:
-					showOrganizations && canViewAnyOrganization(permissions),
+				canViewOrganizationSettings,
+				canManageOrganizationSettings,
 			}}
 		>
 			{children}
