@@ -311,9 +311,7 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 		"read_skill",
 		"Read the full instructions for a skill by name. "+
 			"Returns the skill meta file body and a list of "+
-			"supporting files. For workspace skills the response "+
-			"also includes \"dir\", the absolute path to the skill "+
-			"directory in the workspace. Use read_skill before "+
+			"supporting files. Use read_skill before "+
 			"following a skill's instructions.",
 		func(ctx context.Context, args ReadSkillArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			if args.Name == "" {
