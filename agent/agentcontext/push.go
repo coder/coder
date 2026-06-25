@@ -101,10 +101,25 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 	changes, unsub := m.SubscribeChanges()
 	defer unsub()
 
-	// First push uses the snapshot computed by NewManager.
+	// First push uses the snapshot computed once the Manager is ready.
+	// While the Manager is gated (GateUntilReady) it publishes an
+	// Initializing snapshot; skip those so coderd never persists, and a
+	// chat never hydrates against, pre-startup partial state. The
+	// SetReady broadcast wakes this loop with the first real snapshot,
+	// which is then sent with Initial=true.
 	initial := true
 	for {
 		snap := m.Snapshot()
+		if snap.Initializing {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-m.closedCh:
+				return nil
+			case <-changes:
+			}
+			continue
+		}
 		req := snapshotToPushRequest(snap, initial)
 
 		err := pushWithRetry(ctx, p, req, initialBackoff, maxBackoff, clock, logger)

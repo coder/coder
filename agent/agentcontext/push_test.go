@@ -293,6 +293,64 @@ func TestRunPush_RejectedResponseProceeds(t *testing.T) {
 	require.ErrorIs(t, <-pushDone, context.Canceled)
 }
 
+// TestRunPush_GatedUntilReady verifies the push loop ships nothing
+// while the Manager is gated (GateUntilReady) and ships the complete
+// inventory once SetReady fires. This is the push-side guarantee that
+// coderd never persists, and a chat never hydrates against,
+// pre-startup partial state.
+func TestRunPush_GatedUntilReady(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	// Content exists from the start, but the Manager is gated: nothing
+	// must be pushed until SetReady, proving coderd never sees a
+	// pre-startup snapshot even when one could be collected.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o600))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:     func() string { return dir },
+		GateUntilReady: true,
+	})
+
+	p := newFakePusher()
+	ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitLong))
+	defer cancel()
+
+	pushDone := make(chan error, 1)
+	go func() {
+		pushDone <- m.RunPush(ctx, p, agentcontext.PushOptions{
+			Logger: testutil.Logger(t).Named("push"),
+		})
+	}()
+
+	// While gated, no push must be sent even though AGENTS.md exists.
+	select {
+	case <-p.signal:
+		t.Fatal("push loop shipped a snapshot before SetReady")
+	case <-time.After(testutil.IntervalMedium):
+	}
+	require.Empty(t, p.snapshot(), "no push must happen before the gate releases")
+
+	// Startup completes; the gate releases and the first real snapshot
+	// is pushed with Initial=true.
+	m.SetReady()
+
+	select {
+	case <-p.signal:
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("expected a push after SetReady")
+	}
+
+	requests := p.snapshot()
+	require.NotEmpty(t, requests)
+	first := requests[0]
+	require.True(t, first.Initial, "first push after the gate releases must be Initial")
+	require.NotEmpty(t, first.Resources, "first push must carry the resolved inventory")
+	require.Empty(t, first.SnapshotError, "first push must not carry a transient snapshot error")
+
+	cancel()
+	require.ErrorIs(t, <-pushDone, context.Canceled)
+}
+
 func TestRunPush_NilPusherErrors(t *testing.T) {
 	t.Parallel()
 	m := newTestManager(t, agentcontext.ManagerOptions{

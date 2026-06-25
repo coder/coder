@@ -50,6 +50,11 @@ type SnapshotResponse struct {
 	Resources     []SnapshotResource `json:"resources"`
 	PayloadBytes  uint64             `json:"payload_bytes"`
 	SnapshotError string             `json:"snapshot_error,omitempty"`
+	// Initializing is true while the agent gates context collection
+	// until startup scripts finish. Clients should render a "still
+	// initializing" state rather than treating the empty Resources as
+	// "no context".
+	Initializing bool `json:"initializing,omitempty"`
 }
 
 // API exposes the Manager over HTTP. The routes match the RFC:
@@ -187,6 +192,7 @@ func snapshotResponse(s Snapshot) SnapshotResponse {
 		Resources:     make([]SnapshotResource, 0, len(s.Resources)),
 		PayloadBytes:  s.PayloadBytes,
 		SnapshotError: s.SnapshotError,
+		Initializing:  s.Initializing,
 	}
 	for _, r := range s.Resources {
 		out.Resources = append(out.Resources, SnapshotResource{

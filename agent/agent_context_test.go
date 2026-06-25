@@ -17,8 +17,13 @@ import (
 )
 
 // TestAgent_ContextStatePushed verifies the agent's
-// agentcontext.Manager pushes its initial Snapshot to coderd
-// over the v2.10 PushContextState RPC during a normal boot.
+// agentcontext.Manager pushes its workspace context to coderd over the
+// v2.10 PushContextState RPC, and that the readiness gate
+// (GateUntilReady + SetReady, wired to the lifecycle transition) holds
+// the push until startup completes. The first push the agent sends
+// therefore already contains the seeded AGENTS.md with Initial=true:
+// the agent never ships a pre-startup empty or partial snapshot, and
+// never surfaces transient "unreadable" issues.
 func TestAgent_ContextStatePushed(t *testing.T) {
 	t.Parallel()
 
@@ -35,28 +40,34 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 		},
 	)
 
-	// The first push is the initial empty-workspace snapshot
-	// because the manifest has not been fetched yet. Wait for a
-	// later push that includes the seeded AGENTS.md.
+	// The push is gated until the agent reaches lifecycle ready (its
+	// startup scripts finish). Wait for that first push to land.
 	var pushes []*agentproto.PushContextStateRequest
 	require.Eventually(t, func() bool {
 		pushes = client.ContextStatePushes()
-		for _, push := range pushes {
-			for _, r := range push.GetResources() {
-				if r.GetInstructionFile() != nil &&
-					filepath.Base(r.GetSource()) == "AGENTS.md" {
-					return true
-				}
-			}
-		}
-		return false
+		return len(pushes) > 0
 	}, testutil.WaitMedium, testutil.IntervalFast,
-		"expected the seeded AGENTS.md to appear in a snapshot push; got %d pushes", len(pushes))
+		"expected a context snapshot push after startup; got %d pushes", len(pushes))
 
-	require.NotEmpty(t, pushes)
 	first := pushes[0]
 	assert.True(t, first.GetInitial(), "first push must carry Initial=true")
 	assert.NotEmpty(t, first.GetAggregateHash(), "aggregate_hash must be populated")
+
+	// The gate guarantees the very first push already reflects the
+	// ready workspace: the seeded AGENTS.md is present and no resource
+	// is reported as a transient UNREADABLE issue. Before the fix the
+	// first push was the empty boot snapshot, and intermediate pushes
+	// could carry unresolved instruction-file symlinks.
+	var foundAgents bool
+	for _, r := range first.GetResources() {
+		if r.GetInstructionFile() != nil &&
+			filepath.Base(r.GetSource()) == "AGENTS.md" {
+			foundAgents = true
+		}
+		assert.NotEqualf(t, agentproto.ContextResource_UNREADABLE, r.GetStatus(),
+			"no resource should be UNREADABLE in the post-ready snapshot: %s", r.GetSource())
+	}
+	assert.True(t, foundAgents, "first push must already include the seeded AGENTS.md")
 
 	// Subsequent pushes must not be Initial.
 	for _, p := range pushes[1:] {

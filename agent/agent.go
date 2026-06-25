@@ -513,6 +513,14 @@ func (a *agent) init() {
 		Clock:          a.clock,
 		WorkingDir:     workingDirFn,
 		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// Gate collection until startup scripts finish. SetReady is
+		// called from the lifecycle transition in handleManifest. Without
+		// this the Manager resolves and pushes at boot, before
+		// instruction-file symlinks (CLAUDE.md / .cursorrules ->
+		// AGENTS.md) resolve, before skills sync, and before MCP servers
+		// connect, which surfaces transient "unreadable" issues and a
+		// partial inventory in chat.
+		GateUntilReady: true,
 		// The manager surfaces MCP servers and their tools as
 		// KindMCPServer resources by reading the shared MCP engine's
 		// catalog (a.mcpManager). That engine owns the single set of
@@ -1551,6 +1559,16 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				}
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
+
+				// Startup scripts have finished (success or terminal
+				// failure). Release the context manager's gate so it
+				// collects and pushes the now-complete inventory:
+				// instruction-file symlinks (CLAUDE.md / .cursorrules ->
+				// AGENTS.md) resolve, skills have synced, and MCP servers
+				// are about to connect. Gating until now keeps pre-startup
+				// partial state and transient "unreadable" issues out of
+				// coderd and chats.
+				a.contextManager.SetReady()
 
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.

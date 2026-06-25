@@ -370,6 +370,97 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.Equal(t, late, snap.Resources[0].SourcePath)
 }
 
+// TestManager_GateUntilReadyWithholdsPartialState reproduces the
+// boot-time race the agent hit: when context is collected before
+// startup scripts finish, instruction-file symlinks (CLAUDE.md /
+// .cursorrules -> AGENTS.md) have no target yet, so an eager resolve
+// reports them as StatusUnreadable and ships a partial inventory.
+// With GateUntilReady the Manager withholds collection until
+// SetReady: the pre-ready snapshot is Initializing with no resources
+// and no errors, and the post-ready snapshot has the resolved files
+// with no spurious issues.
+func TestManager_GateUntilReadyWithholdsPartialState(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	dir := testutil.TempDirResolved(t)
+	// CLAUDE.md and .cursorrules symlink to AGENTS.md, which does not
+	// exist yet (a startup script is still checking out the repo).
+	// EvalSymlinks fails, which an eager resolve would surface as a
+	// "symlink resolve" StatusUnreadable issue plus a partial inventory.
+	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, "CLAUDE.md")))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, ".cursorrules")))
+
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:     func() string { return dir },
+		GateUntilReady: true,
+	})
+
+	// Before SetReady the snapshot is the initializing placeholder: no
+	// resources, no errors, Initializing=true. The broken symlinks are
+	// NOT reported as issues.
+	snap := m.Snapshot()
+	require.True(t, snap.Initializing, "gated snapshot must be marked initializing")
+	require.Empty(t, snap.Resources, "gated snapshot must not collect a partial inventory")
+	require.Empty(t, snap.SnapshotError, "gated snapshot must not surface transient errors")
+
+	// Resync stays gated too, so in-workspace callers see Initializing
+	// instead of a partial result.
+	rs, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.True(t, rs.Initializing)
+	require.Empty(t, rs.Resources)
+
+	// Startup finishes: AGENTS.md now exists, so the symlinks resolve.
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "# rules\n")
+
+	// Release the gate. SetReady performs the first real resolve.
+	m.SetReady()
+
+	snap = m.Snapshot()
+	require.False(t, snap.Initializing, "post-ready snapshot must not be initializing")
+	require.NotEmpty(t, snap.Resources, "post-ready snapshot must include resolved files")
+	require.Empty(t, snap.SnapshotError)
+	var instr int
+	for _, r := range snap.Resources {
+		require.NotEqualf(t, agentcontext.StatusUnreadable, r.Status,
+			"resolved snapshot must not contain spurious unreadable issues: %s", r.Source)
+		if r.Kind == agentcontext.KindInstructionFile {
+			instr++
+		}
+	}
+	// AGENTS.md and the two symlinks that resolve to it collapse to a
+	// single instruction-file resource.
+	require.Equal(t, 1, instr)
+}
+
+// TestManager_SetReadyIdempotentAndUngatedNoop verifies SetReady is
+// safe to call repeatedly and is a no-op for a Manager that was not
+// gated (the default), which collects eagerly at construction.
+func TestManager_SetReadyIdempotentAndUngatedNoop(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "rules")
+
+	// Ungated (default): the eager snapshot is already populated and not
+	// Initializing.
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+	snap := m.Snapshot()
+	require.False(t, snap.Initializing)
+	require.Len(t, snap.Resources, 1)
+
+	// SetReady on an ungated Manager is a no-op: it must not panic or
+	// change the inventory, and stays safe across repeated calls.
+	m.SetReady()
+	m.SetReady()
+	snap = m.Snapshot()
+	require.False(t, snap.Initializing)
+	require.Len(t, snap.Resources, 1)
+}
+
 func TestManager_CloseIsIdempotent(t *testing.T) {
 	t.Parallel()
 	m := newTestManager(t, agentcontext.ManagerOptions{
