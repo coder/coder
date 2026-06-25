@@ -27,9 +27,9 @@ import {
 	withAuthProvider,
 	withDashboardProvider,
 } from "#/testHelpers/storybook";
+import { CoderAgentsPageView } from "../AISettingsPage/CoderAgentsPage/CoderAgentsPageView";
 import AgentAnalyticsPage from "./AgentAnalyticsPage";
 import AgentCreatePage from "./AgentCreatePage";
-import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
 import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
@@ -165,7 +165,7 @@ const buildChat = (overrides: Partial<Chat> = {}): Chat => ({
 const fixedNow = dayjs("2026-03-12T12:00:00");
 
 const AgentsRouteElement = () => (
-	<AgentSettingsAgentsPageView
+	<CoderAgentsPageView
 		adminOverridesData={{ allow_users: false }}
 		onSaveAdminOverrides={fn()}
 		isSavingAdminOverrides={false}

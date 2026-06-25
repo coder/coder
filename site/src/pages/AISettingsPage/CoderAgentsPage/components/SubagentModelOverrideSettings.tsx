@@ -3,10 +3,10 @@ import type { FC, ReactNode } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { useTemporarySavedState } from "#/components/TemporarySavedState/TemporarySavedState";
+import type { ModelSelectorOption } from "../../../AgentsPage/components/ChatElements/ModelSelector";
+import { ModelSelector } from "../../../AgentsPage/components/ChatElements/ModelSelector";
+import { ModelOverrideAlerts } from "../../../AgentsPage/components/ModelOverrideAlerts";
 import { AgentSettingLayout } from "./AgentSettingLayout";
-import type { ModelSelectorOption } from "./ChatElements/ModelSelector";
-import { ModelSelector } from "./ChatElements/ModelSelector";
-import { ModelOverrideAlerts } from "./ModelOverrideAlerts";
 
 export interface MutationCallbacks {
 	onSuccess?: () => void;

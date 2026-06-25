@@ -3,9 +3,9 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatModelConfig } from "#/testHelpers/chatModels";
 import {
-	AgentSettingsAgentsPageView,
-	type AgentSettingsAgentsPageViewProps,
-} from "./AgentSettingsAgentsPageView";
+	CoderAgentsPageView,
+	type CoderAgentsPageViewProps,
+} from "./CoderAgentsPageView";
 
 const OVERRIDE_MALFORMED_WARNING =
 	"The saved override is malformed and is being treated as unset. Click Save to clear it.";
@@ -105,8 +105,8 @@ const allModelConfigs: TypesGen.ChatModelConfig[] = [
 ];
 
 const buildArgs = (
-	overrides: Partial<AgentSettingsAgentsPageViewProps> = {},
-): AgentSettingsAgentsPageViewProps => ({
+	overrides: Partial<CoderAgentsPageViewProps> = {},
+): CoderAgentsPageViewProps => ({
 	adminOverridesData: { allow_users: false },
 	adminOverridesError: undefined,
 	onRetryAdminOverrides: fn(),
@@ -160,13 +160,13 @@ const selectModelInSection = async (
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsAgentsPageView",
-	component: AgentSettingsAgentsPageView,
+	title: "pages/AISettingsPage/CoderAgentsPage/CoderAgentsPageView",
+	component: CoderAgentsPageView,
 	args: buildArgs(),
-} satisfies Meta<typeof AgentSettingsAgentsPageView>;
+} satisfies Meta<typeof CoderAgentsPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsAgentsPageView>;
+type Story = StoryObj<typeof CoderAgentsPageView>;
 
 export const AllOverridesUnset: Story = {
 	args: buildArgs(),

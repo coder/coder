@@ -19,7 +19,7 @@ type SaveModelOverride = (
 	options?: MutationCallbacks,
 ) => void;
 
-export interface AgentSettingsAgentsPageViewProps {
+export interface CoderAgentsPageViewProps {
 	adminOverridesData?: TypesGen.ChatPersonalModelOverridesAdminSettings;
 	adminOverridesError?: unknown;
 	onRetryAdminOverrides?: () => void;
@@ -44,9 +44,7 @@ export interface AgentSettingsAgentsPageViewProps {
 	isSaveExploreModelOverrideError: boolean;
 }
 
-export const AgentSettingsAgentsPageView: FC<
-	AgentSettingsAgentsPageViewProps
-> = ({
+export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 	adminOverridesData,
 	adminOverridesError,
 	onRetryAdminOverrides,

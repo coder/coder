@@ -15,7 +15,7 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
-import { AgentSettingsAgentsPageView } from "./AgentSettingsAgentsPageView";
+import { CoderAgentsPageView } from "./CoderAgentsPageView";
 
 const generalOverrideContext: TypesGen.ChatModelOverrideContext = "general";
 const exploreOverrideContext: TypesGen.ChatModelOverrideContext = "explore";
@@ -46,7 +46,7 @@ const updateChatModelOverrideMutation = (
 	},
 });
 
-const AgentSettingsAgentsPage: FC = () => {
+const CoderAgentsPage: FC = () => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
@@ -87,7 +87,7 @@ const AgentSettingsAgentsPage: FC = () => {
 	return (
 		<RequirePermission isFeatureVisible={canEditDeploymentConfig}>
 			<title>{pageTitle("Coder Agents", "AI Settings")}</title>
-			<AgentSettingsAgentsPageView
+			<CoderAgentsPageView
 				adminOverridesData={personalModelOverridesAdminSettingsQuery.data}
 				adminOverridesError={personalModelOverridesAdminSettingsQuery.error}
 				onRetryAdminOverrides={() => {
@@ -137,4 +137,4 @@ const AgentSettingsAgentsPage: FC = () => {
 	);
 };
 
-export default AgentSettingsAgentsPage;
+export default CoderAgentsPage;

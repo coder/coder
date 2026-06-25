@@ -13,7 +13,8 @@ const baseArgs = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/components/AdminPersonalModelOverridesSettings",
+	title:
+		"pages/AISettingsPage/CoderAgentsPage/components/AdminPersonalModelOverridesSettings",
 	component: AdminPersonalModelOverridesSettings,
 	args: baseArgs,
 } satisfies Meta<typeof AdminPersonalModelOverridesSettings>;
@@ -25,16 +26,16 @@ export const FeatureDisabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
 
 		expect(
-			await canvas.findByText(
-				"Enable users to define their personal overrides",
-			),
+			await canvas.findByText("Allow personal model overrides"),
 		).toBeInTheDocument();
 		expect(toggle).not.toBeChecked();
-		expect(canvas.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -50,10 +51,12 @@ export const LoadingState: Story = {
 		).toBeInTheDocument();
 		expect(
 			canvas.getByRole("switch", {
-				name: "Enable users to define their personal overrides",
+				name: "Allow personal model overrides",
 			}),
 		).toBeDisabled();
-		expect(canvas.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -66,12 +69,16 @@ export const LoadError: Story = {
 		const canvas = within(canvasElement);
 
 		expect(
-			await canvas.findByText("Failed to load personal model overrides."),
+			await canvas.findByText(
+				"Failed to load personal model override settings.",
+			),
 		).toBeInTheDocument();
 		expect(
 			canvas.queryByText("Loading personal model override settings..."),
 		).not.toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
 		expect(args.onRetryAdminSettings).toHaveBeenCalled();
 	},
@@ -84,11 +91,13 @@ export const FeatureEnabled: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
 
 		expect(toggle).toBeChecked();
-		expect(canvas.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(
+			canvas.queryByRole("button", { name: "Save" }),
+		).not.toBeInTheDocument();
 	},
 };
 
@@ -99,11 +108,11 @@ export const Saving: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
 
 		expect(toggle).toBeDisabled();
-		expect(canvas.getByRole("button", { name: "Save" })).toBeDisabled();
+		expect(canvas.getByRole("button", { name: /save/i })).toBeDisabled();
 	},
 };
 
@@ -126,11 +135,10 @@ export const SavesChangedSetting: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		const toggle = await canvas.findByRole("switch", {
-			name: "Enable users to define their personal overrides",
+			name: "Allow personal model overrides",
 		});
-		const saveButton = canvas.getByRole("button", { name: "Save" });
-
 		await userEvent.click(toggle);
+		const saveButton = await canvas.findByRole("button", { name: "Save" });
 		await waitFor(() => {
 			expect(saveButton).toBeEnabled();
 		});
