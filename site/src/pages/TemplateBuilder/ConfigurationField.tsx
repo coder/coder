@@ -118,8 +118,8 @@ const SelectField: FC<SelectFieldDefinition> = ({
 }) => {
 	const descriptionId = `${id}-description`;
 	return (
-		// All fields span 2 columns, except for dropdowns which can only be 1 column
-		<div className="col-end-1 flex flex-col gap-2">
+		// All fields span 2 columns, except for dropdowns which can only be 1 column (50% width)
+		<div className="!col-end-1 flex flex-col gap-2">
 			<Label htmlFor={id}>
 				{label}
 				{required && (
