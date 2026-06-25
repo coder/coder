@@ -22,9 +22,7 @@ incrementally. Planned starter rules:
 
 1. Write a YAML file under this directory. Name it after the rule's
    intent, for example `InclusiveLanguage.yml` or `ProductVoice.yml`.
-2. Each rule's `message:` should link to the matching section in
-   `docs/.style/style-guide.md`, ideally with a deep-link anchor, so a
-   contributor reading a Vale warning can jump straight to the guidance.
+2. Each rule's `message:` should link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor, so a contributor reading a Vale warning can jump straight to the guidance.
 3. Land at `level: warning` first. Promote to `level: error` only after
    both conditions hold:
    - The rule is objectively correct (typo, brand-name casing, banned
