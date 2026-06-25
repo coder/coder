@@ -183,7 +183,7 @@ data "coder_parameter" "devcontainer_autostart" {
 # Currently unused since AI Gateway is always enabled, but kept for emergency fallback.
 variable "anthropic_api_key" {
   type        = string
-  description = "The API key used to authenticate with the Anthropic API, if AI Bridge is disabled."
+  description = "The API key used to authenticate with the Anthropic API, if AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -435,9 +435,9 @@ resource "coder_agent" "dev" {
       MISE_DATA_DIR : "/home/coder/.local/share/mise",
     },
     {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     }
   )
