@@ -27,9 +27,7 @@ interface EditUserFormProps {
 	error?: unknown;
 	isLoading: boolean;
 	initialValues: UpdateUserProfileRequest;
-	// canEditAvatar is true for login types whose avatar is managed manually
-	// (password and none). For identity-provider login types the avatar is
-	// synced on login, so the field is hidden.
+	/** Allows hiding the avatar setting when it would be overwritten later by the user's identity provider. */
 	canEditAvatar: boolean;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	onCancel: () => void;
