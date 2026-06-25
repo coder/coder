@@ -209,6 +209,31 @@ var (
 	}
 )
 
+// ValidateCreateUserSecretRequest validates a single create-secret
+// request and returns field-level ValidationErrors keyed by JSON field
+// name. It is reused by the HTTP handlers and a future CLI. The
+// "value is required" rule lives here, not in UserSecretValueValid,
+// because an empty value is syntactically valid but disallowed at
+// create time.
+func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationError {
+	var validations []ValidationError
+	if err := UserSecretNameValid(req.Name); err != nil {
+		validations = append(validations, ValidationError{Field: "name", Detail: err.Error()})
+	}
+	if req.Value == "" {
+		validations = append(validations, ValidationError{Field: "value", Detail: "Value is required."})
+	} else if err := UserSecretValueValid(req.Value); err != nil {
+		validations = append(validations, ValidationError{Field: "value", Detail: err.Error()})
+	}
+	if err := UserSecretEnvNameValid(req.EnvName); err != nil {
+		validations = append(validations, ValidationError{Field: "env_name", Detail: err.Error()})
+	}
+	if err := UserSecretFilePathValid(req.FilePath); err != nil {
+		validations = append(validations, ValidationError{Field: "file_path", Detail: err.Error()})
+	}
+	return validations
+}
+
 // UserSecretNameValid validates a user secret name. Names are used in
 // API route path segments, so they must not include route separators.
 func UserSecretNameValid(s string) error {

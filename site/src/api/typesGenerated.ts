@@ -5157,6 +5157,17 @@ export interface IDPSyncMapping<ResourceIdType extends string> {
 	readonly Gets: ResourceIdType;
 }
 
+// From codersdk/usersecretsimport.go
+/**
+ * ImportUserSecretsRequest is the payload for the bulk secret import
+ * endpoint. Content is the raw file contents and Format selects the
+ * parser used to interpret it.
+ */
+export interface ImportUserSecretsRequest {
+	readonly format: SecretsFileFormat;
+	readonly content: string;
+}
+
 // From codersdk/inboxnotification.go
 export interface InboxNotification {
 	readonly id: string;
@@ -5465,6 +5476,15 @@ export const MaxChatFileIDs = 50;
  * attachments.
  */
 export const MaxChatFileSizeBytes = 10485760;
+
+// From codersdk/usersecretsimport.go
+/**
+ * MaxSecretsFileBytes bounds the raw size of an uploaded secrets file
+ * before parsing, guarding against resource-exhaustion inputs (huge
+ * files, deeply nested YAML, "billion laughs"). 1 MiB far exceeds the
+ * 200 KiB per-user value budget (MaxUserSecretsTotalValueBytes).
+ */
+export const MaxSecretsFileBytes = 1048576; // 1 MiB
 
 // From codersdk/usersecretvalidation.go
 /**
@@ -7528,6 +7548,11 @@ export interface STUNReport {
 	readonly CanSTUN: boolean;
 	readonly Error: string | null;
 }
+
+// From codersdk/usersecretsimport.go
+export type SecretsFileFormat = "env" | "json" | "yaml";
+
+export const SecretsFileFormats: SecretsFileFormat[] = ["env", "json", "yaml"];
 
 // From serpent/serpent.go
 /**
