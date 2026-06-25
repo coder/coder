@@ -16,14 +16,11 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestAgent_ContextStatePushed verifies the agent's
-// agentcontext.Manager pushes its workspace context to coderd over the
-// v2.10 PushContextState RPC, and that the readiness gate
-// (SetReady, wired to the lifecycle transition) holds
-// the push until startup completes. The first push the agent sends
-// therefore already contains the seeded AGENTS.md with Initial=true:
-// the agent never ships a pre-startup empty or partial snapshot, and
-// never surfaces transient "unreadable" issues.
+// TestAgent_ContextStatePushed verifies the agent pushes its workspace
+// context over the v2.10 PushContextState RPC, and that the readiness
+// gate (SetReady, wired to the lifecycle transition) holds the push
+// until startup completes. The first push therefore already contains
+// the seeded AGENTS.md with Initial=true and no "unreadable" issues.
 func TestAgent_ContextStatePushed(t *testing.T) {
 	t.Parallel()
 
@@ -40,8 +37,8 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 		},
 	)
 
-	// The push is gated until the agent reaches lifecycle ready (its
-	// startup scripts finish). Wait for that first push to land.
+	// The push is gated until the agent reaches lifecycle ready. Wait
+	// for that first push to land.
 	var pushes []*agentproto.PushContextStateRequest
 	require.Eventually(t, func() bool {
 		pushes = client.ContextStatePushes()
@@ -53,11 +50,8 @@ func TestAgent_ContextStatePushed(t *testing.T) {
 	assert.True(t, first.GetInitial(), "first push must carry Initial=true")
 	assert.NotEmpty(t, first.GetAggregateHash(), "aggregate_hash must be populated")
 
-	// The gate guarantees the very first push already reflects the
-	// ready workspace: the seeded AGENTS.md is present and no resource
-	// is reported as a transient UNREADABLE issue. Before the fix the
-	// first push was the empty boot snapshot, and intermediate pushes
-	// could carry unresolved instruction-file symlinks.
+	// The first push must already reflect the ready workspace: the
+	// seeded AGENTS.md is present and no resource is UNREADABLE.
 	var foundAgents bool
 	for _, r := range first.GetResources() {
 		if r.GetInstructionFile() != nil &&

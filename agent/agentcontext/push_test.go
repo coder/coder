@@ -293,17 +293,14 @@ func TestRunPush_RejectedResponseProceeds(t *testing.T) {
 	require.ErrorIs(t, <-pushDone, context.Canceled)
 }
 
-// TestRunPush_WaitsForReady verifies the push loop ships nothing
-// while the Manager is gated (before SetReady) and ships the complete
-// inventory once SetReady fires. This is the push-side guarantee that
-// coderd never persists, and a chat never hydrates against,
-// pre-startup partial state.
+// TestRunPush_WaitsForReady verifies the push loop ships nothing while
+// the Manager is gated and ships the complete inventory once SetReady
+// fires, so coderd never sees pre-startup partial state.
 func TestRunPush_WaitsForReady(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	// Content exists from the start, but the Manager is gated: nothing
-	// must be pushed until SetReady, proving coderd never sees a
-	// pre-startup snapshot even when one could be collected.
+	// is pushed until SetReady.
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "AGENTS.md"), []byte("rules"), 0o600))
 
 	m := newPendingTestManager(t, agentcontext.ManagerOptions{

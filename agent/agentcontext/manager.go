@@ -98,10 +98,9 @@ type Manager struct {
 	// observe a change.
 	trigger chan struct{}
 
-	// ready gates collection. It starts false and flips true on the
-	// first SetReady call. While false the Manager publishes only the
-	// Initializing snapshot and never walks the filesystem, so
-	// pre-startup partial state is never collected. Guarded by mu.
+	// ready gates collection: while false (until the first SetReady
+	// call) the Manager publishes only the Initializing snapshot and
+	// never walks the filesystem. Guarded by mu.
 	ready bool
 
 	// running tracks Run lifetime.
@@ -114,11 +113,10 @@ type Manager struct {
 	watcher *Watcher
 }
 
-// NewManager validates options, canonicalizes initial sources, and
-// returns a Manager whose first snapshot is the Initializing
-// placeholder. The Manager starts gated: the first real resolver pass
-// runs on SetReady. Run must be called separately to start the watcher
-// and re-resolve goroutine.
+// NewManager validates options and canonicalizes initial sources. The
+// returned Manager is gated, so its first snapshot is the Initializing
+// placeholder and the first real resolve runs on SetReady. Call Run to
+// start the watcher and re-resolve goroutine.
 func NewManager(opts ManagerOptions) *Manager {
 	clock := opts.Clock
 	if clock == nil {
@@ -153,9 +151,8 @@ func NewManager(opts ManagerOptions) *Manager {
 	// resources unless the resolver already has a provider (tests
 	// inject one via Resolver). The engine owns the connection
 	// lifecycle and notifies this Manager via Trigger when its
-	// catalog changes (see agent wiring). The provider must be wired
-	// here, before SetReady runs the first resolve, so the seam is
-	// present from the first real snapshot.
+	// catalog changes (see agent wiring). Wire it before SetReady runs
+	// the first resolve.
 	if resolver.MCPResources == nil && opts.MCPCatalog != nil {
 		resolver.MCPResources = func() []Resource {
 			return buildMCPServerResources(opts.MCPCatalog())
@@ -177,12 +174,9 @@ func NewManager(opts ManagerOptions) *Manager {
 		m.addSourceLocked(identity)
 	}
 
-	// The Manager starts gated: until SetReady fires it withholds
-	// collection and publishes only this initializing placeholder, so
-	// pre-startup partial state (unresolved instruction-file symlinks,
-	// unsynced skills, MCP servers that have not connected) never
-	// reaches a snapshot, the push loop, or a chat. SetReady performs
-	// the first real resolve once the workspace finishes startup.
+	// Start gated: until SetReady the Manager publishes only this
+	// placeholder, keeping pre-startup partial state out of every
+	// snapshot and the push loop.
 	m.snapshot = Snapshot{Initializing: true}
 
 	return m
@@ -454,10 +448,8 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ErrManagerClosed
 	}
 	if !m.ready {
-		// Gated until SetReady: return the Initializing placeholder
-		// rather than walking the filesystem and publishing partial
-		// state. Callers (HTTP /resync, the socket server, the CLI) can
-		// surface a "still initializing" state until SetReady fires.
+		// Gated: return the placeholder instead of walking the filesystem,
+		// so callers see "initializing" until SetReady fires.
 		snap := m.snapshot
 		m.mu.Unlock()
 		return snap, nil
@@ -553,16 +545,12 @@ func (m *Manager) Trigger() {
 	m.signal()
 }
 
-// SetReady releases the collection gate. The Manager starts gated and
-// withholds collection (publishing only an Initializing snapshot)
-// until the first SetReady call, which performs the first resolve and
-// broadcasts it so the push loop ships the complete inventory
-// (instruction files, skills, and any connected MCP servers) instead
-// of pre-startup partial state. SetReady is idempotent.
-//
-// The agent calls SetReady once the workspace reaches lifecycle ready
-// (or a terminal start_error / start_timeout), so a failed startup
-// still surfaces whatever context exists rather than gating forever.
+// SetReady releases the collection gate. The first call performs the
+// first real resolve and broadcasts it, so the push loop ships the
+// complete inventory instead of pre-startup partial state. SetReady is
+// idempotent. The agent calls it once the workspace reaches lifecycle
+// ready (or a terminal start_error / start_timeout, so a failed startup
+// still surfaces whatever context exists rather than gating forever).
 func (m *Manager) SetReady() {
 	m.mu.Lock()
 	if m.ready || m.closed {
@@ -574,15 +562,13 @@ func (m *Manager) SetReady() {
 	m.mu.Unlock()
 
 	if running {
-		// The Run loop owns the watcher; signal it so it re-syncs the
-		// watch set and resolves with ready=true, then broadcasts the
-		// first real snapshot to the push loop.
+		// The Run loop owns the watcher; signal it to re-sync and resolve
+		// with ready=true.
 		m.signal()
 		return
 	}
-	// No Run loop yet (embedders or tests driving the Manager
-	// directly): resolve inline so Snapshot reflects readiness
-	// immediately and any subscribers are notified.
+	// No Run loop yet (embedders or tests driving the Manager directly):
+	// resolve inline.
 	m.resolveAndBroadcast(context.Background())
 }
 
@@ -651,9 +637,7 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// duration of the pass.
 	m.mu.Lock()
 	if !m.ready {
-		// Gated until SetReady: keep the Initializing snapshot and skip
-		// both the filesystem walk and the broadcast so no pre-startup
-		// partial state is published. SetReady runs the first resolve.
+		// Gated: keep the placeholder and skip the walk and broadcast.
 		m.mu.Unlock()
 		return
 	}

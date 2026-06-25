@@ -1552,14 +1552,10 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
-				// Startup scripts have finished (success or terminal
-				// failure). Release the context manager's gate so it
-				// collects and pushes the now-complete inventory:
-				// instruction-file symlinks (CLAUDE.md / .cursorrules ->
-				// AGENTS.md) resolve, skills have synced, and MCP servers
-				// are about to connect. Gating until now keeps pre-startup
-				// partial state and transient "unreadable" issues out of
-				// coderd and chats.
+				// Startup finished (success or terminal failure). Release
+				// the context manager's gate so it collects and pushes the
+				// now-complete inventory instead of pre-startup partial
+				// state.
 				a.contextManager.SetReady()
 
 				// Connect to workspace MCP servers after the

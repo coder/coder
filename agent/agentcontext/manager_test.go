@@ -45,19 +45,16 @@ func TestMain(m *testing.M) {
 func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
 	m := newPendingTestManager(t, opts)
-	// The Manager always starts gated. Most tests want the eager, ready
-	// behavior, so release the gate here: SetReady performs the first
-	// resolve inline (Run is not active yet), leaving the resolved
-	// inventory at version 1. Gate-specific tests call
-	// newPendingTestManager directly and drive SetReady themselves.
+	// Most tests want the ready behavior; release the gate so the first
+	// snapshot is the resolved inventory at version 1. Gate tests use
+	// newPendingTestManager directly.
 	m.SetReady()
 	return m
 }
 
-// newPendingTestManager builds a Manager and leaves the readiness gate
-// closed, so its first snapshot is the Initializing placeholder at
-// version 0. Gate tests use it to assert pre-ready behavior before
-// calling SetReady.
+// newPendingTestManager builds a gated Manager (first snapshot is the
+// Initializing placeholder at version 0) for tests that drive SetReady
+// themselves.
 func newPendingTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
 	opts.Logger = testutil.Logger(t).Named("agentcontext-test")
@@ -386,25 +383,19 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.Equal(t, late, snap.Resources[0].SourcePath)
 }
 
-// TestManager_WithholdsCollectionUntilReady reproduces the
-// boot-time race the agent hit: when context is collected before
-// startup scripts finish, instruction-file symlinks (CLAUDE.md /
-// .cursorrules -> AGENTS.md) have no target yet, so an eager resolve
-// reports them as StatusUnreadable and ships a partial inventory.
-// The Manager always starts gated and withholds collection until
-// SetReady: the pre-ready snapshot is Initializing with no resources
-// and no errors, and the post-ready snapshot has the resolved files
-// with no spurious issues.
+// TestManager_WithholdsCollectionUntilReady reproduces the boot-time
+// race: collecting before startup finishes sees instruction-file
+// symlinks (CLAUDE.md / .cursorrules -> AGENTS.md) with no target yet.
+// The gated snapshot is Initializing with no resources or errors;
+// after SetReady the symlinks resolve cleanly.
 func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks require admin privileges on Windows runners")
 	}
 	dir := testutil.TempDirResolved(t)
-	// CLAUDE.md and .cursorrules symlink to AGENTS.md, which does not
-	// exist yet (a startup script is still checking out the repo).
-	// EvalSymlinks fails, which an eager resolve would surface as a
-	// "symlink resolve" StatusUnreadable issue plus a partial inventory.
+	// CLAUDE.md and .cursorrules symlink to an AGENTS.md that does not
+	// exist yet, so an eager resolve would report them unreadable.
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, "CLAUDE.md")))
 	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, ".cursorrules")))
 
@@ -450,17 +441,14 @@ func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
 	require.Equal(t, 1, instr)
 }
 
-// TestManager_SetReadyIsIdempotent verifies SetReady releases the gate
-// exactly once: the first call performs the initial resolve, and
-// repeated calls neither panic nor re-resolve (the version and
-// inventory stay put).
+// TestManager_SetReadyIsIdempotent verifies the first SetReady resolves
+// once (version 1) and repeated calls neither panic nor re-resolve.
 func TestManager_SetReadyIsIdempotent(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "rules")
 
-	// The Manager starts gated: the first snapshot is the Initializing
-	// placeholder at version 0 with no resources.
+	// Gated: first snapshot is the version-0 Initializing placeholder.
 	m := newPendingTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return dir },
 	})
@@ -468,16 +456,14 @@ func TestManager_SetReadyIsIdempotent(t *testing.T) {
 	require.True(t, snap.Initializing)
 	require.Empty(t, snap.Resources)
 
-	// The first SetReady resolves once: version advances to 1 with the
-	// resolved inventory.
+	// First SetReady resolves once: version 1 with the inventory.
 	m.SetReady()
 	snap = m.Snapshot()
 	require.False(t, snap.Initializing)
 	require.Equal(t, uint64(1), snap.Version)
 	require.Len(t, snap.Resources, 1)
 
-	// Further SetReady calls are no-ops: no panic, no re-resolve, and the
-	// version and inventory are unchanged.
+	// Further calls are no-ops: version and inventory unchanged.
 	m.SetReady()
 	m.SetReady()
 	snap = m.Snapshot()

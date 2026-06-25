@@ -974,14 +974,10 @@ type Snapshot struct {
 	// string when present (count cap exceeded, watcher
 	// degraded, ENOSPC, etc.). Empty when healthy.
 	SnapshotError string
-	// Initializing reports that the Manager is gated until the agent
-	// signals startup completion (see Manager.SetReady). While true,
-	// Resources and SnapshotError are
-	// empty: the Manager deliberately withholds collection so
-	// pre-startup partial state (instruction-file symlinks whose target
-	// has not been checked out, skills that have not synced, MCP servers
-	// that have not connected) is never observed as real context. The
-	// push loop never ships an initializing snapshot to coderd.
+	// Initializing reports that the Manager is gated until SetReady.
+	// While true, Resources and SnapshotError are empty and the push
+	// loop ships nothing, so pre-startup partial state never reaches
+	// coderd.
 	Initializing bool
 }
 
