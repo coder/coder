@@ -37,15 +37,12 @@ export const TableHeader: React.FC<React.ComponentPropsWithRef<"thead">> = ({
 const tableBodyVariants = cva(null, {
 	variants: {
 		size: {
-			// 72px data rows. Height lands on the cells, not the rows, so the
-			// 1px border-t on TableCell stays inside the 72px box instead of
-			// pushing the row to 73px.
 			lg: "[&>tr>td]:box-border [&>tr>td]:h-[72px]",
 		},
 	},
 });
 
-export type TableBodyProps = React.ComponentPropsWithRef<"tbody"> &
+type TableBodyProps = React.ComponentPropsWithRef<"tbody"> &
 	VariantProps<typeof tableBodyVariants>;
 
 export const TableBody: React.FC<TableBodyProps> = ({
