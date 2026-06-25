@@ -248,8 +248,9 @@ tasks:
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel                       |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                  |
 | `message_agent`                             | Send a follow-up message to a running sub-agent                          |
-| `close_agent`                               | Stop a running sub-agent                                                 |
+| `interrupt_agent`                           | Halt a sub-agent's current turn; it transitions to waiting               |
 | `spawn_agent` (`type=computer_use`)         | Spawn a sub-agent with desktop interaction (screenshot, mouse, keyboard) |
+| `list_agents`                               | List spawned child agents, most recently active first                    |
 | `read_skill`                                | Read the instructions for a workspace skill by name                      |
 | `read_skill_file`                           | Read a supporting file from a skill's directory                          |
 | `web_search`                                | Search the internet (provider-native, when enabled)                      |
@@ -260,7 +261,7 @@ the workspace.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`,
 `start_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`,
-`wait_agent`, `message_agent`, `close_agent`)
+`wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`)
 are only available to root chats. Sub-agents do not have access to these
 tools and cannot create workspaces or spawn further sub-agents.
 

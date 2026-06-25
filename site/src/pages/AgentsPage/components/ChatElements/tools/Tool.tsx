@@ -607,7 +607,13 @@ const ListAgentsRenderer: FC<ToolRendererProps> = ({
 			total={total}
 			status={status}
 			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+			errorMessage={
+				rec
+					? asString(rec.error || rec.message)
+					: typeof result === "string" && isError
+						? result
+						: undefined
+			}
 		/>
 	);
 };
