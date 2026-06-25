@@ -112,7 +112,7 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 					<Link
 						href={docs("/admin/templates")}
 						target="_blank"
-						className="ml-1"
+						className="ml-1 font-normal"
 					>
 						View docs
 					</Link>
