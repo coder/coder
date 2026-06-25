@@ -351,8 +351,11 @@ func ReadSkill(options ReadSkillOptions) fantasy.AgentTool {
 				if ok {
 					return response, nil
 				}
+				// Include the absolute skill directory so the agent can
+				// reach supporting files with read_file and execute.
 				return toolResponse(map[string]any{
 					"name":  args.Name,
+					"dir":   content.Dir,
 					"body":  content.Body,
 					"files": nonNilFiles(content.Files),
 				}), nil
