@@ -472,11 +472,11 @@ const AISettingsUpdateMCPServerPage = lazy(
 		),
 );
 
-const AISettingsIndexPage = () => {
+const AISettingsIndexRedirect = () => {
 	const { permissions } = useAuthenticated();
 
 	if (permissions.viewAnyAIProvider) {
-		return <AISettingsProvidersPage />;
+		return <Navigate to="/ai/settings/providers" replace />;
 	}
 
 	if (permissions.viewAIGatewayKeys) {
@@ -487,7 +487,7 @@ const AISettingsIndexPage = () => {
 		return <Navigate to="/ai/settings/models" replace />;
 	}
 
-	return <AISettingsProvidersPage />;
+	return <Navigate to="/ai/settings/providers" replace />;
 };
 
 const GlobalLayout = () => {
@@ -770,7 +770,7 @@ export const router = createBrowserRouter(
 							path="gateway-keys"
 							element={<AISettingsGatewayKeysPage />}
 						/>
-						<Route index element={<AISettingsIndexPage />} />
+						<Route index element={<AISettingsIndexRedirect />} />
 						<Route path="models" element={<AISettingsModelsPage />} />
 						<Route
 							path="instructions"
@@ -792,9 +792,13 @@ export const router = createBrowserRouter(
 							path="mcp-servers/:serverId"
 							element={<AISettingsUpdateMCPServerPage />}
 						/>
-						<Route path="add" element={<AISettingsAddProviderPage />} />
+						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
-							path=":providerId"
+							path="providers/add"
+							element={<AISettingsAddProviderPage />}
+						/>
+						<Route
+							path="providers/:providerId"
 							element={<AISettingsUpdateProviderPage />}
 						/>
 					</Route>
@@ -882,7 +886,7 @@ export const router = createBrowserRouter(
 						<Route path="api-keys" element={<AgentSettingsAPIKeysPage />} />
 						<Route
 							path="providers"
-							element={<Navigate to="/ai/settings" replace />}
+							element={<Navigate to="/ai/settings/providers" replace />}
 						/>
 						<Route
 							path="models"
