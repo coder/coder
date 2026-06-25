@@ -149,6 +149,9 @@ func (p *Pubsub) setPeerAddresses(addresses []string) error {
 	p.currentRoutes = cloneRouteURLs(routes)
 	if newOpts.Cluster.TLSConfig != nil {
 		p.clusterTLSApplied = true
+		p.logger.Debug(p.ctx, "installed nats cluster mTLS config via peer reload",
+			slog.F("routes", len(routes)),
+		)
 	}
 	return nil
 }

@@ -229,6 +229,9 @@ func (k *rotator) insertNewKey(ctx context.Context, tx database.Store, feature d
 	}
 
 	k.logger.Debug(ctx, "inserted new key for feature", slog.F("feature", feature), slog.F("sequence", newKey.Sequence))
+	if feature == database.CryptoKeyFeatureNATSCA {
+		k.logger.Debug(ctx, "minted new nats cluster CA certificate", slog.F("sequence", newKey.Sequence))
+	}
 	return newKey, nil
 }
 

@@ -901,7 +901,15 @@ func (api *API) configureNATSClusterTLS(natsPubsub *nats.Pubsub) {
 		if err != nil {
 			return nil, err
 		}
-		return nats.BuildClusterTLSConfig(*tlsOpts)
+		tlsConfig, err := nats.BuildClusterTLSConfig(*tlsOpts)
+		if err != nil {
+			return nil, err
+		}
+		api.Logger.Debug(api.ctx, "minted nats cluster leaf certificate",
+			slog.F("ca_sequence", ca.Sequence),
+			slog.F("san_ip", relayURL.Hostname()),
+		)
+		return tlsConfig, nil
 	})
 }
 
