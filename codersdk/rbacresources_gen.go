@@ -83,7 +83,7 @@ const (
 // said resource type.
 var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceWildcard:                      {},
-	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead},
+	ResourceAIGatewayKey:                  {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiModelPrice:                  {ActionRead, ActionUpdate},
 	ResourceAIProvider:                    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceAiSeat:                        {ActionCreate, ActionRead},

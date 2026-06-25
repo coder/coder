@@ -6968,16 +6968,16 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().DeleteAIGatewayKey(gomock.Any(), id).Return(database.DeleteAIGatewayKeyRow{}, nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionDelete).Returns(database.DeleteAIGatewayKeyRow{})
 	}))
-	s.Run("GetAIGatewayKeyIDByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("GetAIGatewayKeyByHashedSecret", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		hashedSecret := []byte("hashed-secret")
-		id := uuid.New()
-		dbm.EXPECT().GetAIGatewayKeyIDByHashedSecret(gomock.Any(), hashedSecret).Return(id, nil).AnyTimes()
-		check.Args(hashedSecret).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(id)
+		key := database.AIGatewayKey{ID: uuid.New(), HashedSecret: hashedSecret}
+		dbm.EXPECT().GetAIGatewayKeyByHashedSecret(gomock.Any(), hashedSecret).Return(key, nil).AnyTimes()
+		check.Args(hashedSecret).Asserts(rbac.ResourceAIGatewayKey, policy.ActionRead).Returns(key)
 	}))
 	s.Run("UpdateAIGatewayKeyLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().UpdateAIGatewayKeyLastUsedAt(gomock.Any(), id).Return(nil).AnyTimes()
-		check.Args(id).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+		dbm.EXPECT().UpdateAIGatewayKeyLastUsedAt(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
+		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionUpdate).Returns(int64(1))
 	}))
 }
 

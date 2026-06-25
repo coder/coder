@@ -302,9 +302,9 @@ type sqlcQuerier interface {
 	GetAIBridgeToolUsagesByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeToolUsage, error)
 	GetAIBridgeUserPromptsByInterceptionID(ctx context.Context, interceptionID uuid.UUID) ([]AIBridgeUserPrompt, error)
 	// Authenticates a standalone AI Gateway replica by its hashed key secret,
-	// returning the key ID used to record liveness. The lookup is an exact match
-	// on a unique index, so a returned row is itself proof the secret is valid.
-	GetAIGatewayKeyIDByHashedSecret(ctx context.Context, hashedSecret []byte) (uuid.UUID, error)
+	// returning the matched key. The lookup is an exact match on a unique index,
+	// so a returned row is itself proof the secret is valid.
+	GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (AIGatewayKey, error)
 	GetAIModelPriceByProviderModel(ctx context.Context, arg GetAIModelPriceByProviderModelParams) (AIModelPrice, error)
 	GetAIProviderByID(ctx context.Context, id uuid.UUID) (AIProvider, error)
 	// Lock the provider row until the model-config write completes. The
@@ -1314,7 +1314,7 @@ type sqlcQuerier interface {
 	// Records liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API
 	// replicas.
-	UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) error
+	UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error

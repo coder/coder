@@ -434,6 +434,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: "create an AI Gateway key",
 			ActionRead:   "read AI Gateway keys",
+			ActionUpdate: "update an AI Gateway key",
 			ActionDelete: "delete an AI Gateway key",
 		},
 	},

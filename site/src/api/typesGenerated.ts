@@ -491,6 +491,7 @@ export type APIKeyScope =
 	| "ai_gateway_key:create"
 	| "ai_gateway_key:delete"
 	| "ai_gateway_key:read"
+	| "ai_gateway_key:update"
 	| "ai_model_price:*"
 	| "ai_model_price:read"
 	| "ai_model_price:update"
@@ -725,6 +726,7 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"ai_gateway_key:create",
 	"ai_gateway_key:delete",
 	"ai_gateway_key:read",
+	"ai_gateway_key:update",
 	"ai_model_price:*",
 	"ai_model_price:read",
 	"ai_model_price:update",

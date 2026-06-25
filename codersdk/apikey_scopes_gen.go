@@ -10,6 +10,7 @@ const (
 	APIKeyScopeAiGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
 	APIKeyScopeAiGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	APIKeyScopeAiGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
+	APIKeyScopeAiGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
 	APIKeyScopeAiModelPriceAll                     APIKeyScope = "ai_model_price:*"
 	APIKeyScopeAiModelPriceRead                    APIKeyScope = "ai_model_price:read"
 	APIKeyScopeAiModelPriceUpdate                  APIKeyScope = "ai_model_price:update"

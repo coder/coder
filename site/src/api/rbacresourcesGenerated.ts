@@ -12,6 +12,7 @@ export const RBACResourceActions: Partial<
 		create: "create an AI Gateway key",
 		delete: "delete an AI Gateway key",
 		read: "read AI Gateway keys",
+		update: "update an AI Gateway key",
 	},
 	ai_model_price: {
 		read: "read AI model prices",

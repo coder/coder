@@ -1312,6 +1312,25 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Updating an AI Gateway key records last-used liveness when a
+			// Gateway replica authenticates. It is reserved for the system
+			// actor, so no user-facing role, including owner, is authorized.
+			Name:     "AIGatewayKeyUpdate",
+			Actions:  []policy.Action{policy.ActionUpdate},
+			Resource: rbac.ResourceAIGatewayKey,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {},
+				false: {
+					owner,
+					orgWorkspaceAccessUser, memberMe, agentsAccessUser,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			Name:     "BoundaryUsage",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			Resource: rbac.ResourceBoundaryUsage,
