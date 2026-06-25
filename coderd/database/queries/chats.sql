@@ -868,6 +868,60 @@ SELECT
 RETURNING
     *;
 
+-- name: InsertChatAccountingMessage :one
+-- Inserts a single hidden accounting row whose cost_source is set on the
+-- initial INSERT. Background summary and manual title generation use this to
+-- attribute their spend. Tagging cost_source at insert time (rather than via a
+-- follow-up UPDATE) is required so the AFTER STATEMENT history triggers see the
+-- row as an accounting row and do not advance chats.history_version: a turn
+-- summary write is guarded on history_version, and a row that advanced it would
+-- invalidate that write. Unlike InsertChatMessages this does not touch
+-- chats.last_model_config_id, so callers do not need to restore it.
+INSERT INTO chat_messages (
+    chat_id,
+    created_by,
+    api_key_id,
+    model_config_id,
+    role,
+    content,
+    content_version,
+    visibility,
+    input_tokens,
+    output_tokens,
+    total_tokens,
+    reasoning_tokens,
+    cache_creation_tokens,
+    cache_read_tokens,
+    context_limit,
+    compressed,
+    total_cost_micros,
+    runtime_ms,
+    provider_response_id,
+    cost_source
+) VALUES (
+    @chat_id::uuid,
+    @created_by::uuid,
+    NULLIF(@api_key_id::text, ''),
+    @model_config_id::uuid,
+    @role::chat_message_role,
+    @content::jsonb,
+    @content_version::smallint,
+    @visibility::chat_message_visibility,
+    NULLIF(@input_tokens::bigint, 0),
+    NULLIF(@output_tokens::bigint, 0),
+    NULLIF(@total_tokens::bigint, 0),
+    NULLIF(@reasoning_tokens::bigint, 0),
+    NULLIF(@cache_creation_tokens::bigint, 0),
+    NULLIF(@cache_read_tokens::bigint, 0),
+    NULLIF(@context_limit::bigint, 0),
+    @compressed::boolean,
+    NULLIF(@total_cost_micros::bigint, 0),
+    NULLIF(@runtime_ms::bigint, 0),
+    NULLIF(@provider_response_id::text, ''),
+    NULLIF(@cost_source::text, '')
+)
+RETURNING *;
+
 -- name: UpdateChatMessageByID :one
 UPDATE
     chat_messages
@@ -878,19 +932,6 @@ WHERE
     id = @id::bigint
 RETURNING
     *;
-
--- name: UpdateChatMessageCostSource :execrows
--- Tags a chat_message with a cost_source so its spend is attributable to a
--- specific feature (for example 'summary' or 'title') rather than ordinary
--- turn spend. Used to mark the hidden accounting rows written for background
--- summary and manual title generation without threading a new field through
--- the shared InsertChatMessages batch insert.
-UPDATE
-    chat_messages
-SET
-    cost_source = NULLIF(@cost_source::text, '')
-WHERE
-    id = @id::bigint;
 
 -- name: UpdateChatByID :one
 WITH updated_chat AS (

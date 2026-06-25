@@ -5841,6 +5841,18 @@ func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams)
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
 }
 
+func (q *querier) InsertChatAccountingMessage(ctx context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+	// Authorize create on the parent chat (using update permission).
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return database.ChatMessage{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return database.ChatMessage{}, err
+	}
+	return q.db.InsertChatAccountingMessage(ctx, arg)
+}
+
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -7188,22 +7200,6 @@ func (q *querier) UpdateChatMessageByID(ctx context.Context, arg database.Update
 		return database.ChatMessage{}, err
 	}
 	return q.db.UpdateChatMessageByID(ctx, arg)
-}
-
-func (q *querier) UpdateChatMessageCostSource(ctx context.Context, arg database.UpdateChatMessageCostSourceParams) (int64, error) {
-	// Authorize update on the parent chat of the tagged message.
-	msg, err := q.db.GetChatMessageByID(ctx, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	chat, err := q.db.GetChatByID(ctx, msg.ChatID)
-	if err != nil {
-		return 0, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
-	}
-	return q.db.UpdateChatMessageCostSource(ctx, arg)
 }
 
 func (q *querier) UpdateChatModelConfig(ctx context.Context, arg database.UpdateChatModelConfigParams) (database.ChatModelConfig, error) {

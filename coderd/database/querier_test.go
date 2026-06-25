@@ -12603,7 +12603,7 @@ func TestUpdateChatSummary(t *testing.T) {
 	require.NotEqual(t, chat.HistoryVersion, fetched.HistoryVersion)
 }
 
-func TestUpdateChatMessageCostSource(t *testing.T) {
+func TestInsertChatAccountingMessage(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
 		t.SkipNow()
@@ -12649,38 +12649,32 @@ func TestUpdateChatMessageCostSource(t *testing.T) {
 		Title:             "cost-source-chat",
 	})
 	require.NoError(t, err)
+	historyBefore := chat.HistoryVersion
 
-	msg := dbgen.ChatMessage(t, db, database.ChatMessage{
-		ChatID:        chat.ID,
-		CreatedBy:     uuid.NullUUID{UUID: owner.ID, Valid: true},
-		ModelConfigID: uuid.NullUUID{UUID: modelCfg.ID, Valid: true},
-		Role:          database.ChatMessageRoleAssistant,
-		Visibility:    database.ChatMessageVisibilityModel,
-	})
-	require.False(t, msg.CostSource.Valid)
-
-	affected, err := db.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-		ID:         msg.ID,
-		CostSource: "summary",
-	})
-	require.NoError(t, err)
-	require.EqualValues(t, 1, affected)
-
-	fetched, err := db.GetChatMessageByID(ctx, msg.ID)
-	require.NoError(t, err)
-	require.Equal(t, sql.NullString{String: "summary", Valid: true}, fetched.CostSource)
-
-	// Empty cost source clears the discriminator back to NULL (ordinary spend).
-	affected, err = db.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-		ID:         msg.ID,
-		CostSource: "",
+	// The accounting row is tagged with cost_source on insert, so the
+	// AFTER STATEMENT history triggers treat it as non-history and must not
+	// advance chats.history_version. This is what keeps the turn summary
+	// write (guarded on history_version) from being invalidated by the very
+	// usage row recorded for that summary.
+	msg, err := db.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
+		ChatID:          chat.ID,
+		CreatedBy:       owner.ID,
+		ModelConfigID:   modelCfg.ID,
+		Role:            database.ChatMessageRoleAssistant,
+		Content:         json.RawMessage(`[]`),
+		ContentVersion:  1,
+		Visibility:      database.ChatMessageVisibilityModel,
+		TotalCostMicros: 1234,
+		CostSource:      "summary",
 	})
 	require.NoError(t, err)
-	require.EqualValues(t, 1, affected)
+	require.Equal(t, sql.NullString{String: "summary", Valid: true}, msg.CostSource)
+	require.Equal(t, int64(1234), msg.TotalCostMicros.Int64)
 
-	fetched, err = db.GetChatMessageByID(ctx, msg.ID)
+	afterChat, err := db.GetChatByID(ctx, chat.ID)
 	require.NoError(t, err)
-	require.False(t, fetched.CostSource.Valid)
+	require.Equal(t, historyBefore, afterChat.HistoryVersion,
+		"accounting-row insert must NOT advance history_version")
 }
 
 func TestDeleteChatDebugDataAfterMessageIDIncludesTriggeredRuns(t *testing.T) {

@@ -4018,6 +4018,14 @@ func (m queryMetricsStore) InsertChat(ctx context.Context, arg database.InsertCh
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertChatAccountingMessage(ctx context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertChatAccountingMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatAccountingMessage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatAccountingMessage").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertChatDebugRun(ctx, arg)
@@ -5159,14 +5167,6 @@ func (m queryMetricsStore) UpdateChatMessageByID(ctx context.Context, arg databa
 	r0, r1 := m.s.UpdateChatMessageByID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateChatMessageByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMessageByID").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) UpdateChatMessageCostSource(ctx context.Context, arg database.UpdateChatMessageCostSourceParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.UpdateChatMessageCostSource(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateChatMessageCostSource").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatMessageCostSource").Inc()
 	return r0, r1
 }
 

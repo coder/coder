@@ -1011,6 +1011,15 @@ type sqlcQuerier interface {
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	// Inserts a single hidden accounting row whose cost_source is set on the
+	// initial INSERT. Background summary and manual title generation use this to
+	// attribute their spend. Tagging cost_source at insert time (rather than via a
+	// follow-up UPDATE) is required so the AFTER STATEMENT history triggers see the
+	// row as an accounting row and do not advance chats.history_version: a turn
+	// summary write is guarded on history_version, and a row that advanced it would
+	// invalidate that write. Unlike InsertChatMessages this does not touch
+	// chats.last_model_config_id, so callers do not need to restore it.
+	InsertChatAccountingMessage(ctx context.Context, arg InsertChatAccountingMessageParams) (ChatMessage, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
 	InsertChatDebugRun(ctx context.Context, arg InsertChatDebugRunParams) (ChatDebugRun, error)
@@ -1351,12 +1360,6 @@ type sqlcQuerier interface {
 	UpdateChatLastTurnSummary(ctx context.Context, arg UpdateChatLastTurnSummaryParams) (int64, error)
 	UpdateChatMCPServerIDs(ctx context.Context, arg UpdateChatMCPServerIDsParams) (Chat, error)
 	UpdateChatMessageByID(ctx context.Context, arg UpdateChatMessageByIDParams) (ChatMessage, error)
-	// Tags a chat_message with a cost_source so its spend is attributable to a
-	// specific feature (for example 'summary' or 'title') rather than ordinary
-	// turn spend. Used to mark the hidden accounting rows written for background
-	// summary and manual title generation without threading a new field through
-	// the shared InsertChatMessages batch insert.
-	UpdateChatMessageCostSource(ctx context.Context, arg UpdateChatMessageCostSourceParams) (int64, error)
 	UpdateChatModelConfig(ctx context.Context, arg UpdateChatModelConfigParams) (ChatModelConfig, error)
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)

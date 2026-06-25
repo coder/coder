@@ -2929,49 +2929,36 @@ func recordManualTitleUsage(
 		}
 		updatedChat = lockedChat
 		if hasUsage {
-			messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+			// Tag cost_source on insert so the AFTER STATEMENT history
+			// triggers treat this as an accounting row and do not advance
+			// history_version (which would invalidate turn summary writes).
+			message, err := tx.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
 				ChatID:              chat.ID,
-				CreatedBy:           []uuid.UUID{chat.OwnerID},
-				APIKeyID:            []string{activeAPIKeyID},
-				ModelConfigID:       []uuid.UUID{modelConfig.ID},
-				Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-				Content:             []string{content},
-				ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-				Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-				InputTokens:         []int64{usage.InputTokens},
-				OutputTokens:        []int64{usage.OutputTokens},
-				TotalTokens:         []int64{usage.TotalTokens},
-				ReasoningTokens:     []int64{usage.ReasoningTokens},
-				CacheCreationTokens: []int64{usage.CacheCreationTokens},
-				CacheReadTokens:     []int64{usage.CacheReadTokens},
-				ContextLimit:        []int64{modelConfig.ContextLimit},
-				Compressed:          []bool{false},
-				TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-				RuntimeMs:           []int64{0},
-				ProviderResponseID:  []string{""},
+				CreatedBy:           chat.OwnerID,
+				APIKeyID:            activeAPIKeyID,
+				ModelConfigID:       modelConfig.ID,
+				Role:                database.ChatMessageRoleAssistant,
+				Content:             json.RawMessage(content),
+				ContentVersion:      chatprompt.CurrentContentVersion,
+				Visibility:          database.ChatMessageVisibilityModel,
+				InputTokens:         usage.InputTokens,
+				OutputTokens:        usage.OutputTokens,
+				TotalTokens:         usage.TotalTokens,
+				ReasoningTokens:     usage.ReasoningTokens,
+				CacheCreationTokens: usage.CacheCreationTokens,
+				CacheReadTokens:     usage.CacheReadTokens,
+				ContextLimit:        modelConfig.ContextLimit,
+				Compressed:          false,
+				TotalCostMicros:     ptr.NilToDefault(totalCostMicros, 0),
+				RuntimeMs:           0,
+				ProviderResponseID:  "",
+				CostSource:          chatCostSourceTitle,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert manual title usage message: %w", err)
 			}
-			if len(messages) != 1 {
-				return xerrors.Errorf("expected 1 manual title usage message, got %d", len(messages))
-			}
-			if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-				ID:         messages[0].ID,
-				CostSource: chatCostSourceTitle,
-			}); err != nil {
-				return xerrors.Errorf("tag manual title usage cost source: %w", err)
-			}
-			if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+			if err := tx.SoftDeleteChatMessageByID(ctx, message.ID); err != nil {
 				return xerrors.Errorf("soft delete manual title usage message: %w", err)
-			}
-			if lockedChat.LastModelConfigID != modelConfig.ID {
-				if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-					ID:                chat.ID,
-					LastModelConfigID: lockedChat.LastModelConfigID,
-				}); err != nil {
-					return xerrors.Errorf("restore chat model config after manual title usage: %w", err)
-				}
 			}
 		}
 		if newTitle != "" && lockedChat.Title == chat.Title && newTitle != lockedChat.Title {
@@ -5167,49 +5154,37 @@ func recordChatSummaryUsage(
 		}
 		updatedChat = lockedChat
 
-		messages, err := tx.InsertChatMessages(ctx, database.InsertChatMessagesParams{
+		// Tag cost_source on insert so the AFTER STATEMENT history triggers
+		// treat this as an accounting row and do not advance history_version.
+		// Otherwise this very usage row would invalidate the history_version
+		// guard on the summary write that follows.
+		message, err := tx.InsertChatAccountingMessage(ctx, database.InsertChatAccountingMessageParams{
 			ChatID:              chat.ID,
-			CreatedBy:           []uuid.UUID{chat.OwnerID},
-			APIKeyID:            []string{activeAPIKeyID},
-			ModelConfigID:       []uuid.UUID{modelConfig.ID},
-			Role:                []database.ChatMessageRole{database.ChatMessageRoleAssistant},
-			Content:             []string{content},
-			ContentVersion:      []int16{chatprompt.CurrentContentVersion},
-			Visibility:          []database.ChatMessageVisibility{database.ChatMessageVisibilityModel},
-			InputTokens:         []int64{usage.InputTokens},
-			OutputTokens:        []int64{usage.OutputTokens},
-			TotalTokens:         []int64{usage.TotalTokens},
-			ReasoningTokens:     []int64{usage.ReasoningTokens},
-			CacheCreationTokens: []int64{usage.CacheCreationTokens},
-			CacheReadTokens:     []int64{usage.CacheReadTokens},
-			ContextLimit:        []int64{modelConfig.ContextLimit},
-			Compressed:          []bool{false},
-			TotalCostMicros:     []int64{ptr.NilToDefault(totalCostMicros, 0)},
-			RuntimeMs:           []int64{0},
-			ProviderResponseID:  []string{""},
+			CreatedBy:           chat.OwnerID,
+			APIKeyID:            activeAPIKeyID,
+			ModelConfigID:       modelConfig.ID,
+			Role:                database.ChatMessageRoleAssistant,
+			Content:             json.RawMessage(content),
+			ContentVersion:      chatprompt.CurrentContentVersion,
+			Visibility:          database.ChatMessageVisibilityModel,
+			InputTokens:         usage.InputTokens,
+			OutputTokens:        usage.OutputTokens,
+			TotalTokens:         usage.TotalTokens,
+			ReasoningTokens:     usage.ReasoningTokens,
+			CacheCreationTokens: usage.CacheCreationTokens,
+			CacheReadTokens:     usage.CacheReadTokens,
+			ContextLimit:        modelConfig.ContextLimit,
+			Compressed:          false,
+			TotalCostMicros:     ptr.NilToDefault(totalCostMicros, 0),
+			RuntimeMs:           0,
+			ProviderResponseID:  "",
+			CostSource:          chatCostSourceSummary,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert summary usage message: %w", err)
 		}
-		if len(messages) != 1 {
-			return xerrors.Errorf("expected 1 summary usage message, got %d", len(messages))
-		}
-		if _, err := tx.UpdateChatMessageCostSource(ctx, database.UpdateChatMessageCostSourceParams{
-			ID:         messages[0].ID,
-			CostSource: chatCostSourceSummary,
-		}); err != nil {
-			return xerrors.Errorf("tag summary usage cost source: %w", err)
-		}
-		if err := tx.SoftDeleteChatMessageByID(ctx, messages[0].ID); err != nil {
+		if err := tx.SoftDeleteChatMessageByID(ctx, message.ID); err != nil {
 			return xerrors.Errorf("soft delete summary usage message: %w", err)
-		}
-		if lockedChat.LastModelConfigID != modelConfig.ID {
-			if _, err := tx.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
-				ID:                chat.ID,
-				LastModelConfigID: lockedChat.LastModelConfigID,
-			}); err != nil {
-				return xerrors.Errorf("restore chat model config after summary usage: %w", err)
-			}
 		}
 		return nil
 	}, nil)

@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"strings"
 	"sync"
 	"testing"
@@ -922,18 +923,15 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts(t *testing.T) {
 	lockTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(chat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
-			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 91}}, nil
+	usageTx.EXPECT().InsertChatAccountingMessage(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatAccountingMessageParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+			require.Equal(t, ownerID, arg.CreatedBy)
+			require.Equal(t, modelConfigID, arg.ModelConfigID)
+			require.Equal(t, json.RawMessage("[]"), arg.Content)
+			require.Equal(t, "title", arg.CostSource)
+			return database.ChatMessage{ID: 91}, nil
 		},
 	)
-	usageTx.EXPECT().UpdateChatMessageCostSource(gomock.Any(), database.UpdateChatMessageCostSourceParams{
-		ID:         91,
-		CostSource: "title",
-	}).Return(int64(1), nil)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
 		ID:    chatID,
@@ -1106,18 +1104,15 @@ func TestRegenerateChatTitle_PersistsAndBroadcasts_IdleChatReleasesManualLock(t 
 	})
 
 	usageTx.EXPECT().GetChatByIDForUpdate(gomock.Any(), chatID).Return(lockedChat, nil)
-	usageTx.EXPECT().InsertChatMessages(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatMessagesParams{})).DoAndReturn(
-		func(_ context.Context, arg database.InsertChatMessagesParams) ([]database.ChatMessage, error) {
-			require.Equal(t, []uuid.UUID{ownerID}, arg.CreatedBy)
-			require.Equal(t, []uuid.UUID{modelConfigID}, arg.ModelConfigID)
-			require.Equal(t, []string{"[]"}, arg.Content)
-			return []database.ChatMessage{{ID: 91}}, nil
+	usageTx.EXPECT().InsertChatAccountingMessage(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatAccountingMessageParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatAccountingMessageParams) (database.ChatMessage, error) {
+			require.Equal(t, ownerID, arg.CreatedBy)
+			require.Equal(t, modelConfigID, arg.ModelConfigID)
+			require.Equal(t, json.RawMessage("[]"), arg.Content)
+			require.Equal(t, "title", arg.CostSource)
+			return database.ChatMessage{ID: 91}, nil
 		},
 	)
-	usageTx.EXPECT().UpdateChatMessageCostSource(gomock.Any(), database.UpdateChatMessageCostSourceParams{
-		ID:         91,
-		CostSource: "title",
-	}).Return(int64(1), nil)
 	usageTx.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), int64(91)).Return(nil)
 	usageTx.EXPECT().UpdateChatByID(gomock.Any(), database.UpdateChatByIDParams{
 		ID:    chatID,
