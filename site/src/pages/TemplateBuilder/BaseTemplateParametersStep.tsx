@@ -6,6 +6,10 @@ import type {
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
 import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
@@ -101,18 +105,25 @@ export const BaseTemplateParametersStep: FC<
 	);
 
 	return (
-		<TemplateConfiguration
-			name={base?.name ?? "Base Template"}
-			description={base?.description ?? ""}
-			iconUrl={base?.icon}
-			detailsUrl={detailsUrl(baseId)}
-			fields={fields}
-		>
-			{prerequisites && (
-				<div className="mt-6">
-					<MemoizedMarkdown>{prerequisites}</MemoizedMarkdown>
-				</div>
-			)}
-		</TemplateConfiguration>
+		<>
+			<TemplateBuilderTitle>Configure base template</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
+				Your base template requires customizations.
+			</TemplateBuilderSubtitle>
+
+			<TemplateConfiguration
+				name={base?.name ?? "Base Template"}
+				description={base?.description ?? ""}
+				iconUrl={base?.icon}
+				detailsUrl={detailsUrl(baseId)}
+				fields={fields}
+			>
+				{prerequisites && (
+					<div className="mt-6">
+						<MemoizedMarkdown>{prerequisites}</MemoizedMarkdown>
+					</div>
+				)}
+			</TemplateConfiguration>
+		</>
 	);
 };
