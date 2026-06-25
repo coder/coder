@@ -61,6 +61,15 @@ Maximum number of workspaces to include in the support bundle. Set to 0 or negat
 
 Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.
 
+### --workspace-log-path
+
+|             |                                                       |
+|-------------|-------------------------------------------------------|
+| Type        | <code>string-array</code>                             |
+| Environment | <code>$CODER_SUPPORT_BUNDLE_WORKSPACE_LOG_PATH</code> |
+
+Workspace-side log path or glob to collect from the agent user's home directory. Can be specified multiple times.
+
 ### --pprof
 
 |             |                                          |

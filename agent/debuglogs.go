@@ -60,9 +60,7 @@ func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
 
 	// Streaming the combined logs can exceed the server's 20s WriteTimeout,
 	// so extend the deadline for this response.
-	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(debugLogsWriteTimeout)); err != nil {
-		a.logger.Warn(r.Context(), "extend debug log write deadline", slog.Error(err))
-	}
+	extendDebugLogWriteDeadline(r.Context(), a.logger, w, debugLogsWriteTimeout, "extend debug log write deadline")
 
 	// Open the required active log before the 200 so failures return 500.
 	active, err := root.Open(activeAgentLogName)
@@ -146,11 +144,21 @@ func (a *agent) writeActiveDebugLog(w http.ResponseWriter, r *http.Request, root
 	defer f.Close()
 
 	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, debugLogsActiveMaxBytes))
+	_, err = copyDebugLog(w, f, debugLogsActiveMaxBytes)
 	if err != nil {
 		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
 		return
 	}
+}
+
+func extendDebugLogWriteDeadline(ctx context.Context, logger slog.Logger, w http.ResponseWriter, timeout time.Duration, msg string) {
+	if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(timeout)); err != nil {
+		logger.Warn(ctx, msg, slog.Error(err))
+	}
+}
+
+func copyDebugLog(w io.Writer, r io.Reader, maxBytes int64) (int64, error) {
+	return io.Copy(w, io.LimitReader(r, maxBytes))
 }
 
 // writeAgentLogSection writes a separator and header for the file, then streams
@@ -165,7 +173,7 @@ func writeAgentLogSection(w io.Writer, r io.Reader, name string, size int64, mod
 		return 0, false, err
 	}
 	contentBudget := budget - int64(len(header))
-	n, err := io.Copy(w, io.LimitReader(r, contentBudget))
+	n, err := copyDebugLog(w, r, contentBudget)
 	return int64(len(header)) + n, size > contentBudget, err
 }
 

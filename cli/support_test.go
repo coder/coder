@@ -10,8 +10,10 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,6 +308,67 @@ func TestSupportBundle(t *testing.T) {
 	})
 }
 
+func TestSupportBundleWorkspaceLogPaths(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("for some reason, windows fails to remove tempdirs sometimes")
+	}
+
+	var dc codersdk.DeploymentConfig
+	dc.Values = coderdtest.DeploymentValues(t)
+	dc.Values.Prometheus.Enable = true
+	secretValue := uuid.NewString()
+	seedSecretDeploymentOptions(t, &dc, secretValue)
+	client, closer, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		DeploymentValues: dc.Values,
+		HealthcheckFunc: func(_ context.Context, _ string, _ *healthcheck.Progress) *healthsdk.HealthcheckReport {
+			return &healthsdk.HealthcheckReport{
+				Time:     time.Now(),
+				Healthy:  true,
+				Severity: health.SeverityOK,
+			}
+		},
+	})
+	t.Cleanup(func() { closer.Close() })
+	owner := coderdtest.CreateFirstUser(t, client)
+	workspaceWithAgent := setupSupportBundleTestFixture(testutil.Context(t, testutil.WaitLong), t, api.Database, owner.OrganizationID, owner.UserID, func(agents []*proto.Agent) []*proto.Agent {
+		agents[0].Env["SECRET_VALUE"] = secretValue
+		return agents
+	})
+
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	require.NoError(t, os.WriteFile(filepath.Join(home, "coder-agent.log"), []byte("hello from the agent"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "server.log"), []byte("server log"), 0o600))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "nested"), 0o700))
+	require.NoError(t, os.WriteFile(filepath.Join(home, "nested", "nested.log"), []byte("nested log"), 0o600))
+	agt := agenttest.New(t, client.URL, workspaceWithAgent.AgentToken, func(o *agent.Options) {
+		o.LogDir = home
+	})
+	defer agt.Close()
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspaceWithAgent.Workspace.ID).Wait()
+
+	d := t.TempDir()
+	bundlePath := filepath.Join(d, "bundle.zip")
+	inv, root := clitest.New(t,
+		"support", "bundle", workspaceWithAgent.Workspace.Name,
+		"--workspace-log-path", "$HOME/server.log",
+		"--workspace-log-path", "$HOME/**/*.log",
+		"--output-file", bundlePath,
+		"--yes",
+	)
+	// nolint: gocritic // requires owner privilege
+	clitest.SetupConfig(t, client, root)
+	err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+	require.NoError(t, err)
+	assertBundleContents(t, bundlePath, true, true, []string{secretValue})
+	assertSupportBundleWorkspaceLog(t, bundlePath, "agent/log_files/files/server.log", "server log")
+	assertSupportBundleWorkspaceLog(t, bundlePath, "agent/log_files/files/nested/nested.log", "nested log")
+	manifest := readWorkspaceLogManifestFromBundle(t, bundlePath)
+	require.Contains(t, manifest.Requested, "$HOME/server.log")
+	require.Contains(t, manifest.Requested, "$HOME/**/*.log")
+}
+
 // nolint:revive // It's a control flag, but this is just a test.
 func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAgent bool, badValues []string) {
 	t.Helper()
@@ -314,6 +377,11 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 	defer r.Close()
 	for _, f := range r.File {
 		assertDoesNotContain(t, f, badValues...)
+		if strings.HasPrefix(f.Name, "agent/log_files/files/") {
+			bs := readBytesFromZip(t, f)
+			require.NotEmpty(t, bs, "workspace log file should not be empty")
+			continue
+		}
 		switch f.Name {
 		case "deployment/buildinfo.json":
 			var v codersdk.BuildInfoResponse
@@ -490,6 +558,10 @@ func assertBundleContents(t *testing.T, path string, wantWorkspace bool, wantAge
 				continue
 			}
 			require.Contains(t, string(bs), "started up")
+		case "agent/log_files/manifest.json":
+			var v supportBundleWorkspaceLogManifest
+			decodeJSONFromZip(t, f, &v)
+			require.NotEmpty(t, v.Requested, "workspace log file manifest should include requested paths")
 		case "logs.txt":
 			bs := readBytesFromZip(t, f)
 			require.NotEmpty(t, bs, "logs should not be empty")
@@ -517,9 +589,48 @@ func readBytesFromZip(t *testing.T, f *zip.File) []byte {
 	t.Helper()
 	rc, err := f.Open()
 	require.NoError(t, err, "open file from zip")
+	defer rc.Close()
 	bs, err := io.ReadAll(rc)
 	require.NoError(t, err, "read bytes from zip")
 	return bs
+}
+
+func assertSupportBundleWorkspaceLog(t *testing.T, bundlePath string, entryName string, want string) {
+	t.Helper()
+
+	r, err := zip.OpenReader(bundlePath)
+	require.NoError(t, err, "open zip file")
+	defer r.Close()
+	for _, f := range r.File {
+		if f.Name != entryName {
+			continue
+		}
+		require.Equal(t, want, string(readBytesFromZip(t, f)))
+		return
+	}
+	require.Failf(t, "missing workspace log file", "expected %q in bundle", entryName)
+}
+
+type supportBundleWorkspaceLogManifest struct {
+	Requested []string `json:"requested"`
+}
+
+func readWorkspaceLogManifestFromBundle(t *testing.T, bundlePath string) supportBundleWorkspaceLogManifest {
+	t.Helper()
+
+	r, err := zip.OpenReader(bundlePath)
+	require.NoError(t, err, "open zip file")
+	defer r.Close()
+	for _, f := range r.File {
+		if path.Clean(f.Name) != "agent/log_files/manifest.json" {
+			continue
+		}
+		var manifest supportBundleWorkspaceLogManifest
+		decodeJSONFromZip(t, f, &manifest)
+		return manifest
+	}
+	require.Fail(t, "missing workspace log manifest")
+	return supportBundleWorkspaceLogManifest{}
 }
 
 func assertDoesNotContain(t *testing.T, f *zip.File, vals ...string) {

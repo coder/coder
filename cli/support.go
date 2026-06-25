@@ -7,9 +7,11 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -69,6 +71,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 	var coderURLOverride string
 	var workspacesTotalCap64 int64 = 10
 	var templateName string
+	var workspaceLogPaths []string
 	var pprof bool
 	cmd := &serpent.Command{
 		Use:   "bundle [<workspace>] [<agent>]",
@@ -254,6 +257,7 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 				AgentID:            agtID,
 				WorkspacesTotalCap: int(workspacesTotalCap64),
 				TemplateID:         templateID,
+				WorkspaceLogPaths:  workspaceLogPaths,
 				CollectPprof:       pprof,
 			}
 
@@ -301,6 +305,12 @@ func (r *RootCmd) supportBundle() *serpent.Command {
 			Env:         "CODER_SUPPORT_BUNDLE_TEMPLATE",
 			Description: "Template name to include in the support bundle. Use org_name/template_name if template name is reused across multiple organizations.",
 			Value:       serpent.StringOf(&templateName),
+		},
+		{
+			Flag:        "workspace-log-path",
+			Env:         "CODER_SUPPORT_BUNDLE_WORKSPACE_LOG_PATH",
+			Description: "Workspace-side log path or glob to collect from the agent user's home directory. Can be specified multiple times.",
+			Value:       serpent.StringArrayOf(&workspaceLogPaths),
 		},
 		{
 			Flag:        "pprof",
@@ -549,6 +559,10 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		}
 	}
 
+	if err := writeAgentLogFilesArchive(src.Agent.LogFilesArchive, dest); err != nil {
+		return xerrors.Errorf("write agent log files: %w", err)
+	}
+
 	// Write pprof binary data
 	if err := writePprofData(src.Pprof, dest); err != nil {
 		return xerrors.Errorf("write pprof data: %w", err)
@@ -558,6 +572,88 @@ func writeBundle(src *support.Bundle, dest *zip.Writer) error {
 		return xerrors.Errorf("close zip file: %w", err)
 	}
 	return nil
+}
+
+const (
+	supportBundleAgentLogFilesMaxTotal    int64 = 100 * 1024 * 1024
+	supportBundleAgentLogFilesMaxMetadata int64 = 10 * 1024 * 1024
+)
+
+func writeAgentLogFilesArchive(src []byte, dest *zip.Writer) error {
+	return writeAgentLogFilesArchiveWithLimits(src, dest, supportBundleAgentLogFilesMaxTotal, supportBundleAgentLogFilesMaxMetadata)
+}
+
+func writeAgentLogFilesArchiveWithLimits(src []byte, dest *zip.Writer, maxLogBytes int64, maxMetadataBytes int64) error {
+	if len(src) == 0 {
+		return nil
+	}
+	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
+	if err != nil {
+		return xerrors.Errorf("open agent log files archive: %w", err)
+	}
+	totalLogBytes := int64(0)
+	totalMetadataBytes := int64(0)
+	for _, file := range zr.File {
+		name, ok := safeAgentLogFilesArchiveName(file.Name)
+		if !ok || !file.FileInfo().Mode().IsRegular() {
+			continue
+		}
+		uncompressedSize := file.FileInfo().Size()
+		if uncompressedSize < 0 {
+			return xerrors.Errorf("agent log files archive entry %q has invalid size", file.Name)
+		}
+		if strings.HasPrefix(name, "files/") {
+			if uncompressedSize > maxLogBytes-totalLogBytes {
+				return xerrors.Errorf("agent log files archive exceeds %d bytes", maxLogBytes)
+			}
+			totalLogBytes += uncompressedSize
+		} else {
+			if uncompressedSize > maxMetadataBytes-totalMetadataBytes {
+				return xerrors.Errorf("agent log files archive metadata exceeds %d bytes", maxMetadataBytes)
+			}
+			totalMetadataBytes += uncompressedSize
+		}
+		rc, err := file.Open()
+		if err != nil {
+			return xerrors.Errorf("open agent log files archive entry %q: %w", file.Name, err)
+		}
+		f, err := dest.Create(path.Join("agent/log_files", name))
+		if err != nil {
+			_ = rc.Close()
+			return xerrors.Errorf("create agent log files entry %q: %w", name, err)
+		}
+		copied, copyErr := io.Copy(f, io.LimitReader(rc, uncompressedSize+1))
+		closeErr := rc.Close()
+		if copyErr != nil {
+			return xerrors.Errorf("copy agent log files entry %q: %w", name, copyErr)
+		}
+		if copied != uncompressedSize {
+			return xerrors.Errorf("agent log files archive entry %q has invalid size", name)
+		}
+		if closeErr != nil {
+			return xerrors.Errorf("close agent log files entry %q: %w", name, closeErr)
+		}
+	}
+	return nil
+}
+
+func safeAgentLogFilesArchiveName(name string) (string, bool) {
+	if strings.Contains(name, "\\") || path.IsAbs(name) {
+		return "", false
+	}
+	for _, segment := range strings.Split(name, "/") {
+		if segment == ".." {
+			return "", false
+		}
+	}
+	clean := path.Clean(name)
+	if clean == "." || path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
+		return "", false
+	}
+	if clean != "manifest.json" && !strings.HasPrefix(clean, "files/") {
+		return "", false
+	}
+	return clean, true
 }
 
 func writePprofData(pprof support.Pprof, dest *zip.Writer) error {
