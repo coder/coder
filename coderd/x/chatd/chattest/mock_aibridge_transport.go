@@ -25,8 +25,7 @@ type RecordedRequest struct {
 	ProviderName string
 	// Source is the aibridge source passed to TransportFor.
 	Source aibridge.Source
-	// APIKeyID is the delegated API key ID attached to the request
-	// context, when one was set.
+	// APIKeyID is the delegated API key ID attached to request ctx.
 	APIKeyID string
 }
 

@@ -26,15 +26,6 @@ import (
 // (e.g. chattest.NewOpenAI) will have their requests proxied through the real
 // aibridged stack as they would in production.
 //
-// ctx controls the lifetime of the daemon and provider reload subscription.
-// Pass a test-scoped context so the daemon shuts down when the test ends.
-//
-// t provides cleanup and fatal helpers.
-//
-// api is the coderd API to wire the daemon onto. It must carry the
-// same fields cli/server.go uses: DeploymentValues, Database, Pubsub,
-// CreateInMemoryAIBridgeServer, and RegisterInMemoryAIBridgedHTTPHandler.
-//
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
 // runs. Use [aibridged.NewMetrics] to create one, or nil for a throwaway.
