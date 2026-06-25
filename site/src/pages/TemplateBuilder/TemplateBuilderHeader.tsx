@@ -1,7 +1,7 @@
 import type { FC, PropsWithChildren } from "react";
 
 export const TemplateBuilderTitle: FC<PropsWithChildren> = ({ children }) => {
-	return <h2 className="text-xl font-semibold mb-1">{children}</h2>;
+	return <h2 className="mt-0 text-xl font-semibold mb-1">{children}</h2>;
 };
 
 export const TemplateBuilderSubtitle: FC<PropsWithChildren> = ({

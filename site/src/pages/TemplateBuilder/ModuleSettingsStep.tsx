@@ -114,7 +114,7 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 	};
 
 	return (
-		<div className="border border-border border-solid p-6 rounded-lg">
+		<>
 			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Set values for module variables.
@@ -168,6 +168,6 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 					);
 				})}
 			</div>
-		</div>
+		</>
 	);
 };
