@@ -59,9 +59,15 @@ func (b *Broker) Create(t TBSubset, opts ...OpenOption) (ConnectionParams, error
 	}
 	dbName := now + "_" + dbSuffix
 
-	_, err = b.coderTestingDB.Exec(
-		"INSERT INTO test_databases (name, process_uuid, test_package, test_name) VALUES ($1, $2, $3, $4)",
-		dbName, b.uuid, packageName, testName)
+	// Retry on transient TCP-refused (see PLAT-307).
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = retryTransientConnect(ctx, func() error {
+		_, execErr := b.coderTestingDB.Exec(
+			"INSERT INTO test_databases (name, process_uuid, test_package, test_name) VALUES ($1, $2, $3, $4)",
+			dbName, b.uuid, packageName, testName)
+		return execErr
+	})
 	if err != nil {
 		return ConnectionParams{}, xerrors.Errorf("insert test_database row: %w", err)
 	}

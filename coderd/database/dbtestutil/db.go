@@ -136,7 +136,14 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	// Unit tests should not retry serial transaction failures.
 	db = database.New(sqlDB, database.WithSerialRetryCount(1))
 
-	ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	// pubsub.New's initial dial is single-shot; retry transient refuses.
+	psCtx, psCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer psCancel()
+	err = retryTransientConnect(psCtx, func() error {
+		var psErr error
+		ps, psErr = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+		return psErr
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = ps.Close()
@@ -158,7 +165,13 @@ func setDBTimezone(t testing.TB, dbURL, dbname, tz string) {
 	}()
 
 	// nolint: gosec // This unfortunately does not work with placeholders.
-	_, err = sqlDB.Exec(fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz))
+	stmt := fmt.Sprintf("ALTER DATABASE %s SET TIMEZONE TO %q", dbname, tz)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err = retryTransientConnect(ctx, func() error {
+		_, execErr := sqlDB.Exec(stmt)
+		return execErr
+	})
 	require.NoError(t, err, "failed to set timezone for database")
 }
 

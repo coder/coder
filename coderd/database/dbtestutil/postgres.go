@@ -504,3 +504,34 @@ func containsAnySubstring(s string, substrings []string) bool {
 	}
 	return false
 }
+
+// isTransientConnectError reports whether err is a TCP-level refused
+// or reset during a fresh dial. Matched by errno (see
+// transient_errnos_*.go), so callers must preserve the wrapped errno
+// (use %w when wrapping).
+func isTransientConnectError(err error) bool {
+	if err == nil {
+		return false
+	}
+	for _, target := range transientConnectErrnos {
+		if errors.Is(err, target) {
+			return true
+		}
+	}
+	return false
+}
+
+// retryTransientConnect retries op on transient connect errors.
+func retryTransientConnect(ctx context.Context, op func() error) error {
+	var err error
+	for r := retry.New(10*time.Millisecond, 500*time.Millisecond); r.Wait(ctx); {
+		err = op()
+		if err == nil {
+			return nil
+		}
+		if !isTransientConnectError(err) {
+			return err
+		}
+	}
+	return err
+}
