@@ -941,7 +941,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			vals.AI.BridgeConfig.Providers = append(vals.AI.BridgeConfig.Providers, aiProviders...)
 
 			if err := validateLegacyAIBridgeConfig(vals.AI.BridgeConfig); err != nil {
-				return xerrors.Errorf("validate legacy AI bridge config: %w", err)
+				return xerrors.Errorf("validate legacy AI Gateway config: %w", err)
 			}
 
 			// Manage push notifications.
