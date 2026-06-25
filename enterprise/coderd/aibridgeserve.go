@@ -63,7 +63,6 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 		}
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to look up AI Gateway key.",
-			Detail:  err.Error(),
 		})
 		return
 	}
@@ -236,8 +235,8 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 		if consecutiveFailures > 1 {
 			logger.Info(ctx, "ai gateway key last used update recovered",
 				slog.F("consecutive_failures", consecutiveFailures))
-			consecutiveFailures = 0
 		}
+		consecutiveFailures = 0
 		if !active {
 			logger.Info(ctx, "ai gateway key no longer exists, closing connection")
 			ctxCancel()
