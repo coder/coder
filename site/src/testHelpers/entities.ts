@@ -5575,7 +5575,8 @@ export const MockAIProviderAnthropic: TypesGen.AIProvider = {
 /**
  * Bedrock providers come over the wire with `type: "bedrock"` and a
  * `settings._type: "bedrock"` discriminator. `isBedrockProvider` checks
- * both the type and the settings discriminator.
+ * both the type and the settings discriminator, and also accepts legacy
+ * providers stored as `type: "anthropic"` with Bedrock settings.
  */
 export const MockAIProviderBedrock: TypesGen.AIProvider = {
 	id: "9c2e3b41-2e9f-4c97-9a4f-2e1a3d8f9f21",

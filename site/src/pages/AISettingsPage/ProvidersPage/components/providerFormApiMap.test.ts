@@ -139,8 +139,12 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 });
 
 describe("isBedrockProvider", () => {
-	it("recognises a discriminated bedrock provider", () => {
-		expect(isBedrockProvider(MockAIProviderBedrock)).toBe(true);
+	it("recognises a legacy bedrock provider stored as type=anthropic", () => {
+		const provider: AIProvider = {
+			...MockAIProviderBedrock,
+			type: "anthropic",
+		};
+		expect(isBedrockProvider(provider)).toBe(true);
 	});
 
 	it("recognises a provider with explicit bedrock type", () => {
