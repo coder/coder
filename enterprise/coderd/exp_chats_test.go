@@ -86,7 +86,7 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
 		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -97,7 +97,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 
 		// Verify we have two replicas
@@ -232,7 +232,7 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
 		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -244,7 +244,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		// Authenticate the second client using cookies only, simulating
 		// browser WebSocket behavior. Browsers cannot set custom
@@ -415,7 +415,7 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
 		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -426,7 +426,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
@@ -572,7 +572,7 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
 		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -583,7 +583,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 
 		//nolint:gocritic // Test uses owner client session token for cookie-based relay auth.
 		sessionToken := firstClient.SessionToken()
@@ -719,7 +719,7 @@ func TestChatStreamRelay(t *testing.T) {
 				},
 			},
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, firstAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, firstAPI.AGPL, nil)
 
 		secondClient, _, secondAPI, _ := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -730,7 +730,7 @@ func TestChatStreamRelay(t *testing.T) {
 			DontAddLicense:   true,
 			DontAddFirstUser: true,
 		})
-		aibridgedtest.StartTestAIBridgeDaemon(ctx, t, secondAPI.AGPL, nil)
+		aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, secondAPI.AGPL, nil)
 		secondClient.SetSessionToken(firstClient.SessionToken())
 
 		// Verify we have two replicas.

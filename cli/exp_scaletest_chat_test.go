@@ -34,7 +34,7 @@ func TestScaleTestChat(t *testing.T) {
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues: values,
 	})
-	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	coderdtest.CreateFirstUser(t, client)
 
 	server := new(llmmock.Server)

@@ -199,7 +199,7 @@ func TestSubagentChatExcludesWorkspaceProvisioningTools(t *testing.T) {
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
-	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -356,7 +356,7 @@ func TestPlanModeSubagentChatExcludesAskUserQuestion(t *testing.T) {
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
-	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -524,7 +524,7 @@ func TestExploreSubagentIsReadOnly(t *testing.T) {
 		IncludeProvisionerDaemon: true,
 	})
 	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4648,7 +4648,7 @@ func TestCreateWorkspaceTool_EndToEnd(t *testing.T) {
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
-	aibridgedtest.StartTestAIBridgeDaemon(ctx, t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -4813,7 +4813,7 @@ func TestStartWorkspaceTool_EndToEnd(t *testing.T) {
 		DeploymentValues:         coderdtest.DeploymentValues(t),
 		IncludeProvisionerDaemon: true,
 	})
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
@@ -11264,7 +11264,7 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 		ChatdInstructionLookupTimeout: testutil.WaitLong,
 	})
 	db := api.Database
-	aibridgedtest.StartTestAIBridgeDaemon(testutil.Context(t, testutil.WaitLong), t, api, nil)
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 
