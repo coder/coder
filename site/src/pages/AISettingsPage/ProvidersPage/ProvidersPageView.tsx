@@ -58,7 +58,7 @@ const AddProviderDropdown: React.FC<{ align?: "start" | "end" }> = ({
 						key={entry.value}
 						onSelect={() =>
 							void navigate(
-								`/ai/settings/add?type=${encodeURIComponent(entry.value)}`,
+								`/ai/settings/providers/add?type=${encodeURIComponent(entry.value)}`,
 							)
 						}
 					>
@@ -119,7 +119,9 @@ const ProvidersPageView: React.FC<ProvidersPageViewProps> = ({
 							<ProviderRow
 								key={provider.name}
 								provider={provider}
-								onClick={() => navigate(`/ai/settings/${provider.name}`)}
+								onClick={() =>
+									navigate(`/ai/settings/providers/${provider.name}`)
+								}
 							/>
 						))
 					)}

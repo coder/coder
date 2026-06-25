@@ -35,7 +35,7 @@ export const AgentSetupNotice: FC<AgentSetupNoticeProps> = ({
 			<NoticeContainer>
 				To chat with Coder Agents, set up a{" "}
 				<Link
-					to="/ai/settings"
+					to="/ai/settings/providers"
 					className="text-content-link transition-colors hover:text-content-link/80"
 				>
 					provider

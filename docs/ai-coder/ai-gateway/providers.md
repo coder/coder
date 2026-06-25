@@ -30,8 +30,8 @@ handling, and how to monitor providers.
 > configuration that is ineffectual.**
 >
 > The environment variables can be safely removed once seeding has
-> completed. Visit `https://<your-coder-host>/ai/settings` to see which
-> providers have been seeded.
+> completed. Visit `https://<your-coder-host>/ai/settings/providers` to see
+> which providers have been seeded.
 
 After seeding, manage providers through the dashboard or API. A provider
 that has been edited or removed there is not recreated or overwritten
