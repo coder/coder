@@ -115,7 +115,7 @@ data "coder_parameter" "res_mon_volume_path" {
   mutable     = true
 }
 
-data "coder_parameter" "use_ai_bridge" {
+data "coder_parameter" "use_ai_gateway" {
   type        = "bool"
   name        = "Use AI Gateway"
   default     = true
@@ -322,7 +322,7 @@ resource "coder_agent" "dev" {
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
     },
-    data.coder_parameter.use_ai_bridge.value ? {
+    data.coder_parameter.use_ai_gateway.value ? {
       ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
       OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
@@ -546,8 +546,8 @@ module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
   version           = "5.2.0"
-  enable_ai_gateway = data.coder_parameter.use_ai_bridge.value
-  anthropic_api_key = data.coder_parameter.use_ai_bridge.value ? "" : var.anthropic_api_key
+  enable_ai_gateway = data.coder_parameter.use_ai_gateway.value
+  anthropic_api_key = data.coder_parameter.use_ai_gateway.value ? "" : var.anthropic_api_key
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
 }
