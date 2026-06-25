@@ -39,8 +39,8 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	};
 	return (
 		<div>
-			<h2 className="font-semibold">Selection</h2>
-			<div>
+			<h2 className="text-xl font-semibold">Selection</h2>
+			<div className="text-sm">
 				<VariantContext.Provider value={variant(1)}>
 					<StepIndicator step={1}>Base Template</StepIndicator>
 					{selectedTemplate ? (
@@ -69,7 +69,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 };
 
 const stepCircleVariants = cva(
-	"rounded-full w-8 h-8 border border-solid flex items-center justify-center",
+	"rounded-full size-6 border border-solid flex items-center justify-center text-xs",
 	{
 		variants: {
 			variant: {

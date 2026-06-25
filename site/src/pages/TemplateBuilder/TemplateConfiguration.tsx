@@ -37,7 +37,7 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 					)}
 				</figure>
 				<div>
-					<h3 className="text-md font-semibold text-content-primary">{name}</h3>
+					<h3 className="text-sm font-semibold text-content-primary">{name}</h3>
 					<p className="text-sm font-normal text-content-secondary inline">
 						{description}
 					</p>
