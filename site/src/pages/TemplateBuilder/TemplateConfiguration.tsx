@@ -2,6 +2,7 @@ import type { PropsWithChildren } from "react";
 import { Link } from "#/components/Link/Link";
 import {
 	ConfigurationField,
+	ConfigurationFieldContainer,
 	type ConfigurationFieldDefinition,
 } from "./ConfigurationField";
 
@@ -54,11 +55,11 @@ export const TemplateConfiguration: React.FC<TemplateConfigurationProps> = ({
 			</header>
 
 			{fields && fields.length > 0 && (
-				<div className="space-y-6">
+				<ConfigurationFieldContainer>
 					{fields.map((field) => (
 						<ConfigurationField key={field.id} field={field} />
 					))}
-				</div>
+				</ConfigurationFieldContainer>
 			)}
 			{children}
 		</section>
