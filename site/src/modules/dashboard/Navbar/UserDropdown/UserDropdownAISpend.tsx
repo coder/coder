@@ -1,6 +1,7 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
+import { DropdownMenuSeparator } from "#/components/DropdownMenu/DropdownMenu";
 import { UsageBar } from "#/components/UsageBar/UsageBar";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
@@ -9,29 +10,26 @@ import { formatBudgetUSD } from "#/utils/currency";
 
 export const UserDropdownAISpend: FC = () => {
 	const { experiments } = useDashboard();
-	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
-	// the cost-control feature is stable.
+	// TODO(AIGOV-443): drop the experiment gate once cost control is stable.
 	const aibridgeVisible =
-		Boolean(useFeatureVisibility().aibridge) &&
+		useFeatureVisibility().aibridge &&
 		experiments.includes("ai-gateway-cost-control");
 	const { data, isError } = useQuery({
 		...meAISpend(),
 		enabled: aibridgeVisible,
 	});
 
-	if (!aibridgeVisible || isError || data?.spend_limit_micros === undefined) {
-		return null;
-	}
+	const spendLimit = data?.spend_limit_micros;
+	const currentSpend = data?.current_spend_micros;
 
-	const currentSpend = data.current_spend_micros;
-	const spendLimit = data.spend_limit_micros;
-
+	// Hide unless the add-on is on and the user has a non-negative budget set.
 	if (
-		spendLimit === null ||
-		!Number.isFinite(currentSpend) ||
-		!Number.isFinite(spendLimit) ||
-		currentSpend < 0 ||
-		spendLimit < 0
+		!aibridgeVisible ||
+		isError ||
+		spendLimit == null ||
+		currentSpend === undefined ||
+		spendLimit < 0 ||
+		currentSpend < 0
 	) {
 		return null;
 	}
@@ -40,18 +38,21 @@ export const UserDropdownAISpend: FC = () => {
 	const severity = getSeverity(currentSpend, spendLimit);
 
 	return (
-		<div className="px-2 pb-2 pt-0.5">
-			<div className="mb-2 text-xs font-medium text-content-secondary">
-				AI spend - {formatBudgetUSD(currentSpend)} /{" "}
-				{formatBudgetUSD(spendLimit)} USD
+		<>
+			<DropdownMenuSeparator />
+			<div className="px-2 py-2">
+				<div className="mb-2 text-sm font-medium text-content-secondary">
+					AI spend - {formatBudgetUSD(currentSpend)} /{" "}
+					{formatBudgetUSD(spendLimit)} USD
+				</div>
+				<UsageBar
+					ariaLabel="AI spend usage"
+					percent={percent}
+					severity={severity}
+					className="h-2.5"
+				/>
+				<span className="sr-only">{Math.round(percent)}% used</span>
 			</div>
-			<UsageBar
-				ariaLabel="AI spend usage"
-				percent={percent}
-				severity={severity}
-				className="h-2.5"
-			/>
-			<span className="sr-only">{Math.round(percent)}% used</span>
-		</div>
+		</>
 	);
 };

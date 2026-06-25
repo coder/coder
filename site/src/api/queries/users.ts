@@ -163,7 +163,7 @@ export const meAISpend = (): UseQueryOptions<UserAISpend> => {
 	return {
 		queryKey: meAISpendKey,
 		queryFn: () => API.getUserAISpend(),
-		refetchInterval: 60_000,
+		// Mounts only while the dropdown is open, so it refetches on each open.
 	};
 };
 
