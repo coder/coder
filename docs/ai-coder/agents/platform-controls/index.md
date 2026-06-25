@@ -52,9 +52,7 @@ Administrators can set a system prompt that applies to all agent sessions. This
 is useful for establishing organizational conventions: coding standards,
 commit message formats, preferred libraries, or repository-specific context.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Instructions** and is only accessible to
-administrators. Developers do not see or interact with it.
+This setting is available under **AI Settings** > **Instructions** and is only accessible to administrators. Developers do not see or interact with it.
 
 ### Plan mode instructions
 
@@ -63,8 +61,7 @@ enters plan mode. These instructions supplement the built-in planning behavior
 and are useful for organization-specific planning requirements such as required
 plan sections, approval checkpoints, or review workflows.
 
-This setting is available under **Agents** > **Settings** >
-**Manage Agents** > **Instructions**. Developers do not edit it directly.
+This setting is available under **AI Settings** > **Instructions**. Developers do not edit it directly.
 
 The same value is exposed over the experimental chat configuration API:
 

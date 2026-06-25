@@ -39,16 +39,6 @@ export const Default: Story = {
 				field: stubField("anthropic-api-key"),
 			},
 			{
-				type: "select",
-				id: "one-more-example",
-				label: "One more example",
-				options: [
-					{ value: "a", label: "Option A" },
-					{ value: "b", label: "Option B" },
-					{ value: "c", label: "Option C" },
-				],
-			},
-			{
 				type: "radio",
 				id: "other-example",
 				label: "Other example",
@@ -68,6 +58,18 @@ export const Default: Story = {
 				switches: [
 					{ id: "switch-1", label: "Explaining text", defaultChecked: true },
 					{ id: "switch-2", label: "Explaining text", defaultChecked: false },
+				],
+			},
+		],
+		optionalFields: [
+			{
+				type: "select",
+				id: "one-more-example",
+				label: "One more example",
+				options: [
+					{ value: "a", label: "Option A" },
+					{ value: "b", label: "Option B" },
+					{ value: "c", label: "Option C" },
 				],
 			},
 		],

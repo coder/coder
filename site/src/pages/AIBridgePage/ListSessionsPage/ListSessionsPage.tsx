@@ -86,7 +86,7 @@ const AISessionListPage: FC = () => {
 				sessions={sessionsQuery.data?.sessions}
 				sessionsQuery={sessionsQuery}
 				onSessionRowClick={(sessionId) =>
-					navigate(`/aibridge/sessions/${sessionId}`)
+					navigate(`/ai-gateway/sessions/${sessionId}`)
 				}
 				filterProps={{
 					filter,

@@ -16,16 +16,16 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import {
+	TemporarySavedState,
+	useTemporarySavedState,
+} from "#/components/TemporarySavedState/TemporarySavedState";
+import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { ProviderIcon } from "./ChatModelAdminPanel/ProviderIcon";
-import {
-	TemporarySavedState,
-	useTemporarySavedState,
-} from "./TemporarySavedState";
 
 interface UserCompactionThresholdSettingsProps {
 	modelConfigs: readonly TypesGen.ChatModelConfig[];
