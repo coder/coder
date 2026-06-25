@@ -107,7 +107,9 @@ type PaginatedMembersResponse struct {
 // AddOrganizationMembersRequest provides a list of user IDs to add
 // as members to an organization in a single batch request.
 type AddOrganizationMembersRequest struct {
-	UserIDs []uuid.UUID `json:"user_ids" validate:"required,gt=0,lte=100,dive" format:"uuid"`
+	// UserIDs is the list of user IDs to add as organization members. The
+	// slice must contain between 1 and 100 IDs.
+	UserIDs []uuid.UUID `json:"user_ids" validate:"required,min=1,max=100" format:"uuid"`
 }
 
 type CreateOrganizationRequest struct {

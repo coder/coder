@@ -16014,8 +16014,10 @@ const docTemplate = `{
             ],
             "properties": {
                 "user_ids": {
+                    "description": "UserIDs is the list of user IDs to add as organization members. The\nslice must contain between 1 and 100 IDs.",
                     "type": "array",
                     "maxItems": 100,
+                    "minItems": 1,
                     "items": {
                         "type": "string",
                         "format": "uuid"
