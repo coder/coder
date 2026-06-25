@@ -1,11 +1,13 @@
 package nats
 
 import (
+	"crypto/tls"
 	"errors"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
 )
@@ -109,7 +111,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 		fetcher := &testPeerFetcher{addresses: []string{"nats://127.0.0.1:1234"}}
 		opts := clusterTestOptions(t)
 		opts.PeerFetcher = fetcher
-		a := newTestPubsub(t, opts, nil)
+		a := newTestPubsub(t, opts)
 		require.GreaterOrEqual(t, fetcher.port, minTCPPort)
 		require.LessOrEqual(t, fetcher.port, maxTCPPort)
 
@@ -124,7 +126,7 @@ func TestPubsub_RefreshPeers(t *testing.T) {
 	t.Run("SetPeerFetcher", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
-		a := newTestPubsub(t, opts, nil)
+		a := newTestPubsub(t, opts)
 
 		routes := []string{
 			"nats://127.0.0.1:1234",
@@ -183,9 +185,9 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		opts := clusterTestOptions(t)
-		a := newTestPubsub(t, opts, nil)
-		b := newTestPubsub(t, opts, nil)
-		c := newTestPubsub(t, opts, nil)
+		a := newTestPubsub(t, opts)
+		b := newTestPubsub(t, opts)
+		c := newTestPubsub(t, opts)
 
 		addrB := clusterRouteAddress(t, b)
 		addrC := clusterRouteAddress(t, c)
@@ -208,14 +210,14 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 
 	t.Run("StandaloneConfigError", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, defaultTestOptions(), nil)
+		ps := newTestPubsub(t, defaultTestOptions())
 		err := ps.setPeerAddresses(nil)
 		require.ErrorContains(t, err, "not started with clustering enabled")
 	})
 
 	t.Run("Closed", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, clusterTestOptions(t), nil)
+		ps := newTestPubsub(t, clusterTestOptions(t))
 		require.NoError(t, ps.Close())
 		err := ps.setPeerAddresses(nil)
 		require.True(t, errors.Is(err, errClosed), "got %v", err)
@@ -223,8 +225,76 @@ func TestPubsub_setPeerAddresses(t *testing.T) {
 
 	t.Run("DropsSelfRoute", func(t *testing.T) {
 		t.Parallel()
-		ps := newTestPubsub(t, clusterTestOptions(t), nil)
+		ps := newTestPubsub(t, clusterTestOptions(t))
 		require.NoError(t, ps.setPeerAddresses([]string{clusterRouteAddress(t, ps)}))
 		require.Empty(t, ps.currentRoutes)
+	})
+}
+
+func TestPubsub_setPeerAddresses_ClusterTLS(t *testing.T) {
+	t.Parallel()
+
+	caCert, caKey := generateTestCA(t)
+	tlsOpts := ClusterTLSOptions{CACert: caCert, CAKey: caKey, SANIP: "127.0.0.1"}
+
+	t.Run("InstalledOnce", func(t *testing.T) {
+		t.Parallel()
+		ps := newTestPubsub(t, clusterTestOptions(t))
+
+		var calls int
+		ps.clusterMu.Lock()
+		ps.clusterTLSProvider = func() (*tls.Config, error) {
+			calls++
+			return BuildClusterTLSConfig(tlsOpts)
+		}
+		ps.clusterMu.Unlock()
+
+		require.NoError(t, ps.setPeerAddresses([]string{"nats://127.0.0.1:1234"}))
+		ps.clusterMu.Lock()
+		require.True(t, ps.clusterTLSApplied)
+		require.NotNil(t, ps.serverOpts.Cluster.TLSConfig)
+		require.Equal(t, clusterTLSTimeout.Seconds(), ps.serverOpts.Cluster.TLSTimeout)
+		require.Equal(t, 1, calls)
+		ps.clusterMu.Unlock()
+
+		// A later reload with different routes must not re-mint the leaf: the
+		// provider is invoked once and the TLS config persists across reloads.
+		require.NoError(t, ps.setPeerAddresses([]string{"nats://127.0.0.1:1235"}))
+		ps.clusterMu.Lock()
+		require.Equal(t, 1, calls)
+		require.NotNil(t, ps.serverOpts.Cluster.TLSConfig)
+		ps.clusterMu.Unlock()
+	})
+
+	t.Run("ProviderErrorLeavesRoutesUnchanged", func(t *testing.T) {
+		t.Parallel()
+		// The background refresh worker also invokes the failing provider and
+		// logs at ERROR (fail-closed retry), so tolerate ERROR logs here.
+		ps := newTestPubsubIgnoreErrors(t, clusterTestOptions(t))
+
+		ps.clusterMu.Lock()
+		ps.clusterTLSProvider = func() (*tls.Config, error) {
+			return nil, xerrors.New("boom")
+		}
+		ps.clusterMu.Unlock()
+
+		err := ps.setPeerAddresses([]string{"nats://127.0.0.1:1234"})
+		require.ErrorContains(t, err, "build cluster tls")
+		ps.clusterMu.Lock()
+		require.False(t, ps.clusterTLSApplied)
+		require.Nil(t, ps.serverOpts.Cluster.TLSConfig)
+		require.Empty(t, ps.currentRoutes)
+		ps.clusterMu.Unlock()
+	})
+
+	t.Run("NilProviderStaysPlaintext", func(t *testing.T) {
+		t.Parallel()
+		ps := newTestPubsub(t, clusterTestOptions(t))
+
+		require.NoError(t, ps.setPeerAddresses([]string{"nats://127.0.0.1:1234"}))
+		ps.clusterMu.Lock()
+		require.Nil(t, ps.serverOpts.Cluster.TLSConfig)
+		require.False(t, ps.clusterTLSApplied)
+		ps.clusterMu.Unlock()
 	})
 }

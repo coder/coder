@@ -1,7 +1,6 @@
 package nats
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -15,8 +14,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-
-	"cdr.dev/slog/v3"
 )
 
 // generateTestCA returns a self-signed CA certificate and its private
@@ -94,7 +91,7 @@ func Test_buildClusterTLSConfig_Validation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := buildClusterTLSConfig(tc.opts)
+			cfg, err := BuildClusterTLSConfig(tc.opts)
 			require.ErrorContains(t, err, tc.errPart)
 			require.Nil(t, cfg)
 		})
@@ -118,7 +115,7 @@ func Test_buildClusterTLSConfig_Leaf(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			cfg, err := buildClusterTLSConfig(ClusterTLSOptions{
+			cfg, err := BuildClusterTLSConfig(ClusterTLSOptions{
 				CACert: caCert,
 				CAKey:  caKey,
 				SANIP:  tc.SANIP,
@@ -173,9 +170,9 @@ func Test_buildClusterTLSConfig_UniqueLeafKeys(t *testing.T) {
 		SANIP:  "127.0.0.1",
 	}
 
-	first, err := buildClusterTLSConfig(opts)
+	first, err := BuildClusterTLSConfig(opts)
 	require.NoError(t, err)
-	second, err := buildClusterTLSConfig(opts)
+	second, err := BuildClusterTLSConfig(opts)
 	require.NoError(t, err)
 
 	// Each replica mints its own ephemeral key; two builds must never
@@ -186,66 +183,6 @@ func Test_buildClusterTLSConfig_UniqueLeafKeys(t *testing.T) {
 	require.True(t, ok)
 	require.False(t, firstKey.Equal(secondKey))
 	require.NotEqual(t, first.Certificates[0].Leaf.SerialNumber, second.Certificates[0].Leaf.SerialNumber)
-}
-
-func Test_buildServerOptions_ClusterTLS(t *testing.T) {
-	t.Parallel()
-
-	caCert, caKey := generateTestCA(t)
-
-	t.Run("Enabled", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slog.Make()
-		sopts, err := buildServerOptions(
-			context.Background(),
-			logger,
-			Options{
-				ClusterAuthToken: "token",
-			},
-			&ClusterTLSOptions{
-				CACert: caCert,
-				CAKey:  caKey,
-				SANIP:  "127.0.0.1",
-			},
-		)
-		require.NoError(t, err)
-		require.NotNil(t, sopts.Cluster.TLSConfig)
-		require.Equal(t, tls.RequireAndVerifyClientCert, sopts.Cluster.TLSConfig.ClientAuth)
-		require.Equal(t, clusterTLSTimeout.Seconds(), sopts.Cluster.TLSTimeout)
-	})
-
-	t.Run("Disabled", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slog.Make()
-		sopts, err := buildServerOptions(
-			context.Background(),
-			logger,
-			Options{ClusterAuthToken: "token"},
-			nil,
-		)
-		require.NoError(t, err)
-		require.Nil(t, sopts.Cluster.TLSConfig)
-		require.Zero(t, sopts.Cluster.TLSTimeout)
-	})
-
-	t.Run("InvalidOptions", func(t *testing.T) {
-		t.Parallel()
-
-		logger := slog.Make()
-		_, err := buildServerOptions(
-			context.Background(),
-			logger,
-			Options{},
-			&ClusterTLSOptions{
-				CACert: caCert,
-				CAKey:  caKey,
-				SANIP:  "not-an-ip",
-			},
-		)
-		require.ErrorContains(t, err, "is not an IP address")
-	})
 }
 
 func Test_ClusterTLSOptionsFromRelayURL(t *testing.T) {

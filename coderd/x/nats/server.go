@@ -1,22 +1,20 @@
 package nats
 
 import (
-	"context"
 	"time"
 
 	natsserver "github.com/nats-io/nats-server/v2/server"
 	natsgo "github.com/nats-io/nats.go"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog/v3"
 )
 
 const readyTimeout = 10 * time.Second
 
 // buildServerOptions constructs the embedded NATS server options. The
-// server runs with a loopback random client listener and an optional
-// cluster route listener.
-func buildServerOptions(ctx context.Context, logger slog.Logger, opts Options, tls *ClusterTLSOptions) (*natsserver.Options, error) {
+// server runs with a loopback random client listener and a plaintext
+// cluster route listener. Cluster mTLS is installed later, on the first
+// peer-route reload (see Pubsub.setPeerAddresses), not at boot.
+func buildServerOptions(opts Options) (*natsserver.Options, error) {
 	maxPayload := opts.MaxPayload
 	if maxPayload == 0 {
 		maxPayload = natsserver.MAX_PAYLOAD_SIZE
@@ -64,15 +62,6 @@ func buildServerOptions(ctx context.Context, logger slog.Logger, opts Options, t
 		if opts.ClusterAuthToken != "" {
 			sopts.Cluster.Username = defaultClusterTokenUsername
 			sopts.Cluster.Password = opts.ClusterAuthToken
-		}
-		if tls != nil {
-			tlsConfig, err := buildClusterTLSConfig(*tls)
-			if err != nil {
-				return nil, err
-			}
-			logger.Info(ctx, "nats mTLS config is valid", slog.F("cluster_tls_san", tls.SANIP))
-			sopts.Cluster.TLSConfig = tlsConfig
-			sopts.Cluster.TLSTimeout = clusterTLSTimeout.Seconds()
 		}
 	}
 

@@ -62,16 +62,16 @@ func ClusterTLSOptionsFromRelayURL(relayURL *url.URL, caCert *x509.Certificate, 
 		SANIP:  relayURL.Hostname(),
 	}
 	// Surface invalid options at construction time rather than at server startup.
-	if _, err := buildClusterTLSConfig(*opts); err != nil {
+	if _, err := BuildClusterTLSConfig(*opts); err != nil {
 		return nil, err
 	}
 	return opts, nil
 }
 
-// buildClusterTLSConfig mints an ephemeral ECDSA P-256 leaf certificate signed by the configured CA and returns a
+// BuildClusterTLSConfig mints an ephemeral ECDSA P-256 leaf certificate signed by the configured CA and returns a
 // *tls.Config suitable for natsserver.ClusterOpts.TLSConfig. The same config serves both route roles: the NATS server
 // uses it when accepting routes and clones it (setting ServerName from the dialed route URL) when soliciting them.
-func buildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
+func BuildClusterTLSConfig(opts ClusterTLSOptions) (*tls.Config, error) {
 	if opts.CACert == nil {
 		return nil, xerrors.New("cluster TLS: CA certificate is required")
 	}

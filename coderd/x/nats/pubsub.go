@@ -2,6 +2,7 @@ package nats
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -129,16 +130,16 @@ type Options struct {
 	// default when cluster mode is enabled.
 	RoutePoolSize int
 
-	// ClusterTLS enables mutual TLS on the cluster route listener. A
-	// per-replica leaf certificate is minted from the configured CA at
-	// startup. Nil keeps routes plaintext (token auth only).
-	// ClusterTLS *ClusterTLSOptions
-
 	// disableCluster is intended only for testing. Since we cannot reload a server
 	// with a cluster host/port after initialization, we start all production servers
 	// with clustering enabled.
 	disableCluster bool
 }
+
+// ClusterTLSProvider returns the cluster route *tls.Config to apply on the
+// next route reload, or nil to leave routes plaintext. It is called under
+// clusterMu by setPeerAddresses.
+type ClusterTLSProvider func() (*tls.Config, error)
 
 // conn is a stripped down version of natsgo.Conn with just the methods we use, to allow us to fake it in tests.
 type conn interface {
@@ -187,6 +188,11 @@ type Pubsub struct {
 	clustered     bool
 	serverOpts    *natsserver.Options
 	currentRoutes []*url.URL
+	// clusterTLSProvider mints the cluster route TLS config installed on the
+	// first peer-route reload; clusterTLSApplied records that it has been
+	// installed so later reloads do not re-mint the leaf certificate.
+	clusterTLSProvider ClusterTLSProvider
+	clusterTLSApplied  bool
 
 	peerFetcher PeerFetcher
 	peerRefresh chan struct{}
@@ -303,7 +309,7 @@ func (p *Pubsub) buildConnHandlers() connHandlers {
 // New creates an embedded NATS Pubsub. The returned *Pubsub owns the
 // embedded server and the publisher and subscriber connection pools.
 // Close shuts down all owned resources.
-func New(ctx context.Context, logger slog.Logger, opts Options, tls *ClusterTLSOptions) (pubSub *Pubsub, retErr error) {
+func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub, retErr error) {
 	// Persist the default cluster port onto opts so it is the same value the
 	// listener (buildServerOptions) binds and the value parsePeerAddresses
 	// compares against. parsePeerAddresses overwrites each peer's parsed port
@@ -315,7 +321,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options, tls *ClusterTLSO
 		opts.ClusterPort = defaultClusterPort
 	}
 
-	sopts, err := buildServerOptions(ctx, logger, opts, tls)
+	sopts, err := buildServerOptions(opts)
 	if err != nil {
 		return nil, err
 	}
