@@ -124,10 +124,14 @@ test("Create template from duplicating a template", async () => {
 	);
 	// Variables are using the same values
 	expect(
-		screen.getByLabelText(MockTemplateVersionVariable1.description, {
+		screen.getByLabelText(`var.${MockTemplateVersionVariable1.name}`, {
 			exact: false,
 		}),
 	).toHaveValue(MockTemplateVersionVariable1.value);
+	// The variable description is rendered (as Markdown) alongside the field
+	expect(
+		screen.getByText(MockTemplateVersionVariable1.description),
+	).toBeInTheDocument();
 	// Create template
 	vi.spyOn(API, "createTemplateVersion").mockResolvedValue(MockTemplateVersion);
 	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
