@@ -417,7 +417,8 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
-	return strings.Contains(model, "anthropic.claude-opus-4-7")
+	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
+		strings.Contains(model, "anthropic.claude-opus-4-8")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta
