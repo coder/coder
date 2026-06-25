@@ -133,7 +133,7 @@ export const ModelFormFields: FC<{
 	showAdvanced,
 	setShowAdvanced,
 }) => {
-	const showProviderConfiguration =
+	const hasProviderConfigFields =
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
 	return (
@@ -257,7 +257,7 @@ export const ModelFormFields: FC<{
 						/>
 					</CollapsibleSection>
 
-					{showProviderConfiguration && (
+					{hasProviderConfigFields && (
 						<CollapsibleSection
 							title="Provider configuration"
 							description="Tune provider-specific behavior like reasoning, tool calling, and web search."
