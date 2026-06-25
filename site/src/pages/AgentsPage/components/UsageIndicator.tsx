@@ -19,6 +19,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { UsageBar } from "#/components/UsageBar/UsageBar";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationName,
@@ -28,7 +29,6 @@ import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/compo
 import {
 	clampPercentage,
 	getSeverity,
-	severityProgressClassName,
 	severityTextClassName,
 	type UsageSeverity,
 	usageProgressPercentage,
@@ -267,7 +267,7 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 			</div>
 
 			<div className="px-2 pb-2">
-				<UsageProgress
+				<UsageBar
 					ariaLabel={section.progressLabel}
 					percent={section.percent}
 					severity={section.severity}
@@ -313,37 +313,6 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 				</div>
 			)}
 		</>
-	);
-};
-
-const UsageProgress: FC<{
-	ariaLabel: string;
-	percent: number;
-	severity?: UsageSeverity;
-	className?: string;
-}> = ({ ariaLabel, percent, severity = "normal", className }) => {
-	const clampedPercent = clampPercentage(percent);
-
-	return (
-		<div
-			role="progressbar"
-			aria-label={ariaLabel}
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-valuenow={Math.round(clampedPercent)}
-			className={cn(
-				"h-1.5 overflow-hidden rounded-full bg-surface-tertiary",
-				className,
-			)}
-		>
-			<div
-				className={cn(
-					"h-full rounded-full transition-all duration-300 ease-out",
-					severityProgressClassName(severity),
-				)}
-				style={{ width: `${clampedPercent}%` }}
-			/>
-		</div>
 	);
 };
 

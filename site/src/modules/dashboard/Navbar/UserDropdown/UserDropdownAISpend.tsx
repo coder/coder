@@ -1,20 +1,25 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { meAISpend } from "#/api/queries/users";
-import {
-	clampPercentage,
-	getSeverity,
-	severityProgressClassName,
-	type UsageSeverity,
-	usageProgressPercentage,
-} from "#/utils/budget";
-import { cn } from "#/utils/cn";
+import { UsageBar } from "#/components/UsageBar/UsageBar";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { getSeverity, usageProgressPercentage } from "#/utils/budget";
 import { formatBudgetUSD } from "#/utils/currency";
 
 export const UserDropdownAISpend: FC = () => {
-	const { data, isError } = useQuery(meAISpend());
+	const { experiments } = useDashboard();
+	// TODO(AIGOV-443): remove the ai-gateway-cost-control experiment gate once
+	// the cost-control feature is stable.
+	const aibridgeVisible =
+		Boolean(useFeatureVisibility().aibridge) &&
+		experiments.includes("ai-gateway-cost-control");
+	const { data, isError } = useQuery({
+		...meAISpend(),
+		enabled: aibridgeVisible,
+	});
 
-	if (isError || data?.spend_limit_micros === undefined) {
+	if (!aibridgeVisible || isError || data?.spend_limit_micros === undefined) {
 		return null;
 	}
 
@@ -32,7 +37,6 @@ export const UserDropdownAISpend: FC = () => {
 	}
 
 	const percent = usageProgressPercentage(currentSpend, spendLimit);
-	const roundedPercent = Math.round(percent);
 	const severity = getSeverity(currentSpend, spendLimit);
 
 	return (
@@ -41,34 +45,13 @@ export const UserDropdownAISpend: FC = () => {
 				AI spend - {formatBudgetUSD(currentSpend)} /{" "}
 				{formatBudgetUSD(spendLimit)} USD
 			</div>
-			<SpendProgress percent={percent} severity={severity} />
-			<span className="sr-only">{roundedPercent}% used</span>
-		</div>
-	);
-};
-
-const SpendProgress: FC<{
-	percent: number;
-	severity: UsageSeverity;
-}> = ({ percent, severity }) => {
-	const clampedPercent = clampPercentage(percent);
-
-	return (
-		<div
-			role="progressbar"
-			aria-label="AI spend usage"
-			aria-valuemin={0}
-			aria-valuemax={100}
-			aria-valuenow={Math.round(clampedPercent)}
-			className="h-1.5 overflow-hidden rounded-full bg-surface-tertiary"
-		>
-			<div
-				className={cn(
-					"h-full rounded-full transition-all duration-300 ease-out",
-					severityProgressClassName(severity),
-				)}
-				style={{ width: `${clampedPercent}%` }}
+			<UsageBar
+				ariaLabel="AI spend usage"
+				percent={percent}
+				severity={severity}
+				className="h-2.5"
 			/>
+			<span className="sr-only">{Math.round(percent)}% used</span>
 		</div>
 	);
 };

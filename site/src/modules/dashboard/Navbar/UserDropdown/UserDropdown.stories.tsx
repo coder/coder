@@ -68,6 +68,8 @@ const Example: Story = {
 
 export const WithAISpend: Story = {
 	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
 		queries: [budgetedAISpendQuery],
 	},
 	play: async ({ canvasElement, step }) => {
@@ -85,6 +87,8 @@ export const WithAISpend: Story = {
 
 export const WithoutAISpend: Story = {
 	parameters: {
+		features: ["aibridge"],
+		experiments: ["ai-gateway-cost-control"],
 		queries: [noBudgetAISpendQuery],
 	},
 	play: async ({ canvasElement, step }) => {
