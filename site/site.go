@@ -408,7 +408,7 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 	var user database.User
 	var userAppearance codersdk.UserAppearanceSettings
 	orgIDs := []uuid.UUID{}
-	var userOrgs []database.Organization
+	var readableOrgs []database.Organization
 	eg.Go(func() error {
 		var err error
 		user, err = h.opts.Database.GetUserByID(ctx, apiKey.UserID)
@@ -434,18 +434,23 @@ func (h *Handler) renderHTMLWithState(r *http.Request, filePath string, state ht
 		return err
 	})
 	eg.Go(func() error {
-		orgs, err := h.opts.Database.GetOrganizationsByUserID(ctx, database.GetOrganizationsByUserIDParams{
-			UserID: apiKey.UserID,
-		})
+		// Embed every organization the user is authorized to read, matching
+		// the GET /api/v2/organizations endpoint. The frontend seeds its
+		// organizations query from this metadata and then disables
+		// refetching, so embedding only the user's member organizations
+		// (GetOrganizationsByUserID) hid organizations the user can otherwise
+		// see, such as org admins, auditors, and owners, until the query was
+		// invalidated by an unrelated action.
+		orgs, err := h.opts.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
 		if err == nil {
-			userOrgs = orgs
+			readableOrgs = orgs
 		}
 		// Don't fail the entire group if we can't fetch orgs.
 		return nil
 	})
 	err := eg.Wait()
 	if err == nil {
-		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, userOrgs, userAppearance)
+		h.populateHTMLState(ctx, &state, af, actor, user, orgIDs, readableOrgs, userAppearance)
 	}
 
 	return execTmpl(tmpl, state)
@@ -461,7 +466,7 @@ func (h *Handler) populateHTMLState(
 	actor *rbac.Subject,
 	user database.User,
 	orgIDs []uuid.UUID,
-	userOrgs []database.Organization,
+	readableOrgs []database.Organization,
 	userAppearance codersdk.UserAppearanceSettings,
 ) {
 	var wg sync.WaitGroup
@@ -520,7 +525,7 @@ func (h *Handler) populateHTMLState(
 		}
 	})
 	wg.Go(func() {
-		sdkOrgs := slice.List(userOrgs, db2sdk.Organization)
+		sdkOrgs := slice.List(readableOrgs, db2sdk.Organization)
 		data, err := json.Marshal(sdkOrgs)
 		if err == nil {
 			state.Organizations = html.EscapeString(string(data))
