@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/aibridgedtest"
@@ -2313,7 +2315,11 @@ func TestUserAIProviderKeys(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		values := coderdtest.DeploymentValues(t)
 		values.AI.BridgeConfig.AllowBYOK = serpent.Bool(false)
-		client := newChatClientWithDeploymentValues(t, values)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		client := newChatClient(t, func(o *coderdtest.Options) {
+			o.DeploymentValues = values
+			o.Logger = &logger
+		})
 		_ = coderdtest.CreateFirstUser(t, client.Client)
 
 		provider := createOpenAIProvider(t, client, "test-byok-disabled-"+uuid.NewString(), true)
