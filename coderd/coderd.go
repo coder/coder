@@ -951,7 +951,7 @@ func New(options *Options) *API {
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
 
-	wsbuildorchestrator.New(wsbuildorchestrator.Options{
+	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
 		Logger:            options.Logger,
 		Database:          options.Database,
 		Pubsub:            options.Pubsub,
@@ -960,7 +960,8 @@ func New(options *Options) *API {
 		DeploymentValues:  options.DeploymentValues,
 		Experiments:       api.Experiments,
 		BuilderMetrics:    options.WorkspaceBuilderMetrics,
-	}).Start(api.ctx)
+	})
+	api.workspaceBuildOrchestrator.Start(api.ctx)
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
@@ -2305,7 +2306,8 @@ type API struct {
 	// profiler is process-global, so concurrent collections would fail.
 	ProfileCollecting atomic.Bool
 
-	workspaceAgentConnWatcher *workspaceconnwatcher.Watcher
+	workspaceAgentConnWatcher  *workspaceconnwatcher.Watcher
+	workspaceBuildOrchestrator *wsbuildorchestrator.Orchestrator
 }
 
 // Close waits for all WebSocket connections to drain before returning.
@@ -2370,6 +2372,7 @@ func (api *API) Close() error {
 	_ = api.AppEncryptionKeyCache.Close()
 	_ = api.UpdatesProvider.Close()
 	api.workspaceAgentConnWatcher.Close()
+	api.workspaceBuildOrchestrator.Close()
 
 	if current := api.PrebuildsReconciler.Load(); current != nil {
 		ctx, giveUp := context.WithTimeoutCause(context.Background(), time.Second*30, xerrors.New("gave up waiting for reconciler to stop before shutdown"))

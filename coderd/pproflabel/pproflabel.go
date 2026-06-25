@@ -35,6 +35,9 @@ const (
 	// ServiceTallymanPublisher publishes usage events to coder/tallyman.
 	ServiceTallymanPublisher = "tallyman-publisher"
 	ServiceUsageEventCron    = "usage-event-cron"
+	// ServiceWorkspaceBuildOrchestrator fulfills workspace build
+	// orchestrations once their parent build reaches a terminal state.
+	ServiceWorkspaceBuildOrchestrator = "workspace-build-orchestrator"
 
 	RequestTypeTag = "coder_request_type"
 )

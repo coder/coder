@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -18,6 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
 )
+
+func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
+}
 
 func newTestOrchestrator(t *testing.T, db database.Store, ps pubsub.Pubsub) *Orchestrator {
 	t.Helper()
@@ -82,9 +87,9 @@ func (s *runStore) InTx(fn func(database.Store) error, _ *database.TxOptions) er
 	return fn(s)
 }
 
-func (s *runStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(
-	ctx context.Context,
-) (database.WorkspaceBuildOrchestration, error) {
+func (s *runStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(ctx context.Context) (
+	database.WorkspaceBuildOrchestration, error,
+) {
 	select {
 	case s.calls <- struct{}{}:
 	case <-ctx.Done():
@@ -170,4 +175,48 @@ func TestWorkspaceBuildOrchestratorFailsForDeletedWorkspace(t *testing.T) {
 	require.False(t, orchestration.ChildBuildID.Valid)
 	require.True(t, orchestration.Error.Valid)
 	require.Equal(t, "workspace was deleted", orchestration.Error.String)
+}
+
+// emptyStore reports no pending orchestrations so the run loop stays
+// idle.
+type emptyStore struct {
+	database.Store
+}
+
+func (s emptyStore) InTx(fn func(database.Store) error, _ *database.TxOptions) error {
+	return fn(s)
+}
+
+func (emptyStore) GetNextPendingWorkspaceBuildOrchestrationForUpdate(context.Context) (
+	database.WorkspaceBuildOrchestration, error,
+) {
+	return database.WorkspaceBuildOrchestration{}, sql.ErrNoRows
+}
+
+func TestWorkspaceBuildOrchestratorCloseStopsGoroutines(t *testing.T) {
+	t.Parallel()
+
+	o := New(Options{
+		Logger:   testutil.Logger(t),
+		Database: emptyStore{},
+		Pubsub:   pubsub.NewInMemory(),
+	})
+	o.Start(context.Background())
+
+	// Close blocks on wg.Wait, so it returns only once both
+	// background goroutines have exited. A timeout here means a
+	// goroutine never exited after cancellation, leaving Close
+	// blocked.
+	closed := make(chan struct{})
+	go func() {
+		o.Close()
+		close(closed)
+	}()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	select {
+	case <-ctx.Done():
+		t.Fatal("Close did not stop background goroutines")
+	case <-closed:
+	}
 }

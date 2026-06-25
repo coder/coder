@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/files"
+	"github.com/coder/coder/v2/coderd/pproflabel"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -52,6 +54,15 @@ type Orchestrator struct {
 	builderMetrics    *wsbuilder.Metrics
 
 	wakeCh chan struct{}
+
+	// startOnce ensures the background goroutines are launched at most
+	// once, even if Start is called more than once.
+	startOnce sync.Once
+	// cancel cancels the context on all running jobs. If the ctx
+	// passed into `Start` is canceled, the jobs will also stop.
+	cancel context.CancelFunc
+	// wg ensures all job goroutines have exited before Close returns.
+	wg sync.WaitGroup
 }
 
 type Options struct {
@@ -83,9 +94,30 @@ func New(opts Options) *Orchestrator {
 	}
 }
 
+// Start launches the orchestrator's background goroutines. It is safe
+// to call more than once; only the first call has any effect. Call
+// Close to stop the goroutines and wait for their exit.
 func (o *Orchestrator) Start(ctx context.Context) {
-	go o.subscribe(ctx)
-	go o.run(ctx)
+	o.startOnce.Do(func() {
+		ctx, o.cancel = context.WithCancel(ctx)
+		o.wg.Add(2)
+		pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceWorkspaceBuildOrchestrator, "goroutine", "subscribe"), func(ctx context.Context) {
+			defer o.wg.Done()
+			o.subscribe(ctx)
+		})
+		pproflabel.Go(ctx, pproflabel.Service(pproflabel.ServiceWorkspaceBuildOrchestrator, "goroutine", "run"), func(ctx context.Context) {
+			defer o.wg.Done()
+			o.run(ctx)
+		})
+	})
+}
+
+// Close stops the orchestrator and waits for its goroutines to exit.
+func (o *Orchestrator) Close() {
+	if o.cancel != nil {
+		o.cancel()
+	}
+	o.wg.Wait()
 }
 
 func (o *Orchestrator) subscribe(ctx context.Context) {
@@ -148,6 +180,13 @@ func (o *Orchestrator) run(ctx context.Context) {
 	defer ticker.Stop()
 
 	for {
+		// wakeCh can win the select below even when ctx is canceled,
+		// so re-check here. Once canceled, do not begin another
+		// processing round.
+		if ctx.Err() != nil {
+			return
+		}
+
 		err := o.processAll(ctx)
 		if err != nil && ctx.Err() == nil {
 			o.logger.Error(ctx, "process orchestrations", slog.Error(err))
