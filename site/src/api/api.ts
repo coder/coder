@@ -1874,6 +1874,18 @@ class ApiMethods {
 		);
 	};
 
+	importUserSecrets = async (
+		userId: string,
+		request: TypesGen.ImportUserSecretsRequest,
+	): Promise<TypesGen.UserSecret[]> => {
+		const response = await this.axios.post<TypesGen.UserSecret[]>(
+			`/api/v2/users/${encodeURIComponent(userId)}/secrets/batch`,
+			request,
+		);
+
+		return response.data;
+	};
+
 	getWorkspaceBuilds = async (
 		workspaceId: string,
 		req?: TypesGen.WorkspaceBuildsRequest,

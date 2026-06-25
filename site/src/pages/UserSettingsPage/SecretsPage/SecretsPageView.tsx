@@ -2,6 +2,7 @@ import { PlusIcon, RefreshCwIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import type {
 	CreateUserSecretRequest,
+	ImportUserSecretsRequest,
 	UpdateUserSecretRequest,
 	UserSecret,
 } from "#/api/typesGenerated";
@@ -36,6 +37,7 @@ type SecretsPageViewProps = {
 		name: string,
 		request: UpdateUserSecretRequest,
 	) => Promise<UserSecret> | UserSecret;
+	onImportSecrets: (request: ImportUserSecretsRequest) => Promise<UserSecret[]>;
 	onDeleteSecret: (secret: UserSecret) => Promise<void> | void;
 };
 
@@ -55,6 +57,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 	onRefresh,
 	onCreateSecret,
 	onUpdateSecret,
+	onImportSecrets,
 	onDeleteSecret,
 }) => {
 	const [dialogState, setDialogState] = useState<SecretDialogState>({
@@ -127,6 +130,7 @@ export const SecretsPageView: FC<SecretsPageViewProps> = ({
 				onClose={closeSecretDialog}
 				onCreateSecret={onCreateSecret}
 				onUpdateSecret={onUpdateSecret}
+				onImportSecrets={onImportSecrets}
 			/>
 
 			{getSecretsError ? <ErrorAlert error={getSecretsError} /> : undefined}
