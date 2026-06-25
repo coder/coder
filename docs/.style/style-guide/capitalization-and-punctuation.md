@@ -209,30 +209,6 @@ Use a comma before the conjunction in a list of three or more items.
 
 *Enforced by `Google.OxfordComma`.*
 
-### Semantic line breaks do not change punctuation
-
-[Semantic line breaks](./formatting.md#semantic-line-breaks) change where a source line ends,
-not how the sentence is punctuated.
-The rendered output joins the lines back into one paragraph,
-so write every comma and period exactly as if the sentence were on a single line.
-A line break is not a substitute for a comma.
-
-**Do**:
-
-> In this guide,
-> you add Ruby as an option,
-> watch it fail,
-> and fix it.
-
-**Don't**:
-
-> In this guide
-> you add Ruby as an option
-> watch it fail
-> and fix it.
-
-*Documentation-only. No Vale rule.*
-
 ## US-style quotation
 
 Place commas and periods inside closing quotation marks.

@@ -12,53 +12,41 @@ The accessibility-driven rules live on that page so heading structure,
 language, link text,
 and alt text stay together.
 
-## Semantic line breaks
+## One sentence per line
 
-Break Markdown source lines at semantic boundaries
-(clauses, list items, sentence ends),
-not at fixed line widths.
-The convention is called [semantic line breaks](https://sembr.org/) (sembr).
-A single sentence routinely spans multiple lines under sembr.
+Write each sentence on its own Markdown source line. Do not split a sentence across multiple lines, and do not wrap to a fixed column width.
 
-The payoff is cleaner diffs.
-A clause-level edit changes one line,
-not a paragraph reflow,
-so reviewers see exactly which clause moved.
-For a docs repo that gets many small clause-level edits over time,
-the diff payoff is large.
+The payoff is cleaner diffs and easier authoring. A sentence-level edit changes one line, not a paragraph reflow, so reviewers see exactly which sentence moved. The rule is straightforward to apply for both humans and LLMs: end a sentence, start a new line.
 
-Sembr breaks at:
+What counts as a single line:
 
-- The end of a sentence (after a period, question mark, or exclamation point).
-- After an independent clause (after a conjunction joining two independent clauses).
-- After a dependent clause (after a comma joining a dependent clause to an independent clause).
-- After a list-introducing colon.
-- After each list item.
-- Between contiguous items in a series.
+- One declarative, interrogative, or imperative sentence ending in a period, question mark, or exclamation point.
+- The full text of a single bullet item, numbered list entry, or blockquote line.
 
-Sembr does not break:
+What does not get its own line:
 
-- Within phrases that should stay together.
-- Inside inline code or short identifiers.
-- In code blocks, where the language's own source conventions apply.
+- Mid-sentence clauses or phrases.
+- Source inside fenced code blocks, where the language's own conventions apply.
+- Table rows, which are governed by `markdown-table-formatter`.
 
 **Do**:
+
+> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+
+**Don't** (mid-sentence clause breaks):
 
 > The Coder agent connects to the workspace,
 > opens a Tailscale tunnel,
 > and forwards SSH and IDE traffic over the tunnel.
 
-**Don't**:
+**Don't** (fixed column wrap):
 
-> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+> The Coder agent connects to the workspace, opens a Tailscale tunnel,
+> and forwards SSH and IDE traffic over the tunnel.
 
-The **Don't** version forces a paragraph reflow on any clause-level edit.
-The **Do** version isolates each clause to one line,
-so editing or moving one clause changes one line.
+Both **Don't** versions add noise to the source and produce diff churn on small edits.
 
-This page,
-and the rest of the docs prose in this repository,
-follows sembr.
+`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial. Editors that auto-wrap on save should be configured to leave the source alone.
 
 *Documentation-only. No Vale rule.*
 

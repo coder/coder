@@ -39,39 +39,21 @@ The doctrine for adding Vale rules lives in [`README.md`](../README.md).
 These conventions apply to every Markdown file under `docs/`.
 The style guide subpages dogfood them so contributors can see the rules in action.
 
-### Semantic line breaks
+### One sentence per line
 
-Source lines in Coder documentation follow [semantic line breaks (sembr.org)](https://sembr.org/).
-A line ends at a sentence boundary,
-or at an independent-clause boundary inside a long sentence.
-Source lines do not wrap to a fixed column width.
+Source lines in Coder documentation follow a one-sentence-per-line policy. Each sentence sits on its own Markdown source line. Sentences are not split across lines, and lines do not wrap to a fixed column width.
 
-The rendered Markdown joins the soft-wrapped lines inside a paragraph,
-so the source line breaks do not appear in the rendered output.
-Reviewers reading the diff do encounter them,
-and they make diffs land cleanly at the level of a sentence or clause rather than a column-wrap reflow.
+The rendered Markdown joins lines inside a paragraph back together, so the source line breaks do not appear in the rendered output. Reviewers reading the diff do encounter them, and they make diffs land cleanly at the sentence level.
 
-`markdownlint`'s `MD013` (line length) is already disabled,
-so the convention is editorial.
-Editors that auto-wrap on save should be configured to leave the source alone.
+`markdownlint`'s `MD013` (line length) is already disabled, so the convention is editorial. Editors that auto-wrap on save should be configured to leave the source alone.
 
 #### Incremental adoption
 
-The Coder docs corpus predates this convention,
-so much of the existing prose still wraps to a fixed column width or runs on a single long line.
-The convention is adopted incrementally.
-When a contributor edits any line inside a paragraph,
-the entire paragraph is reformatted in semantic line breaks as part of the same edit.
-The contributor does not reformat surrounding paragraphs they did not otherwise touch.
+The Coder docs corpus predates this convention. Much of the existing prose still wraps to a fixed column width or runs on a single long line, and some paragraphs on the other pages of this style guide still carry semantic line breaks (sembr) from earlier commits in this PR. The convention is adopted incrementally.
 
-For this rule,
-a bullet item,
-a numbered list entry,
-and a blockquote block are each their own paragraph.
-Headings, fenced code blocks, and tables are out of scope:
-headings are single lines by convention,
-code blocks render their source verbatim,
-and table rows are governed by `markdown-table-formatter`.
+When a contributor edits any line inside a paragraph, the entire paragraph is reformatted to one sentence per line as part of the same edit. The contributor does not reformat surrounding paragraphs they did not otherwise touch.
+
+For this rule, a bullet item, a numbered list entry, and a blockquote line are each their own paragraph. Headings, fenced code blocks, and tables are out of scope: headings are single lines by convention, code blocks render their source verbatim, and table rows are governed by `markdown-table-formatter`.
 
 ### The style guide does not use "see" for navigation
 

@@ -203,51 +203,89 @@ Replace them with the literal meaning.
 >
 > Coder ships with a default template out of the box.
 
-### Avoid Latin and other foreign-language abbreviations
+*Documentation-only. Planned Vale rule `Coder.Idioms`.*
 
-Latin abbreviations (`e.g.`, `i.e.`, `etc.`, `a priori`, `q.v.`, `et al.`, `vs.`) and other foreign-language phrases require the reader to know the abbreviation.
-Replace them with the English equivalent.
+### Latin abbreviations
 
-| Do                               | Don't    |
-|----------------------------------|----------|
-| for example                      | e.g.     |
-| that is, in other words          | i.e.     |
-| and so on, and others            | etc.     |
-| from first principles, in theory | a priori |
-| versus, compared with            | vs.      |
-| and others                       | et al.   |
+The following Latin abbreviations are fine in Coder docs.
+Use them when they fit the sentence; the English equivalent is also fine.
 
-The one allowed exception is `etc.` inside compact contexts where prose alternatives would not fit,
-such as a table cell or a CLI help string.
-Prose outside those contexts uses the English form.
+| Abbreviation | Meaning                                        | Notes                                                                          |
+|--------------|------------------------------------------------|--------------------------------------------------------------------------------|
+| `e.g.`       | for example                                    | Followed by a comma. Prefer parentheses around the clause, as described below. |
+| `i.e.`       | that is                                        | Followed by a comma. Prefer parentheses around the clause, as described below. |
+| `etc.`       | and so on                                      | Closes a list. The Oxford comma applies before it: `apples, oranges, etc.`     |
+| `vs.`        | versus, against, as opposed to, in contrast to | No comma. Example: `coder server vs. coder agent`.                             |
+| `et al.`     | and others                                     | Citation contexts only. Follow the citation style's punctuation rules.         |
+
+**Prefer parentheses around `e.g.` and `i.e.` clauses.**
+The parentheses make the sentence structure obvious and avoid a cascade of commas around the abbreviation.
+
+**Do**:
+
+> Many compute platforms work (e.g., AWS, GCP, or a self-managed Kubernetes cluster).
+>
+> The agent exits when the workspace stops (i.e., when the build phase tears down).
+
+**Don't**:
+
+> Many compute platforms work, e.g., AWS, GCP, or a self-managed Kubernetes cluster.
+>
+> The agent exits when the workspace stops, i.e., when the build phase tears down.
+
+The **Don't** versions are grammatical, but the comma cascade makes the sentence structure harder to follow.
+
+**One period when `etc.` ends a sentence.**
+The period in `etc.` doubles as the sentence-ending period.
+
+**Do**:
+
+> The provisioner installs apples, oranges, etc.
+
+**Don't**:
+
+> The provisioner installs apples, oranges, etc..
+
+When `etc.` ends a parenthetical at the end of a sentence, keep both periods.
+The abbreviation's period closes `etc.`, the closing parenthesis follows, and the sentence-ending period falls outside the parenthesis.
+
+**Do**:
+
+> The provisioner handles produce (apples, oranges, etc.).
+
+The same rule applies if `e.g.` or `i.e.` ever sits at the end of a sentence, though that placement is unusual.
+
+**Citation form for `et al.`**
+In an author-date citation, place a comma between the author phrase and the year, and keep the abbreviation's period.
+
+**Do**:
+
+> The protocol is described by Smith et al., 2020.
+>
+> The protocol is described by Smith et al. (2020).
+
+**Less common Latin abbreviations are not allowed.**
+Latin abbreviations beyond the five in the table, such as `a priori`, `q.v.`, `viz.`, `n.b.`, `cf.`, and `ibid.`, are unfamiliar to many readers and easy to misuse.
+Replace them with plain English.
+
+**Don't**:
+
+> The default configuration is acceptable a priori.
+>
+> Refer to the deployment guide, q.v. for benchmarks.
 
 <details>
-<summary>Why the rule exists</summary>
+<summary>Why these specific abbreviations are allowed</summary>
 
-The rule is plain-language guidance,
-not a strict accessibility requirement.
-WCAG 2.1 does not ban Latin abbreviations.
-Success Criteria [3.1.3 Unusual Words](https://www.w3.org/TR/WCAG21/#unusual-words) and [3.1.4 Abbreviations](https://www.w3.org/TR/WCAG21/#abbreviations) are Level AAA mechanisms that recommend providing expansions when an abbreviation is outside the reader's working vocabulary.
-The Coder docs avoid the abbreviations entirely instead of expanding them inline,
-which is a simpler reader experience.
+Major plain-language guides such as the [Google developer documentation style guide](https://developers.google.com/style/abbreviations), the [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/), the [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/), and the [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) recommend English equivalents for all Latin abbreviations.
+The argument is that the abbreviations are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
 
-The substantive rationale is plain language for international and non-native-English readers.
-Major technical-docs style guides converge on the same recommendation:
-
-- The [Google developer documentation style guide](https://developers.google.com/style/abbreviations) tells writers to avoid Latin abbreviations because they are unfamiliar to many readers and frequently misused (`i.e.` confused with `e.g.`).
-- The [Microsoft Writing Style Guide](https://learn.microsoft.com/en-us/style-guide/abbreviations/) instructs writers to use English equivalents in customer-facing content.
-- The [18F Content Guide](https://content-guide.18f.gov/our-style/inclusive-language/) tells US federal writers to use plain English in place of Latin abbreviations.
-- The [Plain Language Action and Information Network (PLAIN) federal guidance](https://www.plainlanguage.gov/guidelines/words/use-simple-words-phrases/) flags Latin abbreviations as unnecessary jargon.
-
-Other technical-docs teams use Latin abbreviations freely and the prose still parses.
-The Coder docs treat the rule as a preference,
-not a hard policy.
-The planned `Coder.LatinAbbreviations` Vale rule will ship at `warning` severity
-so authors see the suggestion without being blocked.
+The Coder docs follow the spirit of that guidance for less common Latin but make an exception for `e.g.`, `i.e.`, `etc.`, `vs.`, and `et al.`
+These five are near-universal in industry technical writing; restricting them adds friction for writers without a clear payoff for readers familiar with the conventions of the genre.
 
 </details>
 
-*Documentation-only. Planned Vale rules `Coder.Idioms` and `Coder.LatinAbbreviations`.*
+*Documentation-only. No Vale rule.*
 
 ## Page title and sidebar title
 
