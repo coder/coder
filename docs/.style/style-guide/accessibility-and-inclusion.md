@@ -249,6 +249,61 @@ so authors see the suggestion without being blocked.
 
 *Documentation-only. Planned Vale rules `Coder.Idioms` and `Coder.LatinAbbreviations`.*
 
+## Page title and sidebar title
+
+A page's H1 and its sidebar title serve different jobs and may diverge.
+
+- The **H1** is the page's grammatical declaration of what the page does.
+  It works as the only line of text when the page is opened in isolation
+  (Markdown source, RSS feed, mobile view that hides the sidebar, or a permalink shared in chat).
+  Refer to [Declare audience and scope up front](./audience-and-scope.md#declare-audience-and-scope-up-front) for how the H1 names the outcome.
+- The **sidebar title** is a navigation label.
+  It fits the limited horizontal space of the sidebar
+  and reads fast when the reader is scanning a tree of dozens of pages.
+  The Coder docs site reads the sidebar title from the `title` field in [`docs/manifest.json`](../../manifest.json).
+
+The two must each stand alone,
+but they do not need to be identical.
+Breadcrumb depth gives one layer of context for free.
+The sidebar title can drop redundancy that the parent breadcrumbs already imply.
+
+Worked example.
+A page reachable through **Administration** > **Authentication** > **Google**
+has parent breadcrumbs that already say "Administration" and "Authentication".
+The sidebar title can be `Google` alone,
+and the H1 can be `Configure Google authentication with Coder`.
+Both labels stand alone in their own context.
+
+When the H1 and the sidebar title coincide (often the case for short-titled pages),
+that is fine.
+When they diverge,
+the divergence is intentional and serves the reader.
+The same pattern is common in mature docs sites.
+AWS, Microsoft Learn, and GitHub Docs all pair task-focused H1s with shorter noun-focused sidebar titles.
+
+**Do**:
+
+| Sidebar title | H1                                             |
+|---------------|------------------------------------------------|
+| Google        | Configure Google authentication with Coder     |
+| Helm chart    | Deploy Coder on Kubernetes with the Helm chart |
+| OIDC          | Configure single sign-on with OIDC             |
+
+**Don't**:
+
+| Sidebar title                              | H1                                             |
+|--------------------------------------------|------------------------------------------------|
+| Configure Google authentication with Coder | Configure Google authentication with Coder     |
+| Click here for Helm install                | Deploy Coder on Kubernetes with the Helm chart |
+| Page                                       | Configure single sign-on with OIDC             |
+
+The first **Don't** row uses the full H1 as the sidebar title.
+The sidebar title is redundant with the parent breadcrumbs and crowds the navigation tree.
+The second row has a sidebar title that does not stand alone.
+The third row has a sidebar title that tells the reader nothing.
+
+*Documentation-only. No Vale rule.*
+
 ## Page descriptions
 
 Each page declares a description that appears in search engine results,

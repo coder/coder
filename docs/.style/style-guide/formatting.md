@@ -12,6 +12,56 @@ The accessibility-driven rules live on that page so heading structure,
 language, link text,
 and alt text stay together.
 
+## Semantic line breaks
+
+Break Markdown source lines at semantic boundaries
+(clauses, list items, sentence ends),
+not at fixed line widths.
+The convention is called [semantic line breaks](https://sembr.org/) (sembr).
+A single sentence routinely spans multiple lines under sembr.
+
+The payoff is cleaner diffs.
+A clause-level edit changes one line,
+not a paragraph reflow,
+so reviewers see exactly which clause moved.
+For a docs repo that gets many small clause-level edits over time,
+the diff payoff is large.
+
+Sembr breaks at:
+
+- The end of a sentence (after a period, question mark, or exclamation point).
+- After an independent clause (after a conjunction joining two independent clauses).
+- After a dependent clause (after a comma joining a dependent clause to an independent clause).
+- After a list-introducing colon.
+- After each list item.
+- Between contiguous items in a series.
+
+Sembr does not break:
+
+- Within phrases that should stay together.
+- Inside inline code or short identifiers.
+- In code blocks, where the language's own source conventions apply.
+
+**Do**:
+
+> The Coder agent connects to the workspace,
+> opens a Tailscale tunnel,
+> and forwards SSH and IDE traffic over the tunnel.
+
+**Don't**:
+
+> The Coder agent connects to the workspace, opens a Tailscale tunnel, and forwards SSH and IDE traffic over the tunnel.
+
+The **Don't** version forces a paragraph reflow on any clause-level edit.
+The **Do** version isolates each clause to one line,
+so editing or moving one clause changes one line.
+
+This page,
+and the rest of the docs prose in this repository,
+follows sembr.
+
+*Documentation-only. No Vale rule.*
+
 ## Text formatting
 
 The rules in this section cover inline formatting that lives inside a paragraph.
