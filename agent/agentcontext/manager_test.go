@@ -44,6 +44,19 @@ func TestMain(m *testing.M) {
 
 func newTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
 	t.Helper()
+	m := newPendingTestManager(t, opts)
+	// Most tests want the ready behavior; release the gate so the first
+	// snapshot is the resolved inventory at version 1. Gate tests use
+	// newPendingTestManager directly.
+	m.SetReady()
+	return m
+}
+
+// newPendingTestManager builds a gated Manager (first snapshot is the
+// empty version-0 placeholder) for tests that drive SetReady
+// themselves.
+func newPendingTestManager(t *testing.T, opts agentcontext.ManagerOptions) *agentcontext.Manager {
+	t.Helper()
 	opts.Logger = testutil.Logger(t).Named("agentcontext-test")
 	m := agentcontext.NewManager(opts)
 	t.Cleanup(func() { _ = m.Close() })
@@ -368,6 +381,92 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, snap.Resources, 1)
 	require.Equal(t, late, snap.Resources[0].SourcePath)
+}
+
+// TestManager_WithholdsCollectionUntilReady reproduces the boot-time
+// race: collecting before startup finishes sees instruction-file
+// symlinks (CLAUDE.md / .cursorrules -> AGENTS.md) with no target yet.
+// The gated snapshot is the version-0 placeholder with no resources or
+// errors; after SetReady the symlinks resolve cleanly.
+func TestManager_WithholdsCollectionUntilReady(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	dir := testutil.TempDirResolved(t)
+	// CLAUDE.md and .cursorrules symlink to an AGENTS.md that does not
+	// exist yet, so an eager resolve would report them unreadable.
+	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, "CLAUDE.md")))
+	require.NoError(t, os.Symlink(filepath.Join(dir, "AGENTS.md"), filepath.Join(dir, ".cursorrules")))
+
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+
+	// Before SetReady the snapshot is the version-0 placeholder: no
+	// resources and no errors. The broken symlinks are NOT reported.
+	snap := m.Snapshot()
+	require.Zero(t, snap.Version, "gated snapshot must be the version-0 placeholder")
+	require.Empty(t, snap.Resources, "gated snapshot must not collect a partial inventory")
+	require.Empty(t, snap.SnapshotError, "gated snapshot must not surface transient errors")
+
+	// Resync stays gated too, so callers see the version-0 placeholder
+	// instead of a partial result.
+	rs, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Zero(t, rs.Version)
+	require.Empty(t, rs.Resources)
+
+	// Startup finishes: AGENTS.md now exists, so the symlinks resolve.
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "# rules\n")
+
+	// Release the gate. SetReady performs the first real resolve.
+	m.SetReady()
+
+	snap = m.Snapshot()
+	require.NotZero(t, snap.Version, "post-ready snapshot must be a real resolve")
+	require.NotEmpty(t, snap.Resources, "post-ready snapshot must include resolved files")
+	require.Empty(t, snap.SnapshotError)
+	var instr int
+	for _, r := range snap.Resources {
+		require.NotEqualf(t, agentcontext.StatusUnreadable, r.Status,
+			"resolved snapshot must not contain spurious unreadable issues: %s", r.Source)
+		if r.Kind == agentcontext.KindInstructionFile {
+			instr++
+		}
+	}
+	// AGENTS.md and the two symlinks that resolve to it collapse to a
+	// single instruction-file resource.
+	require.Equal(t, 1, instr)
+}
+
+// TestManager_SetReadyIsIdempotent verifies the first SetReady resolves
+// once (version 1) and repeated calls neither panic nor re-resolve.
+func TestManager_SetReadyIsIdempotent(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	mustWriteFile(t, filepath.Join(dir, "AGENTS.md"), "rules")
+
+	// Gated: first snapshot is the version-0 placeholder.
+	m := newPendingTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir: func() string { return dir },
+	})
+	snap := m.Snapshot()
+	require.Zero(t, snap.Version)
+	require.Empty(t, snap.Resources)
+
+	// First SetReady resolves once: version 1 with the inventory.
+	m.SetReady()
+	snap = m.Snapshot()
+	require.Equal(t, uint64(1), snap.Version)
+	require.Len(t, snap.Resources, 1)
+
+	// Further calls are no-ops: version and inventory unchanged.
+	m.SetReady()
+	m.SetReady()
+	snap = m.Snapshot()
+	require.Equal(t, uint64(1), snap.Version)
+	require.Len(t, snap.Resources, 1)
 }
 
 func TestManager_CloseIsIdempotent(t *testing.T) {
