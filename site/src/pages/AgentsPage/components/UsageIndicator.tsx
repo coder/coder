@@ -26,9 +26,12 @@ import {
 } from "#/modules/dashboard/useDashboard";
 import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
 import {
+	clampPercentage,
 	getSeverity,
+	severityProgressClassName,
 	severityTextClassName,
 	type UsageSeverity,
+	usageProgressPercentage,
 } from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
@@ -83,7 +86,7 @@ export const UsageIndicator: FC = () => {
 			id: "ai-usage",
 			title: `${periodLabel} usage`,
 			progressLabel: `${periodLabel} spend usage`,
-			percent: getPercent(currentSpend, spendLimit),
+			percent: usageProgressPercentage(currentSpend, spendLimit),
 			severity: getSeverity(currentSpend, spendLimit),
 			icon: <CoinsIcon className="size-3.5" />,
 			hoverLabel: `Spend ${formatCostMicros(currentSpend)}`,
@@ -123,7 +126,7 @@ export const UsageIndicator: FC = () => {
 			id: "workspace-quota",
 			title: "Workspace quota",
 			progressLabel: "Workspace quota usage",
-			percent: getPercent(creditsConsumed, quota.budget),
+			percent: usageProgressPercentage(creditsConsumed, quota.budget),
 			severity: getSeverity(creditsConsumed, quota.budget),
 			icon: <ServerIcon className="size-3.5" />,
 			hoverLabel: workspaceHoverLabel,
@@ -213,7 +216,7 @@ const UsageRingProgress: FC<{
 	severity?: UsageSeverity;
 	icon: ReactNode;
 }> = ({ ariaLabel, percent, severity = "normal", icon }) => {
-	const clampedPercent = clampPercent(percent);
+	const clampedPercent = clampPercentage(percent);
 
 	return (
 		<div
@@ -319,7 +322,7 @@ const UsageProgress: FC<{
 	severity?: UsageSeverity;
 	className?: string;
 }> = ({ ariaLabel, percent, severity = "normal", className }) => {
-	const clampedPercent = clampPercent(percent);
+	const clampedPercent = clampPercentage(percent);
 
 	return (
 		<div
@@ -336,41 +339,13 @@ const UsageProgress: FC<{
 			<div
 				className={cn(
 					"h-full rounded-full transition-all duration-300 ease-out",
-					getProgressClassName(severity),
+					severityProgressClassName(severity),
 				)}
 				style={{ width: `${clampedPercent}%` }}
 			/>
 		</div>
 	);
 };
-
-function getPercent(used: number, budget: number): number {
-	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
-		return 0;
-	}
-	if (budget === 0) {
-		return used > 0 ? 100 : 0;
-	}
-	return clampPercent((used / budget) * 100);
-}
-
-function clampPercent(percent: number): number {
-	if (!Number.isFinite(percent)) {
-		return 0;
-	}
-	return Math.min(Math.max(percent, 0), 100);
-}
-
-function getProgressClassName(severity: UsageSeverity): string {
-	switch (severity) {
-		case "exceeded":
-			return "bg-content-destructive";
-		case "warning":
-			return "bg-content-warning";
-		case "normal":
-			return "bg-content-secondary";
-	}
-}
 
 function getRingStrokeClassName(severity: UsageSeverity): string {
 	switch (severity) {

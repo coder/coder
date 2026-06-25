@@ -5,7 +5,7 @@ import {
 	MonitorDownIcon,
 	SquareArrowOutUpRightIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
 import type * as TypesGen from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
@@ -24,6 +24,7 @@ import { SupportIcon } from "../SupportIcon";
 interface UserDropdownContentProps {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
+	profileContent?: ReactNode;
 	supportLinks: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
 }
@@ -31,6 +32,7 @@ interface UserDropdownContentProps {
 export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 	user,
 	buildInfo,
+	profileContent,
 	supportLinks,
 	onSignOut,
 }) => {
@@ -46,6 +48,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 					</div>
 				</Link>
 			</DropdownMenuItem>
+			{profileContent}
 			<DropdownMenuSeparator />
 			<DropdownMenuItem asChild>
 				<Link to="/install">

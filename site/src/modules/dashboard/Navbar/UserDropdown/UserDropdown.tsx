@@ -6,6 +6,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { UserDropdownAISpend } from "./UserDropdownAISpend";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 interface UserDropdownProps {
@@ -36,6 +37,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}
+					profileContent={<UserDropdownAISpend />}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
 				/>

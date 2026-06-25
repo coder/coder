@@ -30,3 +30,33 @@ export function severityTextClassName(
 			return "text-content-secondary";
 	}
 }
+
+export function severityProgressClassName(
+	severity: UsageSeverity = "normal",
+): string {
+	switch (severity) {
+		case "exceeded":
+			return "bg-content-destructive";
+		case "warning":
+			return "bg-content-warning";
+		case "normal":
+			return "bg-content-secondary";
+	}
+}
+
+export function usageProgressPercentage(used: number, budget: number): number {
+	if (!Number.isFinite(used) || !Number.isFinite(budget) || budget < 0) {
+		return 0;
+	}
+	if (budget === 0) {
+		return used > 0 ? 100 : 0;
+	}
+	return clampPercentage((used / budget) * 100);
+}
+
+export function clampPercentage(percent: number): number {
+	if (!Number.isFinite(percent)) {
+		return 0;
+	}
+	return Math.min(Math.max(percent, 0), 100);
+}

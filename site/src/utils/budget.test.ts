@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getSeverity, severityTextClassName } from "./budget";
+import {
+	clampPercentage,
+	getSeverity,
+	severityProgressClassName,
+	severityTextClassName,
+	usageProgressPercentage,
+} from "./budget";
 
 describe("getSeverity", () => {
 	it("returns normal below the warning threshold", () => {
@@ -35,5 +41,41 @@ describe("severityTextClassName", () => {
 		expect(severityTextClassName("warning")).toBe("text-content-warning");
 		expect(severityTextClassName("normal")).toBe("text-content-secondary");
 		expect(severityTextClassName()).toBe("text-content-secondary");
+	});
+});
+
+describe("severityProgressClassName", () => {
+	it("maps each severity to its progress bar color, defaulting to normal", () => {
+		expect(severityProgressClassName("exceeded")).toBe(
+			"bg-content-destructive",
+		);
+		expect(severityProgressClassName("warning")).toBe("bg-content-warning");
+		expect(severityProgressClassName("normal")).toBe("bg-content-secondary");
+		expect(severityProgressClassName()).toBe("bg-content-secondary");
+	});
+});
+
+describe("usageProgressPercentage", () => {
+	it("returns the usage percentage clamped from 0 to 100", () => {
+		expect(usageProgressPercentage(25, 100)).toBe(25);
+		expect(usageProgressPercentage(125, 100)).toBe(100);
+		expect(usageProgressPercentage(-25, 100)).toBe(0);
+	});
+
+	it("handles zero budgets and invalid inputs", () => {
+		expect(usageProgressPercentage(0, 0)).toBe(0);
+		expect(usageProgressPercentage(1, 0)).toBe(100);
+		expect(usageProgressPercentage(Number.NaN, 100)).toBe(0);
+		expect(usageProgressPercentage(1, Number.POSITIVE_INFINITY)).toBe(0);
+		expect(usageProgressPercentage(1, -100)).toBe(0);
+	});
+});
+
+describe("clampPercentage", () => {
+	it("clamps percentages from 0 to 100", () => {
+		expect(clampPercentage(-1)).toBe(0);
+		expect(clampPercentage(50)).toBe(50);
+		expect(clampPercentage(101)).toBe(100);
+		expect(clampPercentage(Number.NaN)).toBe(0);
 	});
 });
