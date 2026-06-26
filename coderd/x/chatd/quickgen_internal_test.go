@@ -823,6 +823,44 @@ func TestGenerateStructuredTurnStatusLabel(t *testing.T) {
 	})
 }
 
+func TestServer_titleGenerationContext(t *testing.T) {
+	t.Parallel()
+
+	serverCtx, serverCancel := context.WithCancel(context.Background())
+	t.Cleanup(serverCancel)
+	server := &Server{ctx: serverCtx}
+
+	type ctxKey string
+	const key ctxKey = "title-gen-test"
+	reqCtx, reqCancel := context.WithCancel(context.WithValue(context.Background(), key, "value"))
+	t.Cleanup(reqCancel)
+
+	titleCtx, stop := server.titleGenerationContext(reqCtx)
+	t.Cleanup(stop)
+
+	// Request-scoped values are preserved so title generation retains auth
+	// and routing metadata from the originating request.
+	require.Equal(t, "value", titleCtx.Value(key))
+
+	// Request cancellation must not cancel title generation: it has to
+	// outlive the create response.
+	reqCancel()
+	select {
+	case <-titleCtx.Done():
+		t.Fatal("title context cancelled by request cancellation")
+	case <-time.After(testutil.IntervalFast):
+	}
+
+	// Server shutdown must cancel title generation so Close does not block
+	// on the title timeout while a provider is unreachable.
+	serverCancel()
+	select {
+	case <-titleCtx.Done():
+	case <-time.After(testutil.WaitShort):
+		t.Fatal("title context not cancelled on server shutdown")
+	}
+}
+
 func mustChatMessage(
 	t *testing.T,
 	role database.ChatMessageRole,

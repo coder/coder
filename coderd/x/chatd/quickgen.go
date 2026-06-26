@@ -167,20 +167,23 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 		return
 	}
 	// Detach from the request lifetime so title generation can finish
-	// even after the create response is written.
-	titleCtx := context.WithoutCancel(ctx)
+	// even after the create response is written, but stay bound to the
+	// server lifetime so Close cancels it instead of blocking on the
+	// title timeout while a provider is unreachable.
+	titleCtx, stopTitleCtx := p.titleGenerationContext(ctx)
 	if err := p.goInflight(func() {
+		defer stopTitleCtx()
 		modelOpts := modelBuildOptionsFromMessages(messages)
-		titleCtx = withActiveTurnAPIKeyID(titleCtx, modelOpts)
-		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(titleCtx, chat, modelOpts)
+		turnCtx := withActiveTurnAPIKeyID(titleCtx, modelOpts)
+		model, modelConfig, keys, route, _, _, _, err := p.resolveChatModel(turnCtx, chat, modelOpts)
 		if err != nil {
-			logger.Debug(titleCtx, "failed to resolve model for automatic title generation",
+			logger.Debug(turnCtx, "failed to resolve model for automatic title generation",
 				slog.Error(err),
 			)
 			return
 		}
 		p.maybeGenerateChatTitle(
-			titleCtx,
+			turnCtx,
 			chat,
 			messages,
 			modelConfig.Provider,
@@ -194,11 +197,27 @@ func (p *Server) GenerateChatTitleAsync(ctx context.Context, chat database.Chat)
 			p.existingDebugService(),
 		)
 	}); err != nil {
+		stopTitleCtx()
 		logger.Error(titleCtx, "failed to schedule automatic chat title generation",
 			slog.F("chat_id", chat.ID),
 			slog.F("owner_id", chat.OwnerID),
 			slog.Error(err),
 		)
+	}
+}
+
+// titleGenerationContext returns the context for asynchronous title
+// generation. It is detached from reqCtx's cancellation so the work can
+// outlive the originating request, while preserving its values for auth
+// and routing. The context is bound to the server lifetime via p.ctx so
+// Close cancels it promptly. The returned stop must be called once the
+// work completes to release the shutdown hook.
+func (p *Server) titleGenerationContext(reqCtx context.Context) (context.Context, func()) {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(reqCtx))
+	stop := context.AfterFunc(p.ctx, cancel)
+	return ctx, func() {
+		stop()
+		cancel()
 	}
 }
 
