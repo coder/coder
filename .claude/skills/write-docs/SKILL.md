@@ -107,10 +107,10 @@ drift from the source.
 
 The canonical
 [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules)
-cover the manifest entry, Premium marking, renames and redirects, and the
-emdash ban. Read them for the exact wording; the pre-handoff checklist below
-turns them into pass/fail items. Two application notes the canonical rules do
-not spell out:
+cover the manifest entry, auto-generated content, Premium marking, renames
+and redirects, and the emdash ban. Read them for the exact wording; the
+pre-handoff checklist below turns them into pass/fail items. Two application
+notes the canonical rules do not spell out:
 
 - On a rename, pick the new link target by the specific page each sentence
   promises, not just the section hub, and confirm moved anchors still resolve.
