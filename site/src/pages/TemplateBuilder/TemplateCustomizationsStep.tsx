@@ -51,7 +51,7 @@ export const TemplateCustomizationsStep: FC<
 	};
 
 	return (
-		<div className="border border-border border-solid p-6 rounded-lg">
+		<>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
 				Add additional configurations.
@@ -138,7 +138,7 @@ export const TemplateCustomizationsStep: FC<
 					</div>
 				</div>
 			</div>
-		</div>
+		</>
 	);
 };
 
