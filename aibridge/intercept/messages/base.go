@@ -350,7 +350,7 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		// since Bedrock returns 400 for these models when the legacy shape is
 		// used. Claude Code falls back to the legacy shape when it cannot
 		// read the upstream model's capability metadata (which is the case
-		// when AI Bridge is in the path).
+		// when AI Gateway is in the path).
 		updated, err = i.reqPayload.convertEnabledThinkingForBedrock()
 		if err != nil {
 			i.logger.Warn(context.Background(), "failed to convert enabled thinking for Bedrock", slog.Error(err))
@@ -417,7 +417,8 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
-	return strings.Contains(model, "anthropic.claude-opus-4-7")
+	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
+		strings.Contains(model, "anthropic.claude-opus-4-8")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta

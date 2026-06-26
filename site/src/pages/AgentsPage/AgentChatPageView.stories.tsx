@@ -544,7 +544,7 @@ export const MissingProviderAndModelSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/ai/settings",
+			"/ai/settings/providers",
 		);
 		expect(canvas.getByRole("link", { name: "model" })).toHaveAttribute(
 			"href",
@@ -607,7 +607,7 @@ export const MissingProviderSetup: Story = {
 		});
 		expect(canvas.getByRole("link", { name: "provider" })).toHaveAttribute(
 			"href",
-			"/ai/settings",
+			"/ai/settings/providers",
 		);
 	},
 };
@@ -1377,6 +1377,133 @@ export const StickyUserMessagePinsOnScroll: Story = {
 		expect(window.getComputedStyle(pinnedContainer).position).toBe("sticky");
 		expect(pinnedRect.top - scrollerRect.top).toBeGreaterThanOrEqual(-1);
 		expect(pinnedRect.top - scrollerRect.top).toBeLessThan(40);
+	},
+};
+
+// Tall user messages interleaved with verbose assistant replies. The height
+// gives the sticky clip room to shrink as the transcript grows, and the
+// volume overflows the 600px scroll decorator.
+const buildTallStickyConversation = (count: number): TypesGen.ChatMessage[] => {
+	const messages: TypesGen.ChatMessage[] = [];
+	for (let i = 1; i <= count; i++) {
+		const role: TypesGen.ChatMessageRole = i % 2 === 1 ? "user" : "assistant";
+		const text =
+			role === "user"
+				? Array.from(
+						{ length: 6 },
+						(_, line) =>
+							`Question ${Math.ceil(i / 2)} paragraph ${line + 1}: keep this user message tall enough to clip.`,
+					).join("\n\n")
+				: `Detailed answer ${Math.floor(i / 2)}. `.repeat(12);
+		messages.push(buildMessage(i, role, text));
+	}
+	return messages;
+};
+
+const stickyClipUpdateStore = buildStoreWithMessages(
+	buildTallStickyConversation(30),
+);
+
+/**
+ * Regression guard: the sticky truncation must stay in sync as the
+ * transcript grows while the user is pinned to the bottom.
+ *
+ * The clip height is recomputed by a scroll handler, a window-resize
+ * handler, and a ResizeObserver on the transcript. The observer used to
+ * watch `scroller.firstElementChild`, which is the aria-hidden flex spacer
+ * that pins content to the bottom. That spacer collapses to 0px once the
+ * transcript overflows and then stops emitting resize callbacks, so several
+ * messages arriving while pinned left the clip stale until the next manual
+ * scroll and the bubble overflowed. The fix observes the real content
+ * wrapper tagged with `data-chat-scroll-content`.
+ *
+ * This story grows the transcript while pinned and asserts the clip tracks
+ * the new geometry without any scroll event.
+ */
+export const StickyUserMessageClipUpdatesWhilePinned: Story = {
+	parameters: { chromatic: { disableSnapshot: true } },
+	decorators: scrollStoryDecorators,
+	render: () => <StoryAgentChatPageView store={stickyClipUpdateStore} />,
+	play: async ({ canvasElement }) => {
+		stickyClipUpdateStore.replaceMessages(buildTallStickyConversation(30));
+		stickyClipUpdateStore.setChatStatus("completed");
+		const canvas = within(canvasElement);
+		const scrollContainer = canvas.getByTestId("scroll-container");
+
+		await waitForScrollOverflow(scrollContainer);
+
+		// The observed transcript node must be the real content wrapper, not
+		// the aria-hidden flex spacer that collapses to 0px on overflow.
+		const contentMarker = scrollContainer.querySelector(
+			"[data-chat-scroll-content]",
+		);
+		expect(contentMarker).not.toBeNull();
+		const spacer = scrollContainer.firstElementChild;
+		expect(spacer).not.toBe(contentMarker);
+		expect(spacer?.getAttribute("aria-hidden")).toBe("true");
+
+		// Every sticky sentinel lives inside the observed content node, so a
+		// resize of that node reflects transcript growth.
+		const sentinels = scrollContainer.querySelectorAll("[data-user-sentinel]");
+		expect(sentinels.length).toBeGreaterThan(0);
+		for (const sentinel of sentinels) {
+			expect(contentMarker?.contains(sentinel)).toBe(true);
+		}
+
+		// At scrollTop 0 the newest message is pinned to the bottom. The most
+		// recent user message whose sentinel sits just above the top edge is
+		// the bubble pinned at the top and actively clipped.
+		const scrollerRect = scrollContainer.getBoundingClientRect();
+		const pinnedSentinel = Array.from(sentinels)
+			.reverse()
+			.find(
+				(sentinel) =>
+					sentinel.getBoundingClientRect().top < scrollerRect.top - 4,
+			) as HTMLElement | undefined;
+		expect(pinnedSentinel).toBeDefined();
+		if (!pinnedSentinel) {
+			return;
+		}
+		const pinnedContainer = pinnedSentinel.nextElementSibling as HTMLElement;
+
+		const MIN_CLIP_HEIGHT = 72;
+		const readClip = () =>
+			Number.parseFloat(pinnedContainer.style.getPropertyValue("--clip-h")) ||
+			0;
+		const measureScrolledPast = () =>
+			scrollContainer.getBoundingClientRect().top -
+			pinnedSentinel.getBoundingClientRect().top;
+		const expectedClip = () =>
+			Math.max(
+				pinnedContainer.offsetHeight - measureScrolledPast(),
+				MIN_CLIP_HEIGHT,
+			);
+
+		const scrolledPastBefore = measureScrolledPast();
+		expect(scrolledPastBefore).toBeGreaterThan(4);
+		// Stay in the clipping regime (not a near-full-height bubble).
+		expect(pinnedContainer.offsetHeight).toBeLessThanOrEqual(
+			scrollContainer.clientHeight * 0.75,
+		);
+		expect(scrollContainer.scrollTop).toBe(0);
+
+		// Grow the transcript at the newest end. While pinned, scrollTop stays
+		// at 0 so no scroll event fires; only the content ResizeObserver can
+		// drive the recompute.
+		stickyClipUpdateStore.replaceMessages([
+			...getStoreMessages(stickyClipUpdateStore),
+			buildMessage(31, "assistant", "Freshly streamed reply. ".repeat(80)),
+			buildMessage(32, "assistant", "More freshly streamed reply. ".repeat(80)),
+		]);
+
+		// The pinned bubble is now further above the top edge. Its clip must
+		// follow the new geometry. Before the fix it stayed stale (matching
+		// the pre-growth scrolledPast) until a manual scroll.
+		await waitFor(() => {
+			expect(scrollContainer.scrollTop).toBe(0);
+			expect(measureScrolledPast()).toBeGreaterThan(scrolledPastBefore + 10);
+			expect(Math.abs(readClip() - expectedClip())).toBeLessThanOrEqual(2);
+		});
 	},
 };
 

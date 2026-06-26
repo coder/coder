@@ -123,7 +123,7 @@ func (i *responsesInterceptionBase) baseTraceAttributes(r *http.Request, streami
 
 func (i *responsesInterceptionBase) validateRequest(ctx context.Context, w http.ResponseWriter) error {
 	if i.reqPayload.background() {
-		err := xerrors.New("background requests are currently not supported by AI Bridge")
+		err := xerrors.New("background requests are currently not supported by AI Gateway")
 		i.sendCustomErr(ctx, w, http.StatusNotImplemented, err)
 		return err
 	}
@@ -389,7 +389,7 @@ type responseCopier struct {
 	// this closer to makes sure whole response body is in the buffer.
 	responseBody io.ReadCloser
 
-	// responseReceived flag is used to determine if AI Bridge needs to write custom error:
+	// responseReceived flag is used to determine if AI Gateway needs to write custom error:
 	// - If responseReceived is true, the upstream response is forwarded as-is.
 	// - If responseReceived is false, no response was returned and there is nothing to forward (eg. connection/client error). Custom error will be returned.
 	responseReceived atomic.Bool
