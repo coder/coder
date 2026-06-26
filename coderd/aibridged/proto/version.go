@@ -7,9 +7,14 @@ import "github.com/coder/coder/v2/apiversion"
 // API v1.0:
 //   - Initial version. Serves the Recorder, MCPConfigurator, and Authorizer
 //     services to embedded and standalone AI Gateway daemons.
+//
+// API v1.1:
+//   - Adds the ProviderConfigurator service with the GetAIProviders unary RPC,
+//     letting embedded and standalone gateways fetch provider configuration
+//     over DRPC instead of reading the database directly.
 const (
 	CurrentMajor = 1
-	CurrentMinor = 0
+	CurrentMinor = 1
 )
 
 // CurrentVersion is the current aibridged API version.

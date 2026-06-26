@@ -31,7 +31,7 @@ import (
 const aiGatewayKeyLastUsedInterval = 60 * time.Second
 
 // aiBridgeServe upgrades the connection to a WebSocket and serves the aibridged
-// DRPC services (Recorder, MCPConfigurator, Authorizer) to a remote standalone
+// DRPC services (Recorder, MCPConfigurator, Authorizer, ProviderConfigurator) to a remote standalone
 // AI Gateway replica, mirroring the embedded case. AI Gateway key
 // authentication is enforced before the WebSocket upgrade. License entitlement
 // is enforced by middleware on the route.

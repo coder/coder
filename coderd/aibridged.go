@@ -103,9 +103,10 @@ func (api *API) CreateInMemoryAIBridgeServer(dialCtx context.Context) (client ai
 	}()
 
 	return &aibridged.Client{
-		Conn:                      clientSession,
-		DRPCRecorderClient:        aibridgedproto.NewDRPCRecorderClient(clientSession),
-		DRPCMCPConfiguratorClient: aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
-		DRPCAuthorizerClient:      aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		Conn:                           clientSession,
+		DRPCRecorderClient:             aibridgedproto.NewDRPCRecorderClient(clientSession),
+		DRPCMCPConfiguratorClient:      aibridgedproto.NewDRPCMCPConfiguratorClient(clientSession),
+		DRPCAuthorizerClient:           aibridgedproto.NewDRPCAuthorizerClient(clientSession),
+		DRPCProviderConfiguratorClient: aibridgedproto.NewDRPCProviderConfiguratorClient(clientSession),
 	}, nil
 }

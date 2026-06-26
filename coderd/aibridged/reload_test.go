@@ -59,6 +59,24 @@ func TestSubscribeProviderReloadSurfacesReloadError(t *testing.T) {
 		"Reload must keep firing even after a previous Reload returned an error")
 }
 
+func TestSubscribeProviderReloadFailsWhenSubscribeFails(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+
+	logger := slogtest.Make(t, nil)
+	ps := &subscribeErrPubsub{}
+
+	calls := &recordingReloader{}
+	unsub, err := aibridged.SubscribeProviderReload(ctx, ps, calls, logger)
+	require.Error(t, err, "a subscription failure must be surfaced to the caller")
+	require.Nil(t, unsub)
+
+	// Without a subscription the snapshot can never track changes, so the
+	// caller must fail; no reload is attempted.
+	require.Equal(t, 0, calls.count())
+}
+
 func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
 	t.Parallel()
 
@@ -129,5 +147,27 @@ func (*errInjectingPubsub) Publish(string, []byte) error {
 }
 
 func (*errInjectingPubsub) Close() error {
+	return nil
+}
+
+var _ dbpubsub.Pubsub = &subscribeErrPubsub{}
+
+// subscribeErrPubsub fails every subscription attempt, exercising the path
+// where SubscribeProviderReload cannot establish a subscription.
+type subscribeErrPubsub struct{}
+
+func (*subscribeErrPubsub) Subscribe(string, dbpubsub.Listener) (func(), error) {
+	return nil, xerrors.New("Subscribe not implemented")
+}
+
+func (*subscribeErrPubsub) SubscribeWithErr(string, dbpubsub.ListenerWithErr) (func(), error) {
+	return nil, xerrors.New("subscribe failed")
+}
+
+func (*subscribeErrPubsub) Publish(string, []byte) error {
+	return xerrors.New("Publish not implemented")
+}
+
+func (*subscribeErrPubsub) Close() error {
 	return nil
 }

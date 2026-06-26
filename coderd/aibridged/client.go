@@ -17,6 +17,7 @@ type DRPCClient interface {
 	proto.DRPCRecorderClient
 	proto.DRPCMCPConfiguratorClient
 	proto.DRPCAuthorizerClient
+	proto.DRPCProviderConfiguratorClient
 }
 
 var _ DRPCClient = &Client{}
@@ -25,6 +26,7 @@ type Client struct {
 	proto.DRPCRecorderClient
 	proto.DRPCMCPConfiguratorClient
 	proto.DRPCAuthorizerClient
+	proto.DRPCProviderConfiguratorClient
 
 	Conn drpc.Conn
 }
