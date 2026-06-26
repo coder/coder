@@ -109,8 +109,42 @@ export const SubmitAutostopReminderConvertsHoursToMs: Story = {
 		await waitFor(() => {
 			expect(args.onSubmit).toHaveBeenCalledWith(
 				expect.objectContaining({
-					// 2 hours in milliseconds.
 					time_til_autostop_notify_ms: 2 * 60 * 60 * 1000,
+				}),
+			);
+		});
+	},
+};
+
+export const SubmitClearsAutostopReminder: Story = {
+	args: {
+		...defaultArgs,
+		template: {
+			...MockTemplate,
+			// Start with a non-zero autostop reminder so we can verify
+			// it gets cleared to 0 when the field is emptied.
+			time_til_autostop_notify_ms: 2 * 60 * 60 * 1000,
+		},
+		onSubmit: fn(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup();
+
+		const reminderField = await canvas.findByLabelText(
+			"Autostop reminder (hours)",
+		);
+
+		await user.clear(reminderField);
+		await user.type(reminderField, "0");
+
+		const submitButton = canvas.getByRole("button", { name: /save/i });
+		await user.click(submitButton);
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					time_til_autostop_notify_ms: 0,
 				}),
 			);
 		});

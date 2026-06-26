@@ -329,6 +329,10 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 							helperText: (
 								<AutostopReminderHelperText
 									lead={form.values.time_til_autostop_notify_ms}
+									defaultTTL={form.values.default_ttl_ms}
+									autostopRequirementDaysOfWeek={
+										form.values.autostop_requirement_days_of_week
+									}
 								/>
 							),
 						})}

@@ -59,8 +59,25 @@ export const ActivityBumpHelperText = (props: {
 	);
 };
 
-export const AutostopReminderHelperText = (props: { lead?: number }) => {
-	const { lead = 0 } = props;
+export const AutostopReminderHelperText = (props: {
+	lead?: number;
+	defaultTTL?: number;
+	autostopRequirementDaysOfWeek?: string;
+}) => {
+	const { lead = 0, defaultTTL = 0, autostopRequirementDaysOfWeek } = props;
+
+	const hasAutostopRequirement =
+		Boolean(autostopRequirementDaysOfWeek) &&
+		autostopRequirementDaysOfWeek !== "off";
+
+	if (!defaultTTL && !hasAutostopRequirement) {
+		return (
+			<span>
+				Autostop reminders only apply when an autostop deadline is configured.
+				Set a default TTL or an autostop requirement above to enable reminders.
+			</span>
+		);
+	}
 
 	// Error will show once field is considered touched
 	if (lead < 0) {
