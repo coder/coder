@@ -28,7 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
-	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -793,16 +793,11 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 		return xerrors.New("pubsub not configured")
 	}
 
-	// ctx ends when either the stream or the server lifecycle is canceled.
 	ctx, cancel := context.WithCancel(stream.Context())
 	defer cancel()
-	go func() {
-		select {
-		case <-s.lifecycleCtx.Done():
-			cancel()
-		case <-ctx.Done():
-		}
-	}()
+	// Cancel when the server lifecycle ends, not just when the stream closes.
+	stop := context.AfterFunc(s.lifecycleCtx, cancel)
+	defer stop()
 
 	// Buffered to one so a burst of events collapses into a single pending
 	// signal.
@@ -815,11 +810,14 @@ func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto
 	}
 
 	// Every event signals, including dropped-message errors.
-	unsubscribe, err := s.pubsub.SubscribeWithErr(coderpubsub.AIProvidersChangedChannel, func(_ context.Context, _ []byte, _ error) {
+	unsubscribe, err := s.pubsub.SubscribeWithErr(coderdpubsub.AIProvidersChangedChannel, func(cbCtx context.Context, _ []byte, err error) {
+		if err != nil {
+			s.logger.Warn(cbCtx, "ai providers changed event delivered with error", slog.Error(err))
+		}
 		notify()
 	})
 	if err != nil {
-		return xerrors.Errorf("subscribe to %s: %w", coderpubsub.AIProvidersChangedChannel, err)
+		return xerrors.Errorf("subscribe to %s: %w", coderdpubsub.AIProvidersChangedChannel, err)
 	}
 	defer unsubscribe()
 

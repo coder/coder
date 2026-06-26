@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -128,11 +129,20 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 
 			// Watch coderd for provider changes and refresh the pool on each
-			// signal, until ctx is canceled at shutdown.
+			// signal. The deferred cancel+wait drains this goroutine before
+			// srv.Close() runs at shutdown.
+			watchCtx, watchCancel := context.WithCancel(ctx)
+			var watchWG sync.WaitGroup
+			watchWG.Add(1)
 			go func() {
-				if err := aibridged.WatchProviderReload(ctx, srv.Client, reloader, providerLogger); err != nil && ctx.Err() == nil {
-					providerLogger.Warn(ctx, "ai provider watch loop exited", slog.Error(err))
+				defer watchWG.Done()
+				if err := aibridged.WatchProviderReload(watchCtx, srv.Client, reloader, providerLogger); err != nil && watchCtx.Err() == nil {
+					providerLogger.Warn(watchCtx, "ai provider watch loop exited", slog.Error(err))
 				}
+			}()
+			defer func() {
+				watchCancel()
+				watchWG.Wait()
 			}()
 
 			// The standalone listener is dedicated to Gateway traffic, so

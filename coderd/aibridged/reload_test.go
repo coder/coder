@@ -133,7 +133,6 @@ func TestWatchProviderReload(t *testing.T) {
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"each change signal must trigger a reload")
 
-	// Canceling the watch context unblocks Recv and ends the loop with ctx.Err().
 	watchCancel()
 	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
 }
@@ -170,9 +169,41 @@ func TestWatchProviderReloadReconnects(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, calls, logger) }()
 
-	// One reload from the first stream and at least one more after reconnect.
 	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
 		"reload must continue after the stream drops and reconnects")
+
+	watchCancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
+}
+
+func TestWatchProviderReloadContinuesAfterReloadError(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, nil)
+
+	ctrl := gomock.NewController(t)
+	mockClient := aibridgedmock.NewMockDRPCClient(ctrl)
+
+	events := make(chan error, 8)
+	for range 4 {
+		events <- nil
+	}
+	mockClient.EXPECT().WatchAIProviders(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(rpcCtx context.Context, _ *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+			return &fakeWatchClientStream{ctx: rpcCtx, events: events}, nil
+		}).AnyTimes()
+
+	// Fails its first two reloads, then succeeds.
+	reloader := &failNReloader{n: 2}
+	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, reloader, logger) }()
+
+	require.Eventually(t, func() bool { return reloader.count() >= 3 }, testutil.WaitShort, testutil.IntervalFast,
+		"a failed reload must not stop the watch loop")
 
 	watchCancel()
 	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
@@ -222,6 +253,24 @@ func (r *recordingReloader) Reload(_ context.Context) error {
 
 func (r *recordingReloader) count() int {
 	return int(r.n.Load())
+}
+
+// failNReloader fails its first n Reload calls, then succeeds, counting all
+// calls.
+type failNReloader struct {
+	n     int32
+	calls atomic.Int32
+}
+
+func (r *failNReloader) Reload(_ context.Context) error {
+	if r.calls.Add(1) <= r.n {
+		return errReloadFailed
+	}
+	return nil
+}
+
+func (r *failNReloader) count() int {
+	return int(r.calls.Load())
 }
 
 var (
