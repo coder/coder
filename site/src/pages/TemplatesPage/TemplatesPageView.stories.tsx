@@ -31,6 +31,7 @@ const meta: Meta<typeof TemplatesPageView> = {
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,
+		templateBuilderEnabled: false,
 	},
 };
 
