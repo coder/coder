@@ -234,6 +234,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					shouldNotifyTaskPause bool
 					shouldRemind          bool
 					reminderDeadline      time.Time
+					reminderBuildID       uuid.UUID
 					nextBuild             *database.WorkspaceBuild
 					activeTemplateVersion database.TemplateVersion
 					ws                    database.Workspace
@@ -318,6 +319,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// autostop reminder; reuse the lock and transaction we already
 					// hold to stamp the marker.
 					if reason == "" {
+						log.Debug(e.ctx, "skipping workspace, no transition due")
 						// A deadline change (e.g. activity bump) re-arms the reminder; users near
 						// the boundary may receive one reminder per bump. Intentional: one-per-build
 						// would leave stale reminders after a bump.
@@ -330,6 +332,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 								return xerrors.Errorf("stamp autostop reminder marker: %w", err)
 							}
 							reminderDeadline = latestBuild.Deadline
+							reminderBuildID = latestBuild.ID
 							shouldRemind = true
 						}
 						return nil
@@ -569,7 +572,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						// Associate this notification with all the related entities.
 						ws.ID, ws.OwnerID, ws.TemplateID, ws.OrganizationID,
 					); err != nil {
-						log.Warn(e.ctx, "failed to notify of upcoming workspace autostop", slog.Error(err))
+						log.Warn(e.ctx, "failed to notify of upcoming workspace autostop", slog.F("build_id", reminderBuildID), slog.Error(err))
 					}
 				}
 				return nil
@@ -603,8 +606,8 @@ func (e *Executor) runOnce(t time.Time) Stats {
 // build creation. This is still safe: we require deadline > now (so we never
 // remind once the stop is due) and the marker (NotifiedAutostopDeadline ==
 // Deadline, stamped in the transaction before the send attempt) filters every
-// subsequent tick. The
-// result is exactly one reminder per deadline, never one per tick.
+// subsequent tick. The result is exactly one reminder per deadline, never one
+// per tick.
 func shouldRemindAutostop(build database.WorkspaceBuild, templateSchedule schedule.TemplateScheduleOptions, currentTick time.Time) bool {
 	if templateSchedule.TimeTilAutostopNotify <= 0 {
 		return false
