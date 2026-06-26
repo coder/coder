@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/metrics"
@@ -70,7 +71,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
@@ -237,7 +238,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
@@ -374,7 +375,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			},
 			path: pathAnthropicMessages,
 			createProvider: func(baseURL string, cbConfig *config.CircuitBreaker) provider.Provider {
-				return provider.NewAnthropic(config.Anthropic{
+				return aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 					BaseURL:        baseURL,
 					KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 					CircuitBreaker: cbConfig,
@@ -473,12 +474,10 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			responses := make(chan int, totalRequests)
 
 			for i := 0; i < totalRequests; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+				wg.Go(func() {
 					status := doRequest()
 					responses <- status
-				}()
+				})
 			}
 
 			wg.Wait()
@@ -555,7 +554,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 	}
 	ctx := t.Context()
 	bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
-		withCustomProvider(provider.NewAnthropic(config.Anthropic{
+		withCustomProvider(aibridgetest.NewAnthropicProvider(t, config.Anthropic{
 			BaseURL:        mockUpstream.URL,
 			KeyPool:        testutil.SingleKeyPool(config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,

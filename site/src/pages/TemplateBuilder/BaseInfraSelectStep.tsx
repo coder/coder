@@ -4,6 +4,10 @@ import { templateBuilderBases } from "#/api/queries/templateBuilder";
 import type { TemplateBuilderBase } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import { TemplateCard } from "./TemplateCard";
 import type { SelectedBaseMeta } from "./wizardState";
 
@@ -46,10 +50,11 @@ export const BaseInfraSelectStep: FC<BaseInfraSelectStepProps> = ({
 
 	return (
 		<div role="radiogroup" aria-label="Base infrastructure templates">
-			<h2 className="text-lg font-semibold mb-1">Pick a base template</h2>
-			<p className="text-sm text-content-secondary mb-4">
+			<TemplateBuilderTitle>Pick a base template</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Select your infrastructure foundation.
-			</p>
+			</TemplateBuilderSubtitle>
+
 			<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 				{bases.map((base) => (
 					<TemplateCard

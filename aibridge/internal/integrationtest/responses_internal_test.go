@@ -430,7 +430,7 @@ func TestResponsesBackgroundModeForbidden(t *testing.T) {
 
 			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
-			requireResponsesError(t, http.StatusNotImplemented, "background requests are currently not supported by AI Bridge", body)
+			requireResponsesError(t, http.StatusNotImplemented, "background requests are currently not supported by AI Gateway", body)
 		})
 	}
 }

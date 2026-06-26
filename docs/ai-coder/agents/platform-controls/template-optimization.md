@@ -85,6 +85,42 @@ Use readable, descriptive names rather than slugs or internal codes. A display
 name like "Python Backend (Payments)" is more useful to both humans and the
 agent than `py-be-pay-v3`.
 
+### Put routing context near the top of the README
+
+The short `description` also appears on the dashboard templates page, so it is
+intentionally limited to fewer than 128 characters. When that is not enough
+room to fully describe a template for the agent, put the most important routing
+context at the top of the template's `README.md` body, immediately after any
+frontmatter block.
+
+The chat agent's template listing includes a bounded README excerpt (roughly the
+first 1,000 characters), and template detail includes the README (up to roughly
+8,000 characters). Both are reduced to plain text: frontmatter is stripped,
+link text is kept while link URLs are dropped, images and badges are dropped
+entirely, and code blocks and tables are preserved as text. Use the opening
+section to explain when to choose this template, what it is *not* for, and the
+specific stack or services it provides.
+
+```md
+---
+display_name: Kubernetes (Deployment)
+description: Provision Kubernetes Deployments as Coder workspaces
+tags: [kubernetes, container]
+---
+
+# Kubernetes Deployment
+
+Kubernetes Deployment workspaces are for container-native development on an
+existing cluster. Use this template when the work should run as a pod with
+cluster access and configurable CPU, memory, and persistent storage. It is not
+intended for standalone VM or local Docker workflows.
+```
+
+The README is stored with the template version when you run
+`coder templates push`, so updating it is part of your normal template
+workflow. The short `description` still drives the initial template listing, so
+keep it accurate and specific as well.
+
 ## Create dedicated agent templates
 
 Rather than reusing your standard interactive developer templates for agent
@@ -283,6 +319,8 @@ Agents:
 
 - Template has a specific, natural-language description that includes
   language, framework, and target project or service.
+- README opening section provides longer routing context when the short
+  description is not enough.
 - Display name is readable and descriptive.
 - Network egress is restricted to the control plane and git provider.
 - External service credentials use minimal-scope tokens.

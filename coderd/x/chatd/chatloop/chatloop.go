@@ -254,6 +254,12 @@ type ExecuteLocalToolsOptions struct {
 	ModelProvider      string
 	ModelName          string
 
+	// ContextLimit is the model's context window in tokens. It is used
+	// to derive a per-result byte budget so a single oversized tool
+	// result cannot overflow the prompt. Zero means unknown, in which
+	// case a default budget applies.
+	ContextLimit int64
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -520,6 +526,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		}}, nil
 	}
 
+	maxResultBytes := toolResultByteBudget(opts.ContextLimit)
 	toolResults := executeTools(
 		ctx,
 		opts.Clock,
@@ -532,6 +539,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		provider,
 		modelName,
 		opts.BuiltinToolNames,
+		maxResultBytes,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
 			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
@@ -997,6 +1005,7 @@ func executeTools(
 	logger slog.Logger,
 	provider, model string,
 	builtinToolNames map[string]bool,
+	maxResultBytes int,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1075,6 +1084,7 @@ func executeTools(
 				activeTools,
 				providerRunnerNames,
 				resultProviderMetadata,
+				maxResultBytes,
 			)
 		}()
 	}
@@ -1194,6 +1204,7 @@ func executeSingleTool(
 	activeTools []string,
 	providerRunnerNames map[string]struct{},
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
+	maxResultBytes int,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1254,25 +1265,42 @@ func executeSingleTool(
 	}
 
 	result.ClientMetadata = resp.Metadata
+
+	// Cap tool output so a single oversized result (most often a large
+	// MCP response) cannot overflow the model's context window on the
+	// next request. Only the text payload is bounded; binary media data
+	// is passed through untouched.
+	content := resp.Content
+	if truncated, didTruncate := truncateToolResultText(content, maxResultBytes); didTruncate {
+		metrics.RecordToolResultTruncated(provider, model, tc.ToolName)
+		logger.Warn(ctx, "tool result truncated to fit model context",
+			slog.F("tool_name", tc.ToolName),
+			slog.F("tool_call_id", tc.ToolCallID),
+			slog.F("original_bytes", len(content)),
+			slog.F("max_bytes", maxResultBytes),
+		)
+		content = truncated
+	}
+
 	switch {
 	case resp.IsError:
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New(resp.Content),
+			Error: xerrors.New(content),
 		}
 		logger.Info(ctx, "tool returned error result",
 			slog.F("tool_name", tc.ToolName),
 			slog.F("tool_call_id", tc.ToolCallID),
-			slog.F("tool_error", resp.Content),
+			slog.F("tool_error", content),
 		)
 	case resp.Type == "image" || resp.Type == "media":
 		result.Result = fantasy.ToolResultOutputContentMedia{
 			Data:      base64.StdEncoding.EncodeToString(resp.Data),
 			MediaType: resp.MediaType,
-			Text:      strings.ToValidUTF8(resp.Content, "\uFFFD"),
+			Text:      strings.ToValidUTF8(content, "\uFFFD"),
 		}
 	default:
 		result.Result = fantasy.ToolResultOutputContentText{
-			Text: strings.ToValidUTF8(resp.Content, "\uFFFD"),
+			Text: strings.ToValidUTF8(content, "\uFFFD"),
 		}
 	}
 

@@ -85,7 +85,7 @@ export const GatewayKeysPageView: FC<GatewayKeysPageViewProps> = ({
 							<TableHead className="w-8" />
 						</TableRow>
 					</TableHeader>
-					<TableBody>
+					<TableBody size="lg">
 						{isLoading ? (
 							<TableLoader />
 						) : error ? (

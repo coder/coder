@@ -24,6 +24,9 @@ import (
 
 const (
 	listTemplatesPageSize = 10
+	// ListTemplatesReadmeExcerptMaxRunes bounds the README excerpt surfaced
+	// per template by list_templates.
+	ListTemplatesReadmeExcerptMaxRunes = 1000
 
 	// Minimum active developers before organization popularity alone is a
 	// confident recommendation.
@@ -120,6 +123,8 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 		"list_templates",
 		"List workspace templates as a ranked shortlist, optionally filtered "+
 			"by a query matching template name, display name, or description. "+
+			"Each result includes a short README excerpt for routing context; "+
+			"call read_template for the full README and parameters. "+
 			"Follow the "+NextStepField+" field in the result. Returns 10 per "+
 			"page; fetch next_page only when no listed template fits the request.",
 		func(ctx context.Context, args listTemplatesArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -192,7 +197,16 @@ func ListTemplates(db database.Store, organizationID uuid.UUID, options ListTemp
 
 			items := make([]map[string]any, 0, end-start)
 			for _, t := range ranked[start:end] {
-				items = append(items, templateItem(t))
+				item := templateItem(t)
+				// Per-template README fetch: the batched query needs ResourceSystem
+				// and would drop excerpts for non-owners, so accept an N+1 bounded
+				// by the page size.
+				if version, vErr := db.GetTemplateVersionByID(ctx, t.Template.ActiveVersionID); vErr == nil {
+					if excerpt := readmeText(version.Readme, ListTemplatesReadmeExcerptMaxRunes); excerpt != "" {
+						item["readme_excerpt"] = excerpt
+					}
+				}
+				items = append(items, item)
 			}
 
 			result := map[string]any{

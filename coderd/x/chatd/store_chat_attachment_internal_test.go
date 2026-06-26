@@ -12,7 +12,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
-	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -102,29 +101,51 @@ func TestStoreChatAttachment_UsesDetectNameForClassification(t *testing.T) {
 	require.Equal(t, "application/json", attachment.MediaType)
 }
 
-func TestStoreChatAttachment_RejectsUnsupportedStoredFileTypeBeforeDBWork(t *testing.T) {
+func TestStoreChatAttachment_AllowsUnsupportedPromptInputType(t *testing.T) {
 	t.Parallel()
 
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
+	tx := dbmock.NewMockStore(ctrl)
 	server := &Server{db: db}
 
+	chatID := uuid.New()
+	ownerID := uuid.New()
+	workspaceID := uuid.New()
+	orgID := uuid.New()
+	fileID := uuid.New()
 	chatSnapshot := database.Chat{
-		ID:          uuid.New(),
-		OwnerID:     uuid.New(),
-		WorkspaceID: uuid.NullUUID{UUID: uuid.New(), Valid: true},
+		ID:          chatID,
+		OwnerID:     ownerID,
+		WorkspaceID: uuid.NullUUID{UUID: workspaceID, Valid: true},
 	}
+	data := []byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`)
 
-	attachment, err := server.storeChatAttachment(
-		context.Background(),
-		chatSnapshot,
-		"evil.svg",
-		"evil.svg",
-		[]byte(`<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>`),
+	expectStoreChatAttachmentTx(t, db, tx)
+	tx.EXPECT().GetWorkspaceByID(gomock.Any(), workspaceID).Return(database.Workspace{ID: workspaceID, OrganizationID: orgID}, nil)
+	tx.EXPECT().InsertChatFile(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatFileParams{})).DoAndReturn(
+		func(_ context.Context, arg database.InsertChatFileParams) (database.InsertChatFileRow, error) {
+			require.Equal(t, ownerID, arg.OwnerID)
+			require.Equal(t, orgID, arg.OrganizationID)
+			require.Equal(t, "evil.svg", arg.Name)
+			require.Equal(t, "image/svg+xml", arg.Mimetype)
+			require.Equal(t, data, arg.Data)
+			return database.InsertChatFileRow{ID: fileID}, nil
+		},
 	)
-	require.ErrorIs(t, err, chatfiles.ErrUnsupportedStoredFileType)
-	require.ErrorContains(t, err, "image/svg+xml")
-	require.Equal(t, chattool.AttachmentMetadata{}, attachment)
+	tx.EXPECT().LinkChatFiles(gomock.Any(), database.LinkChatFilesParams{
+		ChatID:       chatID,
+		MaxFileLinks: int32(codersdk.MaxChatFileIDs),
+		FileIds:      []uuid.UUID{fileID},
+	}).Return(int32(0), nil)
+
+	attachment, err := server.storeChatAttachment(context.Background(), chatSnapshot, "evil.svg", "evil.svg", data)
+	require.NoError(t, err)
+	require.Equal(t, chattool.AttachmentMetadata{
+		FileID:    fileID,
+		MediaType: "image/svg+xml",
+		Name:      "evil.svg",
+	}, attachment)
 }
 
 func TestStoreChatAttachment_NoWorkspace(t *testing.T) {
