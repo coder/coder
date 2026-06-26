@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Link from "@mui/material/Link";
 import isEqual from "lodash/isEqual";
 import {
 	createElement,
@@ -14,6 +13,7 @@ import ReactMarkdown, { type Options } from "react-markdown";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { dracula } from "react-syntax-highlighter/dist/cjs/styles/prism";
 import gfm from "remark-gfm";
+import { Link } from "#/components/Link/Link";
 import {
 	Table,
 	TableBody,
