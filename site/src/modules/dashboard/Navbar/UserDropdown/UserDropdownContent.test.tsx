@@ -11,7 +11,7 @@ import { UserDropdownContent } from "./UserDropdownContent";
 
 const renderUserDropdownContent = (props: {
 	onSignOut: () => void;
-	profileContent?: ReactNode;
+	profileExtra?: ReactNode;
 }) => {
 	return render(
 		<DropdownMenu defaultOpen>
@@ -20,7 +20,7 @@ const renderUserDropdownContent = (props: {
 				<UserDropdownContent
 					user={MockUserOwner}
 					onSignOut={props.onSignOut}
-					profileContent={props.profileContent}
+					profileExtra={props.profileExtra}
 					supportLinks={[]}
 				/>
 			</DropdownMenuContent>
@@ -49,10 +49,10 @@ describe("UserDropdownContent", () => {
 		expect(onSignOut).toBeCalledTimes(1);
 	});
 
-	it("renders profile content when provided", async () => {
+	it("renders the profile extra content when provided", async () => {
 		renderUserDropdownContent({
 			onSignOut: vi.fn(),
-			profileContent: <div>AI spend - $819 / $1,200 USD</div>,
+			profileExtra: <div>AI spend - $819 / $1,200 USD</div>,
 		});
 		await waitForLoaderToBeRemoved();
 

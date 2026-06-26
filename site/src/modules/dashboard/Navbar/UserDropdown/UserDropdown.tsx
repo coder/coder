@@ -4,6 +4,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { UserDropdownAISpend } from "./UserDropdownAISpend";
@@ -37,7 +38,9 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				<UserDropdownContent
 					user={user}
 					buildInfo={buildInfo}
-					profileContent={<UserDropdownAISpend />}
+					profileExtra={
+						<UserDropdownAISpend header={<DropdownMenuSeparator />} />
+					}
 					supportLinks={supportLinks}
 					onSignOut={onSignOut}
 				/>

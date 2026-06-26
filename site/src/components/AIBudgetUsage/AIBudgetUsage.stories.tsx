@@ -4,7 +4,7 @@ import { AIBudgetUsage } from "./AIBudgetUsage";
 
 // Spend and limit are in micros (1_000_000 = $1).
 const meta: Meta<typeof AIBudgetUsage> = {
-	title: "pages/OrganizationGroupsPage/AIBudgetUsage",
+	title: "components/AIBudgetUsage",
 	component: AIBudgetUsage,
 };
 
