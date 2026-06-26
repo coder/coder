@@ -409,9 +409,10 @@ func (i *interceptionBase) withAWSMantleOptions(ctx context.Context) ([]option.R
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
 //
-// The mantle endpoint is wire-identical to api.anthropic.com, so only the model
-// rewrite applies; the InvokeModel-specific thinking, beta, and field
-// adjustments below are skipped for it.
+// This applies to both Bedrock transports. The mantle endpoint speaks the
+// native Messages wire format but enforces Bedrock's strict request schema, so
+// it rejects the same unsupported beta flags and body fields as the InvokeModel
+// path. Only the transport (signing and endpoint) differs between the two.
 func (i *interceptionBase) augmentRequestForBedrock() {
 	if i.bedrock == nil {
 		return
@@ -424,10 +425,6 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		return
 	}
 	i.reqPayload = updated
-
-	if i.bedrock.Cfg.Endpoint == aibconfig.BedrockEndpointMantle {
-		return
-	}
 
 	switch {
 	case bedrockModelRequiresAdaptiveThinking(model):

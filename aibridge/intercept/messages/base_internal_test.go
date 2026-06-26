@@ -842,14 +842,15 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 	}
 }
 
-// TestAugmentRequestForBedrockMantle verifies that the mantle transport only
-// remaps the model and leaves the rest of the native Messages request intact:
-// no thinking conversion, no field stripping, no beta-flag filtering.
+// TestAugmentRequestForBedrockMantle verifies that the mantle endpoint runs the
+// same body normalization as the InvokeModel path: it shares Bedrock's strict
+// request schema, so unsupported beta flags and body fields are stripped. Only
+// the transport differs between the two.
 func TestAugmentRequestForBedrockMantle(t *testing.T) {
 	t.Parallel()
 
 	clientHeaders := http.Header{
-		"Anthropic-Beta": {"claude-code-20250219,prompt-caching-scope-2026-01-05"},
+		"Anthropic-Beta": {"interleaved-thinking-2025-05-14,context-management-2025-06-27,advisor-tool-2026-03-01,mid-conversation-system-2026-04-07"},
 	}
 	i := &interceptionBase{
 		reqPayload: mustMessagesPayload(t,
@@ -869,13 +870,13 @@ func TestAugmentRequestForBedrockMantle(t *testing.T) {
 
 	// Model is remapped to the configured mantle model.
 	require.Equal(t, "anthropic.claude-opus-4-8", gjson.GetBytes(i.reqPayload, "model").String())
-	// Thinking is untouched (no InvokeModel adaptive conversion).
-	require.Equal(t, "adaptive", gjson.GetBytes(i.reqPayload, "thinking.type").String())
-	// Fields the InvokeModel path would strip are kept for mantle.
-	require.True(t, gjson.GetBytes(i.reqPayload, "metadata").Exists())
-	require.True(t, gjson.GetBytes(i.reqPayload, "context_management").Exists())
-	// The beta header is left untouched (no filtering).
-	require.Equal(t, []string{"claude-code-20250219,prompt-caching-scope-2026-01-05"},
+	// Bedrock's strict schema rejects these, so they are stripped from the body.
+	require.False(t, gjson.GetBytes(i.reqPayload, "context_management").Exists())
+	require.False(t, gjson.GetBytes(i.reqPayload, "metadata").Exists())
+	// Unsupported beta flags (advisor, mid-conversation-system) and the
+	// context-management flag (not supported on this model) are removed; the
+	// allowlisted thinking flag survives.
+	require.Equal(t, []string{"interleaved-thinking-2025-05-14"},
 		clientHeaders.Values("Anthropic-Beta"))
 }
 
