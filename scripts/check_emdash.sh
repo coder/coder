@@ -39,87 +39,27 @@ scan_all_files() {
 	fi
 }
 
-# resolve_merge_base finds the merge-base between HEAD and the given ref.
-# In shallow CI clones the merge-base is not directly reachable, so we
-# query the PR commit count via `gh`, deepen HEAD by count+1, and
-# resolve HEAD~N which is the parent of the first PR commit.
-resolve_merge_base() {
-	local base_ref="$1"
-
-	# Fast path: merge-base already reachable (full clone or sufficient depth).
-	local mb
-	mb=$(git merge-base HEAD "$base_ref" 2>/dev/null || true)
-	if [[ -n "$mb" ]]; then
-		echo "$mb"
-		return
-	fi
-
-	if ! command -v gh >/dev/null 2>&1; then
-		echo "gh CLI not found, cannot determine PR commit count." >&2
-		return
-	fi
-
-	# Use the PR commit count to deepen HEAD past the PR commits.
-	# HEAD~N is the parent of the oldest PR commit, i.e. the merge-base.
-	local count
-	count=$(gh pr view --json commits --jq '.commits | length' 2>/dev/null || true)
-	if [[ -z "$count" || "$count" -le 0 ]]; then
-		echo "Could not determine PR commit count from gh." >&2
-		return
-	fi
-
-	echo "Deepening HEAD by $((count + 1)) to reach PR base..." >&2
-	git fetch --deepen="$((count + 1))" 2>/dev/null || true
-
-	# Retry merge-base now that we have more history.
-	mb=$(git merge-base HEAD "$base_ref" 2>/dev/null || true)
-	if [[ -n "$mb" ]]; then
-		echo "$mb"
-		return
-	fi
-
-	# Last resort: walk first-parent history. This is correct for
-	# linear PRs but may traverse the wrong branch for merge-commit
-	# checkouts.
-	git rev-parse --verify "HEAD~${count}" 2>/dev/null || true
-}
-
-# fetch_base_ref ensures origin/$GITHUB_BASE_REF is available locally.
-# CI shallow clones (fetch-depth: 1) typically omit the base branch.
-fetch_base_ref() {
-	local base_ref="$1"
-
-	if git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
-		return 0
-	fi
-
-	local ref="${base_ref#origin/}"
-	echo "Base ref $base_ref not found locally, fetching $ref..." >&2
-	git fetch origin "$ref" --depth=1 2>/dev/null || true
-
-	if ! git rev-parse --verify "$base_ref" >/dev/null 2>&1; then
-		echo "ERROR: could not fetch base ref $base_ref." >&2
-		return 1
-	fi
-}
-
-# resolve_diff_base determines the base ref to diff against.
+# resolve_diff_base determines the base commit to diff against.
 resolve_diff_base() {
-	# CI pull requests: use merge-base against the target branch.
+	# CI pull requests: actions/checkout checks out the PR merge commit,
+	# whose first parent is the base branch tip. Diff against that parent
+	# directly instead of fetching the base branch by name. The base
+	# branch is not always available on origin; Graphite stacks, for
+	# example, use a synthetic graphite-base/<n> ref that is never pushed.
 	if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
-		local base_ref="origin/${GITHUB_BASE_REF}"
-		fetch_base_ref "$base_ref" || return 1
+		# HEAD^ needs one level of history to resolve. Deepen by one when
+		# the checkout is shallow (fetch-depth: 1). This only extends
+		# HEAD's own history; it does not fetch a separate base branch.
+		if ! git rev-parse --verify --quiet "HEAD^" >/dev/null; then
+			git fetch --deepen=1 >/dev/null 2>&1 || true
+		fi
 
-		local base
-		base=$(resolve_merge_base "$base_ref")
-		if [[ -n "$base" ]]; then
-			echo "$base"
+		if git rev-parse --verify --quiet "HEAD^" >/dev/null; then
+			git rev-parse "HEAD^"
 			return
 		fi
 
-		# Could not determine merge-base; fall back to branch tip.
-		echo "WARNING: could not find merge-base with $base_ref, using branch tip (diff may include non-PR changes)." >&2
-		echo "$base_ref"
+		echo "WARNING: HEAD has no parent commit; cannot determine PR base." >&2
 		return
 	fi
 
