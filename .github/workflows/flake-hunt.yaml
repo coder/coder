@@ -106,10 +106,38 @@ jobs:
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
-      - name: Setup embedded Postgres runtime (macOS/Windows)
-        id: pg
+      - name: Setup Embedded Postgres Cache Paths
+        id: embedded-pg-cache
         if: runner.os != 'Linux'
-        uses: ./.github/actions/setup-embedded-pg-runtime
+        uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+      - name: Download Embedded Postgres Cache
+        id: download-embedded-pg-cache
+        if: runner.os != 'Linux'
+        uses: ./.github/actions/embedded-pg-cache/download
+        with:
+          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
+
+      - name: Setup RAM disk for Embedded Postgres (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: mkdir -p "R:/temp/embedded-pg"
+
+      - name: Setup RAM disk for Embedded Postgres (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p /tmp/tmpfs
+          sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+          touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+
+      - name: Increase PTY limit (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          # Default is 511; 999 is the maximum value on CI runner.
+          sudo sysctl -w kern.tty.ptmx_max=999
 
       - name: Test with PostgreSQL Database (Linux)
         if: runner.os == 'Linux'
@@ -124,8 +152,8 @@ jobs:
           test-shuffle: ${{ inputs.test-shuffle }}
           gotestsum-json-file: default
 
-      - name: Test with PostgreSQL Database (macOS/Windows)
-        if: runner.os != 'Linux'
+      - name: Test with PostgreSQL Database (macOS)
+        if: runner.os == 'macOS'
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: ${{ inputs.postgres-version }}
@@ -136,15 +164,30 @@ jobs:
           run-regex: ${{ inputs.run-regex }}
           test-shuffle: ${{ inputs.test-shuffle }}
           gotestsum-json-file: default
-          embedded-pg-path: ${{ steps.pg.outputs.embedded-pg-path }}
-          embedded-pg-cache: ${{ steps.pg.outputs.embedded-pg-cache }}
+          embedded-pg-path: "/tmp/tmpfs/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
+
+      - name: Test with PostgreSQL Database (Windows)
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/test-go-pg
+        with:
+          postgres-version: ${{ inputs.postgres-version }}
+          test-parallelism-packages: ${{ inputs.test-parallelism-packages }}
+          test-parallelism-tests: ${{ inputs.test-parallelism-tests }}
+          test-count: ${{ inputs.test-count }}
+          test-packages: ${{ inputs.test-packages }}
+          run-regex: ${{ inputs.run-regex }}
+          test-shuffle: ${{ inputs.test-shuffle }}
+          gotestsum-json-file: default
+          embedded-pg-path: "R:/temp/embedded-pg"
+          embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
       - name: Upload Embedded Postgres Cache
         if: runner.os != 'Linux'
         uses: ./.github/actions/embedded-pg-cache/upload
         with:
-          cache-key: ${{ steps.pg.outputs.cache-key }}
-          cache-path: "${{ steps.pg.outputs.embedded-pg-cache }}"
+          cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
+          cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
 
       - name: Upload test JSON
         if: always()
