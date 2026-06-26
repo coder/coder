@@ -80,7 +80,7 @@ The non-breaking-space rule applies to prose only.
 ## Date format
 
 Write dates as `Month Day, Year` with a full month name and a comma between day and year.
-The format is unambiguous across locales, which the all-numeric forms (`07/31/2026` versus `31/07/2026`) are not.
+The format is unambiguous across locales, which the all-numeric forms (`07/31/2026` versus `31/07/2026`) aren't.
 
 **Do**:
 
