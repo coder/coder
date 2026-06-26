@@ -30,12 +30,14 @@ export const ModuleConfiguration: React.FC<ModuleConfigurationProps> = ({
 	return (
 		<section className="pt-4 px-4 pb-6 rounded bg-surface-secondary">
 			<header className="flex items-start gap-6 mb-6">
-				<TemplateBuilderAvatarData
-					name={name}
-					description={description}
-					iconUrl={iconUrl}
-					detailsUrl={detailsUrl}
-				/>
+				<div className="flex-1">
+					<TemplateBuilderAvatarData
+						name={name}
+						description={description}
+						iconUrl={iconUrl}
+						detailsUrl={detailsUrl}
+					/>
+				</div>
 				{onRemove && (
 					<Button
 						variant="outline"
