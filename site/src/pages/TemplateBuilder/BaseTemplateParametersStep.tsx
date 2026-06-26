@@ -10,6 +10,7 @@ import {
 	TemplateBuilderSubtitle,
 	TemplateBuilderTitle,
 } from "#/pages/TemplateBuilder/TemplateBuilderHeader";
+import { cn } from "#/utils/cn";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { TemplateConfiguration } from "./TemplateConfiguration";
 
@@ -120,7 +121,18 @@ export const BaseTemplateParametersStep: FC<
 			>
 				{prerequisites && (
 					<div className="mt-6">
-						<MemoizedMarkdown>{prerequisites}</MemoizedMarkdown>
+						<MemoizedMarkdown
+							className={cn(
+								"text-xs font-normal",
+								"[&_h2]:mt-4 [&_h2]:text-sm [&_h2]:font-semibold",
+								"[&_h3]:mt-4 [&_h3]:text-xs [&_h2]:font-semibold",
+								"[&_p]:text-content-secondary",
+								"[&_a]:text-xs [&_a]:font-normal",
+								"[&_code]:text-xs",
+							)}
+						>
+							{prerequisites}
+						</MemoizedMarkdown>
 					</div>
 				)}
 			</TemplateConfiguration>
