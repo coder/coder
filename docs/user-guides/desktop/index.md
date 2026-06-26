@@ -233,7 +233,7 @@ dscacheutil -q host -a name is.coder--connect--enabled--right--now.coder
 
 Both commands should return an `fd60:627a:a42b::/48` address. If `dig` returns
 nothing or `dscacheutil` reports no entries, Coder Connect is not publishing
-DNS — collect logs (see below) and file an issue.
+DNS. Collect logs (see below) and file an issue.
 
 #### Windows
 
@@ -271,14 +271,14 @@ routing policy is intact.
     ```
 
     If either command returns nothing while Coder Connect shows as enabled,
-    the tunnel did not finish coming up — disable and re-enable the toggle, or
+    the tunnel did not finish coming up. Disable and re-enable the toggle, or
     repeat the steps above.
 
 > [!NOTE]
 > `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver;
 > restarting the service is what clears its internal cache. If you are running
 > a network filtering agent (for example, Zscaler), it may shadow `.coder`
-> lookups even after the tunnel comes back — check with your IT team if DNS
+> lookups even after the tunnel comes back. Check with your IT team if DNS
 > still fails after a clean restart.
 
 </div>
