@@ -183,7 +183,7 @@ jobs:
       # `**.md` (not `docs/**.md`) because the action's globber collapses a
       # `**` adjacent to `.md` to a single path segment, so `docs/**.md`
       # only matches top-level docs/*.md and misses nested pages such as
-      # docs/.style/style-guide.md. The prose step below re-filters to
+      # docs/.style/style-guide/README.md. The prose step below re-filters to
       # docs/ paths.
       # Cache split into restore + conditional save to avoid letting PR
       # runs populate a cache that other branches restore from (the
@@ -318,7 +318,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          fetch-depth: 1
+          # Depth 2 makes the PR merge commit's first parent (the base
+          # branch tip) available so lint/emdash can diff against HEAD^
+          # without fetching the base branch at runtime.
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Set up mise tools

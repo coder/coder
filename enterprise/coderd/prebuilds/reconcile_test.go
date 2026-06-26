@@ -1974,9 +1974,7 @@ func TestReconciliationLock(t *testing.T) {
 	wg := sync.WaitGroup{}
 	mutex := sync.Mutex{}
 	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 			reconciler := prebuilds.NewStoreReconciler(
 				db,
@@ -2002,7 +2000,7 @@ func TestReconciliationLock(t *testing.T) {
 				defer mutex.Unlock()
 				return nil
 			})
-		}()
+		})
 	}
 	wg.Wait()
 }

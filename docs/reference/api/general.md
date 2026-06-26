@@ -233,6 +233,9 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
     "browser_only": true,
     "cache_directory": "string",
     "cli_upgrade_message": "string",
+    "cluster": {
+      "host": "string"
+    },
     "config": "string",
     "config_ssh": {
       "deploymentName": "string",

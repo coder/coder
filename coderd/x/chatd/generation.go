@@ -670,6 +670,7 @@ func (s *taskStarter) executeLocalTools(
 		ModelProvider:      provider,
 		ModelName:          modelName,
 		ContextLimit:       prepared.ContextLimitFallback,
+		ToolNameAliases:    subagentToolNameAliases,
 		PublishMessagePart: publish,
 		Logger:             s.opts.Logger,
 		Metrics:            s.server.metrics,
