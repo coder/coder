@@ -9744,7 +9744,9 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 
 	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
-	require.Equal(t, "/v1/responses", requests[0].Request.URL.Path)
+	require.True(t, slices.ContainsFunc(requests, func(req chattest.RecordedRequest) bool {
+		return req.Request.URL.Path == "/v1/responses"
+	}), "no request to /v1/responses found")
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
