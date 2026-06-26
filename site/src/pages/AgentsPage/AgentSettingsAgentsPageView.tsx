@@ -1,10 +1,10 @@
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import {
 	AdminPersonalModelOverridesSettings,
 	type SavePersonalModelOverridesAdminSetting,
 } from "./components/AdminPersonalModelOverridesSettings";
-import { SectionHeader } from "./components/SectionHeader";
 import {
 	type MutationCallbacks,
 	SubagentModelOverrideSettings,

@@ -11,7 +11,7 @@ import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog"
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Input } from "#/components/Input/Input";
 import { Loader } from "#/components/Loader/Loader";
-import { SectionHeader } from "./components/SectionHeader";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 
 const API_KEY_PLACEHOLDER = "••••••••••••••••";
 

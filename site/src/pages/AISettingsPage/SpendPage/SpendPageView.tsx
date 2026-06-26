@@ -21,6 +21,7 @@ import {
 	type PaginationResult,
 } from "#/components/PaginationWidget/PaginationContainer";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import {
 	SettingsHeader,
 	SettingsHeaderDescription,
@@ -67,7 +68,6 @@ import { GroupOverrideController } from "./components/LimitsTab/GroupOverrideCon
 import { normalizeChatUsageLimitPeriod } from "./components/LimitsTab/limitsFormLogic";
 import { UserOverrideController } from "./components/LimitsTab/UserOverrideController";
 import { UserOverridesSection } from "./components/LimitsTab/UserOverridesSection";
-import { SectionHeader } from "./components/SectionHeader";
 import { SpendDrillInView } from "./components/SpendDrillInView";
 import { formatUsageDateRange, toInclusiveDateRange } from "./utils/dateRange";
 
@@ -309,6 +309,11 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 	const groupOverrides = configData?.group_overrides ?? [];
 	const overrides = configData?.overrides ?? [];
 	const unpricedModelCount = configData?.unpriced_model_count ?? 0;
+	const groupOrganizationNames =
+		groupsData?.reduce<Record<string, string | undefined>>((acc, group) => {
+			acc[group.id] = group.organization_name;
+			return acc;
+		}, {}) ?? {};
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
 
 	if (drillInUserId) {
@@ -447,12 +452,14 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 												<section className="space-y-6">
 													<SectionHeader
 														level="section"
+														variant="spacious"
 														label="Group limits"
 														description="Override the default limit for specific groups. The lowest group limit applies."
 													/>
 													<GroupLimitsSection
 														hideHeader
 														groupOverrides={groupOverrides}
+														groupOrganizationNames={groupOrganizationNames}
 														showGroupForm={groupCtrl.showGroupForm}
 														onShowGroupFormChange={
 															groupCtrl.handleShowGroupFormChange
@@ -488,6 +495,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 												<section className="space-y-6">
 													<SectionHeader
 														level="section"
+														variant="spacious"
 														label="User overrides"
 														description="Set user-specific limits. User overrides take highest priority, followed by group limits, then the default."
 													/>
@@ -533,6 +541,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 									<section className="space-y-6">
 										<SectionHeader
 											level="section"
+											variant="spacious"
 											label="Usage by user"
 											description="Monitor AI usage and spend for users in the selected date range."
 											action={
@@ -567,12 +576,7 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 										)}
 										{usersQuery.error != null && (
 											<div className="flex min-h-[240px] flex-col items-center justify-center gap-4 text-center">
-												<p className="m-0 text-sm text-content-secondary">
-													{getErrorMessage(
-														usersQuery.error,
-														"Failed to load usage data.",
-													)}
-												</p>
+												<ErrorAlert error={usersQuery.error} />
 												<Button
 													variant="outline"
 													size="sm"

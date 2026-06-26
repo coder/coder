@@ -97,14 +97,14 @@ export const EditForm: Story = {
 		userOverrideAmount: "5.00",
 	},
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		// Save button confirms edit mode is active.
+		const body = within(canvasElement.ownerDocument.body);
+		// Update budget button confirms edit mode is active.
 		await expect(
-			canvas.getByRole("button", { name: /save/i }),
+			body.getByRole("button", { name: /update budget/i }),
 		).toBeInTheDocument();
 		// The editing user name appears in both the table row and the
 		// read-only edit form identity, confirming it was populated.
-		const nameElements = canvas.getAllByText("Alice Johnson");
+		const nameElements = body.getAllByText("Alice Johnson");
 		expect(nameElements.length).toBeGreaterThanOrEqual(2);
 	},
 };

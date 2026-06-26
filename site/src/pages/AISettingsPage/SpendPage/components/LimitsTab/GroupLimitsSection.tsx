@@ -5,6 +5,7 @@ import {
 	TrashIcon,
 } from "lucide-react";
 import { type FC, useId, useState } from "react";
+import { Link } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import type { ChatUsageLimitGroupOverride, Group } from "#/api/typesGenerated";
 import { Autocomplete } from "#/components/Autocomplete/Autocomplete";
@@ -30,6 +31,7 @@ import { Label } from "#/components/Label/Label";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -45,13 +47,16 @@ import {
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
-import { SectionHeader } from "../SectionHeader";
 
 const GROUP_LIMITS_PAGE_SIZE = 10;
 
 interface GroupLimitsSectionProps {
 	hideHeader?: boolean;
 	groupOverrides: readonly ChatUsageLimitGroupOverride[];
+	/** Maps group_id to organization_name so override rows can link to
+	 * the group's organization page. Overrides without a known org name
+	 * fall back to plain (non-linked) display. */
+	groupOrganizationNames?: Record<string, string | undefined>;
 	showGroupForm: boolean;
 	onShowGroupFormChange: (show: boolean) => void;
 	selectedGroup: Group | null;
@@ -83,6 +88,7 @@ interface GroupLimitsSectionProps {
 export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 	hideHeader,
 	groupOverrides,
+	groupOrganizationNames,
 	showGroupForm,
 	onShowGroupFormChange,
 	selectedGroup,
@@ -169,60 +175,74 @@ export const GroupLimitsSection: FC<GroupLimitsSectionProps> = ({
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{pagedItems.map((override) => (
-									<TableRow key={override.group_id}>
-										<TableCell>
-											<AvatarData
-												title={
-													override.group_display_name || override.group_name
-												}
-												subtitle={override.group_name}
-												src={override.group_avatar_url}
-												imgFallbackText={override.group_name}
-											/>
-										</TableCell>
-										<TableCell>{override.member_count}</TableCell>
-										<TableCell>
-											{override.spend_limit_micros !== null
-												? formatCostMicros(override.spend_limit_micros)
-												: "Unlimited"}
-										</TableCell>
-										<TableCell className="w-1 whitespace-nowrap text-right">
-											<DropdownMenu>
-												<DropdownMenuTrigger asChild>
-													<Button
-														variant="subtle"
-														size="icon"
-														type="button"
-														disabled={deletePending || upsertPending}
-														aria-label={`Actions for ${
-															override.group_display_name || override.group_name
-														}`}
+								{pagedItems.map((override) => {
+									const orgName = groupOrganizationNames?.[override.group_id];
+									const groupAvatar = (
+										<AvatarData
+											title={override.group_display_name || override.group_name}
+											subtitle={override.group_name}
+											src={override.group_avatar_url}
+											imgFallbackText={override.group_name}
+										/>
+									);
+									return (
+										<TableRow key={override.group_id}>
+											<TableCell>
+												{orgName ? (
+													<Link
+														to={`/organizations/${orgName}/groups/${override.group_name}`}
+														className="inline-block"
 													>
-														<EllipsisVerticalIcon />
-													</Button>
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuItem
-														onSelect={() => onEditGroupOverride(override)}
-													>
-														Update budget
-													</DropdownMenuItem>
-													<DropdownMenuItem
-														className="text-content-destructive focus:text-content-destructive"
-														disabled={isEditing}
-														onSelect={() =>
-															setPendingDeleteGroupId(override.group_id)
-														}
-													>
-														<TrashIcon />
-														Remove group limit
-													</DropdownMenuItem>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</TableCell>
-									</TableRow>
-								))}
+														{groupAvatar}
+													</Link>
+												) : (
+													groupAvatar
+												)}
+											</TableCell>
+											<TableCell>{override.member_count}</TableCell>
+											<TableCell>
+												{override.spend_limit_micros !== null
+													? formatCostMicros(override.spend_limit_micros)
+													: "Unlimited"}
+											</TableCell>
+											<TableCell className="w-1 whitespace-nowrap text-right">
+												<DropdownMenu>
+													<DropdownMenuTrigger asChild>
+														<Button
+															variant="subtle"
+															size="icon"
+															type="button"
+															disabled={deletePending || upsertPending}
+															aria-label={`Actions for ${
+																override.group_display_name ||
+																override.group_name
+															}`}
+														>
+															<EllipsisVerticalIcon />
+														</Button>
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuItem
+															onSelect={() => onEditGroupOverride(override)}
+														>
+															Update budget
+														</DropdownMenuItem>
+														<DropdownMenuItem
+															className="text-content-destructive focus:text-content-destructive"
+															disabled={isEditing}
+															onSelect={() =>
+																setPendingDeleteGroupId(override.group_id)
+															}
+														>
+															<TrashIcon />
+															Remove group limit
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											</TableCell>
+										</TableRow>
+									);
+								})}
 							</TableBody>
 						</Table>
 						<PaginationAmount

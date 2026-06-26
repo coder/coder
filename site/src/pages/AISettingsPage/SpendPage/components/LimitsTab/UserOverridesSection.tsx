@@ -24,6 +24,7 @@ import { Label } from "#/components/Label/Label";
 import { PaginationAmount } from "#/components/PaginationWidget/PaginationAmount";
 import { PaginationWidgetBase } from "#/components/PaginationWidget/PaginationWidgetBase";
 import { SearchField } from "#/components/SearchField/SearchField";
+import { SectionHeader } from "#/components/SectionHeader/SectionHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Table,
@@ -39,7 +40,6 @@ import {
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
-import { SectionHeader } from "../SectionHeader";
 
 const USER_OVERRIDES_PAGE_SIZE = 10;
 
