@@ -121,7 +121,7 @@ export const SubagentModelOverrideSettings: FC<
 					options={enabledModelOptions}
 					value={form.values.model_config_id}
 					onValueChange={(value) =>
-						form.setFieldValue("model_config_id", value)
+						void form.setFieldValue("model_config_id", value)
 					}
 					disabled={isFormDisabled}
 					placeholder={

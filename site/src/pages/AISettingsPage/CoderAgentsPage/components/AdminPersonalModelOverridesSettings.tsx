@@ -110,7 +110,7 @@ export const AdminPersonalModelOverridesSettings: FC<
 				</div>
 			)}
 			{showStatusArea && (
-				<div className="text-xs text-content-destructive">
+				<div className="text-xs">
 					{hasAdminSettingsError && (
 						<div className="flex flex-col gap-2 text-content-primary">
 							<ErrorAlert error={adminSettingsError} />
@@ -134,7 +134,7 @@ export const AdminPersonalModelOverridesSettings: FC<
 						</p>
 					)}
 					{isSaveAdminSettingError && (
-						<p className="m-0">
+						<p className="m-0 text-content-destructive">
 							Failed to save personal model override settings.
 						</p>
 					)}
