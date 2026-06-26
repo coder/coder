@@ -1,0 +1,151 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder ai-gateway start [flags]
+
+  Run a standalone AI Gateway server
+
+  The standalone AI Gateway connects to a Coder deployment over DRPC to
+  authenticate users, record interceptions, and configure MCP, while serving LLM
+  client traffic on its own HTTP listener.
+  
+  The deployment address is taken from the global --url flag (CODER_URL) and is
+  required. The gateway authenticates with the key from --key
+  (CODER_AI_GATEWAY_KEY). Provider and other AI Gateway settings use the same
+  CODER_AI_GATEWAY_* options as embedded mode.
+
+OPTIONS:
+      --http-address string, $CODER_AI_GATEWAY_HTTP_ADDRESS (default: 127.0.0.1:4001)
+          The bind address to serve incoming AI Gateway client traffic.
+
+      --key string, $CODER_AI_GATEWAY_KEY
+          The AI Gateway key used to authenticate to coderd.
+
+      --tls-cert-file string, $CODER_AI_GATEWAY_TLS_CERT_FILE
+          Path to a PEM-encoded TLS certificate. Enables TLS termination when
+          set together with --tls-key-file.
+
+      --tls-key-file string, $CODER_AI_GATEWAY_TLS_KEY_FILE
+          Path to a PEM-encoded TLS private key. Enables TLS termination when
+          set together with --tls-cert-file.
+
+      --verbose bool, $CODER_AI_GATEWAY_VERBOSE (default: false)
+          Output debug-level logs.
+
+AI GATEWAY OPTIONS: 
+      --ai-budget-period month, $CODER_AI_BUDGET_PERIOD (default: month)
+          Determines when accumulated AI spend resets to zero, aligned to UTC
+          calendar boundaries. Only "month" is currently supported.
+
+      --ai-budget-policy highest, $CODER_AI_BUDGET_POLICY (default: highest)
+          Determines the effective group when a user belongs to multiple groups
+          with AI budgets. "highest" selects the group with the largest spend
+          limit, and is currently the only supported value.
+
+      --ai-gateway-dump-dir string, $CODER_AI_GATEWAY_DUMP_DIR
+          Base directory for dumping AI Bridge request/response pairs to disk
+          for debugging. When set, each provider writes under a subdirectory
+          named after the provider. Sensitive headers are redacted. Leave empty
+          to disable.
+
+      --ai-gateway-allow-byok bool, $CODER_AI_GATEWAY_ALLOW_BYOK (default: true)
+          Allow users to provide their own LLM API keys or subscriptions. When
+          disabled, only centralized key authentication is permitted.
+
+      --ai-gateway-anthropic-base-url string, $CODER_AI_GATEWAY_ANTHROPIC_BASE_URL (default: https://api.anthropic.com/)
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL of the Anthropic
+          API.
+
+      --ai-gateway-anthropic-key string, $CODER_AI_GATEWAY_ANTHROPIC_KEY
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The key to authenticate
+          against the Anthropic API.
+
+      --ai-gateway-bedrock-access-key string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The access key to authenticate
+          against the AWS Bedrock API.
+
+      --ai-gateway-bedrock-access-key-secret string, $CODER_AI_GATEWAY_BEDROCK_ACCESS_KEY_SECRET
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The access key secret to use
+          with the access key to authenticate against the AWS Bedrock API.
+
+      --ai-gateway-bedrock-base-url string, $CODER_AI_GATEWAY_BEDROCK_BASE_URL
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL to use for the
+          AWS Bedrock API. Use this setting to specify an exact URL to use.
+          Takes precedence over CODER_AI_GATEWAY_BEDROCK_REGION.
+
+      --ai-gateway-bedrock-model string, $CODER_AI_GATEWAY_BEDROCK_MODEL (default: global.anthropic.claude-sonnet-4-5-20250929-v1:0)
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The model to use when making
+          requests to the AWS Bedrock API.
+
+      --ai-gateway-bedrock-region string, $CODER_AI_GATEWAY_BEDROCK_REGION
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The AWS Bedrock API region to
+          use. Constructs a base URL to use for the AWS Bedrock API in the form
+          of 'https://bedrock-runtime.<region>.amazonaws.com'.
+
+      --ai-gateway-bedrock-small-fastmodel string, $CODER_AI_GATEWAY_BEDROCK_SMALL_FAST_MODEL (default: global.anthropic.claude-haiku-4-5-20251001-v1:0)
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The small fast model to use
+          when making requests to the AWS Bedrock API. Claude Code uses
+          Haiku-class models to perform background tasks. See
+          https://docs.claude.com/en/docs/claude-code/settings#environment-variables.
+
+      --ai-gateway-circuit-breaker-enabled bool, $CODER_AI_GATEWAY_CIRCUIT_BREAKER_ENABLED (default: false)
+          Enable the circuit breaker to protect against cascading failures from
+          upstream AI provider overload (503, 529).
+
+      --ai-gateway-retention duration, $CODER_AI_GATEWAY_RETENTION (default: 60d)
+          Length of time to retain data such as interceptions and all related
+          records (token, prompt, tool use).
+
+      --ai-gateway-enabled bool, $CODER_AI_GATEWAY_ENABLED (default: true)
+          Whether to start an in-memory AI Gateway instance.
+
+      --ai-gateway-max-concurrency int, $CODER_AI_GATEWAY_MAX_CONCURRENCY (default: 0)
+          Maximum number of concurrent AI Gateway requests per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-openai-base-url string, $CODER_AI_GATEWAY_OPENAI_BASE_URL (default: https://api.openai.com/v1/)
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The base URL of the OpenAI
+          API.
+
+      --ai-gateway-openai-key string, $CODER_AI_GATEWAY_OPENAI_KEY
+          Deprecated: manage AI Providers from the Coder UI or HTTP API. If set,
+          this option seeds provider configuration at startup only exactly once.
+          It will not be used in service runtime. The key to authenticate
+          against the OpenAI API.
+
+      --ai-gateway-rate-limit int, $CODER_AI_GATEWAY_RATE_LIMIT (default: 0)
+          Maximum number of AI Gateway requests per second per replica. Set to 0
+          to disable (unlimited).
+
+      --ai-gateway-send-actor-headers bool, $CODER_AI_GATEWAY_SEND_ACTOR_HEADERS (default: false)
+          Once enabled, extra headers will be added to upstream requests to
+          identify the user (actor) making requests to AI Gateway. This is only
+          needed if you are using a proxy between AI Gateway and an upstream AI
+          provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
+          making the request) and X-Ai-Bridge-Actor-Metadata-Username (their
+          username).
+
+      --ai-gateway-structured-logging bool, $CODER_AI_GATEWAY_STRUCTURED_LOGGING (default: false)
+          Emit structured logs for AI Gateway interception records. Use this for
+          exporting these records to external SIEM or observability systems.
+
+———
+Run `coder --help` for a list of global options.
