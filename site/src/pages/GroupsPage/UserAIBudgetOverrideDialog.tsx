@@ -9,7 +9,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
-import { groupAIBudget, groupsForUser } from "#/api/queries/groups";
+import { groupAIBudget, groupById, groupsForUser } from "#/api/queries/groups";
 import {
 	deleteUserAIBudgetOverride,
 	saveUserAIBudgetOverride,
@@ -55,8 +55,8 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import {
 	dollarsToMicros,
+	formatBudgetUSD,
 	microsToDollars,
-	usdBudgetFormatter,
 } from "#/utils/currency";
 
 interface UserAIBudgetOverrideDialogProps {
@@ -64,12 +64,22 @@ interface UserAIBudgetOverrideDialogProps {
 	onOpenChange: (open: boolean) => void;
 	user: ReducedUser;
 	currentGroup: Group;
+	effectiveGroupId?: string | null;
 }
 
 export const UserAIBudgetOverrideDialog: FC<
 	UserAIBudgetOverrideDialogProps
-> = ({ open, onOpenChange, user, currentGroup }) => {
+> = ({ open, onOpenChange, user, currentGroup, effectiveGroupId }) => {
 	const queryClient = useQueryClient();
+	const shouldLoadEffectiveGroup =
+		!!effectiveGroupId && effectiveGroupId !== currentGroup.id;
+	const effectiveGroupQuery = useQuery({
+		...groupById(effectiveGroupId ?? "", { exclude_members: true }),
+		enabled: open && shouldLoadEffectiveGroup,
+	});
+	const budgetGroup = shouldLoadEffectiveGroup
+		? effectiveGroupQuery.data
+		: currentGroup;
 	const budgetOverrideQuery = useQuery({
 		...userAIBudgetOverride(user.id),
 		enabled: open,
@@ -79,8 +89,8 @@ export const UserAIBudgetOverrideDialog: FC<
 		enabled: open,
 	});
 	const groupBudgetQuery = useQuery({
-		...groupAIBudget(currentGroup.id),
-		enabled: open,
+		...groupAIBudget(budgetGroup?.id ?? currentGroup.id),
+		enabled: open && budgetGroup !== undefined,
 	});
 	const saveMutation = useMutation(
 		saveUserAIBudgetOverride(queryClient, user.id),
@@ -90,10 +100,12 @@ export const UserAIBudgetOverrideDialog: FC<
 	);
 
 	const loadError =
+		effectiveGroupQuery.error ??
 		budgetOverrideQuery.error ??
 		userGroupsQuery.error ??
 		groupBudgetQuery.error;
 	const isLoading =
+		effectiveGroupQuery.isLoading ||
 		budgetOverrideQuery.isLoading ||
 		userGroupsQuery.isLoading ||
 		groupBudgetQuery.isLoading;
@@ -134,10 +146,15 @@ export const UserAIBudgetOverrideDialog: FC<
 						<Spinner loading />
 						Loading AI budget...
 					</div>
-				) : (
+				) : budgetGroup ? (
 					<OverrideForm
 						user={user}
-						currentGroup={currentGroup}
+						currentGroup={budgetGroup}
+						defaultGroupId={
+							effectiveGroupId === undefined
+								? currentGroup.id
+								: effectiveGroupId
+						}
 						override={budgetOverrideQuery.data ?? null}
 						groupBudget={groupBudgetQuery.data ?? null}
 						userGroups={userGroupsQuery.data ?? []}
@@ -146,7 +163,7 @@ export const UserAIBudgetOverrideDialog: FC<
 						onRemove={deleteMutation.mutateAsync}
 						onClose={() => onOpenChange(false)}
 					/>
-				)}
+				) : null}
 			</DialogContent>
 		</Dialog>
 	);
@@ -155,6 +172,8 @@ export const UserAIBudgetOverrideDialog: FC<
 interface OverrideFormProps {
 	user: ReducedUser;
 	currentGroup: Group;
+	// Group marked "(default)" in the picker; null marks none.
+	defaultGroupId: string | null;
 	override: UserAIBudgetOverride | null;
 	groupBudget: GroupAIBudget | null;
 	userGroups: readonly Group[];
@@ -168,6 +187,7 @@ interface OverrideFormProps {
 const OverrideForm: FC<OverrideFormProps> = ({
 	user,
 	currentGroup,
+	defaultGroupId,
 	override,
 	groupBudget,
 	userGroups,
@@ -187,6 +207,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 		const seedMicros = (override ?? groupBudget)?.spend_limit_micros;
 		return seedMicros === undefined ? "" : String(microsToDollars(seedMicros));
 	});
+	const [budgetTouched, setBudgetTouched] = useState(false);
 	const [selectedGroupId, setSelectedGroupId] = useState(
 		override?.group_id ?? currentGroup.id,
 	);
@@ -208,7 +229,8 @@ const OverrideForm: FC<OverrideFormProps> = ({
 	// A "0" budget is valid and disables AI; empty or negative is not.
 	const budgetAmount = Number(budgetDollars);
 	const budgetValid = budgetDollars.trim() !== "" && budgetAmount >= 0;
-	const budgetInvalid = overrideEnabled && !budgetValid;
+	// Hold the error until the field is touched, so it doesn't flag immediately.
+	const budgetInvalid = overrideEnabled && budgetTouched && !budgetValid;
 	const budgetDisablesAI = budgetValid && budgetAmount === 0;
 	// Footer shows only when there's something to save or remove.
 	const showFooter = overrideEnabled || override !== null;
@@ -217,7 +239,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 		!isSubmitting && (overrideEnabled ? budgetValid : override !== null);
 
 	const groupLabel = (group: Group) =>
-		group.id === currentGroup.id
+		group.id === defaultGroupId
 			? `${groupDisplayName(group)} (default)`
 			: groupDisplayName(group);
 
@@ -309,6 +331,7 @@ const OverrideForm: FC<OverrideFormProps> = ({
 								id={budgetId}
 								value={budgetDollars}
 								onChange={(event) => setBudgetDollars(event.target.value)}
+								onBlur={() => setBudgetTouched(true)}
 								type="number"
 								min="0"
 								step="1"
@@ -415,5 +438,4 @@ const Bold: FC<{ children: ReactNode }> = ({ children }) => (
 const groupDisplayName = (group: Group): string =>
 	group.display_name || group.name;
 
-const formatUSD = (micros: number): string =>
-	`${usdBudgetFormatter.format(microsToDollars(micros))} USD`;
+const formatUSD = (micros: number): string => `${formatBudgetUSD(micros)} USD`;

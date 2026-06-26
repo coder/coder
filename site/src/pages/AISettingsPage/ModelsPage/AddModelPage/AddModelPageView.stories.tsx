@@ -3,6 +3,7 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import { withToaster } from "#/testHelpers/storybook";
 import {
 	MockAnthropicProviderState,
+	MockCopilotProviderState,
 	MockOpenAIProviderState,
 } from "../testFixtures";
 import AddModelPageView from "./AddModelPageView";
@@ -51,6 +52,19 @@ export const WebSearchDependentFields: Story = {
 		const blocked = await canvas.findByLabelText(/blocked domains/i);
 		await userEvent.type(allowed, "example.com");
 		expect(blocked).toBeDisabled();
+	},
+};
+
+export const NoProviderConfigurationFields: Story = {
+	args: {
+		providerStates: [MockCopilotProviderState],
+		selectedProviderState: MockCopilotProviderState,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.queryByRole("button", { name: /provider configuration/i }),
+		).not.toBeInTheDocument();
 	},
 };
 

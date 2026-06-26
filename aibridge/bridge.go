@@ -33,7 +33,7 @@ const (
 	// The duration after which an async recording will be aborted.
 	recordingTimeout = time.Second * 5
 
-	// maxRequestBodyBytes caps the request body size for AI Bridge
+	// maxRequestBodyBytes caps the request body size for AI Gateway
 	// provider endpoints to prevent denial-of-service via memory exhaustion.
 	// Anthropic enforces 32 MB on the direct API, 30 MB on Vertex AI,
 	// and 20 MB on Amazon Bedrock.

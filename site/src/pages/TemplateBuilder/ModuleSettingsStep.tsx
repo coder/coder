@@ -7,6 +7,10 @@ import type {
 	TemplateBuilderModulesResponse,
 	TemplateBuilderModuleVariable,
 } from "#/api/typesGenerated";
+import {
+	TemplateBuilderSubtitle,
+	TemplateBuilderTitle,
+} from "#/pages/TemplateBuilder/TemplateBuilderHeader";
 import type { ConfigurationFieldDefinition } from "./ConfigurationField";
 import { ModuleConfiguration } from "./ModuleConfiguration";
 
@@ -111,10 +115,10 @@ export const ModuleSettingsStep: FC<ModuleSettingsStepProps> = ({
 
 	return (
 		<div className="border border-border border-solid p-6 rounded-lg">
-			<h2 className="text-lg font-semibold mb-1">Configure modules</h2>
-			<p className="text-sm text-content-secondary mb-4">
+			<TemplateBuilderTitle>Configure modules</TemplateBuilderTitle>
+			<TemplateBuilderSubtitle>
 				Set values for module variables.
-			</p>
+			</TemplateBuilderSubtitle>
 
 			<div className="flex flex-col gap-6">
 				{selectedModules.map((mod) => {

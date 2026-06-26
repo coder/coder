@@ -2,6 +2,7 @@ import type { FormikContextType } from "formik";
 import { ChevronDownIcon, ChevronRightIcon, InfoIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 import { Link } from "react-router";
+import { getVisibleProviderFields } from "#/api/chatModelOptions";
 import type * as TypesGen from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Checkbox } from "#/components/Checkbox/Checkbox";
@@ -132,6 +133,9 @@ export const ModelFormFields: FC<{
 	showAdvanced,
 	setShowAdvanced,
 }) => {
+	const hasProviderConfigFields =
+		getVisibleProviderFields(selectedProviderState.provider).length > 0;
+
 	return (
 		<div className="border border-solid p-6 rounded-lg">
 			<form
@@ -253,21 +257,23 @@ export const ModelFormFields: FC<{
 						/>
 					</CollapsibleSection>
 
-					<CollapsibleSection
-						title="Provider configuration"
-						description="Tune provider-specific behavior like reasoning, tool calling, and web search."
-						open={showProviderConfig}
-						onOpenChange={setShowProviderConfig}
-						className="border-0 border-t border-solid border-border"
-						contentClassName="pt-3 pl-6"
-					>
-						<ModelConfigFields
-							provider={selectedProviderState.provider}
-							form={form}
-							fieldErrors={modelConfigFormBuildResult.fieldErrors}
-							disabled={isSaving}
-						/>
-					</CollapsibleSection>
+					{hasProviderConfigFields && (
+						<CollapsibleSection
+							title="Provider configuration"
+							description="Tune provider-specific behavior like reasoning, tool calling, and web search."
+							open={showProviderConfig}
+							onOpenChange={setShowProviderConfig}
+							className="border-0 border-t border-solid border-border"
+							contentClassName="pt-3 pl-6"
+						>
+							<ModelConfigFields
+								provider={selectedProviderState.provider}
+								form={form}
+								fieldErrors={modelConfigFormBuildResult.fieldErrors}
+								disabled={isSaving}
+							/>
+						</CollapsibleSection>
+					)}
 
 					<CollapsibleSection
 						title="Advanced"

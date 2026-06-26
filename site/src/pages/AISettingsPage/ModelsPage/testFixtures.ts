@@ -107,3 +107,17 @@ export const MockBedrockProviderState: ProviderState = {
 	providerConfig: MockBedrockProviderConfig,
 	modelConfigs: [mockBedrockClaude],
 };
+
+export const MockCopilotProviderState: ProviderState = {
+	...MockOpenAIProviderState,
+	key: "prov-copilot",
+	provider: "copilot",
+	label: "GitHub Copilot",
+	providerConfig: {
+		...MockOpenAIProviderConfig,
+		id: "prov-copilot",
+		provider: "copilot",
+		display_name: "GitHub Copilot",
+	},
+	modelConfigs: [],
+};

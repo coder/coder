@@ -167,7 +167,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						icon={PlugIcon}
 						label="Providers"
 						active={false}
-						to="/ai/settings"
+						to="/ai/settings/providers"
 						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem

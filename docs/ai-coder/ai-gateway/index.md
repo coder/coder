@@ -1,6 +1,6 @@
 # AI Gateway
 
-![AI bridge diagram](../../images/aibridge/aibridge_diagram.png)
+![AI Gateway diagram](../../images/aibridge/aibridge_diagram.png)
 
 AI Gateway is a smart gateway for AI. It acts as an intermediary between your users' coding agents / IDEs
 and providers like OpenAI and Anthropic. By intercepting all the AI traffic between these clients and
