@@ -43,7 +43,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
-	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -2644,14 +2644,12 @@ func TestWatchAIProviders(t *testing.T) {
 	// initial signal.
 	testutil.TryReceive(ctx, t, stream.sent)
 
-	// Each publish yields a signal.
-	require.NoError(t, ps.Publish(coderpubsub.AIProvidersChangedChannel, nil))
+	require.NoError(t, ps.Publish(coderdpubsub.AIProvidersChangedChannel, nil))
 	testutil.TryReceive(ctx, t, stream.sent)
 
-	require.NoError(t, ps.Publish(coderpubsub.AIProvidersChangedChannel, nil))
+	require.NoError(t, ps.Publish(coderdpubsub.AIProvidersChangedChannel, nil))
 	testutil.TryReceive(ctx, t, stream.sent)
 
-	// Canceling the stream context ends the handler without error.
 	streamCancel()
 	require.NoError(t, testutil.TryReceive(ctx, t, watchErr))
 }

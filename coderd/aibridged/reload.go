@@ -117,7 +117,7 @@ func watchProviderReloadOnce(ctx context.Context, client ClientFunc, reloader Pr
 			return true, xerrors.Errorf("receive ai providers change signal: %w", err)
 		}
 		if err := reloader.Reload(ctx); err != nil {
-			logger.Warn(ctx, "reload ai provider snapshot from watch signal", slog.Error(err))
+			logger.Warn(ctx, "failed to reload ai provider snapshot from watch signal", slog.Error(err))
 			continue
 		}
 		logger.Debug(ctx, "reloaded ai provider snapshot from watch signal")
