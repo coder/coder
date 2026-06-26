@@ -19,18 +19,15 @@ export const UserDropdownAISpend: FC = () => {
 		enabled: aibridgeVisible,
 	});
 
-	const spendLimit = data?.spend_limit_micros;
-	const currentSpend = data?.current_spend_micros;
+	if (!aibridgeVisible || isError || !data) {
+		return null;
+	}
 
-	// Hide unless the add-on is on and the user has a non-negative budget set.
-	if (
-		!aibridgeVisible ||
-		isError ||
-		spendLimit == null ||
-		currentSpend === undefined ||
-		spendLimit < 0 ||
-		currentSpend < 0
-	) {
+	const spendLimit = data.spend_limit_micros;
+	const currentSpend = data.current_spend_micros;
+
+	// Hide unless the user has a non-negative budget set.
+	if (spendLimit == null || spendLimit < 0 || currentSpend < 0) {
 		return null;
 	}
 
@@ -51,7 +48,6 @@ export const UserDropdownAISpend: FC = () => {
 					severity={severity}
 					className="h-2.5"
 				/>
-				<span className="sr-only">{Math.round(percent)}% used</span>
 			</div>
 		</>
 	);

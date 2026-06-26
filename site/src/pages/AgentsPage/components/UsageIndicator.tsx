@@ -29,6 +29,7 @@ import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/compo
 import {
 	clampPercentage,
 	getSeverity,
+	severityRingClassName,
 	severityTextClassName,
 	type UsageSeverity,
 	usageProgressPercentage,
@@ -232,7 +233,7 @@ const UsageRingProgress: FC<{
 				size={RING_SIZE}
 				strokeWidth={RING_STROKE}
 				percent={clampedPercent}
-				progressClassName={getRingStrokeClassName(severity)}
+				progressClassName={severityRingClassName(severity)}
 			/>
 			<span
 				aria-hidden="true"
@@ -315,17 +316,6 @@ const UsageSection: FC<{ section: UsageSectionData }> = ({ section }) => {
 		</>
 	);
 };
-
-function getRingStrokeClassName(severity: UsageSeverity): string {
-	switch (severity) {
-		case "exceeded":
-			return "stroke-content-destructive";
-		case "warning":
-			return "stroke-content-warning";
-		case "normal":
-			return "stroke-content-secondary";
-	}
-}
 
 function getWorkspaceCount(count: number | undefined): number | undefined {
 	if (count === undefined || !Number.isFinite(count) || count < 0) {

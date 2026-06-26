@@ -3,6 +3,7 @@ import {
 	clampPercentage,
 	getSeverity,
 	severityProgressClassName,
+	severityRingClassName,
 	severityTextClassName,
 	usageProgressPercentage,
 } from "./budget";
@@ -52,6 +53,17 @@ describe("severityProgressClassName", () => {
 		expect(severityProgressClassName("warning")).toBe("bg-content-warning");
 		expect(severityProgressClassName("normal")).toBe("bg-content-secondary");
 		expect(severityProgressClassName()).toBe("bg-content-secondary");
+	});
+});
+
+describe("severityRingClassName", () => {
+	it("maps each severity to its ring stroke color, defaulting to normal", () => {
+		expect(severityRingClassName("exceeded")).toBe(
+			"stroke-content-destructive",
+		);
+		expect(severityRingClassName("warning")).toBe("stroke-content-warning");
+		expect(severityRingClassName("normal")).toBe("stroke-content-secondary");
+		expect(severityRingClassName()).toBe("stroke-content-secondary");
 	});
 });
 

@@ -18,30 +18,43 @@ export function getSeverity(used: number, budget: number): UsageSeverity {
 	return used / budget >= 0.85 ? "warning" : "normal";
 }
 
+const SEVERITY_CLASSES = {
+	normal: {
+		text: "text-content-secondary",
+		progress: "bg-content-secondary",
+		ring: "stroke-content-secondary",
+	},
+	warning: {
+		text: "text-content-warning",
+		progress: "bg-content-warning",
+		ring: "stroke-content-warning",
+	},
+	exceeded: {
+		text: "text-content-destructive",
+		progress: "bg-content-destructive",
+		ring: "stroke-content-destructive",
+	},
+} as const satisfies Record<
+	UsageSeverity,
+	{ text: string; progress: string; ring: string }
+>;
+
 export function severityTextClassName(
 	severity: UsageSeverity = "normal",
 ): string {
-	switch (severity) {
-		case "exceeded":
-			return "text-content-destructive";
-		case "warning":
-			return "text-content-warning";
-		case "normal":
-			return "text-content-secondary";
-	}
+	return SEVERITY_CLASSES[severity].text;
 }
 
 export function severityProgressClassName(
 	severity: UsageSeverity = "normal",
 ): string {
-	switch (severity) {
-		case "exceeded":
-			return "bg-content-destructive";
-		case "warning":
-			return "bg-content-warning";
-		case "normal":
-			return "bg-content-secondary";
-	}
+	return SEVERITY_CLASSES[severity].progress;
+}
+
+export function severityRingClassName(
+	severity: UsageSeverity = "normal",
+): string {
+	return SEVERITY_CLASSES[severity].ring;
 }
 
 export function usageProgressPercentage(used: number, budget: number): number {
