@@ -1,7 +1,7 @@
 import { BarChart3Icon } from "lucide-react";
 import type { FC } from "react";
 import type { ChatCostSummary } from "#/api/typesGenerated";
-import { ChatCostSummaryView } from "./components/ChatCostSummaryView";
+import { ChatCostSummaryView } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
 import { SectionHeader } from "./components/SectionHeader";
 
 interface AgentAnalyticsPageViewProps {

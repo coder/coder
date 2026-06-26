@@ -10,8 +10,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import type { ModelFormValues } from "#/pages/AgentsPage/components/ChatModelAdminPanel/modelConfigFormLogic";
-import { ConfirmDeleteDialog } from "#/pages/AgentsPage/components/ConfirmDeleteDialog";
 
 export const ModelFormDialogs: FC<{
 	editingModel?: TypesGen.ChatModelConfig;

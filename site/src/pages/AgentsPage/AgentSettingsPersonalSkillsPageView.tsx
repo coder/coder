@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -23,7 +24,6 @@ import {
 	TableRow,
 } from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
-import { ConfirmDeleteDialog } from "./components/ConfirmDeleteDialog";
 import type { PersonalSkillErrorDisplay } from "./components/PersonalSkillEditor";
 import { PersonalSkillEditor } from "./components/PersonalSkillEditor";
 import { SectionHeader } from "./components/SectionHeader";

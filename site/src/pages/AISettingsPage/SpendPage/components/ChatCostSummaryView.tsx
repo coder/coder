@@ -32,7 +32,7 @@ interface ChatCostSummaryViewProps {
 	emptyMessage: string;
 }
 
-const getUsageLimitPeriodLabel = (
+export const getUsageLimitPeriodLabel = (
 	period: TypesGen.ChatUsageLimitPeriod | undefined,
 ): string => {
 	if (!period) {

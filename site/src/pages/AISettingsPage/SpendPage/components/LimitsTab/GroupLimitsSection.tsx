@@ -18,6 +18,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -44,7 +45,6 @@ import {
 	isPositiveFiniteDollarAmount,
 } from "#/utils/currency";
 import { paginateItems } from "#/utils/paginateItems";
-import { ConfirmDeleteDialog } from "../ConfirmDeleteDialog";
 import { SectionHeader } from "../SectionHeader";
 
 const GROUP_LIMITS_PAGE_SIZE = 10;

@@ -24,6 +24,7 @@ import {
 	getDefaultOrganizationName,
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
+import { getUsageLimitPeriodLabel } from "#/pages/AISettingsPage/SpendPage/components/ChatCostSummaryView";
 import {
 	getSeverity,
 	severityTextClassName,
@@ -31,7 +32,6 @@ import {
 } from "#/utils/budget";
 import { cn } from "#/utils/cn";
 import { formatCostMicros } from "#/utils/currency";
-import { getUsageLimitPeriodLabel } from "./ChatCostSummaryView";
 import { SvgRingProgress } from "./SvgRingProgress";
 
 type UsageSectionData = {

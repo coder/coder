@@ -1,9 +1,9 @@
 import { TriangleAlertIcon } from "lucide-react";
 import type { FC } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ConfirmDeleteDialog } from "#/components/Dialogs/ConfirmDeleteDialog/ConfirmDeleteDialog";
 import { ConfirmDialog } from "#/components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { useUnsavedChangesPrompt } from "#/hooks/useUnsavedChangesPrompt";
-import { ConfirmDeleteDialog } from "#/pages/AgentsPage/components/ConfirmDeleteDialog";
 
 interface MCPServerFormDialogsProps {
 	server?: TypesGen.MCPServerConfig;
