@@ -17,7 +17,7 @@ When `ci` completes with `failure` on `main`, `.github/workflows/flake-bot.yaml`
 3. Runs a Claude agent (`anthropics/claude-code-action`) with the instructions
    in [`system-prompt.md`](./system-prompt.md). The agent:
    - identifies the specific failing test and root cause;
-   - suggests an owner from `CODEOWNERS` / `git blame` (suggestion only, never
+   - suggests an owner from `git blame` / `git log` (suggestion only, never
      assigned);
    - **deduplicates against Linear** (team `ENG`): comments on the existing
      `flake:` issue if one exists, otherwise creates one (label `flake`, High
