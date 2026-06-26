@@ -4,7 +4,7 @@
 # pass `ci` before merging, a failure on `main` is treated as a test flake.
 # A Claude agent (anthropics/claude-code-action) investigates the failure,
 # records it in Linear (team ENG), and opens a draft fix PR. See
-# .github/flake-bot/README.md and .github/flake-bot/system-prompt.md.
+# .github/flake-bot/system-prompt.md.
 #
 # This workflow no-ops gracefully when its secrets are unavailable (e.g. on
 # forks), matching the pattern used by code-review.yaml and traiage.yaml.
