@@ -5,6 +5,7 @@ import type { LinkConfig } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { canViewDeploymentSettings } from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";
@@ -17,6 +18,7 @@ export const Navbar: FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
+	const isGatewayAccount = !useCanCreateWorkspace();
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;
@@ -53,6 +55,7 @@ export const Navbar: FC = () => {
 			canViewAIBridge={canViewAIBridge}
 			canViewAISettings={canViewAISettings}
 			canCreateChat={canCreateChat}
+			isGatewayAccount={isGatewayAccount}
 			proxyContextValue={proxyContextValue}
 		/>
 	);

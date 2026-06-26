@@ -25,6 +25,9 @@ interface AccountFormProps {
 	initialValues: UpdateUserProfileRequest;
 	onSubmit: (values: UpdateUserProfileRequest) => void;
 	updateProfileError?: unknown;
+	// isGatewayAccount swaps the Name field helper text for the shorter
+	// Gateway Account copy that omits the template reference.
+	isGatewayAccount?: boolean;
 	// initialTouched is only used for testing the error state of the form.
 	initialTouched?: FormikTouched<UpdateUserProfileRequest>;
 }
@@ -36,6 +39,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 	onSubmit,
 	initialValues,
 	updateProfileError,
+	isGatewayAccount = false,
 	initialTouched,
 }) => {
 	const form = useFormik({
@@ -71,8 +75,9 @@ export const AccountForm: FC<AccountFormProps> = ({
 				<FormField
 					field={{
 						...getFieldHelpers("name"),
-						helperText:
-							'The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.',
+						helperText: isGatewayAccount
+							? "The human-readable name is optional."
+							: 'The human-readable name is optional and can be accessed in a template via the "data.coder_workspace_owner.me.full_name" property.',
 					}}
 					autoComplete="name"
 					className="w-full"
@@ -83,7 +88,7 @@ export const AccountForm: FC<AccountFormProps> = ({
 					}}
 				/>
 				<div>
-					<Button disabled={isLoading} type="submit">
+					<Button disabled={isLoading || !form.dirty} type="submit">
 						<Spinner loading={isLoading} />
 						Update account
 					</Button>

@@ -36,6 +36,7 @@ const meta: Meta<typeof NavbarView> = {
 		canViewAISettings: true,
 		canViewOrganizations: true,
 		canCreateChat: true,
+		isGatewayAccount: false,
 		supportLinks: [],
 	},
 	decorators: [withDashboardProvider],

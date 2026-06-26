@@ -7,6 +7,7 @@ import {
 	SettingsSidebarNavItem,
 	SidebarHeader,
 } from "#/components/Sidebar/Sidebar";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
@@ -16,10 +17,15 @@ interface SidebarProps {
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
 	const { entitlements, experiments, buildInfo } = useDashboard();
+	const isGatewayAccount = !useCanCreateWorkspace();
 	const showSchedulePage =
+		!isGatewayAccount &&
 		entitlements.features.advanced_template_scheduling.enabled;
 	const showOAuth2Page =
-		experiments.includes("oauth2") || getPrereleaseFlag(buildInfo) === "devel";
+		!isGatewayAccount &&
+		(experiments.includes("oauth2") ||
+			getPrereleaseFlag(buildInfo) === "devel");
+	const showSSHKeys = !isGatewayAccount;
 
 	return (
 		<BaseSidebar>
@@ -49,9 +55,11 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 				<SettingsSidebarNavItem href="security">
 					Security
 				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="ssh-keys">
-					SSH Keys
-				</SettingsSidebarNavItem>
+				{showSSHKeys && (
+					<SettingsSidebarNavItem href="ssh-keys">
+						SSH Keys
+					</SettingsSidebarNavItem>
+				)}
 				<SettingsSidebarNavItem href="tokens">Tokens</SettingsSidebarNavItem>
 				<SettingsSidebarNavItem href="secrets">
 					<span className="flex min-w-0 items-center gap-2">
