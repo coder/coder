@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -76,87 +75,6 @@ func testAPIKeyID(t testing.TB, db database.Store, userID uuid.UUID) string {
 	t.Helper()
 	key, _ := dbgen.APIKey(t, db, database.APIKey{ID: uuid.NewString(), UserID: userID})
 	return key.ID
-}
-
-type chatAIGatewayRecordedRequest struct {
-	ProviderName  string
-	Source        aibridge.Source
-	APIKeyID      string
-	Path          string
-	Authorization string
-	XAPIKey       string
-	CoderToken    string
-}
-
-type chatAIGatewayTestFactory struct {
-	target       *url.URL
-	transport    http.RoundTripper
-	preservePath bool
-	mu           sync.Mutex
-	requests     []chatAIGatewayRecordedRequest
-}
-
-func newChatAIGatewayTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport}
-}
-
-func newChatAIGatewayPreservePathTestFactory(t testing.TB, targetBaseURL string) *chatAIGatewayTestFactory {
-	t.Helper()
-
-	target, err := url.Parse(targetBaseURL)
-	require.NoError(t, err)
-	return &chatAIGatewayTestFactory{target: target, transport: http.DefaultTransport, preservePath: true}
-}
-
-func (f *chatAIGatewayTestFactory) TransportFor(providerName string, source aibridge.Source) (http.RoundTripper, error) {
-	return chatAIGatewayRoundTripper{factory: f, providerName: providerName, source: source}, nil
-}
-
-func (f *chatAIGatewayTestFactory) requestsSnapshot() []chatAIGatewayRecordedRequest {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	return slices.Clone(f.requests)
-}
-
-type chatAIGatewayRoundTripper struct {
-	factory      *chatAIGatewayTestFactory
-	providerName string
-	source       aibridge.Source
-}
-
-func (t chatAIGatewayRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	apiKeyID, _ := aibridge.DelegatedAPIKeyIDFromContext(req.Context())
-	t.factory.mu.Lock()
-	t.factory.requests = append(t.factory.requests, chatAIGatewayRecordedRequest{
-		ProviderName:  t.providerName,
-		Source:        t.source,
-		APIKeyID:      apiKeyID,
-		Path:          req.URL.Path,
-		Authorization: req.Header.Get("Authorization"),
-		XAPIKey:       req.Header.Get("X-Api-Key"),
-		CoderToken:    req.Header.Get(aibridge.HeaderCoderToken),
-	})
-	t.factory.mu.Unlock()
-
-	targetURL := *t.factory.target
-	if t.factory.preservePath {
-		targetURL.Path = req.URL.Path
-	} else {
-		targetURL.Path = strings.TrimPrefix(req.URL.Path, "/v1")
-		if targetURL.Path == "" {
-			targetURL.Path = "/"
-		}
-	}
-	targetURL.RawQuery = req.URL.RawQuery
-
-	cloned := req.Clone(req.Context())
-	cloned.URL = &targetURL
-	cloned.Host = t.factory.target.Host
-	return t.factory.transport.RoundTrip(cloned)
 }
 
 func chatAIGatewayTransportFactoryPointer(factory aibridge.TransportFactory) *atomic.Pointer[aibridge.TransportFactory] {
@@ -5401,7 +5319,7 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 			return chattest.AnthropicStreamingResponse()
 		}
 	})
-	factory := newChatAIGatewayPreservePathTestFactory(t, anthropicURL)
+	factory := chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath())
 	user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
 	model = updateChatModelCompressionThreshold(t, db, model, contextLimit, thresholdPercent)
 	provider, err := db.GetAIProviderByID(ctx, model.AIProviderID.UUID)
@@ -5480,14 +5398,14 @@ func TestActiveServer_AIGatewayRoutingPreservesAPIKeyAfterCompaction(t *testing.
 	require.True(t, compressed.summaries[0].APIKeyID.Valid)
 	require.Equal(t, apiKey.ID, compressed.summaries[0].APIKeyID.String)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "sk-user-aibridge", req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "sk-user-aibridge", req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 
@@ -9790,7 +9708,7 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Chat"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 
@@ -9824,24 +9742,19 @@ func TestProcessChat_AIGatewayRoutingUsesDelegatedAPIKey(t *testing.T) {
 	require.Equal(t, database.ChatStatusWaiting, chatResult.Status)
 	require.False(t, chatResult.LastError.Valid)
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
-	require.Contains(t, requests, chatAIGatewayRecordedRequest{
-		ProviderName:  provider.Name,
-		Source:        aibridge.SourceAgents,
-		APIKeyID:      apiKey.ID,
-		Path:          "/v1/responses",
-		Authorization: "Bearer sk-user-aibridge",
-		CoderToken:    "delegated",
-	})
+	require.True(t, slices.ContainsFunc(requests, func(req chattest.RecordedRequest) bool {
+		return req.Request.URL.Path == "/v1/responses"
+	}), "no request to /v1/responses found")
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Empty(t, req.XAPIKey)
-		require.Equal(t, "delegated", req.CoderToken)
-		require.True(t, strings.HasPrefix(req.Path, "/v1/"), "unexpected aibridge path %q", req.Path)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Empty(t, req.Request.Header.Get("X-Api-Key"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
+		require.True(t, strings.HasPrefix(req.Request.URL.Path, "/v1/"), "unexpected aibridge path %q", req.Request.URL.Path)
 	}
 }
 
@@ -9859,7 +9772,7 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 		}
 		return chattest.OpenAINonStreamingResponse(`{"title":"AI Gateway Workspace"}`)
 	})
-	factory := newChatAIGatewayTestFactory(t, openAIURL)
+	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	user, org, provider, model, apiKey := seedAIGatewayOpenAITestDependencies(t, db, openAIURL)
 	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
@@ -9908,14 +9821,14 @@ func TestProcessChat_AIGatewayRoutingPreservesAPIKeyAfterWorkspaceContext(t *tes
 	require.NoError(t, err)
 	require.NotEmpty(t, pinned, "workspace context should be pinned to the chat")
 
-	requests := factory.requestsSnapshot()
+	requests := factory.RequestsSnapshot()
 	require.NotEmpty(t, requests)
 	for _, req := range requests {
 		require.Equal(t, provider.Name, req.ProviderName)
 		require.Equal(t, aibridge.SourceAgents, req.Source)
 		require.Equal(t, apiKey.ID, req.APIKeyID)
-		require.Equal(t, "Bearer sk-user-aibridge", req.Authorization)
-		require.Equal(t, "delegated", req.CoderToken)
+		require.Equal(t, "Bearer sk-user-aibridge", req.Request.Header.Get("Authorization"))
+		require.Equal(t, "delegated", req.Request.Header.Get(aibridge.HeaderCoderToken))
 	}
 }
 

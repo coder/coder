@@ -63,11 +63,17 @@ func NewAnthropic(ctx context.Context, cfg config.Anthropic, bedrockCfg *config.
 	// so it is cheap to run at construction.
 	var bedrock *messages.BedrockRuntime
 	if bedrockCfg != nil {
-		creds, region, err := buildBedrockCredentials(ctx, *bedrockCfg)
+		creds, resolvedRegion, err := buildBedrockCredentials(ctx, *bedrockCfg)
 		if err != nil {
 			return nil, xerrors.Errorf("build bedrock credentials: %w", err)
 		}
-		bedrock = &messages.BedrockRuntime{Cfg: *bedrockCfg, Creds: creds, ResolvedRegion: region}
+		runtimeCfg := *bedrockCfg
+		// resolvedRegion is bedrockCfg.Region if provided;
+		// otherwise, it is resolved from the environment via awsconfig.LoadDefaultConfig
+		if runtimeCfg.Region == "" {
+			runtimeCfg.Region = resolvedRegion
+		}
+		bedrock = &messages.BedrockRuntime{Cfg: runtimeCfg, Creds: creds}
 	}
 
 	return &Anthropic{

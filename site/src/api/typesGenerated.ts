@@ -3267,6 +3267,11 @@ export interface ChatWorkspaceTTLResponse {
 	readonly workspace_ttl_ms: number;
 }
 
+// From codersdk/deployment.go
+export interface ClusterConfig {
+	readonly host: string;
+}
+
 // From codersdk/client.go
 /**
  * CoderDesktopTelemetryHeader contains a JSON-encoded representation of Desktop telemetry
@@ -4282,6 +4287,7 @@ export interface DeploymentValues {
 	readonly http_address?: string;
 	readonly autobuild_poll_interval?: number;
 	readonly job_hang_detector_interval?: number;
+	readonly cluster?: ClusterConfig;
 	readonly derp?: DERP;
 	readonly prometheus?: PrometheusConfig;
 	readonly pprof?: PprofConfig;

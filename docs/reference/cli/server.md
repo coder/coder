@@ -1122,6 +1122,16 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 
 Whether Coder only allows connections to workspaces via the browser.
 
+### --cluster-host
+
+|             |                                             |
+|-------------|---------------------------------------------|
+| Type        | <code>string</code>                         |
+| Environment | <code>$CODER_CLUSTER_HOST</code>            |
+| YAML        | <code>networking.cluster.clusterHost</code> |
+
+Hostname or (more commonly) IP to reach this replica for clustering.
+
 ### --scim-auth-header
 
 |             |                                      |
