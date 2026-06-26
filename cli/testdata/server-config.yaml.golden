@@ -839,17 +839,17 @@ aibridge:
   # (default: 60d, type: duration)
   retention: 1440h0m0s
   # Deprecated: use --ai-gateway-max-concurrency or CODER_AI_GATEWAY_MAX_CONCURRENCY
-  # instead. Maximum number of concurrent AI Gateway requests per replica. Set to 0
+  # instead. Maximum number of concurrent AI Bridge requests per replica. Set to 0
   # to disable (unlimited).
   # (default: 0, type: int)
   max_concurrency: 0
   # Deprecated: use --ai-gateway-rate-limit or CODER_AI_GATEWAY_RATE_LIMIT instead.
-  # Maximum number of AI Gateway requests per second per replica. Set to 0 to
-  # disable (unlimited).
+  # Maximum number of AI Bridge requests per second per replica. Set to 0 to disable
+  # (unlimited).
   # (default: 0, type: int)
   rate_limit: 0
   # Deprecated: use --ai-gateway-structured-logging or
-  # CODER_AI_GATEWAY_STRUCTURED_LOGGING instead. Emit structured logs for AI Gateway
+  # CODER_AI_GATEWAY_STRUCTURED_LOGGING instead. Emit structured logs for AI Bridge
   # interception records. Use this for exporting these records to external SIEM or
   # observability systems.
   # (default: false, type: bool)
@@ -857,7 +857,7 @@ aibridge:
   # Deprecated: use --ai-gateway-send-actor-headers or
   # CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be
   # added to upstream requests to identify the user (actor) making requests to AI
-  # Gateway. This is only needed if you are using a proxy between AI Gateway and an
+  # Bridge. This is only needed if you are using a proxy between AI Bridge and an
   # upstream AI provider. This will send X-Ai-Bridge-Actor-Id (the ID of the user
   # making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).
   # (default: false, type: bool)
@@ -1002,25 +1002,25 @@ ai_gateway:
   budget_period: month
 aibridgeproxy:
   # Deprecated: use --ai-gateway-proxy-enabled or CODER_AI_GATEWAY_PROXY_ENABLED
-  # instead. Enable the AI Gateway MITM Proxy for intercepting and decrypting AI
+  # instead. Enable the AI Bridge MITM Proxy for intercepting and decrypting AI
   # provider requests.
   # (default: false, type: bool)
   enabled: false
   # Deprecated: use --ai-gateway-proxy-listen-addr or
-  # CODER_AI_GATEWAY_PROXY_LISTEN_ADDR instead. The address the AI Gateway Proxy
-  # will listen on.
+  # CODER_AI_GATEWAY_PROXY_LISTEN_ADDR instead. The address the AI Bridge Proxy will
+  # listen on.
   # (default: :8888, type: string)
   listen_addr: :8888
   # Deprecated: use --ai-gateway-proxy-tls-cert-file or
   # CODER_AI_GATEWAY_PROXY_TLS_CERT_FILE instead. Path to the TLS certificate file
-  # for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy
-  # TLS Key File.
+  # for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS
+  # Key File.
   # (default: <unset>, type: string)
   tls_cert_file: ""
   # Deprecated: use --ai-gateway-proxy-tls-key-file or
   # CODER_AI_GATEWAY_PROXY_TLS_KEY_FILE instead. Path to the TLS private key file
-  # for the AI Gateway Proxy listener. Must be set together with AI Gateway Proxy
-  # TLS Certificate File.
+  # for the AI Bridge Proxy listener. Must be set together with AI Bridge Proxy TLS
+  # Certificate File.
   # (default: <unset>, type: string)
   tls_key_file: ""
   # Deprecated: use --ai-gateway-proxy-cert-file or CODER_AI_GATEWAY_PROXY_CERT_FILE
