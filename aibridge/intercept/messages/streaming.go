@@ -21,7 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	aibconfig "github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/intercept/eventstream"
@@ -41,7 +40,7 @@ func NewStreamingInterceptor(
 	reqPayload RequestPayload,
 	cfg intercept.Config,
 	cred intercept.Credential,
-	bedrockCfg *aibconfig.AWSBedrock,
+	bedrock *BedrockRuntime,
 	clientHeaders http.Header,
 	tracer trace.Tracer,
 ) *StreamingInterception {
@@ -50,7 +49,7 @@ func NewStreamingInterceptor(
 		reqPayload:    reqPayload,
 		cfg:           cfg,
 		cred:          cred,
-		bedrockCfg:    bedrockCfg,
+		bedrock:       bedrock,
 		clientHeaders: clientHeaders,
 		tracer:        tracer,
 	}}

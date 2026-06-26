@@ -1947,6 +1947,21 @@ func (mr *MockStoreMockRecorder) GetAIBridgeUserPromptsByInterceptionID(ctx, int
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIBridgeUserPromptsByInterceptionID", reflect.TypeOf((*MockStore)(nil).GetAIBridgeUserPromptsByInterceptionID), ctx, interceptionID)
 }
 
+// GetAIGatewayKeyByHashedSecret mocks base method.
+func (m *MockStore) GetAIGatewayKeyByHashedSecret(ctx context.Context, hashedSecret []byte) (database.AIGatewayKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAIGatewayKeyByHashedSecret", ctx, hashedSecret)
+	ret0, _ := ret[0].(database.AIGatewayKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAIGatewayKeyByHashedSecret indicates an expected call of GetAIGatewayKeyByHashedSecret.
+func (mr *MockStoreMockRecorder) GetAIGatewayKeyByHashedSecret(ctx, hashedSecret any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAIGatewayKeyByHashedSecret", reflect.TypeOf((*MockStore)(nil).GetAIGatewayKeyByHashedSecret), ctx, hashedSecret)
+}
+
 // GetAIModelPriceByProviderModel mocks base method.
 func (m *MockStore) GetAIModelPriceByProviderModel(ctx context.Context, arg database.GetAIModelPriceByProviderModelParams) (database.AIModelPrice, error) {
 	m.ctrl.T.Helper()
@@ -7212,19 +7227,19 @@ func (mr *MockStoreMockRecorder) GetWorkspacesByTemplateID(ctx, templateID any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesByTemplateID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesByTemplateID), ctx, templateID)
 }
 
-// GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
+// GetWorkspacesEligibleForLifecycleAction mocks base method.
+func (m *MockStore) GetWorkspacesEligibleForLifecycleAction(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForLifecycleActionRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", ctx, now)
-	ret0, _ := ret[0].([]database.GetWorkspacesEligibleForTransitionRow)
+	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForLifecycleAction", ctx, now)
+	ret0, _ := ret[0].([]database.GetWorkspacesEligibleForLifecycleActionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetWorkspacesEligibleForTransition indicates an expected call of GetWorkspacesEligibleForTransition.
-func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(ctx, now any) *gomock.Call {
+// GetWorkspacesEligibleForLifecycleAction indicates an expected call of GetWorkspacesEligibleForLifecycleAction.
+func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForLifecycleAction(ctx, now any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForTransition", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForTransition), ctx, now)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesEligibleForLifecycleAction", reflect.TypeOf((*MockStore)(nil).GetWorkspacesEligibleForLifecycleAction), ctx, now)
 }
 
 // GetWorkspacesForWorkspaceMetrics mocks base method.
@@ -7240,6 +7255,21 @@ func (m *MockStore) GetWorkspacesForWorkspaceMetrics(ctx context.Context) ([]dat
 func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
+}
+
+// HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
+func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasTemplateVersionsUsingCachedModuleFileInOrg", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasTemplateVersionsUsingCachedModuleFileInOrg indicates an expected call of HasTemplateVersionsUsingCachedModuleFileInOrg.
+func (mr *MockStoreMockRecorder) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasTemplateVersionsUsingCachedModuleFileInOrg", reflect.TypeOf((*MockStore)(nil).HasTemplateVersionsUsingCachedModuleFileInOrg), ctx, arg)
 }
 
 // HydrateAgentChatsContext mocks base method.
@@ -9488,6 +9518,21 @@ func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionEnded", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionEnded), ctx, arg)
 }
 
+// UpdateAIGatewayKeyLastHeartbeatAt mocks base method.
+func (m *MockStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAIGatewayKeyLastHeartbeatAt", ctx, id)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAIGatewayKeyLastHeartbeatAt indicates an expected call of UpdateAIGatewayKeyLastHeartbeatAt.
+func (mr *MockStoreMockRecorder) UpdateAIGatewayKeyLastHeartbeatAt(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayKeyLastHeartbeatAt", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayKeyLastHeartbeatAt), ctx, id)
+}
+
 // UpdateAIProvider mocks base method.
 func (m *MockStore) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
 	m.ctrl.T.Helper()
@@ -11134,6 +11179,20 @@ func (m *MockStore) UpdateWorkspaceBuildFlagsByID(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildFlagsByID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildFlagsByID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildFlagsByID), ctx, arg)
+}
+
+// UpdateWorkspaceBuildNotifiedAutostopDeadline mocks base method.
+func (m *MockStore) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx context.Context, arg database.UpdateWorkspaceBuildNotifiedAutostopDeadlineParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceBuildNotifiedAutostopDeadline", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceBuildNotifiedAutostopDeadline indicates an expected call of UpdateWorkspaceBuildNotifiedAutostopDeadline.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceBuildNotifiedAutostopDeadline(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceBuildNotifiedAutostopDeadline", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceBuildNotifiedAutostopDeadline), ctx, arg)
 }
 
 // UpdateWorkspaceBuildProvisionerStateByID mocks base method.

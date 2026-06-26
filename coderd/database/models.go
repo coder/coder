@@ -386,6 +386,7 @@ const (
 	ApiKeyScopeAIGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
 	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
+	ApiKeyScopeAIGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -654,7 +655,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAIGatewayKey,
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
-		ApiKeyScopeAIGatewayKeyRead:
+		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate:
 		return true
 	}
 	return false
@@ -892,6 +894,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate,
 	}
 }
 
@@ -1884,6 +1887,7 @@ const (
 	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
 	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
 	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureNATSCA              CryptoKeyFeature = "nats_ca"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -1926,7 +1930,8 @@ func (e CryptoKeyFeature) Valid() bool {
 	case CryptoKeyFeatureWorkspaceAppsToken,
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
-		CryptoKeyFeatureTailnetResume:
+		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureNATSCA:
 		return true
 	}
 	return false
@@ -1938,6 +1943,7 @@ func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 		CryptoKeyFeatureWorkspaceAppsAPIKey,
 		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
+		CryptoKeyFeatureNATSCA,
 	}
 }
 
@@ -4615,9 +4621,9 @@ type AIGatewayKey struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Name      string    `db:"name" json:"name"`
 	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.
@@ -5558,18 +5564,23 @@ type ProvisionerKey struct {
 }
 
 type Replica struct {
-	ID              uuid.UUID    `db:"id" json:"id"`
-	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
-	StartedAt       time.Time    `db:"started_at" json:"started_at"`
-	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
-	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
-	Hostname        string       `db:"hostname" json:"hostname"`
-	RegionID        int32        `db:"region_id" json:"region_id"`
-	RelayAddress    string       `db:"relay_address" json:"relay_address"`
-	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
-	Version         string       `db:"version" json:"version"`
-	Error           string       `db:"error" json:"error"`
-	Primary         bool         `db:"primary" json:"primary"`
+	ID        uuid.UUID    `db:"id" json:"id"`
+	CreatedAt time.Time    `db:"created_at" json:"created_at"`
+	StartedAt time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
+	Hostname  string       `db:"hostname" json:"hostname"`
+	RegionID  int32        `db:"region_id" json:"region_id"`
+	// URL for DERP relays.
+	RelayAddress    string `db:"relay_address" json:"relay_address"`
+	DatabaseLatency int32  `db:"database_latency" json:"database_latency"`
+	Version         string `db:"version" json:"version"`
+	Error           string `db:"error" json:"error"`
+	Primary         bool   `db:"primary" json:"primary"`
+	// Hostname or IP address the replica is reachable at for clustering purposes.
+	ClusterHost string `db:"cluster_host" json:"cluster_host"`
+	// Port number for NATS clustering. 0 means NATS is disabled.
+	NATSPort int32 `db:"nats_port" json:"nats_port"`
 }
 
 type SiteConfig struct {

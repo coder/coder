@@ -41,11 +41,17 @@ const SUBAGENT_VERBS: Record<
 		error: "Failed to message ",
 		timeout: "Timed out messaging ",
 	},
-	close: {
-		completed: "Terminated ",
-		running: "Terminating ",
-		error: "Failed to terminate ",
-		timeout: "Timed out terminating ",
+	interrupt: {
+		completed: "Interrupted ",
+		running: "Interrupting ",
+		error: "Failed to interrupt ",
+		timeout: "Timed out interrupting ",
+	},
+	list: {
+		completed: "Listed ",
+		running: "Listing ",
+		error: "Failed to list ",
+		timeout: "Timed out listing ",
 	},
 };
 

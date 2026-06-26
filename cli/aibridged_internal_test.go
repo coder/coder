@@ -267,6 +267,7 @@ func TestBuildProviders(t *testing.T) {
 			Name:    "anthropic-bedrock",
 			BaseUrl: "https://bedrock-runtime.us-west-2.amazonaws.com/",
 		}
+		roleARN := "arn:aws:iam::123456789012:role/BedrockRole"
 		settings := codersdk.AIProviderSettings{
 			Bedrock: &codersdk.AIProviderBedrockSettings{
 				Region:          "us-west-2",
@@ -274,6 +275,7 @@ func TestBuildProviders(t *testing.T) {
 				AccessKeySecret: &secret,
 				Model:           model,
 				SmallFastModel:  smallModel,
+				RoleARN:         roleARN,
 			},
 		}
 		got := bedrockConfigFromRow(row, settings)
@@ -284,6 +286,7 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, secret, got.AccessKeySecret)
 		assert.Equal(t, model, got.Model)
 		assert.Equal(t, smallModel, got.SmallFastModel)
+		assert.Equal(t, roleARN, got.RoleARN)
 	})
 
 	t.Run("BedrockSettingsEmpty", func(t *testing.T) {

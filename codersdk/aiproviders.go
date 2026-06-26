@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
@@ -246,6 +247,9 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 			Detail: "type=bedrock does not accept api_keys",
 		})
 	}
+	if req.Settings.Bedrock != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+	}
 	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
 		validations = append(validations, ValidationError{
 			Field:  "api_keys",
@@ -294,6 +298,9 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
+	if req.Settings != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+	}
 	return validations
 }
 
@@ -314,6 +321,27 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+func validateAIProviderRoleARN(roleARN string) []ValidationError {
+	if roleARN == "" {
+		return nil
+	}
+	const exampleRoleARN = "arn:aws:iam::123456789012:role/BedrockRole"
+	invalid := func(detail string) []ValidationError {
+		return []ValidationError{{Field: "settings.role_arn", Detail: detail}}
+	}
+	parsed, err := arn.Parse(roleARN)
+	if err != nil {
+		return invalid(fmt.Sprintf("role_arn %q is not a valid ARN, e.g. %s", roleARN, exampleRoleARN))
+	}
+	if parsed.Service != "iam" {
+		return invalid(fmt.Sprintf("role_arn must be an IAM ARN, but resolved to service %q, e.g. %s", parsed.Service, exampleRoleARN))
+	}
+	if !strings.HasPrefix(parsed.Resource, "role/") {
+		return invalid(fmt.Sprintf("role_arn must reference an IAM role, but resolved to resource %q, e.g. %s", parsed.Resource, exampleRoleARN))
+	}
+	return nil
 }
 
 func validateRequiredAIProviderBaseURL(raw string) []ValidationError {

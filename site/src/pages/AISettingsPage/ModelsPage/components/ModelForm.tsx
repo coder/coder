@@ -235,7 +235,8 @@ export const ModelForm: FC<ModelFormProps> = ({
 		!hasFieldErrors &&
 		form.values.model.trim().length > 0 &&
 		contextLimitValid &&
-		compressionThresholdValid;
+		compressionThresholdValid &&
+		(!isEditing || form.dirty);
 
 	const handleConfirmReplaceDefault = () => {
 		replaceDefaultConfirmedRef.current = true;

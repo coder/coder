@@ -246,6 +246,14 @@
             xcbuild
           ]);
 
+        migrate = pkgs.go-migrate.overrideAttrs (_oldAttrs: {
+          # Coder only needs migrate for migration creation and local Postgres
+          # migrations. The nixpkgs default build includes every database
+          # driver and is broken by a bad Go and driver combination, so rebuild
+          # only with the driver we need.
+          tags = [ "postgres" ];
+        });
+
         # The minimal set of packages to build Coder.
         devShellPackages =
           with pkgs;
@@ -277,7 +285,7 @@
             gnutar
             unstablePkgs.go_1_26
             gofumpt
-            go-migrate
+            migrate
             (pinnedPkgs.golangci-lint)
             gopls
             gotestsum

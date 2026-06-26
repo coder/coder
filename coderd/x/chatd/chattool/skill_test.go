@@ -35,6 +35,18 @@ func responseName(t *testing.T, resp fantasy.ToolResponse) string {
 	return payload.Name
 }
 
+// responseDir extracts the "dir" field from a read_skill response. It is
+// empty when the field is absent, as it is for personal skills.
+func responseDir(t *testing.T, resp fantasy.ToolResponse) string {
+	t.Helper()
+
+	var payload struct {
+		Dir string `json:"dir"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &payload))
+	return payload.Dir
+}
+
 func TestFormatResolvedSkillIndex(t *testing.T) {
 	t.Parallel()
 
@@ -305,6 +317,9 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Contains(t, resp.Content, "Do the thing.")
 		assert.Contains(t, resp.Content, "helper.md")
+		// Workspace skills expose the absolute skill directory so the
+		// model can reach supporting files with read_file/execute.
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
 	})
 
 	t.Run("PinnedBodyServedWhenWorkspaceUnreachable", func(t *testing.T) {
@@ -334,6 +349,10 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Contains(t, resp.Content, "Do the thing.")
 		assert.Contains(t, resp.Content, `"files":[]`)
+		// The dir comes from the pinned SkillMeta, so it is still
+		// returned even when the workspace is unreachable and the file
+		// list degrades to empty.
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
 	})
 
 	t.Run("PersonalSkill", func(t *testing.T) {
@@ -372,6 +391,9 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Contains(t, resp.Content, "Personal instructions.")
 		assert.Contains(t, resp.Content, `"files":[]`)
+		// Personal skills are database-backed and have no directory.
+		assert.Empty(t, responseDir(t, resp))
+		assert.NotContains(t, resp.Content, `"dir"`)
 	})
 
 	t.Run("PersonalQualifiedAliasPreservesAlias", func(t *testing.T) {
@@ -459,6 +481,7 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, resp.IsError)
 		assert.Equal(t, "workspace/my-skill", responseName(t, resp))
 		assert.Contains(t, resp.Content, "Do the thing.")
+		assert.Equal(t, "/work/.agents/skills/my-skill", responseDir(t, resp))
 	})
 
 	t.Run("CollisionAliasRoundTrip", func(t *testing.T) {
@@ -530,6 +553,7 @@ func TestReadSkillTool(t *testing.T) {
 		assert.False(t, workspaceResp.IsError)
 		workspaceName := responseName(t, workspaceResp)
 		assert.Equal(t, "workspace/deploy", workspaceName)
+		assert.Equal(t, "/work/.agents/skills/deploy", responseDir(t, workspaceResp))
 		workspaceResolved, err := resolveAlias(workspaceName)
 		require.NoError(t, err)
 		assert.Equal(t, skillspkg.SourceWorkspace, workspaceResolved.Source)

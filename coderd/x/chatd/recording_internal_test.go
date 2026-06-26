@@ -590,8 +590,12 @@ func TestWaitAgentTimeoutLeavesRecordingRunning(t *testing.T) {
 
 	result := testutil.RequireReceive(ctx, t, resultCh)
 	require.NoError(t, result.err)
-	assert.True(t, result.resp.IsError, "expected error response on timeout")
-	assert.Contains(t, result.resp.Content, "timed out")
+	// On timeout the agent is still working, so wait_agent now
+	// returns a non-error payload rather than a tool error. The
+	// recording is intentionally left running: the gomock controller
+	// fails the test if StopDesktopRecording is called.
+	require.False(t, result.resp.IsError, "timeout must return a non-error payload, not an error")
+	assert.Contains(t, result.resp.Content, `"timed_out":true`)
 }
 
 // TestStopAndStoreRecording_Oversized verifies that when the

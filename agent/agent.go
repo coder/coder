@@ -1552,6 +1552,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
+				// Startup finished (success or terminal failure): release
+				// the context gate. MCP servers connect below and
+				// re-trigger a push once up, so we don't block readiness
+				// on them.
+				a.contextManager.SetReady()
+
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it

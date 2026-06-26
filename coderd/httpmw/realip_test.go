@@ -83,6 +83,72 @@ func TestExtractAddress(t *testing.T) {
 			ExpectedRemoteAddr: "10.24.1.1",
 		},
 		{
+			// A chain of trusted proxies appends each hop. The rightmost
+			// untrusted address (the real client) wins, skipping the trusted
+			// inner-proxy hop.
+			Name: "picks-rightmost-untrusted",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4, 203.0.113.5, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "203.0.113.5",
+		},
+		{
+			// When every parsed hop is a trusted origin, there is no untrusted
+			// client to select, so the leftmost address is used.
+			Name: "all-trusted-falls-back-to-leftmost",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"10.0.0.1, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "10.0.0.1",
+		},
+		{
+			// A proxy may append its hop as a separate header line. Per
+			// RFC 7230 section 3.2.2 these are equivalent to a single
+			// comma-joined value, so the spoofed first line must not be
+			// trusted on its own.
+			Name: "x-forwarded-for-set-multiple-times",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			RemoteAddr: "10.0.0.1",
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4", "203.0.113.5, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "203.0.113.5",
+		},
+		{
 			Name: "single-real-ip",
 			Config: &httpmw.RealIPConfig{
 				TrustedOrigins: []*net.IPNet{
@@ -455,6 +521,31 @@ func TestFilterUntrusted(t *testing.T) {
 				"X-Forwarded-Proto": []string{"https"},
 			},
 			ExpectedRemoteAddr: "1.2.3.4",
+		},
+		{
+			// For a trusted origin, multiple X-Forwarded-For field lines are
+			// joined into one comma-separated value rather than collapsed to
+			// the first line, so later hops are preserved.
+			Name: "trusted-origin-joins-multiple-x-forwarded-for",
+			Config: &httpmw.RealIPConfig{
+				TrustedOrigins: []*net.IPNet{
+					{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(8, 32),
+					},
+				},
+				TrustedHeaders: []string{
+					"X-Forwarded-For",
+				},
+			},
+			Header: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4", "203.0.113.5, 10.0.0.2"},
+			},
+			RemoteAddr: "10.0.0.1",
+			ExpectedHeader: http.Header{
+				"X-Forwarded-For": []string{"1.2.3.4,203.0.113.5, 10.0.0.2"},
+			},
+			ExpectedRemoteAddr: "10.0.0.1",
 		},
 	}
 

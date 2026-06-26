@@ -17,10 +17,10 @@ coder ai-gateway keys list [flags]
 
 ### -c, --column
 
-|         |                                                               |
-|---------|---------------------------------------------------------------|
-| Type    | <code>[id\|name\|key prefix\|created at\|last used at]</code> |
-| Default | <code>id,name,key prefix,last used at,created at</code>       |
+|         |                                                                    |
+|---------|--------------------------------------------------------------------|
+| Type    | <code>[id\|name\|key prefix\|created at\|last heartbeat at]</code> |
+| Default | <code>id,name,key prefix,last heartbeat at,created at</code>       |
 
 Columns to display in table output.
 

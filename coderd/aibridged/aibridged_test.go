@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/intercept"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	agplaibridge "github.com/coder/coder/v2/coderd/aibridge"
@@ -659,7 +660,7 @@ func TestServeHTTP_ActorHeaders(t *testing.T) {
 					KeyPool:          singleKeyPool(t, "openai", "test-key"),
 					SendActorHeaders: true,
 				}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 					BaseURL:          upstreamSrv.URL,
 					KeyPool:          singleKeyPool(t, "anthropic", "test-key"),
 					SendActorHeaders: true,
@@ -766,7 +767,7 @@ func TestRouting(t *testing.T) {
 
 			providers := []aibridge.Provider{
 				aibridge.NewOpenAIProvider(aibridge.OpenAIConfig{BaseURL: openaiSrv.URL, KeyPool: singleKeyPool(t, "openai", "test-key")}),
-				aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
+				aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{BaseURL: antSrv.URL, KeyPool: singleKeyPool(t, "anthropic", "test-key")}, nil),
 			}
 			pool, err := aibridged.NewCachedBridgePool(aibridged.DefaultPoolOptions, providers, logger, nil, testTracer)
 			require.NoError(t, err)

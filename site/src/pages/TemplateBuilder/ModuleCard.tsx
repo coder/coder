@@ -78,7 +78,7 @@ export const ModuleCard: React.FC<ModuleCardProps> = ({
 						target="_blank"
 						className="text-sm font-normal"
 					>
-						View Details
+						View details
 					</Link>
 				</div>
 			</div>

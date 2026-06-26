@@ -127,6 +127,8 @@ type Server struct {
 	listener       net.Listener
 	tlsEnabled     bool
 	coderAccessURL *url.URL
+	// coderAccessPort is the resolved port for the Coder access URL.
+	coderAccessPort string
 	// refreshProviders fetches the live provider snapshot on Reload.
 	// Nil disables hot-reload.
 	refreshProviders RefreshProvidersFunc
@@ -265,7 +267,6 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 			coderAccessPort = "80"
 		}
 	}
-	coderAccessURL.Host = net.JoinHostPort(coderAccessURL.Hostname(), coderAccessPort)
 
 	// MITM cert and key are required to intercept and decrypt HTTPS traffic.
 	if opts.MITMCertFile == "" || opts.MITMKeyFile == "" {
@@ -325,6 +326,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (*Server, error)
 		proxy:                proxy,
 		tlsEnabled:           opts.TLSCertFile != "",
 		coderAccessURL:       coderAccessURL,
+		coderAccessPort:      coderAccessPort,
 		refreshProviders:     opts.RefreshProviders,
 		allowedPorts:         allowedPorts,
 		caCert:               certPEM,
@@ -801,7 +803,7 @@ func (s *Server) isBlockedIP(ip net.IP, hostname string, port string) bool {
 	// block connections to its own deployment. Hostname-based (not IP-based)
 	// to handle dynamic IPs (DNS changes, load balancers, k8s rescheduling).
 	// The port is normalized at startup to handle URLs without explicit ports.
-	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessURL.Port() {
+	if strings.EqualFold(hostname, s.coderAccessURL.Hostname()) && port == s.coderAccessPort {
 		return false
 	}
 

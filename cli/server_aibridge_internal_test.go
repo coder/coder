@@ -741,7 +741,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			provider, err := buildAIProviderFromRow(tt.row, nil, codersdk.AIBridgeConfig{
+			provider, err := buildAIProviderFromRow(t.Context(), tt.row, nil, codersdk.AIBridgeConfig{
 				AllowBYOK:  serpent.Bool(true),
 				APIDumpDir: serpent.String(dumpDir),
 			}, nil)
@@ -755,7 +755,7 @@ func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
 func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
 	t.Parallel()
 
-	_, err := buildAIProviderFromRow(database.AIProvider{
+	_, err := buildAIProviderFromRow(t.Context(), database.AIProvider{
 		Enabled: true,
 		Type:    database.AIProviderTypeBedrock,
 		Name:    "bedrock-no-settings",

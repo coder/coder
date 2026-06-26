@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/fixtures"
@@ -45,7 +46,7 @@ const (
 var defaultTracer = otel.Tracer("integrationtest")
 
 type bridgeConfig struct {
-	providerBuilders []func(upstreamURL string) aibridge.Provider
+	providerBuilders []func(t *testing.T, upstreamURL string) aibridge.Provider
 	metrics          *metrics.Metrics
 	tracer           trace.Tracer
 	mcpProxy         mcp.ServerProxier
@@ -87,8 +88,8 @@ type bridgeOption func(*bridgeConfig)
 // When any provider option is used, the default "all providers" set is not created.
 func withProvider(providerType string) bridgeOption {
 	return func(c *bridgeConfig) {
-		c.providerBuilders = append(c.providerBuilders, func(addr string) aibridge.Provider {
-			return newDefaultProvider(providerType, addr)
+		c.providerBuilders = append(c.providerBuilders, func(t *testing.T, addr string) aibridge.Provider {
+			return newDefaultProvider(t, providerType, addr)
 		})
 	}
 }
@@ -98,7 +99,7 @@ func withProvider(providerType string) bridgeOption {
 // When any provider option is used, the default "all providers" set is not created.
 func withCustomProvider(p aibridge.Provider) bridgeOption {
 	return func(c *bridgeConfig) {
-		c.providerBuilders = append(c.providerBuilders, func(string) aibridge.Provider {
+		c.providerBuilders = append(c.providerBuilders, func(*testing.T, string) aibridge.Provider {
 			return p
 		})
 	}
@@ -158,12 +159,12 @@ func newBridgeTestServer(
 	var providers []aibridge.Provider
 	if len(cfg.providerBuilders) > 0 {
 		for _, b := range cfg.providerBuilders {
-			providers = append(providers, b(upstreamURL))
+			providers = append(providers, b(t, upstreamURL))
 		}
 	} else {
 		providers = []aibridge.Provider{
-			newDefaultProvider(config.ProviderAnthropic, upstreamURL),
-			newDefaultProvider(config.ProviderOpenAI, upstreamURL),
+			newDefaultProvider(t, config.ProviderAnthropic, upstreamURL),
+			newDefaultProvider(t, config.ProviderOpenAI, upstreamURL),
 		}
 	}
 
@@ -250,14 +251,14 @@ func setupInjectedToolTest(
 }
 
 // newDefaultProvider creates a Provider with default test configuration.
-func newDefaultProvider(providerType string, addr string) aibridge.Provider {
+func newDefaultProvider(t *testing.T, providerType string, addr string) aibridge.Provider {
 	switch providerType {
 	case config.ProviderAnthropic:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), nil)
+		return aibridgetest.NewAnthropicProvider(t, anthropicCfg(addr, apiKey), nil)
 	case config.ProviderOpenAI:
 		return provider.NewOpenAI(openAICfg(addr, apiKey))
 	case providerBedrock:
-		return provider.NewAnthropic(anthropicCfg(addr, apiKey), bedrockCfg(addr))
+		return aibridgetest.NewAnthropicProvider(t, anthropicCfg(addr, apiKey), bedrockCfg(addr))
 	default:
 		panic("unknown provider type: " + providerType)
 	}

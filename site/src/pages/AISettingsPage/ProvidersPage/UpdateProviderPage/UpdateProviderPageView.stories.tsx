@@ -15,8 +15,8 @@ const routingFor = (path: string) =>
 	reactRouterParameters({
 		location: { path },
 		routing: [
-			{ path: "/ai/settings", useStoryElement: true },
-			{ path: "/ai/settings/:providerId", useStoryElement: true },
+			{ path: "/ai/settings/providers", useStoryElement: true },
+			{ path: "/ai/settings/providers/:providerId", useStoryElement: true },
 		],
 	});
 
@@ -35,21 +35,27 @@ type Story = StoryObj<typeof UpdateProviderPageView>;
 
 export const OpenAI: Story = {
 	parameters: {
-		reactRouter: routingFor(`/ai/settings/${MockAIProviderOpenAI.name}`),
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderOpenAI.name}`,
+		),
 		...seed(MockAIProviderOpenAI),
 	},
 };
 
 export const Anthropic: Story = {
 	parameters: {
-		reactRouter: routingFor(`/ai/settings/${MockAIProviderAnthropic.name}`),
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderAnthropic.name}`,
+		),
 		...seed(MockAIProviderAnthropic),
 	},
 };
 
 export const Bedrock: Story = {
 	parameters: {
-		reactRouter: routingFor(`/ai/settings/${MockAIProviderBedrock.name}`),
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderBedrock.name}`,
+		),
 		...seed(MockAIProviderBedrock),
 	},
 };
@@ -58,7 +64,9 @@ export const Bedrock: Story = {
 // field and keeps the immutable name disabled.
 export const Copilot: Story = {
 	parameters: {
-		reactRouter: routingFor(`/ai/settings/${MockAIProviderCopilot.name}`),
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderCopilot.name}`,
+		),
 		...seed(MockAIProviderCopilot),
 	},
 	play: async ({ canvasElement }) => {
@@ -72,13 +80,15 @@ export const Copilot: Story = {
 // No seeded query: the page renders the loader while useQuery fetches.
 export const Loading: Story = {
 	parameters: {
-		reactRouter: routingFor("/ai/settings/loading-provider"),
+		reactRouter: routingFor("/ai/settings/providers/loading-provider"),
 	},
 };
 
 export const DeleteDialogOpen: Story = {
 	parameters: {
-		reactRouter: routingFor(`/ai/settings/${MockAIProviderOpenAI.name}`),
+		reactRouter: routingFor(
+			`/ai/settings/providers/${MockAIProviderOpenAI.name}`,
+		),
 		...seed(MockAIProviderOpenAI),
 	},
 	play: async ({ canvasElement }) => {

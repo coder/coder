@@ -108,8 +108,12 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<PageHeader>
 				<PageHeaderTitle>Create new template</PageHeaderTitle>
 				<PageHeaderSubtitle>
-					A Terraform blueprint for reproducible workspaces
-					<Link href={docs("/admin/templates")} className="ml-1">
+					A Terraform blueprint for reproducible workspaces.
+					<Link
+						href={docs("/admin/templates")}
+						target="_blank"
+						className="ml-1 font-normal"
+					>
 						View docs
 					</Link>
 				</PageHeaderSubtitle>
@@ -120,13 +124,15 @@ export const TemplateBuilderPageView: FC<TemplateBuilderPageViewProps> = ({
 			<div className="flex gap-8">
 				{/* Main content area */}
 				<div className="flex-1 min-w-0">
-					{renderStepContent(
-						currentStep.id,
-						state,
-						dispatch,
-						moduleVarMap,
-						createError,
-					)}
+					<div className="p-6 border border-solid rounded-lg">
+						{renderStepContent(
+							currentStep.id,
+							state,
+							dispatch,
+							moduleVarMap,
+							createError,
+						)}
+					</div>
 
 					{/* Navigation controls */}
 					<div className="flex justify-end mt-6 gap-2">

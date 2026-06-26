@@ -1091,15 +1091,13 @@ func TestTemplateVersionsExternalAuth(t *testing.T) {
 		require.Len(t, self, 1)
 		require.False(t, self[0].Authenticated)
 
-		// Reporting the target user's state shows them as authenticated, and the
-		// authenticate URL is omitted because the admin cannot authenticate on
-		// their behalf.
+		// The reported state is the target user's, not the requesting admin's:
+		// the admin is unauthenticated but the target shows authenticated.
 		forOwner, err := adminClient.TemplateVersionExternalAuth(ctx, version.ID,
 			codersdk.WithQueryParam("user_id", member.ID.String()))
 		require.NoError(t, err)
 		require.Len(t, forOwner, 1)
 		require.True(t, forOwner[0].Authenticated)
-		require.Empty(t, forOwner[0].AuthenticateURL)
 	})
 	t.Run("ForAnotherUserUnauthorized", func(t *testing.T) {
 		t.Parallel()

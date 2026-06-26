@@ -65,6 +65,9 @@ export const Empty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("No models configured")).toBeInTheDocument();
+		await expect(
+			canvas.getAllByRole("button", { name: /add model/i }).length,
+		).toBe(2);
 	},
 };
 

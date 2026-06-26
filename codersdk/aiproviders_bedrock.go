@@ -30,6 +30,11 @@ type AIProviderBedrockSettings struct {
 	// AccessKeySecret is the AWS secret access key paired with
 	// AccessKey. Write-only.
 	AccessKeySecret *string `json:"access_key_secret,omitempty"`
+	// RoleARN, when set, is the IAM role assumed via STS before calling
+	// Bedrock. The base identity (static keys or the AWS environment, e.g.
+	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	// call, and the resulting temporary credentials sign Bedrock requests.
+	RoleARN string `json:"role_arn,omitempty"`
 }
 
 // IsConfigured reports whether any load-bearing Bedrock field is set,
@@ -45,6 +50,9 @@ type AIProviderBedrockSettings struct {
 // environment (instance profile, AWS_PROFILE, IRSA, etc.).
 func (b AIProviderBedrockSettings) IsConfigured() bool {
 	if b.Region != "" {
+		return true
+	}
+	if b.RoleARN != "" {
 		return true
 	}
 	if b.AccessKey != nil && *b.AccessKey != "" {

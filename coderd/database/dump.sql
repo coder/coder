@@ -257,7 +257,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_gateway_key:*',
     'ai_gateway_key:create',
     'ai_gateway_key:delete',
-    'ai_gateway_key:read'
+    'ai_gateway_key:read',
+    'ai_gateway_key:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (
@@ -373,7 +374,8 @@ CREATE TYPE crypto_key_feature AS ENUM (
     'workspace_apps_token',
     'workspace_apps_api_key',
     'oidc_convert',
-    'tailnet_resume'
+    'tailnet_resume',
+    'nats_ca'
 );
 
 CREATE TYPE display_app AS ENUM (
@@ -1439,7 +1441,7 @@ CREATE TABLE ai_gateway_keys (
     name text NOT NULL,
     secret_prefix character varying(11) NOT NULL,
     hashed_secret bytea NOT NULL,
-    last_used_at timestamp with time zone,
+    last_heartbeat_at timestamp with time zone,
     CONSTRAINT ai_gateway_keys_hashed_secret_check CHECK ((length(hashed_secret) > 0)),
     CONSTRAINT ai_gateway_keys_name_check CHECK (((length(name) <= 64) AND (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))),
     CONSTRAINT ai_gateway_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))
@@ -2791,8 +2793,17 @@ CREATE TABLE replicas (
     database_latency integer NOT NULL,
     version text NOT NULL,
     error text DEFAULT ''::text NOT NULL,
-    "primary" boolean DEFAULT true NOT NULL
+    "primary" boolean DEFAULT true NOT NULL,
+    cluster_host text DEFAULT ''::text NOT NULL,
+    nats_port integer DEFAULT 0 NOT NULL,
+    CONSTRAINT nats_port_valid_tcp CHECK (((nats_port >= 0) AND (nats_port <= 65535)))
 );
+
+COMMENT ON COLUMN replicas.relay_address IS 'URL for DERP relays.';
+
+COMMENT ON COLUMN replicas.cluster_host IS 'Hostname or IP address the replica is reachable at for clustering purposes.';
+
+COMMENT ON COLUMN replicas.nats_port IS 'Port number for NATS clustering. 0 means NATS is disabled.';
 
 CREATE TABLE site_configs (
     key character varying(256) NOT NULL,
