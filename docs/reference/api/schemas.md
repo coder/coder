@@ -990,20 +990,20 @@
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "key_prefix": "string",
-  "last_used_at": "2019-08-24T14:15:22Z",
+  "last_heartbeat_at": "2019-08-24T14:15:22Z",
   "name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `created_at`   | string | false    |              |             |
-| `id`           | string | false    |              |             |
-| `key_prefix`   | string | false    |              |             |
-| `last_used_at` | string | false    |              |             |
-| `name`         | string | false    |              |             |
+| Name                | Type   | Required | Restrictions | Description |
+|---------------------|--------|----------|--------------|-------------|
+| `created_at`        | string | false    |              |             |
+| `id`                | string | false    |              |             |
+| `key_prefix`        | string | false    |              |             |
+| `last_heartbeat_at` | string | false    |              |             |
+| `name`              | string | false    |              |             |
 
 ## codersdk.AIProvider
 

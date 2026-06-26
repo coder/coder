@@ -7033,14 +7033,14 @@ func (q *querier) UpdateAIBridgeInterceptionEnded(ctx context.Context, params da
 	return q.db.UpdateAIBridgeInterceptionEnded(ctx, params)
 }
 
-// Records liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
-func (q *querier) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error) {
+// Records heartbeat liveness for a key used in active DRPC session between coderd and standalone AI Gateway.
+func (q *querier) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
 	// Standalone AI Gateway has no Coder identity, so this runs under the
 	// system actor recording connection liveness on the AI Gateway key.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceAIGatewayKey); err != nil {
 		return 0, err
 	}
-	return q.db.UpdateAIGatewayKeyLastUsedAt(ctx, id)
+	return q.db.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
 }
 
 func (q *querier) UpdateAIProvider(ctx context.Context, arg database.UpdateAIProviderParams) (database.AIProvider, error) {
