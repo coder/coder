@@ -9,6 +9,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/oauth2"
+
+	"github.com/coder/coder/v2/coderd/util/singleflight"
 )
 
 type Oauth2PKCEChallengeMethod string
@@ -42,16 +44,21 @@ type OAuth2Config interface {
 	TokenSource(context.Context, *oauth2.Token) oauth2.TokenSource
 }
 
-// InstrumentedOAuth2Config extends OAuth2Config with a `Do` method that allows
-// external oauth related calls to be instrumented. This is to support
-// "ValidateToken" which is not an oauth2 specified method.
-// These calls still count against the api rate limit, and should be instrumented.
+// InstrumentedOAuth2Config extends OAuth2Config with:
+//   - A `Do` method that allows external oauth related calls to be
+//     instrumented. This is to support "ValidateToken" which is not an oauth2
+//     specified method.  These calls still count against the api rate limit, and
+//     should be instrumented.
+//   - A `Group` method that allows calls to be deduplicated.
 type InstrumentedOAuth2Config interface {
 	OAuth2Config
 
 	// Do is provided as a convenience method to make a request with the oauth2 client.
 	// It mirrors `http.Client.Do`.
 	Do(ctx context.Context, source Oauth2Source, req *http.Request) (*http.Response, error)
+
+	// Group returns a singleflight group for deduplicating concurrent requests.
+	Group() *singleflight.Group
 }
 
 var _ OAuth2Config = (*Config)(nil)
@@ -152,6 +159,7 @@ func (f *Factory) New(name string, under OAuth2Config) *Config {
 		name:       name,
 		underlying: under,
 		metrics:    f.metrics,
+		group:      singleflight.NewGroup(nil),
 	}
 }
 
@@ -202,11 +210,16 @@ type Config struct {
 	metrics    *metrics
 	// interceptors are called after every request made by the oauth2 client.
 	interceptors []func(resp *http.Response, err error)
+	group        *singleflight.Group
 }
 
 func (c *Config) Do(ctx context.Context, source Oauth2Source, req *http.Request) (*http.Response, error) {
 	cli := c.oauthHTTPClient(ctx, source)
 	return cli.Do(req)
+}
+
+func (c *Config) Group() *singleflight.Group {
+	return c.group
 }
 
 func (c *Config) AuthCodeURL(state string, opts ...oauth2.AuthCodeOption) string {
