@@ -24,7 +24,12 @@ on:
         type: string
         default: ""
       test-count:
-        description: "Times to run each test (go test -count)."
+        # Each package runs under a fixed 20m Go test timeout (-timeout in the
+        # Makefile). count multiplies a package's runtime within that one
+        # budget, so high counts on slow tests can abort with a timeout panic
+        # instead of reporting a flake. Narrow with run-regex and/or keep
+        # count x per-run time under ~20m.
+        description: "Times to run each test (go test -count). High counts on slow tests can hit the per-package 20m Go timeout; narrow with run-regex."
         required: false
         type: string
         default: "35"
@@ -33,11 +38,6 @@ on:
         required: false
         type: string
         default: "on"
-      test-timeout:
-        description: "Go test -timeout value (e.g. 20m, 1h). Raise for high-count whole-package runs."
-        required: false
-        type: string
-        default: "20m"
       test-parallelism-packages:
         description: "Packages tested in parallel (go test -p)."
         required: false
@@ -218,7 +218,6 @@ jobs:
           test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
           test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
-          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}
@@ -232,7 +231,6 @@ jobs:
           test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
           test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
-          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}
@@ -248,7 +246,6 @@ jobs:
           test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
           test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
-          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}

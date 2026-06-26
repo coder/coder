@@ -22,10 +22,6 @@ inputs:
     description: "Number of times to run each test (empty for cached results)"
     required: false
     default: ""
-  test-timeout:
-    description: "Go test -timeout value (e.g. 20m). Empty uses the Makefile default."
-    required: false
-    default: ""
   test-packages:
     description: "Packages to test (default: ./...)"
     required: false
@@ -77,7 +73,6 @@ runs:
         TEST_NUM_PARALLEL_PACKAGES: ${{ inputs.test-parallelism-packages }}
         TEST_NUM_PARALLEL_TESTS: ${{ inputs.test-parallelism-tests }}
         TEST_COUNT: ${{ inputs.test-count }}
-        TEST_TIMEOUT: ${{ inputs.test-timeout }}
         RUN: ${{ inputs.run-regex }}
         TEST_SHUFFLE: ${{ inputs.test-shuffle }}
         TEST_PACKAGES: ${{ inputs.test-packages }}

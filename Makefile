@@ -1461,21 +1461,13 @@ TEST_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),8)
 RACE_PARALLEL_PACKAGES := $(or $(TEST_NUM_PARALLEL_PACKAGES),4)
 RACE_PARALLEL_TESTS := $(or $(TEST_NUM_PARALLEL_TESTS),4)
 
-# TEST_TIMEOUT sets the Go test -timeout. The default 20m stays shorter than
-# the 25m CI job timeout (see test-go-pg in ci.yaml) so tests produce goroutine
-# dumps instead of the CI runner killing the process with no output. High-count
-# flake runs can raise it. An empty value falls back to the default.
-ifeq ($(strip $(TEST_TIMEOUT)),)
-GOTEST_TIMEOUT := 20m
-else
-GOTEST_TIMEOUT := $(TEST_TIMEOUT)
-endif
-
 # Use testsmallbatch tag to reduce wireguard memory allocation in tests
 # (from ~18GB to negligible). Recursively expanded so target-specific
 # overrides of TEST_PARALLEL_* take effect (e.g. test-race lowers
-# parallelism).
-GOTEST_FLAGS = -tags=testsmallbatch -v -timeout $(GOTEST_TIMEOUT) -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
+# parallelism). CI job timeout is 25m (see test-go-pg in ci.yaml),
+# keep the Go timeout 5m shorter so tests produce goroutine dumps
+# instead of the CI runner killing the process with no output.
+GOTEST_FLAGS = -tags=testsmallbatch -v -timeout 20m -p $(TEST_PARALLEL_PACKAGES) -parallel=$(TEST_PARALLEL_TESTS)
 
 # The most common use is to set TEST_COUNT=1 to avoid Go's test cache.
 ifdef TEST_COUNT
