@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Install mcp-publisher
         run: |
@@ -32,13 +34,16 @@ jobs:
 
       - name: Determine version
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" = "release" ]; then
+          if [ "${EVENT_NAME}" = "release" ]; then
             # Tag refs look like refs/tags/v2.20.0
             VERSION="${GITHUB_REF#refs/tags/v}"
           else
-            VERSION="${{ inputs.version }}"
+            VERSION="${INPUT_VERSION}"
           fi
 
           if [ -z "${VERSION}" ]; then
@@ -55,9 +60,11 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
       - name: Set version in server.json
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
-          jq --arg v "${{ steps.version.outputs.version }}" '.version = $v' server.json > server.tmp
+          jq --arg v "${VERSION}" '.version = $v' server.json > server.tmp
           mv server.tmp server.json
           cat server.json
 
