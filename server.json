@@ -31,7 +31,7 @@
   ],
   "_meta": {
     "io.modelcontextprotocol.registry/publisher-provided": {
-      "documentation": "https://coder.com/docs/admin/mcp",
+      "documentation": "https://coder.com/docs/ai-coder/mcp-server",
       "keywords": [
         "workspaces",
         "cloud-development",

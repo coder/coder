@@ -89,16 +89,17 @@ without running the CLI locally.
 
 ### Prerequisites
 
-Enable the MCP server experiment on your Coder deployment:
+The remote MCP HTTP endpoint requires both the `oauth2` and `mcp-server-http`
+experiments enabled on your Coder deployment:
 
 ```sh
-coder server --experiments=mcp-server-http
+coder server --experiments=oauth2,mcp-server-http
 ```
 
 Or set the environment variable:
 
 ```sh
-CODER_EXPERIMENTS=mcp-server-http
+CODER_EXPERIMENTS=oauth2,mcp-server-http
 ```
 
 ### MCP Registry
@@ -181,7 +182,8 @@ section.
 
 ## Available Tools
 
-The MCP server provides the following tools:
+The tables below cover the most commonly used tools. The authoritative list is
+defined in Coder's [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go).
 
 ### Workspace Management
 
@@ -197,6 +199,7 @@ The MCP server provides the following tools:
 | Tool                                   | Description                            |
 |----------------------------------------|----------------------------------------|
 | `coder_list_templates`                 | List available templates               |
+| `coder_get_template`                   | Get details of a specific template     |
 | `coder_template_version_parameters`    | Get parameters for a template version  |
 | `coder_create_template`                | Create a new template                  |
 | `coder_create_template_version`        | Create a new template version          |
