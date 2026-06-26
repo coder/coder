@@ -847,7 +847,7 @@ func TestServer_titleGenerationContext(t *testing.T) {
 	reqCancel()
 	select {
 	case <-titleCtx.Done():
-		t.Fatal("title context cancelled by request cancellation")
+		t.Fatal("title context canceled by request cancellation")
 	case <-time.After(testutil.IntervalFast):
 	}
 
@@ -857,7 +857,7 @@ func TestServer_titleGenerationContext(t *testing.T) {
 	select {
 	case <-titleCtx.Done():
 	case <-time.After(testutil.WaitShort):
-		t.Fatal("title context not cancelled on server shutdown")
+		t.Fatal("title context not canceled on server shutdown")
 	}
 }
 
