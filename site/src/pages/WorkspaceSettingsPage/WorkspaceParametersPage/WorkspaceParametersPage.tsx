@@ -18,6 +18,7 @@ import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { docs } from "#/utils/docs";
@@ -150,6 +151,9 @@ export const WorkspaceParametersPageView: FC<
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Parameters</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the build parameters for this workspace.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{submitError && !isApiValidationError(submitError) ? (

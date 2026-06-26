@@ -2,6 +2,7 @@ import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateScheduleForm } from "./TemplateScheduleForm";
@@ -31,6 +32,9 @@ export const TemplateSchedulePageView: FC<TemplateSchedulePageViewProps> = ({
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Schedule</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure workspace schedule defaults for this template.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			<TemplateScheduleForm

@@ -2,6 +2,7 @@ import type { ComponentProps, FC } from "react";
 import type { Template, UpdateTemplateMeta } from "#/api/typesGenerated";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateSettingsForm } from "./TemplateSettingsForm";
@@ -35,6 +36,9 @@ export const TemplateSettingsPageView: FC<TemplateSettingsPageViewProps> = ({
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>General</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update template metadata and workspace policies.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			<TemplateSettingsForm

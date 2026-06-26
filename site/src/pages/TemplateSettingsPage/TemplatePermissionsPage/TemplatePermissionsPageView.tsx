@@ -27,6 +27,7 @@ import {
 } from "#/components/Select/Select";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Spinner } from "#/components/Spinner/Spinner";
@@ -228,6 +229,9 @@ export const TemplatePermissionsPageView: FC<
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Permissions</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Manage which members and groups can use this template.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			<div className="flex flex-col gap-2.5">

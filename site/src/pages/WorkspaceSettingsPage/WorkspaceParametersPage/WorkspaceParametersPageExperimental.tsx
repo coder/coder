@@ -17,6 +17,7 @@ import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -278,6 +279,9 @@ const WorkspaceParametersPageExperimental: FC = () => {
 				>
 					Parameters
 				</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the build parameters for this workspace.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{Boolean(error) && <ErrorAlert error={error} />}

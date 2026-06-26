@@ -15,6 +15,7 @@ import { Link } from "#/components/Link/Link";
 import { Loader } from "#/components/Loader/Loader";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import {
@@ -76,6 +77,9 @@ const WorkspaceSchedulePage: FC = () => {
 
 			<SettingsHeader>
 				<SettingsHeaderTitle>Schedule</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Configure when this workspace starts and stops automatically.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{error && <ErrorAlert error={error} />}

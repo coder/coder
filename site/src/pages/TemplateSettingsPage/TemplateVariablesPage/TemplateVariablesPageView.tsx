@@ -8,6 +8,7 @@ import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import {
 	SettingsHeader,
+	SettingsHeaderDescription,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TemplateVariablesForm } from "./TemplateVariablesForm";
@@ -48,6 +49,9 @@ export const TemplateVariablesPageView: FC<TemplateVariablesPageViewProps> = ({
 		<div className="flex flex-col gap-12">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Variables</SettingsHeaderTitle>
+				<SettingsHeaderDescription>
+					Update the variables used by this template.
+				</SettingsHeaderDescription>
 			</SettingsHeader>
 
 			{hasError && (

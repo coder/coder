@@ -1,16 +1,9 @@
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { checkAuthorization } from "#/api/queries/authCheck";
-import { Link } from "#/components/Link/Link";
-import {
-	SettingsHeader,
-	SettingsHeaderDescription,
-	SettingsHeaderTitle,
-} from "#/components/SettingsHeader/SettingsHeader";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import { workspaceChecks } from "#/modules/workspaces/permissions";
 import { useWorkspaceSharing } from "#/modules/workspaces/WorkspaceSharingForm/useWorkspaceSharing";
-import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceSharingPageView } from "./WorkspaceSharingPageView";
@@ -30,16 +23,8 @@ const WorkspaceSharingPage: FC = () => {
 		sharing.error ?? permissionsQuery.error ?? sharing.mutationError;
 
 	return (
-		<div className="flex flex-col gap-12">
+		<>
 			<title>{pageTitle(workspace.name, "Sharing")}</title>
-
-			<SettingsHeader>
-				<SettingsHeaderTitle>Sharing</SettingsHeaderTitle>
-				<SettingsHeaderDescription>
-					Share workspaces with other users and groups.{" "}
-					<Link href={docs("/user-guides/shared-workspaces")}>View docs</Link>
-				</SettingsHeaderDescription>
-			</SettingsHeader>
 
 			<WorkspaceSharingPageView
 				workspace={workspace}
@@ -58,7 +43,7 @@ const WorkspaceSharingPage: FC = () => {
 				onRemoveGroup={sharing.removeGroup}
 				hasRemovedMember={sharing.hasRemovedMember}
 			/>
-		</div>
+		</>
 	);
 };
 
