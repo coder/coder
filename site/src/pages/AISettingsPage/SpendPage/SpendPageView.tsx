@@ -659,6 +659,9 @@ export const SpendPageView: FC<SpendPageViewProps> = ({
 																					avatar_url: selectedUser.avatar_url,
 																					spend_limit_micros: null,
 																				};
+																				groupCtrl.handleShowGroupFormChange(
+																					false,
+																				);
 																				userCtrl.handleEditUserOverride(
 																					override,
 																				);

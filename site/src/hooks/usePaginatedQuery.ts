@@ -428,8 +428,8 @@ type QueryPageParams = {
 	pageNumber: number;
 
 	/**
-	 * The number of data records to pull per query. Currently hard-coded based
-	 * off the value from PaginationWidget's utils file
+	 * The number of data records requested for each page. Defaults to
+	 * DEFAULT_RECORDS_PER_PAGE and can be overridden with recordsPerPage.
 	 */
 	limit: number;
 
