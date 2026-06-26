@@ -441,6 +441,16 @@ oidc:
   # next login.
   # (default: true, type: bool)
   oidc-repair-links: true
+  # INSECURE: Allow OIDC logins to fall back to email-based matching when the
+  # linked_id (issuer+subject) does not match an existing user link. Required for
+  # IdP brokers (e.g. Auth0) that emit different subjects for the same user across
+  # connections (e.g. SAML SSO vs passwordless email). Enabling this re-introduces
+  # the account-takeover vector closed by the linked_id check: an attacker who
+  # registers the victim's email at any IdP connection can sign in as the victim.
+  # The existing user_link's linked_id is preserved on fallback. Only enable if you
+  # understand and accept the risk.
+  # (default: <unset>, type: bool)
+  dangerousOidcEmailFallback: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal
 #  information before sending data to our servers. Please only disable telemetry
 #  when required by your organization's security policy.

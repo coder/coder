@@ -972,6 +972,14 @@ type OIDCConfig struct {
 	RedirectURL serpent.URL `json:"redirect_url" typescript:",notnull"`
 
 	AutoRepairLinks serpent.Bool `json:"auto_repair_links" typescript:",notnull"`
+
+	// EmailFallback allows OIDC logins to fall back to email-based matching
+	// when the `linked_id` (issuer+subject) does not match an existing user
+	// link. INSECURE: this re-introduces the email-based account takeover
+	// vector closed by the linked_id check. It exists for IdP brokers (e.g.
+	// Auth0) that issue different subjects for the same user across
+	// connections (e.g. SAML SSO vs passwordless email).
+	EmailFallback serpent.Bool `json:"email_fallback" typescript:",notnull"`
 }
 
 type TelemetryConfig struct {
@@ -3032,6 +3040,22 @@ communicating directly.`,
 			UseInstead: nil,
 			// This flag should be removed after validation in real deployments. Leaving it
 			// as a flag as an escape hatch for now.
+			Hidden: true,
+		},
+		{
+			Name: "OIDC Insecure Email Fallback (DANGEROUS)",
+			Description: "INSECURE: Allow OIDC logins to fall back to email-based matching when " +
+				"the linked_id (issuer+subject) does not match an existing user link. " +
+				"Required for IdP brokers (e.g. Auth0) that emit different subjects for the same user across " +
+				"connections (e.g. SAML SSO vs passwordless email). Enabling this re-introduces the " +
+				"account-takeover vector closed by the linked_id check: an attacker who registers the " +
+				"victim's email at any IdP connection can sign in as the victim. The existing user_link's " +
+				"linked_id is preserved on fallback. Only enable if you understand and accept the risk.",
+			Flag:   "dangerous-oidc-email-fallback",
+			Env:    "CODER_DANGEROUS_OIDC_EMAIL_FALLBACK",
+			YAML:   "dangerousOidcEmailFallback",
+			Value:  &c.OIDC.EmailFallback,
+			Group:  &deploymentGroupOIDC,
 			Hidden: true,
 		},
 		// Telemetry settings
