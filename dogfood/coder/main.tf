@@ -34,7 +34,7 @@ locals {
     "za-cpt"      = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
-  repo_base_dir  = "/home/coder"
+  repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
   repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 
@@ -50,8 +50,9 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "us-pittsburgh"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 2
@@ -63,8 +64,9 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "za-cpt"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -76,8 +78,9 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "eu-helsinki"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -89,8 +92,9 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "ap-sydney"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -106,6 +110,14 @@ locals {
 
     "ubuntu-latest" = "codercom/oss-dogfood:26.04"
   }
+}
+
+data "coder_parameter" "repo_base_dir" {
+  type        = "string"
+  name        = "Coder Repository Base Directory"
+  default     = "~"
+  description = "The directory specified will be created (if missing) and [coder/coder](https://github.com/coder/coder) will be automatically cloned into [base directory]/coder 🪄."
+  mutable     = true
 }
 
 data "coder_parameter" "image_type" {

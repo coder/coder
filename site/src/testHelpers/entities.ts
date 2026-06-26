@@ -5622,7 +5622,7 @@ export const MockAIGatewayKeys: TypesGen.AIGatewayKey[] = [
 		name: "primary-gateway",
 		key_prefix: "a1B2c3D4e5F",
 		created_at: "2024-05-01T14:00:00Z",
-		last_used_at: "2024-05-20T09:30:00Z",
+		last_heartbeat_at: "2024-05-20T09:30:00Z",
 	},
 	{
 		id: "2d3f7a5b-9c4e-4a2b-8d6f-3b6c9e7f1a22",
