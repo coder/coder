@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { GatewayAccountWelcomeDialog } from "./GatewayAccountWelcomeDialog";
+import { LimitedAccessWelcomeDialog } from "./LimitedAccessWelcomeDialog";
 
 // The dialog persists dismissal in localStorage keyed by userID, so each
 // story uses a different ID to start with the dialog open.
-const meta: Meta<typeof GatewayAccountWelcomeDialog> = {
-	title: "pages/UserSettingsPage/GatewayAccountWelcomeDialog",
-	component: GatewayAccountWelcomeDialog,
+const meta: Meta<typeof LimitedAccessWelcomeDialog> = {
+	title: "pages/UserSettingsPage/LimitedAccessWelcomeDialog",
+	component: LimitedAccessWelcomeDialog,
 	parameters: {
 		layout: "fullscreen",
 		reactRouter: reactRouterParameters({ location: { pathParams: {} } }),
@@ -22,7 +22,7 @@ const meta: Meta<typeof GatewayAccountWelcomeDialog> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof GatewayAccountWelcomeDialog>;
+type Story = StoryObj<typeof LimitedAccessWelcomeDialog>;
 
 export const Default: Story = {
 	args: { userID: "story-default-user" },

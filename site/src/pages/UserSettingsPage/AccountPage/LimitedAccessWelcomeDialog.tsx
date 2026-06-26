@@ -20,12 +20,12 @@ import { Link } from "#/components/Link/Link";
 const dismissalStorageKey = (userID: string): string =>
 	`coder.gatewayAccountWelcomeDismissed.${userID}`;
 
-interface GatewayAccountWelcomeDialogProps {
+interface LimitedAccessWelcomeDialogProps {
 	userID: string;
 }
 
-export const GatewayAccountWelcomeDialog: FC<
-	GatewayAccountWelcomeDialogProps
+export const LimitedAccessWelcomeDialog: FC<
+	LimitedAccessWelcomeDialogProps
 > = ({ userID }) => {
 	const [open, setOpen] = useState(false);
 

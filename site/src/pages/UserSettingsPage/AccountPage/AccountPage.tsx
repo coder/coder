@@ -12,7 +12,7 @@ import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
-import { GatewayAccountWelcomeDialog } from "./GatewayAccountWelcomeDialog";
+import { LimitedAccessWelcomeDialog } from "./LimitedAccessWelcomeDialog";
 
 const AccountPage: FC = () => {
 	const { permissions, user: me } = useAuthenticated();
@@ -29,7 +29,7 @@ const AccountPage: FC = () => {
 
 	return (
 		<div className="flex flex-col gap-12">
-			{isGatewayAccount && <GatewayAccountWelcomeDialog userID={me.id} />}
+			{isGatewayAccount && <LimitedAccessWelcomeDialog userID={me.id} />}
 			<div>
 				<SettingsHeader>
 					<SettingsHeaderTitle>Account</SettingsHeaderTitle>
