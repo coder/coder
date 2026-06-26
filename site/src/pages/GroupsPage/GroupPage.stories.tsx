@@ -299,7 +299,7 @@ export const WithMemberAIBudget: Story = {
 		// Override source, no limit.
 		await expect(
 			await canvas.findByTestId(`member-ai-budget-${MockUserOwner.id}`),
-		).toHaveTextContent("$1,345 / unlimited USD");
+		).toHaveTextContent("$1,345 / Unlimited USD");
 		await expect(await canvas.findByText("Individual")).toBeInTheDocument();
 		// Group source, finite limit.
 		await expect(

@@ -78,8 +78,9 @@ export const WithAISpend: Story = {
 		await step("shows AI spend", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
-				expect(document.body).toHaveTextContent("AI spend - $819 / $1,200 USD"),
+				expect(document.body).toHaveTextContent("$819 / $1,200 USD"),
 			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "68");
@@ -97,10 +98,9 @@ export const AISpendWarning: Story = {
 		await step("shows the warning marker near the limit", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
-				expect(document.body).toHaveTextContent(
-					"AI spend - $1,080 / $1,200 USD",
-				),
+				expect(document.body).toHaveTextContent("$1,080 / $1,200 USD"),
 			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "90");
@@ -118,10 +118,9 @@ export const AISpendExceeded: Story = {
 		await step("shows the exceeded marker at the limit", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
-				expect(document.body).toHaveTextContent(
-					"AI spend - $1,500 / $1,200 USD",
-				),
+				expect(document.body).toHaveTextContent("$1,500 / $1,200 USD"),
 			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
 			expect(
 				screen.getByRole("progressbar", { name: "AI spend usage" }),
 			).toHaveAttribute("aria-valuenow", "100");
@@ -139,10 +138,9 @@ export const AISpendUnlimited: Story = {
 		await step("shows unlimited spend without a bar", async () => {
 			await openDropdown(canvasElement);
 			await waitFor(() =>
-				expect(document.body).toHaveTextContent(
-					"AI spend - $819 / unlimited USD",
-				),
+				expect(document.body).toHaveTextContent("$819 / Unlimited USD"),
 			);
+			expect(document.body).toHaveTextContent("(AI spend/month)");
 			expect(
 				screen.queryByRole("progressbar", { name: "AI spend usage" }),
 			).not.toBeInTheDocument();
