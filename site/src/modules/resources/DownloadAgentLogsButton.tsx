@@ -58,7 +58,7 @@ export const DownloadAgentLogsButton: FC<DownloadAgentLogsButtonProps> = ({
 			}}
 		>
 			<DownloadIcon />
-			{isDownloading ? "Downloading..." : "Download logs"}
+			{isDownloading ? "Downloading..." : "Download agent logs"}
 		</Button>
 	);
 };

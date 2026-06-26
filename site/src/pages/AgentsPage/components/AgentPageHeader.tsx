@@ -122,7 +122,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					variant="subtle"
 					size="icon"
 					aria-label={mobileBack.label}
-					className="h-7 w-7 shrink-0 sm:hidden"
+					className="size-7 shrink-0 sm:hidden"
 				>
 					<Link to={mobileBack.to}>
 						<ArrowLeftIcon />
@@ -142,7 +142,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 					size="icon"
 					onClick={onExpandSidebar}
 					aria-label="Expand sidebar"
-					className="hidden h-7 w-7 min-w-0 shrink-0 sm:inline-flex"
+					className="hidden size-7 min-w-0 shrink-0 sm:inline-flex"
 				>
 					<PanelLeftIcon />
 				</Button>
@@ -159,7 +159,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 							variant="subtle"
 							size="icon"
 							aria-label="More options"
-							className="h-7 w-7 text-content-secondary hover:text-content-primary sm:hidden"
+							className="size-7 text-content-secondary hover:text-content-primary sm:hidden"
 						>
 							<EllipsisIcon />
 						</Button>
@@ -207,7 +207,7 @@ export const AgentPageHeader: FC<AgentPageHeaderProps> = ({
 								disabled={webPush.loading}
 							>
 								{webPush.loading ? (
-									<Spinner size="sm" loading className="size-icon-sm" />
+									<Spinner size="sm" loading className="h-icon w-icon-sm" />
 								) : webPush.subscribed ? (
 									<BellIcon className="size-icon-sm" />
 								) : (

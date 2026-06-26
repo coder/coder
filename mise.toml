@@ -1,10 +1,15 @@
+# Keep in lockstep with .github/actions/setup-mise/action.yml,
+# .github/actions/setup-mise/checksums.toml, flake.nix,
+# dogfood/coder/ubuntu-*/Dockerfile.base, and scripts/dogfood/mise-oci-wrapper.sh.
+min_version = "2026.5.12"
+
 [settings]
 lockfile = true
 
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.2"
+go = "1.26.4"
 node = "22.19.0"
 pnpm = "10.33.2"
 
@@ -15,8 +20,17 @@ protoc = "23.4"
 protoc-gen-go = "1.30.0"
 
 # Go development tools.
+"go:github.com/coder/paralleltestctx/cmd/paralleltestctx" = "v0.0.2"
+"go:github.com/coder/whichtests" = "ec33bab1ec04cd86beb7a61a069db4463dba63f5"
+# Keep golangci-lint on the Go backend while pinned to v1. The upstream
+# precompiled v1 binary is built with an older Go toolchain and cannot lint
+# this module's Go version. Upgrading to v2 should let us use the native
+# golangci-lint mise/aqua backend and GitHub release binaries.
+"go:github.com/golangci/golangci-lint/cmd/golangci-lint" = "v1.64.8"
 "go:github.com/golang-migrate/migrate/v4/cmd/migrate" = "v4.19.0"
 "go:github.com/goreleaser/nfpm/v2/cmd/nfpm" = "v2.35.1"
+"go:github.com/slsyy/mtimehash/cmd/mtimehash" = "v1.0.0"
+"go:github.com/tc-hib/go-winres" = "v0.3.3"
 "go:github.com/mikefarah/yq/v4" = "v4.44.3"
 "go:github.com/quasilyte/go-ruleguard/cmd/ruleguard" = "v0.3.13"
 "go:github.com/swaggo/swag/cmd/swag" = "v1.16.2"
@@ -26,13 +40,18 @@ protoc-gen-go = "1.30.0"
 "go:mvdan.cc/sh/v3/cmd/shfmt" = "v3.12.0"
 
 # Infrastructure, release, and lint CLIs.
+actionlint = "1.7.10"
 "aqua:ahmetb/kubectx/kubens" = "0.9.4"
 cosign = "2.4.3"
-golangci-lint = "1.64.8"
+# crane is the registry client `mise oci push` shells out to. Sourced
+# here so it travels with the rest of the mise toolset (one source of
+# truth, deterministic version, no apt drift across CI / wrapper).
+crane = "0.21.6"
 helm = "3.21.0"
 kubectx = "0.9.4"
-syft = "1.20.0"
-terraform = "1.15.2"
+syft = "1.26.1"
+terraform = "1.15.5"
+zizmor = "1.11.0"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood
 # users who run `mise install` here will pull these too; they are
@@ -44,6 +63,7 @@ terraform = "1.15.2"
 # `coder external-auth` into `gh`, and a mise shim earlier in
 # PATH would bypass it.
 "aqua:crate-ci/typos" = "1.46.1"
+"aqua:errata-ai/vale" = "3.7.1"
 "aqua:jj-vcs/jj" = "0.41.0"
 "aqua:watchexec/watchexec" = "2.5.1"
 doctl = "1.158.0"
@@ -52,6 +72,16 @@ lazygit = "0.61.1"
 # Pre-installs the binary so the upstream devcontainers-cli coder
 # module's `command -v devcontainer` short-circuit fires
 "npm:@devcontainers/cli" = "0.87.0"
+# Vercel CLI for deploying/previewing projects from dogfood workspaces.
+# Restricted to Linux/macOS because mise installs this through `npm:vercel`,
+# which spawns `node install.js` from cmd.exe on Windows. mise's `node` lives
+# only in the shim dir at install time, so `node` is not on PATH and the
+# install fails with `'node' is not recognized` (coder/internal#1596). The
+# CLI is only needed in dogfood workspaces, which are Linux.
+vercel = { version = "54.14.0", os = ["linux", "macos"] }
+# weekly-docs uses this pinned Puppeteer browser installer to install Chrome for
+# action-linkspector without resolving mutable npm metadata at runtime.
+"npm:@puppeteer/browsers" = "2.13.0"
 
 # sqlc (coder fork) bundles sqlite via cgo, so the `go install` build
 # needs CGO_ENABLED=1. Scope it with `install_env` so it only applies
@@ -61,3 +91,16 @@ lazygit = "0.61.1"
 [tools."go:github.com/coder/sqlc/cmd/sqlc"]
 version = "337309bfb9524f38466a5090e310040fc7af0203"
 install_env = { CGO_ENABLED = "1" }
+
+# Consumed by `mise oci build` to produce the dogfood image on top of
+# ghcr.io/coder/oss-dogfood-base. The `from` and `--tag` fields are
+# overridden by CLI args at build time per distro; `mount_point`,
+# `user`, and `workdir` always apply.
+#
+# mount_point MUST match the path the base image reserves and exposes
+# via `MISE_SHARED_INSTALL_DIRS`. Both Dockerfile.base files hardcode
+# /opt/mise/data in their `install --directory`, ENV, and PATH lines.
+[oci]
+mount_point = "/opt/mise/data"
+user = "coder"
+workdir = "/home/coder"

@@ -6,12 +6,12 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { cn } from "#/utils/cn";
-import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 import {
 	TemporarySavedState,
 	useTemporarySavedState,
-} from "./TemporarySavedState";
+} from "#/components/TemporarySavedState/TemporarySavedState";
+import { cn } from "#/utils/cn";
+import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
 
 interface MutationCallbacks {
 	onSuccess?: () => void;
@@ -66,7 +66,7 @@ export const PersonalInstructionsSettings: FC<
 	return (
 		<form className="flex flex-col gap-2" onSubmit={form.handleSubmit}>
 			<h3 className="m-0 text-sm font-semibold text-content-primary">
-				Personal Instructions
+				Personal instructions
 			</h3>
 			<p className="m-0 text-xs text-content-secondary">
 				Applied to all your conversations. Only visible to you.

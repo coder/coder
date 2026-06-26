@@ -33,11 +33,13 @@ type Auditable interface {
 		idpsync.GroupSyncSettings |
 		idpsync.RoleSyncSettings |
 		database.TaskTable |
-		database.AiSeatState |
+		database.AISeatState |
 		database.AIProvider |
 		database.AIProviderKey |
+		database.AIGatewayKey |
 		database.Chat |
-		database.AuditableGroupAiBudget |
+		database.AuditableGroupAIBudget |
+		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
 		database.UserSkill
 }

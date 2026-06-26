@@ -38,7 +38,7 @@ export const ChimeButton: FC<ChimeButtonProps> = ({ enabled, onToggle }) => {
 					aria-label={
 						isEnabled ? "Mute completion chime" : "Enable completion chime"
 					}
-					className="h-7 w-7 text-content-secondary hover:text-content-primary"
+					className="size-7 text-content-secondary hover:text-content-primary"
 				>
 					{isEnabled ? (
 						<Volume2Icon className="text-content-success" />

@@ -13,7 +13,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/pretty"
 )
 
@@ -36,15 +37,14 @@ func TestGroupDelete(t *testing.T) {
 			"groups", "delete", group.Name,
 		)
 
-		pty := ptytest.New(t)
-
-		inv.Stdout = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		clitest.SetupConfig(t, anotherClient, conf)
 
 		err := inv.Run()
 		require.NoError(t, err)
 
-		pty.ExpectMatch(fmt.Sprintf("Successfully deleted group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name)))
+		stdout.ExpectMatch(ctx, fmt.Sprintf("Successfully deleted group %s", pretty.Sprint(cliui.DefaultStyles.Keyword, group.Name)))
 	})
 
 	t.Run("NoArg", func(t *testing.T) {

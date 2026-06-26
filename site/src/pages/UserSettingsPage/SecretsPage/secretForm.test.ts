@@ -10,19 +10,19 @@ import {
 const existingSecrets: UserSecret[] = [
 	{
 		id: "11111111-1111-1111-1111-111111111111",
-		name: "github",
-		description: "GitHub token",
-		env_name: "GITHUB_TOKEN",
+		name: "service-token",
+		description: "Service token",
+		env_name: "SERVICE_TOKEN",
 		file_path: "",
 		created_at: "2026-05-04T00:00:00Z",
 		updated_at: "2026-05-04T00:00:00Z",
 	},
 	{
 		id: "22222222-2222-2222-2222-222222222222",
-		name: "anthropic",
+		name: "service-key",
 		description: "",
-		env_name: "ANTHROPIC_API_KEY",
-		file_path: "~/.config/anthropic/key",
+		env_name: "SERVICE_API_KEY",
+		file_path: "~/.config/service/key",
 		created_at: "2026-05-04T00:00:00Z",
 		updated_at: "2026-05-04T00:00:00Z",
 	},
@@ -57,46 +57,64 @@ describe("payload builders", () => {
 	it("builds create payloads from form values", () => {
 		expect(
 			buildCreateUserSecretRequest({
-				name: "github",
+				name: "service-token",
 				value: "example-value",
-				description: "GitHub token",
-				env_name: "GITHUB_TOKEN",
+				description: "Service token",
+				env_name: "SERVICE_TOKEN",
 				file_path: "",
 			}),
 		).toEqual({
-			name: "github",
+			name: "service-token",
 			value: "example-value",
-			description: "GitHub token",
-			env_name: "GITHUB_TOKEN",
+			description: "Service token",
+			env_name: "SERVICE_TOKEN",
 		});
 	});
 
 	it("sends only changed update fields", () => {
 		expect(
 			buildUpdateUserSecretRequest(existingSecrets[0], {
-				name: "github",
+				name: "service-token",
 				value: "",
 				description: "Updated description",
-				env_name: "GITHUB_TOKEN",
-				file_path: "~/secrets/github",
+				env_name: "SERVICE_TOKEN",
+				file_path: "~/secrets/service-token",
 			}),
 		).toEqual({
 			description: "Updated description",
-			file_path: "~/secrets/github",
+			file_path: "~/secrets/service-token",
 		});
 	});
 
 	it("includes replacement values only when provided", () => {
 		expect(
 			buildUpdateUserSecretRequest(existingSecrets[0], {
-				name: "github",
+				name: "service-token",
 				value: "replacement-value",
-				description: "GitHub token",
-				env_name: "GITHUB_TOKEN",
+				description: "Service token",
+				env_name: "SERVICE_TOKEN",
 				file_path: "",
 			}),
 		).toEqual({
 			value: "replacement-value",
+		});
+	});
+
+	it("sends an empty value when clearing an update", () => {
+		expect(
+			buildUpdateUserSecretRequest(
+				existingSecrets[0],
+				{
+					name: "service-token",
+					value: "",
+					description: "Service token",
+					env_name: "SERVICE_TOKEN",
+					file_path: "",
+				},
+				{ clearValue: true },
+			),
+		).toEqual({
+			value: "",
 		});
 	});
 });

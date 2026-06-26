@@ -115,19 +115,19 @@ data "coder_parameter" "res_mon_volume_path" {
   mutable     = true
 }
 
-data "coder_parameter" "use_ai_bridge" {
+data "coder_parameter" "use_ai_gateway" {
   type        = "bool"
-  name        = "Use AI Bridge"
+  name        = "Use AI Gateway"
   default     = true
-  description = "If enabled, AI requests will be sent via AI Bridge."
+  description = "If enabled, AI requests will be sent via AI Gateway."
   mutable     = true
 }
 
-# Fallback when AI Bridge is disabled. Injected by dogfood/main.tf
+# Fallback when AI Gateway is disabled. Injected by dogfood/main.tf
 # from the CODER_DOGFOOD_ANTHROPIC_API_KEY secret.
 variable "anthropic_api_key" {
   type        = string
-  description = "Anthropic API key, used when AI Bridge is disabled."
+  description = "Anthropic API key, used when AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -204,7 +204,6 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
-data "coder_task" "me" {}
 data "coder_workspace_tags" "tags" {
   tags = {
     "cluster" : "dogfood-v2"
@@ -217,14 +216,14 @@ data "coder_workspace_tags" "tags" {
 module "dotfiles" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/coder/dotfiles/coder"
-  version  = "1.4.1"
+  version  = "1.4.2"
   agent_id = coder_agent.dev.id
 }
 
 module "git-config" {
   count              = data.coder_workspace.me.start_count
   source             = "dev.registry.coder.com/coder/git-config/coder"
-  version            = "1.0.33"
+  version            = "1.0.34"
   agent_id           = coder_agent.dev.id
   allow_email_change = true
 }
@@ -254,7 +253,7 @@ module "personalize" {
 module "code-server" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "code-server") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/code-server/coder"
-  version                 = "1.4.4"
+  version                 = "1.5.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -264,7 +263,7 @@ module "code-server" {
 module "vscode-web" {
   count                   = contains(jsondecode(data.coder_parameter.ide_choices.value), "vscode-web") ? data.coder_workspace.me.start_count : 0
   source                  = "dev.registry.coder.com/coder/vscode-web/coder"
-  version                 = "1.5.0"
+  version                 = "1.5.1"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   extensions              = ["github.copilot"]
@@ -323,10 +322,10 @@ resource "coder_agent" "dev" {
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
     },
-    data.coder_parameter.use_ai_bridge.value ? {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+    data.coder_parameter.use_ai_gateway.value ? {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
@@ -541,99 +540,28 @@ resource "coder_metadata" "container_info" {
     key   = "region"
     value = data.coder_parameter.region.option[index(data.coder_parameter.region.option.*.value, data.coder_parameter.region.value)].name
   }
-  item {
-    key   = "ai_task"
-    value = data.coder_task.me.enabled ? "yes" : "no"
-  }
-}
-
-# --- AI task support ---
-
-locals {
-  claude_system_prompt = <<-EOT
-    -- Framing --
-    You are a helpful coding assistant working on the coder/vscode-coder
-    VS Code extension. Aim to autonomously investigate and solve issues
-    the user gives you and test your work, whenever possible.
-
-    Avoid shortcuts like mocking tests. When you get stuck, you can ask
-    the user but opt for autonomy.
-
-    -- Tool Selection --
-    - Built-in tools for everything:
-      (file operations, git commands, builds & installs, one-off shell commands)
-
-    -- Testing --
-    Integration tests launch a real VS Code instance and require a
-    virtual framebuffer. Run them headlessly with:
-      xvfb-run -a pnpm test:integration
-    This matches how CI runs them. Unit tests do not need xvfb-run:
-      pnpm test
-
-    -- Workflow --
-    When starting new work:
-    1. If given a GitHub issue URL, use the `gh` CLI to read the full
-       issue details with `gh issue view <issue-number>`.
-    2. Create a feature branch for the work using a descriptive name
-       based on the issue or task.
-       Example: `git checkout -b fix/issue-123-ssh-retry`
-    3. Proceed with implementation following the AGENTS.md guidelines.
-
-    -- Context --
-    This is the coder/vscode-coder VS Code extension. It is a real-world
-    production extension used by developers to connect to Coder workspaces.
-    Be sure to read AGENTS.md before making any changes.
-  EOT
 }
 
 module "claude-code" {
-  count               = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  source              = "dev.registry.coder.com/coder/claude-code/coder"
-  version             = "4.9.2"
-  enable_boundary     = true
-  agent_id            = coder_agent.dev.id
-  workdir             = local.repo_dir
-  claude_code_version = "latest"
-  model               = "opus"
-  order               = 999
-  claude_api_key      = data.coder_parameter.use_ai_bridge.value ? data.coder_workspace_owner.me.session_token : var.anthropic_api_key
-  agentapi_version    = "latest"
-  system_prompt       = local.claude_system_prompt
-  ai_prompt           = data.coder_task.me.prompt
+  count             = data.coder_workspace.me.start_count
+  source            = "dev.registry.coder.com/coder/claude-code/coder"
+  version           = "5.2.0"
+  enable_ai_gateway = data.coder_parameter.use_ai_gateway.value
+  anthropic_api_key = data.coder_parameter.use_ai_gateway.value ? "" : var.anthropic_api_key
+  agent_id          = coder_agent.dev.id
+  workdir           = local.repo_dir
 }
 
-resource "coder_ai_task" "task" {
-  count  = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  app_id = module.claude-code[count.index].task_app_id
-}
-
-resource "coder_app" "watch" {
-  count        = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
+resource "coder_app" "claude" {
   agent_id     = coder_agent.dev.id
-  slug         = "watch"
-  display_name = "pnpm watch"
-  icon         = "${data.coder_workspace.me.access_url}/icon/code.svg"
-  command      = "screen -x pnpm_watch"
-  share        = "authenticated"
-  open_in      = "tab"
-  order        = 0
-}
-
-resource "coder_script" "watch" {
-  count              = data.coder_task.me.enabled ? data.coder_workspace.me.start_count : 0
-  display_name       = "pnpm watch"
-  agent_id           = coder_agent.dev.id
-  run_on_start       = true
-  start_blocks_login = false
-  icon               = "${data.coder_workspace.me.access_url}/icon/code.svg"
-  script             = <<-EOT
-    #!/usr/bin/env bash
-    set -eux -o pipefail
-
-    trap 'coder exp sync complete pnpm-watch' EXIT
-    coder exp sync want pnpm-watch install-deps
-    coder exp sync start pnpm-watch
-
-    cd "${local.repo_dir}" && screen -dmS pnpm_watch /bin/sh -c 'while true; do pnpm watch; echo "pnpm watch exited with code $? restarting in 10s"; sleep 10; done'
+  slug         = "claude"
+  display_name = "Claude Code"
+  icon         = "/icon/claude.svg"
+  open_in      = "slim-window"
+  command      = <<-EOT
+    #!/bin/bash
+    set -e
+    cd "${local.repo_dir}"
+    exec tmux new-session -A -s claude claude
   EOT
 }

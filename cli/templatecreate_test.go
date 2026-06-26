@@ -14,14 +14,16 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestCliTemplateCreate(t *testing.T) {
 	t.Parallel()
 	t.Run("Create", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
@@ -35,7 +37,8 @@ func TestCliTemplateCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		clitest.Start(t, inv)
 
@@ -49,14 +52,16 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 	})
 	t.Run("CreateNoLockfile", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
@@ -71,7 +76,8 @@ func TestCliTemplateCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -86,9 +92,9 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Upload", write: "no"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 
@@ -97,6 +103,7 @@ func TestCliTemplateCreate(t *testing.T) {
 	})
 	t.Run("CreateNoLockfileIgnored", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 		source := clitest.CreateTemplateVersionSource(t, completeWithAgent())
@@ -112,7 +119,8 @@ func TestCliTemplateCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		execDone := make(chan error)
 		go func() {
@@ -123,8 +131,8 @@ func TestCliTemplateCreate(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 			defer cancel()
 
-			pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
-			pty.WriteLine("no")
+			stdout.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
+			stdin.WriteLine("no")
 		}
 
 		// cmd should error once we say no.
@@ -148,9 +156,7 @@ func TestCliTemplateCreate(t *testing.T) {
 		}
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t)
 		inv.Stdin = bytes.NewReader(source)
-		inv.Stdout = pty.Output()
 
 		require.NoError(t, inv.Run())
 	})
@@ -199,6 +205,8 @@ func TestCliTemplateCreate(t *testing.T) {
 	t.Run("WithVariablesFileWithTheRequiredValue", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 
@@ -227,7 +235,8 @@ func TestCliTemplateCreate(t *testing.T) {
 		_, _ = variablesFile.WriteString(`first_variable: foobar`)
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variables-file", variablesFile.Name())
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		clitest.Start(t, inv)
 
@@ -239,15 +248,17 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 	})
 	t.Run("WithVariableOption", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		coderdtest.CreateFirstUser(t, client)
 
@@ -264,7 +275,8 @@ func TestCliTemplateCreate(t *testing.T) {
 			createEchoResponsesWithTemplateVariables(templateVariables))
 		inv, root := clitest.New(t, "templates", "create", "my-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--variable", "first_variable=foobar")
 		clitest.SetupConfig(t, client, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		clitest.Start(t, inv)
 
@@ -276,9 +288,9 @@ func TestCliTemplateCreate(t *testing.T) {
 			{match: "Confirm create?", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatch(m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 	})

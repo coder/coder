@@ -22,6 +22,7 @@ type templateMetaUpdate struct {
 	icon                                 string
 	defaultTTLMillis                     int64
 	activityBumpMillis                   int64
+	timeTilAutostopNotifyMillis          int64
 	failureTTLMillis                     int64
 	timeTilDormantMillis                 int64
 	timeTilDormantAutoDeleteMillis       int64
@@ -73,6 +74,7 @@ func resolveTemplateMetaUpdate(
 		icon:                           ptr.NilToDefault(req.Icon, template.Icon),
 		defaultTTLMillis:               ptr.NilToDefault(req.DefaultTTLMillis, time.Duration(template.DefaultTTL).Milliseconds()),
 		activityBumpMillis:             ptr.NilToDefault(req.ActivityBumpMillis, time.Duration(template.ActivityBump).Milliseconds()),
+		timeTilAutostopNotifyMillis:    ptr.NilToDefault(req.TimeTilAutostopNotifyMillis, time.Duration(template.TimeTilAutostopNotify).Milliseconds()),
 		failureTTLMillis:               ptr.NilToDefault(req.FailureTTLMillis, time.Duration(template.FailureTTL).Milliseconds()),
 		timeTilDormantMillis:           ptr.NilToDefault(req.TimeTilDormantMillis, time.Duration(template.TimeTilDormant).Milliseconds()),
 		timeTilDormantAutoDeleteMillis: ptr.NilToDefault(req.TimeTilDormantAutoDeleteMillis, time.Duration(template.TimeTilDormantAutoDelete).Milliseconds()),

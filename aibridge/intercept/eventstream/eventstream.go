@@ -219,6 +219,15 @@ func (s *EventStream) Shutdown(shutdownCtx context.Context) error {
 
 // IsStreaming checks if the stream has been initiated, or
 // when events are buffered which - when processed - will initiate the stream.
+//
+// Note: there is a known race between the channel pop in Start and the
+// subsequent InitiateStream call where this can briefly return false for
+// a stream that's about to begin. Callers that use this to choose between
+// JSON and SSE response formats can produce a malformed response under
+// that race. Accepted until the MCP Gateway migration results in AI
+// Gateway behaving like a reverse proxy, removing the inner agentic loop
+// code. See https://github.com/coder/aibridge/issues/223 and
+// https://github.com/coder/internal/issues/1524.
 func (s *EventStream) IsStreaming() bool {
 	return s.initiated.Load() || len(s.eventsCh) > 0
 }

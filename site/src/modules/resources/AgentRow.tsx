@@ -25,6 +25,7 @@ import type {
 	Workspace,
 	WorkspaceAgent,
 	WorkspaceAgentMetadata,
+	WorkspaceAgentScript,
 } from "#/api/typesGenerated";
 import { CheckIcon } from "#/components/AnimatedIcons/Check";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
@@ -57,7 +58,10 @@ import {
 import { useProxy } from "#/contexts/ProxyContext";
 import { useClipboard } from "#/hooks/useClipboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { getAgentHealthIssues } from "#/modules/workspaces/health";
+import {
+	getAgentConnectivityIssues,
+	getAgentScriptIssues,
+} from "#/modules/workspaces/health";
 import { AgentAlert } from "#/pages/WorkspacePage/AgentAlert";
 import { AppStatuses } from "#/pages/WorkspacePage/AppStatuses";
 import { cn } from "#/utils/cn";
@@ -76,6 +80,7 @@ import { AgentSSHButton } from "./SSHButton/SSHButton";
 import { TerminalLink } from "./TerminalLink/TerminalLink";
 import { useAgentContainers } from "./useAgentContainers";
 import { useAgentLogs } from "./useAgentLogs";
+import { canShowPortForwarding } from "./usePortsData";
 import { VSCodeDesktopButton } from "./VSCodeDesktopButton/VSCodeDesktopButton";
 import { WildcardHostnameWarning } from "./WildcardHostnameWarning";
 
@@ -103,9 +108,11 @@ const statusBorderClassByLifecycle: Partial<
 	starting: "border-border-pending",
 	shutting_down: "border-border-pending",
 	ready: "border-border-success",
-	start_timeout: "border-border-warning",
+	// Script errors and timeouts do not affect agent connectivity; they are
+	// surfaced in the per-script log tabs instead.
+	start_timeout: "border-border-success",
 	shutdown_timeout: "border-border-warning",
-	start_error: "border-border-warning",
+	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
 	off: "border-border",
 };
@@ -127,6 +134,13 @@ const getAgentBorderClass = (
 };
 
 const STARTUP_SCRIPT_DISPLAY_NAME = "Startup Script";
+
+// A script is considered failed if it exited with a non-zero code, or if its
+// status reports a known failure mode (anything other than "ok"). Kept aligned
+// with the per-tab error indicator so the auto-selected tab matches the visual
+// warning badge.
+const isScriptFailed = (script: WorkspaceAgentScript | undefined): boolean =>
+	Boolean(script?.exit_code || (script?.status && script.status !== "ok"));
 
 export const AgentRow: FC<AgentRowProps> = ({
 	agent,
@@ -153,13 +167,21 @@ export const AgentRow: FC<AgentRowProps> = ({
 	const runningScriptsCount = agent.scripts.filter(
 		(s) => s.run_on_start && !s.status,
 	).length;
-	const healthIssues = getAgentHealthIssues(agent);
-	const hasAgentIssues = healthIssues.length > 0;
-	const hasWarningIssues = healthIssues.some((i) => i.severity === "warning");
+	// Connectivity issues drive agent panel styling (border color, warning
+	// badge). Script issues are kept out of that styling so a failed script
+	// does not imply a connectivity problem, but they still auto-expand the
+	// logs so the failing script's tab surfaces on its own.
+	const connectivityIssues = getAgentConnectivityIssues(agent);
+	const hasConnectivityIssues = connectivityIssues.length > 0;
+	const hasWarningConnectivityIssues = connectivityIssues.some(
+		(i) => i.severity === "warning",
+	);
+	const hasScriptIssues = getAgentScriptIssues(agent).length > 0;
 	const { proxy } = useProxy();
 	const [showLogs, setShowLogs] = useState(
-		(["starting", "start_timeout"].includes(agent.lifecycle_state) ||
-			hasAgentIssues) &&
+		(agent.lifecycle_state !== "ready" ||
+			hasConnectivityIssues ||
+			hasScriptIssues) &&
 			hasStartupFeatures,
 	);
 	const agentLogs = useAgentLogs({ agentId: agent.id, enabled: showLogs });
@@ -169,10 +191,17 @@ export const AgentRow: FC<AgentRowProps> = ({
 
 	useEffect(() => {
 		setShowLogs(
-			(agent.lifecycle_state !== "ready" || hasAgentIssues) &&
+			(agent.lifecycle_state !== "ready" ||
+				hasConnectivityIssues ||
+				hasScriptIssues) &&
 				hasStartupFeatures,
 		);
-	}, [agent.lifecycle_state, hasAgentIssues, hasStartupFeatures]);
+	}, [
+		agent.lifecycle_state,
+		hasConnectivityIssues,
+		hasScriptIssues,
+		hasStartupFeatures,
+	]);
 
 	// This is a layout effect to remove flicker when we're scrolling to the bottom.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: consider refactoring
@@ -235,14 +264,34 @@ export const AgentRow: FC<AgentRowProps> = ({
 		agent,
 		Boolean(hasDevcontainerErrors || shouldShowWildcardWarning),
 	);
-	const failedStartupScriptSource = hasAgentIssues
-		? agent.log_sources.find(
-				(s) => s.display_name === STARTUP_SCRIPT_DISPLAY_NAME,
-			)
-		: undefined;
-	const [selectedLogTab, setSelectedLogTab] = useState(
-		failedStartupScriptSource?.id ?? "all",
-	);
+	const [selectedLogTab, setSelectedLogTab] = useState("all");
+	const hasAutoSelectedLogTabRef = useRef(false);
+	// Auto-select the first log tab whose script failed and has rendered output.
+	useEffect(() => {
+		if (hasAutoSelectedLogTabRef.current) {
+			return;
+		}
+		const failedSourceWithLogs = agent.log_sources.find((logSource) => {
+			const script = agent.scripts.find(
+				(s) => s.log_source_id === logSource.id,
+			);
+			if (!isScriptFailed(script)) {
+				return false;
+			}
+			return agentLogs.some(
+				(log) =>
+					log.source_id === logSource.id && (log.output?.length ?? 0) > 0,
+			);
+		});
+		if (failedSourceWithLogs) {
+			hasAutoSelectedLogTabRef.current = true;
+			setSelectedLogTab(failedSourceWithLogs.id);
+		}
+	}, [agent.log_sources, agent.scripts, agentLogs]);
+	const handleSelectedLogTabChange = (value: string) => {
+		hasAutoSelectedLogTabRef.current = true;
+		setSelectedLogTab(value);
+	};
 	const sortedSourceLogTabs = agent.log_sources
 		.filter((logSource) => {
 			// Remove the logSources that have no entries.
@@ -269,9 +318,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 				) : null,
 				title: logSource.display_name,
 				value: logSource.id,
-				error: Boolean(
-					script?.exit_code || (script?.status && script.status !== "ok"),
-				),
+				error: isScriptFailed(script),
 			};
 		})
 		.sort((a, b) => {
@@ -305,7 +352,10 @@ export const AgentRow: FC<AgentRowProps> = ({
 		...sortedSourceLogTabs,
 	];
 	const hasAnyLogs = agentLogs.length > 0;
-	const logTabsMeasureEnabled = hasStartupFeatures && hasAnyLogs && showLogs;
+	const shouldExpandLogs =
+		showLogs || (!hasStartupFeatures && hasConnectivityIssues);
+	const shouldShowLogsTabs = hasStartupFeatures && hasAnyLogs;
+	const logTabsMeasureEnabled = shouldShowLogsTabs && showLogs;
 	const {
 		containerRef: logTabsListContainerRef,
 		visibleTabs: visibleLogTabs,
@@ -402,15 +452,14 @@ export const AgentRow: FC<AgentRowProps> = ({
 							workspaceOwnerUsername={workspace.owner_name}
 						/>
 					)}
-					{proxy.preferredWildcardHostname !== "" &&
-						agent.display_apps.includes("port_forwarding_helper") && (
-							<PortForwardButton
-								host={proxy.preferredWildcardHostname}
-								workspace={workspace}
-								agent={agent}
-								template={template}
-							/>
-						)}
+					{canShowPortForwarding(agent, proxy.preferredWildcardHostname) && (
+						<PortForwardButton
+							host={proxy.preferredWildcardHostname}
+							workspace={workspace}
+							agent={agent}
+							template={template}
+						/>
+					)}
 				</div>
 			</header>
 
@@ -514,7 +563,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 						<span>Logs</span>
 						{agent.lifecycle_state === "starting" &&
 							runningScriptsCount > 0 &&
-							healthIssues.length === 0 && (
+							connectivityIssues.length === 0 && (
 								<Badge
 									variant="default"
 									size="xs"
@@ -529,27 +578,35 @@ export const AgentRow: FC<AgentRowProps> = ({
 									<span>{runningScriptsCount}</span>
 								</Badge>
 							)}
-						{healthIssues.length > 0 && (
+						{hasConnectivityIssues && (
 							<Badge
-								variant={hasWarningIssues ? "warning" : "info"}
+								variant={hasWarningConnectivityIssues ? "warning" : "info"}
 								size="xs"
 								className="ml-1.5"
 							>
-								{hasWarningIssues ? (
+								{hasWarningConnectivityIssues ? (
 									<TriangleAlertIcon className="-ml-0.5" />
 								) : (
 									<InfoIcon className="-ml-0.5" />
 								)}
-								<span>{healthIssues.length}</span>
+								<span>{connectivityIssues.length}</span>
 							</Badge>
 						)}
 					</Button>
 				</div>
-				<Collapse in={showLogs || (!hasStartupFeatures && hasAgentIssues)}>
+				<Collapse in={shouldExpandLogs}>
 					<div className={cn("px-4", hasStartupFeatures ? "pb-4" : "py-4")}>
-						{healthIssues.length > 0 && (
+						{/*
+						  Collapse's `in` condition is needed here,
+							or else the Spinner will also show as Collapse is closing
+						*/}
+						{shouldExpandLogs &&
+							!(hasConnectivityIssues || shouldShowLogsTabs) && (
+								<Spinner size="lg" loading className="block mx-auto" />
+							)}
+						{hasConnectivityIssues && (
 							<div className="mb-4 flex flex-col gap-3">
-								{healthIssues.map((issue) => (
+								{connectivityIssues.map((issue) => (
 									<AgentAlert
 										key={`${issue.title}-${issue.detail}`}
 										{...issue}
@@ -558,12 +615,12 @@ export const AgentRow: FC<AgentRowProps> = ({
 								))}
 							</div>
 						)}
-						{hasStartupFeatures && hasAnyLogs && (
+						{shouldShowLogsTabs && (
 							<div className="border border-solid rounded-md overflow-clip">
 								<Tabs
 									className="-mx-px -mt-px"
 									value={selectedLogTab}
-									onValueChange={setSelectedLogTab}
+									onValueChange={handleSelectedLogTabChange}
 								>
 									<div className="flex items-stretch">
 										<div className="min-w-0 flex-1 overflow-hidden">
@@ -621,7 +678,7 @@ export const AgentRow: FC<AgentRowProps> = ({
 														<DropdownMenuContent align="end">
 															<DropdownMenuRadioGroup
 																value={selectedLogTab}
-																onValueChange={setSelectedLogTab}
+																onValueChange={handleSelectedLogTabChange}
 															>
 																{overflowLogTabs.map((tab) => (
 																	<DropdownMenuRadioItem

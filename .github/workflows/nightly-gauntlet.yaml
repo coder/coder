@@ -62,11 +62,16 @@ jobs:
       - name: Setup GNU tools (macOS)
         uses: ./.github/actions/setup-gnu-tools
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "go terraform"
 
-      - name: Setup Terraform
-        uses: ./.github/actions/setup-tf
+      - name: Restore Go cache
+        uses: ./.github/actions/go-cache
+
+      - name: Install Go mise tools
+        run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum
 
       - name: Setup Embedded Postgres Cache Paths
         id: embedded-pg-cache

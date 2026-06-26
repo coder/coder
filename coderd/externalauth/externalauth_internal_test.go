@@ -30,7 +30,7 @@ func TestGitlabDefaults(t *testing.T) {
 			DisplayIcon:                   "/icon/gitlab.svg",
 			Regex:                         `^(https?://)?gitlab\.com(/.*)?$`,
 			APIBaseURL:                    "https://gitlab.com/api/v4",
-			Scopes:                        []string{"write_repository"},
+			Scopes:                        []string{"write_repository", "read_api"},
 			CodeChallengeMethodsSupported: []string{string(promoauth.PKCEChallengeMethodSha256)},
 		}
 	}
@@ -91,6 +91,7 @@ func TestGitlabDefaults(t *testing.T) {
 				config.TokenURL = "https://gitlab.company.org/oauth/token"
 				config.RevokeURL = "https://gitlab.company.org/oauth/revoke"
 				config.Regex = `^(https?://)?gitlab\.company\.org(/.*)?$`
+				config.APIBaseURL = "https://gitlab.company.org/api/v4"
 			},
 		},
 		{
@@ -113,6 +114,7 @@ func TestGitlabDefaults(t *testing.T) {
 				config.RevokeURL = "https://token.com/revoke"
 				config.Regex = `random`
 				config.CodeChallengeMethodsSupported = []string{"random"}
+				config.APIBaseURL = "https://auth.com/api/v4"
 			},
 		},
 	}

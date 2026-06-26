@@ -17,16 +17,43 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridge"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
 var ErrSubagentNotDescendant = xerrors.New("target chat is not a descendant of current chat")
+
+// ErrSubagentWaitTimeout is returned by awaitSubagentCompletion when the
+// wait deadline elapses before the subagent reaches a terminal status. The
+// agent is still working and the wait can be retried.
+var ErrSubagentWaitTimeout = xerrors.New("timed out waiting for delegated subagent completion")
+
+// subagentToolNameAliases maps deprecated subagent tool names to their
+// current names so historical close_agent calls in chat history still
+// dispatch to interrupt_agent without advertising the old name in the
+// tool list.
+var subagentToolNameAliases = map[string]string{
+	"close_agent": "interrupt_agent",
+}
+
+// subagentStatusError wraps a subagent that reached error status. It
+// carries the chat and report so callers can surface a structured,
+// recoverable-aware payload instead of a bare tool error.
+type subagentStatusError struct {
+	chat   database.Chat
+	report string
+	reason string
+}
+
+func (e *subagentStatusError) Error() string { return e.reason }
 
 var errInvalidModelOverrideMetadata = xerrors.New("invalid model override metadata")
 
@@ -45,6 +72,10 @@ const (
 	subagentAwaitPollInterval  = 200 * time.Millisecond
 	subagentAwaitFallbackPoll  = 5 * time.Second
 	defaultSubagentWaitTimeout = 5 * time.Minute
+
+	defaultListAgentsLimit       = 10
+	maxListAgentsLimit           = 50
+	subagentRecordingStopTimeout = 90 * time.Second
 )
 
 // computerUseSubagentSystemPrompt is the system prompt prepended to
@@ -74,8 +105,13 @@ type messageAgentArgs struct {
 	Interrupt bool   `json:"interrupt,omitempty"`
 }
 
-type closeAgentArgs struct {
+type interruptAgentArgs struct {
 	ChatID string `json:"chat_id"`
+}
+
+type listAgentsArgs struct {
+	Limit  *int `json:"limit,omitempty"`
+	Offset *int `json:"offset,omitempty"`
 }
 
 func (p *Server) isDesktopEnabled(ctx context.Context) bool {
@@ -154,12 +190,12 @@ func validateModelConfigAndResolveProvider(
 }
 
 func enabledProviderContainsName(
-	providers []database.ChatProvider,
+	providers []database.AIProvider,
 	providerName string,
 ) bool {
 	normalizedProviderName := chatprovider.NormalizeProvider(providerName)
 	for _, provider := range providers {
-		if chatprovider.NormalizeProvider(provider.Provider) == normalizedProviderName {
+		if chatprovider.NormalizeProvider(string(provider.Type)) == normalizedProviderName {
 			return true
 		}
 	}
@@ -606,9 +642,9 @@ func (p *Server) subagentTools(
 		fantasy.NewAgentTool(
 			"wait_agent",
 			"Wait until a spawned child agent finishes its task. "+
-				"Returns the agent's final response and status. "+
-				"Call this after "+spawnAgentToolName+" to collect the "+
-				"result before continuing your own work.",
+				"Returns the agent's response and status. A timeout is not "+
+				"a failure: the agent is still running. Call wait_agent again "+
+				"or use list_agents to check its status.",
 			func(ctx context.Context, args waitAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -691,41 +727,63 @@ func (p *Server) subagentTools(
 				// On timeout or error, leave the recording running on
 				// the agent so the next wait_agent call continues it.
 				if awaitErr != nil {
+					if xerrors.Is(awaitErr, ErrSubagentWaitTimeout) {
+						// The agent may have completed in the gap between
+						// the last poll and the timer firing. Re-check
+						// completion with a fresh DB read to avoid acting
+						// on a stale status (TOCTOU).
+						checkedChat, checkedReport, done, checkErr := p.checkSubagentCompletion(ctx, targetChatID)
+						if checkErr != nil {
+							return subagentErrorResponse(checkErr, targetChatInfo), nil
+						}
+						if !done {
+							return toolJSONResponse(withSubagentType(map[string]any{
+								"chat_id":   targetChatID.String(),
+								"title":     checkedChat.Title,
+								"status":    string(checkedChat.Status),
+								"timed_out": true,
+							}, checkedChat)), nil
+						}
+						// The agent completed in the gap. Classify through
+						// the same handler as the normal poll path. If the
+						// agent errored, handleSubagentDone returns a
+						// subagentStatusError that the error-status block
+						// below catches.
+						targetChat, report, awaitErr = handleSubagentDone(checkedChat, checkedReport)
+						if awaitErr == nil {
+							return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
+						}
+					}
+					if errStatus, ok := errors.AsType[*subagentStatusError](awaitErr); ok {
+						errChat := errStatus.chat
+						lastError := subagentLastErrorMessage(errChat.LastError)
+						if lastError == "" {
+							lastError = errStatus.reason
+						}
+						return toolJSONResponse(withSubagentType(map[string]any{
+							"chat_id":    errChat.ID.String(),
+							"title":      errChat.Title,
+							"status":     string(errChat.Status),
+							"last_error": lastError,
+							"report":     errStatus.report,
+						}, errChat)), nil
+					}
 					return subagentErrorResponse(awaitErr, targetChatInfo), nil
 				}
 
 				// Only stop and store the recording on success.
-				var recResult recordingResult
-				if recordingID != "" && agentConn != nil {
-					// Use a fresh context for cleanup so a canceled
-					// parent context does not prevent recording storage.
-					stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), 90*time.Second)
-					defer stopCancel()
-					recResult = p.stopAndStoreRecording(stopCtx, agentConn,
-						recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
-				}
-				resp := withSubagentType(map[string]any{
-					"chat_id": targetChat.ID.String(),
-					"title":   targetChat.Title,
-					"report":  report,
-					"status":  string(targetChat.Status),
-				}, targetChat)
-				if recResult.recordingFileID != "" {
-					resp["recording_file_id"] = recResult.recordingFileID
-				}
-				if recResult.thumbnailFileID != "" {
-					resp["thumbnail_file_id"] = recResult.thumbnailFileID
-				}
-				return toolJSONResponse(resp), nil
+				return p.waitAgentSuccessResponse(ctx, recordingID, agentConn, parent, targetChat, report), nil
 			},
 		),
 		fantasy.NewAgentTool(
 			"message_agent",
 			"Send a follow-up message to a previously spawned child "+
-				"agent. Use this to provide additional instructions, "+
-				"corrections, or context to a running or completed "+
-				"agent. After sending, use wait_agent to collect the "+
-				"updated response.",
+				"agent. If the agent is idle, it resumes work on the "+
+				"message. If the agent is busy, the message is queued and "+
+				"processed after current work. Set interrupt to true to "+
+				"stop the agent's current work; the message is queued and "+
+				"processed next, after any already-queued messages. "+
+				"After sending, use wait_agent to retrieve the response.",
 			func(ctx context.Context, args messageAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
@@ -761,20 +819,26 @@ func (p *Server) subagentTools(
 					return subagentErrorResponse(err, targetChatInfo), nil
 				}
 
+				interrupted := false
+				if args.Interrupt && targetChatInfo != nil {
+					interrupted = targetChatInfo.Status == database.ChatStatusRunning ||
+						targetChatInfo.Status == database.ChatStatusPending
+				}
 				return toolJSONResponse(withSubagentType(map[string]any{
 					"chat_id":     targetChat.ID.String(),
 					"title":       targetChat.Title,
 					"status":      string(targetChat.Status),
-					"interrupted": args.Interrupt,
+					"interrupted": interrupted,
 				}, targetChat)), nil
 			},
 		),
 		fantasy.NewAgentTool(
-			"close_agent",
-			"Immediately stop a spawned child agent. Use this to "+
-				"cancel a subagent that is stuck, no longer needed, "+
-				"or working on the wrong approach.",
-			func(ctx context.Context, args closeAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+			"interrupt_agent",
+			"Interrupt a spawned child agent's current work. The "+
+				"status may briefly read interrupting before transitioning "+
+				"to waiting, or running if there are queued messages. "+
+				"Resume with message_agent or leave it idle.",
+			func(ctx context.Context, args interruptAgentArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 				if currentChat == nil {
 					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
 				}
@@ -789,12 +853,12 @@ func (p *Server) subagentTools(
 				if chat, lookupErr := p.db.GetChatByID(ctx, targetChatID); lookupErr == nil {
 					targetChatInfo = &chat
 				} else if !xerrors.Is(lookupErr, sql.ErrNoRows) {
-					p.logger.Warn(ctx, "unexpected error looking up chat for close",
+					p.logger.Warn(ctx, "unexpected error looking up chat for interrupt",
 						slog.F("chat_id", targetChatID),
 						slog.Error(lookupErr),
 					)
 				}
-				targetChat, err := p.closeSubagent(
+				targetChat, interrupted, err := p.interruptSubagent(
 					ctx,
 					parent.ID,
 					targetChatID,
@@ -804,11 +868,83 @@ func (p *Server) subagentTools(
 				}
 
 				return toolJSONResponse(withSubagentType(map[string]any{
-					"chat_id":    targetChat.ID.String(),
-					"title":      targetChat.Title,
-					"terminated": true,
-					"status":     string(targetChat.Status),
+					"chat_id":     targetChat.ID.String(),
+					"title":       targetChat.Title,
+					"interrupted": interrupted,
+					"status":      string(targetChat.Status),
 				}, targetChat)), nil
+			},
+		),
+		fantasy.NewAgentTool(
+			"list_agents",
+			"List the child agents spawned by this chat, most recently "+
+				"active first. Returns up to `limit` agents (default 10) "+
+				"with `total` and `has_more`; use `offset` to page. The "+
+				"sort order is best-effort: an agent's position may shift "+
+				"if its updated_at changes between calls. Each "+
+				"agent has chat_id, title, type, status, created_at, "+
+				"updated_at. Status: pending/running = working, "+
+				"interrupting = transient, waiting/completed = idle, "+
+				"error = stopped on error.",
+			func(ctx context.Context, args listAgentsArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+				if currentChat == nil {
+					return fantasy.NewTextErrorResponse("subagent callbacks are not configured"), nil
+				}
+
+				limit := defaultListAgentsLimit
+				if args.Limit != nil {
+					limit = min(max(*args.Limit, 1), maxListAgentsLimit)
+				}
+				offset := 0
+				if args.Offset != nil && *args.Offset > 0 {
+					offset = *args.Offset
+				}
+
+				parent := currentChat()
+				if parent.ParentChatID.Valid {
+					return fantasy.NewTextErrorResponse("list_agents is only available on root chats"), nil
+				}
+				rows, err := p.db.GetChildChatsByParentIDs(ctx, database.GetChildChatsByParentIDsParams{
+					ParentIds: []uuid.UUID{parent.ID},
+					// Exclude archived children by default. Do not pass an
+					// invalid NullBool, which would include archived rows.
+					Archived: sql.NullBool{Bool: false, Valid: true},
+				})
+				if err != nil {
+					return fantasy.NewTextErrorResponse(xerrors.Errorf("list child agents: %w", err).Error()), nil
+				}
+
+				slices.SortStableFunc(rows, func(a, b database.GetChildChatsByParentIDsRow) int {
+					if c := b.Chat.UpdatedAt.Compare(a.Chat.UpdatedAt); c != 0 {
+						return c
+					}
+					return strings.Compare(b.Chat.ID.String(), a.Chat.ID.String())
+				})
+
+				total := len(rows)
+				start := min(offset, total)
+				end := min(start+limit, total)
+				page := rows[start:end]
+
+				agents := make([]map[string]any, 0, len(page))
+				for _, row := range page {
+					child := row.Chat
+					agents = append(agents, withSubagentType(map[string]any{
+						"chat_id":    child.ID.String(),
+						"title":      child.Title,
+						"status":     string(child.Status),
+						"created_at": child.CreatedAt.Format(time.RFC3339),
+						"updated_at": child.UpdatedAt.Format(time.RFC3339),
+					}, child))
+				}
+
+				return toolJSONResponse(map[string]any{
+					"agents":   agents,
+					"total":    total,
+					"returned": len(agents),
+					"offset":   offset,
+					"has_more": end < total,
+				}), nil
 			},
 		),
 	}
@@ -908,6 +1044,14 @@ func (p *Server) resolveExploreToolSnapshot(
 	return inheritedMCPServerIDs, nil
 }
 
+func (*Server) delegatedAPIKeyIDForSubagent(ctx context.Context) (string, error) {
+	apiKeyID, ok := aibridge.DelegatedAPIKeyIDFromContext(ctx)
+	if !ok || apiKeyID == "" {
+		return "", xerrors.New("active turn API key ID is required for subagent messages")
+	}
+	return apiKeyID, nil
+}
+
 func (p *Server) createChildSubagentChat(
 	ctx context.Context,
 	parent database.Chat,
@@ -950,6 +1094,10 @@ func (p *Server) createChildSubagentChatWithOptions(
 	if modelConfigID == uuid.Nil {
 		return database.Chat{}, xerrors.New("model config is required")
 	}
+	childAPIKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
 
 	childPlanMode := parent.PlanMode
 	if opts.planModeOverride != nil {
@@ -973,241 +1121,95 @@ func (p *Server) createChildSubagentChatWithOptions(
 	// child chat creation does not hold one DB connection while waiting
 	// for another pool checkout.
 	deploymentPrompt := p.resolveDeploymentSystemPrompt(ctx)
+	// Delegated chats cannot call list_agents or message_agent, so
+	// strip the root-only orchestration guidance from their prompt.
+	deploymentPrompt = strings.Replace(deploymentPrompt, subagentOrchestrationPromptBlock, "", 1)
 
-	var child database.Chat
-	txErr := p.db.InTx(func(tx database.Store) error {
-		if limitErr := p.checkUsageLimit(ctx, tx, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
-			return limitErr
-		}
-
-		insertedChat, err := tx.InsertChat(ctx, database.InsertChatParams{
-			OrganizationID:    parent.OrganizationID,
-			OwnerID:           parent.OwnerID,
-			WorkspaceID:       parent.WorkspaceID,
-			BuildID:           parent.BuildID,
-			AgentID:           parent.AgentID,
-			ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
-			RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
-			LastModelConfigID: modelConfigID,
-			Title:             title,
-			Mode:              opts.chatMode,
-			PlanMode:          childPlanMode,
-			ClientType:        parent.ClientType,
-			Status:            database.ChatStatusPending,
-			MCPServerIDs:      mcpServerIDs,
-			Labels: pqtype.NullRawMessage{
-				RawMessage: labelsJSON,
-				Valid:      true,
-			},
-			DynamicTools: pqtype.NullRawMessage{},
-		})
-		if err != nil {
-			return xerrors.Errorf("insert child chat: %w", err)
-		}
-
-		workspaceAwareness := "There is no workspace associated with this chat yet. Create one using the create_workspace tool before using workspace tools like execute, read_file, write_file, etc."
-		if insertedChat.WorkspaceID.Valid {
-			workspaceAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
-		}
-		workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-			codersdk.ChatMessageText(workspaceAwareness),
-		})
-		if err != nil {
-			return xerrors.Errorf("marshal workspace awareness: %w", err)
-		}
-		userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
-		if err != nil {
-			return xerrors.Errorf("marshal initial user content: %w", err)
-		}
-
-		systemParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-			ChatID: insertedChat.ID,
-		}
-		if deploymentPrompt != "" {
-			deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(deploymentPrompt),
-			})
-			if err != nil {
-				return xerrors.Errorf("marshal deployment system prompt: %w", err)
-			}
-			appendChatMessage(&systemParams, newChatMessage(
-				database.ChatMessageRoleSystem,
-				deploymentContent,
-				database.ChatMessageVisibilityModel,
-				modelConfigID,
-				chatprompt.CurrentContentVersion,
-			))
-		}
-		if childSystemPrompt != "" {
-			childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
-				codersdk.ChatMessageText(childSystemPrompt),
-			})
-			if err != nil {
-				return xerrors.Errorf("marshal child system prompt: %w", err)
-			}
-			appendChatMessage(&systemParams, newChatMessage(
-				database.ChatMessageRoleSystem,
-				childSystemPromptContent,
-				database.ChatMessageVisibilityModel,
-				modelConfigID,
-				chatprompt.CurrentContentVersion,
-			))
-		}
-		appendChatMessage(&systemParams, newChatMessage(
-			database.ChatMessageRoleSystem,
-			workspaceAwarenessContent,
-			database.ChatMessageVisibilityModel,
-			modelConfigID,
-			chatprompt.CurrentContentVersion,
-		))
-		if _, err := tx.InsertChatMessages(ctx, systemParams); err != nil {
-			return xerrors.Errorf("insert initial child system messages: %w", err)
-		}
-
-		child = insertedChat
-
-		// Copy persisted context before the initial child prompt so the
-		// child cannot be acquired until its inherited context is in
-		// place. signalWake runs only after commit.
-		copiedContextParts, err := copyParentContextMessages(ctx, p.logger, tx, parent, child)
-		if err != nil {
-			return xerrors.Errorf("copy parent context messages: %w", err)
-		}
-		if err := updateChildLastInjectedContext(ctx, p.logger, tx, child.ID, copiedContextParts); err != nil {
-			return xerrors.Errorf("update child injected context: %w", err)
-		}
-
-		userParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-			ChatID: insertedChat.ID,
-		}
-		appendChatMessage(&userParams, newChatMessage(
-			database.ChatMessageRoleUser,
-			userContent,
-			database.ChatMessageVisibilityBoth,
-			modelConfigID,
-			chatprompt.CurrentContentVersion,
-		).withCreatedBy(parent.OwnerID))
-		if _, err := tx.InsertChatMessages(ctx, userParams); err != nil {
-			return xerrors.Errorf("insert initial child user message: %w", err)
-		}
-
-		return nil
-	}, nil)
-	if txErr != nil {
-		return database.Chat{}, xerrors.Errorf("create child chat: %w", txErr)
+	if limitErr := p.checkUsageLimit(ctx, p.db, parent.OwnerID, uuid.NullUUID{UUID: parent.OrganizationID, Valid: true}); limitErr != nil {
+		return database.Chat{}, limitErr
 	}
 
-	p.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
-	p.signalWake()
-	return child, nil
-}
-
-// copyParentContextMessages reads persisted context-file and skill
-// messages from the parent chat and inserts copies into the child
-// chat. This ensures sub-agents inherit the same instruction and
-// skill context as their parent without independently re-fetching
-// from the agent.
-func copyParentContextMessages(
-	ctx context.Context,
-	logger slog.Logger,
-	store database.Store,
-	parent database.Chat,
-	child database.Chat,
-) ([]codersdk.ChatMessagePart, error) {
-	parentMessages, err := store.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{
-		ChatID:  parent.ID,
-		AfterID: 0,
+	workspaceAwareness := workspaceDetachedNoCreateAwareness
+	if parent.WorkspaceID.Valid {
+		workspaceAwareness = workspaceAttachedAwareness
+	}
+	workspaceAwarenessContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageText(workspaceAwareness),
 	})
 	if err != nil {
-		return nil, xerrors.Errorf("get parent messages: %w", err)
+		return database.Chat{}, xerrors.Errorf("marshal workspace awareness: %w", err)
 	}
-
-	var (
-		copiedParts      []codersdk.ChatMessagePart
-		copiedRole       database.ChatMessageRole
-		copiedVisibility database.ChatMessageVisibility
-		copiedVersion    int16
-	)
-	for _, msg := range parentMessages {
-		if !msg.Content.Valid {
-			continue
-		}
-		var parts []codersdk.ChatMessagePart
-		if err := json.Unmarshal(msg.Content.RawMessage, &parts); err != nil {
-			logger.Warn(ctx, "failed to unmarshal parent context message",
-				slog.F("parent_chat_id", parent.ID),
-				slog.F("message_id", msg.ID),
-				slog.Error(err),
-			)
-			continue
-		}
-
-		messageContextParts := FilterContextParts(parts, true)
-		if len(messageContextParts) == 0 {
-			continue
-		}
-		if copiedParts == nil {
-			copiedRole = msg.Role
-			copiedVisibility = msg.Visibility
-			copiedVersion = msg.ContentVersion
-		}
-		copiedParts = append(copiedParts, messageContextParts...)
-	}
-	if len(copiedParts) == 0 {
-		return nil, nil
-	}
-
-	copiedParts = FilterContextPartsToLatestAgent(copiedParts)
-	filteredContent, err := chatprompt.MarshalParts(copiedParts)
+	userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(prompt)})
 	if err != nil {
-		return nil, xerrors.Errorf("marshal filtered context parts: %w", err)
+		return database.Chat{}, xerrors.Errorf("marshal initial user content: %w", err)
 	}
 
-	msgParams := database.InsertChatMessagesParams{ //nolint:exhaustruct // Fields populated by appendChatMessage.
-		ChatID: child.ID,
+	initialMessages := make([]chatstate.Message, 0, 4)
+	if deploymentPrompt != "" {
+		deploymentContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(deploymentPrompt),
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal deployment system prompt: %w", err)
+		}
+		initialMessages = append(initialMessages, systemMessage(deploymentContent, modelConfigID))
 	}
-	appendChatMessage(&msgParams, newChatMessage(
-		copiedRole,
-		filteredContent,
-		copiedVisibility,
-		child.LastModelConfigID,
-		copiedVersion,
-	))
-	if _, err := store.InsertChatMessages(ctx, msgParams); err != nil {
-		return nil, xerrors.Errorf("insert context message: %w", err)
+	if childSystemPrompt != "" {
+		childSystemPromptContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+			codersdk.ChatMessageText(childSystemPrompt),
+		})
+		if err != nil {
+			return database.Chat{}, xerrors.Errorf("marshal child system prompt: %w", err)
+		}
+		initialMessages = append(initialMessages, systemMessage(childSystemPromptContent, modelConfigID))
 	}
+	initialMessages = append(initialMessages, systemMessage(workspaceAwarenessContent, modelConfigID))
 
-	return copiedParts, nil
-}
+	// The child shares the parent's workspace and agent, so it inherits
+	// workspace context the same way a top-level chat does: pinned from the
+	// agent's latest snapshot (see hydrateChatContextOnCreate below). The
+	// parent's context is not copied into child history.
+	initialMessages = append(initialMessages, userMessageWithAPIKeyID(userContent, modelConfigID, parent.OwnerID, childAPIKeyID))
 
-func updateChildLastInjectedContext(
-	ctx context.Context,
-	logger slog.Logger,
-	store database.Store,
-	chatID uuid.UUID,
-	parts []codersdk.ChatMessagePart,
-) error {
-	parts = FilterContextPartsToLatestAgent(parts)
-	param, err := BuildLastInjectedContext(parts)
+	publisher := p.pubsub
+	if publisher == nil {
+		publisher = dbpubsub.NewInMemory()
+	}
+	result, err := chatstate.CreateChat(ctx, p.db, publisher, chatstate.CreateChatInput{
+		OrganizationID:    parent.OrganizationID,
+		OwnerID:           parent.OwnerID,
+		WorkspaceID:       parent.WorkspaceID,
+		BuildID:           parent.BuildID,
+		AgentID:           parent.AgentID,
+		ParentChatID:      uuid.NullUUID{UUID: parent.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: rootChatID, Valid: true},
+		LastModelConfigID: modelConfigID,
+		Title:             title,
+		Mode:              opts.chatMode,
+		PlanMode:          childPlanMode,
+		MCPServerIDs:      mcpServerIDs,
+		Labels: pqtype.NullRawMessage{
+			RawMessage: labelsJSON,
+			Valid:      true,
+		},
+		DynamicTools:    pqtype.NullRawMessage{},
+		ClientType:      parent.ClientType,
+		InitialMessages: initialMessages,
+	})
 	if err != nil {
-		logger.Warn(ctx, "failed to marshal inherited injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return xerrors.Errorf("marshal inherited injected context: %w", err)
-	}
-	if _, err := store.UpdateChatLastInjectedContext(ctx, database.UpdateChatLastInjectedContextParams{
-		ID:                  chatID,
-		LastInjectedContext: param,
-	}); err != nil {
-		logger.Warn(ctx, "failed to update inherited injected context",
-			slog.F("chat_id", chatID),
-			slog.Error(err),
-		)
-		return xerrors.Errorf("update inherited injected context: %w", err)
+		return database.Chat{}, xerrors.Errorf("create child chat: %w", err)
 	}
 
-	return nil
+	child := result.Chat
+
+	// Pin the child to its agent's latest context snapshot, mirroring the
+	// top-level create path. The child shares the parent's workspace agent,
+	// so this reproduces the parent's workspace context without copying it
+	// through chat history.
+	p.hydrateChatContextOnCreate(ctx, child)
+
+	p.publishChatPubsubEvent(child, codersdk.ChatWatchEventKindCreated, nil)
+	return child, nil
 }
 
 func (p *Server) sendSubagentMessage(
@@ -1236,10 +1238,16 @@ func (p *Server) sendSubagentMessage(
 		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
 	}
 
+	apiKeyID, err := p.delegatedAPIKeyIDForSubagent(ctx)
+	if err != nil {
+		return database.Chat{}, err
+	}
+
 	sendResult, err := p.SendMessage(ctx, SendMessageOptions{
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
+		APIKeyID:     apiKeyID,
 		BusyBehavior: busyBehavior,
 	})
 	if err != nil {
@@ -1278,34 +1286,29 @@ func (p *Server) awaitSubagentCompletion(
 	timer := p.clock.NewTimer(timeout, "chatd", "subagent_await")
 	defer timer.Stop()
 
-	// When pubsub is available, subscribe for fast status
-	// notifications and use a less aggressive fallback poll.
-	// Without pubsub (single-instance / in-memory) fall back
-	// to the original 200ms polling.
-	pollInterval := subagentAwaitPollInterval
-	var notifyCh <-chan struct{}
-	if p.pubsub != nil {
-		pollInterval = subagentAwaitFallbackPoll
-		ch := make(chan struct{}, 1)
-		notifyCh = ch
-		cancel, subErr := p.pubsub.SubscribeWithErr(
-			coderdpubsub.ChatStreamNotifyChannel(targetChatID),
-			func(_ context.Context, _ []byte, _ error) {
-				// Non-blocking send so we never stall the
-				// pubsub dispatch goroutine.
-				select {
-				case ch <- struct{}{}:
-				default:
-				}
-			},
-		)
-		if subErr == nil {
-			defer cancel()
-		} else {
-			// Subscription failed; fall back to fast polling.
-			pollInterval = subagentAwaitPollInterval
-			notifyCh = nil
-		}
+	// Subscribe for fast status notifications and use a less
+	// aggressive fallback poll. If subscription fails, fall back to
+	// the original 200ms polling.
+	pollInterval := subagentAwaitFallbackPoll
+	ch := make(chan struct{}, 1)
+	notifyCh := (<-chan struct{})(ch)
+	cancel, subErr := p.pubsub.SubscribeWithErr(
+		coderdpubsub.ChatStateUpdateChannel(targetChatID),
+		func(_ context.Context, _ []byte, _ error) {
+			// Non-blocking send so we never stall the
+			// pubsub dispatch goroutine.
+			select {
+			case ch <- struct{}{}:
+			default:
+			}
+		},
+	)
+	if subErr == nil {
+		defer cancel()
+	} else {
+		// Subscription failed; fall back to fast polling.
+		pollInterval = subagentAwaitPollInterval
+		notifyCh = nil
 	}
 
 	ticker := p.clock.NewTicker(pollInterval, "chatd", "subagent_poll")
@@ -1316,7 +1319,7 @@ func (p *Server) awaitSubagentCompletion(
 		case <-notifyCh:
 		case <-ticker.C:
 		case <-timer.C:
-			return database.Chat{}, "", xerrors.New("timed out waiting for delegated subagent completion")
+			return database.Chat{}, "", ErrSubagentWaitTimeout
 		case <-ctx.Done():
 			return database.Chat{}, "", ctx.Err()
 		}
@@ -1332,7 +1335,9 @@ func (p *Server) awaitSubagentCompletion(
 }
 
 // handleSubagentDone translates a completed subagent check into the
-// appropriate return value, surfacing error-status chats as errors.
+// appropriate return value. An error-status chat is returned as a typed
+// subagentStatusError that carries the chat and report so the
+// wait_agent handler can surface a structured, recoverable-aware payload.
 func handleSubagentDone(
 	chat database.Chat,
 	report string,
@@ -1342,38 +1347,98 @@ func handleSubagentDone(
 		if reason == "" {
 			reason = "agent reached error status"
 		}
-		return database.Chat{}, "", xerrors.New(reason)
+		return database.Chat{}, "", &subagentStatusError{
+			chat:   chat,
+			report: report,
+			reason: reason,
+		}
 	}
 	return chat, report, nil
 }
 
-func (p *Server) closeSubagent(
+// subagentLastErrorMessage extracts the normalized, user-facing message
+// from a chat's last_error payload, falling back to the raw JSON when the
+// payload is not a recognized ChatError.
+func subagentLastErrorMessage(raw pqtype.NullRawMessage) string {
+	if !raw.Valid {
+		return ""
+	}
+	var payload codersdk.ChatError
+	if err := json.Unmarshal(raw.RawMessage, &payload); err == nil && payload.Message != "" {
+		return payload.Message
+	}
+	return string(raw.RawMessage)
+}
+
+// waitAgentSuccessResponse stops and stores the recording (if active) and
+// builds the normal completion payload for a wait_agent call.
+func (p *Server) waitAgentSuccessResponse(
+	ctx context.Context,
+	recordingID string,
+	agentConn workspacesdk.AgentConn,
+	parent database.Chat,
+	targetChat database.Chat,
+	report string,
+) fantasy.ToolResponse {
+	var recResult recordingResult
+	if recordingID != "" && agentConn != nil {
+		// Use a fresh context for cleanup so a canceled
+		// parent context does not prevent recording storage.
+		stopCtx, stopCancel := context.WithTimeout(context.WithoutCancel(ctx), subagentRecordingStopTimeout)
+		defer stopCancel()
+		recResult = p.stopAndStoreRecording(stopCtx, agentConn,
+			recordingID, parent.ID, parent.OwnerID, parent.WorkspaceID)
+	}
+	resp := withSubagentType(map[string]any{
+		"chat_id": targetChat.ID.String(),
+		"title":   targetChat.Title,
+		"report":  report,
+		"status":  string(targetChat.Status),
+	}, targetChat)
+	if recResult.recordingFileID != "" {
+		resp["recording_file_id"] = recResult.recordingFileID
+	}
+	if recResult.thumbnailFileID != "" {
+		resp["thumbnail_file_id"] = recResult.thumbnailFileID
+	}
+	return toolJSONResponse(resp)
+}
+
+func (p *Server) interruptSubagent(
 	ctx context.Context,
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
-) (database.Chat, error) {
+) (database.Chat, bool, error) {
 	isDescendant, err := isSubagentDescendant(ctx, p.db, parentChatID, targetChatID)
 	if err != nil {
-		return database.Chat{}, err
+		return database.Chat{}, false, err
 	}
 	if !isDescendant {
-		return database.Chat{}, ErrSubagentNotDescendant
+		return database.Chat{}, false, ErrSubagentNotDescendant
 	}
 
 	targetChat, err := p.db.GetChatByID(ctx, targetChatID)
 	if err != nil {
-		return database.Chat{}, xerrors.Errorf("get target chat: %w", err)
+		return database.Chat{}, false, xerrors.Errorf("get target chat: %w", err)
 	}
 
 	if targetChat.Status == database.ChatStatusWaiting {
-		return targetChat, nil
+		return targetChat, false, nil
 	}
 
-	updatedChat := p.InterruptChat(ctx, targetChat)
-	if updatedChat.Status != database.ChatStatusWaiting {
-		return database.Chat{}, xerrors.New("set target chat waiting")
+	updatedChat, err := p.InterruptChat(ctx, targetChat)
+	if err != nil {
+		// Idle / archived chats no longer satisfy the
+		// chatstate.Interrupt precondition. Surface the error
+		// so the caller can decide whether the parent expected
+		// the subagent to already be waiting.
+		return database.Chat{}, false, xerrors.Errorf("interrupt subagent chat: %w", err)
 	}
-	return updatedChat, nil
+	// chatstate.Interrupt lands active runs in `interrupting`
+	// and requires-action chats in `running`. Workers finalize
+	// the transition; accept either non-active status as long as
+	// the transition committed.
+	return updatedChat, true, nil
 }
 
 func (p *Server) checkSubagentCompletion(
@@ -1385,8 +1450,14 @@ func (p *Server) checkSubagentCompletion(
 		return database.Chat{}, "", false, xerrors.Errorf("get chat: %w", err)
 	}
 
-	if chat.Status == database.ChatStatusPending || chat.Status == database.ChatStatusRunning {
-		return database.Chat{}, "", false, nil
+	// interrupting is transient: the worker transitions it to
+	// waiting (no queued messages) or running (queued messages).
+	// Treat it as not-done so the agent settles before
+	// classification, avoiding stale partial output.
+	if chat.Status == database.ChatStatusPending ||
+		chat.Status == database.ChatStatusRunning ||
+		chat.Status == database.ChatStatusInterrupting {
+		return chat, "", false, nil
 	}
 
 	report, err := latestSubagentAssistantMessage(ctx, p.db, chatID)

@@ -8,7 +8,7 @@ export const ChatFullWidthSettings: FC = () => {
 	return (
 		<div className="flex flex-col gap-2">
 			<h3 className="m-0 text-sm font-semibold text-content-primary">
-				Chat Layout
+				Chat layout
 			</h3>
 			<div className="flex items-center justify-between gap-4">
 				<p className="m-0 flex-1 text-xs text-content-secondary">

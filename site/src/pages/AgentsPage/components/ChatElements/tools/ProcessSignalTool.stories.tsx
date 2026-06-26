@@ -7,13 +7,6 @@ const PROCESS_ID = "376b2458-e318-4442-8b87-51a0f9727f0e";
 const meta: Meta<typeof Tool> = {
 	title: "components/ai-elements/tool/ProcessSignal",
 	component: Tool,
-	decorators: [
-		(Story) => (
-			<div className="max-w-3xl rounded-lg border border-solid border-border-default bg-surface-primary p-4">
-				<Story />
-			</div>
-		),
-	],
 	args: { name: "process_signal" },
 };
 export default meta;

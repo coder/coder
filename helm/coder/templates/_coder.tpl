@@ -94,6 +94,10 @@ env:
       fieldPath: status.podIP
 - name: CODER_DERP_SERVER_RELAY_URL
   value: "http://$(KUBE_POD_IP):8080"
+- name: CODER_CLUSTER_HOST
+  valueFrom:
+    fieldRef:
+      fieldPath: status.podIP
 {{- include "coder.tlsEnv" . }}
 {{- with .Values.coder.env }}
 {{ toYaml . }}

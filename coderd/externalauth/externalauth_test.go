@@ -155,6 +155,11 @@ func TestRefreshToken(t *testing.T) {
 	// If a refresh token fails because the token itself is invalid, no more
 	// refresh attempts should ever happen. An invalid refresh token does
 	// not magically become valid at some point in the future.
+	//
+	// Internal retries are disabled in this subtest via a negative
+	// RefreshRetryTimeout so each RefreshToken call results in exactly one
+	// IDP refresh attempt. The RefreshTokenWithBackoff subtest covers the
+	// retry-with-backoff path.
 	t.Run("RefreshRetries", func(t *testing.T) {
 		t.Parallel()
 
@@ -177,7 +182,12 @@ func TestRefreshToken(t *testing.T) {
 					return nil, xerrors.New("should not be called")
 				}),
 			},
-			ExternalAuthOpt: func(cfg *externalauth.Config) {},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				// Negative timeout disables retries (1 IDP call per RefreshToken).
+				// A tiny positive timeout is unreliable on coarse-clock platforms
+				// (Windows).
+				cfg.RefreshRetryTimeout = -1
+			},
 		})
 
 		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
@@ -225,6 +235,104 @@ func TestRefreshToken(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
 		require.Equal(t, refreshCount, totalRefreshes)
+	})
+
+	// RefreshTokenWithBackoff tests that refreshes which fail with transient
+	// errors (HTTP 5xx, 429, network errors) are retried with exponential
+	// backoff so a temporary upstream glitch does not force users to
+	// re-authenticate. After enough successful retries, RefreshToken should
+	// return a valid token without surfacing the transient error.
+	t.Run("RefreshTokenWithBackoff", func(t *testing.T) {
+		t.Parallel()
+
+		db, _ := dbtestutil.NewDB(t)
+
+		const failuresBeforeSuccess = 3
+		var refreshCalls atomic.Int64
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					// Fail the first N attempts with a transient 5xx, then succeed.
+					if refreshCalls.Add(1) <= failuresBeforeSuccess {
+						return &oauth2.RetrieveError{
+							Response:  &http.Response{StatusCode: http.StatusInternalServerError},
+							ErrorCode: "server_error",
+						}
+					}
+					return nil
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				// Tight backoffs keep the test fast.
+				cfg.RefreshRetryInitialBackoff = time.Millisecond
+				cfg.RefreshRetryMaxBackoff = 5 * time.Millisecond
+				cfg.RefreshRetryTimeout = 5 * time.Second
+			},
+			DB: db,
+		})
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		oldAccessToken := link.OAuthAccessToken
+		link.OAuthExpiry = expired
+
+		updated, err := config.RefreshToken(ctx, db, link)
+		require.NoError(t, err, "transient errors should be retried until success")
+		require.Equal(t, int64(failuresBeforeSuccess+1), refreshCalls.Load(),
+			"refresh should have been retried until the IDP returned success")
+		require.NotEqual(t, oldAccessToken, updated.OAuthAccessToken,
+			"a new access token should have been issued")
+	})
+
+	// RefreshTokenBackoffPermanentError verifies that errors classified as
+	// permanent by isFailedRefresh (e.g. "bad_refresh_token") are not
+	// retried. Retrying a permanent failure wastes the refresh quota and,
+	// on providers with single-use refresh tokens, can mask a legitimate
+	// concurrent winner with repeated "bad_refresh_token" responses.
+	t.Run("RefreshTokenBackoffPermanentError", func(t *testing.T) {
+		t.Parallel()
+
+		ctrl := gomock.NewController(t)
+		mDB := dbmock.NewMockStore(ctrl)
+
+		var refreshCalls atomic.Int64
+		fake, config, link := setupOauth2Test(t, testConfig{
+			FakeIDPOpts: []oidctest.FakeIDPOpt{
+				oidctest.WithRefresh(func(_ string) error {
+					refreshCalls.Add(1)
+					return &oauth2.RetrieveError{
+						Response:  &http.Response{StatusCode: http.StatusOK},
+						ErrorCode: "bad_refresh_token",
+					}
+				}),
+			},
+			ExternalAuthOpt: func(cfg *externalauth.Config) {
+				cfg.Type = codersdk.EnhancedExternalAuthProviderGitHub.String()
+				// Generous backoff: a regression that incorrectly retried
+				// would re-run the failing refresh many times and the test
+				// would fail on the call-count assertion below.
+				cfg.RefreshRetryInitialBackoff = time.Millisecond
+				cfg.RefreshRetryMaxBackoff = 5 * time.Millisecond
+				cfg.RefreshRetryTimeout = time.Second
+			},
+		})
+
+		// The race-detection re-read returns the same refresh token so it
+		// does not look like a concurrent winner. The cached-failure write
+		// then proceeds. Each runs exactly once for a single refresh attempt.
+		mDB.EXPECT().GetExternalAuthLink(gomock.Any(), gomock.Any()).
+			Return(link, nil).Times(1)
+		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).
+			Return(nil).Times(1)
+
+		ctx := oidc.ClientContext(context.Background(), fake.HTTPClient(nil))
+		link.OAuthExpiry = expired
+
+		_, err := config.RefreshToken(ctx, mDB, link)
+		require.Error(t, err)
+		require.True(t, externalauth.IsInvalidTokenError(err))
+		require.Equal(t, int64(1), refreshCalls.Load(),
+			"permanent failures should not be retried")
 	})
 
 	// ConcurrentRefreshRace tests that when multiple concurrent requests
@@ -1230,6 +1338,20 @@ func TestConvertYAML(t *testing.T) {
 		}}, &url.URL{})
 		require.NoError(t, err)
 		require.Equal(t, 10*time.Second, configs[0].RevokeTimeout)
+	})
+
+	t.Run("SelfHostedGitLabAPIBaseURL", func(t *testing.T) {
+		t.Parallel()
+		configs, err := externalauth.ConvertConfig(instrument, []codersdk.ExternalAuthConfig{{
+			Type:         string(codersdk.EnhancedExternalAuthProviderGitLab),
+			ClientID:     "id",
+			ClientSecret: "secret",
+			AuthURL:      "https://gitlab.corp.com/oauth/authorize",
+			TokenURL:     "https://gitlab.corp.com/oauth/token",
+		}}, &url.URL{})
+		require.NoError(t, err)
+		require.Len(t, configs, 1)
+		require.Equal(t, "https://gitlab.corp.com/api/v4", configs[0].APIBaseURL)
 	})
 }
 

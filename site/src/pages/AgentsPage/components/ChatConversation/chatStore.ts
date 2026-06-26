@@ -32,13 +32,13 @@ const buildOrderedMessageIDs = (
 	// still exists in a later page). The Map-based messagesByID
 	// already deduplicates, but orderedMessageIDs must match.
 	const seen = new Set<number>();
-	return sorted
-		.map((message) => message.id)
-		.filter((id) => {
-			if (seen.has(id)) return false;
-			seen.add(id);
-			return true;
-		});
+	const orderedMessageIDs: number[] = [];
+	for (const message of sorted) {
+		if (seen.has(message.id)) continue;
+		seen.add(message.id);
+		orderedMessageIDs.push(message.id);
+	}
+	return orderedMessageIDs;
 };
 
 const mapsEqualByRef = <K, V>(left: Map<K, V>, right: Map<K, V>): boolean => {
@@ -142,7 +142,8 @@ const reconnectStatesEqual = (
 
 export const isActiveChatStatus = (
 	status: TypesGen.ChatStatus | null,
-): boolean => status === "running" || status === "pending";
+): boolean =>
+	status === "running" || status === "pending" || status === "interrupting";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -661,7 +662,7 @@ export const selectIsAwaitingFirstStreamChunk = (
 	const latestMessage = selectLatestDurableMessage(state);
 	const latestMessageNeedsAssistantResponse =
 		!latestMessage || latestMessage.role !== "assistant";
-	// Show the "Thinking..." indicator when the store has no stream
+	// Show the Thinking indicator when the store has no stream
 	// data yet and the conversation is waiting for an assistant
 	// response. For "running" status we use the existing broad
 	// check (any non-assistant latest message). For "pending" we

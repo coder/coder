@@ -1,0 +1,9 @@
+# SHA256 hashes of the extracted mise binary verified by jdx/mise-action.
+# Keys use the GitHub runner target for each release artifact.
+
+["2026.5.12"]
+linux-x64 = "a238972a3162d710b85b28c324372e96ca4e4b486c81fe78695000d9fbc77c48"
+linux-arm64 = "fd2d5227a8ad0b1e359c70527a8345a9ada72077f8dcbb559371653c3d95464f"
+macos-x64 = "de57e8dc82bbd880a69c9bc8aee06b9dcc578184b3e5cf86fcef80635d6a90b4"
+macos-arm64 = "e777070540ffe22cf8b2b9f88aed88b461d0887d940c4f1c1a97359463cde6e1"
+windows-x64 = "adf1b4c9f51e7d15cff723056fcd8fd51f40ebacadcca97fd5758c44d469d5ea"

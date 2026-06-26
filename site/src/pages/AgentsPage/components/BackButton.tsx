@@ -11,7 +11,7 @@ export const BackButton: FC<BackButtonProps> = ({ onClick }) => (
 		onClick={onClick}
 		className="mb-4 inline-flex cursor-pointer items-center gap-0.5 border-0 bg-transparent p-0 text-sm text-content-secondary transition-colors hover:text-content-primary"
 	>
-		<ChevronLeftIcon className="h-4 w-4" />
+		<ChevronLeftIcon className="size-4" />
 		Back
 	</button>
 );

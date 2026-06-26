@@ -41,12 +41,13 @@ export const getQueuedMessageInfo = (
 ): QueuedMessageInfo => {
 	const { content } = message;
 	const fileBlocks = content.filter((p) => p.type === "file");
-	const rawText = content
-		.filter((p) => p.type === "text")
-		.map((p) => p.text)
-		.filter((t): t is string => Boolean(t?.trim()))
-		.join(" ")
-		.trim();
+	const textParts: string[] = [];
+	for (const part of content) {
+		if (part.type === "text" && part.text?.trim()) {
+			textParts.push(part.text);
+		}
+	}
+	const rawText = textParts.join(" ").trim();
 
 	if (rawText) {
 		return {
@@ -209,7 +210,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 									aria-label={`${item.attachmentCount} image attachment${item.attachmentCount !== 1 ? "s" : ""}`}
 									className="flex shrink-0 items-center gap-1 text-xs text-content-secondary"
 								>
-									<ImageIcon className="h-3 w-3" aria-hidden="true" />
+									<ImageIcon className="size-3" aria-hidden="true" />
 									<span aria-hidden="true">{item.attachmentCount}</span>
 								</span>
 							)}
@@ -220,7 +221,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 										showActions ? "opacity-100" : "opacity-0",
 									)}
 								>
-									<CornerDownLeftIcon className="h-3 w-3" />
+									<CornerDownLeftIcon className="size-3" />
 									to send
 								</span>
 							)}
@@ -243,7 +244,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 												}
 												className="size-6 rounded text-content-secondary hover:bg-surface-tertiary hover:text-content-primary"
 											>
-												<PencilIcon className="h-3.5 w-3.5" />
+												<PencilIcon className="size-3.5" />
 											</Button>
 										</TooltipTrigger>
 										<TooltipContent side="top">Edit</TooltipContent>
@@ -262,7 +263,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											{isItemBusy && busyItem.action === "promote" ? (
 												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
-												<ArrowUpIcon className="h-3.5 w-3.5" />
+												<ArrowUpIcon className="size-3.5" />
 											)}
 										</Button>
 									</TooltipTrigger>
@@ -281,7 +282,7 @@ export const QueuedMessagesList: FC<QueuedMessagesListProps> = ({
 											{isItemBusy && busyItem.action === "delete" ? (
 												<Spinner className="h-3.5 w-3.5" loading />
 											) : (
-												<Trash2Icon className="h-3.5 w-3.5" />
+												<Trash2Icon className="size-3.5" />
 											)}
 										</Button>
 									</TooltipTrigger>

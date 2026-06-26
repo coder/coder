@@ -1,5 +1,5 @@
 import { ShieldIcon } from "lucide-react";
-import type { FC } from "react";
+import type { ComponentProps, FC, ReactNode } from "react";
 import { Link } from "react-router";
 import {
 	Tooltip,
@@ -13,44 +13,65 @@ type SettingsNavItemProps = {
 	label: string;
 	active: boolean;
 	adminOnly?: boolean;
+	ariaLabel?: string;
+	className?: string;
 	disabled?: boolean;
+	trailing?: ReactNode;
 	trailingIcon?: FC<{ className?: string }>;
 } & (
-	| { to: string; replace?: boolean; state?: unknown; onClick?: () => void }
+	| {
+			to: ComponentProps<typeof Link>["to"];
+			replace?: boolean;
+			state?: unknown;
+			onClick?: () => void;
+	  }
 	| { to?: never; replace?: never; state?: never; onClick: () => void }
 );
 
-const navItemClassName = (active: boolean, disabled: boolean | undefined) =>
+const navItemClassName = (
+	active: boolean,
+	disabled: boolean | undefined,
+	className: string | undefined,
+) =>
 	cn(
-		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-2 text-left text-sm cursor-pointer transition-colors no-underline",
+		"flex w-full items-center gap-2.5 rounded-md border-0 px-2.5 py-1.5 text-left text-sm cursor-pointer transition-colors no-underline",
 		active
 			? "bg-surface-quaternary/25 text-content-primary font-medium"
 			: "bg-transparent text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
 		disabled && "opacity-50 pointer-events-none",
+		className,
 	);
 
 const NavItemContent: FC<{
 	icon: FC<{ className?: string }>;
 	label: string;
 	adminOnly?: boolean;
+	trailing?: ReactNode;
 	trailingIcon?: FC<{ className?: string }>;
-}> = ({ icon: Icon, label, adminOnly, trailingIcon: TrailingIcon }) => (
+}> = ({
+	icon: Icon,
+	label,
+	adminOnly,
+	trailing,
+	trailingIcon: TrailingIcon,
+}) => (
 	<>
-		<Icon className="h-4 w-4 shrink-0" />
+		<Icon className="size-4 shrink-0" />
 		<span className="min-w-0 flex-1">{label}</span>
-		{(adminOnly || TrailingIcon) && (
+		{(adminOnly || trailing || TrailingIcon) && (
 			<span className="ml-auto flex items-center gap-2">
 				{adminOnly && (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<span className="inline-flex">
-								<ShieldIcon className="h-3 w-3 shrink-0 opacity-50" />
+								<ShieldIcon className="size-3 shrink-0 opacity-50" />
 							</span>
 						</TooltipTrigger>
 						<TooltipContent side="right">Admin only</TooltipContent>
 					</Tooltip>
 				)}
-				{TrailingIcon && <TrailingIcon className="h-4 w-4 shrink-0" />}
+				{TrailingIcon && <TrailingIcon className="size-4 shrink-0" />}
+				{trailing}
 			</span>
 		)}
 	</>
@@ -61,7 +82,10 @@ export const SettingsNavItem: FC<SettingsNavItemProps> = ({
 	label,
 	active,
 	adminOnly,
+	ariaLabel,
+	className,
 	disabled,
+	trailing,
 	trailingIcon,
 	...rest
 }) => {
@@ -72,14 +96,16 @@ export const SettingsNavItem: FC<SettingsNavItemProps> = ({
 				replace={rest.replace}
 				state={rest.state}
 				onClick={rest.onClick}
-				className={navItemClassName(active, disabled)}
+				className={navItemClassName(active, disabled, className)}
 				aria-current={active ? "page" : undefined}
+				aria-label={ariaLabel}
 				tabIndex={disabled ? -1 : undefined}
 			>
 				<NavItemContent
 					icon={icon}
 					label={label}
 					adminOnly={adminOnly}
+					trailing={trailing}
 					trailingIcon={trailingIcon}
 				/>
 			</Link>
@@ -91,13 +117,15 @@ export const SettingsNavItem: FC<SettingsNavItemProps> = ({
 			type="button"
 			onClick={rest.onClick}
 			disabled={disabled}
-			className={navItemClassName(active, disabled)}
+			className={navItemClassName(active, disabled, className)}
 			aria-current={active ? "page" : undefined}
+			aria-label={ariaLabel}
 		>
 			<NavItemContent
 				icon={icon}
 				label={label}
 				adminOnly={adminOnly}
+				trailing={trailing}
 				trailingIcon={trailingIcon}
 			/>
 		</button>

@@ -21,7 +21,8 @@ import (
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
+	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 // dirSum calculates a checksum of the files in a directory.
@@ -320,8 +321,6 @@ func TestTemplatePull_ToDir(t *testing.T) {
 			inv, root := clitest.New(t, "templates", "pull", template.Name, actualDest)
 			clitest.SetupConfig(t, templateAdmin, root)
 
-			ptytest.New(t).Attach(inv)
-
 			require.NoError(t, inv.Run())
 
 			// Validate behavior of choosing template name in the absence of an output path argument.
@@ -343,6 +342,8 @@ func TestTemplatePull_ToDir(t *testing.T) {
 func TestTemplatePull_FolderConflict(t *testing.T) {
 	t.Parallel()
 
+	logger := testutil.Logger(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
 	})
@@ -389,12 +390,13 @@ func TestTemplatePull_FolderConflict(t *testing.T) {
 	inv, root := clitest.New(t, "templates", "pull", template.Name, conflictDest)
 	clitest.SetupConfig(t, templateAdmin, root)
 
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
+	stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 	waiter := clitest.StartWithWaiter(t, inv)
 
-	pty.ExpectMatch("not empty")
-	pty.WriteLine("no")
+	stdout.ExpectMatch(ctx, "not empty")
+	stdin.WriteLine("no")
 
 	waiter.RequireError()
 

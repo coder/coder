@@ -56,6 +56,10 @@ const (
 	// Retry transient errors during SSH connection establishment.
 	sshRetryInterval = 2 * time.Second
 	sshMaxAttempts   = 10 // initial + retries per step
+
+	// Coder Connect DNS should answer locally, so a slow probe should fall
+	// back to the normal SSH tunnel.
+	coderConnectProbeTimeout = 100 * time.Millisecond
 )
 
 var (
@@ -425,7 +429,11 @@ func (r *RootCmd) ssh() *serpent.Command {
 				// search domain expansion, which can add 20-30s of
 				// delay on corporate networks with search domains
 				// configured.
-				exists, ccErr := workspacesdk.ExistsViaCoderConnect(ctx, coderConnectHost+".")
+				// Some DNS paths blackhole absolute .coder. lookups instead of
+				// returning NXDOMAIN, so keep fallback fast.
+				coderConnectCtx, coderConnectCancel := context.WithTimeout(ctx, coderConnectProbeTimeout)
+				exists, ccErr := workspacesdk.ExistsViaCoderConnect(coderConnectCtx, coderConnectHost+".")
+				coderConnectCancel()
 				if ccErr != nil {
 					logger.Debug(ctx, "failed to check coder connect",
 						slog.F("hostname", coderConnectHost),

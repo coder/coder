@@ -1,14 +1,8 @@
 import { useTheme } from "@emotion/react";
 import { File as FileViewer } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import { type ComponentPropsWithRef, type FC, memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
 import { cn } from "#/utils/cn";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -18,16 +12,18 @@ import {
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
 import { CreateWorkspaceTool } from "./CreateWorkspaceTool";
+import { DiffFileHeader } from "./DiffFileHeader";
 import { EditFilesTool } from "./EditFilesTool";
 import {
 	ExecuteAuthRequiredTool,
 	ExecuteTool as ExecuteToolComponent,
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
+import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
-import { ReadFileTool } from "./ReadFileTool";
+import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
 import { ReadSkillTool } from "./ReadSkillTool";
 import { ReadTemplateTool } from "./ReadTemplateTool";
 import { StartWorkspaceTool } from "./StartWorkspaceTool";
@@ -39,8 +35,7 @@ import {
 	isSubagentToolName,
 	type SubagentVariant,
 } from "./subagentDescriptor";
-import { ToolCollapsible } from "./ToolCollapsible";
-import { ToolIcon } from "./ToolIcon";
+import { ToolCall } from "./ToolCall";
 import { ToolLabel } from "./ToolLabel";
 import { getExecuteRenderData, shouldRenderTool } from "./toolVisibility";
 import {
@@ -51,10 +46,12 @@ import {
 	DIFFS_FONT_STYLE,
 	formatModelIntentLabel,
 	formatResultOutput,
+	formatToolInput,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
+	humanizeMCPToolName,
 	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
@@ -230,12 +227,15 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	shellToolDisplayMode,
 }) => {
 	const data = getExecuteRenderData(args, result);
+	const outputBlock = data.transcriptBlocks.find(
+		(block) => block.kind === "output",
+	);
 
 	if (data.authenticateURL) {
 		return (
 			<ExecuteAuthRequiredTool
 				command={data.command}
-				output={data.output}
+				output={outputBlock?.text ?? ""}
 				authenticateURL={data.authenticateURL}
 				providerLabel={data.providerLabel}
 			/>
@@ -244,7 +244,7 @@ const ExecuteRenderer: FC<ToolRendererProps> = ({
 	return (
 		<ExecuteToolComponent
 			command={data.command}
-			output={data.output}
+			transcriptBlocks={data.transcriptBlocks}
 			status={status}
 			isError={isError}
 			durationMs={data.durationMs}
@@ -269,6 +269,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 	const exitCode = rec
 		? (asNumber(rec.exit_code, { parseString: true }) ?? null)
 		: null;
+	const errorMessage = rec ? asString(rec.error || rec.message) : "";
 
 	return (
 		<ProcessOutputTool
@@ -276,6 +277,7 @@ const ProcessOutputRenderer: FC<ToolRendererProps> = ({
 			isRunning={status === "running"}
 			exitCode={exitCode}
 			isError={isError}
+			errorMessage={errorMessage || undefined}
 			killedBySignal={killedBySignal}
 			shellToolDisplayMode={shellToolDisplayMode}
 		/>
@@ -314,22 +316,12 @@ const ReadFileRenderer: FC<ToolRendererProps> = ({
 	args,
 	result,
 	isError,
-}) => {
-	const parsedArgs = parseArgs(args);
-	const path = parsedArgs ? asString(parsedArgs.path).trim() : "";
-	const rec = asRecord(result);
-	const content = rec ? asString(rec.content).trim() : "";
-
-	return (
-		<ReadFileTool
-			path={path || "file"}
-			content={content}
-			status={status}
-			isError={isError}
-			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
-		/>
-	);
-};
+}) => (
+	<ReadFileTool
+		{...getReadFileToolData({ args, result, isError })}
+		status={status}
+	/>
+);
 
 const ReadSkillRenderer: FC<ToolRendererProps> = ({
 	status,
@@ -502,9 +494,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 		streamSubagentStatus = subagentStatusOverrides?.get(chatId) || "";
 	}
 	const subagentStatus = streamSubagentStatus || resultSubagentStatus;
-	const durationMs = rec
-		? asNumber(rec.duration_ms, { parseString: true })
-		: undefined;
 	const report = rec ? asString(rec.report) : "";
 	const recordingFileId = rec ? asString(rec.recording_file_id) : "";
 	const thumbnailFileId = rec ? asString(rec.thumbnail_file_id) : "";
@@ -540,12 +529,14 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	}
 
 	// Detect timeout from the result. A timed-out wait_agent
-	// typically returns an error string or an object with an
-	// error field containing "timed out".
+	// returns a structured payload with timed_out: true
+	// (IsError=false), or an error string containing "timed out".
 	const resultStr = typeof result === "string" ? result : "";
 	const errorStr = rec ? asString(rec.error) : "";
 	let isTimeout = false;
-	if (subagentIsError) {
+	if (rec && rec.timed_out === true) {
+		isTimeout = true;
+	} else if (subagentIsError) {
 		const timedOutInResult = resultStr.toLowerCase().includes("timed out");
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
@@ -561,7 +552,6 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 			subagentStatus={subagentStatus}
 			prompt={prompt || undefined}
 			message={subagentMessage || undefined}
-			durationMs={chatId ? durationMs : undefined}
 			report={chatId ? report || undefined : undefined}
 			toolStatus={subagentToolStatus}
 			isError={subagentIsError}
@@ -595,6 +585,34 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ListAgentsRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const agents = rec && Array.isArray(rec.agents) ? rec.agents : [];
+	const total = rec
+		? (asNumber(rec.total, { parseString: true }) ?? agents.length)
+		: 0;
+
+	return (
+		<ListAgentsTool
+			agents={agents}
+			total={total}
+			status={status}
+			isError={isError}
+			errorMessage={
+				rec
+					? asString(rec.error || rec.message)
+					: typeof result === "string" && isError
+						? result
+						: undefined
+			}
 		/>
 	);
 };
@@ -822,6 +840,98 @@ const ComputerRenderer: FC<ToolRendererProps> = ({
 	);
 };
 
+type ToolFileViewerProps = {
+	label?: string;
+	file: ComponentPropsWithRef<typeof FileViewer>["file"];
+	options: ComponentPropsWithRef<typeof FileViewer>["options"];
+};
+
+const ToolFileViewer: FC<ToolFileViewerProps> = ({ label, file, options }) => (
+	<>
+		{label && (
+			<div className="mt-2 text-2xs font-medium text-content-secondary">
+				{label}
+			</div>
+		)}
+		<ScrollArea
+			className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+			viewportClassName="max-h-64"
+			orientation="both"
+			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
+		>
+			<FileViewer
+				file={file}
+				options={options}
+				style={DIFFS_FONT_STYLE}
+				renderCustomHeader={
+					options?.disableFileHeader
+						? undefined
+						: (file) => <DiffFileHeader file={file} />
+				}
+			/>
+		</ScrollArea>
+	</>
+);
+
+type GenericToolContentProps = {
+	toolInput: string | null;
+	fileContent: ReturnType<typeof getFileContentForViewer>;
+	fileContentOptions: ComponentPropsWithRef<typeof FileViewer>["options"];
+	isDark: boolean;
+	resultOutput: string | null;
+};
+
+const GenericToolContent: FC<GenericToolContentProps> = ({
+	toolInput,
+	fileContent,
+	fileContentOptions,
+	isDark,
+	resultOutput,
+}) => {
+	const output = fileContent
+		? {
+				file: { name: fileContent.path, contents: fileContent.content },
+				options: fileContentOptions,
+			}
+		: resultOutput
+			? {
+					file: { name: "output.json", contents: resultOutput },
+					options: getFileViewerOptionsNoHeader(isDark),
+				}
+			: undefined;
+
+	return (
+		<>
+			{toolInput && (
+				<ToolFileViewer
+					label="Input"
+					file={{ name: "input.json", contents: toolInput }}
+					options={getFileViewerOptionsNoHeader(isDark)}
+				/>
+			)}
+			{output && (
+				<ToolFileViewer
+					label={toolInput ? "Output" : undefined}
+					file={output.file}
+					options={output.options}
+				/>
+			)}
+		</>
+	);
+};
+
+const getGenericToolErrorMessage = ({
+	name,
+	mcpSlug,
+}: {
+	name: string;
+	mcpSlug?: string;
+}): string => {
+	const displayName = humanizeMCPToolName(mcpSlug ?? "", name);
+	return `${displayName} failed`;
+};
+
 const GenericToolRenderer: FC<ToolRendererProps> = ({
 	name,
 	status,
@@ -834,6 +944,7 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
+	const toolInput = formatToolInput(args);
 	const resultOutput = formatResultOutput(result);
 	const fileContent = getFileContentForViewer(name, args, result);
 	const fileViewerOpts = getFileViewerOptions(isDark);
@@ -850,88 +961,48 @@ const GenericToolRenderer: FC<ToolRendererProps> = ({
 		? mcpServers?.find((s) => s.id === mcpServerConfigId)
 		: undefined;
 
-	const hasContent = Boolean(fileContent || resultOutput);
-	const isRunning = status === "running";
+	const hasContent = Boolean(toolInput || fileContent || resultOutput);
 	const rec = asRecord(result);
 	const errorMessage = rec ? asString(rec.error || rec.message) : "";
-
-	const toolHeader = (
-		<>
-			<ToolIcon
-				name={name}
-				isError={status === "error" || isError}
-				iconUrl={mcpServer?.icon_url}
-				isRunning={isRunning}
-				serverName={mcpServer?.display_name}
-			/>
-			{modelIntent ? (
-				<span className="truncate text-[13px]">
-					{formatModelIntentLabel(modelIntent)}
-				</span>
-			) : (
-				<ToolLabel
-					name={name}
-					args={args}
-					result={result}
-					mcpSlug={mcpServer?.slug}
-				/>
-			)}
-			{isError && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-					</TooltipTrigger>
-					<TooltipContent>{errorMessage || "Tool call failed"}</TooltipContent>
-				</Tooltip>
-			)}
-			{isRunning && (
-				<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-			)}
-		</>
-	);
-
-	const toolContent = (
-		<>
-			{fileContent ? (
-				<ScrollArea
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName="max-h-64"
-					scrollBarClassName="w-1.5"
-				>
-					<FileViewer
-						file={{
-							name: fileContent.path,
-							contents: fileContent.content,
-						}}
-						options={fileContentOptions}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			) : (
-				resultOutput && (
-					<ScrollArea
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-						viewportClassName="max-h-64"
-						scrollBarClassName="w-1.5"
-					>
-						<FileViewer
-							file={{
-								name: "output.json",
-								contents: resultOutput,
-							}}
-							options={getFileViewerOptionsNoHeader(isDark)}
-							style={DIFFS_FONT_STYLE}
-						/>
-					</ScrollArea>
-				)
-			)}
-		</>
-	);
+	const fallbackErrorMessage = getGenericToolErrorMessage({
+		name,
+		mcpSlug: mcpServer?.slug,
+	});
 
 	return (
-		<ToolCollapsible hasContent={hasContent} header={toolHeader}>
-			{toolContent}
-		</ToolCollapsible>
+		<ToolCall.Root
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || fallbackErrorMessage}
+			hasContent={hasContent}
+		>
+			<ToolCall.Header
+				iconName={name}
+				iconUrl={mcpServer?.icon_url}
+				serverName={mcpServer?.display_name}
+				label={
+					modelIntent ? (
+						formatModelIntentLabel(modelIntent)
+					) : (
+						<ToolLabel
+							name={name}
+							args={args}
+							result={result}
+							mcpSlug={mcpServer?.slug}
+						/>
+					)
+				}
+			/>
+			<ToolCall.Content>
+				<GenericToolContent
+					toolInput={toolInput}
+					fileContent={fileContent}
+					fileContentOptions={fileContentOptions}
+					isDark={isDark}
+					resultOutput={resultOutput}
+				/>
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };
 
@@ -993,6 +1064,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	create_workspace: CreateWorkspaceRenderer,
 	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
+	list_agents: ListAgentsRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
@@ -1034,9 +1106,10 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = isSubagentToolName(name)
-			? SubagentRenderer
-			: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer =
+			isSubagentToolName(name) && name !== "list_agents"
+				? SubagentRenderer
+				: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;

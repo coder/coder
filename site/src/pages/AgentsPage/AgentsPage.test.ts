@@ -1,5 +1,7 @@
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
+import { shouldInvalidateFilteredChatList } from "./AgentsPage";
 import {
 	emptyInputStorageKey,
 	useEmptyStateDraft,
@@ -883,5 +885,47 @@ describe("useFileAttachments processResizes", () => {
 		// same as "uploading" and blocks dispatch.
 		expect(result.current.uploadStates.get(file)?.status).toBe("processing");
 		unmount();
+	});
+});
+
+const chatForFilterInvalidation = (
+	overrides: Partial<TypesGen.Chat> = {},
+): TypesGen.Chat =>
+	({
+		id: "chat-1",
+		archived: false,
+		parent_chat_id: null,
+		...overrides,
+	}) as TypesGen.Chat;
+
+describe(shouldInvalidateFilteredChatList.name, () => {
+	it.each<{
+		name: string;
+		updatedChat: TypesGen.Chat;
+		eventKind: TypesGen.ChatWatchEventKind;
+		expected: boolean;
+	}>([
+		{
+			name: "invalidates root chats for membership events",
+			updatedChat: chatForFilterInvalidation(),
+			eventKind: "diff_status_change",
+			expected: true,
+		},
+		{
+			name: "ignores non-membership events",
+			updatedChat: chatForFilterInvalidation(),
+			eventKind: "title_change",
+			expected: false,
+		},
+		{
+			name: "excludes child chats",
+			updatedChat: chatForFilterInvalidation({ parent_chat_id: "parent-1" }),
+			eventKind: "diff_status_change",
+			expected: false,
+		},
+	])("$name", ({ updatedChat, eventKind, expected }) => {
+		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
+			expected,
+		);
 	});
 });

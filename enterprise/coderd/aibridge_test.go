@@ -16,13 +16,11 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/cryptorand"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -30,625 +28,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
-
-func TestAIBridgeListInterceptions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("RequiresLicenseFeature", func(t *testing.T) {
-		t.Parallel()
-
-		dv := coderdtest.DeploymentValues(t)
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				// No aibridge feature
-				Features: license.Features{},
-			},
-		})
-
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // Owner role is irrelevant here.
-		_, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
-		require.Equal(t, "AI Bridge is a Premium feature. Contact sales!", sdkErr.Message)
-	})
-
-	t.Run("EmptyDB", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-		//nolint:gocritic // Owner role is irrelevant here.
-		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.Empty(t, res.Results)
-	})
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		user1, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-		user1Visible := database.VisibleUser{
-			ID:        user1.ID,
-			Username:  user1.Username,
-			Name:      user1.Name,
-			AvatarURL: user1.AvatarURL,
-		}
-
-		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		user2Visible := database.VisibleUser{
-			ID:        user2.ID,
-			Username:  user2.Username,
-			Name:      user2.Name,
-			AvatarURL: user2.AvatarURL,
-		}
-
-		// Insert a bunch of test data.
-		now := dbtime.Now()
-		i1ApiKey := sql.NullString{String: "some-api-key", Valid: true}
-		i1EndedAt := now.Add(-time.Hour + time.Minute)
-		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			APIKeyID:    i1ApiKey,
-			InitiatorID: user1.ID,
-			StartedAt:   now.Add(-time.Hour),
-		}, &i1EndedAt)
-		i1tok1 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now,
-		})
-		i1tok2 := dbgen.AIBridgeTokenUsage(t, db, database.InsertAIBridgeTokenUsageParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now.Add(-time.Minute),
-		})
-		i1up1 := dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now,
-		})
-		i1up2 := dbgen.AIBridgeUserPrompt(t, db, database.InsertAIBridgeUserPromptParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now.Add(-time.Minute),
-		})
-		i1tool1 := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now,
-		})
-		i1tool2 := dbgen.AIBridgeToolUsage(t, db, database.InsertAIBridgeToolUsageParams{
-			InterceptionID: i1.ID,
-			CreatedAt:      now.Add(-time.Minute),
-		})
-		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: user2.ID,
-			StartedAt:   now,
-		}, &now)
-
-		// Convert to SDK types for response comparison.
-		// You may notice that the ordering of the inner arrays are ASC, this is
-		// intentional.
-		i1SDK := db2sdk.AIBridgeInterception(i1, user1Visible, []database.AIBridgeTokenUsage{i1tok2, i1tok1}, []database.AIBridgeUserPrompt{i1up2, i1up1}, []database.AIBridgeToolUsage{i1tool2, i1tool1})
-		i2SDK := db2sdk.AIBridgeInterception(i2, user2Visible, nil, nil, nil)
-
-		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.Len(t, res.Results, 2)
-		require.Equal(t, i2SDK.ID, res.Results[0].ID)
-		require.Equal(t, i1SDK.ID, res.Results[1].ID)
-
-		require.Equal(t, &i1ApiKey.String, i1SDK.APIKeyID)
-		require.Nil(t, i2SDK.APIKeyID)
-
-		// Normalize timestamps in the response so we can compare the whole
-		// thing easily.
-		res.Results[0].StartedAt = i2SDK.StartedAt
-		res.Results[1].StartedAt = i1SDK.StartedAt
-		require.Len(t, res.Results[1].TokenUsages, 2)
-		require.Equal(t, i1SDK.TokenUsages[0].ID, res.Results[1].TokenUsages[0].ID)
-		require.Equal(t, i1SDK.TokenUsages[1].ID, res.Results[1].TokenUsages[1].ID)
-		res.Results[1].TokenUsages[0].CreatedAt = i1SDK.TokenUsages[0].CreatedAt
-		res.Results[1].TokenUsages[1].CreatedAt = i1SDK.TokenUsages[1].CreatedAt
-		require.Len(t, res.Results[1].UserPrompts, 2)
-		require.Equal(t, i1SDK.UserPrompts[0].ID, res.Results[1].UserPrompts[0].ID)
-		require.Equal(t, i1SDK.UserPrompts[1].ID, res.Results[1].UserPrompts[1].ID)
-		res.Results[1].UserPrompts[0].CreatedAt = i1SDK.UserPrompts[0].CreatedAt
-		res.Results[1].UserPrompts[1].CreatedAt = i1SDK.UserPrompts[1].CreatedAt
-		require.Len(t, res.Results[1].ToolUsages, 2)
-		require.Equal(t, i1SDK.ToolUsages[0].ID, res.Results[1].ToolUsages[0].ID)
-		require.Equal(t, i1SDK.ToolUsages[1].ID, res.Results[1].ToolUsages[1].ID)
-		res.Results[1].ToolUsages[0].CreatedAt = i1SDK.ToolUsages[0].CreatedAt
-		res.Results[1].ToolUsages[1].CreatedAt = i1SDK.ToolUsages[1].CreatedAt
-
-		// Time comparison
-		require.Len(t, res.Results, 2)
-		require.Equal(t, res.Results[0].ID, i2SDK.ID)
-		require.NotNil(t, res.Results[0].EndedAt)
-		require.WithinDuration(t, now, *res.Results[0].EndedAt, 5*time.Second)
-		res.Results[0].EndedAt = i2SDK.EndedAt
-		require.NotNil(t, res.Results[1].EndedAt)
-		res.Results[1].EndedAt = i1SDK.EndedAt
-
-		require.Equal(t, []codersdk.AIBridgeInterception{i2SDK, i1SDK}, res.Results)
-	})
-
-	t.Run("Pagination", func(t *testing.T) {
-		t.Parallel()
-
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		allInterceptionIDs := make([]uuid.UUID, 0, 20)
-
-		// Create 10 interceptions with the same started_at time. The returned
-		// order for these should still be deterministic.
-		now := dbtime.Now()
-		for i := range 10 {
-			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				ID:          uuid.UUID{byte(i)},
-				InitiatorID: firstUser.UserID,
-				StartedAt:   now,
-			}, &now)
-			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
-		}
-
-		// Create 10 interceptions with a random started_at time.
-		for i := range 10 {
-			randomOffset, err := cryptorand.Intn(10000)
-			require.NoError(t, err)
-			randomOffsetDur := time.Duration(randomOffset) * time.Second
-			endedAt := now.Add(randomOffsetDur + time.Minute)
-			interception := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-				ID:          uuid.UUID{byte(i + 10)},
-				InitiatorID: firstUser.UserID,
-				StartedAt:   now.Add(randomOffsetDur),
-			}, &endedAt)
-			allInterceptionIDs = append(allInterceptionIDs, interception.ID)
-		}
-
-		// Try to fetch with an invalid limit.
-		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				Limit: 1001,
-			},
-		})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Contains(t, sdkErr.Message, "Invalid pagination limit value.")
-		require.Empty(t, res.Results)
-
-		// Try to fetch with both after_id and offset pagination.
-		res, err = client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				AfterID: allInterceptionIDs[0],
-				Offset:  1,
-			},
-		})
-		require.ErrorAs(t, err, &sdkErr)
-		require.Contains(t, sdkErr.Message, "Query parameters have invalid values")
-		require.Contains(t, sdkErr.Detail, "Cannot use both after_id and offset pagination in the same request.")
-
-		// Iterate over all interceptions using both cursor and offset
-		// pagination modes.
-		for _, paginationMode := range []string{"after_id", "offset"} {
-			t.Run(paginationMode, func(t *testing.T) {
-				t.Parallel()
-
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				// Get all interceptions one by one using the given pagination
-				// mode.
-				getAllInterceptionsOneByOne := func() []uuid.UUID {
-					interceptionIDs := []uuid.UUID{}
-					for {
-						pagination := codersdk.Pagination{
-							Limit: 1,
-						}
-						if paginationMode == "after_id" {
-							if len(interceptionIDs) > 0 {
-								pagination.AfterID = interceptionIDs[len(interceptionIDs)-1]
-							}
-						} else {
-							pagination.Offset = len(interceptionIDs)
-						}
-						res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-							Pagination: pagination,
-						})
-						require.NoError(t, err)
-						if len(res.Results) == 0 {
-							break
-						}
-						require.EqualValues(t, len(allInterceptionIDs), res.Count)
-						require.Len(t, res.Results, 1)
-						interceptionIDs = append(interceptionIDs, res.Results[0].ID)
-					}
-					return interceptionIDs
-				}
-
-				// First attempt: get all interceptions one by one.
-				gotInterceptionIDs1 := getAllInterceptionsOneByOne()
-				// We should have all of the interceptions returned:
-				require.ElementsMatch(t, allInterceptionIDs, gotInterceptionIDs1)
-
-				// Second attempt: get all interceptions one by one again.
-				gotInterceptionIDs2 := getAllInterceptionsOneByOne()
-				// They should be returned in the exact same order.
-				require.Equal(t, gotInterceptionIDs1, gotInterceptionIDs2)
-			})
-		}
-	})
-
-	t.Run("InflightInterceptions", func(t *testing.T) {
-		t.Parallel()
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		now := dbtime.Now()
-		i1EndedAt := now.Add(time.Minute)
-		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-		}, &i1EndedAt)
-		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now.Add(-time.Hour),
-		}, nil)
-
-		res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 1, res.Count)
-		require.Len(t, res.Results, 1)
-		require.Equal(t, i1.ID, res.Results[0].ID)
-	})
-
-	t.Run("Authorized", func(t *testing.T) {
-		t.Parallel()
-		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		secondUserClient, secondUser := coderdtest.CreateAnotherUser(t, adminClient, firstUser.OrganizationID)
-
-		now := dbtime.Now()
-		i1EndedAt := now.Add(time.Minute)
-		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: firstUser.UserID,
-			StartedAt:   now,
-		}, &i1EndedAt)
-		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: secondUser.ID,
-			StartedAt:   now.Add(-time.Hour),
-		}, &now)
-
-		// Members cannot read AIBridge interceptions, not even their
-		// own (i2 is owned by secondUser).
-		res, err := secondUserClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 0, res.Count)
-		require.Empty(t, res.Results)
-
-		// Owner can see all interceptions, including secondUser's,
-		// proving the data exists and the member was filtered out.
-		res, err = adminClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{})
-		require.NoError(t, err)
-		require.EqualValues(t, 2, res.Count)
-		require.Len(t, res.Results, 2)
-		require.Equal(t, i1.ID, res.Results[0].ID)
-		require.Equal(t, i2.ID, res.Results[1].ID)
-	})
-
-	t.Run("Filter", func(t *testing.T) {
-		t.Parallel()
-		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		user1, err := client.User(ctx, codersdk.Me)
-		require.NoError(t, err)
-		user1Visible := database.VisibleUser{
-			ID:        user1.ID,
-			Username:  user1.Username,
-			Name:      user1.Name,
-			AvatarURL: user1.AvatarURL,
-		}
-
-		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
-		user2Visible := database.VisibleUser{
-			ID:        user2.ID,
-			Username:  user2.Username,
-			Name:      user2.Name,
-			AvatarURL: user2.AvatarURL,
-		}
-
-		// Insert a bunch of test data with varying filterable fields.
-		now := dbtime.Now()
-		i1EndedAt := now.Add(time.Minute)
-		i1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000001"),
-			InitiatorID: user1.ID,
-			Provider:    "one",
-			Model:       "one",
-			StartedAt:   now,
-		}, &i1EndedAt)
-		i2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
-			InitiatorID: user1.ID,
-			Provider:    "two",
-			Model:       "two",
-			StartedAt:   now.Add(-time.Hour),
-			Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
-		}, &now)
-		i3 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			ID:          uuid.MustParse("00000000-0000-0000-0000-000000000003"),
-			InitiatorID: user2.ID,
-			Provider:    "three",
-			Model:       "three",
-			StartedAt:   now.Add(-2 * time.Hour),
-			Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
-		}, &now)
-
-		// Convert to SDK types for response comparison. We don't care about the
-		// inner arrays for this test.
-		i1SDK := db2sdk.AIBridgeInterception(i1, user1Visible, nil, nil, nil)
-		i2SDK := db2sdk.AIBridgeInterception(i2, user1Visible, nil, nil, nil)
-		i3SDK := db2sdk.AIBridgeInterception(i3, user2Visible, nil, nil, nil)
-
-		cases := []struct {
-			name   string
-			filter codersdk.AIBridgeListInterceptionsFilter
-			want   []codersdk.AIBridgeInterception
-		}{
-			{
-				name:   "NoFilter",
-				filter: codersdk.AIBridgeListInterceptionsFilter{},
-				want:   []codersdk.AIBridgeInterception{i1SDK, i2SDK, i3SDK},
-			},
-			{
-				name:   "Initiator/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: uuid.New().String()},
-				want:   []codersdk.AIBridgeInterception{},
-			},
-			{
-				name:   "Initiator/Me",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: codersdk.Me},
-				want:   []codersdk.AIBridgeInterception{i1SDK, i2SDK},
-			},
-			{
-				name:   "Initiator/UserID",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: user2.ID.String()},
-				want:   []codersdk.AIBridgeInterception{i3SDK},
-			},
-			{
-				name:   "Initiator/Username",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Initiator: user2.Username},
-				want:   []codersdk.AIBridgeInterception{i3SDK},
-			},
-			{
-				name:   "Provider/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "nonsense"},
-				want:   []codersdk.AIBridgeInterception{},
-			},
-			{
-				name:   "Provider/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Provider: "two"},
-				want:   []codersdk.AIBridgeInterception{i2SDK},
-			},
-			{
-				name:   "Model/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Model: "nonsense"},
-				want:   []codersdk.AIBridgeInterception{},
-			},
-			{
-				name:   "Model/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Model: "three"},
-				want:   []codersdk.AIBridgeInterception{i3SDK},
-			},
-			{
-				name:   "Client/Unknown",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: string(aiblib.ClientUnknown)},
-				want:   []codersdk.AIBridgeInterception{i1SDK},
-			},
-			{
-				name:   "Client/Match",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: string(aiblib.ClientCursor)},
-				want:   []codersdk.AIBridgeInterception{i2SDK},
-			},
-			{
-				name:   "Client/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{Client: "nonsense"},
-				want:   []codersdk.AIBridgeInterception{},
-			},
-			{
-				name: "StartedAfter/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedAfter: i1.StartedAt.Add(10 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{},
-			},
-			{
-				name: "StartedAfter/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedAfter: i2.StartedAt.Add(-10 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{i1SDK, i2SDK},
-			},
-			{
-				name: "StartedBefore/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedBefore: i3.StartedAt.Add(-10 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{},
-			},
-			{
-				name: "StartedBefore/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedBefore: i3.StartedAt.Add(10 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{i3SDK},
-			},
-			{
-				name: "BothBeforeAndAfter/NoMatch",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedAfter:  i1.StartedAt.Add(10 * time.Minute),
-					StartedBefore: i1.StartedAt.Add(20 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{},
-			},
-			{
-				name: "BothBeforeAndAfter/OK",
-				filter: codersdk.AIBridgeListInterceptionsFilter{
-					StartedAfter:  i2.StartedAt.Add(-10 * time.Minute),
-					StartedBefore: i2.StartedAt.Add(10 * time.Minute),
-				},
-				want: []codersdk.AIBridgeInterception{i2SDK},
-			},
-		}
-
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-				res, err := client.AIBridgeListInterceptions(ctx, tc.filter)
-				require.NoError(t, err)
-				require.EqualValues(t, len(tc.want), res.Count)
-				// We just compare UUID strings for the sake of this test.
-				wantIDs := make([]string, len(tc.want))
-				for i, r := range tc.want {
-					wantIDs[i] = r.ID.String()
-				}
-				gotIDs := make([]string, len(res.Results))
-				for i, r := range res.Results {
-					gotIDs[i] = r.ID.String()
-				}
-				require.Equal(t, wantIDs, gotIDs)
-			})
-		}
-	})
-
-	t.Run("FilterByMe/MemberCannotReadOwn", func(t *testing.T) {
-		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
-		ownerClient, db, firstUser := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureAIBridge: 1,
-				},
-			},
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, firstUser.OrganizationID)
-
-		now := dbtime.Now()
-		// Create an interception initiated by the member.
-		_ = dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID: member.ID,
-			StartedAt:   now,
-		}, nil)
-
-		// Member cannot read their own interceptions, even when
-		// filtering by "me".
-		res, err := memberClient.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Initiator: codersdk.Me,
-		})
-		require.NoError(t, err)
-		require.EqualValues(t, 0, res.Count)
-		require.Empty(t, res.Results)
-	})
-
-	t.Run("FilterErrors", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-
-		// No need to insert any test data, we're just testing the filter
-		// errors.
-
-		cases := []struct {
-			name string
-			q    string
-			want []codersdk.ValidationError
-		}{
-			{
-				name: "UnknownUsername",
-				q:    "initiator:unknown",
-				want: []codersdk.ValidationError{
-					{
-						Field:  "initiator",
-						Detail: `Query param "initiator" has invalid value: user "unknown" either does not exist, or you are unauthorized to view them`,
-					},
-				},
-			},
-			{
-				name: "InvalidStartedAfter",
-				q:    "started_after:invalid",
-				want: []codersdk.ValidationError{
-					{
-						Field:  "started_after",
-						Detail: `Query param "started_after" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
-					},
-				},
-			},
-			{
-				name: "InvalidStartedBefore",
-				q:    "started_before:invalid",
-				want: []codersdk.ValidationError{
-					{
-						Field:  "started_before",
-						Detail: `Query param "started_before" must be a valid date format (2006-01-02T15:04:05.999999999Z07:00): parsing time "INVALID" as "2006-01-02T15:04:05.999999999Z07:00": cannot parse "INVALID" as "2006"`,
-					},
-				},
-			},
-			{
-				name: "InvalidBeforeAfterRange",
-				// Before MUST be after After if both are set
-				q: `started_after:"2025-01-01T00:00:00Z" started_before:"2024-01-01T00:00:00Z"`,
-				want: []codersdk.ValidationError{
-					{
-						Field:  "started_before",
-						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
-					},
-				},
-			},
-		}
-
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-				res, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-					FilterQuery: tc.q,
-				})
-				var sdkErr *codersdk.Error
-				require.ErrorAs(t, err, &sdkErr)
-				require.Equal(t, tc.want, sdkErr.Validations)
-				require.Empty(t, res.Results)
-			})
-		}
-	})
-
-	t.Run("InvalidCursor", func(t *testing.T) {
-		t.Parallel()
-		client, _ := coderdenttest.New(t, aibridgeOpts(t))
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Using a nonexistent UUID as after_id should return 400,
-		// not silently return an empty page.
-		//nolint:gocritic // Owner role is irrelevant here.
-		_, err := client.AIBridgeListInterceptions(ctx, codersdk.AIBridgeListInterceptionsFilter{
-			Pagination: codersdk.Pagination{
-				AfterID: uuid.New(),
-			},
-		})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Contains(t, sdkErr.Message, "Invalid pagination cursor")
-	})
-}
 
 func aibridgeOpts(t *testing.T) *coderdenttest.Options {
 	t.Helper()
@@ -664,6 +43,20 @@ func aibridgeOpts(t *testing.T) *coderdenttest.Options {
 			},
 		},
 	}
+}
+
+// auditLogsByAction indexes audit rows by their action so callers can assert
+// on a specific entry without relying on row order, which GetAuditLogsOffset
+// does not guarantee. It requires every action among the rows to be unique.
+func auditLogsByAction(t *testing.T, rows []database.GetAuditLogsOffsetRow) map[database.AuditAction]database.AuditLog {
+	t.Helper()
+	byAction := make(map[database.AuditAction]database.AuditLog, len(rows))
+	for _, r := range rows {
+		_, dup := byAction[r.AuditLog.Action]
+		require.Falsef(t, dup, "duplicate audit action %q: helper assumes distinct actions", r.AuditLog.Action)
+		byAction[r.AuditLog.Action] = r.AuditLog
+	}
+	return byAction
 }
 
 func TestAIBridgeListSessions(t *testing.T) {
@@ -1790,20 +1183,20 @@ func TestAIBridgeListClients(t *testing.T) {
 		Client:      sql.NullString{String: string(aiblib.ClientClaudeCode), Valid: true},
 	}, &endedAt)
 
-	// Completed interception with no client — should appear as "Unknown".
+	// Completed interception with no client. Should appear as "Unknown".
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
 	}, &endedAt)
 
-	// Duplicate client — should be deduplicated in results.
+	// Duplicate client. Should be deduplicated in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
 		Client:      sql.NullString{String: string(aiblib.ClientCursor), Valid: true},
 	}, &endedAt)
 
-	// In-flight interception (no ended_at) — must NOT appear in results.
+	// In-flight interception (no ended_at). Must NOT appear in results.
 	dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
 		InitiatorID: firstUser.UserID,
 		StartedAt:   now,
@@ -1844,7 +1237,7 @@ func TestAIBridgeRouting(t *testing.T) {
 		rw.WriteHeader(http.StatusOK)
 		_, _ = rw.Write([]byte(r.URL.Path))
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	cases := []struct {
 		name         string
@@ -1853,7 +1246,7 @@ func TestAIBridgeRouting(t *testing.T) {
 	}{
 		{
 			name:         "StablePrefix",
-			path:         "/api/v2/aibridge/openai/v1/chat/completions",
+			path:         "/api/v2/ai-gateway/openai/v1/chat/completions",
 			expectedPath: "/openai/v1/chat/completions",
 		},
 	}
@@ -1907,11 +1300,11 @@ func TestAIBridgeRateLimiting(t *testing.T) {
 	testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Make requests up to the limit - should succeed.
 	for range 2 {
@@ -1967,11 +1360,11 @@ func TestAIBridgeConcurrencyLimiting(t *testing.T) {
 		<-unblock
 		rw.WriteHeader(http.StatusOK)
 	})
-	api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+	api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	httpClient := &http.Client{}
-	url := client.URL.String() + "/api/v2/aibridge/test"
+	url := client.URL.String() + "/api/v2/ai-gateway/test"
 
 	// Start a request that will block.
 	done := make(chan struct{})
@@ -2076,6 +1469,53 @@ func TestAIBridgeGetSessionThreads(t *testing.T) {
 		require.Len(t, res.Threads, 1)
 		require.Equal(t, "byok", res.Threads[0].CredentialKind)
 		require.Equal(t, "sk-a...efgh", res.Threads[0].CredentialHint)
+	})
+
+	t.Run("ThreadsWithAgentFirewallCorrelation", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		fwSessionID := uuid.New()
+
+		// Thread with firewall correlation on the root interception.
+		rootEndedAt := now.Add(time.Minute)
+		root := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:                 firstUser.UserID,
+			Provider:                    "anthropic",
+			Model:                       "claude-sonnet-4-20250514",
+			StartedAt:                   now,
+			ClientSessionID:             sql.NullString{String: "fw-session", Valid: true},
+			AgentFirewallSessionID:      uuid.NullUUID{UUID: fwSessionID, Valid: true},
+			AgentFirewallSequenceNumber: sql.NullInt32{Int32: 5, Valid: true},
+		}, &rootEndedAt)
+
+		// Thread without firewall correlation in the same session.
+		noFWEndedAt := now.Add(2 * time.Minute)
+		dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+			InitiatorID:     firstUser.UserID,
+			Provider:        "openai",
+			Model:           "gpt-4",
+			StartedAt:       now.Add(time.Minute),
+			ClientSessionID: sql.NullString{String: "fw-session", Valid: true},
+		}, &noFWEndedAt)
+
+		res, err := client.AIBridgeGetSessionThreads(ctx, "fw-session", uuid.Nil, uuid.Nil, 0)
+		require.NoError(t, err)
+		require.Equal(t, "fw-session", res.ID)
+		require.Len(t, res.Threads, 2)
+
+		// First thread has firewall correlation.
+		require.Equal(t, root.ID, res.Threads[0].ID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSessionID)
+		require.Equal(t, fwSessionID, *res.Threads[0].AgentFirewallSessionID)
+		require.NotNil(t, res.Threads[0].AgentFirewallSequenceNumber)
+		require.Equal(t, int32(5), *res.Threads[0].AgentFirewallSequenceNumber)
+
+		// Second thread has no firewall correlation.
+		require.Nil(t, res.Threads[1].AgentFirewallSessionID)
+		require.Nil(t, res.Threads[1].AgentFirewallSequenceNumber)
 	})
 
 	t.Run("ThreadsWithAgenticActions", func(t *testing.T) {
@@ -2583,10 +2023,10 @@ func TestAIBridgeAllowBYOK(t *testing.T) {
 			testHandler := http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
 				rw.WriteHeader(http.StatusOK)
 			})
-			api.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
+			api.AGPL.RegisterInMemoryAIBridgedHTTPHandler(testHandler)
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			reqURL := client.URL.String() + "/api/v2/aibridge/test"
+			reqURL := client.URL.String() + "/api/v2/ai-gateway/test"
 			req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, nil)
 			require.NoError(t, err)
 			req.Header.Set(codersdk.SessionTokenHeader, client.SessionToken())
@@ -2829,19 +2269,21 @@ func TestGroupAIBudget(t *testing.T) {
 		rows, err := db.GetAuditLogsOffset(
 			ctx,
 			database.GetAuditLogsOffsetParams{
-				ResourceType: string(database.ResourceTypeGroupAiBudget),
+				ResourceType: string(database.ResourceTypeGroupAIBudget),
 				LimitOpt:     10,
 			},
 		)
 		require.NoError(t, err)
 		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
-		// GetAuditLogsOffset returns entries sorted by time in descending order.
-		upsertLog := rows[1].AuditLog
-		deleteLog := rows[0].AuditLog
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
 
 		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
 		require.Equal(t, group.ID, upsertLog.ResourceID)
-		require.Equal(t, database.ResourceTypeGroupAiBudget, upsertLog.ResourceType)
+		require.Equal(t, database.ResourceTypeGroupAIBudget, upsertLog.ResourceType)
 		require.Equal(t, group.Name, upsertLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
 
@@ -2859,7 +2301,7 @@ func TestGroupAIBudget(t *testing.T) {
 
 		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
 		require.Equal(t, group.ID, deleteLog.ResourceID)
-		require.Equal(t, database.ResourceTypeGroupAiBudget, deleteLog.ResourceType)
+		require.Equal(t, database.ResourceTypeGroupAIBudget, deleteLog.ResourceType)
 		require.Equal(t, group.Name, deleteLog.ResourceTarget)
 		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
 
@@ -2869,6 +2311,713 @@ func TestGroupAIBudget(t *testing.T) {
 		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
 		require.Equal(t, "", deleteDiff["spend_limit"].New)
 	})
+}
+
+func TestUserAIBudgetOverride(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Upsert/CreatesAndUpdates", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// First upsert creates the override.
+		newOverride, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, targetUser.ID, newOverride.UserID)
+		require.Equal(t, group.ID, newOverride.GroupID)
+		require.EqualValues(t, 500_000_000, newOverride.SpendLimitMicros)
+
+		// Second upsert updates the existing override.
+		updatedOverride, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1_000_000_000, updatedOverride.SpendLimitMicros)
+
+		// GET returns the latest value.
+		currentOverride, err := adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1_000_000_000, currentOverride.SpendLimitMicros)
+	})
+
+	t.Run("Upsert/ReassignsGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, groupA := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// First upsert: attribute spend to groupA.
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupA.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Create groupB in the same org and add the target user.
+		groupB, err := adminClient.CreateGroup(ctx, targetUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
+			Name: "reassign-test-group-b",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupB.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Reassign the override's attribution to groupB.
+		updated, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+		require.Equal(t, groupB.ID, updated.GroupID, "upsert should change attributed group")
+
+		// GET reflects the new group.
+		got, err := adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err)
+		require.Equal(t, groupB.ID, got.GroupID, "GET should reflect new group")
+	})
+
+	t.Run("Upsert/EveryoneGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The Everyone group has id == organization_id, and the target user
+		// is implicitly a member via organization_members rather than
+		// group_members. The membership trigger queries
+		// group_members_expanded (a UNION of both tables), so this case
+		// exercises the organization_members branch.
+		everyoneGroupID := targetUser.OrganizationIDs[0]
+
+		override, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          everyoneGroupID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err, "should be able to attribute override to Everyone group")
+		require.Equal(t, targetUser.ID, override.UserID)
+		require.Equal(t, everyoneGroupID, override.GroupID)
+		require.EqualValues(t, 500_000_000, override.SpendLimitMicros)
+	})
+
+	t.Run("Upsert/AcceptsZeroSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// 0 is a valid value: it blocks all spend for the user.
+		override, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 0,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 0, override.SpendLimitMicros)
+	})
+
+	t.Run("Upsert/RejectsNegativeSpend", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: -1,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("Upsert/RejectsUnknownGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// A group_id that doesn't exist (or that the caller can't see)
+		// is rejected by the visibility check before the membership check.
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          uuid.New(),
+			SpendLimitMicros: 500_000_000,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("Upsert/RejectsNonMemberGroup", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// Create a second group the target is NOT a member of.
+		outsiderGroup, err := adminClient.CreateGroup(ctx, targetUser.OrganizationIDs[0], codersdk.CreateGroupRequest{
+			Name: "outsider-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          outsiderGroup.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	})
+
+	t.Run("Get/AbsentReturns404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("Get/UnknownUserReturns404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, _, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UserAIBudgetOverride(ctx, uuid.New())
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("Delete/RoundTrip", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, group := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		require.NoError(t, adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID))
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("Delete/AbsentReturns404", func(t *testing.T) {
+		t.Parallel()
+
+		adminClient, targetUser, _ := setupUserAIBudgetOverrideTest(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+	})
+
+	t.Run("Audit/CreatesAndDeletes", func(t *testing.T) {
+		t.Parallel()
+
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "override-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// Upsert (create-or-update) emits an AuditActionWrite entry.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Delete emits an AuditActionDelete entry against the same resource.
+		require.NoError(t, adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID))
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one upsert and one delete audit entry")
+		// Match rows by action, not position. GetAuditLogsOffset does not
+		// guarantee row order.
+		byAction := auditLogsByAction(t, rows)
+		upsertLog := byAction[database.AuditActionWrite]
+		deleteLog := byAction[database.AuditActionDelete]
+
+		require.Equal(t, database.AuditActionWrite, upsertLog.Action)
+		require.Equal(t, targetUser.ID, upsertLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAIBudgetOverride, upsertLog.ResourceType)
+		require.Equal(t, targetUser.Username, upsertLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, upsertLog.OrganizationID)
+
+		var upsertDiff audit.Map
+		require.NoError(t, json.Unmarshal(upsertLog.Diff, &upsertDiff))
+		require.Contains(t, upsertDiff, "spend_limit")
+		require.Equal(t, "$0.00", upsertDiff["spend_limit"].Old)
+		require.Equal(t, "$500.00", upsertDiff["spend_limit"].New)
+		require.Contains(t, upsertDiff, "group_name")
+		require.Equal(t, "", upsertDiff["group_name"].Old)
+		require.Equal(t, group.Name, upsertDiff["group_name"].New)
+		require.Contains(t, upsertDiff, "group_id")
+		require.Equal(t, "", upsertDiff["group_id"].Old)
+		require.Equal(t, group.ID.String(), upsertDiff["group_id"].New)
+		// Fields marked ActionIgnore must not appear in the diff.
+		require.NotContains(t, upsertDiff, "user_id")
+		require.NotContains(t, upsertDiff, "username")
+		require.NotContains(t, upsertDiff, "spend_limit_micros")
+		require.NotContains(t, upsertDiff, "created_at")
+		require.NotContains(t, upsertDiff, "updated_at")
+
+		require.Equal(t, database.AuditActionDelete, deleteLog.Action)
+		require.Equal(t, targetUser.ID, deleteLog.ResourceID)
+		require.Equal(t, database.ResourceTypeUserAIBudgetOverride, deleteLog.ResourceType)
+		require.Equal(t, targetUser.Username, deleteLog.ResourceTarget)
+		require.Equal(t, owner.OrganizationID, deleteLog.OrganizationID)
+
+		var deleteDiff audit.Map
+		require.NoError(t, json.Unmarshal(deleteLog.Diff, &deleteDiff))
+		require.Contains(t, deleteDiff, "spend_limit")
+		require.Equal(t, "$500.00", deleteDiff["spend_limit"].Old)
+		require.Equal(t, "", deleteDiff["spend_limit"].New)
+		require.Contains(t, deleteDiff, "group_name")
+		require.Equal(t, group.Name, deleteDiff["group_name"].Old)
+		require.Equal(t, "", deleteDiff["group_name"].New)
+		require.Contains(t, deleteDiff, "group_id")
+		require.Equal(t, group.ID.String(), deleteDiff["group_id"].Old)
+		require.Equal(t, "", deleteDiff["group_id"].New)
+	})
+
+	t.Run("Audit/DeleteAbsentEmitsNoEntry", func(t *testing.T) {
+		t.Parallel()
+
+		// Deleting an override that does not exist must not emit an audit log entry.
+		db, adminClient, _, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		err := adminClient.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Empty(t, rows, "no audit entry expected when delete returns 404")
+	})
+
+	t.Run("Audit/UpsertEverything", func(t *testing.T) {
+		t.Parallel()
+
+		// A second upsert that reassigns the attributed group and changes
+		// the spend limit must record the prior state as the audit
+		// before-state.
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		groupA, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "reassign-audit-a",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupA.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		groupB, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "reassign-audit-b",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, groupB.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// First upsert: create the override attributed to groupA.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupA.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Second upsert: reassign to groupB and raise the spend limit.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          groupB.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one create and one update audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		updateLog := rows[0].AuditLog
+
+		var updateDiff audit.Map
+		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
+		require.Contains(t, updateDiff, "group_name")
+		require.Equal(t, groupA.Name, updateDiff["group_name"].Old)
+		require.Equal(t, groupB.Name, updateDiff["group_name"].New)
+		require.Contains(t, updateDiff, "group_id")
+		require.Equal(t, groupA.ID.String(), updateDiff["group_id"].Old)
+		require.Equal(t, groupB.ID.String(), updateDiff["group_id"].New)
+		require.Contains(t, updateDiff, "spend_limit")
+		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
+		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+	})
+
+	t.Run("Audit/UpsertSpendLimit", func(t *testing.T) {
+		t.Parallel()
+
+		// A second upsert that keeps the same group and only changes the
+		// spend limit must produce a diff that contains spend_limit and omits
+		// the unchanged group_name and group_id.
+		db, adminClient, owner, targetUser := setupUserAIBudgetOverrideAuditTest(t)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "spend-only-audit",
+		})
+		require.NoError(t, err)
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		// First upsert: create the override attributed to the group.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err)
+
+		// Second upsert: keep the same group, raise only the spend limit.
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 1_000_000_000,
+		})
+		require.NoError(t, err)
+
+		rows, err := db.GetAuditLogsOffset(
+			ctx,
+			database.GetAuditLogsOffsetParams{
+				ResourceType: string(database.ResourceTypeUserAIBudgetOverride),
+				LimitOpt:     10,
+			},
+		)
+		require.NoError(t, err)
+		require.Len(t, rows, 2, "expected one create and one update audit entry")
+		// GetAuditLogsOffset returns entries sorted by time in descending order.
+		updateLog := rows[0].AuditLog
+
+		var updateDiff audit.Map
+		require.NoError(t, json.Unmarshal(updateLog.Diff, &updateDiff))
+		require.Contains(t, updateDiff, "spend_limit")
+		require.Equal(t, "$500.00", updateDiff["spend_limit"].Old)
+		require.Equal(t, "$1000.00", updateDiff["spend_limit"].New)
+		require.NotContains(t, updateDiff, "group_name")
+		require.NotContains(t, updateDiff, "group_id")
+		require.NotContains(t, updateDiff, "spend_limit_micros")
+	})
+}
+
+// TestUserAIBudgetOverrideRoleAccess verifies the authz matrix for the roles
+// expected to interact with user budget overrides:
+//
+//   - Owner / UserAdmin: full CRUD.
+//   - OrgAdmin / OrgUserAdmin: read-only. Writes require ActionUpdate on the
+//     User resource (site-scoped), which neither role has.
+//
+//nolint:tparallel // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
+func TestUserAIBudgetOverrideRoleAccess(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	userAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	orgAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgAdmin(owner.OrganizationID))
+	orgUserAdminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgUserAdmin(owner.OrganizationID))
+
+	setupCtx := testutil.Context(t, testutil.WaitLong)
+	group, err := userAdminClient.CreateGroup(setupCtx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "role-access-group",
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		Name     string
+		Client   *codersdk.Client
+		CanWrite bool
+	}{
+		{Name: "Owner", Client: ownerClient, CanWrite: true},
+		{Name: "UserAdmin", Client: userAdminClient, CanWrite: true},
+		{Name: "OrgAdmin", Client: orgAdminClient, CanWrite: false},
+		{Name: "OrgUserAdmin", Client: orgUserAdminClient, CanWrite: false},
+	}
+
+	//nolint:paralleltest // Subtests run sequentially: they share the same deployment and group, and parallel PatchGroup calls on the same group race.
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			// Each case gets a fresh target user.
+			_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			_, err := userAdminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+				AddUsers: []string{targetUser.ID.String()},
+			})
+			require.NoError(t, err)
+
+			upsertReq := codersdk.UpsertUserAIBudgetOverrideRequest{
+				GroupID:          group.ID,
+				SpendLimitMicros: 500_000_000,
+			}
+
+			if tc.CanWrite {
+				// Full CRUD lifecycle.
+				override, err := tc.Client.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				require.NoError(t, err, "PUT")
+				require.Equal(t, group.ID, override.GroupID)
+
+				got, err := tc.Client.UserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "GET")
+				require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+				err = tc.Client.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "DELETE")
+			} else {
+				// PUT rejected.
+				_, err := tc.Client.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				var sdkErr *codersdk.Error
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), "PUT")
+
+				// Seed a row via UserAdmin so we can verify read access still works.
+				_, err = userAdminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, upsertReq)
+				require.NoError(t, err)
+
+				// GET still works (all roles have ActionRead on User).
+				got, err := tc.Client.UserAIBudgetOverride(ctx, targetUser.ID)
+				require.NoError(t, err, "GET")
+				require.EqualValues(t, 500_000_000, got.SpendLimitMicros)
+
+				// DELETE rejected.
+				err = tc.Client.DeleteUserAIBudgetOverride(ctx, targetUser.ID)
+				require.ErrorAs(t, err, &sdkErr)
+				require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(), "DELETE")
+			}
+		})
+	}
+}
+
+// TestUserAIBudgetOverrideDeletedOnMembershipRemoval verifies that a per-user
+// override is deleted automatically when the user loses membership in the
+// attributed group. Two paths are exercised:
+//
+//   - RegularGroup: membership stored in group_members; removed via
+//     PatchGroup with RemoveUsers.
+//   - EveryoneGroup: membership stored in organization_members; removed
+//     via DeleteOrganizationMember.
+func TestUserAIBudgetOverrideDeletedOnMembershipRemoval(t *testing.T) {
+	t.Parallel()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+
+	// "Regular group" means any group except "Everyone".
+	t.Run("RegularGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		group, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+			Name: "cascade-regular-group",
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err)
+
+		_, err = adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          group.ID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err, "set override")
+
+		// Sanity-check the override exists.
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err, "override should exist before removal")
+
+		_, err = adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			RemoveUsers: []string{targetUser.ID.String()},
+		})
+		require.NoError(t, err, "remove user from group")
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(),
+			"override should be deleted after user is removed from the attributed group")
+	})
+
+	t.Run("EveryoneGroup", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+		// The Everyone group has id == organization_id.
+		everyoneGroupID := owner.OrganizationID
+
+		_, err := adminClient.UpsertUserAIBudgetOverride(ctx, targetUser.ID, codersdk.UpsertUserAIBudgetOverrideRequest{
+			GroupID:          everyoneGroupID,
+			SpendLimitMicros: 500_000_000,
+		})
+		require.NoError(t, err, "set override")
+
+		// Sanity-check the override exists.
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		require.NoError(t, err, "override should exist before removal")
+
+		err = adminClient.DeleteOrganizationMember(ctx, owner.OrganizationID, targetUser.ID.String())
+		require.NoError(t, err, "remove user from organization")
+
+		_, err = adminClient.UserAIBudgetOverride(ctx, targetUser.ID)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode(),
+			"override should be deleted after user is removed from the organization")
+	})
+}
+
+// setupUserAIBudgetOverrideTest returns an Admin client, a target user, and a
+// group the target user is a member of.
+func setupUserAIBudgetOverrideTest(t *testing.T) (adminClient *codersdk.Client, targetUser codersdk.User, group codersdk.Group) {
+	t.Helper()
+
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{DeploymentValues: dv},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+			},
+		},
+	})
+	adminClient, _ = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser = coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	g, err := adminClient.CreateGroup(ctx, owner.OrganizationID, codersdk.CreateGroupRequest{
+		Name: "override-test-group",
+	})
+	require.NoError(t, err)
+	g, err = adminClient.PatchGroup(ctx, g.ID, codersdk.PatchGroupRequest{
+		AddUsers: []string{targetUser.ID.String()},
+	})
+	require.NoError(t, err)
+	return adminClient, targetUser, g
+}
+
+// setupUserAIBudgetOverrideAuditTest builds a deployment wired with the
+// enterprise auditor (the mock auditor does not compute diffs) so audit
+// entries can be read straight from the audit_logs table.
+func setupUserAIBudgetOverrideAuditTest(t *testing.T) (database.Store, *codersdk.Client, codersdk.CreateFirstUserResponse, codersdk.User) {
+	t.Helper()
+
+	db, ps := dbtestutil.NewDB(t)
+	auditor := entaudit.NewAuditor(
+		db,
+		entaudit.DefaultFilter,
+		backends.NewPostgres(db, true),
+	)
+	dv := coderdtest.DeploymentValues(t)
+	dv.AI.BridgeConfig.Enabled = serpent.Bool(true)
+	dv.Experiments = []string{string(codersdk.ExperimentAIGatewayCostControl)}
+	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+		AuditLogging: true,
+		Options: &coderdtest.Options{
+			DeploymentValues: dv,
+			Database:         db,
+			Pubsub:           ps,
+			Auditor:          auditor,
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{
+				codersdk.FeatureTemplateRBAC: 1,
+				codersdk.FeatureAIBridge:     1,
+				codersdk.FeatureAuditLog:     1,
+			},
+		},
+	})
+	adminClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleUserAdmin())
+	_, targetUser := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+	return db, adminClient, owner, targetUser
 }
 
 // setupGroupAIBudgetTest returns an Admin client along with a newly created group inside it.

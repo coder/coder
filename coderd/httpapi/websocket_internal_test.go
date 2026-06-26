@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -53,7 +54,21 @@ func websocketPair(ctx context.Context, t *testing.T) *websocket.Conn {
 	}
 }
 
-func TestHeartbeatClose(t *testing.T) {
+// probeRecorder is a simple wrapper around a channel used to record probe results.
+type probeRecorder struct {
+	T testing.TB
+	C chan ProbeResult
+}
+
+func (r *probeRecorder) record(_ context.Context, result ProbeResult) {
+	select {
+	case r.C <- result:
+	default:
+		r.T.Errorf("probeRecorder.C is full, dropping result %s", result)
+	}
+}
+
+func TestWSWatcher(t *testing.T) {
 	t.Parallel()
 
 	t.Run("ServerSideClose", func(t *testing.T) {
@@ -63,34 +78,35 @@ func TestHeartbeatClose(t *testing.T) {
 		sink := testutil.NewFakeSink(t)
 		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
+		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 1)}
 
-		// Trap ticker creation so we can synchronize startup.
-		trap := mClock.Trap().NewTicker("HeartbeatClose")
+		trap := mClock.Trap().NewTicker("WSWatcher")
 		defer trap.Close()
 
 		serverConn := websocketPair(ctx, t)
-		exitCalled := make(chan struct{})
 
-		go heartbeatCloseWith(ctx, logger, func() {
-			close(exitCalled)
-		}, serverConn, mClock, time.Second)
+		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
+		watchCtx := w.Watch(ctx, logger, serverConn)
 
 		// Wait for the ticker to be created, then release.
 		trap.MustWait(ctx).MustRelease(ctx)
 
 		// Close the server-side connection before the tick fires.
-		// The next ping will get net.ErrClosed.
+		// The next ping will get a close/net.ErrClosed error.
 		_ = serverConn.Close(websocket.StatusGoingAway, "simulated teardown")
 
 		// Advance clock to trigger the tick.
 		mClock.Advance(time.Second).MustWait(ctx)
 
-		// Wait for heartbeatClose to call exit.
+		// The watch context should be canceled after probe failure.
 		select {
-		case <-exitCalled:
+		case <-watchCtx.Done():
 		case <-ctx.Done():
-			t.Fatal("timed out waiting for heartbeatClose to call exit")
+			t.Fatal("timed out waiting for watch context to be canceled")
 		}
+
+		gotRes := testutil.RequireReceive(ctx, t, rec.C)
+		assert.Equal(t, ProbePeerClosed, gotRes, "expected ProbePeerClosed result")
 
 		// A closed connection is a normal shutdown condition. The
 		// error should be logged at Debug, not Error.
@@ -109,69 +125,63 @@ func TestHeartbeatClose(t *testing.T) {
 		sink := testutil.NewFakeSink(t)
 		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
+		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 1)}
 
-		trap := mClock.Trap().NewTicker("HeartbeatClose")
+		trap := mClock.Trap().NewTicker("WSWatcher")
 		defer trap.Close()
 
 		serverCtx, serverCancel := context.WithCancel(ctx)
 		serverConn := websocketPair(ctx, t)
-		done := make(chan struct{})
 
-		go func() {
-			defer close(done)
-			heartbeatCloseWith(serverCtx, logger, func() {
-				t.Error("exit should not be called on context cancel")
-			}, serverConn, mClock, time.Second)
-		}()
+		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
+		watchCtx := w.Watch(serverCtx, logger, serverConn)
 
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Cancel the context. HeartbeatClose should return via
-		// the <-ctx.Done() branch without calling exit.
+		// Cancel the parent context. The watcher should exit via
+		// the <-ctx.Done() branch without closing the conn.
 		serverCancel()
 
 		select {
-		case <-done:
+		case <-watchCtx.Done():
 		case <-ctx.Done():
-			t.Fatal("timed out waiting for heartbeatClose to return")
+			t.Fatal("timed out waiting for watch context to be canceled")
 		}
 
 		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
 		assert.Empty(t, errorEntries,
 			"context cancellation should not produce error-level logs, got: %+v", errorEntries)
+		assert.Empty(t, rec.C, "expected no probes when context is canceled before tick")
 	})
 
 	t.Run("PingSucceeds", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
 
 		sink := testutil.NewFakeSink(t)
 		logger := sink.Logger()
 		mClock := quartz.NewMock(t)
+		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 3)}
 
-		trap := mClock.Trap().NewTicker("HeartbeatClose")
+		trap := mClock.Trap().NewTicker("WSWatcher")
 		defer trap.Close()
 
 		serverConn := websocketPair(ctx, t)
-		exitCalled := make(chan struct{}, 1)
 
-		go heartbeatCloseWith(ctx, logger, func() {
-			exitCalled <- struct{}{}
-		}, serverConn, mClock, time.Second)
+		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
+		watchCtx := w.Watch(ctx, logger, serverConn)
+		t.Cleanup(func() {
+			<-watchCtx.Done()
+		})
 
 		trap.MustWait(ctx).MustRelease(ctx)
 
-		// Fire several ticks — pings should succeed each time.
-		for range 3 {
+		// Fire several ticks; pings should succeed each time.
+		for i := range 3 {
 			mClock.Advance(time.Second).MustWait(ctx)
-
-			// Give the ping round-trip time to complete.
-			// If exit were called, we'd catch it.
-			select {
-			case <-exitCalled:
-				t.Fatal("exit should not be called when pings succeed")
-			default:
-			}
+			gotRes := testutil.RequireReceive(ctx, t, rec.C)
+			assert.Equal(t, ProbeOK, gotRes, "expected probe result to be ProbeOK at tick %d", i+1)
 		}
 
 		// No logs should be emitted during normal operation.
@@ -182,4 +192,169 @@ func TestHeartbeatClose(t *testing.T) {
 		assert.Empty(t, debugEntries,
 			"successful pings should not produce debug-level logs, got: %+v", debugEntries)
 	})
+
+	t.Run("RecordsPrometheusCounter", func(t *testing.T) {
+		t.Parallel()
+
+		// Use a real prometheus registry to verify end-to-end metric recording.
+		registry := prometheus.NewRegistry()
+		probes := prometheus.NewCounterVec(prometheus.CounterOpts{
+			Namespace: "coderd",
+			Subsystem: "api",
+			Name:      "websocket_probes_total",
+			Help:      "test",
+		}, []string{"path", "result"})
+		registry.MustRegister(probes)
+
+		recorder := func(ctx context.Context, r ProbeResult) {
+			probes.WithLabelValues("/test/path", string(r)).Inc()
+		}
+
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
+		mClock := quartz.NewMock(t)
+
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
+		serverConn := websocketPair(ctx, t)
+
+		w := &WSWatcher{rec: recorder, clk: mClock, interval: time.Second}
+		watchCtx := w.Watch(ctx, logger, serverConn)
+		t.Cleanup(func() {
+			<-watchCtx.Done()
+		})
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
+
+		testutil.Eventually(ctx, t, func(context.Context) bool {
+			select {
+			case <-watchCtx.Done():
+				t.Fatal("watch context should not be canceled when pings succeed")
+			default:
+			}
+			metrics, err := registry.Gather()
+			require.NoError(t, err)
+			return testutil.PromCounterHasValue(t, metrics, 1,
+				"coderd_api_websocket_probes_total", "/test/path", "ok")
+		}, testutil.IntervalFast, "probe counter not incremented")
+	})
+
+	t.Run("ProbeTimeout", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
+		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 1)}
+
+		pingCh := make(chan struct{})
+		closeCodeCh := make(chan websocket.StatusCode, 1)
+		fConn := &fakePingCloser{
+			pingFn: func(context.Context) error {
+				t.Log("ping")
+				close(pingCh)
+				// Determinism tradeoff: by returning DeadlineExceeded directly
+				// we lose coverage of the WithTimeout path in probe().
+				return context.DeadlineExceeded
+			},
+			closeFn: func(code websocket.StatusCode, _ string) error {
+				closeCodeCh <- code
+				return nil
+			},
+		}
+
+		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
+		watchCtx := w.Watch(ctx, logger, fConn)
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
+
+		_, _ = testutil.SoftTryReceive(ctx, t, pingCh)
+
+		select {
+		case <-watchCtx.Done():
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for watch context to be canceled")
+		}
+
+		gotRes := testutil.RequireReceive(ctx, t, rec.C)
+		assert.Equal(t, ProbeTimeout, gotRes, "expected ProbeTimeout result")
+		gotCode := testutil.RequireReceive(ctx, t, closeCodeCh)
+		assert.Equal(t, websocket.StatusGoingAway, gotCode, "expected StatusGoingAway code")
+
+		// Timeout is an expected condition, should be Debug not Error.
+		errorEntries := sink.Entries(func(e slog.SinkEntry) bool { return e.Level == slog.LevelError })
+		assert.Empty(t, errorEntries,
+			"probe timeout should not produce error-level logs, got: %+v", errorEntries)
+	})
+
+	t.Run("ProbeError", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		logger := sink.Logger()
+		mClock := quartz.NewMock(t)
+		trap := mClock.Trap().NewTicker("WSWatcher")
+		defer trap.Close()
+
+		rec := &probeRecorder{T: t, C: make(chan ProbeResult, 1)}
+		closeCodeCh := make(chan websocket.StatusCode, 1)
+
+		fConn := &fakePingCloser{
+			pingFn: func(context.Context) error {
+				return assert.AnError
+			},
+			closeFn: func(code websocket.StatusCode, _ string) error {
+				t.Log("close error", code)
+				closeCodeCh <- code
+				return nil
+			},
+		}
+
+		w := &WSWatcher{rec: rec.record, clk: mClock, interval: time.Second}
+
+		ctx, cancel := context.WithCancel(testutil.Context(t, testutil.WaitShort))
+		defer cancel()
+		watchCtx := w.Watch(ctx, logger, fConn)
+		t.Cleanup(func() {
+			<-watchCtx.Done()
+		})
+
+		trap.MustWait(ctx).MustRelease(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
+
+		gotRes := testutil.RequireReceive(ctx, t, rec.C)
+		assert.Equal(t, ProbeError, gotRes, "expected ProbeError result")
+
+		gotCode := testutil.RequireReceive(ctx, t, closeCodeCh)
+		assert.Equal(t, websocket.StatusGoingAway, gotCode)
+
+		// ProbeError should log at Error level (unlike other failures).
+		errorEntries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Level == slog.LevelError
+		})
+		assert.NotEmpty(t, errorEntries, "ProbeError should produce error-level log")
+	})
+}
+
+// fakePingCloser is a test double for the pingCloser interface.
+type fakePingCloser struct {
+	pingFn  func(context.Context) error
+	closeFn func(websocket.StatusCode, string) error
+}
+
+func (f *fakePingCloser) Ping(ctx context.Context) error {
+	return f.pingFn(ctx)
+}
+
+func (f *fakePingCloser) Close(code websocket.StatusCode, reason string) error {
+	return f.closeFn(code, reason)
 }

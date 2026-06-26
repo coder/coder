@@ -368,7 +368,8 @@ func TestSharedReaderStreamChat(t *testing.T) {
 	require.False(t, persisted.LastReadMessageID.Valid)
 }
 
-func TestListChatsExcludesSharedChats(t *testing.T) {
+//nolint:tparallel,paralleltest // Subtests share a single coderdtest instance.
+func TestListChatsSharedScope(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -389,6 +390,12 @@ func TestListChatsExcludesSharedChats(t *testing.T) {
 		LastModelConfigID: modelConfig.ID,
 		Title:             "viewer owned",
 	})
+	unsharedChat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    firstUser.OrganizationID,
+		OwnerID:           firstUser.UserID,
+		LastModelConfigID: modelConfig.ID,
+		Title:             "not shared with viewer",
+	})
 
 	err := client.UpdateChatACL(ctx, sharedChat.ID, codersdk.UpdateChatACL{
 		UserRoles: map[string]codersdk.ChatRole{
@@ -397,9 +404,54 @@ func TestListChatsExcludesSharedChats(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	ownedOnly, err := viewerClientExp.ListChats(ctx, nil)
-	require.NoError(t, err)
-	require.Equal(t, map[uuid.UUID]struct{}{viewerChat.ID: {}}, chatIDSet(ownedOnly))
+	for _, tc := range []struct {
+		name     string
+		opts     *codersdk.ListChatsOptions
+		expected map[uuid.UUID]struct{}
+		shared   map[uuid.UUID]bool
+	}{
+		{
+			name:     "default owned only",
+			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false},
+		},
+		{
+			name: "created by me only",
+			opts: &codersdk.ListChatsOptions{
+				Source: codersdk.ChatListSourceCreatedByMe,
+			},
+			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false},
+		},
+		{
+			name: "shared with me only",
+			opts: &codersdk.ListChatsOptions{
+				Source: codersdk.ChatListSourceSharedWithMe,
+			},
+			expected: map[uuid.UUID]struct{}{sharedChat.ID: {}},
+			shared:   map[uuid.UUID]bool{sharedChat.ID: true},
+		},
+		{
+			name: "created by me and shared with me",
+			opts: &codersdk.ListChatsOptions{
+				Query: "source:created_by_me,shared_with_me",
+			},
+			expected: map[uuid.UUID]struct{}{viewerChat.ID: {}, sharedChat.ID: {}},
+			shared:   map[uuid.UUID]bool{viewerChat.ID: false, sharedChat.ID: true},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			chats, err := viewerClientExp.ListChats(ctx, tc.opts)
+			require.NoError(t, err)
+			require.Equal(t, tc.expected, chatIDSet(chats))
+			require.NotContains(t, chatIDSet(chats), unsharedChat.ID)
+			for _, chat := range chats {
+				expectedShared, ok := tc.shared[chat.ID]
+				require.True(t, ok, "missing shared assertion for chat %s", chat.ID)
+				require.Equal(t, expectedShared, chat.Shared)
+			}
+		})
+	}
 }
 
 //nolint:paralleltest // This test verifies a process-wide RBAC kill switch.

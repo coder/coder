@@ -172,7 +172,7 @@ func TestUserOIDC(t *testing.T) {
 			fields, err := runner.AdminClient.GetAvailableIDPSyncFields(ctx)
 			require.NoError(t, err)
 			require.ElementsMatch(t, []string{
-				"sub", "aud", "exp", "iss", // Always included from jwt
+				"sub", "aud", "exp", "iss", "email_verified", // Always included from jwt
 				"email", "organization",
 			}, fields)
 

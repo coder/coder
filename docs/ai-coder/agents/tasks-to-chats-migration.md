@@ -68,10 +68,11 @@ With Tasks, LLM credentials are injected into the workspace as environment
 variables (e.g. `ANTHROPIC_API_KEY`). With Coder Agents, credentials are
 configured once in the control plane:
 
-1. Navigate to the **Agents** page in the Coder dashboard.
-1. Open **Settings** > **Manage Agents** > **Providers**, pick a provider,
-   enter your API key, and save.
-1. Under **Models**, add at least one model and set it as the default.
+1. Navigate to **Admin settings** > **AI** and select **Providers**.
+1. Add or update a provider with its credentials and upstream endpoint, then
+   save it.
+1. Navigate to **Admin settings** > **AI** > **Models**, add at least one model,
+   and set it as the default.
 
 You no longer pass API keys in template variables or workspace environment. See https://coder.com/docs/ai-coder/agents/getting-started for more information.
 

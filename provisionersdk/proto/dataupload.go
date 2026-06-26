@@ -9,7 +9,8 @@ import (
 )
 
 const (
-	ChunkSize = 2 << 20 // 2 MiB
+	ChunkSize   = 2 << 20         // 2 MiB
+	MaxFileSize = 10 * (10 << 20) // 100 MiB, matches coderd HTTPFileMaxBytes
 )
 
 type DataBuilder struct {
@@ -27,6 +28,21 @@ type DataBuilder struct {
 func NewDataBuilder(req *DataUpload) (*DataBuilder, error) {
 	if len(req.DataHash) != 32 {
 		return nil, xerrors.Errorf("data hash must be 32 bytes, got %d bytes", len(req.DataHash))
+	}
+
+	if req.FileSize < 0 {
+		return nil, xerrors.Errorf("file size must not be negative, got %d", req.FileSize)
+	}
+	if req.FileSize > MaxFileSize {
+		return nil, xerrors.Errorf("file size %d exceeds maximum allowed %d", req.FileSize, MaxFileSize)
+	}
+	if req.Chunks < 0 {
+		return nil, xerrors.Errorf("chunk count must not be negative, got %d", req.Chunks)
+	}
+	//nolint:gosec // FileSize is validated to be <= MaxFileSize, well within int32 range
+	maxChunks := int32((req.FileSize + ChunkSize - 1) / ChunkSize)
+	if req.Chunks > maxChunks {
+		return nil, xerrors.Errorf("chunk count %d exceeds maximum %d for file size %d", req.Chunks, maxChunks, req.FileSize)
 	}
 
 	return &DataBuilder{
@@ -60,7 +76,7 @@ func (b *DataBuilder) Add(chunk *ChunkPiece) (bool, error) {
 	expectedSize := len(b.data) + len(chunk.Data)
 	if expectedSize > int(b.Size) {
 		return b.done(), xerrors.Errorf("data exceeds expected size, data is now %d bytes, %d bytes over the limit of %d",
-			expectedSize, b.Size-int64(expectedSize), b.Size)
+			expectedSize, int64(expectedSize)-b.Size, b.Size)
 	}
 
 	b.data = append(b.data, chunk.Data...)
@@ -103,7 +119,11 @@ func (b *DataBuilder) done() bool {
 	return b.chunkIndex >= b.ChunkCount
 }
 
-func BytesToDataUpload(dataType DataUploadType, data []byte) (*DataUpload, []*ChunkPiece) {
+func BytesToDataUpload(dataType DataUploadType, data []byte) (*DataUpload, []*ChunkPiece, error) {
+	if int64(len(data)) > MaxFileSize {
+		return nil, nil, xerrors.Errorf("data size %d exceeds maximum allowed %d", len(data), MaxFileSize)
+	}
+
 	fullHash := sha256.Sum256(data)
 	//nolint:gosec // not going over int32
 	size := int32(len(data))
@@ -135,5 +155,5 @@ func BytesToDataUpload(dataType DataUploadType, data []byte) (*DataUpload, []*Ch
 		chunks = append(chunks, chunk)
 	}
 
-	return req, chunks
+	return req, chunks, nil
 }

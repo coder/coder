@@ -8,17 +8,6 @@ const (
 	XForwardedHostHeader = "X-Forwarded-Host"
 )
 
-// RequestHost returns the name of the host from the request.  It prioritizes
-// 'X-Forwarded-Host' over r.Host since most requests are being proxied.
-func RequestHost(r *http.Request) string {
-	host := r.Header.Get(XForwardedHostHeader)
-	if host != "" {
-		return host
-	}
-
-	return r.Host
-}
-
 func IsWebsocketUpgrade(r *http.Request) bool {
 	vs := r.Header.Values("Upgrade")
 	for _, v := range vs {

@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"net/netip"
 	"os"
-	"os/user"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -40,6 +39,7 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/clistat"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontext"
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
@@ -52,6 +52,7 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
 	"github.com/coder/coder/v2/agent/reconnectingpty"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/agent/x/agentdesktop"
 	"github.com/coder/coder/v2/agent/x/agentmcp"
 	"github.com/coder/coder/v2/buildinfo"
@@ -89,7 +90,10 @@ type Options struct {
 	Client                 Client
 	ReconnectingPTYTimeout time.Duration
 	EnvironmentVariables   map[string]string
-	Logger                 slog.Logger
+	// EnvInfo overrides the session command environment source. Only
+	// tests set this. Nil defaults to usershell.SystemEnvInfo.
+	EnvInfo usershell.EnvInfoer
+	Logger  slog.Logger
 	// IgnorePorts tells the api handler which ports to ignore when
 	// listing all listening ports. This is helpful to hide ports that
 	// are used by the agent, that the user does not care about.
@@ -117,6 +121,9 @@ type Options struct {
 	ContextConfig                agentcontextconfig.Config
 	// DERPTLSConfig is an optional TLS config for DERP connections.
 	DERPTLSConfig *tls.Config
+	// StatsReportInterval is the interval for the connstats callback
+	// installed at statsReporter creation.
+	StatsReportInterval time.Duration
 }
 
 type Client interface {
@@ -128,6 +135,15 @@ type Client interface {
 	// use role "agent" to enable connection monitoring.
 	ConnectRPC29WithRole(ctx context.Context, role string) (
 		proto.DRPCAgentClient29, tailnetproto.DRPCTailnetClient28, error,
+	)
+	ConnectRPC210(ctx context.Context) (
+		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
+	)
+	// ConnectRPC210WithRole is like ConnectRPC210 but sends an explicit
+	// role query parameter to the server. The workspace agent should
+	// use role "agent" to enable connection monitoring.
+	ConnectRPC210WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient210, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -143,6 +159,9 @@ type Agent interface {
 func New(options Options) Agent {
 	if options.Filesystem == nil {
 		options.Filesystem = afero.NewOsFs()
+	}
+	if options.EnvInfo == nil {
+		options.EnvInfo = &usershell.SystemEnvInfo{}
 	}
 	if options.TempDir == "" {
 		options.TempDir = os.TempDir()
@@ -183,6 +202,10 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 
+	if options.StatsReportInterval == 0 {
+		options.StatsReportInterval = DefaultStatsReportInterval
+	}
+
 	if options.ListeningPortsGetter == nil {
 		options.ListeningPortsGetter = &osListeningPortsGetter{
 			cacheDuration: 1 * time.Second,
@@ -216,8 +239,10 @@ func New(options Options) Agent {
 			ignorePorts: maps.Clone(options.IgnorePorts),
 		},
 		reportMetadataInterval:             options.ReportMetadataInterval,
+		statsReportInterval:                options.StatsReportInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
+		envInfo:                            options.EnvInfo,
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
 		blockFileTransfer:                  options.BlockFileTransfer,
@@ -289,11 +314,13 @@ type agent struct {
 	// values. Callers that need secrets must explicitly load this.
 	secrets                            atomic.Pointer[[]agentsdk.WorkspaceSecret]
 	reportMetadataInterval             time.Duration
+	statsReportInterval                time.Duration
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
+	envInfo                            usershell.EnvInfoer
 	blockFileTransfer                  bool
 	blockReversePortForwarding         bool
 	blockLocalPortForwarding           bool
@@ -334,6 +361,8 @@ type agent struct {
 	mcpManager       *agentmcp.Manager
 	mcpAPI           *agentmcp.API
 	contextConfigAPI *agentcontextconfig.API
+	contextManager   *agentcontext.Manager
+	contextAPI       *agentcontext.API
 
 	socketServerEnabled bool
 	socketPath          string
@@ -348,6 +377,41 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 	return a.network
 }
 
+// initialContextSources translates the boot-time
+// CODER_AGENT_EXP_*_DIRS env vars into agentcontext.Source
+// entries. This preserves the "set it on the template" workflow
+// while the user-facing CLI for source CRUD ships in a
+// follow-up.
+func initialContextSources(cfg agentcontextconfig.Config, workingDir func() string) []agentcontext.Source {
+	base := ""
+	if workingDir != nil {
+		base = workingDir()
+	}
+
+	seen := make(map[string]struct{})
+	var sources []agentcontext.Source
+	add := func(path string) {
+		if path == "" {
+			return
+		}
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		sources = append(sources, agentcontext.Source{Path: path})
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.InstructionsDirs, base) {
+		add(p)
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.SkillsDirs, base) {
+		add(p)
+	}
+	for _, p := range agentcontextconfig.ResolvePaths(cfg.MCPConfigFiles, base) {
+		add(p)
+	}
+	return sources
+}
+
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
 	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.execer, &agentssh.Config{
@@ -356,6 +420,7 @@ func (a *agent) init() {
 		AnnouncementBanners:        func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },
 		UpdateEnv:                  a.updateCommandEnv,
 		WorkingDirectory:           func() string { return a.manifest.Load().Directory },
+		EnvInfo:                    a.envInfo,
 		BlockFileTransfer:          a.blockFileTransfer,
 		BlockReversePortForwarding: a.blockReversePortForwarding,
 		BlockLocalPortForwarding:   a.blockLocalPortForwarding,
@@ -411,7 +476,7 @@ func (a *agent) init() {
 
 	pathStore := agentgit.NewPathStore()
 	a.filesAPI = agentfiles.NewAPI(a.logger.Named("files"), a.filesystem, pathStore)
-	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.updateCommandEnv, pathStore, func() string {
+	a.processAPI = agentproc.NewAPI(a.logger.Named("processes"), a.execer, a.filesystem, pathStore, a.envInfo, a.updateCommandEnv, func() string {
 		if m := a.manifest.Load(); m != nil {
 			return m.Directory
 		}
@@ -430,7 +495,37 @@ func (a *agent) init() {
 		}
 		return ""
 	}, a.contextConfig)
-	a.mcpAPI = agentmcp.NewAPI(a.logger.Named("mcp"), a.mcpManager, a.contextConfigAPI.MCPConfigFiles)
+	a.mcpAPI = agentmcp.NewAPI(a.mcpManager)
+
+	// agentcontext.Manager is the new consolidated resolver,
+	// watcher, and pusher. It coexists with contextConfigAPI
+	// and the MCP manager during rollout. Initial sources are
+	// seeded from the existing CODER_AGENT_EXP_* env vars and
+	// from the agent's working directory at scan time.
+	workingDirFn := func() string {
+		if m := a.manifest.Load(); m != nil {
+			return m.Directory
+		}
+		return ""
+	}
+	a.contextManager = agentcontext.NewManager(agentcontext.ManagerOptions{
+		Logger:         a.logger.Named("agentcontext"),
+		Clock:          a.clock,
+		WorkingDir:     workingDirFn,
+		InitialSources: initialContextSources(a.contextConfig, workingDirFn),
+		// The manager surfaces MCP servers and their tools as
+		// KindMCPServer resources by reading the shared MCP engine's
+		// catalog (a.mcpManager). That engine owns the single set of
+		// MCP server connections used for both discovery and tool-call
+		// execution, so each declared server is launched once.
+		MCPCatalog: func() []agentcontext.MCPServerStatus {
+			return mcpCatalogToContext(a.mcpManager.Catalog())
+		},
+	})
+	a.contextAPI = agentcontext.NewAPI(a.contextManager)
+	// Re-resolve and re-push KindMCPServer resources whenever the MCP
+	// engine's catalog changes (startup connect, .mcp.json edits).
+	a.mcpManager.SetOnReload(a.contextManager.Trigger)
 	a.reconnectingPTYServer = reconnectingpty.NewServer(
 		a.logger.Named("reconnecting-pty"),
 		a.sshServer,
@@ -447,6 +542,16 @@ func (a *agent) init() {
 	a.initSocketServer()
 	a.startBoundaryLogProxyServer()
 
+	// Start the agentcontext manager's resolver/watcher loop.
+	// It runs for the lifetime of the agent and is closed in
+	// agent.Close. The push goroutine is started per-connection
+	// inside run() so it picks up the right drpc client.
+	go func() {
+		if err := a.contextManager.Run(a.gracefulCtx); err != nil && !errors.Is(err, context.Canceled) {
+			a.logger.Warn(a.gracefulCtx, "agentcontext manager run exited", slog.Error(err))
+		}
+	}()
+
 	go a.runLoop()
 }
 
@@ -460,6 +565,7 @@ func (a *agent) initSocketServer() {
 	server, err := agentsocket.NewServer(
 		a.logger.Named("socket"),
 		agentsocket.WithPath(a.socketPath),
+		agentsocket.WithContextManager(a.contextManager),
 	)
 	if err != nil {
 		a.logger.Error(a.hardCtx, "failed to create socket server", slog.Error(err), slog.F("path", a.socketPath))
@@ -1071,7 +1177,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC29WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC210WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1164,6 +1270,22 @@ func (a *agent) run() (retErr error) {
 	// Connection reports are part of auditing, we should keep sending them via
 	// gracefulShutdownBehaviorRemain.
 	connMan.startAgentAPI("report connections", gracefulShutdownBehaviorRemain, a.reportConnectionsLoop)
+
+	// Push resolved workspace context (instructions, skills, MCP
+	// configs, MCP server tool lists) to coderd. The push loop
+	// uses gracefulShutdownBehaviorStop because the snapshot is
+	// only useful while chats are alive, and a stale snapshot at
+	// shutdown costs nothing. The coderd handler is a stub that
+	// returns Unimplemented today (CODAGT-569 lands persistence);
+	// DRPCPusher translates Unimplemented to ErrPushUnimplemented
+	// so the goroutine exits cleanly on older coderd deployments.
+	connMan.startAgentAPI210("push context state", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient210) error {
+			pusher := agentcontext.NewDRPCPusher(aAPI)
+			return a.contextManager.RunPush(ctx, pusher, agentcontext.PushOptions{
+				Logger: a.logger.Named("agentcontext-push"),
+			})
+		})
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -1287,12 +1409,12 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		//
 		// An example is VS Code Remote, which must know the directory
 		// before initializing a connection.
-		manifest.Directory, err = expandPathToAbs(manifest.Directory)
+		manifest.Directory, err = a.expandPathToAbs(manifest.Directory)
 		if err != nil {
 			return xerrors.Errorf("expand directory: %w", err)
 		}
 		// Normalize all devcontainer paths by making them absolute.
-		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, expandPathToAbs, manifest.Devcontainers)
+		manifest.Devcontainers = agentcontainers.ExpandAllDevcontainerPaths(a.logger, a.expandPathToAbs, manifest.Devcontainers)
 		subsys, err := agentsdk.ProtoFromSubsystems(a.subsystems)
 		if err != nil {
 			a.logger.Critical(ctx, "failed to convert subsystems", slog.Error(err))
@@ -1312,6 +1434,22 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		manifestOK.complete(nil)
 		sentResult = true
 
+		// Manifest just landed; the agentcontext manager now has
+		// a working directory to scan and a known set of scan
+		// roots. Re-seed sources from CODER_AGENT_EXP_*_DIRS so
+		// relative paths that depended on the working directory
+		// (and were dropped at boot when the directory was
+		// unknown) get added now. Then queue an asynchronous
+		// re-resolve so the snapshot reflects the workspace
+		// immediately instead of waiting for the next filesystem
+		// event. The Trigger result is handled by the Manager.Run
+		// loop, which respects gracefulCtx cancellation during
+		// shutdown.
+		a.contextManager.SeedSources(initialContextSources(a.contextConfig, func() string {
+			return manifest.Directory
+		}))
+		a.contextManager.Trigger()
+
 		// Write secret files after signaling manifest readiness so that network
 		// initialization (which depends on manifestOK) starts as soon as
 		// possible. This creates a theoretical race where an SSH session that
@@ -1321,7 +1459,7 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 		// longer than file writes. Startup scripts still wait because they run
 		// sequentially below. Env var injection is unaffected because it
 		// happens lazily per-command in updateCommandEnv.
-		homeDir, err := os.UserHomeDir()
+		homeDir, err := a.envInfo.HomeDir()
 		if err != nil {
 			a.logger.Warn(ctx, "failed to resolve home directory for secret files", slog.Error(err))
 		}
@@ -1414,11 +1552,16 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				a.metrics.startupScriptSeconds.WithLabelValues(label).Set(dur)
 				a.scriptRunner.StartCron()
 
+				// Startup finished (success or terminal failure): release
+				// the context gate. MCP servers connect below and
+				// re-trigger a push once up, so we don't block readiness
+				// on them.
+				a.contextManager.SetReady()
+
 				// Connect to workspace MCP servers after the
 				// lifecycle transition to avoid delaying Ready.
 				// This runs inside the tracked goroutine so it
 				// is properly awaited on shutdown.
-				a.mcpManager.MarkStartupSettled()
 				if mcpErr := a.mcpManager.Reload(a.gracefulCtx, a.contextConfigAPI.MCPConfigFiles()); mcpErr != nil {
 					a.logger.Warn(ctx, "failed to reload workspace MCP servers", slog.Error(mcpErr))
 				}
@@ -1500,7 +1643,7 @@ func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(co
 			closing := a.closing
 			if !closing {
 				a.network = network
-				a.statsReporter = newStatsReporter(a.logger, network, a)
+				a.statsReporter = newStatsReporter(a.logger, network, a, a.statsReportInterval)
 			}
 			a.closeMutex.Unlock()
 			if closing {
@@ -2154,26 +2297,6 @@ func (a *agent) HandleHTTPDebugManifest(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
-func (a *agent) HandleHTTPDebugLogs(w http.ResponseWriter, r *http.Request) {
-	logPath := filepath.Join(a.logDir, "coder-agent.log")
-	f, err := os.Open(logPath)
-	if err != nil {
-		a.logger.Error(r.Context(), "open agent log file", slog.Error(err), slog.F("path", logPath))
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = fmt.Fprintf(w, "could not open log file: %s", err)
-		return
-	}
-	defer f.Close()
-
-	// Limit to 10MiB.
-	w.WriteHeader(http.StatusOK)
-	_, err = io.Copy(w, io.LimitReader(f, 10*1024*1024))
-	if err != nil && !errors.Is(err, io.EOF) {
-		a.logger.Error(r.Context(), "read agent log file", slog.Error(err))
-		return
-	}
-}
-
 func (a *agent) HTTPDebug() http.Handler {
 	r := chi.NewRouter()
 
@@ -2265,6 +2388,10 @@ func (a *agent) Close() error {
 		a.logger.Error(a.hardCtx, "mcp manager close", slog.Error(err))
 	}
 
+	if err := a.contextManager.Close(); err != nil {
+		a.logger.Error(a.hardCtx, "agentcontext manager close", slog.Error(err))
+	}
+
 	if a.boundaryLogProxy != nil {
 		err = a.boundaryLogProxy.Close()
 		if err != nil {
@@ -2331,31 +2458,16 @@ lifecycleWaitLoop:
 	return nil
 }
 
-// userHomeDir returns the home directory of the current user, giving
-// priority to the $HOME environment variable.
-func userHomeDir() (string, error) {
-	// First we check the environment.
-	homedir, err := os.UserHomeDir()
-	if err == nil {
-		return homedir, nil
-	}
-
-	// As a fallback, we try the user information.
-	u, err := user.Current()
-	if err != nil {
-		return "", xerrors.Errorf("current user: %w", err)
-	}
-	return u.HomeDir, nil
-}
-
 // expandPathToAbs converts a path to an absolute path. It primarily resolves
-// the home directory and any environment variables that may be set.
-func expandPathToAbs(path string) (string, error) {
+// the home directory and any environment variables that may be set. The home
+// directory is resolved through the agent's EnvInfoer so the injected
+// environment is honored.
+func (a *agent) expandPathToAbs(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}
 	if path[0] == '~' {
-		home, err := userHomeDir()
+		home, err := a.envInfo.HomeDir()
 		if err != nil {
 			return "", err
 		}
@@ -2364,7 +2476,7 @@ func expandPathToAbs(path string) (string, error) {
 	path = os.ExpandEnv(path)
 
 	if !filepath.IsAbs(path) {
-		home, err := userHomeDir()
+		home, err := a.envInfo.HomeDir()
 		if err != nil {
 			return "", err
 		}
@@ -2400,7 +2512,7 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	aAPI      proto.DRPCAgentClient28
+	aAPI      proto.DRPCAgentClient210
 	tAPI      tailnetproto.DRPCTailnetClient28
 	eg        *errgroup.Group
 	stopCtx   context.Context
@@ -2409,7 +2521,7 @@ type apiConnRoutineManager struct {
 
 func newAPIConnRoutineManager(
 	gracefulCtx, hardCtx context.Context, logger slog.Logger,
-	aAPI proto.DRPCAgentClient28, tAPI tailnetproto.DRPCTailnetClient28,
+	aAPI proto.DRPCAgentClient210, tAPI tailnetproto.DRPCTailnetClient28,
 ) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
@@ -2443,6 +2555,35 @@ func newAPIConnRoutineManager(
 func (a *apiConnRoutineManager) startAgentAPI(
 	name string, behavior gracefulShutdownBehavior,
 	f func(context.Context, proto.DRPCAgentClient28) error,
+) {
+	logger := a.logger.With(slog.F("name", name))
+	var ctx context.Context
+	switch behavior {
+	case gracefulShutdownBehaviorStop:
+		ctx = a.stopCtx
+	case gracefulShutdownBehaviorRemain:
+		ctx = a.remainCtx
+	default:
+		panic("unknown behavior")
+	}
+	a.eg.Go(func() error {
+		logger.Debug(ctx, "starting agent routine")
+		err := f(ctx, a.aAPI)
+		err = shouldPropagateError(ctx, logger, err)
+		logger.Debug(ctx, "routine exited", slog.Error(err))
+		if err != nil {
+			return xerrors.Errorf("error in routine %s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// startAgentAPI210 is the v2.10 counterpart to startAgentAPI; it hands the
+// routine the full v2.10 Agent API client. Use it for routines that need
+// RPCs introduced after v2.8 (notably PushContextState).
+func (a *apiConnRoutineManager) startAgentAPI210(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient210) error,
 ) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context

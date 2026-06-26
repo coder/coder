@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -111,7 +112,7 @@ func (r *RootCmd) portForward() *serpent.Command {
 
 			logger := inv.Logger
 			if r.verbose {
-				opts.Logger = logger.AppendSinks(sloghuman.Sink(inv.Stdout)).Leveled(slog.LevelDebug)
+				opts.Logger = logger.AppendSinks(sloghuman.Sink(clilog.MaybeDiscardOnPipeError(inv.Stdout))).Leveled(slog.LevelDebug)
 			}
 
 			if r.disableDirect {

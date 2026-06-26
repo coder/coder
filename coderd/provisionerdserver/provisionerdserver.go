@@ -1584,11 +1584,34 @@ func (s *server) DownloadFile(request *proto.FileRequest, stream proto.DRPCProvi
 		if file.CreatedBy != uuid.Nil || file.Mimetype != tarMimeType {
 			return fail(xerrors.Errorf("file %s is not a modules file", fid))
 		}
+		// Ensure the requested module file belongs to a template version in
+		// this provisioner daemon's organization. Without this, any
+		// authenticated provisioner could download cached module archives
+		// (Terraform source) belonging to other organizations (ANT-2026-22440).
+		ok, err := s.Database.HasTemplateVersionsUsingCachedModuleFileInOrg(ctx, database.HasTemplateVersionsUsingCachedModuleFileInOrgParams{
+			FileID:         fid,
+			OrganizationID: s.OrganizationID,
+		})
+		if err != nil {
+			return fail(xerrors.Errorf("authorize module file: %w", err))
+		}
+		if !ok {
+			s.Logger.Warn(ctx, "module file download rejected: file not referenced by any template version in daemon org",
+				slog.F("file_id", fid),
+				slog.F("organization_id", s.OrganizationID),
+			)
+			// Use the same error as the metadata check above so the handler
+			// does not confirm the existence of files in other organizations.
+			return fail(xerrors.Errorf("file %s is not a modules file", fid))
+		}
 	default:
 		return fail(xerrors.Errorf("unsupported file upload type: %s", request.UploadType))
 	}
 
-	upload, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	upload, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, file.Data)
+	if err != nil {
+		return fail(xerrors.Errorf("prepare file upload: %w", err))
+	}
 
 	err = stream.Send(&sdkproto.FileUpload{
 		Type: &sdkproto.FileUpload_DataUpload{DataUpload: upload},
@@ -1701,6 +1724,7 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 					slog.F("transition", transition))
 
 				if err := InsertWorkspaceResource(ctx, db, jobID, transition, resource, telemetrySnapshot); err != nil {
+					s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 					return xerrors.Errorf("insert resource: %w", err)
 				}
 			}
@@ -2119,6 +2143,7 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 				InsertWorkspaceResourceWithAgentIDsFromProto(),
 			)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert provisioner job: %w", err)
 			}
 		}
@@ -2587,6 +2612,7 @@ func (s *server) completeTemplateDryRunJob(ctx context.Context, job database.Pro
 
 			err := InsertWorkspaceResource(ctx, db, jobID, database.WorkspaceTransitionStart, resource, telemetrySnapshot)
 			if err != nil {
+				s.warnWorkspaceAppRebindRejected(ctx, jobID, err)
 				return xerrors.Errorf("insert resource: %w", err)
 			}
 		}
@@ -3611,6 +3637,32 @@ func insertAgentScriptsAndLogSources(ctx context.Context, db database.Store, age
 	return nil
 }
 
+type workspaceAppRebindError struct {
+	slug    string
+	appID   uuid.UUID
+	agentID uuid.UUID
+}
+
+func (e *workspaceAppRebindError) Error() string {
+	return fmt.Sprintf("workspace app slug %q with ID %q is already bound to a workspace-owned agent and cannot be rebound to an agent in another workspace or to an agent without a workspace; refusing to rebind to agent ID %q", e.slug, e.appID, e.agentID)
+}
+
+func (s *server) warnWorkspaceAppRebindRejected(ctx context.Context, jobID uuid.UUID, err error) {
+	slog.Helper()
+
+	var rebindErr *workspaceAppRebindError
+	if !errors.As(err, &rebindErr) {
+		return
+	}
+
+	s.Logger.Warn(ctx, "workspace app rebind rejected by SQL guard",
+		slog.F("job_id", jobID.String()),
+		slog.F("app_id", rebindErr.appID.String()),
+		slog.F("agent_id", rebindErr.agentID.String()),
+		slog.F("app_slug", rebindErr.slug),
+	)
+}
+
 func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, app *sdkproto.App, appSlugs map[string]struct{}, snapshot *telemetry.Snapshot) error {
 	// Similar logic is duplicated in terraform/resources.go.
 	slug := app.Slug
@@ -3699,6 +3751,17 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		Tooltip:      app.Tooltip,
 	})
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// The upsert's ON CONFLICT guard refused to rebind an app
+			// owned by a workspace to an agent outside that workspace,
+			// including agents from import or dry-run jobs that resolve
+			// to no workspace (SEC-91).
+			return &workspaceAppRebindError{
+				slug:    slug,
+				appID:   id,
+				agentID: agentID,
+			}
+		}
 		return xerrors.Errorf("upsert app: %w", err)
 	}
 

@@ -130,7 +130,7 @@ For workspaces, this means admins can:
 ## Pricing
 
 Coder is free and open source under the
-[GNU Affero General Public License v3.0](https://github.com/coder/coder/blob/main/LICENSE).
+[GNU Affero General Public License v3.0](../LICENSE).
 All developer productivity features are included in the open source version.
 A [Premium license](https://coder.com/pricing#compare-plans) is available for
 enhanced support and custom deployments.

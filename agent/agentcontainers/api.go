@@ -68,6 +68,7 @@ type API struct {
 	watcher                     watcher.Watcher
 	fs                          afero.Fs
 	execer                      agentexec.Execer
+	wsWatcher                   *httpapi.WSWatcher
 	commandEnv                  CommandEnv
 	ccli                        ContainerCLI
 	containerLabelIncludeFilter map[string]string // Labels to filter containers by.
@@ -348,6 +349,8 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 	for _, opt := range options {
 		opt(api)
 	}
+
+	api.wsWatcher = httpapi.NewWSWatcher(quartz.NewReal(), nil)
 	if api.commandEnv != nil {
 		api.execer = newCommandEnvExecer(
 			api.logger,
@@ -782,7 +785,7 @@ func (api *API) watchContainers(rw http.ResponseWriter, r *http.Request) {
 	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
 	defer wsNetConn.Close()
 
-	go httpapi.HeartbeatClose(ctx, api.logger, cancel, conn)
+	ctx = api.wsWatcher.Watch(ctx, api.logger, conn)
 
 	updateCh := make(chan struct{}, 1)
 

@@ -83,6 +83,15 @@ export const applyKnownModelDefaults = ({
 	const nextValues = structuredClone(values);
 	const appliedFields: string[] = [];
 
+	maybeApplyDefault({
+		appliedFields,
+		initialValues,
+		nextValues,
+		path: "displayName",
+		value: knownModel.displayName,
+		values,
+	});
+
 	if (knownModel.contextLimit !== undefined) {
 		maybeApplyDefault({
 			appliedFields,

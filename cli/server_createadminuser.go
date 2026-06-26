@@ -3,6 +3,7 @@
 package cli
 
 import (
+	"database/sql"
 	"fmt"
 	"sort"
 
@@ -210,11 +211,12 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					return xerrors.Errorf("generate user gitsshkey: %w", err)
 				}
 				_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-					UserID:     newUser.ID,
-					CreatedAt:  dbtime.Now(),
-					UpdatedAt:  dbtime.Now(),
-					PrivateKey: privateKey,
-					PublicKey:  publicKey,
+					UserID:          newUser.ID,
+					CreatedAt:       dbtime.Now(),
+					UpdatedAt:       dbtime.Now(),
+					PrivateKey:      privateKey,
+					PrivateKeyKeyID: sql.NullString{}, // Plaintext; this CLI bypasses dbcrypt. Encrypted on next rotate.
+					PublicKey:       publicKey,
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user gitsshkey: %w", err)

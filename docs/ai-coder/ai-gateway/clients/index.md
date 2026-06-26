@@ -18,12 +18,12 @@ There are two ways to connect AI tools to AI Gateway:
 
 ## Base URLs
 
-Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/aibridge/openai/v1`.
+Most AI coding tools allow the "base URL" to be customized. In other words, when a request is made to OpenAI's API from your coding tool, the API endpoint such as [`/v1/chat/completions`](https://platform.openai.com/docs/api-reference/chat) will be appended to the configured base. Therefore, instead of the default base URL of `https://api.openai.com/v1`, you'll need to set it to `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 
 The exact configuration method varies by client, some use environment variables, others use configuration files or UI settings:
 
-- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/openai/v1`
-- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/aibridge/anthropic`
+- **OpenAI-compatible clients**: Set the base URL (commonly via the `OPENAI_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/openai/v1`
+- **Anthropic-compatible clients**: Set the base URL (commonly via the `ANTHROPIC_BASE_URL` environment variable) to `https://coder.example.com/api/v2/ai-gateway/anthropic`
 
 Replace `coder.example.com` with your actual Coder deployment URL.
 
@@ -35,26 +35,25 @@ For information about authenticating with AI Gateway, visit [AI Gateway Authenti
 
 The table below shows tested AI clients and their compatibility with AI Gateway.
 
-| Client                            | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
-|-----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Coder Agents](./coder-agents.md) | ✅      | ✅         | ❌    | First-class AI Gateway client. Uses the Coder Agents [provider config](../../agents/models.md#providers).                                              |
-| [Mux](./mux.md)                   | ✅      | ✅         | -    |                                                                                                                                                        |
-| [Claude Code](./claude-code.md)   | -      | ✅         | ✅    |                                                                                                                                                        |
-| [Codex CLI](./codex.md)           | ✅      | -         | ✅    |                                                                                                                                                        |
-| [OpenCode](./opencode.md)         | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Factory](./factory.md)           | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Cline](./cline.md)               | ✅      | ✅         | ✅    |                                                                                                                                                        |
-| [Kilo Code](./kilo-code.md)       | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [VS Code](./vscode.md)            | ✅      | ❌         | ❌    | Only supports Custom Base URL for OpenAI.                                                                                                              |
-| [JetBrains IDEs](./jetbrains.md)  | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
-| [Zed](./zed.md)                   | ✅      | ✅         | ❌    |                                                                                                                                                        |
-| [GitHub Copilot](./copilot.md)    | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
-| WindSurf                          | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Cursor                            | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
-| Sourcegraph Amp                   | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Kiro                              | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
-| Gemini CLI                        | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
-| Antigravity                       | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Client                           | OpenAI | Anthropic | BYOK | Notes                                                                                                                                                  |
+|----------------------------------|--------|-----------|------|--------------------------------------------------------------------------------------------------------------------------------------------------------|
+| [Mux](./mux.md)                  | ✅      | ✅         | -    |                                                                                                                                                        |
+| [Claude Code](./claude-code.md)  | -      | ✅         | ✅    |                                                                                                                                                        |
+| [Codex CLI](./codex.md)          | ✅      | -         | ✅    |                                                                                                                                                        |
+| [OpenCode](./opencode.md)        | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Factory](./factory.md)          | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Cline](./cline.md)              | ✅      | ✅         | ✅    |                                                                                                                                                        |
+| [Kilo Code](./kilo-code.md)      | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [VS Code](./vscode.md)           | ✅      | ✅         | ❌    | VS Code 1.122+ via Custom Endpoint provider. GitHub sign-in not required. Inline suggestions still require GitHub Copilot.                             |
+| [JetBrains IDEs](./jetbrains.md) | ✅      | ❌         | ❌    | Works in Chat mode via [third-party model configuration](https://www.jetbrains.com/help/ai-assistant/use-custom-models.html#provide-your-own-api-key). |
+| [Zed](./zed.md)                  | ✅      | ✅         | ❌    |                                                                                                                                                        |
+| [GitHub Copilot](./copilot.md)   | ⚙️     | -         | -    | Requires [AI Gateway Proxy](../ai-gateway-proxy/index.md). Uses per-user GitHub tokens.                                                                |
+| WindSurf                         | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Cursor                           | ❌      | ❌         | ❌    | Override for OpenAI broken ([upstream issue](https://forum.cursor.com/t/requests-are-sent-to-incorrect-endpoint-when-using-base-url-override/144894)). |
+| Sourcegraph Amp                  | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Kiro                             | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
+| Gemini CLI                       | ❌      | ❌         | ❌    | No Gemini API support. Upvote [this issue](https://github.com/coder/coder/issues/24804).                                                               |
+| Antigravity                      | ❌      | ❌         | ❌    | No option to override base URL.                                                                                                                        |
 |
 
 *Legend: ✅ supported, ⚙️ requires AI Gateway Proxy, ❌ not supported, - not applicable.*
@@ -79,7 +78,7 @@ resource "coder_agent" "dev" {
     os   = "linux"
     dir  = local.repo_dir
     env = {
-        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/aibridge/anthropic",
+        ANTHROPIC_BASE_URL : "${data.coder_workspace.me.access_url}/api/v2/ai-gateway/anthropic",
         ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token
     }
     ... # other agent configuration
@@ -101,7 +100,7 @@ For headless scenarios, first [create a service account](../../../admin/users/he
 For clients supporting [base URL](#base-urls), eg. [Claude Code](./claude-code.md):
 
 ```sh
-export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/aibridge/anthropic"
+export ANTHROPIC_BASE_URL="https://coder.example.com/api/v2/ai-gateway/anthropic"
 export ANTHROPIC_AUTH_TOKEN="<your-coder-api-token>"
 ```
 
@@ -111,7 +110,7 @@ For other clients setup [AI Gateway Proxy](../ai-gateway-proxy/index.md). Config
 
 ```sh
 export HTTPS_PROXY="https://coder:<your-coder-api-token>@<proxy-host>:8888"
-export SSL_CERT_FILE="/path/to/coder-aibridge-proxy-ca.pem"
+export SSL_CERT_FILE="/path/to/coder-ai-gateway-proxy-ca.pem"
 ```
 
 For proxy setup details, see [AI Gateway Proxy setup](../ai-gateway-proxy/setup.md).

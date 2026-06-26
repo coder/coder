@@ -11,7 +11,7 @@ const AgentSettingsPage: FC = () => {
 	const sidebarView = sidebarViewFromPath(location.pathname);
 	const mobileBack = section
 		? sidebarView.panel === "settings-admin"
-			? { to: "/agents/settings/admin", label: "Manage Agents" }
+			? { to: "/agents/settings/admin", label: "Manage agents" }
 			: { to: "/agents/settings", label: "Settings" }
 		: undefined;
 

@@ -11,6 +11,7 @@ import type {
 import {
 	MockDormantOutdatedWorkspace,
 	MockDormantWorkspace,
+	MockOutdatedStoppedWorkspaceAlwaysUpdate,
 	MockOutdatedWorkspace,
 	MockRunningOutdatedWorkspace,
 	MockStoppedWorkspace,
@@ -393,5 +394,22 @@ describe("WorkspaceApps filtering", () => {
 					name.toLowerCase().includes(hiddenApp.display_name!.toLowerCase()),
 			}),
 		).not.toBeInTheDocument();
+	});
+
+	it("does not show start button for stopped outdated workspace with automatic_updates always", async () => {
+		vi.spyOn(API, "getWorkspaces").mockResolvedValue({
+			workspaces: [MockOutdatedStoppedWorkspaceAlwaysUpdate],
+			count: 1,
+		});
+
+		renderWithAuth(<WorkspacesPage />);
+		await waitForLoaderToBeRemoved();
+
+		expect(
+			screen.queryByRole("button", { name: "Start workspace" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Update and start workspace" }),
+		).toBeInTheDocument();
 	});
 });

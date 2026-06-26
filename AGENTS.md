@@ -9,8 +9,11 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Observability and isolation: Use [Observability Guide for Agents](.claude/docs/OBSERVABILITY.md) for logs, tracing, and metrics, and [Development Isolation Guide for Agents](.claude/docs/DEV_ISOLATION.md) for ports, state, readiness, and cleanup.
 - Failures: Use [Agent Failure Catalog](.claude/docs/AGENT_FAILURES.md) for repeatable failure formats and seeded diagnostics.
 - Language and area docs: Use [Modern Go](.claude/docs/GO.md), [Testing Patterns and Best Practices](.claude/docs/TESTING.md), [Database Development Patterns](.claude/docs/DATABASE.md), [OAuth2 Development Guide](.claude/docs/OAUTH2.md), [Coder Architecture](.claude/docs/ARCHITECTURE.md), [Troubleshooting Guide](.claude/docs/TROUBLESHOOTING.md), [Documentation Style Guide](.claude/docs/DOCS_STYLE_GUIDE.md), and [Pull Request Description Style Guide](.claude/docs/PR_STYLE_GUIDE.md) when that area is in scope.
+- Docs content scope: Use [Coder Docs Content Guidelines](docs/.style/content-guidelines.md) to decide whether a piece of content belongs in `docs/` at all. The Documentation Style Guide above covers prose and formatting; the content guidelines govern scope and routing and supersede the style guide on conflicts.
 - Compatibility: `.agents/docs` symlinks to `.claude/docs` for agent runtimes that look there.
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
+- Docs prose: When editing anything under `docs/`, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
+  For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
 
 ## Foundational rules
 
@@ -83,6 +86,10 @@ instructions focused on guardrails that agents should see immediately.
   [OAuth2 Development Guide](.claude/docs/OAUTH2.md). OAuth2 endpoints must
   use RFC-compliant errors such as `writeOAuth2Error(...)`, and public
   endpoints that need system access should use `dbauthz.AsSystemRestricted`.
+- **Chatd**: consult [Chatd Architecture](coderd/x/chatd/ARCHITECTURE.md) to
+  understand the architecture of the chatd subsystem. If you update the
+  chatd subsystem in ways that affect the architecture, you must update the
+  architecture document.
 - **API design**: Follow the API guardrails in
   [Development Workflows and Guidelines](.claude/docs/WORKFLOWS.md),
   including swagger annotations for new public HTTP endpoints.
@@ -164,6 +171,11 @@ See [Modern Go](.claude/docs/GO.md) for comment formatting and the rule to
 avoid unrelated edits. Preserve existing comments that explain non-obvious
 behavior unless the task directly requires changing them.
 
+Comments MUST be **substantive** and **concise**. Describe the **behaviour**
+of the code, not the reasoning the agent used to produce the change. Do not
+leave comments like `// Added per PR feedback` or `// Refactored for
+clarity`. Instead, explain what the code does and why the behaviour matters.
+
 ### No Emdash or Endash
 
 Do not use emdash (U+2014), endash (U+2013), or ` -- ` as punctuation
@@ -207,7 +219,8 @@ manually before starting work:
 - `.claude/docs/PR_STYLE_GUIDE.md` - PR description format (when writing PRs)
 - `.claude/docs/OAUTH2.md` - OAuth2 and RFC compliance (when touching auth)
 - `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
-- `.claude/docs/DOCS_STYLE_GUIDE.md` - docs conventions (when writing `docs/`)
+- `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
+- `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
 
 **For frontend work**, also read `site/AGENTS.md` before making any changes
 in `site/`.

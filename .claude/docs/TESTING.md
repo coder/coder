@@ -30,7 +30,16 @@ issues.
 
 ### Test Package Naming
 
-- **Test packages**: Use `package_test` naming (e.g., `identityprovider_test`) for black-box testing
+- **Black-box tests**: Default to a `package foo_test` test file (e.g.,
+  `identityprovider_test`). This is what the `testpackage` linter enforces.
+- **White-box / internal tests**: When a test needs to touch unexported
+  symbols, put it in a file named `*_internal_test.go` with `package foo`.
+  The `testpackage` linter's `skip-regexp` already exempts that filename
+  suffix, so no `//nolint:testpackage` directive is needed.
+- **Do not add `//nolint:testpackage`.** If a test needs internal access,
+  rename the file to `*_internal_test.go` instead. A directive plus a
+  justification comment is strictly worse than the established naming
+  convention, and the repo standardizes on the latter.
 
 ## RFC Protocol Testing
 
@@ -50,7 +59,7 @@ issues.
 
 ### Test File Structure
 
-```
+```text
 coderd/
 ├── oauth2.go                    # Implementation
 ├── oauth2_test.go              # Main tests
@@ -69,20 +78,20 @@ coderd/
 
 ### Running Tests
 
-| Command | Purpose |
-|---------|---------|
-| `make test` | Run all Go tests |
-| `make test RUN=TestFunctionName` | Run specific test |
-| `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output |
-| `make test-race` | Run tests with Go race detector |
-| `make test-e2e` | Run end-to-end tests |
+| Command                                              | Purpose                         |
+|------------------------------------------------------|---------------------------------|
+| `make test`                                          | Run all Go tests                |
+| `make test RUN=TestFunctionName`                     | Run specific test               |
+| `go test -v ./path/to/package -run TestFunctionName` | Run test with verbose output    |
+| `make test-race`                                     | Run tests with Go race detector |
+| `make test-e2e`                                      | Run end-to-end tests            |
 
 ### Frontend Testing
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm test` | Run frontend tests |
-| `pnpm check` | Run code checks |
+| Command      | Purpose            |
+|--------------|--------------------|
+| `pnpm test`  | Run frontend tests |
+| `pnpm check` | Run code checks    |
 
 ## Common Testing Issues
 
@@ -218,6 +227,7 @@ func BenchmarkFunction(b *testing.B) {
 ```
 
 Run benchmarks with:
+
 ```bash
 go test -bench=. -benchmem ./package/path
 ```

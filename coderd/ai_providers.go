@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -235,6 +236,7 @@ func (api *API) aiProvidersCreate(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = row
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, aiProviderKeyChanges{Added: keys})
+	api.publishAIProvidersChanged(ctx)
 
 	sdk, err := db2sdk.AIProvider(row, keys)
 	if err != nil {
@@ -318,10 +320,13 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		if req.Settings != nil {
 			existing = mergeAIProviderSettings(existing, *req.Settings)
 		}
-		// Bedrock settings are only meaningful for anthropic-typed
-		// providers; rejecting the mismatch keeps a misconfiguration
-		// from sitting silently in the encrypted blob.
-		if existing.Bedrock != nil && old.Type != database.AiProviderTypeAnthropic {
+		// Bedrock settings are only meaningful for anthropic- or
+		// bedrock-typed providers; rejecting the mismatch keeps a
+		// misconfiguration from sitting silently in the encrypted
+		// blob.
+		if existing.Bedrock != nil &&
+			old.Type != database.AIProviderTypeAnthropic &&
+			old.Type != database.AIProviderTypeBedrock {
 			return errAIProviderBedrockTypeMismatch
 		}
 		settings, err := encodeAIProviderSettings(existing)
@@ -335,6 +340,10 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 			return errBedrockRejectsAPIKeys
 		}
 
+		if req.APIKeys != nil && old.Type == database.AIProviderTypeCopilot && len(*req.APIKeys) > 0 {
+			return errCopilotRejectsAPIKeys
+		}
+
 		displayName := old.DisplayName
 		if req.DisplayName != nil {
 			// Empty string clears the column.
@@ -342,6 +351,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		}
 		params := database.UpdateAIProviderParams{
 			ID:          old.ID,
+			Type:        old.Type,
 			DisplayName: displayName,
 			Enabled:     ptr.NilToDefault(req.Enabled, old.Enabled),
 			BaseUrl:     ptr.NilToDefault(req.BaseURL, old.BaseUrl),
@@ -378,9 +388,15 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, errCopilotRejectsAPIKeys) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Copilot providers do not accept api_keys; they authenticate via request-time GitHub OAuth tokens.",
+		})
+		return
+	}
 	if errors.Is(err, errAIProviderBedrockTypeMismatch) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Bedrock settings are only valid for type=anthropic.",
+			Message: "Bedrock settings are only valid for type=anthropic or type=bedrock.",
 		})
 		return
 	}
@@ -400,6 +416,7 @@ func (api *API) aiProvidersUpdate(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	auditAIProviderKeyChanges(ctx, r, *auditor, api.Logger, keyChanges)
+	api.publishAIProvidersChanged(ctx)
 
 	sdk, err := db2sdk.AIProvider(updated, keys)
 	if err != nil {
@@ -453,7 +470,23 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	api.publishAIProvidersChanged(ctx)
+
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// publishAIProvidersChanged notifies subscribers (aibridged,
+// aibridgeproxyd) that the live provider set changed and they should
+// refetch from the database. Pubsub failures are logged but not
+// propagated: subscribers refresh authoritatively from the DB, so a
+// dropped notification only delays convergence.
+func (api *API) publishAIProvidersChanged(ctx context.Context) {
+	if api.Pubsub == nil {
+		return
+	}
+	if err := api.Pubsub.Publish(coderpubsub.AIProvidersChangedChannel, nil); err != nil {
+		api.Logger.Warn(ctx, "publish ai providers changed event", slog.Error(err))
+	}
 }
 
 // errBedrockRejectsAPIKeys is the sentinel returned from inside the
@@ -461,11 +494,17 @@ func (api *API) aiProvidersDelete(rw http.ResponseWriter, r *http.Request) {
 // Bedrock-typed provider; the outer handler translates it into a 400.
 var errBedrockRejectsAPIKeys = xerrors.New("bedrock providers do not accept api_keys")
 
+// errCopilotRejectsAPIKeys is the sentinel returned from inside the
+// update transaction when a caller attempts to attach api_keys to a
+// Copilot-typed provider; the outer handler translates it into a 400.
+// Copilot authenticates via request-time GitHub OAuth tokens.
+var errCopilotRejectsAPIKeys = xerrors.New("copilot providers do not accept api_keys")
+
 // errAIProviderBedrockTypeMismatch is the sentinel returned from
 // inside the update transaction when the post-merge settings carry a
-// Bedrock block but the provider is not anthropic-typed; the outer
-// handler translates it into a 400.
-var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic")
+// Bedrock block but the provider is not anthropic- or bedrock-typed;
+// the outer handler translates it into a 400.
+var errAIProviderBedrockTypeMismatch = xerrors.New("bedrock settings are only valid for type=anthropic or type=bedrock")
 
 // errAIProviderInvalidName is returned from lookupAIProvider when the
 // idOrName parameter is neither a UUID nor a syntactically-valid name.

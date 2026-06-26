@@ -1,6 +1,7 @@
 import type { AgentDisplayMode } from "#/api/typesGenerated";
+import type { ToolCallView } from "./ToolCall";
 
-export type AgentDisplayState = "collapsed" | "preview" | "expanded";
+export type AgentDisplayState = ToolCallView;
 
 export const resolveAgentDisplayState = (
 	mode: AgentDisplayMode | undefined,
@@ -19,10 +20,6 @@ export const resolveAgentDisplayState = (
 			return _exhaustive;
 		}
 	}
-};
-
-export const isAgentDisplayOpen = (state: AgentDisplayState): boolean => {
-	return state !== "collapsed";
 };
 
 export const isAgentDisplayFullyExpanded = (

@@ -33,6 +33,13 @@ type Metrics struct {
 	CircuitBreakerState   *prometheus.GaugeVec   // Current state (0=closed, 0.5=half-open, 1=open)
 	CircuitBreakerTrips   *prometheus.CounterVec // Total times circuit opened
 	CircuitBreakerRejects *prometheus.CounterVec // Requests rejected due to open circuit
+
+	// Key pool failover metrics.
+	KeyPoolStateTransitions *prometheus.CounterVec // Key state transitions during failover.
+	KeyPoolExhaustions      *prometheus.CounterVec // Times the pool ran out of usable keys.
+	// Keys attempted before success or exhaustion, per interception for
+	// bridged requests and per request for passthrough requests.
+	KeyPoolFailoverAttempts *prometheus.HistogramVec
 }
 
 // NewMetrics creates AND registers metrics. It will panic if a collector has already been registered.
@@ -61,7 +68,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "duration_seconds",
 			Help: "The total duration of intercepted requests, in seconds. " +
 				"The majority of this time will be the upstream processing of the request. " +
-				"aibridge has no control over upstream processing time, so it's just an illustrative metric.",
+				"AI Gateway has no control over upstream processing time, so it's just an illustrative metric.",
 			// TODO: add docs around determining aibridge's *own* latency with distributed traces
 			//       once https://github.com/coder/aibridge/issues/26 lands.
 			Buckets: []float64{0.5, 2, 5, 15, 30, 60, 120},
@@ -99,7 +106,7 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 		InjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
 			Subsystem: "injected_tool_invocations",
 			Name:      "total",
-			Help:      "The number of times an injected MCP tool was invoked by aibridge.",
+			Help:      "The number of times an injected MCP tool was invoked by AI Gateway.",
 		}, append(baseLabels, "server", "name")),
 		// Pessimistic cardinality: 3 providers, 5 models, 30 tools = up to 450.
 		NonInjectedToolUseCount: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
@@ -128,5 +135,31 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name:      "rejects_total",
 			Help:      "Total number of requests rejected due to open circuit breaker.",
 		}, []string{"provider", "endpoint", "model"}),
+
+		// Key pool failover metrics.
+
+		// Pessimistic cardinality: 2 providers, 3 reasons = up to 6.
+		KeyPoolStateTransitions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "key_pool",
+			Name:      "state_transitions_total",
+			Help: "The number of API key state transitions during failover " +
+				"(reason: rate_limited, unauthorized, forbidden).",
+		}, []string{"provider", "reason"}),
+		// Pessimistic cardinality: 2 providers, 2 outcomes = up to 4.
+		KeyPoolExhaustions: promauto.With(reg).NewCounterVec(prometheus.CounterOpts{
+			Subsystem: "key_pool",
+			Name:      "exhaustions_total",
+			Help: "The number of times the key pool was exhausted with no usable key " +
+				"(outcome: rate_limited, auth_failed).",
+		}, []string{"provider", "outcome"}),
+		// Pessimistic cardinality: 2 providers, 7 buckets + 3 extra series (count, sum, +Inf) = up to 20.
+		KeyPoolFailoverAttempts: promauto.With(reg).NewHistogramVec(prometheus.HistogramOpts{
+			Subsystem: "key_pool",
+			Name:      "failover_attempts",
+			Help: "The number of keys attempted before success or exhaustion, " +
+				"per interception for bridged requests and per request for " +
+				"passthrough requests.",
+			Buckets: []float64{1, 2, 3, 4, 5, 10, 25},
+		}, []string{"provider"}),
 	}
 }

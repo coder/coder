@@ -66,6 +66,7 @@ RETURNING
 UPDATE
     ai_providers
 SET
+    type = @type::ai_provider_type,
     display_name = sqlc.narg('display_name')::text,
     enabled = @enabled::boolean,
     base_url = @base_url::text,

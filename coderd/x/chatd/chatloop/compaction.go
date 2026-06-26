@@ -35,14 +35,22 @@ const (
 		"- Key decisions made and their rationale\n" +
 		"- Concrete technical details: file paths, function names, " +
 		"commands, APIs, and configurations\n" +
-		"- Errors encountered and how they were resolved\n" +
+		"- Errors encountered and how they were resolved. Keep error " +
+		"notes specific: name the file, the error, and the fix. Do not " +
+		"generalize from a specific failure to a blanket tool-avoidance " +
+		"rule (e.g. \"tool X is unreliable\" or \"always use Y instead " +
+		"of Z\")\n" +
 		"- Current state of the work: what is DONE, what is IN PROGRESS, " +
 		"and what REMAINS to be done\n" +
 		"- The specific action the assistant was performing or about to " +
 		"perform when this summary was triggered\n\n" +
 		"Be dense and factual. Every sentence should convey essential " +
 		"context for continuation. Do not include pleasantries or " +
-		"conversational filler."
+		"conversational filler. For content that can be reproduced " +
+		"(repo files, command output, API responses), reference how to " +
+		"obtain it (file path, command, URL) rather than inlining the " +
+		"full content. Include brief inline summaries when the content " +
+		"itself would exceed a few lines."
 	defaultCompactionSystemSummaryPrefix = "The following is a summary of " +
 		"the earlier conversation. The assistant was actively working when " +
 		"the context was compacted. Continue the work described below:"
@@ -82,45 +90,36 @@ type CompactionResult struct {
 	ContextLimit     int64
 }
 
-// tryCompact checks whether context usage exceeds the compaction
-// threshold and, if so, generates and persists a summary. Returns
-// (true, nil) when compaction was performed, (false, nil) when not
-// needed, and (false, err) on failure.
-func tryCompact(
-	ctx context.Context,
-	model fantasy.LanguageModel,
-	compaction *CompactionOptions,
-	contextLimitFallback int64,
-	stepUsage fantasy.Usage,
-	stepMetadata fantasy.ProviderMetadata,
-	allMessages []fantasy.Message,
-) (bool, error) {
-	config, ok := normalizedCompactionConfig(compaction)
+// GenerateCompaction generates one context summary and returns it without
+// persisting. It publishes compaction progress parts when configured.
+func GenerateCompaction(ctx context.Context, opts GenerateCompactionOptions) (CompactionResult, error) {
+	if opts.Model == nil {
+		return CompactionResult{}, xerrors.New("chat model is required")
+	}
+	config, ok := normalizedCompactionGenerateConfig(opts)
 	if !ok {
-		return false, nil
+		return CompactionResult{}, nil
 	}
 
-	contextTokens := contextTokensFromUsage(stepUsage)
+	contextTokens := contextTokensFromUsage(opts.StepUsage)
 	if contextTokens <= 0 {
-		return false, nil
+		return CompactionResult{}, nil
 	}
-
-	metadataLimit := extractContextLimit(stepMetadata)
+	metadataLimit := extractContextLimit(opts.StepMetadata)
 	contextLimit := resolveContextLimit(
 		metadataLimit.Int64,
 		config.ContextLimit,
-		contextLimitFallback,
+		opts.ContextLimitFallback,
 	)
-
 	usagePercent, compact := shouldCompact(
-		contextTokens, contextLimit, config.ThresholdPercent,
+		contextTokens,
+		contextLimit,
+		config.ThresholdPercent,
 	)
 	if !compact {
-		return false, nil
+		return CompactionResult{}, nil
 	}
 
-	// Publish the "Summarizing..." tool-call indicator so
-	// connected clients see activity during summary generation.
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		config.PublishMessagePart(
 			codersdk.ChatMessageRoleAssistant,
@@ -128,40 +127,26 @@ func tryCompact(
 		)
 	}
 
-	summary, err := generateCompactionSummary(
-		ctx, model, allMessages, config,
-	)
+	summary, err := generateCompactionSummary(ctx, opts.Model, opts.Messages, config)
 	if err != nil {
-		return false, err
+		publishCompactionError(config, "failed to generate compaction summary")
+		return CompactionResult{}, err
 	}
 	if summary == "" {
-		// Publish a tool-result error so connected clients
-		// see the compaction failure.
 		publishCompactionError(config, "compaction produced an empty summary")
-		return false, xerrors.New("compaction produced an empty summary")
+		return CompactionResult{}, xerrors.New("compaction produced an empty summary")
 	}
 
-	systemSummary := strings.TrimSpace(
-		config.SystemSummaryPrefix + "\n\n" + summary,
-	)
-
-	persistCtx := context.WithoutCancel(ctx)
-	err = config.Persist(persistCtx, CompactionResult{
-		SystemSummary:    systemSummary,
+	result := CompactionResult{
+		SystemSummary: strings.TrimSpace(
+			config.SystemSummaryPrefix + "\n\n" + summary,
+		),
 		SummaryReport:    summary,
 		ThresholdPercent: config.ThresholdPercent,
 		UsagePercent:     usagePercent,
 		ContextTokens:    contextTokens,
 		ContextLimit:     contextLimit,
-	})
-	if err != nil {
-		publishCompactionError(config, "failed to persist compaction result")
-		return false, xerrors.Errorf("persist compaction: %w", err)
 	}
-
-	// Publish the "Summarized" tool-result part so the client
-	// transitions from the in-progress indicator to the final
-	// state.
 	if config.PublishMessagePart != nil && config.ToolCallID != "" {
 		resultJSON, _ := json.Marshal(map[string]any{
 			"summary":              summary,
@@ -176,37 +161,22 @@ func tryCompact(
 			codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, resultJSON, false, false),
 		)
 	}
-
-	return true, nil
+	return result, nil
 }
 
-// publishCompactionError sends a tool-result error part so
-// connected clients see that compaction failed.
-func publishCompactionError(config CompactionOptions, msg string) {
-	if config.PublishMessagePart == nil || config.ToolCallID == "" {
-		return
-	}
-	errJSON, _ := json.Marshal(map[string]any{
-		"error": msg,
-	})
-	config.PublishMessagePart(
-		codersdk.ChatMessageRoleTool,
-		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true, false),
-	)
-}
-
-// normalizedCompactionConfig returns a copy of the compaction options
-// with defaults applied. The bool is false when compaction is
-// disabled (nil options, missing Persist callback, or threshold at
-// 100%).
-func normalizedCompactionConfig(opts *CompactionOptions) (CompactionOptions, bool) {
-	if opts == nil {
-		return CompactionOptions{}, false
-	}
-
-	config := *opts
-	if config.Persist == nil {
-		return CompactionOptions{}, false
+func normalizedCompactionGenerateConfig(opts GenerateCompactionOptions) (CompactionOptions, bool) {
+	config := CompactionOptions{
+		ThresholdPercent:    opts.ThresholdPercent,
+		ContextLimit:        opts.ContextLimit,
+		SummaryPrompt:       opts.SummaryPrompt,
+		SystemSummaryPrefix: opts.SystemSummaryPrefix,
+		Timeout:             opts.Timeout,
+		DebugSvc:            opts.DebugSvc,
+		ChatID:              opts.ChatID,
+		HistoryTipMessageID: opts.HistoryTipMessageID,
+		ToolCallID:          opts.ToolCallID,
+		ToolName:            opts.ToolName,
+		PublishMessagePart:  opts.PublishMessagePart,
 	}
 	if strings.TrimSpace(config.SummaryPrompt) == "" {
 		config.SummaryPrompt = defaultCompactionSummaryPrompt
@@ -224,8 +194,22 @@ func normalizedCompactionConfig(opts *CompactionOptions) (CompactionOptions, boo
 	if config.ThresholdPercent == maxCompactionThresholdPercent {
 		return CompactionOptions{}, false
 	}
-
 	return config, true
+}
+
+// publishCompactionError sends a tool-result error part so
+// connected clients see that compaction failed.
+func publishCompactionError(config CompactionOptions, msg string) {
+	if config.PublishMessagePart == nil || config.ToolCallID == "" {
+		return
+	}
+	errJSON, _ := json.Marshal(map[string]any{
+		"error": msg,
+	})
+	config.PublishMessagePart(
+		codersdk.ChatMessageRoleTool,
+		codersdk.ChatMessageToolResult(config.ToolCallID, config.ToolName, errJSON, true, false),
+	)
 }
 
 // contextTokensFromUsage returns the total context token count from

@@ -22,6 +22,7 @@ describe("anthropicKnownModels", () => {
 				(knownModel) => knownModel.modelIdentifier,
 			),
 		).toEqual([
+			"claude-opus-4-8",
 			"claude-opus-4-7",
 			"claude-opus-4-6",
 			"claude-sonnet-4-6",
@@ -31,7 +32,11 @@ describe("anthropicKnownModels", () => {
 	});
 
 	it("declares Anthropic reasoning defaults by API support", () => {
-		for (const modelIdentifier of ["claude-opus-4-7", "claude-opus-4-6"]) {
+		for (const modelIdentifier of [
+			"claude-opus-4-8",
+			"claude-opus-4-7",
+			"claude-opus-4-6",
+		]) {
 			const knownModel = requireAnthropicKnownModel(modelIdentifier);
 
 			expect(knownModel.reasoningEffort).toBe("high");
@@ -54,6 +59,7 @@ describe("anthropicKnownModels", () => {
 		expect(
 			anthropicKnownModels.map((knownModel) => knownModel.modelIdentifier),
 		).toEqual([
+			"claude-opus-4-8",
 			"claude-opus-4-7",
 			"claude-opus-4-6",
 			"claude-sonnet-4-6",
@@ -64,8 +70,16 @@ describe("anthropicKnownModels", () => {
 		for (const knownModel of anthropicKnownModels) {
 			expect(knownModel.provider).toBe("anthropic");
 			expect(knownModel.sourceMetadata.sourceName).toBe("models.dev");
-			expect(knownModel.sourceMetadata.sourceRetrievedAt).toBe("2026-04-30");
+			expect(knownModel.sourceMetadata.sourceRetrievedAt).not.toBe("");
 			expect(knownModel.sourceMetadata.lastUpdated).not.toBe("");
 		}
+
+		expect(
+			requireAnthropicKnownModel("claude-opus-4-8").sourceMetadata,
+		).toEqual({
+			sourceName: "models.dev",
+			sourceRetrievedAt: "2026-05-29",
+			lastUpdated: "2026-05-28",
+		});
 	});
 });

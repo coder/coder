@@ -93,7 +93,22 @@ done`,
 		{
 			name: "quoted-program-name",
 			in:   `"/usr/bin/git" pull`,
-			want: [][]string{{"/usr/bin/git", "pull"}},
+			want: [][]string{{"git", "pull"}},
+		},
+		{
+			name: "absolute-path-binary",
+			in:   `/opt/mise/data/installs/go/1.26.2/bin/go test ./...`,
+			want: [][]string{{"go", "test"}},
+		},
+		{
+			name: "relative-path-binary",
+			in:   `./build.sh --verbose`,
+			want: [][]string{{"build.sh"}},
+		},
+		{
+			name: "windows-path-binary",
+			in:   `'C:\Program Files\Go\bin\go.exe' test ./...`,
+			want: [][]string{{"go.exe", "test"}},
 		},
 		{
 			name: "double-quoted-with-variable-expansion-skipped",

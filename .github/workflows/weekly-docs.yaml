@@ -14,7 +14,54 @@ permissions:
   contents: read
 
 jobs:
+  prepare-linkspector-browser:
+    # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    env:
+      CHROME_BUILD_ID: "145.0.7632.77"
+    outputs:
+      browser-cache-key: ${{ steps.browser-versions.outputs.cache-key }}
+      chrome-path: ${{ steps.install-chrome.outputs.path }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up mise tools
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node npm:@puppeteer/browsers"
+
+      - name: Get browser versions
+        id: browser-versions
+        run: |
+          set -euo pipefail
+          installer_version="$(mise current npm:@puppeteer/browsers)"
+          echo "cache-key=puppeteer-${RUNNER_OS}-${RUNNER_ARCH}-browsers-${installer_version}-chrome-${CHROME_BUILD_ID}" >> "$GITHUB_OUTPUT"
+
+      - name: Restore Puppeteer browser cache
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ steps.browser-versions.outputs.cache-key }}
+
+      - name: Install Linkspector Chrome
+        id: install-chrome
+        run: |
+          set -euo pipefail
+          chrome_path="$(browsers install "chrome@${CHROME_BUILD_ID}" --path "${HOME}/.cache/puppeteer" --format '{{path}}')"
+          echo "path=${chrome_path}" >> "$GITHUB_OUTPUT"
+
   check-docs:
+    needs: prepare-linkspector-browser
     # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
     runs-on: ubuntu-22.04
     permissions:
@@ -54,23 +101,106 @@ jobs:
           corepack enable pnpm
           mkdir -p "$(pnpm store path --silent)"
 
+      - name: Restore Puppeteer browser cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/.cache/puppeteer
+          key: ${{ needs.prepare-linkspector-browser.outputs.browser-cache-key }}
+
       - name: Check Markdown links
-        uses: umbrelladocs/action-linkspector@37c85bcde51b30bf929936502bac6bfb7e8f0a4d # v1.4.1
+        uses: umbrelladocs/action-linkspector@036f295d12b67b0c4b445bc83db0538afb78db69 # v1.5.2
         id: markdown-link-check
         # checks all markdown files from /docs including all subfolders
+        env:
+          # Use the Chrome build prepared from mise-pinned Puppeteer instead
+          # of letting linkspector download a mutable browser at runtime.
+          # See: https://github.com/UmbrellaDocs/action-linkspector/issues/62
+          PUPPETEER_EXECUTABLE_PATH: ${{ needs.prepare-linkspector-browser.outputs.chrome-path }}
         with:
-          reporter: github-pr-review
+          # On PRs, use github-pr-review for inline comments. On schedule/dispatch,
+          # use local so reviewdog actually reports failures instead of silently
+          # exiting 0 (github-pr-review requires a PR context).
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'local' }}
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
-          filter_mode: "file"
+          filter_mode: ${{ github.event_name == 'pull_request' && 'file' || 'nofilter' }}
 
       - name: Send Slack notification
-        if: failure() && github.event_name == 'schedule'
+        if: failure() && github.event_name != 'pull_request'
         run: |
           curl \
             -X POST \
             -H 'Content-type: application/json' \
-            -d '{"msg":"Broken links found in the documentation. Please check the logs at '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+            -d '{"text":":warning: *Broken links found in the documentation.*\nPlease check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
+          echo "Sent Slack notification"
+        env:
+          LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}
+
+  audit-docs-paths:
+    # Disabled by default: this audit fetches a config file from a private
+    # upstream source and the workflow currently lacks the credentials to
+    # read it. Pending provisioning of a dedicated GitHub App with the
+    # required cross-repo Contents: Read. To re-enable once the App
+    # credentials are in place, set the repository variable
+    # AUDIT_DOCS_PATHS_ENABLED to 'true'.
+    if: vars.AUDIT_DOCS_PATHS_ENABLED == 'true'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Check for audit script
+        id: check-script
+        run: |
+          if [ ! -f site/scripts/audit-docs-paths.mjs ]; then
+            echo "::notice::Audit script not yet available (pending PR #25740). Skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up mise tools
+        if: steps.check-script.outputs.skip != 'true'
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: "node"
+
+      - name: Fetch redirects.json
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          curl -sfL \
+            https://raw.githubusercontent.com/coder/coder.com/refs/heads/main/redirects.json \
+            -o /tmp/redirects.json
+
+      - name: Audit TS/TSX docs paths against redirects
+        if: steps.check-script.outputs.skip != 'true'
+        run: |
+          node site/scripts/audit-docs-paths.mjs \
+            --redirects=/tmp/redirects.json \
+            --roots=site/src \
+            --out=/tmp/audit-report.md 2>&1 | tee /tmp/audit-output.txt
+
+          count=$(grep -oP 'Total findings: \K\d+' /tmp/audit-output.txt || echo "0")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::Found $count stale docs path(s) pointing at redirect sources"
+            cat /tmp/audit-report.md >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+      - name: Send Slack notification
+        if: failure() && github.event_name != 'pull_request'
+        run: |
+          curl \
+            -X POST \
+            -H 'Content-type: application/json' \
+            -d '{"text":":warning: *Stale docs paths found in site/src/.*\nTS/TSX files reference docs URLs that now redirect. Please check the logs: '"${LOGS_URL}"'"}' "${{ secrets.DOCS_LINK_SLACK_WEBHOOK }}"
           echo "Sent Slack notification"
         env:
           LOGS_URL: https://github.com/coder/coder/actions/runs/${{ github.run_id }}

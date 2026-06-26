@@ -40,7 +40,7 @@ export const ChatSectionHeader: FC<ChatSectionHeaderProps> = ({
 					<ChevronDownIcon
 						aria-hidden="true"
 						className={cn(
-							"h-3.5 w-3.5 text-current transition-transform",
+							"size-3.5 text-current transition-transform",
 							expanded && "rotate-180",
 						)}
 					/>

@@ -54,6 +54,8 @@ export const Ready: Story = {
 	},
 };
 
+// start_error no longer affects the status dot; the agent shows as Ready
+// because the error is surfaced in the per-script log tabs instead.
 export const StartupScriptFailed: Story = {
 	args: {
 		agent: {
@@ -63,15 +65,12 @@ export const StartupScriptFailed: Story = {
 		},
 	},
 	play: async () => {
-		await expectTooltip(
-			"Startup script failed",
-			agentScriptMessages.start_error.title,
-			agentScriptMessages.start_error.detail,
-			true,
-		);
+		expect(screen.getByRole("status", { name: "Ready" })).toBeInTheDocument();
 	},
 };
 
+// start_timeout no longer affects the status dot; the agent shows as Ready
+// because the timeout is surfaced in the per-script log tabs instead.
 export const StartupScriptTimeout: Story = {
 	args: {
 		agent: {
@@ -81,12 +80,7 @@ export const StartupScriptTimeout: Story = {
 		},
 	},
 	play: async () => {
-		await expectTooltip(
-			"Startup script timeout",
-			agentScriptMessages.start_timeout.title,
-			agentScriptMessages.start_timeout.detail,
-			true,
-		);
+		expect(screen.getByRole("status", { name: "Ready" })).toBeInTheDocument();
 	},
 };
 
@@ -143,6 +137,8 @@ export const ConnectionTimeout: Story = {
 	},
 };
 
+// start_error renders as Ready regardless of whether a troubleshoot URL is
+// provided, because script errors are surfaced in the per-script log tabs.
 export const StartupScriptFailedNoTroubleshootURL: Story = {
 	args: {
 		agent: {
@@ -153,12 +149,7 @@ export const StartupScriptFailedNoTroubleshootURL: Story = {
 		},
 	},
 	play: async () => {
-		await expectTooltip(
-			"Startup script failed",
-			agentScriptMessages.start_error.title,
-			agentScriptMessages.start_error.detail,
-			false,
-		);
+		expect(screen.getByRole("status", { name: "Ready" })).toBeInTheDocument();
 	},
 };
 

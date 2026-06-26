@@ -1,4 +1,4 @@
-import { type CSSProperties, type FC, useState } from "react";
+import { type FC, useState } from "react";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { cn } from "#/utils/cn";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -35,22 +35,20 @@ export const AgentsPageSkeleton: FC = () => {
 	return (
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row">
 			<div
-				style={
-					{
-						"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
-					} as CSSProperties
-				}
+				style={{
+					"--agents-left-sidebar-width": `${leftSidebarWidth}px`,
+				}}
 				className="order-2 sm:order-none flex-1 min-h-0 border-t border-border-default sm:flex-none sm:border-t-0 sm:h-full sm:w-[var(--agents-left-sidebar-width)] sm:min-w-[240px] sm:max-w-[min(520px,50vw)] sm:min-h-0 sm:border-b-0"
 			>
-				<div className="relative flex h-full w-full min-h-0 border-0 border-r border-solid overflow-hidden">
+				<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 					<div className="absolute inset-0 flex flex-col">
 						<div className="hidden border-b border-border-default px-2 pb-3 pt-1.5 sm:block">
 							<div className="mb-2.5 flex items-center justify-between">
-								<Skeleton className="h-6 w-6 rounded" />
+								<Skeleton className="size-6 rounded" />
 								<div className="flex items-center gap-0.5 -mr-1.5">
-									<Skeleton className="h-7 w-7 rounded" />
-									<Skeleton className="h-7 w-7 rounded" />
-									<Skeleton className="h-7 w-7 rounded" />
+									<Skeleton className="size-7 rounded" />
+									<Skeleton className="size-7 rounded" />
+									<Skeleton className="size-7 rounded" />
 								</div>
 							</div>
 							<Skeleton className="h-9 w-full rounded-md" />
@@ -63,7 +61,7 @@ export const AgentsPageSkeleton: FC = () => {
 										key={i}
 										className="flex items-start gap-2 rounded-md px-2 py-1"
 									>
-										<Skeleton className="mt-0.5 h-5 w-5 shrink-0 rounded-md" />
+										<Skeleton className="mt-0.5 size-5 shrink-0 rounded-md" />
 										<div className="min-w-0 flex-1 space-y-1.5">
 											<Skeleton
 												className="h-3.5"
@@ -173,11 +171,11 @@ export const AgentChatPageSkeleton: FC = () => {
 		>
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col">
 				<div className="flex shrink-0 items-center gap-2 px-4 py-1.5">
-					<Skeleton className="h-7 w-7 rounded" />
+					<Skeleton className="size-7 rounded" />
 					<Skeleton className="h-4 w-32" />
 					<div className="flex-1" />
-					<Skeleton className="h-7 w-7 rounded" />
-					<Skeleton className="h-7 w-7 rounded" />
+					<Skeleton className="size-7 rounded" />
+					<Skeleton className="size-7 rounded" />
 				</div>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden">
 					<div className="px-4">
@@ -195,11 +193,9 @@ export const AgentChatPageSkeleton: FC = () => {
 			</div>
 			{rightPanel.open && (
 				<div
-					style={
-						{
-							"--panel-width": `${rightPanel.width}px`,
-						} as React.CSSProperties
-					}
+					style={{
+						"--panel-width": `${rightPanel.width}px`,
+					}}
 					className="relative flex h-full w-[100vw] min-w-0 flex-col border-0 border-l border-solid border-border-default sm:w-[var(--panel-width)] sm:min-w-[360px] sm:max-w-[70vw]"
 				>
 					<RightPanelSkeleton />

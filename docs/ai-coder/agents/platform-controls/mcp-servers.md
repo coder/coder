@@ -4,13 +4,12 @@ Administrators can register external MCP servers that provide additional tools
 for agent chat sessions. Configured servers are injected into or offered to
 users during chat depending on the availability policy.
 
-This is an admin-only feature accessible at **Agents** > **Settings** >
-**Manage Agents** > **MCP Servers**.
+This is an admin-only feature accessible at **AI Settings** > **MCP servers**
+(`/ai/settings/mcp-servers`).
 
 ## Add an MCP server
 
-1. Navigate to **Agents** > **Settings** > **Manage Agents** >
-   **MCP Servers**.
+1. Navigate to **AI Settings** > **MCP servers**.
 1. Click **Add**.
 1. Fill in the configuration fields described below.
 1. Click **Save**.
@@ -143,10 +142,8 @@ auth header for the configured `auth_type`:
 | `X-Coder-Subchat-Id`   | Subchat ID. Only present when the request originates from a child chat.                                      |
 | `X-Coder-Workspace-Id` | Workspace associated with the chat, if any.                                                                  |
 
-These are the same headers Coder sends to LLM providers (see
-[Coder agents headers](../../ai-gateway/clients/coder-agents.md)) so a
-first-party MCP server can correlate a tool call back to the
-originating chat.
+Coder sends the same identity headers to LLM providers, so a first-party
+MCP server can correlate a tool call back to the originating chat.
 
 Because the headers leak chat identity, the option is **off by
 default** and should only be enabled for first-party or trusted

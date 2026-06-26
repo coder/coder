@@ -9,7 +9,7 @@ import { Button } from "#/components/Button/Button";
 import { Input } from "#/components/Input/Input";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { cn } from "#/utils/cn";
-import { TranscriptRow } from "../TranscriptRow";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 export type AskUserQuestion = {
@@ -292,7 +292,7 @@ const QuestionStep: FC<QuestionStepProps> = ({
 			<div className="flex items-start gap-1.5 text-content-secondary">
 				<MessageCircleQuestionIcon
 					aria-hidden="true"
-					className="mt-0.5 h-4 w-4 shrink-0"
+					className="mt-0.5 size-4 shrink-0"
 				/>
 				<p
 					id={questionTextId}
@@ -355,7 +355,7 @@ const AnsweredQuestionText: FC<AnsweredQuestionTextProps> = ({
 		<div className="flex items-start gap-1.5 text-content-secondary">
 			<MessageCircleQuestionIcon
 				aria-hidden="true"
-				className="mt-0.5 h-4 w-4 shrink-0"
+				className="mt-0.5 size-4 shrink-0"
 			/>
 			<p
 				id={`${idPrefix}-question-${questionIndex}-text`}
@@ -536,17 +536,18 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 
 	if (isError) {
 		return (
-			<div className="w-full">
-				<TranscriptRow
-					role="alert"
-					className="gap-1.5 text-[13px] text-content-secondary"
+			<div className="w-full" role="alert">
+				<ToolCall.Root
+					status={status}
+					isError
+					errorMessage={errorMessage || "Failed to ask questions"}
+					hasContent={false}
 				>
-					<TriangleAlertIcon
-						aria-label="Error"
-						className="h-3.5 w-3.5 shrink-0 text-content-secondary"
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label={errorMessage || "Failed to ask questions"}
 					/>
-					<span>{errorMessage || "Failed to ask questions"}</span>
-				</TranscriptRow>
+				</ToolCall.Root>
 			</div>
 		);
 	}
@@ -555,15 +556,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 		return (
 			<div className="w-full">
 				{isRunning ? (
-					<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
-						<span className="text-[13px] text-content-secondary">
-							Asking for clarification...
-						</span>
-						<LoaderIcon
-							data-testid="ask-user-question-loading-icon"
-							className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+					<ToolCall.Root
+						status={status}
+						hasContent={false}
+						role="status"
+						aria-live="polite"
+					>
+						<ToolCall.Header
+							iconName="ask_user_question"
+							label="Asking for clarification..."
 						/>
-					</TranscriptRow>
+					</ToolCall.Root>
 				) : (
 					<p className="text-[13px] italic text-content-secondary">
 						No questions available.
@@ -629,7 +632,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 					role="alert"
 					className="mt-3 flex items-center gap-1.5 text-[13px] text-content-destructive"
 				>
-					<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0" />
+					<TriangleAlertIcon className="size-3.5 shrink-0" />
 					<span>{submitError}</span>
 				</div>
 			)}
@@ -664,7 +667,7 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 							disabled={!canSubmitAllAnswers || isSubmitting}
 						>
 							{isSubmitting && (
-								<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+								<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 							)}
 							{isSubmitting ? "Submitting..." : "Submit"}
 						</Button>
@@ -677,15 +680,17 @@ export const AskUserQuestionTool: FC<AskUserQuestionToolProps> = ({
 	return (
 		<div className="w-full">
 			{isRunning && (
-				<TranscriptRow role="status" aria-live="polite" className="gap-1.5">
-					<span className="text-[13px] text-content-secondary">
-						Asking for clarification...
-					</span>
-					<LoaderIcon
-						data-testid="ask-user-question-loading-icon"
-						className="h-3.5 w-3.5 shrink-0 animate-spin text-content-secondary motion-reduce:animate-none"
+				<ToolCall.Root
+					status={status}
+					hasContent={false}
+					role="status"
+					aria-live="polite"
+				>
+					<ToolCall.Header
+						iconName="ask_user_question"
+						label="Asking for clarification..."
 					/>
-				</TranscriptRow>
+				</ToolCall.Root>
 			)}
 
 			{isInteractive ? (

@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
@@ -41,6 +42,10 @@ const (
 	// using the Bedrock discriminator in Settings; native support is
 	// future work.
 	AIProviderTypeBedrock AIProviderType = "bedrock"
+	// AIProviderTypeCopilot routes through aibridge's Copilot client,
+	// which uses request-time GitHub OAuth tokens rather than pre-shared
+	// API keys.
+	AIProviderTypeCopilot AIProviderType = "copilot"
 )
 
 // AIProviderSettings is the discriminated container for type-specific
@@ -184,8 +189,9 @@ type AIProviderKey struct {
 
 // CreateAIProviderRequest is the payload for creating a new AI
 // provider. Name and Type are required. APIKeys carries the plaintext
-// keys for OpenAI/Anthropic providers; Bedrock providers authenticate
-// via Settings and must omit APIKeys.
+// keys for OpenAI/Anthropic providers; Bedrock and Copilot providers
+// must omit APIKeys (Bedrock authenticates via Settings, Copilot via
+// request-time GitHub OAuth tokens).
 type CreateAIProviderRequest struct {
 	Type        AIProviderType     `json:"type"`
 	Name        string             `json:"name"`
@@ -205,6 +211,7 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 		AIProviderTypeAnthropic,
 		AIProviderTypeAzure,
 		AIProviderTypeBedrock,
+		AIProviderTypeCopilot,
 		AIProviderTypeGoogle,
 		AIProviderTypeOpenAICompat,
 		AIProviderTypeOpenrouter,
@@ -220,10 +227,33 @@ func (req CreateAIProviderRequest) Validate() []ValidationError {
 	validations = append(validations, validateAIProviderName(req.Name)...)
 	validations = append(validations, validateRequiredAIProviderBaseURL(req.BaseURL)...)
 	validations = append(validations, validateAIProviderAPIKeys(req.APIKeys)...)
-	if req.Settings.Bedrock != nil && req.Type != AIProviderTypeAnthropic {
+	if req.Settings.Bedrock != nil &&
+		req.Type != AIProviderTypeAnthropic &&
+		req.Type != AIProviderTypeBedrock {
 		validations = append(validations, ValidationError{
 			Field:  "settings",
-			Detail: "bedrock settings are only valid for type=anthropic",
+			Detail: "bedrock settings are only valid for type=anthropic or type=bedrock",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && (req.Settings.Bedrock == nil || !req.Settings.Bedrock.IsConfigured()) {
+		validations = append(validations, ValidationError{
+			Field:  "settings",
+			Detail: "type=bedrock requires bedrock settings",
+		})
+	}
+	if req.Type == AIProviderTypeBedrock && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=bedrock does not accept api_keys",
+		})
+	}
+	if req.Settings.Bedrock != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+	}
+	if req.Type == AIProviderTypeCopilot && len(req.APIKeys) > 0 {
+		validations = append(validations, ValidationError{
+			Field:  "api_keys",
+			Detail: "type=copilot does not accept api_keys",
 		})
 	}
 	return validations
@@ -268,6 +298,9 @@ func (req UpdateAIProviderRequest) Validate() []ValidationError {
 	if req.APIKeys != nil {
 		validations = append(validations, validateAIProviderKeyMutations(*req.APIKeys)...)
 	}
+	if req.Settings != nil && req.Settings.Bedrock != nil {
+		validations = append(validations, validateAIProviderRoleARN(req.Settings.Bedrock.RoleARN)...)
+	}
 	return validations
 }
 
@@ -288,6 +321,27 @@ func validateAIProviderName(name string) []ValidationError {
 		})
 	}
 	return validations
+}
+
+func validateAIProviderRoleARN(roleARN string) []ValidationError {
+	if roleARN == "" {
+		return nil
+	}
+	const exampleRoleARN = "arn:aws:iam::123456789012:role/BedrockRole"
+	invalid := func(detail string) []ValidationError {
+		return []ValidationError{{Field: "settings.role_arn", Detail: detail}}
+	}
+	parsed, err := arn.Parse(roleARN)
+	if err != nil {
+		return invalid(fmt.Sprintf("role_arn %q is not a valid ARN, e.g. %s", roleARN, exampleRoleARN))
+	}
+	if parsed.Service != "iam" {
+		return invalid(fmt.Sprintf("role_arn must be an IAM ARN, but resolved to service %q, e.g. %s", parsed.Service, exampleRoleARN))
+	}
+	if !strings.HasPrefix(parsed.Resource, "role/") {
+		return invalid(fmt.Sprintf("role_arn must reference an IAM role, but resolved to resource %q, e.g. %s", parsed.Resource, exampleRoleARN))
+	}
+	return nil
 }
 
 func validateRequiredAIProviderBaseURL(raw string) []ValidationError {

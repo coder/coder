@@ -1,0 +1,6 @@
+module "git-commit-signing" {
+  count    = data.coder_workspace.me.start_count
+  source   = "{{ .RegistryBase }}/coder/git-commit-signing/coder"
+  version  = "{{ .PinnedVersion }}"
+  agent_id = coder_agent.{{ .AgentResourceName }}.id
+}

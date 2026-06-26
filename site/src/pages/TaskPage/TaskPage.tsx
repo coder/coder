@@ -43,9 +43,10 @@ import { Margins } from "#/components/Margins/Margins";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
+import { getAllAppsWithAgent } from "#/modules/apps/workspaceApps";
 import { AgentLogs } from "#/modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "#/modules/resources/useAgentLogs";
-import { getAllAppsWithAgent } from "#/modules/tasks/apps";
 import { TasksSidebar } from "#/modules/tasks/TasksSidebar/TasksSidebar";
 import { isPauseDisabled } from "#/modules/tasks/taskActions";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -54,13 +55,13 @@ import { WorkspaceOutdatedTooltip } from "#/modules/workspaces/WorkspaceOutdated
 import { cn } from "#/utils/cn";
 import { pageTitle } from "#/utils/page";
 import { relativeTime } from "#/utils/time";
+import { getWorkspaceAgents } from "#/utils/workspace";
 import {
 	getActiveTransitionStats,
 	WorkspaceBuildProgress,
 } from "../WorkspacePage/WorkspaceBuildProgress";
 import { FollowUpDialog } from "./FollowUpDialog";
 import { ModifyPromptDialog } from "./ModifyPromptDialog";
-import { TaskAppIFrame } from "./TaskAppIframe";
 import { TaskApps } from "./TaskApps";
 import { TaskTopbar } from "./TaskTopbar";
 
@@ -334,7 +335,7 @@ const TaskPage = () => {
 			<PanelGroup autoSaveId="task" direction="horizontal">
 				<Panel defaultSize={25} minSize={20}>
 					{chatApp ? (
-						<TaskAppIFrame active workspace={workspace} app={chatApp} />
+						<WorkspaceAppFrame active workspace={workspace} app={chatApp} />
 					) : (
 						<div className="h-full flex items-center justify-center p-6 text-center">
 							<div className="flex flex-col items-center">
@@ -898,9 +899,5 @@ const TaskStartingAgent: FC<TaskStartingAgentProps> = ({ task, agent }) => {
 };
 
 function selectAgent(workspace: Workspace) {
-	const agents = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter(Boolean);
-
-	return agents.at(0);
+	return getWorkspaceAgents(workspace).at(0);
 }

@@ -5,12 +5,19 @@ import {
 	MaximizeIcon,
 	MinimizeIcon,
 	PanelLeftIcon,
+	XIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import { type FC, useEffect, useId, useRef, useState } from "react";
+import {
+	type FC,
+	type ReactNode,
+	useEffect,
+	useEffectEvent,
+	useId,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "#/components/Button/Button";
 import { cn } from "#/utils/cn";
-import { DesktopPanel } from "../../RightPanel/DesktopPanel";
 
 /** A single tab definition for the sidebar panel. */
 export interface SidebarTab {
@@ -19,10 +26,10 @@ export interface SidebarTab {
 	label: string;
 	/** Optional icon shown before the label. */
 	icon?: ReactNode;
-	/** Optional badge shown after the label (e.g. diff stats). */
 	badge?: ReactNode;
 	/** The content to render when this tab is active. */
 	content: ReactNode;
+	onClose?: () => void;
 }
 
 interface SidebarTabViewProps {
@@ -40,8 +47,6 @@ interface SidebarTabViewProps {
 	chatTitle?: string;
 	/** Callback to close the panel (used on mobile). */
 	onClose?: () => void;
-	/** Desktop chat ID. Omitted if desktop is not available. */
-	desktopChatId?: string;
 	/**
 	 * The resolved tab ID to render as active (computed by the parent
 	 * with `getEffectiveTabId`). Keeping a single source of truth in the
@@ -52,40 +57,48 @@ interface SidebarTabViewProps {
 	effectiveTabId: string | null;
 	/** Called when the user switches tabs. */
 	onActiveTabChange: (tabId: string) => void;
+	addTabControl?: ReactNode;
 }
 
-/** How far (px) each chevron click scrolls the tab strip. */
 const TAB_SCROLL_AMOUNT = 120;
 
-/**
- * Tracks whether the tab scroll container overflows and
- * exposes scroll helpers for the chevron buttons.
- */
 function useTabScroll() {
 	const ref = useRef<HTMLDivElement>(null);
 	const [canScrollLeft, setCanScrollLeft] = useState(false);
 	const [canScrollRight, setCanScrollRight] = useState(false);
+	const updateScrollState = useEffectEvent(() => {
+		const element = ref.current;
+		if (!element) {
+			return;
+		}
+
+		setCanScrollLeft(element.scrollLeft > 0);
+		setCanScrollRight(
+			element.scrollLeft + element.clientWidth < element.scrollWidth - 1,
+		);
+	});
 
 	useEffect(() => {
-		const el = ref.current;
-		if (!el) return;
+		const element = ref.current;
+		if (!element) {
+			return;
+		}
 
-		const update = () => {
-			setCanScrollLeft(el.scrollLeft > 0);
-			setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
-		};
+		updateScrollState();
+		element.addEventListener("scroll", updateScrollState, { passive: true });
 
-		update();
-		el.addEventListener("scroll", update, { passive: true });
-
-		const ro = new ResizeObserver(update);
-		ro.observe(el);
+		const resizeObserver = new ResizeObserver(updateScrollState);
+		resizeObserver.observe(element);
 
 		return () => {
-			el.removeEventListener("scroll", update);
-			ro.disconnect();
+			element.removeEventListener("scroll", updateScrollState);
+			resizeObserver.disconnect();
 		};
 	}, []);
+
+	useEffect(() => {
+		updateScrollState();
+	});
 
 	const scrollLeft = () => {
 		ref.current?.scrollBy({
@@ -104,6 +117,37 @@ function useTabScroll() {
 	return { ref, canScrollLeft, canScrollRight, scrollLeft, scrollRight };
 }
 
+interface ScrollChevronButtonProps {
+	direction: "left" | "right";
+	onClick: () => void;
+	ariaLabel: string;
+}
+
+const ScrollChevronButton: FC<ScrollChevronButtonProps> = ({
+	direction,
+	onClick,
+	ariaLabel,
+}) => {
+	const isLeft = direction === "left";
+	const Icon = isLeft ? ChevronLeftIcon : ChevronRightIcon;
+
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			aria-label={ariaLabel}
+			className={cn(
+				"absolute inset-y-0 z-10 flex w-8 cursor-pointer items-center border-none p-0 text-content-primary",
+				isLeft
+					? "left-0 justify-start pl-1 [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
+					: "right-0 justify-end pr-1 [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]",
+			)}
+		>
+			<Icon className="size-3.5" />
+		</button>
+	);
+};
+
 export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	tabs,
 	isExpanded,
@@ -112,28 +156,11 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 	onToggleSidebarCollapsed,
 	chatTitle,
 	onClose,
-	desktopChatId,
 	effectiveTabId,
 	onActiveTabChange,
+	addTabControl,
 }) => {
 	const tabIdPrefix = useId();
-
-	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
-		id: t.id,
-		content: t.content,
-	}));
-	if (desktopChatId) {
-		allPanels.push({
-			id: "desktop",
-			content: (
-				<DesktopPanel
-					chatId={desktopChatId}
-					isVisible={effectiveTabId === "desktop"}
-				/>
-			),
-		});
-	}
-
 	const {
 		ref: tabScrollRef,
 		canScrollLeft,
@@ -142,7 +169,12 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 		scrollRight: scrollTabsRight,
 	} = useTabScroll();
 
-	if (tabs.length === 0 && !desktopChatId) {
+	const allPanels: { id: string; content: ReactNode }[] = tabs.map((t) => ({
+		id: t.id,
+		content: t.content,
+	}));
+
+	if (tabs.length === 0) {
 		return (
 			<div className="flex h-full min-w-0 flex-col overflow-hidden bg-surface-primary">
 				<div
@@ -155,7 +187,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							size="icon"
 							onClick={onClose}
 							aria-label="Close panel"
-							className="h-7 w-7 shrink-0 lg:hidden"
+							className="size-7 shrink-0 lg:hidden"
 						>
 							<ArrowLeftIcon />
 						</Button>
@@ -167,12 +199,13 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 							</span>
 						)}
 					</div>
+					{addTabControl}
 					<Button
 						variant="subtle"
 						size="icon"
 						onClick={onToggleExpanded}
 						aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-						className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
+						className="hidden size-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
 					>
 						{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 					</Button>
@@ -196,7 +229,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onClose}
 						aria-label="Close panel"
-						className="h-7 w-7 shrink-0 lg:hidden"
+						className="size-7 shrink-0 lg:hidden"
 					>
 						<ArrowLeftIcon />
 					</Button>
@@ -207,31 +240,29 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 						size="icon"
 						onClick={onToggleSidebarCollapsed}
 						aria-label="Expand sidebar"
-						className="mr-1 h-7 w-7 shrink-0"
+						className="mr-1 size-7 shrink-0"
 					>
 						<PanelLeftIcon />
 					</Button>
 				)}
 				<div className="relative min-w-0 flex-1">
 					{canScrollLeft && (
-						<button
-							type="button"
+						<ScrollChevronButton
+							ariaLabel="Scroll tabs left"
+							direction="left"
 							onClick={scrollTabsLeft}
-							aria-label="Scroll tabs left"
-							className="absolute left-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-start border-none p-0 pl-1 text-content-primary [background:linear-gradient(to_right,hsl(var(--surface-primary))_50%,transparent)]"
-						>
-							<ChevronLeftIcon className="size-3.5" />
-						</button>
+						/>
 					)}
 					<div
 						ref={tabScrollRef}
-						className="flex w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+						className="flex w-full min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
 					>
 						{tabs.map((tab) => {
 							const isActive = effectiveTabId === tab.id;
-							return (
+							const onClose = tab.onClose;
+							const isCloseable = onClose !== undefined;
+							const tabButton = (
 								<Button
-									key={tab.id}
 									id={`${tabIdPrefix}-tab-${tab.id}`}
 									role="tab"
 									aria-selected={isActive}
@@ -243,6 +274,7 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 										isActive &&
 											"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
 										tab.badge && "pr-0",
+										isCloseable && "rounded-r-none border-r-0 pr-2.5",
 									)}
 								>
 									{tab.icon}
@@ -259,34 +291,45 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 									)}
 								</Button>
 							);
+
+							if (!isCloseable) {
+								return (
+									<div key={tab.id} className="flex shrink-0 items-center">
+										{tabButton}
+									</div>
+								);
+							}
+
+							return (
+								<div key={tab.id} className="flex shrink-0 items-center">
+									{tabButton}
+									<Button
+										variant="outline"
+										size="icon"
+										onClick={(event) => {
+											event.stopPropagation();
+											onClose();
+										}}
+										aria-label={`Close ${tab.label} tab`}
+										className={cn(
+											"h-6 w-6 rounded-l-none rounded-r-md bg-surface-primary p-0 text-content-secondary hover:text-content-primary [&>svg]:size-3",
+											isActive &&
+												"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
+										)}
+									>
+										<XIcon />
+									</Button>
+								</div>
+							);
 						})}
-						{desktopChatId && (
-							<Button
-								id={`${tabIdPrefix}-tab-desktop`}
-								role="tab"
-								aria-selected={effectiveTabId === "desktop"}
-								onClick={() => onActiveTabChange("desktop")}
-								variant="outline"
-								size="lg"
-								className={cn(
-									"shrink-0 h-6 min-w-0 gap-1.5 px-2 py-0 bg-surface-primary",
-									effectiveTabId === "desktop" &&
-										"bg-surface-quaternary/25 text-content-primary hover:bg-surface-quaternary/50",
-								)}
-							>
-								Desktop
-							</Button>
-						)}
+						{addTabControl}
 					</div>
 					{canScrollRight && (
-						<button
-							type="button"
+						<ScrollChevronButton
+							ariaLabel="Scroll tabs right"
+							direction="right"
 							onClick={scrollTabsRight}
-							aria-label="Scroll tabs right"
-							className="absolute right-0 top-0 z-10 flex h-full w-8 cursor-pointer items-center justify-end border-none p-0 pr-1 text-content-primary [background:linear-gradient(to_left,hsl(var(--surface-primary))_50%,transparent)]"
-						>
-							<ChevronRightIcon className="size-3.5" />
-						</button>
+						/>
 					)}
 				</div>
 				{isExpanded && chatTitle && (
@@ -301,25 +344,32 @@ export const SidebarTabView: FC<SidebarTabViewProps> = ({
 					size="icon"
 					onClick={onToggleExpanded}
 					aria-label={isExpanded ? "Collapse panel" : "Expand panel"}
-					className="hidden h-7 w-7 shrink-0 text-content-secondary hover:text-content-primary lg:inline-flex"
+					className="hidden size-7 shrink-0 self-start text-content-secondary hover:text-content-primary lg:inline-flex"
 				>
 					{isExpanded ? <MinimizeIcon /> : <MaximizeIcon />}
 				</Button>
 			</div>
-			{allPanels.map((panel) => {
-				const isActive = effectiveTabId === panel.id;
-				return (
-					<div
-						key={panel.id}
-						role="tabpanel"
-						aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
-						className={cn("min-h-0 flex-1", !isActive && "hidden")}
-						inert={!isActive}
-					>
-						{panel.content}
-					</div>
-				);
-			})}
+			<div className="relative flex min-h-0 flex-1 flex-col">
+				{allPanels.map((panel) => {
+					const isActive = effectiveTabId === panel.id;
+					return (
+						<div
+							key={panel.id}
+							role="tabpanel"
+							aria-labelledby={`${tabIdPrefix}-tab-${panel.id}`}
+							className={cn(
+								"min-h-0 flex-1",
+								// Keep inactive panels in the tree but invisible: a canvas xterm
+								// preserves painted pixels while hidden, so switching back is instant.
+								!isActive && "invisible absolute inset-0",
+							)}
+							inert={!isActive}
+						>
+							{panel.content}
+						</div>
+					);
+				})}
+			</div>
 		</div>
 	);
 };

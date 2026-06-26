@@ -25,7 +25,9 @@ export const canViewDeploymentSettings = (
 			permissions.viewAllUsers ||
 			permissions.viewAnyGroup ||
 			permissions.viewNotificationTemplate ||
-			permissions.viewOrganizationIDPSyncSettings)
+			permissions.viewOrganizationIDPSyncSettings ||
+			permissions.viewAnyAIProvider ||
+			permissions.viewAIGatewayKeys)
 	);
 };
 

@@ -6,6 +6,9 @@ excludedDirs:
   - docs/reference
   # Older changelogs may contain broken links
   - docs/changelogs
+  # Contributor-facing style guide and Vale config. Not deployed to
+  # coder.com/docs; chasing external links here is overkill.
+  - docs/.style
 ignorePatterns:
   - pattern: "localhost"
   - pattern: "example.com"
@@ -22,6 +25,7 @@ ignorePatterns:
   - pattern: "www.gnu.org"
   - pattern: "wiki.ubuntu.com"
   - pattern: "mutagen.io"
+  - pattern: "dotnet.microsoft.com"
   - pattern: "docs.github.com"
   - pattern: "claude.ai"
   - pattern: "splunk.com"

@@ -39,6 +39,17 @@ func NewStreamableHTTPServerProxy(serverName, serverURL string, headers map[stri
 		opts = append(opts, transport.WithHTTPHeaders(headers))
 	}
 
+	// Prepend an isolated HTTP client when running in tests so
+	// httptest.Server.Close() does not disrupt this proxy's
+	// connections via http.DefaultTransport.CloseIdleConnections().
+	// Caller-provided WithHTTPBasicClient in opts overrides this
+	// (last-wins).
+	if c := mcpHTTPClient(); c != nil {
+		opts = append([]transport.StreamableHTTPCOption{
+			transport.WithHTTPBasicClient(c),
+		}, opts...)
+	}
+
 	mcpClient, err := client.NewStreamableHttpClient(serverURL, opts...)
 	if err != nil {
 		return nil, xerrors.Errorf("create streamable http client: %w", err)
@@ -145,6 +156,15 @@ func (p *StreamableHTTPServerProxy) fetchTools(ctx context.Context) (_ map[strin
 	out := make(map[string]*Tool, len(tools.Tools))
 	for _, tool := range tools.Tools {
 		encodedID := EncodeToolID(p.serverName, tool.Name)
+		if existing, ok := out[encodedID]; ok {
+			p.logger.Warn(ctx,
+				"duplicate tool ID after sanitization; previous tool will be unreachable",
+				slog.F("tool_id", encodedID),
+				slog.F("new_tool", tool.Name),
+				slog.F("replaced_tool", existing.Name),
+				slog.F("server", p.serverName),
+			)
+		}
 		out[encodedID] = &Tool{
 			Client:      p.client,
 			ID:          encodedID,

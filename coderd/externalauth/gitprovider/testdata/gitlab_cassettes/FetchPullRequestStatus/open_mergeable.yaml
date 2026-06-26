@@ -1,0 +1,345 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests/3
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":486249709,"iid":3,"project_id":82310987,"title":"Open mergeable","description":"","state":"opened","created_at":"2026-05-18T14:53:54.688Z","updated_at":"2026-05-18T14:53:55.972Z","merged_by":null,"merge_user":null,"merged_at":null,"closed_by":null,"closed_at":null,"target_branch":"main","source_branch":"johnstcn-main-patch-98822","user_notes_count":0,"upvotes":0,"downvotes":0,"author":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"assignees":[{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"}],"assignee":{"id":687093,"username":"johnstcn","public_email":"","name":"Cian Johnston","state":"active","locked":false,"avatar_url":"https://gitlab.com/uploads/-/system/user/avatar/687093/avatar.png","web_url":"https://gitlab.com/johnstcn"},"reviewers":[],"source_project_id":82310987,"target_project_id":82310987,"labels":[],"draft":false,"imported":false,"imported_from":"none","work_in_progress":false,"milestone":null,"merge_when_pipeline_succeeds":false,"merge_status":"can_be_merged","detailed_merge_status":"mergeable","merge_after":null,"sha":"da57fca657e02c1fbe131402f927d134a34b257b","merge_commit_sha":null,"squash_commit_sha":null,"discussion_locked":null,"should_remove_source_branch":null,"force_remove_source_branch":true,"prepared_at":"2026-05-18T14:53:55.966Z","reference":"!3","references":{"short":"!3","relative":"!3","full":"test-group9945421/test-project!3"},"web_url":"https://gitlab.com/test-group9945421/test-project/-/merge_requests/3","time_stats":{"time_estimate":0,"total_time_spent":0,"human_time_estimate":null,"human_total_time_spent":null},"squash":false,"squash_on_merge":false,"task_completion_status":{"count":0,"completed_count":0},"has_conflicts":false,"blocking_discussions_resolved":true,"approvals_before_merge":null,"subscribed":false,"changes_count":"1","latest_build_started_at":null,"latest_build_finished_at":null,"first_deployed_to_production_at":null,"pipeline":null,"head_pipeline":null,"diff_refs":{"base_sha":"bc2d14403364db33c7811b29598509b8cf0223c4","head_sha":"da57fca657e02c1fbe131402f927d134a34b257b","start_sha":"bc2d14403364db33c7811b29598509b8cf0223c4"},"merge_error":null,"first_contribution":false,"user":{"can_merge":false}}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 381.20188ms
+    - id: 1
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests/3/approvals
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '{"id":486249709,"iid":3,"project_id":82310987,"title":"Open mergeable","description":"","state":"opened","created_at":"2026-05-18T14:53:54.688Z","updated_at":"2026-05-18T14:53:55.972Z","merge_status":"can_be_merged","approved":true,"approvals_required":0,"approvals_left":0,"require_password_to_approve":false,"approved_by":[],"suggested_approvers":[],"approvers":[],"approver_groups":[],"user_has_approved":false,"user_can_approve":false,"approval_rules_left":[],"has_approval_rules":false,"merge_request_approvers_available":false,"multiple_approval_rules_available":false,"invalid_approvers_rules":[]}'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 196.210578ms
+    - id: 2
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        form:
+            per_page:
+                - "100"
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests/3/commits?per_page=100
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"id":"da57fca657e02c1fbe131402f927d134a34b257b","short_id":"da57fca6","created_at":"2026-05-18T14:53:46.000+00:00","parent_ids":["bc2d14403364db33c7811b29598509b8cf0223c4"],"title":"Open mergeable","message":"Open mergeable","author_name":"Cian Johnston","author_email":"public@cianjohnston.ie","authored_date":"2026-05-18T14:53:46.000+00:00","committer_name":"Cian Johnston","committer_email":"public@cianjohnston.ie","committed_date":"2026-05-18T14:53:46.000+00:00","trailers":{},"extended_trailers":{},"web_url":"https://gitlab.com/test-group9945421/test-project/-/commit/da57fca657e02c1fbe131402f927d134a34b257b"}]'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Link:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Next-Page:
+                - stripped
+            X-Page:
+                - stripped
+            X-Per-Page:
+                - stripped
+            X-Prev-Page:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+            X-Total:
+                - "1"
+            X-Total-Pages:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 217.874878ms
+    - id: 3
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        form:
+            per_page:
+                - "100"
+        headers:
+            Accept:
+                - application/json
+            Private-Token:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests/3/diffs?per_page=100
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: '[{"diff":"@@ -1,6 +1,6 @@\n # test-project\n \n-\n+This is a test project for testing things.\n \n ## Next Steps\n \n","collapsed":false,"too_large":false,"new_path":"README.md","old_path":"README.md","a_mode":"100644","b_mode":"100644","new_file":false,"renamed_file":false,"deleted_file":false,"generated_file":false}]'
+        headers:
+            Cache-Control:
+                - stripped
+            Cf-Cache-Status:
+                - stripped
+            Cf-Ray:
+                - stripped
+            Content-Security-Policy:
+                - stripped
+            Content-Type:
+                - application/json
+            Date:
+                - stripped
+            Etag:
+                - stripped
+            Gitlab-Lb:
+                - stripped
+            Gitlab-Sv:
+                - stripped
+            Link:
+                - stripped
+            Nel:
+                - stripped
+            Ratelimit-Limit:
+                - stripped
+            Ratelimit-Name:
+                - stripped
+            Ratelimit-Observed:
+                - stripped
+            Ratelimit-Remaining:
+                - stripped
+            Ratelimit-Reset:
+                - stripped
+            Referrer-Policy:
+                - stripped
+            Server:
+                - stripped
+            Set-Cookie:
+                - stripped
+            Strict-Transport-Security:
+                - stripped
+            Vary:
+                - stripped
+            X-Content-Type-Options:
+                - stripped
+            X-Frame-Options:
+                - stripped
+            X-Gitlab-Meta:
+                - stripped
+            X-Next-Page:
+                - stripped
+            X-Page:
+                - stripped
+            X-Per-Page:
+                - stripped
+            X-Prev-Page:
+                - stripped
+            X-Request-Id:
+                - stripped
+            X-Runtime:
+                - stripped
+            X-Total:
+                - "1"
+            X-Total-Pages:
+                - stripped
+        status: 200 OK
+        code: 200
+        duration: 266.716685ms

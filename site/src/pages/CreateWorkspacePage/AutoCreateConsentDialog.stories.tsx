@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn, screen } from "storybook/test";
 import { AutoCreateConsentDialog } from "./AutoCreateConsentDialog";
 
 const meta: Meta<typeof AutoCreateConsentDialog> = {
@@ -74,6 +74,19 @@ export const WithLongValues: Story = {
 				source: "url",
 			},
 		],
+	},
+};
+
+export const WithPreset: Story = {
+	args: {
+		presetName: "gpu-large",
+		autofillParameters: [
+			{ name: "instance_type", value: "g6.4xlarge", source: "url" },
+		],
+	},
+	play: async () => {
+		expect(screen.getAllByText("Preset:").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("gpu-large").length).toBeGreaterThan(0);
 	},
 };
 

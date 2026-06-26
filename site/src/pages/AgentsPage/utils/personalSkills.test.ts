@@ -98,7 +98,7 @@ describe("parsePersonalSkillMarkdown", () => {
 	it("parses SKILL.md frontmatter and body", () => {
 		expect(
 			parsePersonalSkillMarkdown(
-				'---\nname: test-skill\ndescription: "Does a thing"\n---\n\nUse this skill.',
+				'---\nname: "test-skill"\ndescription: "Does a thing"\n---\n\nUse this skill.',
 			),
 		).toEqual({
 			name: "test-skill",
@@ -107,14 +107,62 @@ describe("parsePersonalSkillMarkdown", () => {
 		});
 	});
 
-	it("uses backend-compatible parsing for YAML-comment-sensitive values", () => {
+	it("parses folded YAML description values", () => {
+		expect(
+			parsePersonalSkillMarkdown(
+				[
+					"---",
+					"name: brainstorming",
+					"description: >",
+					"  Use before any creative work: features, components, functionality changes,",
+					"  or behavior modifications. Turns ideas into approved designs through",
+					"  collaborative dialog. Hard gate: no implementation action until the",
+					"  design is presented and approved.",
+					"---",
+					"Use this skill.",
+				].join("\n"),
+			),
+		).toEqual({
+			name: "brainstorming",
+			description: [
+				"Use before any creative work: features, components, functionality changes,",
+				"or behavior modifications. Turns ideas into approved designs through",
+				"collaborative dialog. Hard gate: no implementation action until the",
+				"design is presented and approved.",
+			].join(" "),
+			body: "Use this skill.",
+		});
+	});
+
+	it("uses YAML comment semantics in frontmatter", () => {
 		expect(
 			parsePersonalSkillMarkdown(
 				"---\nname: test-skill\ndescription: Build # test\n---\nBody",
 			),
 		).toEqual({
 			name: "test-skill",
-			description: "Build # test",
+			description: "Build",
+			body: "Body",
+		});
+	});
+
+	it("rejects non-string frontmatter fields", () => {
+		expect(() =>
+			parsePersonalSkillMarkdown("---\nname: null\n---\nBody"),
+		).toThrow("Skill name must be a string.");
+		expect(() =>
+			parsePersonalSkillMarkdown(
+				"---\nname: test-skill\ndescription: null\n---\nBody",
+			),
+		).toThrow("Skill description must be a string.");
+	});
+
+	it("allows whitespace around frontmatter delimiters", () => {
+		expect(
+			parsePersonalSkillMarkdown("  ---  \nname: test-skill\n  ---  \nBody"),
+		).toEqual({
+			name: "test-skill",
+			description: "",
 			body: "Body",
 		});
 	});
@@ -205,6 +253,29 @@ describe("buildPersonalSkillMarkdown", () => {
 				body: "Use this skill.",
 			}),
 		).toBe("---\nname: test-skill\n---\nUse this skill.\n");
+	});
+
+	it("quotes skill names that YAML would otherwise coerce", () => {
+		const content = buildPersonalSkillMarkdown({
+			name: "true",
+			description: "",
+			body: "Use this skill.",
+		});
+
+		expect(content).toContain('name: "true"');
+		expect(parsePersonalSkillMarkdown(content)).toMatchObject({
+			name: "true",
+		});
+
+		const numericNameContent = buildPersonalSkillMarkdown({
+			name: "123",
+			description: "",
+			body: "Use this skill.",
+		});
+		expect(numericNameContent).toContain('name: "123"');
+		expect(parsePersonalSkillMarkdown(numericNameContent)).toMatchObject({
+			name: "123",
+		});
 	});
 
 	it("escapes quoted description values", () => {

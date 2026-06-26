@@ -5,7 +5,7 @@ The [AI Governance Add-On](./ai-governance.md) requires reporting usage data to 
 - number of agent workspace builds consumed
 - number of AI Governance seats consumed
 
-No user-identifiable information or additional metrics are sent to Tallyman. This information is also shared with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based and reporting.
+No user-identifiable information or additional metrics are sent to Tallyman. This information is also shared with [Metronome](https://metronome.com), a Stripe product and Coder partner for usage-based billing and reporting.
 
 To send usage data, your Coder deployment must be able to make outbound HTTPS requests to `https://tallyman-prod.coder.com`. Usage data is sent approximately every 17 minutes and can be monitored via `coderd` logs.
 
@@ -17,7 +17,7 @@ Example of a successful request (requires debug logging enabled [`CODER_LOG_FILT
 
 Example of a request payload:
 
-```sh
+```txt
 POST /api/v1/events/ingest HTTP/1.1
 Host: tallyman-prod.coder.com
 Content-Type: application/json

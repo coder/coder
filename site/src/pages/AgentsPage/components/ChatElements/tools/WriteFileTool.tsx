@@ -1,21 +1,17 @@
 import { useTheme } from "@emotion/react";
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
-import { LoaderIcon, TriangleAlertIcon } from "lucide-react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { getPathBasename } from "../../../utils/path";
+import { DiffFileHeader } from "./DiffFileHeader";
 import {
 	type AgentDisplayState,
 	isAgentDisplayFullyExpanded,
 	resolveAgentDisplayState,
 } from "./displayMode";
-import { AgentDisplayModeToolCollapsible } from "./ToolCollapsible";
+import { ToolCall } from "./ToolCall";
 import {
 	DIFFS_FONT_STYLE,
 	getDiffViewerOptions,
@@ -42,52 +38,43 @@ export const WriteFileTool: React.FC<{
 		WRITE_FILE_AUTO_DISPLAY_STATE,
 	);
 
-	const filename = path.split("/").pop() || path;
+	const filename = getPathBasename(path);
 	const label = isRunning ? `Writing ${filename}…` : `Wrote ${filename}`;
 
 	return (
-		<AgentDisplayModeToolCollapsible
+		<ToolCall.Root
+			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || "Failed to write file"}
 			hasContent={hasDiff}
-			displayMode={codeDiffDisplayMode}
-			autoDisplayState={WRITE_FILE_AUTO_DISPLAY_STATE}
-			header={
-				<>
-					<span className="text-[13px]">{label}</span>
-					{isError && (
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<TriangleAlertIcon className="h-3.5 w-3.5 shrink-0 text-current" />
-							</TooltipTrigger>
-							<TooltipContent>
-								{errorMessage || "Failed to write file"}
-							</TooltipContent>
-						</Tooltip>
-					)}
-					{isRunning && (
-						<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-					)}
-				</>
-			}
+			defaultView={displayState}
 		>
-			{hasDiff && (
-				<ScrollArea
-					data-testid="write-file-diff"
-					className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
-					viewportClassName={
-						isAgentDisplayFullyExpanded(displayState)
-							? "max-h-[80vh]"
-							: "max-h-64"
-					}
-					scrollBarClassName="w-1.5"
-				>
-					<FileDiff
-						fileDiff={stripNoNewline(diff)}
-						options={getDiffViewerOptions(isDark)}
-						style={DIFFS_FONT_STYLE}
-					/>
-				</ScrollArea>
-			)}
-		</AgentDisplayModeToolCollapsible>
+			<ToolCall.Header iconName="write_file" label={label} />
+			<ToolCall.Content>
+				{hasDiff && (
+					<ScrollArea
+						data-testid="write-file-diff"
+						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						viewportClassName={
+							isAgentDisplayFullyExpanded(displayState)
+								? "max-h-[80vh]"
+								: "max-h-64"
+						}
+						scrollBarClassName="w-1.5"
+					>
+						<FileDiff
+							fileDiff={stripNoNewline(diff)}
+							options={getDiffViewerOptions(isDark)}
+							style={DIFFS_FONT_STYLE}
+							renderCustomHeader={(fileDiff) => (
+								<DiffFileHeader file={fileDiff} />
+							)}
+						/>
+					</ScrollArea>
+				)}
+			</ToolCall.Content>
+		</ToolCall.Root>
 	);
 };

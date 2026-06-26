@@ -1,62 +1,14 @@
 import { type FC, useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Link } from "#/components/Link/Link";
-import { Response, Shimmer } from "../ChatElements";
 import { getProviderStatusURL } from "./chatStatusHelpers";
 import type { LiveStatusModel } from "./liveStatusModel";
-
-const RESPONSE_STARTUP_GRACE_MS = 15_000;
-const DELAYED_STARTUP_TEXT = "Response startup is taking longer than expected";
-const THINKING_TEXT = "Thinking...";
 
 type RetryOrFailedStatus = Extract<
 	LiveStatusModel,
 	{ phase: "retrying" } | { phase: "failed" }
 >;
 type ReconnectingStatus = Extract<LiveStatusModel, { phase: "reconnecting" }>;
-
-const StatusPlaceholder: FC<{
-	text: string;
-	shimmer?: boolean;
-}> = ({ text, shimmer = false }) => {
-	return (
-		<div className="relative min-h-6">
-			{/* Reserve the final response height without exposing a selectable copy. */}
-			<Response aria-hidden className="invisible select-none">
-				{text}
-			</Response>
-			<div className="pointer-events-none absolute inset-0 flex items-baseline gap-2">
-				{shimmer ? (
-					<Shimmer as="div" className="text-[13px] leading-relaxed">
-						{text}
-					</Shimmer>
-				) : (
-					<span className="text-[13px] leading-relaxed text-content-secondary">
-						{text}
-					</span>
-				)}
-			</div>
-		</div>
-	);
-};
-
-const StartingPlaceholder: FC = () => {
-	const [isDelayed, setIsDelayed] = useState(false);
-
-	useEffect(() => {
-		const timeout = window.setTimeout(() => {
-			setIsDelayed(true);
-		}, RESPONSE_STARTUP_GRACE_MS);
-		return () => window.clearTimeout(timeout);
-	}, []);
-
-	return (
-		<StatusPlaceholder
-			text={isDelayed ? DELAYED_STARTUP_TEXT : THINKING_TEXT}
-			shimmer={!isDelayed}
-		/>
-	);
-};
 
 /**
  * Syncs with the system clock to produce a live countdown from an
@@ -158,11 +110,17 @@ const StatusAlert: FC<{ status: RetryOrFailedStatus }> = ({ status }) => {
 						</Link>
 					)}
 				</span>
-				{status.phase === "failed" && status.detail && (
-					<span className="mt-1 block text-content-secondary">
-						{status.detail}
-					</span>
-				)}
+				{status.phase === "failed" &&
+					status.detail &&
+					(status.kind === "generic" ? (
+						<code className="mt-1 block whitespace-pre-wrap text-xs text-content-secondary font-mono bg-surface-secondary rounded-md">
+							{status.detail}
+						</code>
+					) : (
+						<span className="mt-1 block text-content-secondary">
+							{status.detail}
+						</span>
+					))}
 			</AlertDescription>
 		</Alert>
 	);
@@ -190,28 +148,16 @@ const ReconnectingAlert: FC<{ status: ReconnectingStatus }> = ({ status }) => {
 
 export const ChatStatusCallout: FC<{
 	status: LiveStatusModel;
-	startingResetKey?: string;
-}> = ({ status, startingResetKey }) => {
+}> = ({ status }) => {
 	switch (status.phase) {
 		case "idle":
 		case "streaming":
-			return null;
 		case "starting":
-			return <StartingPlaceholder key={startingResetKey ?? "starting"} />;
+			return null;
 		case "retrying":
-			return (
-				<>
-					<StatusAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
-				</>
-			);
+			return <StatusAlert status={status} />;
 		case "reconnecting":
-			return (
-				<>
-					<ReconnectingAlert status={status} />
-					<StatusPlaceholder text={THINKING_TEXT} shimmer />
-				</>
-			);
+			return <ReconnectingAlert status={status} />;
 		case "failed":
 			return <StatusAlert status={status} />;
 	}

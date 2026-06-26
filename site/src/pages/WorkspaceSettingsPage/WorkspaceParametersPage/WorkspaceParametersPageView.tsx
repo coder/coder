@@ -81,7 +81,7 @@ export const WorkspaceParametersPageView: FC<
 			const formInputs: Record<string, string> = {};
 			const formParameters = form.values.rich_parameter_values ?? [];
 			for (const param of formParameters) {
-				if (param?.name && param?.value) {
+				if (param?.name && param?.value !== undefined) {
 					formInputs[param.name] = param.value;
 				}
 			}

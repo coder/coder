@@ -87,11 +87,9 @@ func TestTracker(t *testing.T) {
 	var wg sync.WaitGroup
 	count = 0
 	for i := 0; i < len(ids); i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			tickCh <- now
-		}()
+		})
 		wut.Add(ids[i])
 	}
 
@@ -113,11 +111,11 @@ func TestTracker_MultipleInstances(t *testing.T) {
 
 	// Given we have two coderd instances connected to the same database
 	var (
-		ctx   = testutil.Context(t, testutil.WaitLong)
-		db, _ = dbtestutil.NewDB(t)
+		ctx    = testutil.Context(t, testutil.WaitLong)
+		db, ps = dbtestutil.NewDB(t)
 		// real pubsub is not safe for concurrent use, and this test currently
 		// does not depend on pubsub
-		ps       = pubsub.NewInMemory()
+		psmem    = pubsub.NewInMemory()
 		wuTickA  = make(chan time.Time)
 		wuFlushA = make(chan int, 1)
 		wuTickB  = make(chan time.Time)
@@ -132,7 +130,8 @@ func TestTracker_MultipleInstances(t *testing.T) {
 			WorkspaceUsageTrackerTick:  wuTickB,
 			WorkspaceUsageTrackerFlush: wuFlushB,
 			Database:                   db,
-			Pubsub:                     ps,
+			Pubsub:                     psmem,
+			ReplicaSyncPubsub:          ps.(*pubsub.PGPubsub),
 		})
 		owner = coderdtest.CreateFirstUser(t, clientA)
 		now   = dbtime.Now()
@@ -172,18 +171,14 @@ func TestTracker_MultipleInstances(t *testing.T) {
 	nowB := now.Add(2 * time.Minute)
 	var wg sync.WaitGroup
 	var flushedA, flushedB int
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		wuTickA <- nowA
 		flushedA = <-wuFlushA
-	}()
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	})
+	wg.Go(func() {
 		wuTickB <- nowB
 		flushedB = <-wuFlushB
-	}()
+	})
 	wg.Wait()
 
 	// We expect 5 flushed IDs each

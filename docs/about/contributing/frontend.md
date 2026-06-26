@@ -34,7 +34,7 @@ the most important.
 - [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity
 - [Vite](https://vitejs.dev/) to build the project
-- [react-router](https://reactrouter.com/en/main) for routing
+- [react-router](https://reactrouter.com/) for routing
 - [TanStack Query](https://tanstack.com/query/v4/docs/react/overview) for
   fetching data
 - [Vitest](https://vitest.dev/) for integration testing
@@ -68,7 +68,7 @@ the value.
 
 ## Routing
 
-We use [react-router](https://reactrouter.com/en/main) as our routing engine.
+We use [react-router](https://reactrouter.com/) as our routing engine.
 
 - Authenticated routes - Place routes requiring authentication inside the
   `<RequireAuth>` route. The `RequireAuth` component handles all the

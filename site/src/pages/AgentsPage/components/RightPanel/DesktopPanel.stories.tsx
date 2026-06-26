@@ -7,9 +7,12 @@ const defaults: DesktopPanelViewProps = {
 	status: "idle",
 	reconnect: fn(),
 	attach: fn(),
+	scaleMode: "native",
+	onScaleModeChange: fn(),
 	isControlling: false,
 	onTakeControl: fn(),
 	onReleaseControl: fn(),
+	onPopOut: fn(),
 };
 
 const meta: Meta<typeof DesktopPanelView> = {

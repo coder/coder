@@ -11,13 +11,80 @@ AI Gateway records the last `user` prompt, token usage, model reasoning, and eve
 
 ![User Leaderboard](../../images/aibridge/grafana_user_leaderboard.png)
 
-We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](https://github.com/coder/coder/blob/main/examples/monitoring/dashboards/grafana/aibridge/README.md).
+We provide an example Grafana dashboard that you can import as a starting point for your metrics. See [the Grafana dashboard README](../../../examples/monitoring/dashboards/grafana/aibridge/README.md).
 
 These logs and metrics can be used to determine usage patterns, track costs, and evaluate tooling adoption.
 
+## Provider metrics
+
+AI Gateway (the in-process daemon) and AI Gateway Proxy (the external
+proxy) each export Prometheus metrics describing the configured
+provider pool and its reload loop. See
+[Provider Configuration](./providers.md) for the lifecycle these
+metrics describe.
+
+| Metric                                                                   | Type    | Labels                                     | Purpose                                                                                                                                    |
+|--------------------------------------------------------------------------|---------|--------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `coder_ai_gateway_provider_info`                                         | gauge   | `provider_name`, `provider_type`, `status` | One series per configured provider. Value is always `1`; the `status` label (`enabled`, `disabled`, `error`) carries the alertable signal. |
+| `coder_ai_gateway_providers_last_reload_timestamp_seconds`               | gauge   |                                            | Unix timestamp of the last reload attempt, success or failure.                                                                             |
+| `coder_ai_gateway_providers_last_reload_success_timestamp_seconds`       | gauge   |                                            | Unix timestamp of the last reload that successfully refreshed the pool.                                                                    |
+| `coder_ai_gateway_proxy_provider_info`                                   | gauge   | `provider_name`, `provider_type`, `status` | Same shape as `coder_ai_gateway_provider_info` but reported by the external proxy.                                                         |
+| `coder_ai_gateway_proxy_providers_last_reload_timestamp_seconds`         | gauge   |                                            | Last reload attempt timestamp in the external proxy.                                                                                       |
+| `coder_ai_gateway_proxy_providers_last_reload_success_timestamp_seconds` | gauge   |                                            | Last successful reload timestamp in the external proxy.                                                                                    |
+| `coder_ai_gateway_proxy_connect_sessions_total`                          | counter | `type` (`mitm`, `tunneled`)                | CONNECT sessions established by the proxy.                                                                                                 |
+| `coder_ai_gateway_proxy_mitm_requests_total`                             | counter | `provider`                                 | MITM requests handled.                                                                                                                     |
+| `coder_ai_gateway_proxy_inflight_mitm_requests`                          | gauge   | `provider`                                 | In-flight MITM requests.                                                                                                                   |
+| `coder_ai_gateway_proxy_mitm_responses_total`                            | counter | `code`, `provider`                         | MITM responses by HTTP status code.                                                                                                        |
+
+> [!IMPORTANT]
+> The AI Gateway metric prefixes were renamed: `coder_aibridged_*` became
+> `coder_ai_gateway_*` and `coder_aibridgeproxyd_*` became
+> `coder_ai_gateway_proxy_*`. This rename covers every AI Gateway metric,
+> including the interception, token, prompt, tool, and circuit-breaker counters
+> listed in the [Prometheus reference](../../admin/integrations/prometheus.md).
+> The legacy `coder_aibridged_*` and `coder_aibridgeproxyd_*` names are still
+> emitted with identical values during the v2.35 and v2.36 deprecation window.
+> They are planned for removal in v2.37. Migrate dashboards and alerts to the new
+> names now. Do not relabel new names back to old names while legacy names are
+> still emitted, because that creates duplicate legacy series in the same scrape.
+> After legacy names are removed, use `metric_relabel_configs` only if you need a
+> temporary compatibility bridge for dashboards that still use the old names:
+>
+> ```yaml
+> metric_relabel_configs:
+>   # Proxy rule must come first; the gateway regex below also matches proxy metrics.
+>   - source_labels: [__name__]
+>     regex: 'coder_ai_gateway_proxy_(.*)'
+>     target_label: __name__
+>     replacement: 'coder_aibridgeproxyd_${1}'
+>   - source_labels: [__name__]
+>     regex: 'coder_ai_gateway_(.*)'
+>     target_label: __name__
+>     replacement: 'coder_aibridged_${1}'
+> ```
+
+### Suggested alerts
+
+Alert on any provider entering a non-`enabled` status:
+
+```promql
+sum by (provider_name, status) (coder_ai_gateway_provider_info{status!="enabled"}) > 0
+```
+
+Alert when the reload loop is firing but failing to refresh the pool
+for longer than a few minutes:
+
+```promql
+(coder_ai_gateway_providers_last_reload_timestamp_seconds
+  - coder_ai_gateway_providers_last_reload_success_timestamp_seconds) > 300
+```
+
+Repeat the same query against `coder_ai_gateway_proxy_*` if you run the
+external proxy.
+
 ## Structured Logging
 
-AI Bridge can emit structured logs for every interception event to your
+AI Gateway can emit structured logs for every interception event to your
 existing log pipeline. This is useful for exporting data to external SIEM or
 observability platforms. See [Structured Logging](./setup.md#structured-logging)
 in the setup guide for configuration and a full list of record types.
@@ -31,7 +98,7 @@ AI Gateway interception data can be exported for external analysis, compliance r
 You can retrieve AI Gateway sessions via the Coder API, with filtering and pagination support.
 
 ```sh
-curl -X GET "https://coder.example.com/api/v2/aibridge/sessions" \
+curl -X GET "https://coder.example.com/api/v2/ai-gateway/sessions" \
   -H "Coder-Session-Token: $CODER_SESSION_TOKEN"
 ```
 
@@ -54,35 +121,17 @@ Available query filters:
   - `Coder Agents`
   - `Mux`
   - `Cursor`
+  - `OpenCode`
   - `Unknown`
 
   </details><br>
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (e.g., `openai`, `anthropic`)
 - `model` - Filter by model name
-- `started_after` - Filter interceptions after a timestamp
-- `started_before` - Filter interceptions before a timestamp
+- `started_after` - Filter sessions after a timestamp
+- `started_before` - Filter sessions before a timestamp
 
-See the [API documentation](../../reference/api/aibridge.md) for full details.
-
-### CLI
-
-Export interceptions as JSON using the CLI:
-
-```sh
-coder aibridge interceptions list --initiator me --limit 1000
-```
-
-You can filter by time range, provider, model, and user:
-
-```sh
-coder aibridge interceptions list \
-  --started-after "2025-01-01T00:00:00Z" \
-  --started-before "2025-02-01T00:00:00Z" \
-  --provider anthropic
-```
-
-See `coder aibridge interceptions list --help` for all options.
+See the [API documentation](../../reference/api/aigateway.md) for full details.
 
 ## Data Retention
 

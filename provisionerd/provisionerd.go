@@ -533,7 +533,10 @@ func (p *Server) UploadModuleFiles(ctx context.Context, moduleFiles []byte) erro
 		}
 		defer stream.Close()
 
-		dataUp, chunks := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+		dataUp, chunks, err := sdkproto.BytesToDataUpload(sdkproto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+		if err != nil {
+			return nil, xerrors.Errorf("prepare module files upload: %w", err)
+		}
 
 		err = stream.Send(&sdkproto.FileUpload{Type: &sdkproto.FileUpload_DataUpload{DataUpload: dataUp}})
 		if err != nil {

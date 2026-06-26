@@ -29,7 +29,7 @@ func TestPrometheus(t *testing.T) {
 		req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, chi.NewRouteContext()))
 		res := &tracing.StatusWriter{ResponseWriter: httptest.NewRecorder()}
 		reg := prometheus.NewRegistry()
-		httpmw.HTTPRoute(httpmw.Prometheus(reg)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		httpmw.HTTPRoute(httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		}))).ServeHTTP(res, req)
 		metrics, err := reg.Gather()
@@ -43,7 +43,7 @@ func TestPrometheus(t *testing.T) {
 		defer cancel()
 
 		reg := prometheus.NewRegistry()
-		promMW := httpmw.Prometheus(reg)
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
 
 		// Create a test handler to simulate a WebSocket connection
 		testHandler := http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -82,7 +82,7 @@ func TestPrometheus(t *testing.T) {
 	t.Run("UserRoute", func(t *testing.T) {
 		t.Parallel()
 		reg := prometheus.NewRegistry()
-		promMW := httpmw.Prometheus(reg)
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
 
 		r := chi.NewRouter()
 		r.With(httpmw.HTTPRoute).With(promMW).Get("/api/v2/users/{user}", func(w http.ResponseWriter, r *http.Request) {})
@@ -112,7 +112,7 @@ func TestPrometheus(t *testing.T) {
 	t.Run("StaticRoute", func(t *testing.T) {
 		t.Parallel()
 		reg := prometheus.NewRegistry()
-		promMW := httpmw.Prometheus(reg)
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
 
 		r := chi.NewRouter()
 		r.Use(httpmw.HTTPRoute)
@@ -143,7 +143,7 @@ func TestPrometheus(t *testing.T) {
 	t.Run("UnknownRoute", func(t *testing.T) {
 		t.Parallel()
 		reg := prometheus.NewRegistry()
-		promMW := httpmw.Prometheus(reg)
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
 
 		r := chi.NewRouter()
 		r.Use(httpmw.HTTPRoute)
@@ -172,7 +172,7 @@ func TestPrometheus(t *testing.T) {
 	t.Run("Subrouter", func(t *testing.T) {
 		t.Parallel()
 		reg := prometheus.NewRegistry()
-		promMW := httpmw.Prometheus(reg)
+		promMW := httpmw.Prometheus(reg, httpmw.NewWSMetrics(reg))
 
 		r := chi.NewRouter()
 		r.Use(httpmw.HTTPRoute)

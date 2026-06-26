@@ -33,7 +33,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			msgChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine("hello")
 		resp := testutil.TryReceive(ctx, t, msgChan)
 		require.Equal(t, "hello", resp)
@@ -52,7 +52,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine("yes")
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "yes", resp)
@@ -113,7 +113,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine("{}")
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "{}", resp)
@@ -131,7 +131,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine("{a")
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "{a", resp)
@@ -149,7 +149,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine(`{
 "test": "wow"
 }`)
@@ -176,7 +176,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Example")
+		ptty.ExpectMatch(ctx, "Example")
 		ptty.WriteLine("foo\nbar\nbaz\n\n\nvalid\n")
 		resp := testutil.TryReceive(ctx, t, doneChan)
 		require.Equal(t, "valid", resp)
@@ -195,7 +195,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Password: ")
+		ptty.ExpectMatch(ctx, "Password: ")
 
 		ptty.WriteLine("test")
 
@@ -216,7 +216,7 @@ func TestPrompt(t *testing.T) {
 			assert.NoError(t, err)
 			doneChan <- resp
 		}()
-		ptty.ExpectMatch("Password: ")
+		ptty.ExpectMatch(ctx, "Password: ")
 
 		ptty.WriteLine("和製漢字")
 
@@ -257,6 +257,7 @@ func TestPasswordTerminalState(t *testing.T) {
 	t.Parallel()
 
 	ptty := ptytest.New(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	cmd := exec.Command(os.Args[0], "-test.run=TestPasswordTerminalState") //nolint:gosec
 	cmd.Env = append(os.Environ(), "TEST_SUBPROCESS=1")
@@ -269,12 +270,12 @@ func TestPasswordTerminalState(t *testing.T) {
 	process := cmd.Process
 	defer process.Kill()
 
-	ptty.ExpectMatch("Password: ")
+	ptty.ExpectMatch(ctx, "Password: ")
 	ptty.Write('t')
 	ptty.Write('e')
 	ptty.Write('s')
 	ptty.Write('t')
-	ptty.ExpectMatch("****")
+	ptty.ExpectMatch(ctx, "****")
 
 	err = process.Signal(os.Interrupt)
 	require.NoError(t, err)

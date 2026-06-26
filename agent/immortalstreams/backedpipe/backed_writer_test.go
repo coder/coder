@@ -883,14 +883,12 @@ func TestBackedWriter_MultipleWritesDuringReconnect(t *testing.T) {
 	writesStarted := make(chan struct{}, numWriters)
 
 	for i := 0; i < numWriters; i++ {
-		wg.Add(1)
-		go func(id int) {
-			defer wg.Done()
+		wg.Go(func() {
 			// Signal that this write is starting
 			writesStarted <- struct{}{}
-			data := []byte{byte('A' + id)}
-			_, writeResults[id] = bw.Write(data)
-		}(i)
+			data := []byte{byte('A' + i)}
+			_, writeResults[i] = bw.Write(data)
+		})
 	}
 
 	// Wait for all writes to start

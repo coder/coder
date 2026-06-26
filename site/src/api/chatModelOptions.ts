@@ -23,6 +23,8 @@ export interface FieldSchema {
 	enum?: string[];
 	/** If true, this field should not be rendered in admin UI forms. */
 	hidden?: boolean;
+	visible_when?: string;
+	conflicts_with?: string[];
 }
 
 /**

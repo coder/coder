@@ -1,7 +1,6 @@
 import type { FileDiffMetadata } from "@pierre/diffs";
 import { parsePatchFiles } from "@pierre/diffs";
 import * as Diff from "diff";
-import type { CSSProperties } from "react";
 import * as Yup from "yup";
 import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
@@ -12,12 +11,29 @@ export interface EditFilesFileEntry {
 	edits: Array<{ search: string; replace: string }>;
 }
 
-const searchReplaceSchema = Yup.object({
-	search: Yup.string().required(),
-	replace: Yup.string().defined(),
-}).required();
-
-type SearchReplace = Yup.InferType<typeof searchReplaceSchema>;
+// Validates that the edit has at least the shape of an object with
+// string-typed text fields. Accepts both current field names
+// (old_text/new_text) and deprecated names (search/replace).
+const normalizeEdit = (
+	e: unknown,
+): { search: string; replace: string } | null => {
+	if (typeof e !== "object" || e === null) return null;
+	const raw = e as Record<string, unknown>;
+	const search =
+		typeof raw.old_text === "string"
+			? raw.old_text
+			: typeof raw.search === "string"
+				? raw.search
+				: null;
+	const replace =
+		typeof raw.new_text === "string"
+			? raw.new_text
+			: typeof raw.replace === "string"
+				? raw.replace
+				: null;
+	if (!search || replace === null) return null;
+	return { search, replace };
+};
 
 const fileEntrySchema = Yup.object({
 	path: Yup.string().required(),
@@ -100,26 +116,6 @@ export const toProviderLabel = (
 		return providerType;
 	}
 	return "Git provider";
-};
-
-/**
- * Formats a duration in milliseconds into a compact label using
- * the same style as {@link shortRelativeTime} in utils/time.
- */
-export const shortDurationMs = (durationMs: number | undefined): string => {
-	if (durationMs === undefined || durationMs < 0) {
-		return "";
-	}
-	const seconds = Math.round(durationMs / 1000);
-	if (seconds < 60) {
-		return `${seconds}s`;
-	}
-	const minutes = Math.round(durationMs / 60_000);
-	if (minutes < 60) {
-		return `${minutes}m`;
-	}
-	const hours = Math.round(durationMs / 3_600_000);
-	return `${hours}h`;
 };
 
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
@@ -217,6 +213,57 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	return asRecord(args);
 };
 
+const getToolInputPayload = (args: unknown): unknown => {
+	const rec = asRecord(args);
+	if (!rec || typeof rec.model_intent !== "string") {
+		return args;
+	}
+	if ("properties" in rec) {
+		return rec.properties;
+	}
+	return Object.fromEntries(
+		Object.entries(rec).filter(([key]) => key !== "model_intent"),
+	);
+};
+
+const isEmptyObjectOrArray = (value: unknown): boolean => {
+	if (Array.isArray(value)) {
+		return value.length === 0;
+	}
+	const rec = asRecord(value);
+	return rec ? Object.keys(rec).length === 0 : false;
+};
+
+const formatValue = (value: unknown): string => {
+	if (typeof value === "object") {
+		try {
+			return JSON.stringify(value, null, 2) ?? String(value);
+		} catch {
+			return String(value);
+		}
+	}
+	return String(value);
+};
+
+export const formatToolInput = (args: unknown): string | null => {
+	const input = getToolInputPayload(args);
+	if (input === undefined || input === null) {
+		return null;
+	}
+	if (typeof input === "string") {
+		const trimmed = input.trim();
+		if (!trimmed) {
+			return null;
+		}
+		try {
+			return formatToolInput(JSON.parse(trimmed));
+		} catch {
+			return trimmed;
+		}
+	}
+	return isEmptyObjectOrArray(input) ? null : formatValue(input);
+};
+
 export const formatResultOutput = (result: unknown): string | null => {
 	if (result === undefined || result === null) {
 		return null;
@@ -238,62 +285,16 @@ export const formatResultOutput = (result: unknown): string | null => {
 			return content;
 		}
 	}
-	if (typeof result === "object") {
-		try {
-			return JSON.stringify(result, null, 2);
-		} catch {
-			return String(result);
-		}
-	}
-	return String(result);
+	return formatValue(result);
 };
 
-export const fileViewerCSS =
-	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }";
-
-// Selection override CSS maps the library's gold/yellow selection
-// palette to the Coder blue accent (`--content-link`) so line
-// highlighting feels native to the rest of the page.
-//
-// The library has two selection code paths: context lines use
-// `--diffs-bg-selection`, but change-addition/deletion lines
-// use a separate `color-mix()` against `--diffs-line-bg`. To
-// guarantee a uniform highlight across all line types we set
-// the CSS variables for annotations AND apply direct rules
-// with `!important` for line and gutter elements.
-const SELECTION_OVERRIDE_CSS = [
-	// Variable overrides for annotation areas and library internals.
-	":host {",
-	"  --diffs-bg-selection-override: hsl(var(--content-link) / 0.08);",
-	"  --diffs-bg-selection-number-override: hsl(var(--content-link) / 0.13);",
-	"  --diffs-selection-number-fg: hsl(var(--content-link));",
-	"  --diffs-gap-style: 1px solid hsl(var(--border-default));",
-	"}",
-	// Direct rules that override both context and change-line
-	// selection backgrounds so every selected line looks the same.
-	"[data-selected-line][data-line] {",
-	"  background-color: hsl(var(--content-link) / 0.08) !important;",
-	"}",
-	"[data-selected-line][data-column-number] {",
-	"  background-color: hsl(var(--content-link) / 0.13) !important;",
-	"  color: hsl(var(--content-link)) !important;",
-	"}",
-	// Clear the selection tint from annotation rows so the inline
-	// prompt input stands out clearly against the selected lines.
-	"[data-line-annotation][data-selected-line] [data-annotation-content] {",
-	"  background-color: transparent !important;",
-	"}",
-	"[data-line-annotation][data-selected-line]::before {",
-	"  background-color: transparent !important;",
-	"}",
-	"[data-selected-line][data-gutter-buffer='annotation'] {",
-	"  background-color: transparent !important;",
-	"}",
+export const fileViewerCSS = [
+	"pre, [data-line], [data-diffs-header] { background-color: transparent !important; }",
 ].join(" ");
 
 // Restyled separators: quiet, full-width dividers that fade
 // into the background instead of drawing attention.
-const SEPARATOR_CSS = [
+export const SEPARATOR_CSS = [
 	// Transparent backgrounds so separators blend with the
 	// code area rather than forming a distinct band.
 	":host {",
@@ -336,119 +337,8 @@ const SEPARATOR_CSS = [
 	"}",
 ].join(" ");
 
-// Shared header styling applied to all diff viewers (both the
-// conversation-inline diffs and the right-tab panel). This gives
-// every diff header the same font sizing, change-type badges,
-// and stat-count pills regardless of where it appears.
-const DIFF_HEADER_CSS = [
-	// Header layout: consistent sizing and padding across contexts.
-	"[data-diffs-header] {",
-	"  font-size: 13px;",
-	"  min-height: 32px !important;",
-	"  padding-block: 8px !important;",
-	"  padding-inline: 10px 6px !important;",
-	"  border-bottom: 1px solid hsl(var(--border-default));",
-	"}",
-
-	// Title text: sans-serif, slightly smaller than header chrome.
-	"[data-diffs-header] [data-title] {",
-	"  font-size: 12px;",
-	"  color: hsl(var(--content-primary));",
-	"}",
-
-	// Replace the library's built-in SVG change-type icons with
-	// single-letter badges (A/D/M/R) via CSS-generated content.
-	"[data-change-icon] { display: none !important; }",
-	// Baseline-align the badge letter with the filename so their
-	// text baselines match despite different font sizes (11px vs
-	// 12px). Without this the box-centering default shifts the
-	// badge a fraction of a pixel above the title.
-	"[data-diffs-header] [data-header-content] { align-items: baseline; overflow: hidden; }",
-	"[data-diffs-header] [data-rename-icon] { align-self: center; }",
-	"[data-diffs-header] [data-header-content]::before {",
-	"  font-size: 11px;",
-	"  font-weight: 600;",
-	"  flex-shrink: 0;",
-	"}",
-	"[data-diffs-header][data-change-type='new'] [data-header-content]::before {",
-	"  content: 'A';",
-	"  color: hsl(var(--git-added));",
-	"}",
-	"[data-diffs-header][data-change-type='change'] [data-header-content]::before {",
-	"  content: 'M';",
-	"  color: hsl(var(--git-modified));",
-	"}",
-	"[data-diffs-header][data-change-type='deleted'] [data-header-content]::before {",
-	"  content: 'D';",
-	"  color: hsl(var(--git-deleted));",
-	"}",
-	"[data-diffs-header][data-change-type='rename-pure'] [data-header-content]::before,",
-	"[data-diffs-header][data-change-type='rename-changed'] [data-header-content]::before {",
-	"  content: 'R';",
-	"  color: hsl(var(--git-modified));",
-	"}",
-
-	// Stat counts styled as compact pill badges.
-	"[data-diffs-header] [data-metadata] {",
-	"  flex-shrink: 0;",
-	"  flex-direction: row-reverse;",
-	"  align-items: stretch;",
-	"  gap: 0 !important;",
-	"  padding: 0;",
-	"  border: 1px solid hsl(var(--border-default));",
-	"  border-radius: 3px;",
-	"  overflow: hidden;",
-	"}",
-	"[data-diffs-header] [data-additions-count],",
-	"[data-diffs-header] [data-deletions-count] {",
-	"  font-family: var(--diffs-font-family, var(--diffs-font-fallback));",
-	"  font-size: 12px;",
-	"  font-weight: 500;",
-	"  line-height: 20px;",
-	"  padding-inline: 4px;",
-	"  border-radius: 0;",
-	"}",
-	"[data-diffs-header] [data-additions-count] {",
-	"  color: hsl(var(--git-added-bright)) !important;",
-	"  background-color: hsl(var(--surface-git-added));",
-	"}",
-	"[data-diffs-header] [data-deletions-count] {",
-	"  color: hsl(var(--git-deleted-bright)) !important;",
-	"  background-color: hsl(var(--surface-git-deleted));",
-	"}",
-].join(" ");
-
-const CHANGE_LINE_CSS = [
-	":host {",
-	"  --diffs-addition-color-override: hsl(var(--git-added));",
-	"  --diffs-deletion-color-override: hsl(var(--git-deleted));",
-	"  --diffs-bg-addition-override: hsl(var(--surface-git-added));",
-	"  --diffs-bg-deletion-override: hsl(var(--surface-git-deleted));",
-	"  --diffs-bg-addition-number-override: hsl(var(--surface-git-added));",
-	"  --diffs-bg-deletion-number-override: hsl(var(--surface-git-deleted));",
-	"}",
-	"[data-line-type='change-addition']:not([data-selected-line]) {",
-	"  background-color: hsl(var(--surface-git-added)) !important;",
-	"}",
-	"[data-line-type='change-deletion']:not([data-selected-line]) {",
-	"  background-color: hsl(var(--surface-git-deleted)) !important;",
-	"}",
-].join(" ");
-
 export const diffViewerCSS = [
-	// Make context lines transparent so they blend with the page,
-	// while changed lines use the same theme-aware git surfaces as
-	// the file headers and stats.
-	"pre, [data-line]:not([data-selected-line]):not([data-line-type='change-addition']):not([data-line-type='change-deletion']), [data-diffs-header] { background-color: transparent !important; }",
-	"[data-diffs-header] { border-left: 1px solid var(--border); }",
-	// The library reserves a 6 px horizontal scrollbar track on
-	// [data-code] via overflow: scroll clip. In wrap mode lines
-	// never overflow, so hide the track to remove the phantom gap.
-	"[data-code] { scrollbar-width: none !important; }",
-	"[data-code]::-webkit-scrollbar { height: 0 !important; }",
-	DIFF_HEADER_CSS,
-	CHANGE_LINE_CSS,
-	SELECTION_OVERRIDE_CSS,
+	"pre, [data-line]:not([data-line-type='change-addition']):not([data-line-type='change-deletion']) { background-color: transparent !important; }",
 	SEPARATOR_CSS,
 ].join(" ");
 
@@ -523,7 +413,17 @@ export const DIFFS_FONT_STYLE = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": "1.5",
-} as CSSProperties;
+	"--diffs-addition-color-override": "hsl(var(--git-added))",
+	"--diffs-deletion-color-override": "hsl(var(--git-deleted))",
+	"--diffs-bg-addition-override": "hsl(var(--surface-git-added))",
+	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
+	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
+	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
+	"--diffs-bg-selection-override": "hsl(var(--content-link) / 0.08)",
+	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
+	"--diffs-selection-number-fg": "hsl(var(--content-link))",
+	"--diffs-gap-style": "1px solid hsl(var(--border-default))",
+};
 
 /**
  * Checks whether a tool result should be rendered as a syntax-highlighted
@@ -644,15 +544,15 @@ export const parseEditFilesArgs = (args: unknown): EditFilesFileEntry[] => {
 		.filter((f): f is FileEntry => isValid(fileEntrySchema, f))
 		.map((f) => ({
 			path: f.path,
-			edits: f.edits.filter((e): e is SearchReplace =>
-				isValid(searchReplaceSchema, e),
-			),
+			edits: f.edits
+				.map(normalizeEdit)
+				.filter((e): e is { search: string; replace: string } => e !== null),
 		}));
 };
 
 /**
- * Builds a synthetic unified diff from search/replace edit pairs
- * for a single file. Each edit becomes a separate
+ * Builds a synthetic unified diff from edit pairs (normalized to
+ * search/replace) for a single file. Each edit becomes a separate
  * `Diff.createPatch` call; the patches are concatenated and
  * parsed into a single FileDiffMetadata.
  */

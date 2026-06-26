@@ -28,7 +28,7 @@ func (*fakeRoundTripper) RoundTrip(*http.Request) (*http.Response, error) {
 func TestNewKeyFailoverTransport(t *testing.T) {
 	t.Parallel()
 
-	pool, err := keypool.New([]string{"k0"}, quartz.NewMock(t))
+	pool, err := keypool.New("test-provider", []string{"k0"}, quartz.NewMock(t), nil)
 	require.NoError(t, err)
 
 	tests := []struct {

@@ -166,6 +166,7 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 		PublishWorkspaceAgentLogsUpdateFn: api.publishWorkspaceAgentLogsUpdate,
 		NetworkTelemetryHandler:           api.NetworkTelemetryBatcher.Handler,
 		BoundaryUsageTracker:              api.BoundaryUsageTracker,
+		PortSharer:                        &api.PortSharer,
 
 		AccessURL:                 api.AccessURL,
 		AppHostname:               api.AppHostname,
@@ -179,6 +180,9 @@ func (api *API) workspaceAgentRPC(rw http.ResponseWriter, r *http.Request) {
 
 		// Optional:
 		UpdateAgentMetricsFn: api.UpdateAgentMetrics,
+		// chatDaemon is always constructed (only its worker is gated), so
+		// this is non-nil; agentapi treats a nil marker as "chatd absent".
+		ContextDirtyMarker: api.chatDaemon,
 	}, workspace, workspaceAgent)
 
 	streamID := tailnet.StreamID{

@@ -38,10 +38,7 @@ export const UserDropdownContent: FC<UserDropdownContentProps> = ({
 
 	return (
 		<>
-			<DropdownMenuItem
-				className="flex items-center gap-3 [&_img]:w-full [&_img]:h-full"
-				asChild
-			>
+			<DropdownMenuItem className="flex items-center gap-3" asChild>
 				<Link to="/settings/account">
 					<div className="flex flex-col">
 						<span className="text-content-primary">{user.username}</span>

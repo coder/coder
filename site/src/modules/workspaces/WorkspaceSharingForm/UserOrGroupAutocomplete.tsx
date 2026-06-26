@@ -22,6 +22,7 @@ type UserOrGroupAutocompleteProps = {
 	onChange: (value: UserOrGroupAutocompleteValue) => void;
 	organizationId: string;
 	exclude: ExcludableOption[];
+	className?: string;
 };
 
 const normalizeMember = (
@@ -36,6 +37,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 	onChange,
 	organizationId,
 	exclude,
+	className = "w-80",
 }) => {
 	const [inputValue, setInputValue] = useState("");
 	const [open, setOpen] = useState(false);
@@ -132,7 +134,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			loading={membersQuery.isFetching || groupsQuery.isFetching}
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
-			className="w-80"
+			className={className}
 			id="workspace-user-or-group-autocomplete"
 		/>
 	);

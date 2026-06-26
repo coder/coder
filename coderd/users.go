@@ -1336,7 +1336,7 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
 		TaskNotificationAlertDismissed: taskAlertDismissed,
 		ThinkingDisplayMode:            sanitizeThinkingDisplayMode(thinkingMode),
-		ShellToolDisplayMode:           sanitizeAgentDisplayMode(shellToolMode),
+		ShellToolDisplayMode:           sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:            sanitizeAgentDisplayMode(codeDiffMode),
 		AgentChatSendShortcut:          sanitizeAgentChatSendShortcut(agentChatSendShortcut),
 	})
@@ -1446,13 +1446,13 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 			if err != nil {
 				return newUserPreferenceSettingsAPIError("Internal error updating shell tool display mode.", err)
 			}
-			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(updated)
+			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(updated)
 		} else {
 			stored, err := tx.GetUserShellToolDisplayMode(ctx, user.ID)
 			if err != nil && !errors.Is(err, sql.ErrNoRows) {
 				return newUserPreferenceSettingsAPIError("Error reading shell tool display mode.", err)
 			}
-			settings.ShellToolDisplayMode = sanitizeAgentDisplayMode(stored)
+			settings.ShellToolDisplayMode = sanitizeShellToolDisplayMode(stored)
 		}
 
 		if params.CodeDiffDisplayMode != "" {
@@ -1545,12 +1545,20 @@ func sanitizeThinkingDisplayMode(raw string) codersdk.ThinkingDisplayMode {
 	return codersdk.ThinkingDisplayModeAuto
 }
 
+func sanitizeShellToolDisplayMode(raw string) codersdk.AgentDisplayMode {
+	mode := sanitizeAgentDisplayMode(raw)
+	if mode == "" {
+		return codersdk.AgentDisplayModeAlwaysCollapsed
+	}
+	return mode
+}
+
 func sanitizeAgentDisplayMode(raw string) codersdk.AgentDisplayMode {
 	mode := codersdk.AgentDisplayMode(raw)
 	if slices.Contains(codersdk.ValidAgentDisplayModes, mode) {
 		return mode
 	}
-	return codersdk.AgentDisplayModeAuto
+	return ""
 }
 
 func sanitizeAgentChatSendShortcut(raw string) codersdk.AgentChatSendShortcut {
@@ -1594,6 +1602,24 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 	if !api.Authorize(r, policy.ActionUpdatePersonal, user) {
 		httpapi.ResourceNotFound(rw)
 		return
+	}
+
+	// Only owners can change the password of another owner.
+	if apiKey.UserID != user.ID && slices.Contains(user.RBACRoles, rbac.RoleOwner().String()) {
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching acting user.",
+				Detail:  err.Error(),
+			})
+			return
+		}
+		if !slices.Contains(actingUser.RBACRoles, rbac.RoleOwner().String()) {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Only owners can change the password of an owner.",
+			})
+			return
+		}
 	}
 
 	if !httpapi.Read(ctx, rw, r, &params) {
@@ -1959,11 +1985,12 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			return xerrors.Errorf("generate user gitsshkey: %w", err)
 		}
 		_, err = tx.InsertGitSSHKey(ctx, database.InsertGitSSHKeyParams{
-			UserID:     user.ID,
-			CreatedAt:  dbtime.Now(),
-			UpdatedAt:  dbtime.Now(),
-			PrivateKey: privateKey,
-			PublicKey:  publicKey,
+			UserID:          user.ID,
+			CreatedAt:       dbtime.Now(),
+			UpdatedAt:       dbtime.Now(),
+			PrivateKey:      privateKey,
+			PrivateKeyKeyID: sql.NullString{}, // dbcrypt will set as required
+			PublicKey:       publicKey,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert user gitsshkey: %w", err)

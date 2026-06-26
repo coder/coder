@@ -40,6 +40,8 @@ message SyncStatusRequest {
   string unit = 1;
 }
 
+// DependencyInfo represents a directed edge in the dependency graph from one unit
+// to a unit it depends on, along with the required and current status of the dependency.
 message DependencyInfo {
   string unit = 1;
   string depends_on = 2;
@@ -52,6 +54,94 @@ message SyncStatusResponse {
   string status = 1;
   bool is_ready = 2;
   repeated DependencyInfo dependencies = 3;
+}
+
+message SyncListRequest {}
+
+// UnitInfo represents a single unit vertex in the dependency graph.
+// Includes the state of the unit itself.
+message UnitInfo {
+  string unit = 1;
+  string status = 2;
+  bool is_ready = 3;
+}
+
+message SyncListResponse {
+  repeated UnitInfo units = 1;
+}
+
+// ContextSource is a user-declared scan root the agent watches for
+// workspace context (instruction files, skills, MCP configs) in
+// addition to its built-in defaults. Identity is the canonical path.
+message ContextSource {
+  string path = 1;
+}
+
+message ContextSourcesRequest {}
+
+message ContextSourcesResponse {
+  repeated ContextSource sources = 1;
+}
+
+message GetContextSourceRequest {
+  string path = 1;
+}
+
+message GetContextSourceResponse {
+  ContextSource source = 1;
+}
+
+message AddContextSourceRequest {
+  string path = 1;
+}
+
+message AddContextSourceResponse {
+  ContextSource source = 1;
+}
+
+message RemoveContextSourceRequest {
+  string path = 1;
+}
+
+message RemoveContextSourceResponse {}
+
+// ContextResource is the on-wire form of a resolved context resource.
+// Payload bytes are never sent over the socket; they ship to coderd via
+// the drpc PushContextState path. Mirrors agentcontext.Resource minus
+// the payload and the per-server MCP tool list, which ship to coderd via
+// the same PushContextState path.
+message ContextResource {
+  string id = 1;
+  string kind = 2;
+  string source = 3;
+  string source_path = 4;
+  string content_hash = 5;
+  uint64 size_bytes = 6;
+  string status = 7;
+  string error = 8;
+  string name = 9;
+  string description = 10;
+}
+
+// ContextSnapshot is the agent's resolved context state.
+message ContextSnapshot {
+  uint64 version = 1;
+  string aggregate_hash = 2;
+  repeated ContextResource resources = 3;
+  uint64 payload_bytes = 4;
+  string snapshot_error = 5;
+}
+
+message ContextSnapshotRequest {}
+
+message ContextSnapshotResponse {
+  ContextSnapshot snapshot = 1;
+}
+
+message ResyncContextRequest {}
+
+message ResyncContextResponse {
+  ContextSnapshot snapshot = 1;
 }
 
 // AgentSocket provides direct access to the agent over local IPC.
@@ -68,6 +158,20 @@ service AgentSocket {
   rpc SyncReady(SyncReadyRequest) returns (SyncReadyResponse);
   // Get the status of a unit and list its dependencies.
   rpc SyncStatus(SyncStatusRequest) returns (SyncStatusResponse);
+  // List all registered units and their current statuses.
+  rpc SyncList(SyncListRequest) returns (SyncListResponse);
   // Update app status, forwarded to coderd.
   rpc UpdateAppStatus(coder.agent.v2.UpdateAppStatusRequest) returns (coder.agent.v2.UpdateAppStatusResponse);
+  // List the workspace context sources registered on the agent.
+  rpc ContextSources(ContextSourcesRequest) returns (ContextSourcesResponse);
+  // Get a single registered context source by path.
+  rpc GetContextSource(GetContextSourceRequest) returns (GetContextSourceResponse);
+  // Register a new context source (additional scan root).
+  rpc AddContextSource(AddContextSourceRequest) returns (AddContextSourceResponse);
+  // Remove a previously-registered context source.
+  rpc RemoveContextSource(RemoveContextSourceRequest) returns (RemoveContextSourceResponse);
+  // Return the agent's current resolved context snapshot without forcing a re-walk.
+  rpc GetContextSnapshot(ContextSnapshotRequest) returns (ContextSnapshotResponse);
+  // Force a re-walk and synchronous push, returning the resulting snapshot (barrier).
+  rpc ResyncContext(ResyncContextRequest) returns (ResyncContextResponse);
 }

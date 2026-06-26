@@ -6,7 +6,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
@@ -59,68 +58,6 @@ func TestSeedSummary(t *testing.T) {
 		t.Parallel()
 		got := chatdebug.SeedSummary("")
 		require.Nil(t, got)
-	})
-}
-
-func TestExtractFirstUserText(t *testing.T) {
-	t.Parallel()
-
-	t.Run("EmptyPrompt", func(t *testing.T) {
-		t.Parallel()
-		got := chatdebug.ExtractFirstUserText(fantasy.Prompt{})
-		require.Equal(t, "", got)
-	})
-
-	t.Run("NoUserMessages", func(t *testing.T) {
-		t.Parallel()
-		prompt := fantasy.Prompt{
-			{
-				Role:    fantasy.MessageRoleSystem,
-				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system"}},
-			},
-			{
-				Role:    fantasy.MessageRoleAssistant,
-				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "assistant"}},
-			},
-		}
-		got := chatdebug.ExtractFirstUserText(prompt)
-		require.Equal(t, "", got)
-	})
-
-	t.Run("FirstUserMessageMixedParts", func(t *testing.T) {
-		t.Parallel()
-		prompt := fantasy.Prompt{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "hello "},
-					fantasy.FilePart{Filename: "test.png"},
-					fantasy.TextPart{Text: "world"},
-				},
-			},
-		}
-		got := chatdebug.ExtractFirstUserText(prompt)
-		require.Equal(t, "hello world", got)
-	})
-
-	t.Run("MultipleUserMessagesReturnsFirst", func(t *testing.T) {
-		t.Parallel()
-		prompt := fantasy.Prompt{
-			{
-				Role:    fantasy.MessageRoleSystem,
-				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "system"}},
-			},
-			{
-				Role:    fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "first"}},
-			},
-			{
-				Role:    fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{fantasy.TextPart{Text: "second"}},
-			},
-		}
-		got := chatdebug.ExtractFirstUserText(prompt)
-		require.Equal(t, "first", got)
 	})
 }
 

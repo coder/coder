@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
 	isAgentDisplayFullyExpanded,
-	isAgentDisplayOpen,
 	resolveAgentDisplayState,
 } from "./displayMode";
 
@@ -17,14 +16,6 @@ describe("resolveAgentDisplayState", () => {
 		expect(resolveAgentDisplayState("always_collapsed", "expanded")).toBe(
 			"collapsed",
 		);
-	});
-});
-
-describe("isAgentDisplayOpen", () => {
-	it("returns whether a display state shows content", () => {
-		expect(isAgentDisplayOpen("collapsed")).toBe(false);
-		expect(isAgentDisplayOpen("preview")).toBe(true);
-		expect(isAgentDisplayOpen("expanded")).toBe(true);
 	});
 });
 

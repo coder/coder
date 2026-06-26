@@ -44,6 +44,41 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.Empty(t, got)
 	})
 
+	t.Run("CreatePreservesPresetProviderTypes", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		tests := []struct {
+			providerType codersdk.AIProviderType
+			baseURL      string
+		}{
+			{providerType: codersdk.AIProviderTypeAzure, baseURL: "https://example.openai.azure.com/openai/v1"},
+			{providerType: codersdk.AIProviderTypeGoogle, baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/"},
+			{providerType: codersdk.AIProviderTypeOpenAICompat, baseURL: "https://compat.example.com/v1"},
+			{providerType: codersdk.AIProviderTypeOpenrouter, baseURL: "https://openrouter.ai/api/v1"},
+			{providerType: codersdk.AIProviderTypeVercel, baseURL: "https://ai-gateway.vercel.sh/v1"},
+		}
+		for _, tt := range tests {
+			t.Run(string(tt.providerType), func(t *testing.T) {
+				created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+					Type:    tt.providerType,
+					Name:    "type-preserve-" + string(tt.providerType),
+					Enabled: true,
+					BaseURL: tt.baseURL,
+					APIKeys: []string{"sk-test"},
+				})
+				require.NoError(t, err, tt.providerType)
+				require.Equal(t, tt.providerType, created.Type)
+
+				got, err := client.AIProvider(ctx, created.ID.String())
+				require.NoError(t, err, tt.providerType)
+				require.Equal(t, tt.providerType, got.Type)
+			})
+		}
+	})
+
 	t.Run("CreateGetUpdateDelete", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -325,6 +360,50 @@ func TestAIProvidersCRUD(t *testing.T) {
 		require.ErrorAs(t, err, &sdkErr)
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 		require.Contains(t, sdkErr.Message, "At least one field must be provided")
+	})
+
+	t.Run("UpdateCannotMutateName", func(t *testing.T) {
+		t.Parallel()
+		// ai_providers.name is the stable key that aibridge_interceptions
+		// snapshots into provider_name. Renames would silently desync
+		// historical interceptions from their live row and break the
+		// future FK backfill, so the PATCH endpoint must ignore any "name"
+		// field in the payload. The SDK type intentionally has no Name
+		// field; this test sends raw JSON to defend against a future
+		// regression where someone adds one without thinking.
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeOpenAI,
+			Name:    "stable-name",
+			Enabled: true,
+			BaseURL: "https://api.openai.com/v1",
+		})
+		require.NoError(t, err)
+
+		res, err := client.Request(ctx, http.MethodPatch,
+			"/api/v2/ai/providers/"+created.Name,
+			json.RawMessage(`{"name":"renamed","display_name":"New Display"}`),
+		)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+
+		got, err := client.AIProvider(ctx, created.Name)
+		require.NoError(t, err)
+		require.Equal(t, "stable-name", got.Name, "name must not be mutable via PATCH")
+		require.Equal(t, "New Display", got.DisplayName, "display_name should still update")
+
+		// Confirm the original name still resolves and the attempted new
+		// name does not exist as a separate row.
+		_, err = client.AIProvider(ctx, "renamed")
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusNotFound, sdkErr.StatusCode())
 	})
 
 	t.Run("UpdateSettingsEmptyObjectRejected", func(t *testing.T) {
@@ -845,6 +924,75 @@ func TestAIProvidersKeyManagement(t *testing.T) {
 		require.Contains(t, sdkErr.Message, "Bedrock providers do not accept api_keys")
 	})
 
+	t.Run("CopilotCreateWithoutKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.AIProviderTypeCopilot, provider.Type)
+		require.Empty(t, provider.APIKeys)
+	})
+
+	t.Run("CopilotRejectsCreateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		_, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot-create",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+			APIKeys: []string{"sk-should-be-rejected"}, //nolint:gosec // test fixture, not a real credential
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Len(t, sdkErr.Validations, 1)
+		require.Equal(t, "api_keys", sdkErr.Validations[0].Field)
+		require.Contains(t, sdkErr.Validations[0].Detail, "type=copilot does not accept api_keys")
+	})
+
+	t.Run("CopilotRejectsUpdateWithKeys", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		provider, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeCopilot,
+			Name:    "keys-copilot-update",
+			Enabled: true,
+			BaseURL: "https://api.business.githubcopilot.com",
+		})
+		require.NoError(t, err)
+
+		rejected := []codersdk.AIProviderKeyMutation{
+			{APIKey: ptr.Ref("sk-copilot-no")}, //nolint:gosec // test fixture, not a real credential
+		}
+		_, err = client.UpdateAIProvider(ctx, provider.Name, codersdk.UpdateAIProviderRequest{
+			APIKeys: &rejected,
+		})
+		require.Error(t, err)
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr)
+		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+		require.Contains(t, sdkErr.Message, "Copilot providers do not accept api_keys")
+	})
+
 	t.Run("EmptyKeyRejected", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
@@ -1352,5 +1500,57 @@ func TestAIProviderSettingsMerge(t *testing.T) {
 		require.Equal(t, "AKIA-new", *persisted.Bedrock.AccessKey)
 		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
 		require.Equal(t, "secret-new", *persisted.Bedrock.AccessKeySecret)
+	})
+
+	t.Run("MigrateStaticToRole", func(t *testing.T) {
+		t.Parallel()
+		// An admin migrating from static AWS credentials to IAM role assumption
+		// clears the keys and sets a role ARN in a single PATCH.
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		//nolint:gocritic // Owner role is the audience for this endpoint.
+		created, err := client.CreateAIProvider(ctx, codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeAnthropic,
+			Name:    "merge-role",
+			Enabled: true,
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref("AKIA-old"), //nolint:gosec // test fixture, not a real credential
+					AccessKeySecret: ptr.Ref("secret-old"),
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		updated, err := client.UpdateAIProvider(ctx, created.Name, codersdk.UpdateAIProviderRequest{
+			Settings: &codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:          "us-east-1",
+					AccessKey:       ptr.Ref(""),
+					AccessKeySecret: ptr.Ref(""),
+					RoleARN:         "arn:aws:iam::123456789012:role/target",
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.NotNil(t, updated.Settings.Bedrock)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", updated.Settings.Bedrock.RoleARN)
+
+		//nolint:gocritic // Test reads the row to verify write-only fields.
+		row, err := db.GetAIProviderByID(dbauthz.AsSystemRestricted(ctx), created.ID)
+		require.NoError(t, err)
+		persisted, err := db2sdk.AIProviderSettings(row.Settings)
+		require.NoError(t, err)
+		require.NotNil(t, persisted.Bedrock)
+		require.Equal(t, "arn:aws:iam::123456789012:role/target", persisted.Bedrock.RoleARN)
+		require.NotNil(t, persisted.Bedrock.AccessKey)
+		require.Equal(t, "", *persisted.Bedrock.AccessKey)
+		require.NotNil(t, persisted.Bedrock.AccessKeySecret)
+		require.Equal(t, "", *persisted.Bedrock.AccessKeySecret)
 	})
 }

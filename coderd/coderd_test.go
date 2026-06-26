@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -33,6 +34,8 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -434,6 +437,69 @@ func TestDERPMetrics(t *testing.T) {
 		"expected coder_derp_server_bytes_received_total to be registered")
 	assert.Contains(t, names, "coder_derp_server_packets_dropped_reason_total",
 		"expected coder_derp_server_packets_dropped_reason_total to be registered")
+}
+
+// TestWebSocketProbeMetrics verifies that the coderd_api_websocket_probes_total
+// metric is recorded end-to-end through a real coderd server.
+func TestWebSocketProbeMetrics(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	mClock := quartz.NewMock(t)
+
+	trap := mClock.Trap().NewTicker("WSWatcher")
+	defer trap.Close()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		Clock: mClock,
+	})
+	firstUser := coderdtest.CreateFirstUser(t, client)
+	member, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+
+	// Open a WebSocket connection to the inbox watch endpoint.
+	u, err := member.URL.Parse("/api/v2/notifications/inbox/watch")
+	require.NoError(t, err)
+
+	// nolint:bodyclose
+	wsConn, resp, err := websocket.Dial(ctx, u.String(), &websocket.DialOptions{
+		HTTPHeader: http.Header{
+			"Coder-Session-Token": []string{member.SessionToken()},
+		},
+	})
+	if err != nil {
+		if resp != nil && resp.StatusCode != http.StatusSwitchingProtocols {
+			err = codersdk.ReadBodyAsError(resp)
+		}
+		require.NoError(t, err)
+	}
+	defer wsConn.Close(websocket.StatusNormalClosure, "done")
+
+	// Start a reader to process control frames (pong responses).
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				_, _, err := wsConn.Read(ctx)
+				if err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	// Wait for the WSWatcher ticker to be created, then trigger one probe.
+	trap.MustWait(ctx).MustRelease(ctx)
+	mClock.Advance(httpapi.HeartbeatInterval).MustWait(ctx)
+
+	// Assert the probe metric was recorded.
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		metrics, err := api.Options.PrometheusRegistry.Gather()
+		assert.NoError(t, err)
+		return testutil.PromCounterHasValue(t, metrics, 1,
+			"coderd_api_websocket_probes_total", "/api/v2/notifications/inbox/watch", "ok")
+	}, testutil.IntervalFast, "websocket probe metric not recorded")
 }
 
 // TestRateLimitByUser verifies that rate limiting keys by user ID when

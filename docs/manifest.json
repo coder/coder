@@ -197,8 +197,13 @@
 						},
 						{
 							"title": "Upgrading from ESR 2.24 to 2.29",
-							"description": "Upgrade Guide for ESR Releases",
+							"description": "Upgrade from ESR 2.24 to 2.29",
 							"path": "./install/releases/esr-2.24-2.29-upgrade.md"
+						},
+						{
+							"title": "Upgrading from ESR 2.29 to 2.34",
+							"description": "Upgrade from ESR 2.29 to 2.34",
+							"path": "./install/releases/esr-2.29-2.34-upgrade.md"
 						}
 					]
 				}
@@ -372,7 +377,7 @@
 					"description": "Store secret values in Coder and automatically inject them into workspaces",
 					"path": "./user-guides/user-secrets.md",
 					"icon_path": "./images/icons/secrets.svg",
-					"state": ["early access"]
+					"state": ["beta"]
 				}
 			]
 		},
@@ -996,15 +1001,33 @@
 							"state": ["beta"]
 						},
 						{
+							"title": "Search Syntax",
+							"description": "Filter conversations by title, status, and linked pull requests",
+							"path": "./ai-coder/agents/chat-search-syntax.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Architecture",
 							"description": "How the agent in the control plane communicates with workspaces",
 							"path": "./ai-coder/agents/architecture.md",
 							"state": ["beta"]
 						},
 						{
+							"title": "Chat Sharing",
+							"description": "Share Coder Agents conversations with users and groups",
+							"path": "./ai-coder/agents/chat-sharing.md",
+							"state": ["beta"]
+						},
+						{
 							"title": "Models",
 							"description": "Configure LLM providers and models for Coder Agents",
 							"path": "./ai-coder/agents/models.md",
+							"state": ["beta"]
+						},
+						{
+							"title": "Tools",
+							"description": "How Coder Agents uses tool calls to select templates and create workspaces",
+							"path": "./ai-coder/agents/tools/index.md",
 							"state": ["beta"]
 						},
 						{
@@ -1138,85 +1161,93 @@
 								{
 									"title": "Setup",
 									"description": "How to set up and configure AI Gateway",
-									"path": "./ai-coder/ai-gateway/setup.md"
+									"path": "./ai-coder/ai-gateway/setup.md",
+									"state": ["ai governance add-on"]
 								},
 								{
 									"title": "Authentication",
 									"description": "Learn how to authenticate against AI Gateway",
-									"path": "./ai-coder/ai-gateway/auth.md"
+									"path": "./ai-coder/ai-gateway/auth.md",
+									"state": ["ai governance add-on"]
 								},
 								{
 									"title": "Client Configuration",
 									"description": "How to configure your AI coding tools to use AI Gateway",
 									"path": "./ai-coder/ai-gateway/clients/index.md",
+									"state": ["ai governance add-on"],
 									"children": [
-										{
-											"title": "Coder Agents",
-											"description": "Route Coder Agents traffic through AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/coder-agents.md"
-										},
 										{
 											"title": "Claude Code",
 											"description": "Configure Claude Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/claude-code.md"
+											"path": "./ai-coder/ai-gateway/clients/claude-code.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Codex",
 											"description": "Configure Codex to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/codex.md"
+											"path": "./ai-coder/ai-gateway/clients/codex.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Mux",
 											"description": "Configure Mux to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/mux.md"
+											"path": "./ai-coder/ai-gateway/clients/mux.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "OpenCode",
 											"description": "Configure OpenCode to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/opencode.md"
+											"path": "./ai-coder/ai-gateway/clients/opencode.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Factory",
 											"description": "Configure Factory to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/factory.md"
+											"path": "./ai-coder/ai-gateway/clients/factory.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Cline",
 											"description": "Configure Cline to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/cline.md"
+											"path": "./ai-coder/ai-gateway/clients/cline.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Kilo Code",
 											"description": "Configure Kilo Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/kilo-code.md"
+											"path": "./ai-coder/ai-gateway/clients/kilo-code.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "VS Code",
 											"description": "Configure VS Code to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/vscode.md"
+											"path": "./ai-coder/ai-gateway/clients/vscode.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "JetBrains",
 											"description": "Configure JetBrains IDEs to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/jetbrains.md"
+											"path": "./ai-coder/ai-gateway/clients/jetbrains.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "Zed",
 											"description": "Configure Zed to use AI Gateway",
-											"path": "./ai-coder/ai-gateway/clients/zed.md"
+											"path": "./ai-coder/ai-gateway/clients/zed.md",
+											"state": ["ai governance add-on"]
 										},
 										{
 											"title": "GitHub Copilot",
 											"description": "Configure GitHub Copilot to use AI Gateway via AI Gateway Proxy",
-											"path": "./ai-coder/ai-gateway/clients/copilot.md"
+											"path": "./ai-coder/ai-gateway/clients/copilot.md",
+											"state": ["ai governance add-on"]
 										}
 									]
 								},
 								{
 									"title": "MCP Tools Injection",
 									"description": "How to configure MCP servers for tools injection through AI Gateway",
-									"path": "./ai-coder/ai-gateway/mcp.md",
-									"state": ["early access"]
+									"path": "./ai-coder/ai-gateway/mcp.md"
 								},
 								{
 									"title": "AI Gateway Proxy",
@@ -1227,31 +1258,42 @@
 										{
 											"title": "Setup",
 											"description": "How to set up and configure AI Gateway Proxy",
-											"path": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md"
+											"path": "./ai-coder/ai-gateway/ai-gateway-proxy/setup.md",
+											"state": ["ai governance add-on"]
 										}
 									]
 								},
 								{
+									"title": "Provider Configuration",
+									"description": "How AI Gateway stores, seeds, and reloads provider configuration",
+									"path": "./ai-coder/ai-gateway/providers.md",
+									"state": ["ai governance add-on"]
+								},
+								{
 									"title": "Auditing AI Sessions",
 									"description": "How to audit AI sessions",
-									"path": "./ai-coder/ai-gateway/audit.md"
+									"path": "./ai-coder/ai-gateway/audit.md",
+									"state": ["ai governance add-on"]
 								},
 								{
 									"title": "Monitoring",
 									"description": "How to monitor AI Gateway",
-									"path": "./ai-coder/ai-gateway/monitoring.md"
+									"path": "./ai-coder/ai-gateway/monitoring.md",
+									"state": ["ai governance add-on"]
 								},
 								{
 									"title": "Reference",
 									"description": "Technical reference for AI Gateway",
-									"path": "./ai-coder/ai-gateway/reference.md"
+									"path": "./ai-coder/ai-gateway/reference.md",
+									"state": ["ai governance add-on"]
 								}
 							]
 						},
 						{
 							"title": "Usage Data Reporting",
 							"description": "Configure AI usage data reporting",
-							"path": "./ai-coder/usage-data-reporting.md"
+							"path": "./ai-coder/usage-data-reporting.md",
+							"state": ["ai governance add-on"]
 						}
 					]
 				},
@@ -1479,8 +1521,8 @@
 							"path": "./reference/api/general.md"
 						},
 						{
-							"title": "AI Bridge",
-							"path": "./reference/api/aibridge.md"
+							"title": "AI Gateway",
+							"path": "./reference/api/aigateway.md"
 						},
 						{
 							"title": "AI Providers",
@@ -1488,6 +1530,7 @@
 						},
 						{
 							"title": "Agents",
+							"description": "REST endpoints for the workspace agent daemon (`coder_agent`).",
 							"path": "./reference/api/agents.md"
 						},
 						{
@@ -1512,6 +1555,7 @@
 						},
 						{
 							"title": "Chats",
+							"description": "REST endpoints for Coder Agents Chats API (programmatic agent sessions).",
 							"path": "./reference/api/chats.md",
 							"state": ["early access"]
 						},
@@ -1576,6 +1620,10 @@
 							"path": "./reference/api/tasks.md"
 						},
 						{
+							"title": "TemplateBuilder",
+							"path": "./reference/api/templatebuilder.md"
+						},
+						{
 							"title": "Templates",
 							"path": "./reference/api/templates.md"
 						},
@@ -1600,29 +1648,14 @@
 					"icon_path": "./images/icons/terminal.svg",
 					"children": [
 						{
-							"title": "aibridge",
-							"description": "Manage AI Bridge.",
-							"path": "reference/cli/aibridge.md"
-						},
-						{
-							"title": "aibridge interceptions",
-							"description": "Manage AI Bridge interceptions.",
-							"path": "reference/cli/aibridge_interceptions.md"
-						},
-						{
-							"title": "aibridge interceptions list",
-							"description": "List AI Bridge interceptions as JSON.",
-							"path": "reference/cli/aibridge_interceptions_list.md"
-						},
-						{
 							"title": "autoupdate",
 							"description": "Toggle auto-update policy for a workspace",
 							"path": "reference/cli/autoupdate.md"
 						},
 						{
-							"title": "boundary",
+							"title": "agent-firewall",
 							"description": "Network isolation tool for monitoring and restricting HTTP/HTTPS requests",
-							"path": "reference/cli/boundary.md"
+							"path": "reference/cli/agent-firewall.md"
 						},
 						{
 							"title": "coder",
@@ -2381,6 +2414,11 @@
 							"title": "users list",
 							"description": "Prints the list of users.",
 							"path": "reference/cli/users_list.md"
+						},
+						{
+							"title": "users oidc-claims",
+							"description": "Display the OIDC claims for the authenticated user.",
+							"path": "reference/cli/users_oidc-claims.md"
 						},
 						{
 							"title": "users show",

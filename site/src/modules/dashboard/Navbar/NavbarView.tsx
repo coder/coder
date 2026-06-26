@@ -33,6 +33,7 @@ interface NavbarViewProps {
 	canViewConnectionLog: boolean;
 	canViewHealth: boolean;
 	canViewAIBridge: boolean;
+	canViewAISettings: boolean;
 	canCreateChat: boolean;
 	proxyContextValue?: ProxyContextValue;
 }
@@ -54,6 +55,7 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	canViewAuditLog,
 	canViewConnectionLog,
 	canViewAIBridge,
+	canViewAISettings,
 	canCreateChat,
 	proxyContextValue,
 }) => {
@@ -128,9 +130,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 						canViewAuditLog={canViewAuditLog}
 						canViewOrganizations={canViewOrganizations}
 						canViewDeployment={canViewDeployment}
-						canViewHealth={canViewHealth}
 						canViewConnectionLog={canViewConnectionLog}
 						canViewAIBridge={canViewAIBridge}
+						canViewAISettings={canViewAISettings}
+						canViewHealth={canViewHealth}
 					/>
 				</div>
 

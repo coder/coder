@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -10,8 +13,11 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 func TestReadAIProvidersFromEnv(t *testing.T) {
@@ -34,7 +40,6 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				"CODER_AIBRIDGE_PROVIDER_0_NAME=anthropic-zdr",
 				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-ant-xxx",
 				"CODER_AIBRIDGE_PROVIDER_0_BASE_URL=https://api.anthropic.com/",
-				"CODER_AIBRIDGE_PROVIDER_0_DUMP_DIR=/tmp/aibridge-dump",
 			},
 			expected: []codersdk.AIProviderConfig{
 				{
@@ -42,7 +47,6 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 					Name:    "anthropic-zdr",
 					Keys:    []string{"sk-ant-xxx"},
 					BaseURL: "https://api.anthropic.com/",
-					DumpDir: "/tmp/aibridge-dump",
 				},
 			},
 		},
@@ -194,12 +198,26 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			},
 		},
 		{
-			// KEYS, BEDROCK_ACCESS_KEYS, and BEDROCK_ACCESS_KEY_SECRETS
-			// are plural aliases for their singular counterparts.
-			name: "PluralKeyAliases",
+			// KEYS is a plural alias for KEY.
+			name: "PluralKeysAlias",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type: aibridge.ProviderAnthropic,
+					Name: aibridge.ProviderAnthropic,
+					Keys: []string{"sk-ant-xxx"},
+				},
+			},
+		},
+		{
+			// BEDROCK_ACCESS_KEYS and BEDROCK_ACCESS_KEY_SECRETS are
+			// plural aliases for their singular counterparts.
+			name: "PluralBedrockAliases",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEYS=AKID",
 				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRETS=secret",
 			},
@@ -207,11 +225,22 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 				{
 					Type:                    aibridge.ProviderAnthropic,
 					Name:                    aibridge.ProviderAnthropic,
-					Keys:                    []string{"sk-ant-xxx"},
 					BedrockAccessKeys:       []string{"AKID"},
 					BedrockAccessKeySecrets: []string{"secret"},
 				},
 			},
+		},
+		{
+			// An Anthropic provider can't use both a bearer token
+			// (KEYS) and Bedrock (BEDROCK_*); they're mutually
+			// exclusive authentication modes.
+			name: "AnthropicKeysAndBedrockConflict",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
+				"CODER_AIBRIDGE_PROVIDER_0_KEYS=sk-ant-xxx",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+			},
+			errContains: "KEY/KEYS and BEDROCK_* fields are mutually exclusive",
 		},
 		{
 			name: "ConflictKeyAndKeys",
@@ -338,6 +367,40 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			errContains: "cannot mix CODER_AIBRIDGE_PROVIDER_* and CODER_AI_GATEWAY_PROVIDER_* environment variables",
 		},
 		{
+			name: "BedrockTypeHappyPath",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY=AKID",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_ACCESS_KEY_SECRET=secret",
+			},
+			expected: []codersdk.AIProviderConfig{
+				{
+					Type:                    string(database.AIProviderTypeBedrock),
+					Name:                    "bedrock-prod",
+					BedrockRegion:           "us-east-1",
+					BedrockAccessKeys:       []string{"AKID"},
+					BedrockAccessKeySecrets: []string{"secret"},
+				},
+			},
+		},
+		{
+			name:        "BedrockTypeWithoutBedrockFields",
+			env:         []string{"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock", "CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod"},
+			errContains: "requires BEDROCK_* fields to be configured",
+		},
+		{
+			name: "BedrockTypeRejectsAPIKeys",
+			env: []string{
+				"CODER_AIBRIDGE_PROVIDER_0_TYPE=bedrock",
+				"CODER_AIBRIDGE_PROVIDER_0_NAME=bedrock-prod",
+				"CODER_AIBRIDGE_PROVIDER_0_BEDROCK_REGION=us-east-1",
+				"CODER_AIBRIDGE_PROVIDER_0_KEY=sk-should-fail",
+			},
+			errContains: "KEY/KEYS are not supported for TYPE",
+		},
+		{
 			name: "BedrockKeysTooMany",
 			env: []string{
 				"CODER_AIBRIDGE_PROVIDER_0_TYPE=anthropic",
@@ -442,4 +505,283 @@ func TestReadAIProvidersFromEnv(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestValidateLegacyAIBridgeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		cfg         codersdk.AIBridgeConfig
+		errContains string
+	}{
+		{
+			name: "BareAnthropicKey",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+			},
+		},
+		{
+			name: "BareBedrockRegion",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{Region: "us-east-1"},
+			},
+		},
+		{
+			name: "BedrockCredentialsOnly",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+		},
+		{
+			name: "AnthropicKeyAndBedrockConflict",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Region:          "us-east-1",
+					AccessKey:       "AKIA",
+					AccessKeySecret: "secret",
+				},
+			},
+			errContains: "CODER_AIBRIDGE_ANTHROPIC_KEY and CODER_AIBRIDGE_BEDROCK_* are mutually exclusive",
+		},
+		{
+			name: "AnthropicKeyWithBedrockModelDefaultsIsFine",
+			cfg: codersdk.AIBridgeConfig{
+				LegacyAnthropic: codersdk.AIBridgeAnthropicConfig{Key: "sk-ant"},
+				// Model defaults shouldn't trip the conflict; they're
+				// always populated in a real deployment.
+				LegacyBedrock: codersdk.AIBridgeBedrockConfig{
+					Model:          "anthropic.claude-3-5-sonnet",
+					SmallFastModel: "anthropic.claude-3-5-haiku",
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateLegacyAIBridgeConfig(tt.cfg)
+			if tt.errContains == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tt.errContains)
+		})
+	}
+}
+
+func TestWarnIfAIProvidersConfiguredFromEnv(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoProviders", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, nil)
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("EmptyPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), "", []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		require.Empty(t, sink.Entries())
+	})
+
+	t.Run("AIGatewayPrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiGatewayProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiGatewayProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+
+	t.Run("AIBridgePrefix", func(t *testing.T) {
+		t.Parallel()
+
+		sink := testutil.NewFakeSink(t)
+		warnIfAIProvidersConfiguredFromEnv(context.Background(), sink.Logger(), aiBridgeProviderEnvPrefix, []codersdk.AIProviderConfig{{Type: "openai", Name: "openai"}})
+
+		entries := sink.Entries(func(e slog.SinkEntry) bool {
+			return e.Message == "ai provider environment variables are deprecated for provider management and only seed provider configuration at startup"
+		})
+		require.Len(t, entries, 1)
+		require.Len(t, entries[0].Fields, 2)
+		assertFieldValue(t, entries[0].Fields, "env_prefix", aiBridgeProviderEnvPrefix)
+		assertFieldValue(t, entries[0].Fields, "replacement", "Manage AI Providers from the Coder UI or HTTP API.")
+	})
+}
+
+func TestBuildAIProviderFromRowSetsAPIDumpDir(t *testing.T) {
+	t.Parallel()
+
+	const dumpDir = "/tmp/coder-aibridge-dumps"
+
+	tests := []struct {
+		name         string
+		row          database.AIProvider
+		expectedType string
+	}{
+		{
+			name: "OpenAI",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeOpenai,
+				Name:    "openai",
+				BaseUrl: "https://api.openai.com/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "Anthropic",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeAnthropic,
+				Name:    "anthropic",
+				BaseUrl: "https://api.anthropic.com/",
+			},
+			expectedType: aibridge.ProviderAnthropic,
+		},
+		{
+			name: "Copilot",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeCopilot,
+				Name:    "copilot",
+				BaseUrl: "https://api.githubcopilot.com/",
+			},
+			expectedType: aibridge.ProviderCopilot,
+		},
+		{
+			name: "Azure",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeAzure,
+				Name:    "azure",
+				BaseUrl: "https://example.openai.azure.com/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "Google",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeGoogle,
+				Name:    "google",
+				BaseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "OpenAICompat",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeOpenaiCompat,
+				Name:    "openai-compat",
+				BaseUrl: "https://compat.example.com/v1/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "OpenRouter",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeOpenrouter,
+				Name:    "openrouter",
+				BaseUrl: "https://openrouter.ai/api/v1/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "Vercel",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeVercel,
+				Name:    "vercel",
+				BaseUrl: "https://api.v0.dev/v1/",
+			},
+			expectedType: aibridge.ProviderOpenAI,
+		},
+		{
+			name: "Bedrock",
+			row: database.AIProvider{
+				Enabled: true,
+				Type:    database.AIProviderTypeBedrock,
+				Name:    "bedrock",
+				BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+				Settings: mustMarshalSettings(codersdk.AIProviderSettings{
+					Bedrock: &codersdk.AIProviderBedrockSettings{
+						Region:          "us-east-1",
+						AccessKey:       ptr.Ref("AKID"),
+						AccessKeySecret: ptr.Ref("secret"),
+					},
+				}),
+			},
+			expectedType: aibridge.ProviderAnthropic,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			provider, err := buildAIProviderFromRow(t.Context(), tt.row, nil, codersdk.AIBridgeConfig{
+				AllowBYOK:  serpent.Bool(true),
+				APIDumpDir: serpent.String(dumpDir),
+			}, nil)
+			require.NoError(t, err)
+			assert.Equal(t, dumpDir, provider.APIDumpDir())
+			assert.Equal(t, tt.expectedType, provider.Type())
+		})
+	}
+}
+
+func TestBuildAIProviderFromRowBedrockWithoutSettings(t *testing.T) {
+	t.Parallel()
+
+	_, err := buildAIProviderFromRow(t.Context(), database.AIProvider{
+		Enabled: true,
+		Type:    database.AIProviderTypeBedrock,
+		Name:    "bedrock-no-settings",
+		BaseUrl: "https://bedrock-runtime.us-east-1.amazonaws.com/",
+	}, nil, codersdk.AIBridgeConfig{
+		AllowBYOK: serpent.Bool(true),
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bedrock provider has no bedrock credentials configured")
+}
+
+func mustMarshalSettings(s codersdk.AIProviderSettings) sql.NullString {
+	data, err := json.Marshal(s)
+	if err != nil {
+		panic(err)
+	}
+	return sql.NullString{String: string(data), Valid: true}
+}
+
+func assertFieldValue(t *testing.T, fields slog.Map, name string, expected interface{}) {
+	t.Helper()
+	for _, f := range fields {
+		if f.Name == name {
+			assert.Equal(t, expected, f.Value)
+			return
+		}
+	}
+	t.Errorf("field %q not found", name)
 }

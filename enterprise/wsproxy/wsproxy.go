@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/site"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/derpmetrics"
+	"github.com/coder/quartz"
 )
 
 // expDERPOnce guards the global expvar.Publish call for the DERP server.
@@ -211,9 +212,17 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 			expvar.Publish("derp", derpServer.ExpVar())
 		}
 	})
+
+	var wsMetrics *httpmw.WSMetrics
 	if opts.PrometheusRegistry != nil {
+		wsMetrics = httpmw.NewWSMetrics(opts.PrometheusRegistry)
 		opts.PrometheusRegistry.MustRegister(derpmetrics.NewDERPExpvarCollector(derpServer))
 	}
+	var wsRec httpapi.ProbeRecorder
+	if wsMetrics != nil {
+		wsRec = wsMetrics.RecordProbe
+	}
+	wsWatcher := httpapi.NewWSWatcher(quartz.NewReal(), wsRec)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -332,6 +341,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		AgentProvider:            agentProvider,
 		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
 		APIKeyEncryptionKeycache: encryptionCache,
+		WSWatcher:                wsWatcher,
 	})
 
 	derpHandler := derphttp.Handler(derpServer)
@@ -340,7 +350,7 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	// The primary coderd dashboard needs to make some GET requests to
 	// the workspace proxies to check latency.
 	corsMW := httpmw.Cors(opts.AllowAllCors, opts.DashboardURL.String())
-	prometheusMW := httpmw.Prometheus(s.PrometheusRegistry)
+	prometheusMW := httpmw.Prometheus(s.PrometheusRegistry, wsMetrics)
 
 	// Routes
 	apiRateLimiter := httpmw.RateLimit(opts.APIRateLimit, time.Minute)
@@ -354,7 +364,9 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		tracing.Middleware(s.TracerProvider),
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(s.Options.RealIPConfig),
-		loggermw.Logger(s.Logger),
+		loggermw.Logger(s.Logger, func(r *http.Request) string {
+			return httpmw.EffectiveHost(s.Options.RealIPConfig, r)
+		}),
 		prometheusMW,
 
 		// HandleSubdomain is a middleware that handles all requests to the

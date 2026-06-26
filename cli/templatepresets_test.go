@@ -14,8 +14,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplatePresets(t *testing.T) {
@@ -24,6 +24,7 @@ func TestTemplatePresets(t *testing.T) {
 	t.Run("NoPresets", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -37,7 +38,7 @@ func TestTemplatePresets(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "presets", "list", template.Name)
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		doneChan := make(chan struct{})
 		var runErr error
 		go func() {
@@ -49,12 +50,13 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should return a message when no presets are found for the given template and version.
 		notFoundMessage := fmt.Sprintf("No presets found for template %q and template-version %q.", template.Name, version.Name)
-		pty.ExpectRegexMatch(notFoundMessage)
+		stdout.ExpectRegexMatch(ctx, notFoundMessage)
 	})
 
 	t.Run("ListsPresetsForDefaultTemplateVersion", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -104,7 +106,7 @@ func TestTemplatePresets(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "presets", "list", template.Name)
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		doneChan := make(chan struct{})
 		var runErr error
 		go func() {
@@ -117,11 +119,11 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should: return the active version's presets sorted by name
 		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
-		pty.ExpectMatch(message)
-		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
+		stdout.ExpectMatch(ctx, message)
+		stdout.ExpectRegexMatch(ctx, `preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
-		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		pty.ExpectRegexMatch(`preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
+		stdout.ExpectRegexMatch(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
+		stdout.ExpectRegexMatch(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
 	})
 
 	t.Run("ListsPresetsForSpecifiedTemplateVersion", func(t *testing.T) {
@@ -196,7 +198,7 @@ func TestTemplatePresets(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "presets", "list", updatedTemplate.Name, "--template-version", version.Name)
 		clitest.SetupConfig(t, member, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		doneChan := make(chan struct{})
 		var runErr error
 		go func() {
@@ -209,11 +211,11 @@ func TestTemplatePresets(t *testing.T) {
 
 		// Should: return the specified version's presets sorted by name
 		message := fmt.Sprintf("Showing presets for template %q and template version %q.", template.Name, version.Name)
-		pty.ExpectMatch(message)
-		pty.ExpectRegexMatch(`preset-default\s+k1=v2\s+true\s+0`)
+		stdout.ExpectMatch(ctx, message)
+		stdout.ExpectRegexMatch(ctx, `preset-default\s+k1=v2\s+true\s+0`)
 		// The parameter order is not guaranteed in the output, so we match both possible orders
-		pty.ExpectRegexMatch(`preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
-		pty.ExpectRegexMatch(`preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
+		stdout.ExpectRegexMatch(ctx, `preset-multiple-params\s+(k1=v1,k2=v2)|(k2=v2,k1=v1)\s+false\s+-`)
+		stdout.ExpectRegexMatch(ctx, `preset-prebuilds\s+Preset without parameters and 2 prebuild instances.\s+\s+false\s+2`)
 	})
 
 	t.Run("ListsPresetsJSON", func(t *testing.T) {

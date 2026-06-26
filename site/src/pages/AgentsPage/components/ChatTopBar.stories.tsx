@@ -46,6 +46,17 @@ export const RegeneratingTitle: Story = {
 	},
 };
 
+export const SharedChat: Story = {
+	args: {
+		isSharedChat: true,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByLabelText("Shared chat")).toBeInTheDocument();
+		expect(canvas.queryByText("Shared")).not.toBeInTheDocument();
+	},
+};
+
 export const WithPanelOpen: Story = {
 	args: {
 		panel: {
@@ -71,6 +82,7 @@ export const WithParentChat: Story = {
 			created_at: "2026-02-18T00:00:00.000Z",
 			updated_at: "2026-02-18T00:00:00.000Z",
 			archived: false,
+			shared: false,
 			pin_order: 0,
 			has_unread: false,
 			client_type: "ui",

@@ -119,7 +119,7 @@ const openChatSharing = async (canvasElement: HTMLElement) => {
 	const canvas = within(canvasElement);
 	await userEvent.click(canvas.getByRole("button", { name: "Share" }));
 	const body = within(canvasElement.ownerDocument.body);
-	await body.findByText("Chat Sharing");
+	await body.findByText("Chat sharing");
 	return body;
 };
 
@@ -128,7 +128,7 @@ const closeChatSharing = async (canvasElement: HTMLElement) => {
 	const body = within(canvasElement.ownerDocument.body);
 	await userEvent.click(canvas.getByRole("button", { name: "Share" }));
 	await waitFor(() => {
-		expect(body.queryByText("Chat Sharing")).not.toBeInTheDocument();
+		expect(body.queryByText("Chat sharing")).not.toBeInTheDocument();
 	});
 };
 
@@ -153,6 +153,12 @@ const addAutocompleteOption = async (
 	await userEvent.click(body.getByRole("button", { name: "Add member" }));
 };
 
+const MobileFrame = (Story: React.FC) => (
+	<div className="w-[390px] max-w-full">
+		<Story />
+	</div>
+);
+
 const meta: Meta<typeof ChatShareButton> = {
 	title: "pages/AgentsPage/ChatSharingPopover",
 	component: ChatShareButton,
@@ -174,10 +180,13 @@ export const EmptyACL: Story = {
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
 		await waitFor(() => {
-			expect(body.getByText("No shared members or groups yet")).toBeVisible();
 			expect(
-				body.getByText("Add a member or group using the controls above."),
-			).toBeVisible();
+				body.getAllByText("No shared members or groups yet").length,
+			).toBeGreaterThan(0);
+			expect(
+				body.getAllByText("Add a member or group using the controls above.")
+					.length,
+			).toBeGreaterThan(0);
 		});
 	},
 };
@@ -187,11 +196,32 @@ export const PopulatedACL: Story = {
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
 		await waitFor(() => {
-			expect(body.getByText(chatUser.username)).toBeInTheDocument();
-			expect(body.getByText(chatGroup.name)).toBeInTheDocument();
+			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
+			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
 			expect(body.getAllByText("Read").length).toBeGreaterThan(0);
 		});
-		expect(body.getAllByRole("button", { name: "Open menu" })).toHaveLength(2);
+		expect(
+			body.getAllByRole("button", { name: "Open menu" }).length,
+		).toBeGreaterThan(0);
+	},
+};
+
+export const MobilePopulatedACL: Story = {
+	decorators: [MobileFrame],
+	parameters: {
+		chromatic: { viewports: [390] },
+	},
+	beforeEach: () => mockDialogRequests({ acl: populatedACL }),
+	play: async ({ canvasElement }) => {
+		const body = await openChatSharing(canvasElement);
+		await waitFor(() => {
+			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
+			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
+			expect(body.getAllByText("Read").length).toBeGreaterThan(0);
+		});
+		expect(
+			body.getAllByRole("button", { name: "Open menu" }).length,
+		).toBeGreaterThan(0);
 	},
 };
 
@@ -209,7 +239,7 @@ export const CurrentUserHidden: Story = {
 			expect(
 				body.queryByText(currentChatUser.username),
 			).not.toBeInTheDocument();
-			expect(body.getByText(chatUser.username)).toBeVisible();
+			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
 		});
 	},
 };
@@ -307,7 +337,7 @@ export const RemoveUser: Story = {
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
 		await waitFor(() => {
-			expect(body.getByText(chatUser.username)).toBeInTheDocument();
+			expect(body.getAllByText(chatUser.username).length).toBeGreaterThan(0);
 		});
 		// Groups render before users, so the user row menu is the second one.
 		const menuButtons = await body.findAllByRole("button", {
@@ -334,7 +364,7 @@ export const RemoveGroup: Story = {
 	play: async ({ canvasElement }) => {
 		const body = await openChatSharing(canvasElement);
 		await waitFor(() => {
-			expect(body.getByText(chatGroup.name)).toBeInTheDocument();
+			expect(body.getAllByText(chatGroup.name).length).toBeGreaterThan(0);
 		});
 		// Groups render before users, so the group row menu is the first one.
 		const menuButtons = await body.findAllByRole("button", {

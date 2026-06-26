@@ -15,14 +15,15 @@ import (
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestShow(t *testing.T) {
 	t.Parallel()
 	t.Run("Exists", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -39,7 +40,8 @@ func TestShow(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		go func() {
 			defer close(doneChan)
@@ -58,9 +60,9 @@ func TestShow(t *testing.T) {
 			{match: "coder ssh " + workspace.Name},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)
@@ -71,6 +73,7 @@ func TestShow(t *testing.T) {
 	// UUID and fetched by ID (which 404s).
 	t.Run("WorkspaceWithUUIDLikeName", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -92,7 +95,8 @@ func TestShow(t *testing.T) {
 		inv, root := clitest.New(t, args...)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitShort)
 		go func() {
 			defer close(doneChan)
@@ -111,9 +115,9 @@ func TestShow(t *testing.T) {
 			{match: "coder ssh " + workspace.Name},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if len(m.write) > 0 {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 		_ = testutil.TryReceive(ctx, t, doneChan)

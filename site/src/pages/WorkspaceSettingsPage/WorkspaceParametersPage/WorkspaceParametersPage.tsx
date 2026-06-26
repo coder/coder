@@ -49,66 +49,73 @@ const WorkspaceParametersPage: FC = () => {
 
 	const [latestResponse, setLatestResponse] =
 		useState<DynamicParametersResponse | null>(null);
+	// The current expected response ID.  Starts at -1 because the backend sends
+	// an initial message when the web socket is connected with -1.
 	const wsResponseId = useRef<number>(-1);
 	const ws = useRef<WebSocket | null>(null);
 	const [wsError, setWsError] = useState<Error | null>(null);
-	const initialParamsSentRef = useRef(false);
+	// The expected ID of the init message, so we can wait until the initial
+	// parameters have gone through before rendering the form.
+	const [initId, setInitId] = useState(Number.NaN);
 
+	// Parameters from the latest build, formatted as auto-fill parameters.
 	const autofillParameters: AutofillBuildParameter[] =
 		latestBuildParameters?.map((p) => ({
 			...p,
 			source: "active_build",
 		})) ?? [];
 
-	const sendMessage = (formValues: Record<string, string>) => {
+	// sendMessage increments the ID and sends the form values on the web socket
+	// and return true.  If the socket is not open, it does not increment the ID
+	// and returns false.
+	const sendMessage = (formValues: Record<string, string>): boolean => {
 		const request: DynamicParametersRequest = {
 			id: wsResponseId.current + 1,
 			owner_id: workspace.owner_id,
 			inputs: formValues,
 		};
 		if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-			ws.current.send(JSON.stringify(request));
 			wsResponseId.current = wsResponseId.current + 1;
+			ws.current.send(JSON.stringify(request));
+			return true;
 		}
+		if (ws.current) {
+			console.error(
+				"Tried to send message but the web socket state is %s",
+				ws.current.readyState,
+				request,
+			);
+		}
+		return false;
 	};
 
-	// On page load, sends initial workspace build parameters to the websocket.
-	// This ensures the backend has the form's complete initial state,
-	// vital for rendering dynamic UI elements dependent on initial parameter values.
+	// Send the initial parameters if necessary and mark the ID of the response we
+	// need to wait for until we can finally render the form with the right state.
 	const sendInitialParameters = useEffectEvent(() => {
-		if (initialParamsSentRef.current) return;
-		if (autofillParameters.length === 0) return;
-
-		const initialParamsToSend: Record<string, string> = {};
-		for (const param of autofillParameters) {
-			if (param.name && param.value) {
-				initialParamsToSend[param.name] = param.value;
+		if (latestBuildParametersLoading || !Number.isNaN(initId)) {
+			return;
+		}
+		if (autofillParameters.length > 0) {
+			const values = Object.fromEntries(
+				autofillParameters.map((afp) => [afp.name, afp.value]),
+			);
+			if (!sendMessage(values)) {
+				return;
 			}
 		}
-		if (Object.keys(initialParamsToSend).length === 0) return;
-
-		sendMessage(initialParamsToSend);
-		initialParamsSentRef.current = true;
+		// If there were no parameters to send, this will end up just using the
+		// response we already have.  Otherwise it will wait for the next response.
+		setInitId(wsResponseId.current);
 	});
 
-	const onMessage = useEffectEvent((response: DynamicParametersResponse) => {
-		if (latestResponse && latestResponse?.id >= response.id) {
-			return;
-		}
-
-		// Skip stale responses. If we've already sent a newer request,
-		// this response contains outdated parameter values that would
-		// overwrite the user's more recent input.
-		if (response.id < wsResponseId.current) {
-			return;
-		}
-
-		setLatestResponse(response);
-
-		if (!initialParamsSentRef.current && response.parameters?.length > 0) {
+	// Send the build parameters once we get them.
+	useEffect(() => {
+		// sendInitialParameters already makes this check but the linter complains
+		// if the dependency is not used.
+		if (!latestBuildParametersLoading) {
 			sendInitialParameters();
 		}
-	});
+	}, [latestBuildParametersLoading]);
 
 	useEffect(() => {
 		if (!templateVersionId && !workspace.latest_build.template_version_id)
@@ -118,7 +125,17 @@ const WorkspaceParametersPage: FC = () => {
 			templateVersionId ?? workspace.latest_build.template_version_id,
 			workspace.owner_id,
 			{
-				onMessage,
+				onOpen: () => {
+					// If we already have the build parameters, send them now.
+					sendInitialParameters();
+				},
+				// Record the latest message every time we get one from the web
+				// socket.  Stale responses are discarded.
+				onMessage: (response: DynamicParametersResponse) => {
+					if (response.id >= wsResponseId.current) {
+						setLatestResponse(response);
+					}
+				},
 				onError: (error) => {
 					if (ws.current === socket) {
 						setWsError(error);
@@ -226,13 +243,13 @@ const WorkspaceParametersPage: FC = () => {
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;
 
-	if (
+	// Some of these checks conceptually overlap, but opting to be explicit.
+	const isLoading =
 		latestBuildParametersLoading ||
-		(!latestResponse && !wsError) ||
-		(ws.current && ws.current.readyState === WebSocket.CONNECTING)
-	) {
-		return <Loader />;
-	}
+		!latestResponse ||
+		Number.isNaN(initId) ||
+		latestResponse.id < initId ||
+		(ws.current && ws.current.readyState === WebSocket.CONNECTING);
 
 	let submitLabel = "Update and start";
 	if (restartWithParameters.isPending) {
@@ -277,7 +294,9 @@ const WorkspaceParametersPage: FC = () => {
 
 			{Boolean(error) && <ErrorAlert error={error} />}
 
-			{sortedParams.length > 0 ? (
+			{isLoading ? (
+				<Loader />
+			) : sortedParams.length > 0 ? (
 				<WorkspaceParametersPageView
 					templateVersionId={templateVersionId}
 					workspace={workspace}

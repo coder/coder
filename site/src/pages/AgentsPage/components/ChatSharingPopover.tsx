@@ -1,5 +1,5 @@
-import { EllipsisVerticalIcon, Share2Icon } from "lucide-react";
-import { type FC, useState } from "react";
+import { EllipsisVerticalIcon, Share2Icon, UserPlusIcon } from "lucide-react";
+import { type FC, type ReactNode, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { toast } from "sonner";
 import {
@@ -18,7 +18,6 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { TopbarButton } from "#/components/FullPageLayout/Topbar";
 import {
 	Popover,
@@ -40,7 +39,6 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "#/modules/workspaces/WorkspaceSharingForm/UserOrGroupAutocomplete";
-import { AddWorkspaceMemberForm } from "#/modules/workspaces/WorkspaceSharingForm/WorkspaceSharingForm";
 
 type ChatShareButtonProps = {
 	chatId: string;
@@ -57,7 +55,7 @@ type MemberRowMenuProps = {
 };
 
 const ReadRoleBadge: FC = () => (
-	<span className="bg-surface-secondary rounded-md px-3 py-0.5 inline-block">
+	<span className="inline-block shrink-0 rounded-md bg-surface-secondary px-2 py-0.5 text-xs leading-5">
 		Read
 	</span>
 );
@@ -83,6 +81,89 @@ const MemberRowMenu: FC<MemberRowMenuProps> = ({ disabled, onRemove }) => (
 			</DropdownMenuItem>
 		</DropdownMenuContent>
 	</DropdownMenu>
+);
+
+type AddChatMemberFormProps = {
+	isLoading: boolean;
+	onSubmit: () => void;
+	disabled: boolean;
+	children: ReactNode;
+};
+
+const AddChatMemberForm: FC<AddChatMemberFormProps> = ({
+	isLoading,
+	onSubmit,
+	disabled,
+	children,
+}) => (
+	<form action={onSubmit}>
+		<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+			<div className="min-w-0 flex-1">{children}</div>
+			<Button
+				disabled={disabled || isLoading}
+				type="submit"
+				className="w-full sm:w-auto"
+			>
+				<Spinner loading={isLoading}>
+					<UserPlusIcon className="size-icon-sm" />
+				</Spinner>
+				Add member
+			</Button>
+		</div>
+	</form>
+);
+
+type MemberIdentityProps =
+	| { kind: "group"; group: TypesGen.ChatGroup }
+	| { kind: "user"; user: TypesGen.ChatUser };
+
+const MemberIdentity: FC<MemberIdentityProps> = (props) => {
+	if (props.kind === "group") {
+		const { group } = props;
+		return (
+			<AvatarData
+				title={group.display_name || group.name}
+				subtitle={getGroupSubtitle(group)}
+				src={group.avatar_url}
+				avatar={
+					<Avatar
+						src={group.avatar_url}
+						fallback={group.display_name || group.name}
+						variant="icon"
+					/>
+				}
+			/>
+		);
+	}
+
+	const { user } = props;
+	return (
+		<AvatarData
+			title={user.username}
+			subtitle={user.name}
+			src={user.avatar_url}
+		/>
+	);
+};
+
+type MobileMemberRowProps = {
+	children: ReactNode;
+	disabled: boolean;
+	onRemove: () => void;
+};
+
+const MobileMemberRow: FC<MobileMemberRowProps> = ({
+	children,
+	disabled,
+	onRemove,
+}) => (
+	<div className="flex items-center justify-between gap-3 border-0 border-b border-solid border-border last:border-b-0 px-1 py-3">
+		<div className="min-w-0 flex-1">{children}</div>
+		<div className="flex shrink-0 items-center gap-2">
+			<ReadRoleBadge />
+			<MemberRowMenu disabled={disabled} onRemove={onRemove} />
+		</div>
+	</div>
 );
 
 export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
@@ -196,9 +277,12 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 	const isEmpty = groups.length === 0 && users.length === 0;
 
 	return (
-		<PopoverContent align="end" className="w-[580px] p-4">
+		<PopoverContent
+			align="end"
+			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
+		>
 			<div className="flex items-center gap-2 mb-4">
-				<h3 className="text-lg font-semibold m-0">Chat Sharing</h3>
+				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
 			</div>
 
 			<div className="flex flex-col gap-4">
@@ -212,7 +296,7 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 					</div>
 				) : acl ? (
 					<>
-						<AddWorkspaceMemberForm
+						<AddChatMemberForm
 							isLoading={isMutating}
 							disabled={!selectedOption}
 							onSubmit={handleAddMember}
@@ -222,52 +306,64 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 								onChange={setSelectedOption}
 								organizationId={organizationId}
 								exclude={excludeFromAutocomplete}
+								className="w-full sm:w-80"
 							/>
-						</AddWorkspaceMemberForm>
+						</AddChatMemberForm>
 
-						<Table
-							aria-label="Shared chat members and groups"
-							wrapperClassName="max-h-60 overflow-y-auto"
-						>
-							<TableHeader>
-								<TableRow>
-									<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
-										Member
-									</TableHead>
-									<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
-										Role
-									</TableHead>
-									<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{isEmpty ? (
-									<TableRow>
-										<TableCell colSpan={3}>
-											<EmptyState
-												message="No shared members or groups yet"
-												description="Add a member or group using the controls above."
-												isCompact
-											/>
-										</TableCell>
-									</TableRow>
-								) : (
-									<>
+						{isEmpty ? (
+							<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
+								<h4 className="m-0 text-sm font-medium text-content-secondary">
+									No shared members or groups yet
+								</h4>
+								<p className="m-0 mt-2 text-sm text-content-secondary">
+									Add a member or group using the controls above.
+								</p>
+							</div>
+						) : (
+							<div className="max-h-[min(60vh,24rem)] overflow-y-auto rounded-md border border-solid border-border sm:hidden">
+								{groups.map((group) => (
+									<MobileMemberRow
+										key={group.id}
+										disabled={isMutating}
+										onRemove={() => handleRemoveGroup(group)}
+									>
+										<MemberIdentity kind="group" group={group} />
+									</MobileMemberRow>
+								))}
+								{users.map((user) => (
+									<MobileMemberRow
+										key={user.id}
+										disabled={isMutating}
+										onRemove={() => handleRemoveUser(user)}
+									>
+										<MemberIdentity kind="user" user={user} />
+									</MobileMemberRow>
+								))}
+							</div>
+						)}
+
+						{!isEmpty && (
+							<div className="hidden sm:block">
+								<Table
+									aria-label="Shared chat members and groups"
+									wrapperClassName="max-h-60 overflow-y-auto"
+								>
+									<TableHeader>
+										<TableRow>
+											<TableHead className="sticky top-0 z-10 w-[50%] bg-surface-primary py-2">
+												Member
+											</TableHead>
+											<TableHead className="sticky top-0 z-10 w-[40%] bg-surface-primary py-2">
+												Role
+											</TableHead>
+											<TableHead className="sticky top-0 z-10 w-[10%] bg-surface-primary py-2" />
+										</TableRow>
+									</TableHeader>
+									<TableBody>
 										{groups.map((group) => (
 											<TableRow key={group.id}>
 												<TableCell className="py-2 w-[50%]">
-													<AvatarData
-														title={group.display_name || group.name}
-														subtitle={getGroupSubtitle(group)}
-														src={group.avatar_url}
-														avatar={
-															<Avatar
-																src={group.avatar_url}
-																fallback={group.display_name || group.name}
-																variant="icon"
-															/>
-														}
-													/>
+													<MemberIdentity kind="group" group={group} />
 												</TableCell>
 												<TableCell className="py-2 w-[40%]">
 													<ReadRoleBadge />
@@ -283,11 +379,7 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 										{users.map((user) => (
 											<TableRow key={user.id}>
 												<TableCell className="py-2 w-[50%]">
-													<AvatarData
-														title={user.username}
-														subtitle={user.name}
-														src={user.avatar_url}
-													/>
+													<MemberIdentity kind="user" user={user} />
 												</TableCell>
 												<TableCell className="py-2 w-[40%]">
 													<ReadRoleBadge />
@@ -300,10 +392,10 @@ export const ChatSharingPopoverContent: FC<ChatSharingPopoverContentProps> = ({
 												</TableCell>
 											</TableRow>
 										))}
-									</>
-								)}
-							</TableBody>
-						</Table>
+									</TableBody>
+								</Table>
+							</div>
+						)}
 					</>
 				) : null}
 			</div>

@@ -19,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/rolestore"
 	"github.com/coder/coder/v2/coderd/workspaceconnwatcher"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -72,7 +74,7 @@ func (h *harness) Dial(ctx context.Context, url string) (*wsjson.Decoder[workspa
 		Handler: http.HandlerFunc(h.watcher.WorkspaceAgentConnectionWatch),
 		CtxMutator: func(ctx context.Context) context.Context {
 			ctx = httpmw.WithWorkspaceParam(ctx, h.workspace)
-			ctx = dbauthz.As(ctx, coderdtest.MemberSubject(userID, orgID))
+			ctx = dbauthz.As(ctx, memberSubject(userID, orgID))
 			return ctx
 		},
 		Logger: h.logger.Named("roundtripper"),
@@ -469,4 +471,30 @@ func TestWatcher_ClosedAfterDial(t *testing.T) {
 		require.False(t, ok, "socket not closed")
 	}
 	testutil.TryReceive(ctx, t, closed)
+}
+
+// memberSubject builds an RBAC subject scoped as a basic org member, used to
+// drive the watcher handler through dbauthz checks. Kept local to this test
+// because no other package needs it.
+func memberSubject(userID, orgID uuid.UUID) rbac.Subject {
+	memberRole, err := rbac.RoleByName(rbac.RoleMember())
+	if err != nil {
+		panic(err)
+	}
+	orgMember, err := rolestore.TestingGetSystemRole(
+		rbac.RoleOrgMember(),
+		orgID,
+		rbac.OrgSettings{ShareableWorkspaceOwners: rbac.ShareableWorkspaceOwnersNone},
+	)
+	if err != nil {
+		panic(err)
+	}
+	return rbac.Subject{
+		FriendlyName: "coderdtest-member",
+		Email:        "member@coderd.test",
+		Type:         rbac.SubjectTypeUser,
+		ID:           userID.String(),
+		Roles:        rbac.Roles{memberRole, orgMember},
+		Scope:        rbac.ScopeAll,
+	}.WithCachedASTValue()
 }

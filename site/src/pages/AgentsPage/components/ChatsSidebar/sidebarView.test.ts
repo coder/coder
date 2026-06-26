@@ -46,20 +46,6 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("returns the lifecycle admin settings section", () => {
-		expect(sidebarViewFromPath("/agents/settings/lifecycle")).toEqual({
-			panel: "settings-admin",
-			section: "lifecycle",
-		});
-	});
-
-	it("returns the providers admin settings section", () => {
-		expect(sidebarViewFromPath("/agents/settings/providers")).toEqual({
-			panel: "settings-admin",
-			section: "providers",
-		});
-	});
-
 	it("normalizes the admin index route to an undefined section", () => {
 		expect(sidebarViewFromPath("/agents/settings/admin")).toEqual({
 			panel: "settings-admin",
@@ -67,10 +53,22 @@ describe("sidebarViewFromPath", () => {
 		});
 	});
 
-	it("returns the instructions admin settings section", () => {
+	it("falls through moved admin sections to the user settings panel", () => {
 		expect(sidebarViewFromPath("/agents/settings/instructions")).toEqual({
-			panel: "settings-admin",
+			panel: "settings",
 			section: "instructions",
+		});
+		expect(sidebarViewFromPath("/agents/settings/lifecycle")).toEqual({
+			panel: "settings",
+			section: "lifecycle",
+		});
+		expect(sidebarViewFromPath("/agents/settings/models")).toEqual({
+			panel: "settings",
+			section: "models",
+		});
+		expect(sidebarViewFromPath("/agents/settings/templates")).toEqual({
+			panel: "settings",
+			section: "templates",
 		});
 	});
 

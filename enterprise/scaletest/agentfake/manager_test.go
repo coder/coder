@@ -3,213 +3,140 @@ package agentfake_test
 import (
 	"context"
 	"database/sql"
+	"net/http"
+	"net/url"
 	"sort"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/scaletest/agentfake"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
-// Asserts the TokenInfo shape (workspace IDs, agent names, tokens) returned by the enumeration loop.
-func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
+// fakeExternalAgentClient is an in-package fake for the ExternalAgentClient
+// interface used by Manager to resolve names (template, owner) and to poll
+// the workspace-count gate. The actual external-agent auth tokens are read
+// from the real database.Store the tests seed via dbfake / dbgen.
+//
+// Tests populate me, owner, template, workspaces (the latter being a
+// codersdk-shaped view of whichever rows the test seeded into the DB).
+type fakeExternalAgentClient struct {
+	me       codersdk.User
+	owner    codersdk.User
+	template codersdk.Template
 
-	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceExternalAgent: 1,
-			},
-		},
-	})
+	// workspaces, in the order Workspaces() should return them. Each call
+	// returns up to filter.Limit entries starting at filter.Offset to model
+	// pagination, matching real coderd behavior. Tests only need to populate
+	// this when exercising the workspace-count gate; the new EnumerateExternalAgents
+	// path doesn't list workspaces over HTTP at all.
+	workspaces []codersdk.Workspace
 
-	const numWorkspaces = 3
-	first := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
-	templateID := first.Workspace.TemplateID
-	want := []agentfake.TokenInfo{{
-		WorkspaceID:   first.Workspace.ID,
-		WorkspaceName: first.Workspace.Name,
-		AgentID:       first.Agents[0].ID,
-		AgentName:     first.Agents[0].Name,
-		Token:         first.AgentToken,
-	}}
-	for i := 1; i < numWorkspaces; i++ {
-		r := buildExternalAgentWorkspace(t, db, user, templateID)
-		want = append(want, agentfake.TokenInfo{
-			WorkspaceID:   r.Workspace.ID,
-			WorkspaceName: r.Workspace.Name,
-			AgentID:       r.Agents[0].ID,
-			AgentName:     r.Agents[0].Name,
-			Token:         r.AgentToken,
-		})
-	}
-
-	tmpl, err := client.Template(ctx, templateID)
-	require.NoError(t, err)
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	m := agentfake.NewManager(client, logger, agentfake.ManagerOptions{Template: tmpl.Name})
-
-	got, err := m.EnumerateExternalAgents(ctx)
-	require.NoError(t, err)
-
-	// Order returned by coderd isn't guaranteed; sort both sides by WorkspaceID before comparing.
-	sortTokenInfosByWorkspaceID(want)
-	sortTokenInfosByWorkspaceID(got)
-
-	require.Equal(t, len(want), len(got),
-		"expected one TokenInfo per external-agent workspace under the template")
-	for i := range want {
-		assert.Equal(t, want[i].WorkspaceID, got[i].WorkspaceID, "WorkspaceID for entry %d", i)
-		assert.Equal(t, want[i].AgentName, got[i].AgentName, "AgentName for entry %d", i)
-		assert.Equal(t, want[i].Token, got[i].Token, "Token for entry %d", i)
-		assert.NotEmpty(t, got[i].Token, "Token must be non-empty for entry %d", i)
-	}
+	// meErr / templateErr are used by tests that want to verify resolution
+	// errors are classified as fatal by the enumerate retry loop.
+	meErr       error
+	templateErr error
 }
 
-// Heavier-weight integration test for the agentfake harness: builds 5 external agents, sets up the client/Manager,
-// and asserts that each of the agents the Manager sees via its enumeration function is properly connected and Ready.
-func TestManager_FiveAgentsHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
-		LicenseOptions: &coderdenttest.LicenseOptions{
-			Features: license.Features{
-				codersdk.FeatureWorkspaceExternalAgent: 1,
-			},
-		},
-	})
-
-	const numAgents = 5
-	first := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
-	templateID := first.Workspace.TemplateID
-	workspaceIDs := []uuid.UUID{first.Workspace.ID}
-	for i := 1; i < numAgents; i++ {
-		r := buildExternalAgentWorkspace(t, db, user, templateID)
-		workspaceIDs = append(workspaceIDs, r.Workspace.ID)
-	}
-
-	tmpl, err := client.Template(ctx, templateID)
-	require.NoError(t, err)
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	manager := agentfake.NewManager(client, logger, agentfake.ManagerOptions{
-		Template: tmpl.Name,
-	})
-	t.Cleanup(func() { manager.Close() })
-
-	managerCtx, cancelManager := context.WithCancel(ctx)
-	t.Cleanup(cancelManager)
-
-	managerErr := make(chan error, 1)
-	go func() {
-		managerErr <- manager.Run(managerCtx)
-	}()
-
-	// Each workspace's agent must reach Connected. Share the outer test ctx (testutil.WaitLong) across all five waiters
-	// so the total wait is bounded.
-	for _, wsID := range workspaceIDs {
-		coderdtest.NewWorkspaceAgentWaiter(t, client, wsID).WithContext(ctx).Wait()
-	}
-
-	// Each workspace's agent must also reach Lifecycle=ready. The fake sends UpdateLifecycle(READY) once per dRPC
-	// connect; coderd persists that and exposes it on the agent.
-	for _, wsID := range workspaceIDs {
-		require.Eventually(t, func() bool {
-			ws, err := client.Workspace(ctx, wsID)
-			if err != nil {
-				return false
-			}
-			for _, res := range ws.LatestBuild.Resources {
-				for _, agent := range res.Agents {
-					if agent.LifecycleState != codersdk.WorkspaceAgentLifecycleReady {
-						return false
-					}
-				}
-			}
-			return true
-		}, testutil.WaitLong, testutil.IntervalFast,
-			"agent never reached Lifecycle=ready in workspace %s", wsID)
-	}
-
-	// Cleanly stop the Manager and confirm it exits without a non-context error.
-	cancelManager()
-	select {
-	case err := <-managerErr:
-		if err != nil {
-			t.Fatalf("Manager.Run returned unexpected error: %v", err)
+func (f *fakeExternalAgentClient) User(_ context.Context, userIdent string) (codersdk.User, error) {
+	if userIdent == codersdk.Me {
+		if f.meErr != nil {
+			return codersdk.User{}, f.meErr
 		}
-	case <-ctx.Done():
-		t.Fatalf("timed out waiting for Manager.Run to return: %v", ctx.Err())
+		return f.me, nil
 	}
+	if userIdent == f.owner.Username {
+		return f.owner, nil
+	}
+	return codersdk.User{}, xerrors.Errorf("no user %q", userIdent)
 }
 
-// Asserts that an authentication failure during enumeration produces a fatal error, so the retry loop in
-// enumerateWithRetry surfaces it immediately rather than hammering endpoints with credentials that will never work.
-func Test_Manager_EnumerateExternalAgents_invalidTokenIsFatal(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-
-	client, db := coderdtest.NewWithDatabase(t, nil)
-	user := coderdtest.CreateFirstUser(t, client)
-
-	r := buildExternalAgentWorkspace(t, db, user, uuid.Nil)
-	tmpl, err := client.Template(ctx, r.Workspace.TemplateID)
-	require.NoError(t, err)
-
-	// Replace the client's session token with garbage to provoke a 401 from coderd's workspace-list endpoint.
-	// The Manager should surface that as a fatal error.
-	client.SetSessionToken("not-a-valid-session-token")
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	m := agentfake.NewManager(client, logger, agentfake.ManagerOptions{Template: tmpl.Name})
-
-	_, err = m.EnumerateExternalAgents(ctx)
-	require.Error(t, err, "expected enumeration to fail with an invalid session token")
-	require.True(t, agentfake.IsFatalEnumerationError(err),
-		"expected error to be classified as fatal so the harness exits and Kubernetes can restart it; got: %v", err)
+func (f *fakeExternalAgentClient) Template(_ context.Context, id uuid.UUID) (codersdk.Template, error) {
+	if f.templateErr != nil {
+		return codersdk.Template{}, f.templateErr
+	}
+	if id == f.template.ID {
+		return f.template, nil
+	}
+	return codersdk.Template{}, xerrors.Errorf("no template with id %s", id)
 }
 
-func sortTokenInfosByWorkspaceID(s []agentfake.TokenInfo) {
-	sort.Slice(s, func(i, j int) bool {
-		return s[i].WorkspaceID.String() < s[j].WorkspaceID.String()
+func (f *fakeExternalAgentClient) TemplatesByOrganization(_ context.Context, orgID uuid.UUID) ([]codersdk.Template, error) {
+	if f.templateErr != nil {
+		return nil, f.templateErr
+	}
+	if f.template.ID == uuid.Nil || f.template.OrganizationID != orgID {
+		return nil, nil
+	}
+	return []codersdk.Template{f.template}, nil
+}
+
+func (f *fakeExternalAgentClient) Workspaces(_ context.Context, filter codersdk.WorkspaceFilter) (codersdk.WorkspacesResponse, error) {
+	start := filter.Offset
+	if start > len(f.workspaces) {
+		start = len(f.workspaces)
+	}
+	end := start + filter.Limit
+	if filter.Limit == 0 || end > len(f.workspaces) {
+		end = len(f.workspaces)
+	}
+	return codersdk.WorkspacesResponse{
+		Workspaces: f.workspaces[start:end],
+		Count:      len(f.workspaces),
+	}, nil
+}
+
+// seedUserOrgAndTemplate sets up the minimum DB rows needed for a workspace's
+// FK constraints to hold, and returns the IDs the caller will reuse when
+// seeding workspaces and populating the fake client.
+func seedUserOrgAndTemplate(t *testing.T, db database.Store) (org database.Organization, user database.User, tpl database.Template) {
+	t.Helper()
+	org = dbgen.Organization(t, db, database.Organization{})
+	user = dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         user.ID,
+		OrganizationID: org.ID,
 	})
+	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	tpl = dbgen.Template(t, db, database.Template{
+		OrganizationID:  org.ID,
+		ActiveVersionID: tv.ID,
+		CreatedBy:       user.ID,
+	})
+	return org, user, tpl
 }
 
-// buildExternalAgentWorkspace creates one workspace with a coder_external_agent resource, an agent, and
-// HasExternalAgent=true on the latest build. If templateID is uuid.Nil, dbfake mints a fresh template (and the caller
-// can pass the returned Workspace.TemplateID into subsequent calls to share the template).
+// buildExternalAgentWorkspace creates one workspace with a coder_external_agent
+// resource, an agent, and HasExternalAgent=true on the latest build. The
+// latest build's provisioner job is Succeeded by default (the dbfake default),
+// which is what the "running" filter in GetExternalAgentTokensByTemplateID
+// requires.
 func buildExternalAgentWorkspace(
 	t *testing.T,
 	db database.Store,
-	user codersdk.CreateFirstUserResponse,
-	templateID uuid.UUID,
+	orgID, ownerID, templateID uuid.UUID,
 ) dbfake.WorkspaceResponse {
 	t.Helper()
-
-	ws := database.WorkspaceTable{
-		OrganizationID: user.OrganizationID,
-		OwnerID:        user.UserID,
-	}
-	if templateID != uuid.Nil {
-		ws.TemplateID = templateID
-	}
-	return dbfake.WorkspaceBuild(t, db, ws).
+	return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: orgID,
+		OwnerID:        ownerID,
+		TemplateID:     templateID,
+	}).
 		Seed(database.WorkspaceBuild{
 			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
 		}).
@@ -219,4 +146,174 @@ func buildExternalAgentWorkspace(
 		}).
 		WithAgent().
 		Do()
+}
+
+// newFakeClient builds a fakeExternalAgentClient consistent with the rows the
+// caller seeded into the DB. me is the user that the manager will call
+// User(codersdk.Me) on; its OrganizationIDs is what parseTemplate walks.
+func newFakeClient(me database.User, org database.Organization, tpl database.Template) *fakeExternalAgentClient {
+	return &fakeExternalAgentClient{
+		me: codersdk.User{
+			ReducedUser:     codersdk.ReducedUser{MinimalUser: codersdk.MinimalUser{ID: me.ID, Username: me.Username}},
+			OrganizationIDs: []uuid.UUID{org.ID},
+		},
+		template: codersdk.Template{
+			ID:             tpl.ID,
+			OrganizationID: org.ID,
+			Name:           tpl.Name,
+		},
+	}
+}
+
+// Asserts the TokenInfo shape (workspace IDs, agent names, tokens) returned by
+// the enumeration loop reads from the DB the test seeded.
+func Test_Manager_EnumerateExternalAgents_returnsAllTokens(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	db, _ := dbtestutil.NewDB(t)
+	org, user, tpl := seedUserOrgAndTemplate(t, db)
+
+	const numWorkspaces = 3
+	want := make([]agentfake.TokenInfo, 0, numWorkspaces)
+	for i := 0; i < numWorkspaces; i++ {
+		r := buildExternalAgentWorkspace(t, db, org.ID, user.ID, tpl.ID)
+		want = append(want, agentfake.TokenInfo{
+			WorkspaceID:   r.Workspace.ID,
+			WorkspaceName: r.Workspace.Name,
+			AgentID:       r.Agents[0].ID,
+			AgentName:     r.Agents[0].Name,
+			Token:         r.AgentToken,
+		})
+	}
+
+	client := newFakeClient(user, org, tpl)
+	coderURL, _ := url.Parse("http://fake")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	m := agentfake.NewManager(logger, coderURL, client, db, agentfake.ManagerOptions{Template: tpl.Name})
+	require.NoError(t, m.ResolveTemplateAndOwner(ctx))
+
+	got, err := m.EnumerateExternalAgents(ctx)
+	require.NoError(t, err)
+
+	sortTokenInfosByWorkspaceID(want)
+	sortTokenInfosByWorkspaceID(got)
+
+	require.Equal(t, len(want), len(got),
+		"expected one TokenInfo per external-agent workspace under the template")
+	for i := range want {
+		assert.Equal(t, want[i].WorkspaceID, got[i].WorkspaceID, "WorkspaceID for entry %d", i)
+		assert.Equal(t, want[i].WorkspaceName, got[i].WorkspaceName, "WorkspaceName for entry %d", i)
+		assert.Equal(t, want[i].AgentName, got[i].AgentName, "AgentName for entry %d", i)
+		assert.Equal(t, want[i].Token, got[i].Token, "Token for entry %d", i)
+		assert.NotEmpty(t, got[i].Token, "Token must be non-empty for entry %d", i)
+	}
+}
+
+// Asserts that an authentication failure surfaced during template/owner
+// resolution is fatal, so Run does not retry indefinitely against credentials
+// that will never work.
+func Test_Manager_ResolveTemplateAndOwner_invalidTokenIsFatal(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	db, _ := dbtestutil.NewDB(t)
+	client := &fakeExternalAgentClient{
+		meErr: codersdk.NewError(http.StatusUnauthorized, codersdk.Response{Message: "unauthorized"}),
+	}
+	coderURL, _ := url.Parse("http://fake")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	m := agentfake.NewManager(logger, coderURL, client, db, agentfake.ManagerOptions{Template: "tmpl"})
+
+	err := m.ResolveTemplateAndOwner(ctx)
+	require.Error(t, err, "expected resolution to fail with an invalid session token")
+	require.True(t, agentfake.IsFatalEnumerationError(err),
+		"expected error to be classified as fatal; got: %v", err)
+}
+
+// Asserts that --owner restricts results to workspaces owned by that user even
+// when other owners have external-agent workspaces under the same template.
+func Test_Manager_EnumerateExternalAgents_filtersByOwner(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	db, _ := dbtestutil.NewDB(t)
+	org, firstUser, tpl := seedUserOrgAndTemplate(t, db)
+	secondUser := dbgen.User(t, db, database.User{})
+	_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         secondUser.ID,
+		OrganizationID: org.ID,
+	})
+
+	_ = buildExternalAgentWorkspace(t, db, org.ID, firstUser.ID, tpl.ID)
+	r2 := buildExternalAgentWorkspace(t, db, org.ID, secondUser.ID, tpl.ID)
+
+	client := newFakeClient(firstUser, org, tpl)
+	client.owner = codersdk.User{
+		ReducedUser: codersdk.ReducedUser{MinimalUser: codersdk.MinimalUser{
+			ID: secondUser.ID, Username: secondUser.Username,
+		}},
+		OrganizationIDs: []uuid.UUID{org.ID},
+	}
+	coderURL, _ := url.Parse("http://fake")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	m := agentfake.NewManager(logger, coderURL, client, db, agentfake.ManagerOptions{
+		Template: tpl.Name,
+		Owner:    secondUser.Username,
+	})
+	require.NoError(t, m.ResolveTemplateAndOwner(ctx))
+
+	got, err := m.EnumerateExternalAgents(ctx)
+	require.NoError(t, err)
+	require.Len(t, got, 1, "expected only the second user's workspace to be returned")
+	require.Equal(t, r2.Workspace.ID, got[0].WorkspaceID)
+	require.Equal(t, r2.AgentToken, got[0].Token)
+}
+
+// Asserts that workspaces whose latest build is not in the "running" state
+// (job_status != succeeded or transition != start) are excluded from
+// enumeration results.
+func Test_Manager_EnumerateExternalAgents_excludesNonRunning(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	db, _ := dbtestutil.NewDB(t)
+	org, user, tpl := seedUserOrgAndTemplate(t, db)
+
+	// Running workspace: should be included.
+	running := buildExternalAgentWorkspace(t, db, org.ID, user.ID, tpl.ID)
+
+	// Failed-build workspace under the same template: should be excluded.
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		TemplateID:     tpl.ID,
+	}).
+		Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{Bool: true, Valid: true},
+		}).
+		Resource(&sdkproto.Resource{
+			Name: "external",
+			Type: "coder_external_agent",
+		}).
+		WithAgent().
+		Failed().
+		Do()
+
+	client := newFakeClient(user, org, tpl)
+	coderURL, _ := url.Parse("http://fake")
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	m := agentfake.NewManager(logger, coderURL, client, db, agentfake.ManagerOptions{Template: tpl.Name})
+	require.NoError(t, m.ResolveTemplateAndOwner(ctx))
+
+	got, err := m.EnumerateExternalAgents(ctx)
+	require.NoError(t, err)
+	require.Len(t, got, 1, "only the running workspace should be returned")
+	require.Equal(t, running.Workspace.ID, got[0].WorkspaceID)
+}
+
+func sortTokenInfosByWorkspaceID(s []agentfake.TokenInfo) {
+	sort.Slice(s, func(i, j int) bool {
+		return s[i].WorkspaceID.String() < s[j].WorkspaceID.String()
+	})
 }

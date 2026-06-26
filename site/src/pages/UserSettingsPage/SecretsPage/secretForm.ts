@@ -10,7 +10,7 @@ import type {
 	UserSecret,
 } from "#/api/typesGenerated";
 
-interface SecretFormValues {
+export interface SecretFormValues {
 	name: string;
 	value: string;
 	description: string;
@@ -20,7 +20,7 @@ interface SecretFormValues {
 
 type SecretFormField = keyof SecretFormValues;
 
-type SecretFieldErrors = Partial<Record<SecretFormField, string>>;
+export type SecretFieldErrors = Partial<Record<SecretFormField, string>>;
 
 interface SecretFormErrors {
 	fieldErrors: SecretFieldErrors;
@@ -52,12 +52,21 @@ export const buildCreateUserSecretRequest = (
 	});
 };
 
+type BuildUpdateUserSecretRequestOptions = {
+	clearValue?: boolean;
+};
+
 export const buildUpdateUserSecretRequest = (
 	secret: UserSecret,
 	values: SecretFormValues,
+	options: BuildUpdateUserSecretRequestOptions = {},
 ): UpdateUserSecretRequest => {
 	return {
-		...(values.value !== "" ? { value: values.value } : {}),
+		...(options.clearValue
+			? { value: "" }
+			: values.value !== ""
+				? { value: values.value }
+				: {}),
 		...(values.description !== secret.description
 			? { description: values.description }
 			: {}),

@@ -30,6 +30,21 @@ type Metrics struct {
 	// Labels: code (HTTP status code), provider
 	// Cardinality is bounded: ~100 used status codes x few providers.
 	MITMResponsesTotal *prometheus.CounterVec
+
+	// ProviderInfo is one series per configured provider; value is
+	// always 1 and the status label carries the alertable signal.
+	// Labels: provider_name, provider_type, status.
+	ProviderInfo *prometheus.GaugeVec
+
+	// ProvidersLastReloadTimestampSeconds is the unix timestamp of the
+	// last reload attempt, success or failure.
+	ProvidersLastReloadTimestampSeconds prometheus.Gauge
+
+	// ProvidersLastReloadSuccessTimestampSeconds is the unix timestamp
+	// of the last reload that successfully refreshed the router. A gap
+	// against ProvidersLastReloadTimestampSeconds means the loop is
+	// firing but the refresh function is failing.
+	ProvidersLastReloadSuccessTimestampSeconds prometheus.Gauge
 }
 
 // NewMetrics creates and registers all metrics for aibridgeproxyd.
@@ -58,6 +73,21 @@ func NewMetrics(reg prometheus.Registerer) *Metrics {
 			Name: "mitm_responses_total",
 			Help: "Total number of MITM responses by HTTP status code class.",
 		}, []string{"code", "provider"}),
+
+		ProviderInfo: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Name: "provider_info",
+			Help: "One series per configured AI provider. Value is always 1; the status label (enabled, disabled, error) carries the alertable signal.",
+		}, []string{"provider_name", "provider_type", "status"}),
+
+		ProvidersLastReloadTimestampSeconds: factory.NewGauge(prometheus.GaugeOpts{
+			Name: "providers_last_reload_timestamp_seconds",
+			Help: "Unix timestamp of the last provider reload attempt, success or failure.",
+		}),
+
+		ProvidersLastReloadSuccessTimestampSeconds: factory.NewGauge(prometheus.GaugeOpts{
+			Name: "providers_last_reload_success_timestamp_seconds",
+			Help: "Unix timestamp of the last provider reload that successfully refreshed the router. A gap against the providers_last_reload_timestamp_seconds gauge means the loop is firing but the refresh function is failing.",
+		}),
 	}
 }
 
@@ -67,4 +97,7 @@ func (m *Metrics) Unregister() {
 	m.registerer.Unregister(m.MITMRequestsTotal)
 	m.registerer.Unregister(m.InflightMITMRequests)
 	m.registerer.Unregister(m.MITMResponsesTotal)
+	m.registerer.Unregister(m.ProviderInfo)
+	m.registerer.Unregister(m.ProvidersLastReloadTimestampSeconds)
+	m.registerer.Unregister(m.ProvidersLastReloadSuccessTimestampSeconds)
 }

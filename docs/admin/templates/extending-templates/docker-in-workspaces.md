@@ -142,7 +142,7 @@ nodes. Refer to sysbox's
 to ensure your nodes are compliant.
 
 To get started with `envbox` check out the
-[starter template](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-envbox)
+[starter template](../../../../examples/templates/kubernetes-envbox)
 or visit the [repo](https://github.com/coder/envbox).
 
 ### Authenticating with a Private Registry

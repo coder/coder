@@ -20,4 +20,4 @@ You can change your deployment custom Terraform binary as long as it is in
 `PATH` and is within the
 [supported versions](https://github.com/coder/coder/blob/f57ce97b5aadd825ddb9a9a129bb823a3725252b/provisioner/terraform/install.go#L22-L25).
 The hardcoded version check ensures compatibility with our
-[example templates](https://github.com/coder/coder/tree/main/examples/templates).
+[example templates](../../../examples/templates).

@@ -135,7 +135,8 @@
 				}
 			},
 			"complexity": {
-				"noImportantStyles": "off" // TODO: check and fix !important styles
+				"noImportantStyles": "off", // TODO: check and fix !important styles
+				"useLiteralKeys": "off"
 			}
 		}
 	},

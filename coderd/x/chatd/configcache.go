@@ -30,7 +30,7 @@ const (
 )
 
 type cachedProviders struct {
-	providers []database.ChatProvider
+	providers []database.AIProvider
 	expiresAt time.Time
 }
 
@@ -74,7 +74,7 @@ type chatConfigCache struct {
 	// Providers (singleton).
 	providers          *cachedProviders
 	providerGeneration uint64
-	providerFetches    singleflight.Group[string, []database.ChatProvider]
+	providerFetches    singleflight.Group[string, []database.AIProvider]
 
 	// Model configs (keyed by ID).
 	modelTopologyEpoch uint64
@@ -131,7 +131,7 @@ func singleflightDoChan[K comparable, V any](
 	}
 }
 
-func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.ChatProvider, error) {
+func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.AIProvider, error) {
 	if providers, ok := c.cachedProviders(); ok {
 		return providers, nil
 	}
@@ -141,12 +141,12 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 		ctx,
 		&c.providerFetches,
 		fmt.Sprintf("%d:providers", generation),
-		func() ([]database.ChatProvider, error) {
+		func() ([]database.AIProvider, error) {
 			if cached, ok := c.cachedProviders(); ok {
 				return cached, nil
 			}
 
-			fetched, err := c.db.GetEnabledChatProviders(c.ctx)
+			fetched, err := c.db.GetAIProviders(c.ctx, database.GetAIProvidersParams{})
 			if err != nil {
 				return nil, err
 			}
@@ -161,7 +161,7 @@ func (c *chatConfigCache) EnabledProviders(ctx context.Context) ([]database.Chat
 	return slices.Clone(providers), nil
 }
 
-func (c *chatConfigCache) cachedProviders() ([]database.ChatProvider, bool) {
+func (c *chatConfigCache) cachedProviders() ([]database.AIProvider, bool) {
 	c.mu.RLock()
 	entry := c.providers
 	c.mu.RUnlock()
@@ -188,7 +188,7 @@ func (c *chatConfigCache) providersGeneration() uint64 {
 	return generation
 }
 
-func (c *chatConfigCache) storeProviders(generation uint64, providers []database.ChatProvider) {
+func (c *chatConfigCache) storeProviders(generation uint64, providers []database.AIProvider) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

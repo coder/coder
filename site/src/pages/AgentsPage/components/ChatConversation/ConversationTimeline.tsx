@@ -28,20 +28,28 @@ import {
 	Message,
 	MessageContent,
 	Response,
-	Shimmer,
 	Tool,
 } from "../ChatElements";
 import { WebSearchSources } from "../ChatElements/tools";
+import { ReadFilesTool } from "../ChatElements/tools/ReadFilesTool";
+import {
+	getReadFileToolData,
+	ReadFileTool,
+} from "../ChatElements/tools/ReadFileTool";
 import type { SubagentVariant } from "../ChatElements/tools/subagentDescriptor";
-import { ToolCollapsible } from "../ChatElements/tools/ToolCollapsible";
+import { ToolCall } from "../ChatElements/tools/ToolCall";
 import { ImageLightbox } from "../ImageLightbox";
 import { TextPreviewDialog } from "../TextPreviewDialog";
 import {
 	AttachmentBlock,
 	type PreviewTextAttachment,
 } from "./AttachmentBlocks";
+import { groupSequentialReadFileBlocks } from "./blockUtils";
 import { FileProbeProvider } from "./FileProbeContext";
-import { deriveMessageDisplayState } from "./messageHelpers";
+import {
+	buildDisplayMessages,
+	deriveMessageDisplayState,
+} from "./messageHelpers";
 import { getEditableUserMessagePayload } from "./messageParsing";
 import { useSmoothStreamingText } from "./SmoothText";
 import { getThinkingDisclosureDisplay } from "./thinkingTitle";
@@ -146,21 +154,19 @@ const ReasoningDisclosure = memo<{
 
 		return (
 			<div data-transcript-row="">
-				<ToolCollapsible
+				<ToolCall.Root
 					className="w-full"
+					status={isStreaming ? "running" : "completed"}
+					hasContent={hasText}
 					expanded={expanded}
 					onExpandedChange={(open) => setManualToggle(open)}
-					header={
-						isStreaming ? (
-							<Shimmer as="span" className="text-[13px]">
-								{title}
-							</Shimmer>
-						) : (
-							<span className="text-[13px]">{title}</span>
-						)
-					}
 				>
-					{hasText && (
+					<ToolCall.Header
+						iconName="thinking"
+						label={title}
+						showStatus={false}
+					/>
+					<ToolCall.Content>
 						<div
 							ref={previewScrollRef}
 							className={cn(
@@ -176,8 +182,8 @@ const ReasoningDisclosure = memo<{
 								{body}
 							</Response>
 						</div>
-					)}
-				</ToolCollapsible>
+					</ToolCall.Content>
+				</ToolCall.Root>
 			</div>
 		);
 	},
@@ -201,6 +207,38 @@ const SmoothedResponse = memo<{
 		<Response streaming urlTransform={urlTransform}>
 			{visibleText}
 		</Response>
+	);
+});
+
+const ReadFileTimelineBlock = memo<{
+	tools: readonly MergedTool[];
+}>(({ tools }) => {
+	const [expanded, setExpanded] = useState(false);
+	const [firstTool] = tools;
+	if (!firstTool) {
+		return null;
+	}
+
+	if (tools.length === 1) {
+		const readFile = getReadFileToolData(firstTool);
+		return (
+			<div data-tool-call="">
+				<ReadFileTool
+					{...readFile}
+					status={firstTool.status}
+					expanded={expanded}
+					onExpandedChange={setExpanded}
+				/>
+			</div>
+		);
+	}
+
+	return (
+		<ReadFilesTool
+			tools={tools}
+			expanded={expanded}
+			onExpandedChange={setExpanded}
+		/>
 	);
 });
 
@@ -252,21 +290,25 @@ export const BlockList: FC<{
 	const thinkingDisplayMode: ThinkingDisplayMode =
 		prefQuery.data?.thinking_display_mode || "auto";
 	const shellToolDisplayMode: TypesGen.AgentDisplayMode =
-		prefQuery.data?.shell_tool_display_mode || "auto";
+		prefQuery.data?.shell_tool_display_mode || "always_collapsed";
 	const codeDiffDisplayMode: TypesGen.AgentDisplayMode =
 		prefQuery.data?.code_diff_display_mode || "auto";
 
 	const toolByID = new Map(tools.map((tool) => [tool.id, tool]));
+	const displayBlocks = groupSequentialReadFileBlocks(blocks, tools);
 
 	// Pre-compute which tool IDs have a corresponding block so
 	// we can render "remaining" (block-less) tools afterwards.
 	const blockToolIDs = new Set(
-		blocks
-			.filter(
-				(b): b is Extract<RenderBlock, { type: "tool" }> =>
-					b.type === "tool" && (toolByID.has(b.id) || isStreaming),
-			)
-			.map((b) => b.id),
+		displayBlocks.flatMap((block) => {
+			if (block.type === "tool") {
+				return toolByID.has(block.id) || isStreaming ? [block.id] : [];
+			}
+			if (block.type === "tool-group") {
+				return block.ids;
+			}
+			return [];
+		}),
 	);
 
 	const remainingTools = tools.filter((tool) => !blockToolIDs.has(tool.id));
@@ -274,12 +316,13 @@ export const BlockList: FC<{
 	// A thinking block is actively streaming only when it is the
 	// very last block in the list. Once newer content arrives
 	// (response, tool call, etc.) the thinking phase is over.
-	const lastBlockIsThinking =
-		blocks.length > 0 && blocks[blocks.length - 1].type === "thinking";
+	const lastDisplayBlockIsThinking =
+		displayBlocks.length > 0 &&
+		displayBlocks[displayBlocks.length - 1].type === "thinking";
 
 	return (
 		<>
-			{blocks.map((block, index) => {
+			{displayBlocks.map((block, index) => {
 				switch (block.type) {
 					case "response": {
 						const responseEl = isStreaming ? (
@@ -311,8 +354,8 @@ export const BlockList: FC<{
 								text={block.text}
 								isStreaming={
 									isStreaming &&
-									lastBlockIsThinking &&
-									index === blocks.length - 1
+									lastDisplayBlockIsThinking &&
+									index === displayBlocks.length - 1
 								}
 								urlTransform={urlTransform}
 								thinkingDisplayMode={thinkingDisplayMode}
@@ -332,6 +375,21 @@ export const BlockList: FC<{
 								</span>
 							</div>
 						);
+					case "tool-group": {
+						const groupTools = block.ids
+							.map((id) => toolByID.get(id))
+							.filter((tool) => tool !== undefined);
+						const [firstGroupTool] = groupTools;
+						if (!firstGroupTool) {
+							return null;
+						}
+						return (
+							<ReadFileTimelineBlock
+								key={firstGroupTool.id}
+								tools={groupTools}
+							/>
+						);
+					}
 					case "tool": {
 						const tool = toolByID.get(block.id);
 						if (!tool) {
@@ -353,6 +411,9 @@ export const BlockList: FC<{
 									mcpServers={mcpServers}
 								/>
 							);
+						}
+						if (tool.name === "read_file") {
+							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
 						}
 						return (
 							<Tool
@@ -465,6 +526,11 @@ const ChatMessageItem = memo<{
 	hasActiveStream?: boolean;
 	isAwaitingFirstStreamChunk?: boolean;
 
+	// The bottom spacer fakes the height of the hidden action bar so
+	// chain-end messages keep even spacing before the next bubble.
+	// The last transcript message has nothing after it, so the spacer
+	// would render as a dangling blank at the end of the chat.
+	isLastMessage?: boolean;
 	// When true, renders a gradient overlay inside the bubble
 	// that fades text out toward the bottom. Used by the sticky
 	// overlay to indicate truncated content.
@@ -493,6 +559,7 @@ const ChatMessageItem = memo<{
 		hideActions = false,
 		hasActiveStream = false,
 		isAwaitingFirstStreamChunk = false,
+		isLastMessage = false,
 		fadeFromBottom = false,
 		onImplementPlan,
 		onSendAskUserQuestionResponse,
@@ -676,7 +743,7 @@ const ChatMessageItem = memo<{
 								)}
 						</div>
 					)}
-				{displayState.needsAssistantBottomSpacer && (
+				{displayState.needsAssistantBottomSpacer && !isLastMessage && (
 					<div className="min-h-6" data-testid="assistant-bottom-spacer" />
 				)}
 				{previewImage && (
@@ -776,10 +843,13 @@ const StickyUserMessage = memo<{
 			const MIN_HEIGHT = 72;
 			const STICKY_TOP = 8;
 
-			let scrollerTop = scroller.getBoundingClientRect().top;
-			let scrollerHeight = scroller.clientHeight;
-
 			const update = () => {
+				// Read the scroller geometry on each tick. Caching it goes
+				// stale when the scroller moves or resizes without a window
+				// resize (for example the composer growing), which skews the
+				// clip height and push-up math.
+				const scrollerTop = scroller.getBoundingClientRect().top;
+				const scrollerHeight = scroller.clientHeight;
 				const fullHeight = container.offsetHeight;
 
 				// Skip sticky behavior for messages that take up
@@ -837,12 +907,6 @@ const StickyUserMessage = memo<{
 			};
 			updateFnRef.current = update;
 
-			const onResize = () => {
-				scrollerTop = scroller.getBoundingClientRect().top;
-				scrollerHeight = scroller.clientHeight;
-				update();
-			};
-
 			// Throttle to one update per animation frame so we don't
 			// do redundant work on high-refresh-rate displays.
 			let rafId: number | null = null;
@@ -854,12 +918,21 @@ const StickyUserMessage = memo<{
 				});
 			};
 
-			// Re-run the visual update when the scrollable content height
-			// changes (e.g. streaming responses growing the transcript).
-			// In flex-col-reverse, scrollTop stays at 0 when pinned to
-			// bottom so no scroll event fires — but the content wrapper
-			// resizes and this observer catches that.
-			const contentEl = scroller.firstElementChild as HTMLElement | null;
+			// Re-run the visual update when the transcript height changes,
+			// for example a streaming response or several messages arriving
+			// at once. In flex-col-reverse the scrollTop stays at 0 while
+			// pinned to the bottom, so no scroll event fires; observing the
+			// content wrapper catches that growth instead.
+			//
+			// The scroller's firstElementChild is the flex spacer that pins
+			// content to the bottom. It collapses to 0px once the transcript
+			// overflows and then stops emitting resize callbacks, which is
+			// exactly when truncation is active, so observe the real content
+			// node (an ancestor of the sentinel) and fall back to the spacer
+			// only when the marker is absent.
+			const contentEl =
+				sentinel.closest<HTMLElement>("[data-chat-scroll-content]") ??
+				(scroller.firstElementChild as HTMLElement | null);
 			let contentRafId: number | null = null;
 			const contentObserver = contentEl
 				? new ResizeObserver(() => {
@@ -873,7 +946,7 @@ const StickyUserMessage = memo<{
 			contentObserver?.observe(contentEl!);
 
 			scroller.addEventListener("scroll", onScroll, { passive: true });
-			window.addEventListener("resize", onResize);
+			window.addEventListener("resize", update);
 			update();
 			// Set immediately — both --clip-h and --overlay-ready are
 			// applied before the browser paints since we're in a
@@ -881,7 +954,7 @@ const StickyUserMessage = memo<{
 			container.style.setProperty("--overlay-ready", "1");
 			return () => {
 				scroller.removeEventListener("scroll", onScroll);
-				window.removeEventListener("resize", onResize);
+				window.removeEventListener("resize", update);
 				contentObserver?.disconnect();
 				container.style.removeProperty("--overlay-ready");
 				if (rafId !== null) cancelAnimationFrame(rafId);
@@ -1012,25 +1085,16 @@ const StickyUserMessage = memo<{
 );
 
 function computeLastInChainFlags(
-	parsedMessages: readonly ParsedMessageEntry[],
+	displayMessages: readonly ParsedMessageEntry[],
 ): boolean[] {
-	const flags = new Array<boolean>(parsedMessages.length).fill(false);
-	let nextVisibleIsUser = true; // no next visible => treat as chain end
-	for (let i = parsedMessages.length - 1; i >= 0; i--) {
-		const entry = parsedMessages[i];
-		const { shouldHide } = deriveMessageDisplayState({
-			message: entry.message,
-			parsed: entry.parsed,
-			hideActions: false,
-			hasActiveStream: false,
-			isAwaitingFirstStreamChunk: false,
-		});
+	const flags = new Array<boolean>(displayMessages.length).fill(false);
+	let nextVisibleIsUser = true;
+	for (let i = displayMessages.length - 1; i >= 0; i--) {
+		const entry = displayMessages[i];
 		if (entry.message.role !== "user") {
 			flags[i] = nextVisibleIsUser;
 		}
-		if (!shouldHide) {
-			nextVisibleIsUser = entry.message.role === "user";
-		}
+		nextVisibleIsUser = entry.message.role === "user";
 	}
 	return flags;
 }
@@ -1086,7 +1150,8 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			});
 		};
 
-		const lastInChainFlags = computeLastInChainFlags(parsedMessages);
+		const displayMessages = buildDisplayMessages(parsedMessages);
+		const lastInChainFlags = computeLastInChainFlags(displayMessages);
 
 		if (parsedMessages.length === 0) {
 			return null;
@@ -1178,7 +1243,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 					data-testid="conversation-timeline"
 					className="flex flex-col gap-2"
 				>
-					{parsedMessages.map(({ message, parsed }, msgIdx) => {
+					{displayMessages.map(({ message, parsed }, msgIdx) => {
 						if (message.role === "user") {
 							const { shouldHide } = deriveMessageDisplayState({
 								message,
@@ -1229,6 +1294,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 								hideActions={!isLastInChain}
 								hasActiveStream={Boolean(hasActiveStream)}
 								isAwaitingFirstStreamChunk={Boolean(isAwaitingFirstStreamChunk)}
+								isLastMessage={msgIdx === displayMessages.length - 1}
 								mcpServers={mcpServers}
 								subagentTitles={subagentTitles}
 								subagentVariants={subagentVariants}

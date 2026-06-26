@@ -34,14 +34,18 @@ export const getErrorTitle = (
 			return "Rate limited";
 		case "timeout":
 			return "Request timed out";
-		case "startup_timeout":
-			return "Startup timed out";
+		case "stream_silence_timeout":
+			return "Response stalled";
 		case "auth":
 			return "Authentication failed";
 		case "config":
 			return "Configuration error";
 		case "usage_limit":
 			return "Usage limit reached";
+		case "missing_key":
+			return "Chat interrupted";
+		case "provider_disabled":
+			return "Provider disabled";
 		default:
 			return mode === "retry" ? "Retrying request" : "Request failed";
 	}

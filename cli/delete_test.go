@@ -22,8 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 	"github.com/coder/quartz"
 )
 
@@ -31,6 +31,7 @@ func TestDelete(t *testing.T) {
 	t.Parallel()
 	t.Run("WithParameter", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -42,7 +43,7 @@ func TestDelete(t *testing.T) {
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -51,7 +52,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 	})
 
@@ -71,8 +72,7 @@ func TestDelete(t *testing.T) {
 		clitest.SetupConfig(t, templateAdmin, root)
 
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.WithContext(ctx).Run()
@@ -81,7 +81,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		testutil.TryReceive(ctx, t, doneChan)
 
 		_, err := client.Workspace(ctx, workspace.ID)
@@ -117,8 +117,7 @@ func TestDelete(t *testing.T) {
 		//nolint:gocritic // Deleting orphaned workspaces requires an admin.
 		clitest.SetupConfig(t, client, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -127,7 +126,7 @@ func TestDelete(t *testing.T) {
 				assert.ErrorIs(t, err, io.EOF)
 			}
 		}()
-		pty.ExpectMatch("has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 	})
 
@@ -146,11 +145,12 @@ func TestDelete(t *testing.T) {
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv, root := clitest.New(t, "delete", user.Username+"/"+workspace.Name, "-y")
 		//nolint:gocritic // This requires an admin.
 		clitest.SetupConfig(t, adminClient, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -160,7 +160,7 @@ func TestDelete(t *testing.T) {
 			}
 		}()
 
-		pty.ExpectMatch("has been deleted")
+		stdout.ExpectMatch(ctx, "has been deleted")
 		<-doneChan
 
 		workspace, err = client.Workspace(context.Background(), workspace.ID)
@@ -207,7 +207,7 @@ func TestDelete(t *testing.T) {
 
 		// Then: the workspace deletion should warn about no provisioners
 		inv, root := clitest.New(t, "delete", workspace.Name, "-y")
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 		clitest.SetupConfig(t, templateAdmin, root)
 		doneChan := make(chan struct{})
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -216,7 +216,7 @@ func TestDelete(t *testing.T) {
 			defer close(doneChan)
 			_ = inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("there are no provisioners that accept the required tags")
+		stdout.ExpectMatch(ctx, "there are no provisioners that accept the required tags")
 		cancel()
 		<-doneChan
 	})
@@ -311,7 +311,7 @@ func TestDelete(t *testing.T) {
 					inv, root := clitest.New(t, "delete", workspaceOwner+"/"+workspace.Name, "-y")
 					clitest.SetupConfig(t, runClient, root)
 					doneChan := make(chan struct{})
-					pty := ptytest.New(t).Attach(inv)
+					stdout := expecter.NewAttachedToInvocation(t, inv)
 					var runErr error
 					go func() {
 						defer close(doneChan)
@@ -324,7 +324,7 @@ func TestDelete(t *testing.T) {
 						require.Error(t, runErr)
 						require.Contains(t, runErr.Error(), expectedErr)
 					} else {
-						pty.ExpectMatch("has been deleted")
+						stdout.ExpectMatch(ctx, "has been deleted")
 						<-doneChan
 
 						// When running with the race detector on, we sometimes get an EOF.

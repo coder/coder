@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, screen, within } from "storybook/test";
 import { DetailedError } from "#/api/errors";
-import type { PreviewParameter } from "#/api/typesGenerated";
+import type { Preset, PreviewParameter } from "#/api/typesGenerated";
 import { chromatic } from "#/testHelpers/chromatic";
 import { MockTemplate, MockUserOwner } from "#/testHelpers/entities";
 import { CreateWorkspacePageView } from "./CreateWorkspacePageView";
@@ -16,7 +16,7 @@ const meta: Meta<typeof CreateWorkspacePageView> = {
 		defaultName: "",
 		defaultOwner: MockUserOwner,
 		externalAuth: [],
-		externalAuthPollingState: "idle",
+		externalAuthPollingState: {},
 		hasAllRequiredExternalAuth: true,
 		mode: "form",
 		parameters: [],
@@ -277,6 +277,39 @@ const parameterTextarea: PreviewParameter = {
 	ephemeral: false,
 };
 
+const gpuLargePreset: Preset = {
+	ID: "preset-1",
+	Name: "GPU Large",
+	Description: "GPU Large preset",
+	Parameters: [
+		{ Name: "instance_type", Value: "t3.large" },
+		{ Name: "enable_gpu", Value: "true" },
+	],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Icon: "/emojis/1f4bb.png",
+};
+
+const cpuSmallPreset: Preset = {
+	ID: "preset-2",
+	Name: "CPU Small",
+	Description: "CPU Small preset",
+	Parameters: [{ Name: "instance_type", Value: "t3.micro" }],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Icon: "/emojis/1f4bc.png",
+};
+
+const urlPreset: Preset = {
+	ID: "preset-url",
+	Name: "URL Preset",
+	Description: "The URL-specified preset",
+	Parameters: [{ Name: "instance_type", Value: "t3.large" }],
+	Default: false,
+	DesiredPrebuildInstances: null,
+	Icon: "/emojis/1f534.png",
+};
+
 const parameterCheckbox: PreviewParameter = {
 	name: "auto_stop",
 	display_name: "Auto-stop",
@@ -354,5 +387,72 @@ export const WithPresets: Story = {
 			},
 		],
 		parameters: [parameterInput, parameterDropdown],
+	},
+};
+
+export const WithUrlPreset: Story = {
+	args: {
+		presets: [gpuLargePreset, cpuSmallPreset],
+		urlPreset: gpuLargePreset,
+		parameters: [parameterDropdown, parameterSwitch],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /GPU Large/i }),
+		).toBeInTheDocument();
+	},
+};
+
+export const WithUrlPresetNotFound: Story = {
+	args: {
+		presets: [gpuLargePreset],
+		urlPresetError:
+			'Preset "gpu-large" not found on template version "test-version". Check that the preset name matches exactly (names are case-sensitive).',
+		parameters: [parameterDropdown],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByText(/Preset "gpu-large" not found on template version/i),
+		).toBeVisible();
+	},
+};
+
+export const WithUrlPresetAndIgnoredParams: Story = {
+	args: {
+		presets: [gpuLargePreset],
+		urlPreset: gpuLargePreset,
+		hasIgnoredUrlParams: true,
+		parameters: [parameterDropdown],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getAllByText(/param\.\*/i).length).toBeGreaterThan(0);
+	},
+};
+
+export const WithUrlPresetOverridesDefault: Story = {
+	args: {
+		presets: [
+			{
+				ID: "preset-default",
+				Name: "Default Preset",
+				Description: "The default preset",
+				Parameters: [{ Name: "instance_type", Value: "t3.micro" }],
+				Default: true,
+				DesiredPrebuildInstances: null,
+				Icon: "/emojis/1f7e2.png",
+			},
+			urlPreset,
+		],
+		urlPreset,
+		parameters: [parameterDropdown],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(
+			canvas.getByRole("button", { name: /URL Preset/i }),
+		).toBeInTheDocument();
 	},
 };

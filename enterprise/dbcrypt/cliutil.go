@@ -74,29 +74,6 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
-			userProviderKeys, err := cryptTx.GetUserChatProviderKeys(ctx, uid)
-			if err != nil {
-				return xerrors.Errorf("get user chat provider keys for user %s: %w", uid, err)
-			}
-			for _, userProviderKey := range userProviderKeys {
-				if strings.TrimSpace(userProviderKey.APIKey) == "" {
-					continue
-				}
-				if userProviderKey.ApiKeyKeyID.Valid && userProviderKey.ApiKeyKeyID.String == ciphers[0].HexDigest() {
-					log.Debug(ctx, "skipping user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
-					continue
-				}
-				if _, err := cryptTx.UpdateUserChatProviderKey(ctx, database.UpdateUserChatProviderKeyParams{
-					UserID:         userProviderKey.UserID,
-					ChatProviderID: userProviderKey.ChatProviderID,
-					APIKey:         userProviderKey.APIKey,
-					ApiKeyKeyID:    sql.NullString{}, // dbcrypt will update as required
-				}); err != nil {
-					return xerrors.Errorf("update user chat provider key user_id=%s chat_provider_id=%s: %w", userProviderKey.UserID, userProviderKey.ChatProviderID, err)
-				}
-				log.Debug(ctx, "encrypted user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
-			}
-
 			userSecrets, err := cryptTx.ListUserSecretsWithValues(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get user secrets for user %s: %w", uid, err)
@@ -124,6 +101,31 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				log.Debug(ctx, "rotated user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 			}
 
+			sshKey, err := cryptTx.GetGitSSHKey(ctx, uid)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get gitsshkey for user %s: %w", uid, err)
+			}
+			if err == nil {
+				switch {
+				case sshKey.PrivateKey == "":
+					// Post-Delete wipes the private_key and key_id; nothing to encrypt.
+					log.Debug(ctx, "skipping empty gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1))
+				case sshKey.PrivateKeyKeyID.Valid && sshKey.PrivateKeyKeyID.String == ciphers[0].HexDigest():
+					log.Debug(ctx, "skipping gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				default:
+					if _, err := cryptTx.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+						UserID:          uid,
+						UpdatedAt:       sshKey.UpdatedAt,
+						PrivateKey:      sshKey.PrivateKey,
+						PrivateKeyKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+						PublicKey:       sshKey.PublicKey,
+					}); err != nil {
+						return xerrors.Errorf("rotate gitsshkey user_id=%s: %w", uid, err)
+					}
+					log.Debug(ctx, "rotated gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				}
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -132,35 +134,6 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 			return xerrors.Errorf("update user tokens and chat provider keys: %w", err)
 		}
 		log.Debug(ctx, "encrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
-	}
-
-	providers, err := cryptDB.GetChatProviders(ctx)
-	if err != nil {
-		return xerrors.Errorf("get chat providers: %w", err)
-	}
-	log.Info(ctx, "encrypting chat provider keys", slog.F("provider_count", len(providers)))
-	for idx, provider := range providers {
-		if strings.TrimSpace(provider.APIKey) == "" {
-			continue
-		}
-		if provider.ApiKeyKeyID.Valid && provider.ApiKeyKeyID.String == ciphers[0].HexDigest() {
-			log.Debug(ctx, "skipping chat provider", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
-			continue
-		}
-		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-			DisplayName:                provider.DisplayName,
-			APIKey:                     provider.APIKey,
-			BaseUrl:                    provider.BaseUrl,
-			ApiKeyKeyID:                sql.NullString{}, // dbcrypt will update as required
-			Enabled:                    provider.Enabled,
-			CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
-			AllowUserApiKey:            provider.AllowUserApiKey,
-			AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
-			ID:                         provider.ID,
-		}); err != nil {
-			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
-		}
-		log.Debug(ctx, "encrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
@@ -313,26 +286,6 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				}
 			}
 
-			userProviderKeys, err := tx.GetUserChatProviderKeys(ctx, uid)
-			if err != nil {
-				return xerrors.Errorf("get user chat provider keys for user %s: %w", uid, err)
-			}
-			for _, userProviderKey := range userProviderKeys {
-				if !userProviderKey.ApiKeyKeyID.Valid {
-					log.Debug(ctx, "skipping user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1))
-					continue
-				}
-				if _, err := tx.UpdateUserChatProviderKey(ctx, database.UpdateUserChatProviderKeyParams{
-					UserID:         userProviderKey.UserID,
-					ChatProviderID: userProviderKey.ChatProviderID,
-					APIKey:         userProviderKey.APIKey,
-					ApiKeyKeyID:    sql.NullString{}, // we explicitly want to clear the key id
-				}); err != nil {
-					return xerrors.Errorf("update user chat provider key user_id=%s chat_provider_id=%s: %w", userProviderKey.UserID, userProviderKey.ChatProviderID, err)
-				}
-				log.Debug(ctx, "decrypted user chat provider key", slog.F("user_id", uid), slog.F("chat_provider_id", userProviderKey.ChatProviderID), slog.F("current", idx+1))
-			}
-
 			userSecrets, err := tx.ListUserSecretsWithValues(ctx, uid)
 			if err != nil {
 				return xerrors.Errorf("get user secrets for user %s: %w", uid, err)
@@ -360,6 +313,23 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted user secret", slog.F("user_id", uid), slog.F("secret_name", secret.Name), slog.F("current", idx+1))
 			}
 
+			sshKey, err := tx.GetGitSSHKey(ctx, uid)
+			if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+				return xerrors.Errorf("get gitsshkey for user %s: %w", uid, err)
+			}
+			if err == nil && sshKey.PrivateKeyKeyID.Valid {
+				if _, err := tx.UpdateGitSSHKey(ctx, database.UpdateGitSSHKeyParams{
+					UserID:          uid,
+					UpdatedAt:       sshKey.UpdatedAt,
+					PrivateKey:      sshKey.PrivateKey,
+					PrivateKeyKeyID: sql.NullString{}, // clear the key ID
+					PublicKey:       sshKey.PublicKey,
+				}); err != nil {
+					return xerrors.Errorf("decrypt gitsshkey user_id=%s: %w", uid, err)
+				}
+				log.Debug(ctx, "decrypted gitsshkey", slog.F("user_id", uid), slog.F("current", idx+1))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -368,31 +338,6 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 			return xerrors.Errorf("update user tokens and chat provider keys: %w", err)
 		}
 		log.Debug(ctx, "decrypted user tokens", slog.F("user_id", uid), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
-	}
-
-	providers, err := cryptDB.GetChatProviders(ctx)
-	if err != nil {
-		return xerrors.Errorf("get chat providers: %w", err)
-	}
-	log.Info(ctx, "decrypting chat provider keys", slog.F("provider_count", len(providers)))
-	for idx, provider := range providers {
-		if !provider.ApiKeyKeyID.Valid {
-			continue
-		}
-		if _, err := cryptDB.UpdateChatProvider(ctx, database.UpdateChatProviderParams{
-			DisplayName:                provider.DisplayName,
-			APIKey:                     provider.APIKey,
-			BaseUrl:                    provider.BaseUrl,
-			ApiKeyKeyID:                sql.NullString{}, // we explicitly want to clear the key id
-			Enabled:                    provider.Enabled,
-			CentralApiKeyEnabled:       provider.CentralApiKeyEnabled,
-			AllowUserApiKey:            provider.AllowUserApiKey,
-			AllowCentralApiKeyFallback: provider.AllowCentralApiKeyFallback,
-			ID:                         provider.ID,
-		}); err != nil {
-			return xerrors.Errorf("update chat provider id=%s provider=%s: %w", provider.ID, provider.Provider, err)
-		}
-		log.Debug(ctx, "decrypted chat provider key", slog.F("provider", provider.Provider), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
 	}
 
 	aiProviders, err := cryptDB.GetAIProviders(ctx, database.GetAIProvidersParams{IncludeDeleted: true, IncludeDisabled: true})
@@ -475,16 +420,19 @@ DELETE FROM user_links
 DELETE FROM external_auth_links
 	WHERE oauth_access_token_key_id IS NOT NULL
 	OR oauth_refresh_token_key_id IS NOT NULL;
-DELETE FROM user_chat_provider_keys
-	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
 DELETE FROM user_secrets
 	WHERE value_key_id IS NOT NULL;
-UPDATE chat_providers
-	SET api_key = '',
-		api_key_key_id = NULL
-	WHERE api_key_key_id IS NOT NULL;
+-- gitsshkeys has no delete path in product code: rows are inserted on
+-- user creation and only ever mutated by regenerate. dbcrypt's 'delete'
+-- command is the one operation that needs to wipe encrypted content,
+-- and it does so by clearing the value rather than deleting the row,
+-- so users can regenerate via the UI.
+UPDATE gitsshkeys
+	SET private_key = '',
+		private_key_key_id = NULL
+	WHERE private_key_key_id IS NOT NULL;
 UPDATE ai_providers
 	SET settings = NULL,
 		settings_key_id = NULL
@@ -502,9 +450,9 @@ func Delete(ctx context.Context, log slog.Logger, sqlDB *sql.DB) error {
 	store := database.New(sqlDB)
 	_, err := sqlDB.ExecContext(ctx, sqlDeleteEncryptedUserTokens)
 	if err != nil {
-		return xerrors.Errorf("delete encrypted tokens and chat provider keys: %w", err)
+		return xerrors.Errorf("delete encrypted tokens and AI provider keys: %w", err)
 	}
-	log.Info(ctx, "deleted encrypted user tokens and chat provider API keys")
+	log.Info(ctx, "deleted encrypted user tokens and AI provider API keys")
 
 	log.Info(ctx, "revoking all active keys")
 	keys, err := store.GetDBCryptKeys(ctx)

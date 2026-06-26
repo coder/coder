@@ -15,18 +15,30 @@ describe("commentBoxFromRange", () => {
 		expect(commentBoxFromRange(FILE, null)).toBeNull();
 	});
 
-	it("ignores same-side single-line selections (handled by line number click)", () => {
+	it("creates a comment box for a same-side single-line selection", () => {
 		expect(
 			commentBoxFromRange(FILE, {
 				start: 10,
 				end: 10,
 				side: "additions",
 			}),
-		).toBe("ignore");
+		).toEqual({
+			fileName: FILE,
+			start: 10,
+			startSide: "additions",
+			end: 10,
+			endSide: "additions",
+		});
 	});
 
-	it("ignores single-line selections with no side at all", () => {
-		expect(commentBoxFromRange(FILE, { start: 5, end: 5 })).toBe("ignore");
+	it("creates a comment box for a single-line selection with no side", () => {
+		expect(commentBoxFromRange(FILE, { start: 5, end: 5 })).toEqual({
+			fileName: FILE,
+			start: 5,
+			startSide: "additions",
+			end: 5,
+			endSide: "additions",
+		});
 	});
 
 	it("allows cross-side selections even when start === end", () => {
@@ -215,14 +227,20 @@ describe("edge cases", () => {
 		expect(result).toMatchObject({ start: 1, end: 2 });
 	});
 
-	it("single-line deletion-side click is ignored", () => {
+	it("single-line deletion-side selection creates a comment box", () => {
 		expect(
 			commentBoxFromRange(FILE, {
 				start: 42,
 				end: 42,
 				side: "deletions",
 			}),
-		).toBe("ignore");
+		).toEqual({
+			fileName: FILE,
+			start: 42,
+			startSide: "deletions",
+			end: 42,
+			endSide: "deletions",
+		});
 	});
 
 	it("cross-side selection starting on additions ending on deletions", () => {
@@ -258,15 +276,20 @@ describe("edge cases", () => {
 		});
 	});
 
-	it("endSide matching side is treated as same-side", () => {
-		// Library may explicitly send endSide equal to side.
+	it("endSide matching side is treated as a single-side comment box", () => {
 		const result = commentBoxFromRange(FILE, {
 			start: 5,
 			end: 5,
 			side: "additions",
 			endSide: "additions",
 		});
-		expect(result).toBe("ignore");
+		expect(result).toEqual({
+			fileName: FILE,
+			start: 5,
+			startSide: "additions",
+			end: 5,
+			endSide: "additions",
+		});
 	});
 
 	it("backward same-side selection (start > end) is accepted", () => {
@@ -455,7 +478,7 @@ describe("edge cases", () => {
 			side: "deletions",
 			endSide: "additions",
 		});
-		if (box === null || box === "ignore") {
+		if (box === null) {
 			throw new Error("Expected a CommentBoxState");
 		}
 
@@ -484,7 +507,7 @@ describe("edge cases", () => {
 			end: 20,
 			side: "deletions",
 		});
-		if (box === null || box === "ignore") {
+		if (box === null) {
 			throw new Error("Expected a CommentBoxState");
 		}
 

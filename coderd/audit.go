@@ -303,6 +303,12 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 		_, _ = b.WriteString("{user} ")
 	}
 
+	// Chat write operations get semantic descriptions derived from the diff.
+	if desc, ok := chatAuditLogDescription(alog); ok {
+		_, _ = b.WriteString(desc)
+		return b.String()
+	}
+
 	switch {
 	case alog.AuditLog.StatusCode == int32(http.StatusSeeOther):
 		_, _ = b.WriteString("was redirected attempting to ")
@@ -343,6 +349,56 @@ func auditLogDescription(alog database.GetAuditLogsOffsetRow) string {
 	_, _ = b.WriteString(" {target}")
 
 	return b.String()
+}
+
+// chatAuditLogDescription returns a description for successful chat write
+// operations based on the diff contents. It returns false for non-chat
+// resources, non-write actions, or error/redirect status codes, letting
+// the caller fall through to the generic description.
+func chatAuditLogDescription(alog database.GetAuditLogsOffsetRow) (string, bool) {
+	if alog.AuditLog.ResourceType != database.ResourceTypeChat ||
+		alog.AuditLog.Action != database.AuditActionWrite ||
+		alog.AuditLog.StatusCode >= 400 ||
+		alog.AuditLog.StatusCode == int32(http.StatusSeeOther) {
+		return "", false
+	}
+
+	var diff codersdk.AuditDiff
+	if err := json.Unmarshal(alog.AuditLog.Diff, &diff); err != nil {
+		return "", false
+	}
+
+	// Single "archived" field: archive or unarchive.
+	if len(diff) == 1 {
+		if field, ok := diff["archived"]; ok {
+			oldVal, oldOK := field.Old.(bool)
+			newVal, newOK := field.New.(bool)
+			if oldOK && newOK {
+				if !oldVal && newVal {
+					return "archived chat {target}", true
+				}
+				if oldVal && !newVal {
+					return "unarchived chat {target}", true
+				}
+			}
+		}
+	}
+
+	// All fields are ACL changes: sharing update.
+	if len(diff) > 0 {
+		aclOnly := true
+		for field := range diff {
+			if field != "user_acl" && field != "group_acl" {
+				aclOnly = false
+				break
+			}
+		}
+		if aclOnly {
+			return "updated sharing for chat {target}", true
+		}
+	}
+
+	return "", false
 }
 
 func (api *API) auditLogIsResourceDeleted(ctx context.Context, alog database.GetAuditLogsOffsetRow) bool {
@@ -552,7 +608,7 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		// TODO(PLAT-102): point at the user secrets management page once
 		// it ships. Until then, the audit row links nowhere.
 		return ""
-	case database.ResourceTypeGroupAiBudget:
+	case database.ResourceTypeGroupAIBudget:
 		// The resource_id is the group's UUID; link to the group's
 		// settings page.
 		group, err := api.Database.GetGroupByID(ctx, alog.AuditLog.ResourceID)
@@ -564,6 +620,10 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 			return ""
 		}
 		return fmt.Sprintf("/organizations/%s/groups/%s", org.Name, group.Name)
+	case database.ResourceTypeUserAIBudgetOverride:
+		// TODO: point at the user's AI budget override management page
+		// once it ships. Until then, the audit row links nowhere.
+		return ""
 	default:
 		return ""
 	}

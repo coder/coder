@@ -30,6 +30,70 @@ type AIProviderBedrockSettings struct {
 	// AccessKeySecret is the AWS secret access key paired with
 	// AccessKey. Write-only.
 	AccessKeySecret *string `json:"access_key_secret,omitempty"`
+	// RoleARN, when set, is the IAM role assumed via STS before calling
+	// Bedrock. The base identity (static keys or the AWS environment, e.g.
+	// IRSA / EKS Pod Identity / EC2 Instance Profile) signs the AssumeRole
+	// call, and the resulting temporary credentials sign Bedrock requests.
+	RoleARN string `json:"role_arn,omitempty"`
+}
+
+// IsConfigured reports whether any load-bearing Bedrock field is set,
+// indicating that the operator wants the provider to authenticate via
+// AWS Bedrock rather than as a bearer-token Anthropic provider.
+//
+// Model and SmallFastModel are intentionally excluded: they have
+// deployment-level defaults declared in codersdk/deployment.go, so
+// they're always non-empty in a real deployment and cannot serve as
+// a detection signal. Region and credentials have no defaults and
+// therefore reliably indicate operator intent. Credentials alone are
+// not required because Bedrock can also authenticate via the AWS
+// environment (instance profile, AWS_PROFILE, IRSA, etc.).
+func (b AIProviderBedrockSettings) IsConfigured() bool {
+	if b.Region != "" {
+		return true
+	}
+	if b.RoleARN != "" {
+		return true
+	}
+	if b.AccessKey != nil && *b.AccessKey != "" {
+		return true
+	}
+	if b.AccessKeySecret != nil && *b.AccessKeySecret != "" {
+		return true
+	}
+	return false
+}
+
+// NewAIProviderBedrockSettings builds an AIProviderBedrockSettings,
+// promoting non-empty credential strings to pointers so callers don't
+// have to repeat the "set field iff non-empty" boilerplate. Empty
+// credentials are left nil, matching the PATCH-omit semantics of the
+// pointer-typed fields.
+func NewAIProviderBedrockSettings(region, accessKey, accessKeySecret, model, smallFastModel string) AIProviderBedrockSettings {
+	s := AIProviderBedrockSettings{
+		Region:         region,
+		Model:          model,
+		SmallFastModel: smallFastModel,
+	}
+	if accessKey != "" {
+		s.AccessKey = &accessKey
+	}
+	if accessKeySecret != "" {
+		s.AccessKeySecret = &accessKeySecret
+	}
+	return s
+}
+
+// IsBedrockConfigured reports whether the combination of the parent
+// provider's BaseURL and AIProviderBedrockSettings indicates a Bedrock
+// provider. BaseURL alone (e.g. a custom VPC or FIPS endpoint with
+// credentials resolved via the AWS environment) is sufficient.
+//
+// Use this rather than AIProviderBedrockSettings.IsConfigured() when
+// BaseURL is available; the seed, the runtime config builder, and the
+// legacy validator must all agree on what counts as a Bedrock provider.
+func IsBedrockConfigured(baseURL string, b AIProviderBedrockSettings) bool {
+	return baseURL != "" || b.IsConfigured()
 }
 
 func (AIProviderBedrockSettings) settingsType() string {

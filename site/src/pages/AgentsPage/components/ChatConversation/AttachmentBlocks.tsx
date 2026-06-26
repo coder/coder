@@ -147,9 +147,9 @@ const DownloadOverlay: FC<{
 		download={downloadName}
 		onClick={(event) => event.stopPropagation()}
 		aria-label={`Download ${displayName}`}
-		className="invisible absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+		className="invisible absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-surface-primary/80 text-content-secondary opacity-0 shadow-sm backdrop-blur-sm transition-opacity hover:text-content-primary group-hover/attachment:visible group-hover/attachment:opacity-100 group-focus-within/attachment:visible group-focus-within/attachment:opacity-100 [@media(hover:none)]:visible [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 	>
-		<DownloadIcon aria-hidden="true" className="h-3.5 w-3.5" />
+		<DownloadIcon aria-hidden="true" className="size-3.5" />
 	</a>
 );
 
@@ -194,7 +194,7 @@ const AttachmentFallbackTile: FC<{
 	state: AttachmentFailure;
 	labels: AttachmentFailureLabels;
 	className?: string;
-}> = ({ state, labels, className = "h-16 w-16" }) => {
+}> = ({ state, labels, className = "size-16" }) => {
 	const label = state.kind === "expired" ? labels.expired : labels.failed;
 
 	const tile = (
@@ -534,7 +534,7 @@ const FileCard: FC<{
 			aria-label={`Download ${displayName}`}
 			className="inline-flex h-16 max-w-sm items-center gap-3 rounded-md border border-solid border-border-default bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary"
 		>
-			<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
+			<div className="flex size-10 shrink-0 items-center justify-center rounded-md bg-surface-secondary">
 				{badgeLabel ? (
 					<span className="text-[10px] font-semibold tracking-wide text-content-secondary">
 						{badgeLabel}
@@ -542,7 +542,7 @@ const FileCard: FC<{
 				) : (
 					<FileIcon
 						aria-hidden="true"
-						className="h-4 w-4 text-content-secondary"
+						className="size-4 text-content-secondary"
 					/>
 				)}
 			</div>
@@ -554,7 +554,7 @@ const FileCard: FC<{
 			</div>
 			<DownloadIcon
 				aria-hidden="true"
-				className="h-4 w-4 shrink-0 text-content-secondary"
+				className="size-4 shrink-0 text-content-secondary"
 			/>
 		</a>
 	);

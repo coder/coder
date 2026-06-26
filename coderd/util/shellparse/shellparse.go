@@ -9,7 +9,8 @@ import (
 
 // Parse returns one slice per simple command in src, in source order.
 // Each is [program] or [program, arg], where arg is the first non-flag
-// positional argument.
+// positional argument. Program names are normalized to their base name
+// (e.g. /usr/bin/go becomes go).
 //
 // Some malformed inputs (e.g. trailing unterminated tokens after valid
 // semicolon-separated commands) yield partial results alongside a
@@ -35,7 +36,7 @@ func Parse(src string) ([][]string, error) {
 		if prog == "" {
 			return true
 		}
-		step := []string{prog}
+		step := []string{cmdBase(prog)}
 		if arg := firstNonFlagLiteral(call.Args[1:]); arg != "" {
 			step = append(step, arg)
 		}
@@ -75,6 +76,16 @@ func wordLiteral(w *syntax.Word) string {
 		}
 	}
 	return sb.String()
+}
+
+// cmdBase returns the base name of a command path, handling both
+// forward and back slashes since commands may originate from Windows
+// workspaces while this code runs on a Linux server.
+func cmdBase(prog string) string {
+	if i := strings.LastIndexAny(prog, `/\`); i >= 0 {
+		return prog[i+1:]
+	}
+	return prog
 }
 
 // firstNonFlagLiteral returns the literal value of the first word in

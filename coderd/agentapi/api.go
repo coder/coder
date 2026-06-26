@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/portsharing"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -57,6 +58,7 @@ type API struct {
 	*ConnLogAPI
 	*SubAgentAPI
 	*BoundaryLogsAPI
+	*ContextAPI
 	*tailnet.DRPCService
 
 	cachedWorkspaceFields *CachedWorkspaceFields
@@ -73,12 +75,15 @@ type Options struct {
 	OrganizationID    uuid.UUID
 	TemplateVersionID uuid.UUID
 
-	AuthenticatedCtx                  context.Context
-	Log                               slog.Logger
-	Clock                             quartz.Clock
-	Database                          database.Store
-	NotificationsEnqueuer             notifications.Enqueuer
-	Pubsub                            pubsub.Pubsub
+	AuthenticatedCtx      context.Context
+	Log                   slog.Logger
+	Clock                 quartz.Clock
+	Database              database.Store
+	NotificationsEnqueuer notifications.Enqueuer
+	Pubsub                pubsub.Pubsub
+	// ContextDirtyMarker is the chatd-backed hydrate/dirty fan-out invoked
+	// from PushContextState. Nil when chatd is disabled.
+	ContextDirtyMarker                ContextDirtyMarker
 	ConnectionLogger                  *atomic.Pointer[connectionlog.ConnectionLogger]
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
@@ -90,6 +95,7 @@ type Options struct {
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 	BoundaryUsageTracker              *boundaryusage.Tracker
 	LifecycleMetrics                  *LifecycleMetrics
+	PortSharer                        *atomic.Pointer[portsharing.PortSharer]
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -230,15 +236,27 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		Log:            opts.Log,
 		Clock:          opts.Clock,
 		Database:       opts.Database,
+		PortSharer:     opts.PortSharer,
 	}
 
 	api.BoundaryLogsAPI = &BoundaryLogsAPI{
 		Log:                  opts.Log,
+		Database:             opts.Database,
+		AgentID:              opts.AgentID,
 		WorkspaceID:          opts.WorkspaceID,
 		OwnerID:              opts.OwnerID,
 		TemplateID:           workspace.TemplateID,
 		TemplateVersionID:    opts.TemplateVersionID,
 		BoundaryUsageTracker: opts.BoundaryUsageTracker,
+	}
+
+	api.ContextAPI = &ContextAPI{
+		AgentID:     agent.ID,
+		Workspace:   api.cachedWorkspaceFields,
+		Log:         opts.Log,
+		Clock:       opts.Clock,
+		Database:    opts.Database,
+		DirtyMarker: opts.ContextDirtyMarker,
 	}
 
 	// Start background cache refresh loop to handle workspace changes

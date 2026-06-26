@@ -42,8 +42,11 @@ func writeSkillMetaFile(t *testing.T, dir, name, description string) string {
 	return writeSkillMetaFileInRoot(t, filepath.Join(dir, ".agents", "skills"), name, description)
 }
 
+//nolint:paralleltest,tparallel // Uses t.Setenv to isolate HOME.
 func TestContextPartsFromDir(t *testing.T) {
-	t.Parallel()
+	// Prevent ~/.coder/skills on the host from leaking into results.
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("USERPROFILE", t.TempDir())
 
 	t.Run("ReturnsInstructionFilePart", func(t *testing.T) {
 		t.Parallel()

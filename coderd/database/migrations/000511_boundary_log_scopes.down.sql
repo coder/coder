@@ -1,0 +1,1 @@
+-- No-op for boundary_log scopes: keep enum values to avoid dependency churn.

@@ -1,5 +1,6 @@
 import {
 	ArrowLeftIcon,
+	ArrowUpRightIcon,
 	BotIcon,
 	BoxesIcon,
 	ChevronRightIcon,
@@ -44,7 +45,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 	onCollapse,
 }) => {
 	const subNavTitle =
-		settingsPanel === "settings-admin" ? "Manage Agents" : "Settings";
+		settingsPanel === "settings-admin" ? "Manage agents" : "Settings";
 
 	return (
 		<div
@@ -66,16 +67,16 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 						size="icon"
 						aria-label={
 							settingsPanel === "settings-admin"
-								? "Back to Settings"
-								: "Back to Agents"
+								? "Back to settings"
+								: "Back to agents"
 						}
-						className="relative z-10 h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary"
+						className="relative z-10 size-7 min-w-0 text-content-secondary hover:text-content-primary"
 					>
 						{settingsPanel === "settings-admin" ? (
 							<Link
 								to="/agents/settings/general"
 								state={location.state}
-								aria-label="Back to Settings"
+								aria-label="Back to settings"
 							>
 								<ArrowLeftIcon />
 							</Link>
@@ -94,7 +95,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 							size="icon"
 							onClick={onCollapse}
 							aria-label="Collapse sidebar"
-							className="relative z-10 hidden h-7 w-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
+							className="relative z-10 hidden size-7 min-w-0 text-content-secondary hover:text-content-primary sm:inline-flex"
 						>
 							<PanelLeftCloseIcon />
 						</Button>
@@ -121,7 +122,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					)}
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
-						label="Personal Skills"
+						label="Personal skills"
 						active={settingsSection === "personal-skills"}
 						to="/agents/settings/personal-skills"
 						state={location.state}
@@ -145,7 +146,7 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					{isAdmin && (
 						<SettingsNavItem
 							icon={Settings2Icon}
-							label="Manage Agents"
+							label="Manage agents"
 							active={false}
 							to="/agents/settings/admin"
 							state={location.state}
@@ -165,30 +166,30 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={PlugIcon}
 						label="Providers"
-						active={settingsSection === "providers"}
-						to="/agents/settings/providers"
-						state={location.state}
+						active={false}
+						to="/ai/settings/providers"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={BoxesIcon}
 						label="Models"
-						active={settingsSection === "models"}
-						to="/agents/settings/models"
-						state={location.state}
+						active={false}
+						to="/ai/settings/models"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={ServerIcon}
-						label="MCP Servers"
-						active={settingsSection === "mcp-servers"}
-						to="/agents/settings/mcp-servers"
-						state={location.state}
+						label="MCP servers"
+						active={false}
+						to="/ai/settings/mcp-servers"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={LayoutTemplateIcon}
 						label="Templates"
-						active={settingsSection === "templates"}
-						to="/agents/settings/templates"
-						state={location.state}
+						active={false}
+						to="/ai/settings/templates"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={CoinsIcon}
@@ -200,9 +201,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
 						label="Instructions"
-						active={settingsSection === "instructions"}
-						to="/agents/settings/instructions"
-						state={location.state}
+						active={false}
+						to="/ai/settings/instructions"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={FlaskConicalIcon}
@@ -214,9 +215,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={RefreshCwIcon}
 						label="Lifecycle"
-						active={settingsSection === "lifecycle"}
-						to="/agents/settings/lifecycle"
-						state={location.state}
+						active={false}
+						to="/ai/settings/lifecycle"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 				</nav>
 			)}

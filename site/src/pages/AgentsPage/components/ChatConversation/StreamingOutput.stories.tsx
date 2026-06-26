@@ -6,7 +6,7 @@ import {
 	buildReconnectState,
 	buildRetryState,
 	buildStreamRenderState,
-	FIXTURE_NOW,
+	pinFixtureClock,
 } from "./storyFixtures";
 
 // StreamingOutput renders inside a ConversationItem > Message > MessageContent
@@ -15,40 +15,10 @@ import {
 const meta: Meta<typeof StreamingOutput> = {
 	title: "pages/AgentsPage/ChatConversation/StreamingOutput",
 	component: StreamingOutput,
-	decorators: [
-		(Story) => (
-			<div className="mx-auto w-full max-w-3xl py-6">
-				<Story />
-			</div>
-		),
-	],
-	beforeEach: () => {
-		const real = Date.now;
-		Date.now = () => FIXTURE_NOW;
-		return () => {
-			Date.now = real;
-		};
-	},
+	beforeEach: pinFixtureClock,
 };
 export default meta;
 type Story = StoryObj<typeof StreamingOutput>;
-
-/** Default shimmer placeholder with no stream state. */
-export const ThinkingPlaceholder: Story = {
-	args: {
-		streamState: null,
-		streamTools: [],
-		liveStatus: buildLiveStatus({ isAwaitingFirstStreamChunk: true }),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const matches = canvas.getAllByText("Thinking...");
-		expect(matches.length).toBeGreaterThanOrEqual(1);
-		expect(
-			canvas.queryByRole("heading", { name: /retrying request/i }),
-		).not.toBeInTheDocument();
-	},
-};
 
 /** Transport reconnects render a non-terminal reconnecting callout. */
 export const ReconnectingAfterDisconnect: Story = {
@@ -73,8 +43,8 @@ export const ReconnectingAfterDisconnect: Story = {
 			expect(canvasElement.textContent).toMatch(/reconnecting in \d+s/i);
 		});
 		expect(canvas.queryByText("Unexpected error")).not.toBeInTheDocument();
-		const thinkingMatches = canvas.getAllByText(/thinking\.\.\.$/i);
-		expect(thinkingMatches.length).toBeGreaterThanOrEqual(1);
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 	},
 };
 
@@ -96,6 +66,8 @@ export const RetryWithVisibleReason: Story = {
 		expect(
 			canvas.getByText(/anthropic returned an unexpected error/i),
 		).toBeVisible();
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
+		expect(canvas.queryByText("Thinking...")).not.toBeInTheDocument();
 		expect(canvas.getByText(/attempt 1/i)).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
@@ -225,15 +197,15 @@ export const RetryTimeout: Story = {
 	},
 };
 
-/** Startup timeouts explain the first-token delay before retrying. */
-export const RetryStartupTimeout: Story = {
+/** Stream-silence timeouts explain the first-token delay before retrying. */
+export const RetryStreamSilenceTimeout: Story = {
 	args: {
 		streamState: null,
 		streamTools: [],
 		liveStatus: buildLiveStatus({
 			retryState: buildRetryState({
-				kind: "startup_timeout",
-				error: "Anthropic did not start responding in time.",
+				kind: "stream_silence_timeout",
+				error: "Anthropic did not send response data in time.",
 			}),
 			isAwaitingFirstStreamChunk: true,
 		}),
@@ -241,10 +213,10 @@ export const RetryStartupTimeout: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		expect(
-			canvas.getByRole("heading", { name: /startup timed out/i }),
+			canvas.getByRole("heading", { name: /response stalled/i }),
 		).toBeVisible();
 		expect(
-			canvas.getByText(/anthropic did not start responding in time/i),
+			canvas.getByText(/anthropic did not send response data in time/i),
 		).toBeVisible();
 		expect(canvas.queryByText(/please try again/i)).not.toBeInTheDocument();
 		expect(canvas.queryByText(/provider anthropic/i)).not.toBeInTheDocument();
@@ -254,12 +226,40 @@ export const RetryStartupTimeout: Story = {
 	},
 };
 
-/**
- * During streaming, if only tool-call blocks have arrived (no text
- * or reasoning), the "Thinking" indicator should still be visible
- * alongside the tool cards.
- */
-export const ThinkingDuringStreamingWithToolCalls: Story = {
+const responseStreamState = buildStreamRenderState([
+	{
+		type: "text" as const,
+		text: "The answer is streaming.",
+	},
+]);
+
+export const StartingShowsThinkingActivity: Story = {
+	args: {
+		streamState: null,
+		streamTools: [],
+		liveStatus: buildLiveStatus({ isAwaitingFirstStreamChunk: true }),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.getByText("Thinking")).toBeVisible();
+		expect(canvas.getByTestId("live-activity-slot")).toBeVisible();
+	},
+};
+
+export const ResponseDoesNotRenderActivitySlot: Story = {
+	args: {
+		streamState: responseStreamState.streamState,
+		streamTools: responseStreamState.streamTools,
+		liveStatus: responseStreamState.liveStatus,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
+	},
+};
+
+/** Tool-only streams use running tool affordances instead of generic thinking. */
+export const RunningToolsSuppressThinkingActivity: Story = {
 	args: {
 		...buildStreamRenderState([
 			{
@@ -278,35 +278,89 @@ export const ThinkingDuringStreamingWithToolCalls: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Tool-only stream chunks can otherwise clear the activity indicator before text arrives.
-		expect(canvas.getAllByText("Thinking").length).toBeGreaterThanOrEqual(1);
-
-		const toolCallWrappers = Array.from(
-			canvasElement.querySelectorAll("[data-transcript-row]"),
-		);
-		expect(toolCallWrappers).toHaveLength(3);
-
-		const thinkingWrapper = toolCallWrappers.at(-1);
-		const previousToolWrapper = toolCallWrappers.at(-2);
-		expect(thinkingWrapper).toBeInstanceOf(HTMLElement);
-		expect(previousToolWrapper).toBeInstanceOf(HTMLElement);
-		expect(thinkingWrapper).toHaveTextContent("Thinking");
-
-		const gap = Math.round(
-			(thinkingWrapper as HTMLElement).getBoundingClientRect().top -
-				(previousToolWrapper as HTMLElement).getBoundingClientRect().bottom,
-		);
-		expect(gap).toBe(8);
-
-		// The placeholder inner row must match the committed collapsed
-		// Thinking row height so the transition from streaming to settled
-		// does not jump. ToolCollapsible enforces min-h-6 (24px).
-		const placeholderRow = (thinkingWrapper as HTMLElement).firstElementChild;
-		expect(placeholderRow).toBeInstanceOf(HTMLElement);
+		expect(canvas.queryByTestId("live-activity-slot")).not.toBeInTheDocument();
 		expect(
-			Math.round(
-				(placeholderRow as HTMLElement).getBoundingClientRect().height,
-			),
-		).toBe(24);
+			canvas.getByRole("button", { name: /expand command/i }),
+		).toBeVisible();
+		expect(canvas.getByText(/reading README\.md/i)).toBeVisible();
+	},
+};
+
+const editFilesArgs = {
+	files: JSON.stringify([
+		{
+			path: "src/config.ts",
+			edits: [
+				{
+					old_text: "const timeout = 30;",
+					new_text: "const timeout = 60;",
+				},
+			],
+		},
+	]),
+};
+
+const editFilesRunningState = buildStreamRenderState([
+	{
+		type: "tool-call",
+		tool_call_id: "edit-tool",
+		tool_name: "edit_files",
+		args: editFilesArgs,
+	},
+]);
+
+const editFilesEmptyDeltaState = buildStreamRenderState([
+	{
+		type: "tool-call",
+		tool_call_id: "edit-tool",
+		tool_name: "edit_files",
+		args: editFilesArgs,
+	},
+	{
+		type: "tool-result",
+		tool_call_id: "edit-tool",
+		tool_name: "edit_files",
+		result_delta: "",
+	},
+]);
+
+const getEditFilesToolHeight = (canvasElement: HTMLElement) => {
+	const editTool = canvasElement.querySelector("[data-transcript-row]");
+	expect(editTool).not.toBeNull();
+	return Math.round(editTool?.getBoundingClientRect().height ?? 0);
+};
+
+/** Empty result deltas should not create an invisible completed tool result. */
+export const EditFilesEmptyDeltaKeepsRunningHeight: Story = {
+	render: () => {
+		return (
+			<div className="flex flex-col gap-2">
+				<div data-testid="running-edit-files">
+					<StreamingOutput
+						streamState={editFilesRunningState.streamState}
+						streamTools={editFilesRunningState.streamTools}
+						liveStatus={editFilesRunningState.liveStatus}
+					/>
+				</div>
+				<div data-testid="empty-delta-edit-files">
+					<StreamingOutput
+						streamState={editFilesEmptyDeltaState.streamState}
+						streamTools={editFilesEmptyDeltaState.streamTools}
+						liveStatus={editFilesEmptyDeltaState.liveStatus}
+					/>
+				</div>
+			</div>
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const running = canvas.getByTestId("running-edit-files");
+		const emptyDelta = canvas.getByTestId("empty-delta-edit-files");
+
+		expect(within(running).getByText(/Editing files/)).toBeVisible();
+		expect(within(emptyDelta).getByText(/Editing files/)).toBeVisible();
+		expect(getEditFilesToolHeight(emptyDelta)).toBe(
+			getEditFilesToolHeight(running),
+		);
 	},
 };

@@ -27,6 +27,12 @@ sql:
         emit_db_tags: true
         emit_enum_valid_method: true
         emit_all_enum_values: true
+        initialisms:
+          # Keep the sqlc default initialism and add AI so generated
+          # identifiers follow Go naming conventions.
+          - id
+          - ai
+          - nats
         overrides:
           - column: "api_keys.scopes"
             go_type:
@@ -261,8 +267,10 @@ sql:
           ai_provider: AIProvider
           ai_provider_key: AIProviderKey
           ai_provider_type: AIProviderType
+          ai_gateway_key: AIGatewayKey
           resource_type_ai_provider: ResourceTypeAIProvider
           resource_type_ai_provider_key: ResourceTypeAIProviderKey
+          resource_type_ai_gateway_key: ResourceTypeAIGatewayKey
           mcp_server_config: MCPServerConfig
           mcp_server_configs: MCPServerConfigs
           mcp_server_user_token: MCPServerUserToken

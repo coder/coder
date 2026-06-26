@@ -1,4 +1,4 @@
-import { LoaderIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
+import { LoaderIcon, PlayIcon } from "lucide-react";
 import type React from "react";
 import { useMutation, useQuery } from "react-query";
 import { API } from "#/api/api";
@@ -9,8 +9,10 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { getPathBasename } from "../../../utils/path";
 import { Response } from "../Response";
 import { TranscriptRow } from "../TranscriptRow";
+import { ToolCall } from "./ToolCall";
 import type { ToolStatus } from "./utils";
 
 export const ProposePlanTool: React.FC<{
@@ -54,7 +56,7 @@ export const ProposePlanTool: React.FC<{
 		? (inlineContent ?? "")
 		: (fileQuery.data ?? "");
 	const isRunning = status === "running";
-	const filename = (path || "PLAN.md").split("/").pop() || "PLAN.md";
+	const filename = getPathBasename(path || "PLAN.md") || "PLAN.md";
 	const effectiveError = isError || Boolean(fetchError);
 	const effectiveErrorMessage = errorMessage || fetchError;
 	const hasDisplayContent = displayContent.trim().length > 0;
@@ -73,32 +75,26 @@ export const ProposePlanTool: React.FC<{
 
 	return (
 		<div className="w-full">
-			<TranscriptRow className="gap-1.5 text-content-secondary">
-				<span className="text-[13px]">
-					{isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
-				</span>
-				{effectiveError && (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<TriangleAlertIcon
-								aria-label="Error"
-								className="h-3.5 w-3.5 shrink-0 text-content-secondary"
-							/>
-						</TooltipTrigger>
-						<TooltipContent>
-							{effectiveErrorMessage || "Failed to propose plan"}
-						</TooltipContent>
-					</Tooltip>
-				)}
-				{isRunning && (
-					<LoaderIcon className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none text-current" />
-				)}
-			</TranscriptRow>
+			<ToolCall.Root
+				status={status}
+				isError={effectiveError}
+				errorMessage={effectiveErrorMessage || "Failed to propose plan"}
+				hasContent={false}
+			>
+				<ToolCall.Header
+					iconName="propose_plan"
+					label={isRunning ? `Proposing ${filename}…` : `Proposed ${filename}`}
+				/>
+			</ToolCall.Root>
 			{hasDisplayContent ? (
 				<>
 					<Response>{displayContent}</Response>
-					<div className="flex items-center gap-2">
-						<CopyButton text={displayContent} label="Copy plan" />
+					<div className="group/plan-actions flex items-center gap-2">
+						<CopyButton
+							text={displayContent}
+							label="Copy plan"
+							className="opacity-0 transition-opacity group-hover/plan-actions:opacity-100 focus-visible:opacity-100"
+						/>
 						{canImplementPlan && (
 							<Tooltip>
 								<TooltipTrigger asChild>
@@ -115,7 +111,7 @@ export const ProposePlanTool: React.FC<{
 										aria-label="Implement plan"
 									>
 										{implementPlanMutation.isPending ? (
-											<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+											<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 										) : (
 											<PlayIcon />
 										)}
@@ -138,8 +134,8 @@ export const ProposePlanTool: React.FC<{
 				)
 			)}
 			{fetchLoading && (
-				<TranscriptRow className="gap-1.5 text-[13px] text-content-secondary">
-					<LoaderIcon className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+				<TranscriptRow className="gap-2 text-[13px] text-content-secondary">
+					<LoaderIcon className="size-3.5 animate-spin motion-reduce:animate-none" />
 					Loading plan…
 				</TranscriptRow>
 			)}

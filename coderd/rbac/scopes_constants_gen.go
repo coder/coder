@@ -7,6 +7,10 @@ package rbac
 // declared in code, not here, to avoid duplication.
 
 const (
+	ScopeAiGatewayKeyCreate                  ScopeName = "ai_gateway_key:create"
+	ScopeAiGatewayKeyDelete                  ScopeName = "ai_gateway_key:delete"
+	ScopeAiGatewayKeyRead                    ScopeName = "ai_gateway_key:read"
+	ScopeAiGatewayKeyUpdate                  ScopeName = "ai_gateway_key:update"
 	ScopeAiModelPriceRead                    ScopeName = "ai_model_price:read"
 	ScopeAiModelPriceUpdate                  ScopeName = "ai_model_price:update"
 	ScopeAiProviderCreate                    ScopeName = "ai_provider:create"
@@ -33,6 +37,9 @@ const (
 	ScopeAssignRoleUnassign                  ScopeName = "assign_role:unassign"
 	ScopeAuditLogCreate                      ScopeName = "audit_log:create"
 	ScopeAuditLogRead                        ScopeName = "audit_log:read"
+	ScopeBoundaryLogCreate                   ScopeName = "boundary_log:create"
+	ScopeBoundaryLogDelete                   ScopeName = "boundary_log:delete"
+	ScopeBoundaryLogRead                     ScopeName = "boundary_log:read"
 	ScopeBoundaryUsageDelete                 ScopeName = "boundary_usage:delete"
 	ScopeBoundaryUsageRead                   ScopeName = "boundary_usage:read"
 	ScopeBoundaryUsageUpdate                 ScopeName = "boundary_usage:update"
@@ -184,6 +191,10 @@ func (e ScopeName) Valid() bool {
 	case ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -210,6 +221,9 @@ func (e ScopeName) Valid() bool {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryLogCreate,
+		ScopeBoundaryLogDelete,
+		ScopeBoundaryLogRead,
 		ScopeBoundaryUsageDelete,
 		ScopeBoundaryUsageRead,
 		ScopeBoundaryUsageUpdate,
@@ -362,6 +376,10 @@ func AllScopeNameValues() []ScopeName {
 		ScopeName("coder:all"),
 		ScopeName("coder:application_connect"),
 		ScopeName("no_user_data"),
+		ScopeAiGatewayKeyCreate,
+		ScopeAiGatewayKeyDelete,
+		ScopeAiGatewayKeyRead,
+		ScopeAiGatewayKeyUpdate,
 		ScopeAiModelPriceRead,
 		ScopeAiModelPriceUpdate,
 		ScopeAiProviderCreate,
@@ -388,6 +406,9 @@ func AllScopeNameValues() []ScopeName {
 		ScopeAssignRoleUnassign,
 		ScopeAuditLogCreate,
 		ScopeAuditLogRead,
+		ScopeBoundaryLogCreate,
+		ScopeBoundaryLogDelete,
+		ScopeBoundaryLogRead,
 		ScopeBoundaryUsageDelete,
 		ScopeBoundaryUsageRead,
 		ScopeBoundaryUsageUpdate,

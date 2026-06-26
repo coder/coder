@@ -11,7 +11,7 @@ import {
 	KEY_TAB_COMMAND,
 	type NodeKey,
 } from "lexical";
-import { useEffect, useEffectEvent, useRef } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { parsePersonalSkillTrigger } from "../../utils/personalSkills";
 import type { CaretAnchorRect } from "./PersonalSkillsTriggerMenu";
@@ -120,6 +120,16 @@ export const SkillsTriggerPlugin = ({
 }: SkillsTriggerPluginProps) => {
 	const [editor] = useLexicalComposerContext();
 	const dismissedTriggerRef = useRef<DismissedSkillsTrigger | null>(null);
+
+	const prevOpenRef = useRef(open);
+	useLayoutEffect(() => {
+		if (prevOpenRef.current && !open) {
+			dismissedTriggerRef.current = editor
+				.getEditorState()
+				.read(() => activeTriggerFromSelection());
+		}
+		prevOpenRef.current = open;
+	}, [open, editor]);
 
 	const refreshTrigger = useEffectEvent(() => {
 		const trigger = editor.getEditorState().read(() => {

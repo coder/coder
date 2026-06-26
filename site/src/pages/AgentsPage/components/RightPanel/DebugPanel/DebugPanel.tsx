@@ -188,7 +188,7 @@ export const DebugPanel: FC<DebugPanelProps> = ({
 	return (
 		<ScrollArea
 			className="h-full"
-			viewportClassName="h-full [&>div]:!block [&>div]:!w-full"
+			viewportClassName="size-full [&>div]:!block [&>div]:!"
 			scrollBarClassName="w-1.5"
 		>
 			<div className="min-h-full w-full min-w-0 overflow-x-hidden">

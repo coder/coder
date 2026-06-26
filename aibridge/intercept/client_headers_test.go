@@ -74,6 +74,28 @@ func TestPrepareClientHeaders(t *testing.T) {
 		assert.Equal(t, "preserved", result.Get("X-Custom"))
 	})
 
+	t.Run("proxy headers are removed", func(t *testing.T) {
+		t.Parallel()
+
+		input := http.Header{
+			"X-Forwarded-For":   {"203.0.113.50"},
+			"X-Forwarded-Host":  {"app.example.com"},
+			"X-Forwarded-Proto": {"https"},
+			"X-Forwarded-Port":  {"443"},
+			"Forwarded":         {"for=203.0.113.50;proto=https"},
+			"X-Custom":          {"preserved"},
+		}
+
+		result := intercept.PrepareClientHeaders(input)
+
+		assert.Empty(t, result.Get("X-Forwarded-For"))
+		assert.Empty(t, result.Get("X-Forwarded-Host"))
+		assert.Empty(t, result.Get("X-Forwarded-Proto"))
+		assert.Empty(t, result.Get("X-Forwarded-Port"))
+		assert.Empty(t, result.Get("Forwarded"))
+		assert.Equal(t, "preserved", result.Get("X-Custom"))
+	})
+
 	t.Run("multi-value headers are preserved", func(t *testing.T) {
 		t.Parallel()
 

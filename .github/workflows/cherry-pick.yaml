@@ -11,6 +11,7 @@
 #   - Branch:  backport/<pr>-to-<version>
 #   - Title:   <original PR title> (#<pr>)
 #   - Body:    links back to the original PR and merge commit
+#   - Label:   cherry-pick/v<version> to identify the target release
 
 name: Cherry-pick to release
 on:
@@ -24,6 +25,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Required to create the release-specific cherry-pick label if missing.
+  issues: write
 
 # Prevent duplicate runs for the same PR when both 'closed' and 'labeled'
 # fire in quick succession.
@@ -79,6 +82,10 @@ jobs:
           VERSION="${RELEASE_BRANCH#release/}"
           BACKPORT_BRANCH="backport/${PR_NUMBER}-to-${VERSION}"
 
+          # Label applied to the cherry-pick PR so PRs for a specific
+          # release can be filtered easily (e.g. cherry-pick/v2.31).
+          CHERRY_PICK_LABEL="cherry-pick/v${VERSION}"
+
           echo "Target branch: $RELEASE_BRANCH"
           echo "Backport branch: $BACKPORT_BRANCH"
 
@@ -131,6 +138,14 @@ jobs:
             TITLE="[CONFLICT] ${TITLE}"
           fi
 
+          # Ensure the release-specific label exists before applying it.
+          # --force updates the label in place if it already exists, so
+          # re-runs and concurrent runs stay idempotent.
+          gh label create "$CHERRY_PICK_LABEL" \
+            --description "Cherry-pick PR targeting ${RELEASE_BRANCH}" \
+            --color "D93F0B" \
+            --force
+
           # Check if a PR already exists for this branch (idempotency
           # for re-runs). Use --state all to catch closed/merged PRs too.
           EXISTING_PR=$(gh pr list --head "$BACKPORT_BRANCH" --base "$RELEASE_BRANCH" --state all --json number --jq '.[0].number // empty')
@@ -145,6 +160,7 @@ jobs:
               --head "$BACKPORT_BRANCH" \
               --title "$TITLE" \
               --body "$BODY" \
+              --label "$CHERRY_PICK_LABEL" \
               --assignee "$SENDER" \
               --reviewer "$SENDER"
           )
@@ -154,4 +170,5 @@ jobs:
           if [ "$CONFLICT" = true ]; then
             COMMENT="${COMMENT} (⚠️ conflicts need manual resolution)"
           fi
-          gh pr comment "$PR_NUMBER" --body "$COMMENT"
+          # Don't fail the job if commenting fails (e.g. the original PR is locked).
+          gh pr comment "$PR_NUMBER" --body "$COMMENT" || echo "::warning::Failed to comment on #${PR_NUMBER} (PR may be locked)."

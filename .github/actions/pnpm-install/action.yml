@@ -1,0 +1,59 @@
+name: "pnpm install"
+description: Restore pnpm store cache and install root plus workspace dependencies.
+inputs:
+  directory:
+    description: "Workspace directory to install after the repository root."
+    required: false
+    default: "site"
+runs:
+  using: "composite"
+  steps:
+    - name: Compute pnpm cache key
+      id: pnpm-cache
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        store_path="$(pnpm store path --silent)"
+        hash="$(
+          for file in pnpm-lock.yaml "${INPUT_DIRECTORY}/pnpm-lock.yaml"; do
+            if [[ -f "${file}" ]]; then
+              git hash-object "${file}"
+            fi
+          done | git hash-object --stdin
+        )"
+
+        {
+          echo "store-path=${store_path}"
+          echo "key=pnpm-${RUNNER_OS}-${RUNNER_ARCH}-${INPUT_DIRECTORY}-${hash}"
+          echo "restore-key=pnpm-${RUNNER_OS}-${RUNNER_ARCH}-${INPUT_DIRECTORY}-"
+        } >> "$GITHUB_OUTPUT"
+      env:
+        INPUT_DIRECTORY: ${{ inputs.directory }}
+
+    - name: Restore and save pnpm cache
+      if: ${{ github.ref == 'refs/heads/main' }}
+      uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ${{ steps.pnpm-cache.outputs.store-path }}
+        key: ${{ steps.pnpm-cache.outputs.key }}
+        restore-keys: |
+          ${{ steps.pnpm-cache.outputs.restore-key }}
+
+    - name: Restore pnpm cache
+      if: ${{ github.ref != 'refs/heads/main' }}
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: ${{ steps.pnpm-cache.outputs.store-path }}
+        key: ${{ steps.pnpm-cache.outputs.key }}
+        restore-keys: |
+          ${{ steps.pnpm-cache.outputs.restore-key }}
+
+    - name: Install root node_modules
+      shell: bash
+      run: ./scripts/pnpm_install.sh
+
+    - name: Install node_modules
+      shell: bash
+      run: "${GITHUB_WORKSPACE}/scripts/pnpm_install.sh"
+      working-directory: ${{ github.workspace }}/${{ inputs.directory }}

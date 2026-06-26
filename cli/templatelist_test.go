@@ -13,8 +13,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplateList(t *testing.T) {
@@ -35,7 +35,7 @@ func TestTemplateList(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "list")
 		clitest.SetupConfig(t, templateAdmin, root)
 
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -52,7 +52,7 @@ func TestTemplateList(t *testing.T) {
 		require.NoError(t, <-errC)
 
 		for _, name := range templatesList {
-			pty.ExpectMatch(name)
+			stdout.ExpectMatch(ctx, name)
 		}
 	})
 	t.Run("ListTemplatesJSON", func(t *testing.T) {
@@ -93,9 +93,7 @@ func TestTemplateList(t *testing.T) {
 		inv, root := clitest.New(t, "templates", "list")
 		clitest.SetupConfig(t, templateAdmin, root)
 
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancelFunc()
@@ -107,7 +105,7 @@ func TestTemplateList(t *testing.T) {
 
 		require.NoError(t, <-errC)
 
-		pty.ExpectMatch("No templates found")
-		pty.ExpectMatch("Create one:")
+		stdout.ExpectMatch(ctx, "No templates found")
+		stdout.ExpectMatch(ctx, "Create one:")
 	})
 }

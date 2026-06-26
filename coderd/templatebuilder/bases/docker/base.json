@@ -1,0 +1,8 @@
+{
+	"id": "docker",
+	"display_name": "Docker",
+	"os": "linux",
+	"default_context": {
+		"container_image": "codercom/enterprise-base:ubuntu"
+	}
+}

@@ -7,10 +7,13 @@ out of the separate retention window, at which point they are purged.
 
 ## How it works
 
-A background process runs approximately every 10 minutes. On each tick
-it scans the chat database for root conversations whose most recent
-non-deleted message is older than the configured auto-archive window
-and flips them from "active" to "archived". Cascaded children (chats
+A background process periodically scans the chat database for root
+conversations whose most recent non-deleted message predates the
+configured auto-archive window and flips them from "active" to
+"archived". Eligibility is evaluated at UTC day boundaries: all
+conversations whose last activity falls on the same UTC date are
+archived together on the first tick after midnight UTC following the
+expiration of their archive window. Cascaded children (chats
 linked into a larger conversation via `root_chat_id`) are archived
 alongside their parent so the conversation stays coherent.
 
@@ -30,7 +33,12 @@ root.
 
 When your chats are auto-archived, you receive a digest notification
 listing the titles of the archived conversations and the
-auto-archive window currently configured.
+auto-archive window currently configured. Because eligibility uses
+UTC day boundaries, in steady state this notification fires at most
+once per day (on the first tick after midnight UTC that finds newly
+eligible chats). A large backlog (initial enablement or bulk
+inactivity) may span multiple ticks, producing multiple notifications
+until the backlog drains.
 
 If you find the digest noisy, you can disable the "Chats
 Auto-Archived" notification entirely from your notification preferences.

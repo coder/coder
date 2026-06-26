@@ -1,5 +1,6 @@
 import {
 	ArrowLeftIcon,
+	CopyIcon,
 	ExternalLinkIcon,
 	GitBranchIcon,
 	GitMergeIcon,
@@ -11,6 +12,13 @@ import { type FC, type RefObject, useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { CheckIcon } from "#/components/AnimatedIcons/Check";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
+import { useClipboard } from "#/hooks/useClipboard";
 import { cn } from "#/utils/cn";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
@@ -21,6 +29,35 @@ import { getDiffCacheKeyPrefix } from "../DiffViewer/diffCacheKey";
 import { useParsedDiff } from "../DiffViewer/useParsedDiff";
 
 export { InlinePromptInput } from "../DiffViewer/CommentableDiffViewer";
+
+// -------------------------------------------------------------------
+// Branch copy button
+// -------------------------------------------------------------------
+
+const BranchCopyButton: FC<{ branch: string }> = ({ branch }) => {
+	const { copyToClipboard, showCopiedSuccess } = useClipboard();
+	return (
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<button
+					type="button"
+					onClick={() => copyToClipboard(branch)}
+					aria-label={`Copy branch name: ${branch}`}
+					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+				>
+					{showCopiedSuccess ? (
+						<CheckIcon className="size-3" />
+					) : (
+						<CopyIcon className="size-3" />
+					)}
+				</button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom">
+				{showCopiedSuccess ? "Copied" : "Copy branch name"}
+			</TooltipContent>
+		</Tooltip>
+	);
+};
 
 // -------------------------------------------------------------------
 // PR state badge
@@ -146,7 +183,12 @@ export const RemoteDiffPanel: FC<RemoteDiffPanelProps> = ({
 								{headBranch && baseBranch && (
 									<ArrowLeftIcon className="size-3 shrink-0 opacity-50" />
 								)}
-								{headBranch && <span className="truncate"> {headBranch}</span>}
+								{headBranch && (
+									<>
+										<span className="truncate"> {headBranch}</span>
+										<BranchCopyButton branch={headBranch} />
+									</>
+								)}
 							</>
 						) : parsedPr ? (
 							<span className="truncate">

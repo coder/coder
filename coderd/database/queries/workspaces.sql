@@ -497,6 +497,65 @@ LEFT JOIN workspaces ON workspaces.template_id = templates.id AND workspaces.del
 WHERE templates.id = ANY(@template_ids :: uuid[])
 GROUP BY templates.id;
 
+-- name: GetTemplateRankingSignalsByOwnerID :many
+-- GetTemplateRankingSignalsByOwnerID returns raw template-ranking signals for
+-- one owner: in-window active and recently-deleted workspace counts, the last
+-- in-window usage, and distinct active developers per template. The affinity
+-- score is computed in Go (see listtemplates.go) so the ranking policy and
+-- its confidence thresholds live in one place.
+WITH org_usage AS (
+	-- Distinct developers with a non-deleted workspace; the prebuilds system
+	-- user is excluded so unclaimed prebuilds do not inflate popularity.
+	SELECT
+		w.template_id,
+		COUNT(DISTINCT w.owner_id) AS org_devs
+	FROM
+		workspaces w
+	WHERE
+		w.template_id = ANY(@template_ids :: uuid[])
+		AND NOT w.deleted
+		AND w.owner_id != @prebuilds_user_id :: uuid
+		AND CASE
+			WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = @organization_id
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+),
+user_usage AS (
+	-- The owner's workspaces used within the lookback window, split into
+	-- active and recently-deleted counts.
+	SELECT
+		w.template_id,
+		COUNT(*) FILTER (WHERE NOT w.deleted) AS active_count,
+		COUNT(*) FILTER (WHERE w.deleted) AS deleted_recent_count,
+		MAX(w.last_used_at) :: timestamptz AS last_used_at
+	FROM
+		workspaces w
+	WHERE
+		w.owner_id = @owner_id
+		AND w.template_id = ANY(@template_ids :: uuid[])
+		AND w.last_used_at > @lookback_cutoff :: timestamptz
+		AND CASE
+			WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000' :: uuid THEN
+				w.organization_id = @organization_id
+			ELSE true
+		END
+	GROUP BY
+		w.template_id
+)
+SELECT
+	t.template_id :: uuid AS template_id,
+	COALESCE(u.active_count, 0) :: bigint AS active_count,
+	COALESCE(u.deleted_recent_count, 0) :: bigint AS deleted_recent_count,
+	u.last_used_at,
+	COALESCE(o.org_devs, 0) :: bigint AS org_devs
+FROM
+	unnest(@template_ids :: uuid[]) AS t(template_id)
+LEFT JOIN user_usage u ON u.template_id = t.template_id
+LEFT JOIN org_usage o ON o.template_id = t.template_id;
+
 -- name: InsertWorkspace :one
 INSERT INTO
 	workspaces (
@@ -680,7 +739,11 @@ SELECT
 	stopped_workspaces.count AS stopped_workspaces
 FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspaces, stopped_workspaces;
 
--- name: GetWorkspacesEligibleForTransition :many
+-- name: GetWorkspacesEligibleForLifecycleAction :many
+-- Returns workspaces the lifecycle executor must act on this tick. An
+-- "action" is a state transition (autostart/autostop/dormancy/delete), a
+-- dormancy mark (which has no build transition), or a one-time autostop
+-- reminder notification (which only stamps a marker, no transition).
 SELECT
 	workspaces.id,
 	workspaces.name,
@@ -786,18 +849,51 @@ WHERE
 			END
 		) OR
 
-		-- A workspace may be eligible for failed stop if the following are true:
+		-- A workspace may be eligible for failed cleanup if the following are true:
 		--   * The template has a failure ttl set.
-		--   * The workspace build was a start transition.
+		--   * The workspace build was a start or stop transition. A failed start
+		--     is cleaned up by stopping it; a failed stop is retried by issuing
+		--     another stop.
 		--   * The provisioner job failed.
 		--   * The provisioner job had completed.
 		--   * The provisioner job has been completed for longer than the failure ttl.
 		(
 			templates.failure_ttl > 0 AND
-			workspace_builds.transition = 'start'::workspace_transition AND
+			(
+				workspace_builds.transition = 'start'::workspace_transition OR
+				workspace_builds.transition = 'stop'::workspace_transition
+			) AND
 			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
 			provisioner_jobs.completed_at IS NOT NULL AND
 			(@now :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
+		) OR
+
+		-- A workspace may be eligible for an autostop reminder if the following are true:
+		--   * The latest build is a successfully provisioned start build.
+		--   * The workspace is not dormant and its owner is not suspended.
+		--   * The build has a deadline in the future (we never remind about a stop already due).
+		--   * The template opts in (time_til_autostop_notify > 0) and now is within the lead window.
+		--   * A reminder has not yet been sent for THIS deadline.
+		--
+		-- NOTE: time_til_autostop_notify has no upper bound. If it exceeds a
+		-- workspace's remaining lifetime, the notify window already includes "now"
+		-- at build creation. This arm intentionally still only matches builds whose
+		-- deadline is in the future (deadline > now) and whose marker has not yet
+		-- been stamped (notified_autostop_deadline != deadline), so at most ONE
+		-- reminder is ever produced for a given deadline regardless of how large the
+		-- field is. The field is stored in nanoseconds, so convert to an interval
+		-- the same way the dormancy arm does: nanoseconds / 1000000 yields
+		-- milliseconds.
+		(
+			provisioner_jobs.job_status = 'succeeded'::provisioner_job_status AND
+			workspace_builds.transition = 'start'::workspace_transition AND
+			workspaces.dormant_at IS NULL AND
+			users.status != 'suspended'::user_status AND
+			workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamptz AND
+			workspace_builds.deadline > @now::timestamptz AND
+			templates.time_til_autostop_notify > 0 AND
+			workspace_builds.deadline <= (@now::timestamptz) + (INTERVAL '1 millisecond' * (templates.time_til_autostop_notify / 1000000)) AND
+			workspace_builds.notified_autostop_deadline != workspace_builds.deadline
 		)
 	)
   	AND workspaces.deleted = 'false'

@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -16,8 +15,8 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 const (
@@ -109,6 +108,7 @@ func TestStart(t *testing.T) {
 	t.Run("BuildOptions", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -132,7 +132,9 @@ func TestStart(t *testing.T) {
 		inv, root := clitest.New(t, "start", workspace.Name, "--prompt-ephemeral-parameters")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -146,18 +148,15 @@ func TestStart(t *testing.T) {
 		for i := 0; i < len(matches); i += 2 {
 			match := matches[i]
 			value := matches[i+1]
-			pty.ExpectMatch(match)
+			stdout.ExpectMatch(ctx, match)
 
 			if value != "" {
-				pty.WriteLine(value)
+				stdin.WriteLine(value)
 			}
 		}
 		<-doneChan
 
 		// Verify if ephemeral parameter is set
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
@@ -195,20 +194,18 @@ func TestStart(t *testing.T) {
 			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("workspace has been started")
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify if ephemeral parameter is set
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
@@ -251,20 +248,18 @@ func TestStartWithParameters(t *testing.T) {
 		inv, root := clitest.New(t, "start", workspace.Name)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
 			assert.NoError(t, err)
 		}()
 
-		pty.ExpectMatch("workspace has been started")
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify if immutable parameter is set
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
@@ -278,6 +273,7 @@ func TestStartWithParameters(t *testing.T) {
 	t.Run("AlwaysPrompt", func(t *testing.T) {
 		t.Parallel()
 
+		logger := testutil.Logger(t)
 		// Create the workspace
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
@@ -303,7 +299,9 @@ func TestStartWithParameters(t *testing.T) {
 		inv, root := clitest.New(t, "start", workspace.Name, "--always-prompt")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		go func() {
 			defer close(doneChan)
 			err := inv.Run()
@@ -311,15 +309,12 @@ func TestStartWithParameters(t *testing.T) {
 		}()
 
 		newValue := "xyz"
-		pty.ExpectMatch(mutableParameterName)
-		pty.WriteLine(newValue)
-		pty.ExpectMatch("workspace has been started")
+		stdout.ExpectMatch(ctx, mutableParameterName)
+		stdin.WriteLine(newValue)
+		stdout.ExpectMatch(ctx, "workspace has been started")
 		<-doneChan
 
 		// Verify that the updated values are persisted.
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		defer cancel()
-
 		workspace, err := client.WorkspaceByOwnerAndName(ctx, workspace.OwnerName, workspace.Name, codersdk.WorkspaceOptions{})
 		require.NoError(t, err)
 		actualParameters, err := client.WorkspaceBuildParameters(ctx, workspace.LatestBuild.ID)
@@ -368,7 +363,7 @@ func TestStartUseParameterDefaults(t *testing.T) {
 	// The new parameter should be auto-accepted.
 	inv, root := clitest.New(t, "start", workspace.Name, "--use-parameter-defaults")
 	clitest.SetupConfig(t, member, root)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -376,7 +371,7 @@ func TestStartUseParameterDefaults(t *testing.T) {
 		assert.NoError(t, err)
 	}()
 
-	pty.ExpectMatchContext(ctx, "workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 
 	// Verify the new parameter was resolved to its default.
@@ -420,6 +415,7 @@ func TestStartAutoUpdate(t *testing.T) {
 		t.Run(c.Name, func(t *testing.T) {
 			t.Parallel()
 
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
@@ -446,15 +442,17 @@ func TestStartAutoUpdate(t *testing.T) {
 			inv, root := clitest.New(t, c.Cmd, "-y", workspace.Name)
 			clitest.SetupConfig(t, member, root)
 			doneChan := make(chan struct{})
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+			ctx := testutil.Context(t, testutil.WaitMedium)
 			go func() {
 				defer close(doneChan)
 				err := inv.Run()
 				assert.NoError(t, err)
 			}()
 
-			pty.ExpectMatch(stringParameterName)
-			pty.WriteLine(stringParameterValue)
+			stdout.ExpectMatch(ctx, stringParameterName)
+			stdin.WriteLine(stringParameterValue)
 			<-doneChan
 
 			workspace = coderdtest.MustWorkspace(t, member, workspace.ID)
@@ -478,14 +476,14 @@ func TestStart_AlreadyRunning(t *testing.T) {
 	inv, root := clitest.New(t, "start", r.Workspace.Name)
 	clitest.SetupConfig(t, memberClient, root)
 	doneChan := make(chan struct{})
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	go func() {
 		defer close(doneChan)
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 
-	pty.ExpectMatch("workspace is already running")
+	stdout.ExpectMatch(ctx, "workspace is already running")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
 
@@ -507,17 +505,17 @@ func TestStart_Starting(t *testing.T) {
 	inv, root := clitest.New(t, "start", r.Workspace.Name)
 	clitest.SetupConfig(t, memberClient, root)
 	doneChan := make(chan struct{})
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	go func() {
 		defer close(doneChan)
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 
-	pty.ExpectMatch("workspace is already starting")
+	stdout.ExpectMatch(ctx, "workspace is already starting")
 
 	_ = dbfake.JobComplete(t, store, r.Build.JobID).Pubsub(ps).Do()
-	pty.ExpectMatch("workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
@@ -544,14 +542,14 @@ func TestStart_NoWait(t *testing.T) {
 	inv, root := clitest.New(t, "start", workspace.Name, "--no-wait")
 	clitest.SetupConfig(t, member, root)
 	doneChan := make(chan struct{})
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	go func() {
 		defer close(doneChan)
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 
-	pty.ExpectMatch("workspace has been started in no-wait mode")
+	stdout.ExpectMatch(ctx, "workspace has been started in no-wait mode")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }
 
@@ -577,14 +575,14 @@ func TestStart_WithReason(t *testing.T) {
 	inv, root := clitest.New(t, "start", workspace.Name, "--reason", "cli")
 	clitest.SetupConfig(t, member, root)
 	doneChan := make(chan struct{})
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	go func() {
 		defer close(doneChan)
 		err := inv.Run()
 		assert.NoError(t, err)
 	}()
 
-	pty.ExpectMatch("workspace has been started")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 	_ = testutil.TryReceive(ctx, t, doneChan)
 
 	workspace = coderdtest.MustWorkspace(t, member, workspace.ID)
@@ -628,7 +626,7 @@ func TestStart_FailedStartCleansUp(t *testing.T) {
 
 	inv, root := clitest.New(t, "start", workspace.Name)
 	clitest.SetupConfig(t, memberClient, root)
-	pty := ptytest.New(t).Attach(inv)
+	stdout := expecter.NewAttachedToInvocation(t, inv)
 	doneChan := make(chan struct{})
 	go func() {
 		defer close(doneChan)
@@ -637,8 +635,8 @@ func TestStart_FailedStartCleansUp(t *testing.T) {
 	}()
 
 	// The CLI should detect the failed start and clean up first.
-	pty.ExpectMatch("Cleaning up before retrying")
-	pty.ExpectMatch("workspace has been started")
+	stdout.ExpectMatch(ctx, "Cleaning up before retrying")
+	stdout.ExpectMatch(ctx, "workspace has been started")
 
 	_ = testutil.TryReceive(ctx, t, doneChan)
 }

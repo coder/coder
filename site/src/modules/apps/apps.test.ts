@@ -1,3 +1,4 @@
+import type { WorkspaceApp } from "#/api/typesGenerated";
 import {
 	MockWorkspace,
 	MockWorkspaceAgent,
@@ -6,9 +7,19 @@ import {
 import {
 	getAppHref,
 	getVSCodeHref,
+	isAppBlockedByMissingWildcard,
+	isWorkspaceAppEmbeddable,
 	openAppInNewWindow,
 	SESSION_TOKEN_PLACEHOLDER,
 } from "./apps";
+
+function buildApp(overrides: Partial<WorkspaceApp> = {}): WorkspaceApp {
+	return {
+		...MockWorkspaceApp,
+		health: "healthy",
+		...overrides,
+	};
+}
 
 describe("getVSCodeHref", () => {
 	it("includes the chat ID when provided", () => {
@@ -129,7 +140,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 
@@ -145,7 +156,7 @@ describe("getAppHref", () => {
 			path: "",
 		});
 		expect(href).toBe(
-			`/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/terminal?app=${app.slug}`,
+			`/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/terminal?app=${app.slug}`,
 		);
 	});
 
@@ -177,7 +188,7 @@ describe("getAppHref", () => {
 			path: "/path-base",
 		});
 		expect(href).toBe(
-			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
+			`/path-base/@${MockWorkspace.owner_name}/test-workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
 	});
 });
@@ -217,5 +228,42 @@ describe("openAppInNewWindow", () => {
 		openAppInNewWindow("https://app.example.com");
 
 		expect(popup.location.href).toBe("https://app.example.com");
+	});
+});
+
+describe("isWorkspaceAppEmbeddable", () => {
+	it("returns true for visible path-based apps", () => {
+		expect(isWorkspaceAppEmbeddable(buildApp())).toBe(true);
+	});
+
+	it("returns false for command apps, hidden apps, and external apps", () => {
+		expect(isWorkspaceAppEmbeddable(buildApp({ command: "run-preview" }))).toBe(
+			false,
+		);
+		expect(isWorkspaceAppEmbeddable(buildApp({ hidden: true }))).toBe(false);
+		expect(
+			isWorkspaceAppEmbeddable(
+				buildApp({ external: true, url: "https://example.com" }),
+			),
+		).toBe(false);
+	});
+});
+
+describe("isAppBlockedByMissingWildcard", () => {
+	it("blocks subdomain apps when no wildcard host is configured", () => {
+		const subdomainApp = buildApp({ subdomain: true });
+
+		expect(isAppBlockedByMissingWildcard(subdomainApp, "")).toBe(true);
+		expect(isAppBlockedByMissingWildcard(subdomainApp, undefined)).toBe(true);
+		expect(
+			isAppBlockedByMissingWildcard(subdomainApp, "*.apps.example.com"),
+		).toBe(false);
+	});
+
+	it("never blocks path-based apps", () => {
+		const pathApp = buildApp({ subdomain: false });
+
+		expect(isAppBlockedByMissingWildcard(pathApp, "")).toBe(false);
+		expect(isAppBlockedByMissingWildcard(pathApp, undefined)).toBe(false);
 	});
 });

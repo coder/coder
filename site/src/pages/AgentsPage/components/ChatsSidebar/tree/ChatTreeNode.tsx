@@ -8,6 +8,7 @@ import {
 	PinOffIcon,
 	SquarePenIcon,
 	Trash2Icon,
+	UsersIcon,
 } from "lucide-react";
 import { type FC, useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router";
@@ -31,6 +32,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { cn } from "#/utils/cn";
 import { shortRelativeTime } from "#/utils/time";
 import { asNonEmptyString } from "../../ChatConversation/blockUtils";
+import { normalizeLocationSearch } from "../locationSearch";
 import { useChatTree } from "./ChatTreeContext";
 import { getParentChatID } from "./chatTree";
 import { getModelDisplayName } from "./modelDisplayName";
@@ -43,6 +45,7 @@ interface ChatTreeNodeProps {
 
 export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	const location = useLocation();
+	const locationSearch = normalizeLocationSearch(location.search);
 	const {
 		chatTree,
 		chatById,
@@ -121,6 +124,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 		return () => clearTimeout(timeoutId);
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
+	const isSharedChat = chat.shared;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -157,12 +161,12 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 				>
 					{chat.pin_order > 0 ? (
 						<>
-							<PinOffIcon className="h-3.5 w-3.5" />
+							<PinOffIcon className="size-3.5" />
 							Unpin agent
 						</>
 					) : (
 						<>
-							<PinIcon className="h-3.5 w-3.5" />
+							<PinIcon className="size-3.5" />
 							Pin agent
 						</>
 					)}
@@ -170,14 +174,14 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			)}
 			{chat.archived ? (
 				<Item disabled={isArchiving} onSelect={() => onUnarchiveAgent(chat.id)}>
-					<ArchiveRestoreIcon className="h-3.5 w-3.5" />
+					<ArchiveRestoreIcon className="size-3.5" />
 					Unarchive agent
 				</Item>
 			) : (
 				<>
 					{onOpenRenameDialog && (
 						<Item onSelect={() => onOpenRenameDialog(chat)}>
-							<SquarePenIcon className="h-3.5 w-3.5" />
+							<SquarePenIcon className="size-3.5" />
 							Rename chat
 						</Item>
 					)}
@@ -187,7 +191,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						disabled={isArchiving}
 						onSelect={() => onArchiveAgent(chat.id)}
 					>
-						<ArchiveIcon className="h-3.5 w-3.5" />
+						<ArchiveIcon className="size-3.5" />
 						Archive agent
 					</Item>
 					{workspaceId && (
@@ -196,7 +200,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 							disabled={isArchiving}
 							onSelect={() => onArchiveAndDeleteWorkspace(chat.id, workspaceId)}
 						>
-							<Trash2Icon className="h-3.5 w-3.5" />
+							<Trash2Icon className="size-3.5" />
 							Archive & delete workspace
 						</Item>
 					)}
@@ -206,7 +210,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 	);
 
 	return (
-		<div className="flex min-w-0 flex-col">
+		<div className="flex min-w-0 flex-col gap-0.5">
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
 					<div
@@ -221,13 +225,13 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 					>
 						<div
 							className={cn(
-								"group/icon relative mt-1.5 h-5 w-5 shrink-0",
+								"group/icon relative mt-1.5 size-5 shrink-0",
 								hasChildren && "cursor-pointer",
 							)}
 						>
 							<div
 								className={cn(
-									"flex h-5 w-5 items-center justify-center rounded-md",
+									"flex size-5 items-center justify-center rounded-md",
 									hasChildren &&
 										"[@media(hover:hover)]:group-hover/icon:invisible",
 								)}
@@ -238,7 +242,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 											? `agents-tree-executing-${chat.id}`
 											: undefined
 									}
-									className={cn("h-3.5 w-3.5 shrink-0", statusClassName)}
+									className={cn("size-3.5 shrink-0", statusClassName)}
 								/>
 							</div>
 							{hasChildren && (
@@ -247,7 +251,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 									size="icon"
 									onClick={() => toggleExpanded(chatID)}
 									className={cn(
-										"absolute inset-0 invisible flex h-5 w-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
+										"absolute inset-0 invisible flex size-5 min-w-0 items-center justify-center rounded-md p-0 text-content-secondary/60 hover:text-content-primary [&>svg]:size-3.5",
 										"[@media(hover:hover)]:group-hover/icon:visible",
 									)}
 									data-testid={`agents-tree-toggle-${chat.id}`}
@@ -261,7 +265,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 						<NavLink
 							to={{
 								pathname: `/agents/${chat.id}`,
-								search: location.search,
+								search: locationSearch,
 							}}
 							className="flex min-h-0 min-w-0 flex-1 items-start gap-2 rounded-[inherit] py-1 pr-0.5 text-inherit no-underline"
 						>
@@ -316,50 +320,62 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 								</div>
 							)}
 						</NavLink>
-						<div className="relative mt-1 flex h-6 w-7 shrink-0 items-center justify-end">
-							{isArchivingThisChat ? (
-								<Spinner
-									className="h-3.5 w-3.5 text-content-secondary"
-									loading
-								/>
-							) : (
-								<>
+						<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
+							<div className="flex h-6 w-7 shrink-0 items-center justify-end">
+								{isArchivingThisChat ? (
+									<Spinner
+										className="h-3.5 w-3.5 text-content-secondary"
+										loading
+									/>
+								) : (
 									<span className="flex items-center justify-end text-xs text-content-secondary/50 tabular-nums [@media(hover:hover)]:group-hover:hidden group-has-[[data-state=open]]:hidden">
 										{chat.has_unread && !isActiveChat ? (
 											<span
-												className="h-2 w-2 shrink-0 rounded-full bg-content-link"
+												className="size-2 shrink-0 rounded-full bg-content-link pr-1"
 												data-testid={`unread-indicator-${chat.id}`}
 												aria-hidden="true"
 											/>
 										) : (
-											<span data-chromatic="ignore">
-												{shortRelativeTime(chat.updated_at)}
-											</span>
+											<>
+												{/* Pin the ignored mask width so Chromatic does not diff bounding rect changes. */}
+												<span
+													data-chromatic="ignore"
+													className="inline-block w-7 text-right"
+												>
+													{shortRelativeTime(chat.updated_at)}
+												</span>
+											</>
 										)}
 									</span>
-									<DropdownMenu>
-										<DropdownMenuTrigger asChild>
-											<Button
-												size="icon"
-												variant="subtle"
-												className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
-												aria-label={`Open actions for ${chat.title}`}
-											>
-												<EllipsisVerticalIcon className="h-3.5 w-3.5" />
-											</Button>
-										</DropdownMenuTrigger>
-										<DropdownMenuContent
-											align="end"
-											className="[&_[role=menuitem]]:text-[13px]"
-										>
-											{renderMenuItems({
-												Item: DropdownMenuItem,
-												Separator: DropdownMenuSeparator,
-											})}
-										</DropdownMenuContent>
-									</DropdownMenu>
-								</>
+								)}
+							</div>
+							{isSharedChat && (
+								<UsersIcon
+									className="mt-auto size-3.5 text-content-secondary"
+									aria-label="Shared chat"
+								/>
 							)}
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										size="icon"
+										variant="subtle"
+										className="absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 data-[state=open]:opacity-100"
+										aria-label={`Open actions for ${chat.title}`}
+									>
+										<EllipsisVerticalIcon className="size-3.5" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									align="end"
+									className="[&_[role=menuitem]]:text-[13px]"
+								>
+									{renderMenuItems({
+										Item: DropdownMenuItem,
+										Separator: DropdownMenuSeparator,
+									})}
+								</DropdownMenuContent>
+							</DropdownMenu>
 						</div>
 					</div>
 				</ContextMenuTrigger>
@@ -372,7 +388,7 @@ export const ChatTreeNode: FC<ChatTreeNodeProps> = ({ chat, isChildNode }) => {
 			</ContextMenu>
 
 			{hasChildren && isExpanded && (
-				<div className="relative ml-4 border-l border-border-default/60 pl-2.5">
+				<div className="relative ml-4 flex flex-col border-l border-border-default/60 pl-2.5">
 					{childIDs.map((childID) => {
 						const childChat = chatById.get(childID);
 						if (!childChat) return null;

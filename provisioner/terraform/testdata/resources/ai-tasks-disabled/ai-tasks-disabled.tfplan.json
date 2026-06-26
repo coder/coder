@@ -1,12 +1,12 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.15.2",
+  "terraform_version": "1.15.5",
   "planned_values": {
     "root_module": {}
   },
   "prior_state": {
     "format_version": "1.0",
-    "terraform_version": "1.15.2",
+    "terraform_version": "1.15.5",
     "values": {
       "root_module": {
         "resources": [
@@ -33,11 +33,11 @@
             "schema_version": 1,
             "values": {
               "access_port": 443,
-              "access_url": "https://dev.coder.com/",
+              "access_url": "https://mydeployment.coder.com",
               "id": "f8c4851f-dcbd-48bc-9a14-3fd506f8f015",
               "is_prebuild": false,
               "is_prebuild_claim": false,
-              "name": "ai-task-plan-check",
+              "name": "default",
               "prebuild_count": 0,
               "start_count": 1,
               "template_id": "",

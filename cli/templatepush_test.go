@@ -26,8 +26,8 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestTemplatePush(t *testing.T) {
@@ -35,6 +35,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -50,7 +51,8 @@ func TestTemplatePush(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example")
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
@@ -63,8 +65,8 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
-			pty.WriteLine(m.write)
+			stdout.ExpectMatch(ctx, m.match)
+			stdin.WriteLine(m.write)
 		}
 
 		w.RequireSuccess()
@@ -97,13 +99,13 @@ func TestTemplatePush(t *testing.T) {
 
 		inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", "example", "--message", wantMessage, "--yes")
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
 
-		pty.ExpectNoMatchBefore(ctx, "Template message is longer than 72 characters", "Updated version at")
+		stdout.ExpectNoMatchBefore(ctx, "Template message is longer than 72 characters", "Updated version at")
 
 		w.RequireSuccess()
 
@@ -146,13 +148,13 @@ func TestTemplatePush(t *testing.T) {
 				"--yes",
 			)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
-			pty.ExpectMatchContext(ctx, tt.wantMatch)
+			stdout.ExpectMatch(ctx, tt.wantMatch)
 
 			w.RequireSuccess()
 
@@ -170,6 +172,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("NoLockfile", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -191,7 +194,8 @@ func TestTemplatePush(t *testing.T) {
 			"--name", "example",
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
@@ -205,9 +209,9 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "no"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
+			stdout.ExpectMatch(ctx, m.match)
 			if m.write != "" {
-				pty.WriteLine(m.write)
+				stdin.WriteLine(m.write)
 			}
 		}
 
@@ -217,6 +221,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("NoLockfileIgnored", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -239,7 +244,8 @@ func TestTemplatePush(t *testing.T) {
 			"--ignore-lockfile",
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
@@ -248,8 +254,8 @@ func TestTemplatePush(t *testing.T) {
 		{
 			ctx := testutil.Context(t, testutil.WaitMedium)
 
-			pty.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
-			pty.WriteLine("no")
+			stdout.ExpectNoMatchBefore(ctx, "No .terraform.lock.hcl file found", "Upload")
+			stdin.WriteLine("no")
 		}
 
 		// cmd should error once we say no.
@@ -258,6 +264,7 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("PushInactiveTemplateVersion", func(t *testing.T) {
 		t.Parallel()
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -278,7 +285,8 @@ func TestTemplatePush(t *testing.T) {
 			"--name", "example",
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
 		w := clitest.StartWithWaiter(t, inv)
@@ -290,8 +298,8 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
-			pty.WriteLine(m.write)
+			stdout.ExpectMatch(ctx, m.match)
+			stdin.WriteLine(m.write)
 		}
 
 		w.RequireSuccess()
@@ -309,11 +317,11 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("UseWorkingDir", func(t *testing.T) {
 		t.Parallel()
-
 		if runtime.GOOS == "windows" {
 			t.Skip(`On Windows this test flakes with: "The process cannot access the file because it is being used by another process"`)
 		}
 
+		logger := testutil.Logger(t)
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -339,7 +347,8 @@ func TestTemplatePush(t *testing.T) {
 			"--force-tty",
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t).Attach(inv)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		inv = inv.WithContext(ctx)
@@ -352,8 +361,8 @@ func TestTemplatePush(t *testing.T) {
 			{match: "Upload", write: "yes"},
 		}
 		for _, m := range matches {
-			pty.ExpectMatchContext(ctx, m.match)
-			pty.WriteLine(m.write)
+			stdout.ExpectMatch(ctx, m.match)
+			stdin.WriteLine(m.write)
 		}
 
 		w.RequireSuccess()
@@ -390,9 +399,7 @@ func TestTemplatePush(t *testing.T) {
 			template.Name,
 		)
 		clitest.SetupConfig(t, templateAdmin, root)
-		pty := ptytest.New(t)
 		inv.Stdin = bytes.NewReader(source)
-		inv.Stdout = pty.Output()
 
 		execDone := make(chan error)
 		go func() {
@@ -539,7 +546,7 @@ func TestTemplatePush(t *testing.T) {
 
 					inv, root := clitest.New(t, "templates", "push", templateName, "-d", tempDir, "--yes")
 					clitest.SetupConfig(t, templateAdmin, root)
-					pty := ptytest.New(t).Attach(inv)
+					stdout := expecter.NewAttachedToInvocation(t, inv)
 
 					setupCtx := testutil.Context(t, testutil.WaitMedium)
 					now := dbtime.Now()
@@ -561,7 +568,7 @@ func TestTemplatePush(t *testing.T) {
 					}, testutil.WaitShort, testutil.IntervalFast)
 
 					if tt.expectOutput != "" {
-						pty.ExpectMatchContext(ctx, tt.expectOutput)
+						stdout.ExpectMatch(ctx, tt.expectOutput)
 					}
 				})
 			}
@@ -570,6 +577,7 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("ChangeTags", func(t *testing.T) {
 			t.Parallel()
 
+			logger := testutil.Logger(t)
 			// Start the first provisioner
 			client, provisionerDocker, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -605,7 +613,8 @@ func TestTemplatePush(t *testing.T) {
 			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name,
 				"--provisioner-tag", "foobar=foobaz")
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -618,8 +627,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -636,6 +645,7 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("DeleteTags", func(t *testing.T) {
 			t.Parallel()
 
+			logger := testutil.Logger(t)
 			// Start the first provisioner with no tags.
 			client, provisionerDocker, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -671,7 +681,8 @@ func TestTemplatePush(t *testing.T) {
 			})
 			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name, "--provisioner-tag=\"-\"")
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -684,8 +695,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -702,6 +713,7 @@ func TestTemplatePush(t *testing.T) {
 		t.Run("DoNotChangeTags", func(t *testing.T) {
 			t.Parallel()
 
+			logger := testutil.Logger(t)
 			// Start the tagged provisioner
 			client := coderdtest.New(t, &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -728,7 +740,8 @@ func TestTemplatePush(t *testing.T) {
 			})
 			inv, root := clitest.New(t, "templates", "push", template.Name, "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho), "--name", template.Name)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -741,8 +754,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -773,6 +786,7 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("VariableIsRequired", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -803,9 +817,8 @@ func TestTemplatePush(t *testing.T) {
 				"--variables-file", variablesFile.Name(),
 			)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -818,8 +831,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -842,6 +855,7 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("VariableIsOptionalButNotProvided", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -868,9 +882,8 @@ func TestTemplatePush(t *testing.T) {
 				"--name", "example",
 			)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -883,8 +896,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -908,6 +921,7 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("WithVariableOption", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -935,9 +949,8 @@ func TestTemplatePush(t *testing.T) {
 				"--variable", "second_variable=foobar",
 			)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -950,8 +963,8 @@ func TestTemplatePush(t *testing.T) {
 				{match: "Upload", write: "yes"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
-				pty.WriteLine(m.write)
+				stdout.ExpectMatch(ctx, m.match)
+				stdin.WriteLine(m.write)
 			}
 
 			w.RequireSuccess()
@@ -974,6 +987,7 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("CreateTemplate", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -989,7 +1003,8 @@ func TestTemplatePush(t *testing.T) {
 			}
 			inv, root := clitest.New(t, args...)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
@@ -1003,9 +1018,9 @@ func TestTemplatePush(t *testing.T) {
 				{match: "template has been created"},
 			}
 			for _, m := range matches {
-				pty.ExpectMatchContext(ctx, m.match)
+				stdout.ExpectMatch(ctx, m.match)
 				if m.write != "" {
-					pty.WriteLine(m.write)
+					stdin.WriteLine(m.write)
 				}
 			}
 
@@ -1056,6 +1071,7 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("PromptForDifferentRequiredTypes", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -1091,37 +1107,39 @@ func TestTemplatePush(t *testing.T) {
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
 			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatchContext(ctx, "Upload")
-			pty.WriteLine("yes")
+			stdout.ExpectMatch(ctx, "Upload")
+			stdin.WriteLine("yes")
 
 			// Variables are prompted in alphabetical order.
 			// Boolean variable automatically selects the first option ("true")
-			pty.ExpectMatchContext(ctx, "var.bool_var")
+			stdout.ExpectMatch(ctx, "var.bool_var")
 
-			pty.ExpectMatchContext(ctx, "var.number_var")
-			pty.ExpectMatchContext(ctx, "Enter value:")
-			pty.WriteLine("42")
+			stdout.ExpectMatch(ctx, "var.number_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
+			stdin.WriteLine("42")
 
-			pty.ExpectMatchContext(ctx, "var.sensitive_var")
-			pty.ExpectMatchContext(ctx, "Enter value:")
-			pty.WriteLine("secret-value")
+			stdout.ExpectMatch(ctx, "var.sensitive_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
+			stdin.WriteLine("secret-value")
 
-			pty.ExpectMatchContext(ctx, "var.string_var")
-			pty.ExpectMatchContext(ctx, "Enter value:")
-			pty.WriteLine("test-string")
+			stdout.ExpectMatch(ctx, "var.string_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
+			stdin.WriteLine("test-string")
 
 			w.RequireSuccess()
 		})
 
 		t.Run("ValidateNumberInput", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -1138,28 +1156,30 @@ func TestTemplatePush(t *testing.T) {
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
 			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatchContext(ctx, "Upload")
-			pty.WriteLine("yes")
+			stdout.ExpectMatch(ctx, "Upload")
+			stdin.WriteLine("yes")
 
-			pty.ExpectMatchContext(ctx, "var.number_var")
+			stdout.ExpectMatch(ctx, "var.number_var")
 
-			pty.WriteLine("not-a-number")
-			pty.ExpectMatchContext(ctx, "must be a valid number")
+			stdin.WriteLine("not-a-number")
+			stdout.ExpectMatch(ctx, "must be a valid number")
 
-			pty.WriteLine("123.45")
+			stdin.WriteLine("123.45")
 
 			w.RequireSuccess()
 		})
 
 		t.Run("DontPromptForDefaultValues", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -1181,24 +1201,26 @@ func TestTemplatePush(t *testing.T) {
 			source := clitest.CreateTemplateVersionSource(t, createEchoResponsesWithTemplateVariables(templateVariables))
 			inv, root := clitest.New(t, "templates", "push", "test-template", "--directory", source, "--test.provisioner", string(database.ProvisionerTypeEcho))
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatchContext(ctx, "Upload")
-			pty.WriteLine("yes")
+			stdout.ExpectMatch(ctx, "Upload")
+			stdin.WriteLine("yes")
 
-			pty.ExpectMatchContext(ctx, "var.without_default")
-			pty.WriteLine("test-value")
+			stdout.ExpectMatch(ctx, "var.without_default")
+			stdin.WriteLine("test-value")
 
 			w.RequireSuccess()
 		})
 
 		t.Run("VariableSourcesPriority", func(t *testing.T) {
 			t.Parallel()
+			logger := testutil.Logger(t)
 			client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			owner := coderdtest.CreateFirstUser(t, client)
 			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
@@ -1250,20 +1272,21 @@ cli_overrides_file_var: from-file`)
 				"--variable", "cli_overrides_file_var=from-cli-override",
 			)
 			clitest.SetupConfig(t, templateAdmin, root)
-			pty := ptytest.New(t).Attach(inv)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			inv = inv.WithContext(ctx)
 			w := clitest.StartWithWaiter(t, inv)
 
 			// Select "Yes" for the "Upload <template_path>" prompt
-			pty.ExpectMatchContext(ctx, "Upload")
-			pty.WriteLine("yes")
+			stdout.ExpectMatch(ctx, "Upload")
+			stdin.WriteLine("yes")
 
 			// Only check for prompt_var, other variables should not prompt
-			pty.ExpectMatchContext(ctx, "var.prompt_var")
-			pty.ExpectMatchContext(ctx, "Enter value:")
-			pty.WriteLine("from-prompt")
+			stdout.ExpectMatch(ctx, "var.prompt_var")
+			stdout.ExpectMatch(ctx, "Enter value:")
+			stdin.WriteLine("from-prompt")
 
 			w.RequireSuccess()
 

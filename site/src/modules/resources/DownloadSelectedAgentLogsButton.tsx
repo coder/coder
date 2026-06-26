@@ -63,7 +63,7 @@ export const DownloadSelectedAgentLogsButton: FC<
 				>
 					<DownloadIcon />
 					<span className="sr-only">
-						{isDownloading ? "Downloading..." : "Download logs"}
+						{isDownloading ? "Downloading..." : "Download agent logs"}
 					</span>
 					<ChevronDownIcon className="size-icon-sm" />
 				</Button>

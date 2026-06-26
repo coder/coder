@@ -1,4 +1,3 @@
-//nolint:testpackage // Internal test for unexported hashOAuth2State helper.
 package oauth2provider
 
 import (

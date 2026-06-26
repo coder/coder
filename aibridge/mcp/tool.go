@@ -20,7 +20,27 @@ const (
 	maxSpanInputAttrLen   = 100    // truncates tool.Call span input attribute to first `maxSpanInputAttrLen` letters
 	injectedToolPrefix    = "bmcp" // "bridged MCP"
 	injectedToolDelimiter = "_"
+
+	// MaxToolNameLen is the strictest provider limit for tool names.
+	// OpenAI allows 64 characters; Bedrock allows 128. We use the
+	// lower bound so names are safe for every provider.
+	MaxToolNameLen = 64
 )
+
+// toolNameSanitizer replaces characters that violate LLM provider tool
+// name constraints. Bedrock requires ^[a-zA-Z0-9_-]{1,128}$ and OpenAI
+// enforces a 64-character limit with a similar character set. Characters
+// outside [a-zA-Z0-9_-] are replaced with "_" so a single invalid
+// server or tool name cannot 400 the entire inference request.
+var toolNameSanitizer = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
+
+// SanitizeToolName replaces characters outside [a-zA-Z0-9_-] with
+// underscores so the resulting name is accepted by LLM providers.
+// Callers that assemble a full tool name from multiple components
+// should truncate the final result to MaxToolNameLen.
+func SanitizeToolName(name string) string {
+	return toolNameSanitizer.ReplaceAllString(name, "_")
+}
 
 // ToolCaller is the narrowest interface which describes the behavior required from [mcp.Client],
 // which will normally be passed into [Tool] for interaction with an MCP server.
@@ -110,10 +130,14 @@ func EncodeToolID(server, tool string) string {
 	var sb strings.Builder
 	_, _ = sb.WriteString(injectedToolPrefix)
 	_, _ = sb.WriteString(injectedToolDelimiter)
-	_, _ = sb.WriteString(server)
+	_, _ = sb.WriteString(SanitizeToolName(server))
 	_, _ = sb.WriteString(injectedToolDelimiter)
-	_, _ = sb.WriteString(tool)
-	return sb.String()
+	_, _ = sb.WriteString(SanitizeToolName(tool))
+	id := sb.String()
+	if len(id) > MaxToolNameLen {
+		id = id[:MaxToolNameLen]
+	}
+	return id
 }
 
 // FilterAllowedTools filters tools based on the given allow/denylists.

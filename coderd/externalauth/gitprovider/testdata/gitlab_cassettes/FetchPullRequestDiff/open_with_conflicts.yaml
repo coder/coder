@@ -1,0 +1,30 @@
+---
+version: 2
+interactions:
+    - id: 0
+      request:
+        proto: HTTP/1.1
+        proto_major: 1
+        proto_minor: 1
+        content_length: 0
+        host: gitlab.com
+        headers:
+            Authorization:
+                - stripped
+            User-Agent:
+                - stripped
+        url: https://gitlab.com/api/v4/projects/test-group9945421%2Ftest-project/merge_requests/2/raw_diffs
+        method: GET
+      response:
+        proto: HTTP/2.0
+        proto_major: 2
+        proto_minor: 0
+        content_length: -1
+        uncompressed: true
+        body: 'diff --git a/README.md b/README.md\nindex 021416c15be3198c727d9a1d5a9e233f40caa940..a48adb327c52e95878f32c0ab39e9ff4c29954e0 100644\n--- a/README.md\n+++ b/README.md\n@@ -2,7 +2,7 @@\n \n \n \n-## Getting started\n+## What Next\n \n To make it easy for you to get started with GitLab, here''s a list of recommended next steps.\n \n'
+        headers:
+            Content-Type:
+                - text/plain
+        status: 200 OK
+        code: 200
+        duration: 100.000000ms

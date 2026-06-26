@@ -25,8 +25,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/coder/v2/testutil/expecter"
 )
 
 func TestPortForward_None(t *testing.T) {
@@ -160,10 +160,7 @@ func TestPortForward(t *testing.T) {
 			// the "local" listener.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
 			clitest.SetupConfig(t, member, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-			inv.Stderr = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
 
 			iNet := testutil.NewInProcNet()
 			inv.Net = iNet
@@ -175,7 +172,7 @@ func TestPortForward(t *testing.T) {
 				t.Logf("command complete; err=%s", err.Error())
 				errC <- err
 			}()
-			pty.ExpectMatchContext(ctx, "Ready!")
+			stdout.ExpectMatch(ctx, "Ready!")
 
 			// Open two connections simultaneously and test them out of
 			// sync.
@@ -216,10 +213,7 @@ func TestPortForward(t *testing.T) {
 			// the "local" listeners.
 			inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag1, flag2)
 			clitest.SetupConfig(t, member, root)
-			pty := ptytest.New(t)
-			inv.Stdin = pty.Input()
-			inv.Stdout = pty.Output()
-			inv.Stderr = pty.Output()
+			stdout := expecter.NewAttachedToInvocation(t, inv)
 
 			iNet := testutil.NewInProcNet()
 			inv.Net = iNet
@@ -229,7 +223,7 @@ func TestPortForward(t *testing.T) {
 			go func() {
 				errC <- inv.WithContext(ctx).Run()
 			}()
-			pty.ExpectMatchContext(ctx, "Ready!")
+			stdout.ExpectMatch(ctx, "Ready!")
 
 			// Open a connection to both listener 1 and 2 simultaneously and
 			// then test them out of order.
@@ -277,8 +271,7 @@ func TestPortForward(t *testing.T) {
 		// the "local" listeners.
 		inv, root := clitest.New(t, append([]string{"-v", "port-forward", workspace.Name}, flags...)...)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		iNet := testutil.NewInProcNet()
 		inv.Net = iNet
@@ -288,7 +281,7 @@ func TestPortForward(t *testing.T) {
 		go func() {
 			errC <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatchContext(ctx, "Ready!")
+		stdout.ExpectMatch(ctx, "Ready!")
 
 		// Open connections to all items in the "dial" array.
 		var (
@@ -338,10 +331,7 @@ func TestPortForward(t *testing.T) {
 		// the "local" listener.
 		inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
 		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t)
-		inv.Stdin = pty.Input()
-		inv.Stdout = pty.Output()
-		inv.Stderr = pty.Output()
+		stdout := expecter.NewAttachedToInvocation(t, inv)
 
 		iNet := testutil.NewInProcNet()
 		inv.Net = iNet
@@ -359,7 +349,7 @@ func TestPortForward(t *testing.T) {
 			t.Logf("command complete; err=%s", err.Error())
 			errC <- err
 		}()
-		pty.ExpectMatchContext(ctx, "Ready!")
+		stdout.ExpectMatch(ctx, "Ready!")
 
 		// Test IPv4 still works
 		dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
@@ -439,11 +429,9 @@ func setupTestListener(t *testing.T, l net.Listener, prefix []byte) string {
 				return
 			}
 
-			wg.Add(1)
-			go func() {
+			wg.Go(func() {
 				echoIfPrefixed(t, c, prefix)
-				wg.Done()
-			}()
+			})
 		}
 	}()
 

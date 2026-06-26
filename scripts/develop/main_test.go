@@ -101,13 +101,11 @@ func TestLogWriter(t *testing.T) {
 
 		var wg sync.WaitGroup
 		for range 10 {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for range 50 {
 					_, _ = w.Write([]byte("x\n"))
 				}
-			}()
+			})
 		}
 		wg.Wait()
 
@@ -854,4 +852,135 @@ func TestPrometheusBannerEntry(t *testing.T) {
 			assert.Equal(t, tc.wantPort, port)
 		})
 	}
+}
+
+//nolint:paralleltest // loadEnvFile mutates process-global environment.
+func TestLoadEnvFile(t *testing.T) {
+	t.Run("LoadsVariablesFromFile", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		envFile := filepath.Join(tmpDir, ".env")
+		err := os.WriteFile(envFile, []byte(strings.Join([]string{
+			"# Comment line",
+			"",
+			"FOO_TEST_VAR=bar",
+			"export BAZ_TEST_VAR=qux",
+			`QUOTED_TEST_VAR="hello world"`,
+			"SINGLE_QUOTED_TEST_VAR='single quoted'",
+		}, "\n")), 0o600)
+		require.NoError(t, err)
+
+		// Ensure none are set beforehand.
+		t.Setenv("FOO_TEST_VAR", "")
+		os.Unsetenv("FOO_TEST_VAR")
+		t.Setenv("BAZ_TEST_VAR", "")
+		os.Unsetenv("BAZ_TEST_VAR")
+		t.Setenv("QUOTED_TEST_VAR", "")
+		os.Unsetenv("QUOTED_TEST_VAR")
+		t.Setenv("SINGLE_QUOTED_TEST_VAR", "")
+		os.Unsetenv("SINGLE_QUOTED_TEST_VAR")
+
+		n, err := loadEnvFile(envFile)
+		require.NoError(t, err)
+		assert.Equal(t, 4, n)
+		assert.Equal(t, "bar", os.Getenv("FOO_TEST_VAR"))
+		assert.Equal(t, "qux", os.Getenv("BAZ_TEST_VAR"))
+		assert.Equal(t, "hello world", os.Getenv("QUOTED_TEST_VAR"))
+		assert.Equal(t, "single quoted", os.Getenv("SINGLE_QUOTED_TEST_VAR"))
+	})
+
+	t.Run("DoesNotOverrideExisting", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		envFile := filepath.Join(tmpDir, ".env")
+		err := os.WriteFile(envFile, []byte("EXISTING_TEST_VAR=new\n"), 0o600)
+		require.NoError(t, err)
+
+		t.Setenv("EXISTING_TEST_VAR", "original")
+
+		n, err := loadEnvFile(envFile)
+		require.NoError(t, err)
+		assert.Equal(t, 0, n)
+		assert.Equal(t, "original", os.Getenv("EXISTING_TEST_VAR"))
+	})
+
+	t.Run("ErrorsOnMissingFile", func(t *testing.T) {
+		_, err := loadEnvFile("/nonexistent/path/.env")
+		require.Error(t, err)
+	})
+
+	t.Run("ErrorsOnEmptyPath", func(t *testing.T) {
+		// This tests the caller logic (main), but we verify loadEnvFile
+		// would error on empty path since godotenv.Read("") fails.
+		_, err := loadEnvFile("")
+		require.Error(t, err)
+	})
+}
+
+//nolint:paralleltest // parseEnvFileFlag mutates process-global os.Args.
+func TestParseEnvFileFlag(t *testing.T) {
+	t.Run("FlagWithSpace", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--env-file", "/tmp/test.env", "--port", "3000"}
+
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/test.env", result)
+	})
+
+	t.Run("FlagWithEquals", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--env-file=/tmp/test.env", "--port", "3000"}
+
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/test.env", result)
+	})
+
+	t.Run("FallsBackToEnvVar", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--port", "3000"}
+
+		t.Setenv("CODER_DEV_ENV_FILE", "/tmp/from-env.env")
+
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/from-env.env", result)
+	})
+
+	t.Run("FlagTakesPrecedenceOverEnvVar", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--env-file", "/tmp/from-flag.env"}
+
+		t.Setenv("CODER_DEV_ENV_FILE", "/tmp/from-env.env")
+
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
+		assert.Equal(t, "/tmp/from-flag.env", result)
+	})
+
+	t.Run("ReturnsEmptyWhenUnset", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--port", "3000"}
+
+		t.Setenv("CODER_DEV_ENV_FILE", "")
+		os.Unsetenv("CODER_DEV_ENV_FILE")
+
+		result, err := parseEnvFileFlag()
+		require.NoError(t, err)
+		assert.Equal(t, "", result)
+	})
+
+	t.Run("ErrorsWhenValueMissing", func(t *testing.T) {
+		orig := os.Args
+		t.Cleanup(func() { os.Args = orig })
+		os.Args = []string{"develop", "--env-file"}
+
+		_, err := parseEnvFileFlag()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "--env-file requires a value")
+	})
 }

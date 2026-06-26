@@ -172,6 +172,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		// If a notification template has been disabled by the user after a notification was enqueued, mark it as inhibited
 		if msg.Disabled {
 			failure <- n.newInhibitedDispatch(msg)
+			n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 			continue
 		}
 
@@ -184,7 +185,7 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 				n.log.Error(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
 			}
 			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, decorateHelpersError{}))
-			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
+			n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 			continue
 		}
 
@@ -316,7 +317,7 @@ func (n *notifier) deliver(ctx context.Context, msg database.AcquireNotification
 			logger.Debug(ctx, "message dispatch succeeded")
 		}
 	}
-	n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
+	n.metrics.pendingUpdatesGauge.set(func() int { return len(success) + len(failure) })
 
 	return nil
 }

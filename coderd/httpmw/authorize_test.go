@@ -50,11 +50,12 @@ func TestExtractUserRoles(t *testing.T) {
 				roles := []string{}
 				user, token := addUser(t, db, roles...)
 				org, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
-					ID:          uuid.New(),
-					Name:        "testorg",
-					Description: "test",
-					CreatedAt:   time.Now(),
-					UpdatedAt:   time.Now(),
+					ID:                    uuid.New(),
+					Name:                  "testorg",
+					Description:           "test",
+					CreatedAt:             time.Now(),
+					UpdatedAt:             time.Now(),
+					DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 				})
 				require.NoError(t, err)
 
@@ -67,7 +68,7 @@ func TestExtractUserRoles(t *testing.T) {
 					Roles:          orgRoles,
 				})
 				require.NoError(t, err)
-				return user, []rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID)}, token
+				return user, []rbac.RoleIdentifier{rbac.RoleMember(), rbac.ScopedRoleOrgMember(org.ID), rbac.ScopedRoleOrgWorkspaceAccess(org.ID)}, token
 			},
 		},
 		{
@@ -78,11 +79,12 @@ func TestExtractUserRoles(t *testing.T) {
 				expected = append(expected, rbac.RoleMember())
 				for i := 0; i < 3; i++ {
 					organization, err := db.InsertOrganization(context.Background(), database.InsertOrganizationParams{
-						ID:          uuid.New(),
-						Name:        fmt.Sprintf("testorg%d", i),
-						Description: "test",
-						CreatedAt:   time.Now(),
-						UpdatedAt:   time.Now(),
+						ID:                    uuid.New(),
+						Name:                  fmt.Sprintf("testorg%d", i),
+						Description:           "test",
+						CreatedAt:             time.Now(),
+						UpdatedAt:             time.Now(),
+						DefaultOrgMemberRoles: rbac.DefaultOrgMemberRoles(),
 					})
 					require.NoError(t, err)
 
@@ -100,6 +102,7 @@ func TestExtractUserRoles(t *testing.T) {
 					})
 					require.NoError(t, err)
 					expected = append(expected, rbac.ScopedRoleOrgMember(organization.ID))
+					expected = append(expected, rbac.ScopedRoleOrgWorkspaceAccess(organization.ID))
 				}
 				return user, expected, token
 			},

@@ -89,7 +89,7 @@ export const InlineDesktopPreview: React.FC<{
 					<span className="text-[13px] font-medium text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100">
 						View desktop
 					</span>
-					<PanelRightOpenIcon className="h-4 w-4 text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100" />
+					<PanelRightOpenIcon className="size-4 text-white opacity-0 drop-shadow-md transition-opacity group-hover/preview:opacity-100" />
 				</button>
 			)}
 		</div>

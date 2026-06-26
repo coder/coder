@@ -78,10 +78,10 @@ export const VirtualDesktopSettings: FC<VirtualDesktopSettingsProps> = ({
 			<div className="flex items-center justify-between gap-4">
 				<div className="flex items-center gap-2">
 					<h3 className="m-0 text-sm font-semibold text-content-primary">
-						Virtual Desktop
+						Virtual desktop
 					</h3>
 					<Badge size="sm" variant="warning" className="cursor-default">
-						<TriangleAlertIcon className="h-3 w-3" />
+						<TriangleAlertIcon className="size-3" />
 						Experimental feature
 					</Badge>
 				</div>
