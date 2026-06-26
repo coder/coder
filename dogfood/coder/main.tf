@@ -50,8 +50,9 @@ data "coder_workspace_preset" "pittsburgh" {
   description = "Development workspace hosted in United States with 2 prebuild instances"
   icon        = "/emojis/1f1fa-1f1f8.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "us-pittsburgh"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "us-pittsburgh"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 2
@@ -63,8 +64,9 @@ data "coder_workspace_preset" "cpt" {
   description = "Development workspace hosted in South Africa with 1 prebuild instance"
   icon        = "/emojis/1f1ff-1f1e6.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "za-cpt"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "za-cpt"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -76,8 +78,9 @@ data "coder_workspace_preset" "falkenstein" {
   description = "Development workspace hosted in Europe with 1 prebuild instance"
   icon        = "/emojis/1f1ea-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "eu-helsinki"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "eu-helsinki"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
@@ -89,8 +92,9 @@ data "coder_workspace_preset" "sydney" {
   description = "Development workspace hosted in Australia with 1 prebuild instance"
   icon        = "/emojis/1f1e6-1f1fa.png"
   parameters = {
-    (data.coder_parameter.region.name)     = "ap-sydney"
-    (data.coder_parameter.image_type.name) = data.coder_parameter.image_type.default
+    (data.coder_parameter.region.name)        = "ap-sydney"
+    (data.coder_parameter.image_type.name)    = data.coder_parameter.image_type.default
+    (data.coder_parameter.repo_base_dir.name) = "~"
   }
   prebuilds {
     instances = 1
