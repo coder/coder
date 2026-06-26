@@ -34,7 +34,6 @@ import AgentSettingsCompactionPage from "./AgentSettingsCompactionPage";
 import AgentSettingsExperimentsPage from "./AgentSettingsExperimentsPage";
 import AgentSettingsGeneralPage from "./AgentSettingsGeneralPage";
 import AgentSettingsPage from "./AgentSettingsPage";
-import AgentSettingsSpendPage from "./AgentSettingsSpendPage";
 import { type AgentsOutletContext, AgentsPageView } from "./AgentsPageView";
 import type { ModelSelectorOption } from "./components/ChatElements";
 import {
@@ -215,10 +214,13 @@ const agentsRouting = {
 				},
 				{ path: "admin", element: <AgentsRouteElement /> },
 				{ path: "agents", element: <AgentsRouteElement /> },
-				{ path: "spend", element: <AgentSettingsSpendPage now={fixedNow} /> },
+				{
+					path: "spend",
+					element: <Navigate to="/ai/settings/spend" replace />,
+				},
 				{
 					path: "usage",
-					element: <Navigate to="/agents/settings/spend" replace />,
+					element: <Navigate to="/ai/settings/spend" replace />,
 				},
 			],
 		},
@@ -226,6 +228,11 @@ const agentsRouting = {
 		{ path: ":agentId", element: <div /> },
 		{ index: true, element: <AgentCreatePage /> },
 	],
+};
+
+const aiSettingsRouting = {
+	path: "/ai/settings/spend",
+	element: <div>Spend limits and usage</div>,
 };
 
 const setInnerWidthForStory = (width: number) => {
@@ -354,7 +361,7 @@ const meta: Meta<typeof AgentsPageView> = {
 		permissions: MockPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	args: defaultArgs,
@@ -1011,7 +1018,7 @@ export const WithAgentSelected: Story = {
 				path: "/agents/chat-1",
 				pathParams: { agentId: "chat-1" },
 			},
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 };
@@ -1063,7 +1070,7 @@ export const OpensAnalyticsForAdmins: Story = {
 	parameters: {
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1085,7 +1092,7 @@ export const OpensAnalyticsForNonAdmins: Story = {
 		permissions: MockNoPermissions,
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/analytics" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1144,7 +1151,7 @@ export const OpensAdminSubPanelOnMobile: Story = {
 		viewport: { defaultViewport: "mobile1" },
 		reactRouter: reactRouterParameters({
 			location: { path: "/agents/settings" },
-			routing: agentsRouting,
+			routing: [agentsRouting, aiSettingsRouting],
 		}),
 	},
 	play: async () => {
@@ -1175,33 +1182,13 @@ export const SettingsViewResets: Story = {
 			).toBeInTheDocument();
 		});
 
-		// Navigate to the admin panel, then open the Spend section.
-		await userEvent.click(screen.getByRole("link", { name: "Manage agents" }));
+		await userEvent.click(
+			await screen.findByRole("link", { name: "Manage agents" }),
+		);
+
 		await userEvent.click(await screen.findByRole("link", { name: "Spend" }));
 		await waitFor(() => {
-			expect(
-				screen.getByText(
-					"Configure spend limits and monitor usage across your deployment.",
-				),
-			).toBeInTheDocument();
-		});
-
-		// Step back to the top-level settings panel, then back to conversations.
-		const backToSettingsButton = await screen.findByRole("link", {
-			name: "Back to settings",
-		});
-		await userEvent.click(backToSettingsButton);
-		const backToAgentsButton = await screen.findByRole("link", {
-			name: "Back to agents",
-		});
-		await userEvent.click(backToAgentsButton);
-
-		// Re-open settings, should reset to General
-		await openSettingsView(canvasElement);
-		await waitFor(() => {
-			expect(
-				screen.getByText("Personal preferences for your chat experience."),
-			).toBeInTheDocument();
+			expect(screen.getByText("Spend limits and usage")).toBeInTheDocument();
 		});
 	},
 };

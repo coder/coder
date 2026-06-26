@@ -20,6 +20,7 @@ interface DefaultLimitControllerProps {
 		amountDollars: string;
 		onAmountDollarsChange: (amount: string) => void;
 		isAmountValid: boolean;
+		isDirty: boolean;
 		saveDefault: () => void;
 	}) => ReactNode;
 }
@@ -37,6 +38,10 @@ export const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 		initialValues.amountDollars,
 	);
 	const isAmountValid = !enabled || isPositiveFiniteDollarAmount(amountDollars);
+	const isDirty =
+		enabled !== initialValues.enabled ||
+		period !== initialValues.period ||
+		amountDollars !== initialValues.amountDollars;
 
 	const handleSave = () => {
 		if (enabled && !isPositiveFiniteDollarAmount(amountDollars)) {
@@ -54,6 +59,7 @@ export const DefaultLimitController: FC<DefaultLimitControllerProps> = ({
 		amountDollars,
 		onAmountDollarsChange: setAmountDollars,
 		isAmountValid,
+		isDirty,
 		saveDefault: handleSave,
 	});
 };

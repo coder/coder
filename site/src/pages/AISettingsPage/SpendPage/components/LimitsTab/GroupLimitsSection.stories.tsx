@@ -68,15 +68,10 @@ const editingGroupOverride = {
 };
 
 const meta: Meta<typeof GroupLimitsSection> = {
-	title: "pages/AgentsPage/LimitsTab/GroupLimitsSection",
+	title: "pages/AISettingsPage/SpendPage/LimitsTab/GroupLimitsSection",
 	component: GroupLimitsSection,
 	args: {
 		groupOverrides: mockGroupOverrides,
-		groupOrganizationNames: {
-			"group-1": "acme",
-			"group-2": "acme",
-			"group-4": "acme",
-		},
 		showGroupForm: false,
 		onShowGroupFormChange: fn(),
 		selectedGroup: null,
@@ -141,11 +136,13 @@ export const DeleteGroupOverride: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first group override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove group limit/i }),
+		);
 
 		// The confirmation dialog should appear.
 		const dialog = await body.findByRole("dialog");
@@ -160,11 +157,13 @@ export const DeleteGroupOverrideCancelled: Story = {
 	play: async ({ canvasElement, args }) => {
 		const body = within(canvasElement.ownerDocument.body);
 
-		// Click the Delete button for the first group override.
-		const deleteButtons = await body.findAllByRole("button", {
-			name: "Delete",
+		const actionButtons = await body.findAllByRole("button", {
+			name: /actions for/i,
 		});
-		await userEvent.click(deleteButtons[0]);
+		await userEvent.click(actionButtons[0]);
+		await userEvent.click(
+			await body.findByRole("menuitem", { name: /remove group limit/i }),
+		);
 
 		// Cancel the dialog.
 		await body.findByRole("dialog");

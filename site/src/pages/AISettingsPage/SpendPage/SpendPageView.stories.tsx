@@ -1,10 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { PaginationResult } from "#/components/PaginationWidget/PaginationContainer";
-import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
-
-// ── Mock data ──────────────────────────────────────────────────
+import { SpendPageView } from "./SpendPageView";
 
 const mockUsers: TypesGen.ChatCostUserRollup[] = [
 	{
@@ -168,8 +167,6 @@ const defaultDateRange = {
 	endDate: new Date("2026-03-12T00:00:00Z"),
 };
 
-// Helper to build a mock usersQuery object that satisfies the view's
-// PaginationResult & query shape.
 function mockUsersQuery(
 	opts: {
 		data?: TypesGen.ChatCostUsersResponse;
@@ -221,10 +218,7 @@ function mockUsersQuery(
 	};
 }
 
-// Baseline props shared across stories. Only primitives and simple
-// objects here to avoid the composeStory deep-merge hang.
 const baseProps = {
-	// Limits config.
 	configData: undefined as TypesGen.ChatUsageLimitConfigResponse | undefined,
 	isLoadingConfig: false,
 	configError: null as Error | null,
@@ -233,7 +227,6 @@ const baseProps = {
 	groupsError: null as Error | null,
 	isUpdatingConfig: false,
 	updateConfigError: null as Error | null,
-	isUpdateConfigSuccess: false,
 	isUpsertingOverride: false,
 	upsertOverrideError: null as Error | null,
 	isDeletingOverride: false,
@@ -242,7 +235,6 @@ const baseProps = {
 	upsertGroupOverrideError: null as Error | null,
 	isDeletingGroupOverride: false,
 	deleteGroupOverrideError: null as Error | null,
-	// Usage data.
 	dateRange: defaultDateRange,
 	endDateIsExclusive: false,
 	searchFilter: "",
@@ -258,8 +250,21 @@ const baseProps = {
 };
 
 const meta = {
-	title: "pages/AgentsPage/AgentSettingsSpendPageView",
-	component: AgentSettingsSpendPageView,
+	title: "pages/AISettingsPage/SpendPage/SpendPageView",
+	component: SpendPageView,
+	render: (args) => {
+		const [activeTab, setActiveTab] = useState(args.activeTab);
+		return (
+			<SpendPageView
+				{...args}
+				activeTab={activeTab}
+				onActiveTabChange={(tab) => {
+					setActiveTab(tab);
+					args.onActiveTabChange(tab);
+				}}
+			/>
+		);
+	},
 	args: {
 		...baseProps,
 		refetchConfig: fn(),
@@ -275,13 +280,13 @@ const meta = {
 		onClearSelectedUser: fn(),
 		onSelectUser: fn(),
 		onSummaryRetry: fn(),
+		activeTab: "limits",
+		onActiveTabChange: fn(),
 	},
-} satisfies Meta<typeof AgentSettingsSpendPageView>;
+} satisfies Meta<typeof SpendPageView>;
 
 export default meta;
-type Story = StoryObj<typeof AgentSettingsSpendPageView>;
-
-// ── Stories ────────────────────────────────────────────────────
+type Story = StoryObj<typeof SpendPageView>;
 
 export const SpendWithLimitsAndUsers: Story = {
 	args: {
@@ -292,17 +297,16 @@ export const SpendWithLimitsAndUsers: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The header and all three collapsible sections should render.
-		await canvas.findByText("Spend management");
-		await expect(canvas.getByText("Default spend limit")).toBeInTheDocument();
+		await canvas.findByText("Spend limits and usage");
+		await expect(canvas.getByText("Spend limit")).toBeInTheDocument();
 		await expect(canvas.getByText("Group limits")).toBeInTheDocument();
-		await expect(canvas.getByText("Per-user spend")).toBeInTheDocument();
+		await expect(canvas.getByText("Usage")).toBeInTheDocument();
 
-		// User table rows should be visible.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		await expect(await canvas.findByText("Alice Liddell")).toBeInTheDocument();
 		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
 
-		// Search field should be present.
 		await expect(
 			canvas.getByPlaceholderText("Search by name or username"),
 		).toBeInTheDocument();
@@ -325,7 +329,8 @@ export const SpendUsersEmpty: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await canvas.findByText("Spend management");
+		await canvas.findByText("Spend limits and usage");
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
 		await expect(
 			await canvas.findByText("No usage data for this period."),
 		).toBeInTheDocument();
@@ -343,12 +348,10 @@ export const SpendUserDrillIn: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Detail view shows user info.
 		await canvas.findByText(`User ID: ${mockUserProfile.id}`);
 		await expect(canvas.getByText("Alice Liddell")).toBeInTheDocument();
 		await expect(canvas.getByText("@alice")).toBeInTheDocument();
 
-		// The Back button should be visible.
 		await expect(canvas.getByText("Back")).toBeInTheDocument();
 	},
 };
@@ -366,10 +369,8 @@ export const SpendUserDrillInAndBack: Story = {
 
 		await canvas.findByText(`User ID: ${mockUserProfile.id}`);
 
-		// Click Back.
 		await userEvent.click(canvas.getByText("Back"));
 
-		// The onClearSelectedUser callback should have been called.
 		expect(args.onClearSelectedUser).toHaveBeenCalled();
 	},
 };
@@ -418,10 +419,10 @@ export const SpendRefetchOverlay: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Table data should be visible behind the overlay.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		await canvas.findByText("Alice Liddell");
 
-		// The refetch overlay spinner should be shown.
 		await expect(
 			await canvas.findByRole("status", { name: "Refreshing usage" }),
 		).toBeInTheDocument();
@@ -442,11 +443,11 @@ export const SpendConfigError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// The inline config error should be visible.
 		await canvas.findByText("Network error: failed to fetch config");
 		await expect(canvas.getByText("Retry")).toBeInTheDocument();
 
-		// The usage table should still render despite the config error.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		await expect(canvas.getByText("Alice Liddell")).toBeInTheDocument();
 		await expect(canvas.getByText("Bob Builder")).toBeInTheDocument();
 	},
@@ -461,10 +462,10 @@ export const SpendUsersLoading: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Config sections should still render.
-		await canvas.findByText("Default spend limit");
+		await canvas.findByText("Spend limit");
 
-		// The loading spinner for users should be visible.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		await expect(
 			await canvas.findByRole("status", { name: "Loading usage" }),
 		).toBeInTheDocument();
@@ -482,10 +483,10 @@ export const SpendUsersError: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Config sections should still render.
-		await canvas.findByText("Default spend limit");
+		await canvas.findByText("Spend limit");
 
-		// The usage error should be visible with retry.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		await expect(
 			canvas.getByText("Failed to load usage data"),
 		).toBeInTheDocument();
@@ -502,7 +503,8 @@ export const SpendUserClickToDrillIn: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 
-		// Click the first user row.
+		await userEvent.click(canvas.getByRole("tab", { name: "Usage" }));
+
 		const row = await canvas.findByRole("button", {
 			name: /Alice Liddell/,
 		});

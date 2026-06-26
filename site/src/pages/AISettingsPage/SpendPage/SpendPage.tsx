@@ -20,12 +20,14 @@ import { useDebouncedValue } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";
-import { AgentSettingsSpendPageView } from "./AgentSettingsSpendPageView";
+import { SpendPageView } from "./SpendPageView";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+const tabSearchParam = "tab";
 const DEFAULT_DATE_RANGE_DAYS = 30;
 const SEARCH_DEBOUNCE_MS = 300;
+const USAGE_USERS_PAGE_SIZE = 10;
 
 const getDefaultDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
 	const end = now ?? dayjs();
@@ -35,17 +37,13 @@ const getDefaultDateRange = (now?: dayjs.Dayjs): DateRangeValue => {
 	};
 };
 
-interface AgentSettingsSpendPageProps {
-	/** Override the current time for date range calculation. Used for
-	 *  deterministic Storybook snapshots. */
+interface SpendPageProps {
 	now?: dayjs.Dayjs;
 }
 
-const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
+const SpendPage: FC<SpendPageProps> = ({ now }) => {
 	const { permissions } = useAuthenticated();
 	const queryClient = useQueryClient();
-
-	// --------------- Limits queries & mutations ---------------
 
 	const configQuery = useQuery(chatUsageLimitConfig());
 	const groupsQuery = useQuery(groups());
@@ -66,12 +64,12 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		deleteChatUsageLimitGroupOverride(queryClient),
 	);
 
-	// --------------- Usage state & queries ---------------
-
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	const searchFilter = searchParams.get("search") ?? "";
 	const debouncedSearch = useDebouncedValue(searchFilter, SEARCH_DEBOUNCE_MS);
+	const tabParam = searchParams.get(tabSearchParam);
+	const activeTab = tabParam === "usage" ? "usage" : "limits";
 
 	const setSearchFilter = (value: string) => {
 		setSearchParams(
@@ -82,7 +80,6 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				} else {
 					next.delete("search");
 				}
-				// Reset to page 1 when the search changes.
 				next.delete("page");
 				return next;
 			},
@@ -93,7 +90,6 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 	const startDateParam = searchParams.get(startDateSearchParam)?.trim() ?? "";
 	const endDateParam = searchParams.get(endDateSearchParam)?.trim() ?? "";
 
-	// Stable default so dayjs() isn't called on every render.
 	const [defaultDateRange] = useState(() => getDefaultDateRange(now));
 	let dateRange = defaultDateRange;
 	let endDateIsExclusive = false;
@@ -120,23 +116,39 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 		end_date: dateRange.endDate.toISOString(),
 	};
 
+	const onActiveTabChange = (tab: "limits" | "usage") => {
+		setSearchParams(
+			(prev) => {
+				const next = new URLSearchParams(prev);
+				if (tab === "usage") {
+					next.set(tabSearchParam, tab);
+				} else {
+					next.delete(tabSearchParam);
+				}
+				return next;
+			},
+			{ replace: true },
+		);
+	};
+
 	const onDateRangeChange = (value: DateRangeValue) => {
 		setSearchParams((prev) => {
 			const next = new URLSearchParams(prev);
 			next.set(startDateSearchParam, value.startDate.toISOString());
 			next.set(endDateSearchParam, value.endDate.toISOString());
-			// Reset pagination when date range changes.
 			next.delete("page");
 			return next;
 		});
 	};
 
-	const usersQuery = usePaginatedQuery(
-		paginatedChatCostUsers({
+	const usersQuery = usePaginatedQuery({
+		...paginatedChatCostUsers({
 			...dateRangeParams,
 			username: debouncedSearch,
 		}),
-	);
+		recordsPerPage: USAGE_USERS_PAGE_SIZE,
+		preventScrollReset: true,
+	});
 
 	const selectedUserId = searchParams.get("user") || null;
 	const selectedUserQuery = useQuery({
@@ -151,8 +163,7 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 
 	return (
 		<RequirePermission isFeatureVisible={permissions.editDeploymentConfig}>
-			<AgentSettingsSpendPageView
-				// Limits config
+			<SpendPageView
 				configData={configQuery.data}
 				isLoadingConfig={configQuery.isLoading}
 				configError={configQuery.isError ? configQuery.error : null}
@@ -160,12 +171,15 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				groupsData={groupsQuery.data}
 				isLoadingGroups={groupsQuery.isLoading}
 				groupsError={groupsQuery.isError ? groupsQuery.error : null}
-				onUpdateConfig={updateConfigMutation.mutate}
+				onUpdateConfig={(req, options) => {
+					updateConfigMutation.mutate(req, {
+						onSuccess: options?.onSuccess,
+					});
+				}}
 				isUpdatingConfig={updateConfigMutation.isPending}
 				updateConfigError={
 					updateConfigMutation.isError ? updateConfigMutation.error : null
 				}
-				isUpdateConfigSuccess={updateConfigMutation.isSuccess}
 				resetUpdateConfig={updateConfigMutation.reset}
 				onUpsertOverride={({ userID, req, onSuccess }) =>
 					upsertOverrideMutation.mutate({ userID, req }, { onSuccess })
@@ -195,7 +209,6 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 						? deleteGroupOverrideMutation.error
 						: null
 				}
-				// Usage data
 				dateRange={dateRange}
 				endDateIsExclusive={endDateIsExclusive}
 				onDateRangeChange={onDateRangeChange}
@@ -226,9 +239,11 @@ const AgentSettingsSpendPage: FC<AgentSettingsSpendPageProps> = ({ now }) => {
 				isSummaryLoading={summaryQuery.isLoading}
 				summaryError={summaryQuery.error}
 				onSummaryRetry={() => void summaryQuery.refetch()}
+				activeTab={activeTab}
+				onActiveTabChange={onActiveTabChange}
 			/>
 		</RequirePermission>
 	);
 };
 
-export default AgentSettingsSpendPage;
+export default SpendPage;

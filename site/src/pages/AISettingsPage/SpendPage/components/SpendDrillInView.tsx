@@ -48,7 +48,7 @@ export const SpendDrillInView: FC<SpendDrillInViewProps> = ({
 
 	const header = (
 		<SectionHeader
-			label="Spend management"
+			label="Spend details"
 			description="Review spend details for a specific user."
 			action={
 				<DateRangePicker

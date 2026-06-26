@@ -194,9 +194,9 @@ export const SettingsPanel: FC<SettingsPanelProps> = ({
 					<SettingsNavItem
 						icon={CoinsIcon}
 						label="Spend"
-						active={settingsSection === "spend"}
-						to="/agents/settings/spend"
-						state={location.state}
+						active={false}
+						to="/ai/settings/spend"
+						trailingIcon={ArrowUpRightIcon}
 					/>
 					<SettingsNavItem
 						icon={ReceiptTextIcon}
