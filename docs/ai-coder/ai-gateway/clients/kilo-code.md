@@ -16,7 +16,7 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 1. Open Kilo Code in VS Code.
 1. Go to **Settings**.
 1. **Provider**: Select **OpenAI**.
-1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/openai/v1`.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/openai/v1`.
 1. **API Key**: Enter your **[Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself)**.
 1. **Model ID**: Enter the model you wish to use (e.g., `gpt-5.2-codex`).
 
@@ -27,7 +27,7 @@ Kilo Code allows you to configure providers via the UI and can be set up to use 
 1. Open Kilo Code in VS Code.
 1. Go to **Settings**.
 1. **Provider**: Select **Anthropic**.
-1. **Base URL**: Enter `https://coder.example.com/api/v2/aibridge/anthropic`.
+1. **Base URL**: Enter `https://coder.example.com/api/v2/ai-gateway/anthropic`.
 1. **API Key**: Enter your **Coder API token**.
 1. **Model ID**: Select your desired Claude model.
 

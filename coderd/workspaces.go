@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/dustin/go-humanize"
@@ -595,6 +596,27 @@ func createWorkspace(
 		})
 	}
 
+	// Required external auth is otherwise only enforced by client-side preflight
+	// checks in the CLI and UI, so API-created workspaces must be validated here
+	// before any workspace row is inserted or prebuilt workspace is claimed.
+	templateVersionID := req.TemplateVersionID
+	if templateVersionID == uuid.Nil {
+		templateVersionID = template.ActiveVersionID
+	}
+	templateVersion, err := api.Database.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			return codersdk.Workspace{}, httperror.ErrResourceNotFound
+		}
+		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching template version.",
+			Detail:  err.Error(),
+		})
+	}
+	if err := api.requireWorkspaceOwnerExternalAuth(ctx, templateVersion, owner.ID); err != nil {
+		return codersdk.Workspace{}, err
+	}
+
 	dbAutostartSchedule, err := validWorkspaceSchedule(req.AutostartSchedule)
 	if err != nil {
 		return codersdk.Workspace{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
@@ -890,6 +912,50 @@ func createWorkspace(
 	}
 
 	return w, nil
+}
+
+// requireWorkspaceOwnerExternalAuth returns a 403 response error when the
+// workspace owner has not authenticated with every required (non-optional)
+// external auth provider referenced by the template version. Token injection
+// at build time uses the owner's external auth links, so the owner is the
+// subject of the check even when another user initiates the build.
+func (api *API) requireWorkspaceOwnerExternalAuth(ctx context.Context, templateVersion database.TemplateVersion, ownerID uuid.UUID) error {
+	//nolint:gocritic // System access is required to validate the workspace owner's external auth links because admins and API clients may create workspaces for other users.
+	providers, err := api.templateVersionExternalAuthForUser(dbauthz.AsSystemRestricted(ctx), templateVersion, ownerID)
+	if err != nil {
+		return err
+	}
+
+	var (
+		missingNames []string
+		validations  []codersdk.ValidationError
+	)
+	for _, provider := range providers {
+		if provider.Optional || provider.Authenticated {
+			continue
+		}
+		name := provider.DisplayName
+		if name == "" {
+			name = provider.ID
+		}
+		missingNames = append(missingNames, name)
+		validations = append(validations, codersdk.ValidationError{
+			Field:  "external_auth",
+			Detail: provider.ID,
+		})
+	}
+	if len(missingNames) == 0 {
+		return nil
+	}
+
+	return httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+		Message: "External authentication is required to create a workspace with this template.",
+		Detail: fmt.Sprintf(
+			"The workspace owner must authenticate with the following external auth providers: %s.",
+			strings.Join(missingNames, ", "),
+		),
+		Validations: validations,
+	})
 }
 
 func requestTemplate(ctx context.Context, req codersdk.CreateWorkspaceRequest, db database.Store) (database.Template, error) {

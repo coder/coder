@@ -77,6 +77,8 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, ps pubsub.P
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         true,
+		ClusterHost:     "", // TODO
+		NATSPort:        0,  // TODO
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("insert replica: %w", err)
@@ -327,6 +329,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 		// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 		DatabaseLatency: int32(databaseLatency.Microseconds()),
 		Primary:         m.self.Primary,
+		ClusterHost:     "", // TODO
+		NATSPort:        0,  // TODO
 	})
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -346,6 +350,8 @@ func (m *Manager) syncReplicas(ctx context.Context) error {
 			// #nosec G115 - Safe conversion for microseconds latency which is expected to be within int32 range
 			DatabaseLatency: int32(databaseLatency.Microseconds()),
 			Primary:         m.self.Primary,
+			ClusterHost:     "", // TODO
+			NATSPort:        0,  // TODO
 		})
 		if err != nil {
 			return xerrors.Errorf("update replica: %w", err)
@@ -497,6 +503,8 @@ func (m *Manager) Close() error {
 		Error:           m.self.Error,
 		DatabaseLatency: 0,     // A stopped replica has no latency.
 		Primary:         false, // A stopped replica cannot be primary.
+		ClusterHost:     "",    // TODO
+		NATSPort:        0,     // TODO
 	})
 	if err != nil {
 		return xerrors.Errorf("update replica: %w", err)

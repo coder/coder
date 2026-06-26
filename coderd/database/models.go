@@ -5563,18 +5563,23 @@ type ProvisionerKey struct {
 }
 
 type Replica struct {
-	ID              uuid.UUID    `db:"id" json:"id"`
-	CreatedAt       time.Time    `db:"created_at" json:"created_at"`
-	StartedAt       time.Time    `db:"started_at" json:"started_at"`
-	StoppedAt       sql.NullTime `db:"stopped_at" json:"stopped_at"`
-	UpdatedAt       time.Time    `db:"updated_at" json:"updated_at"`
-	Hostname        string       `db:"hostname" json:"hostname"`
-	RegionID        int32        `db:"region_id" json:"region_id"`
-	RelayAddress    string       `db:"relay_address" json:"relay_address"`
-	DatabaseLatency int32        `db:"database_latency" json:"database_latency"`
-	Version         string       `db:"version" json:"version"`
-	Error           string       `db:"error" json:"error"`
-	Primary         bool         `db:"primary" json:"primary"`
+	ID        uuid.UUID    `db:"id" json:"id"`
+	CreatedAt time.Time    `db:"created_at" json:"created_at"`
+	StartedAt time.Time    `db:"started_at" json:"started_at"`
+	StoppedAt sql.NullTime `db:"stopped_at" json:"stopped_at"`
+	UpdatedAt time.Time    `db:"updated_at" json:"updated_at"`
+	Hostname  string       `db:"hostname" json:"hostname"`
+	RegionID  int32        `db:"region_id" json:"region_id"`
+	// URL for DERP relays.
+	RelayAddress    string `db:"relay_address" json:"relay_address"`
+	DatabaseLatency int32  `db:"database_latency" json:"database_latency"`
+	Version         string `db:"version" json:"version"`
+	Error           string `db:"error" json:"error"`
+	Primary         bool   `db:"primary" json:"primary"`
+	// Hostname or IP address the replica is reachable at for clustering purposes.
+	ClusterHost string `db:"cluster_host" json:"cluster_host"`
+	// Port number for NATS clustering. 0 means NATS is disabled.
+	NATSPort int32 `db:"nats_port" json:"nats_port"`
 }
 
 type SiteConfig struct {

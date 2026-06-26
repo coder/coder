@@ -115,19 +115,19 @@ data "coder_parameter" "res_mon_volume_path" {
   mutable     = true
 }
 
-data "coder_parameter" "use_ai_bridge" {
+data "coder_parameter" "use_ai_gateway" {
   type        = "bool"
-  name        = "Use AI Bridge"
+  name        = "Use AI Gateway"
   default     = true
-  description = "If enabled, AI requests will be sent via AI Bridge."
+  description = "If enabled, AI requests will be sent via AI Gateway."
   mutable     = true
 }
 
-# Fallback when AI Bridge is disabled. Injected by dogfood/main.tf
+# Fallback when AI Gateway is disabled. Injected by dogfood/main.tf
 # from the CODER_DOGFOOD_ANTHROPIC_API_KEY secret.
 variable "anthropic_api_key" {
   type        = string
-  description = "Anthropic API key, used when AI Bridge is disabled."
+  description = "Anthropic API key, used when AI Gateway is disabled."
   default     = ""
   sensitive   = true
 }
@@ -322,10 +322,10 @@ resource "coder_agent" "dev" {
     {
       OIDC_TOKEN : data.coder_workspace_owner.me.oidc_access_token,
     },
-    data.coder_parameter.use_ai_bridge.value ? {
-      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/aibridge/anthropic",
+    data.coder_parameter.use_ai_gateway.value ? {
+      ANTHROPIC_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/anthropic",
       ANTHROPIC_AUTH_TOKEN : data.coder_workspace_owner.me.session_token,
-      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/aibridge/openai/v1",
+      OPENAI_BASE_URL : "https://dev.coder.com/api/v2/ai-gateway/openai/v1",
       OPENAI_API_KEY : data.coder_workspace_owner.me.session_token,
     } : {}
   )
@@ -546,8 +546,8 @@ module "claude-code" {
   count             = data.coder_workspace.me.start_count
   source            = "dev.registry.coder.com/coder/claude-code/coder"
   version           = "5.2.0"
-  enable_ai_gateway = data.coder_parameter.use_ai_bridge.value
-  anthropic_api_key = data.coder_parameter.use_ai_bridge.value ? "" : var.anthropic_api_key
+  enable_ai_gateway = data.coder_parameter.use_ai_gateway.value
+  anthropic_api_key = data.coder_parameter.use_ai_gateway.value ? "" : var.anthropic_api_key
   agent_id          = coder_agent.dev.id
   workdir           = local.repo_dir
 }

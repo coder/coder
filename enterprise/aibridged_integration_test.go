@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/coder/coder/v2/aibridge"
+	"github.com/coder/coder/v2/aibridge/aibridgetest"
 	"github.com/coder/coder/v2/aibridge/config"
 	"github.com/coder/coder/v2/aibridge/keypool"
 	aibtracing "github.com/coder/coder/v2/aibridge/tracing"
@@ -504,7 +505,7 @@ func TestIntegrationCircuitBreaker(t *testing.T) {
 			KeyPool:        singleKeyPool(t, config.ProviderOpenAI, "test-key"),
 			CircuitBreaker: cbConfig,
 		}),
-		aibridge.NewAnthropicProvider(aibridge.AnthropicConfig{
+		aibridgetest.NewAnthropicProvider(t, aibridge.AnthropicConfig{
 			BaseURL:        mockAnthropic.URL,
 			KeyPool:        singleKeyPool(t, config.ProviderAnthropic, "test-key"),
 			CircuitBreaker: cbConfig,

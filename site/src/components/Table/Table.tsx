@@ -34,8 +34,20 @@ export const TableHeader: React.FC<React.ComponentPropsWithRef<"thead">> = ({
 	return <thead className={cn("[&_td]:border-none", className)} {...props} />;
 };
 
-export const TableBody: React.FC<React.ComponentPropsWithRef<"tbody">> = ({
+const tableBodyVariants = cva(null, {
+	variants: {
+		size: {
+			lg: "[&>tr>td]:box-border [&>tr>td]:h-[72px]",
+		},
+	},
+});
+
+type TableBodyProps = React.ComponentPropsWithRef<"tbody"> &
+	VariantProps<typeof tableBodyVariants>;
+
+export const TableBody: React.FC<TableBodyProps> = ({
 	className,
+	size,
 	...props
 }) => {
 	return (
@@ -45,6 +57,7 @@ export const TableBody: React.FC<React.ComponentPropsWithRef<"tbody">> = ({
 				"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
 				"[&>tr:first-of-type>td:first-of-type]:rounded-tl-md [&>tr:first-of-type>td:last-child]:rounded-tr-md",
 				"[&>tr:last-child>td:first-of-type]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
+				tableBodyVariants({ size }),
 				className,
 			)}
 			{...props}

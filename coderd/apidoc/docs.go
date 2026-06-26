@@ -1425,8 +1425,8 @@ const docTemplate = `{
                 "tags": [
                     "AI Gateway"
                 ],
-                "summary": "List AI Bridge clients",
-                "operationId": "list-ai-bridge-clients",
+                "summary": "List AI Gateway clients",
+                "operationId": "list-ai-gateway-clients",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1548,8 +1548,8 @@ const docTemplate = `{
                 "tags": [
                     "AI Gateway"
                 ],
-                "summary": "List AI Bridge models",
-                "operationId": "list-ai-bridge-models",
+                "summary": "List AI Gateway models",
+                "operationId": "list-ai-gateway-models",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -1577,8 +1577,8 @@ const docTemplate = `{
                 "tags": [
                     "AI Gateway"
                 ],
-                "summary": "List AI Bridge sessions",
-                "operationId": "list-ai-bridge-sessions",
+                "summary": "List AI Gateway sessions",
+                "operationId": "list-ai-gateway-sessions",
                 "parameters": [
                     {
                         "type": "string",
@@ -1629,8 +1629,8 @@ const docTemplate = `{
                 "tags": [
                     "AI Gateway"
                 ],
-                "summary": "Get AI Bridge session threads",
-                "operationId": "get-ai-bridge-session-threads",
+                "summary": "Get AI Gateway session threads",
+                "operationId": "get-ai-gateway-session-threads",
                 "parameters": [
                     {
                         "type": "string",

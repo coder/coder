@@ -332,15 +332,13 @@ export const handlers = [
 
 	// Groups
 	http.get("/api/v2/organizations/:organizationId/groups", () => {
-		return HttpResponse.json([MockGroup]);
-	}),
-
-	http.get("/api/v2/organizations/:organizationId/groups/ai/spend", () => {
 		return HttpResponse.json([
 			{
-				group_id: MockGroup.id,
-				current_spend_micros: 25_492_000_000,
-				spend_limit_micros: null,
+				...MockGroup,
+				ai_cost_control: {
+					current_spend_micros: 25_492_000_000,
+					spend_limit_micros: null,
+				},
 			},
 		]);
 	}),

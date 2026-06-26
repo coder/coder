@@ -116,6 +116,21 @@ export const Uncapped: Story = {
 				).not.toBeInTheDocument();
 			},
 		);
+
+		await step(
+			"the empty field flags an error only after it's touched",
+			async () => {
+				const budgetInput = body.getByLabelText("Custom monthly budget");
+				await expect(
+					body.queryByText("Enter a monthly budget of 0 or more."),
+				).not.toBeInTheDocument();
+				await userEvent.click(budgetInput);
+				await userEvent.tab();
+				await expect(
+					await body.findByText("Enter a monthly budget of 0 or more."),
+				).toBeInTheDocument();
+			},
+		);
 	},
 };
 
@@ -204,6 +219,8 @@ export const SubmitRequiresValueOrUncheck: Story = {
 
 		await step("clearing the budget blocks submit", async () => {
 			await userEvent.clear(budgetInput);
+			// Blur to surface the error, matching the touched-then-validate flow.
+			await userEvent.tab();
 			await expect(
 				await body.findByText("Enter a monthly budget of 0 or more."),
 			).toBeInTheDocument();
