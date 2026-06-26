@@ -3,7 +3,7 @@ name: write-docs
 description: Authoring workflow and guardrails for writing or editing Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
 ---
 
-# Write Docs Skill
+# Documentation Authoring Skill
 
 Author or edit user-facing documentation under `docs/` so it is correct,
 correctly scoped, and approvable in as few review cycles as possible. This is
@@ -63,7 +63,7 @@ style.
    If it does not belong, route it (see [What not to write](#what-not-to-write)).
 3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
-   the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md).
+   the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework).
    One outcome per page. New pages MUST be added to `docs/manifest.json` under
    the right section, and the documentation lands in the same change as the
    feature.

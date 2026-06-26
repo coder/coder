@@ -222,7 +222,7 @@ manually before starting work:
 - `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
 - `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
 - `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
-- `.claude/skills/write-docs/SKILL.md` - authoring workflow and guardrails (when writing `docs/`)
+- `.claude/skills/write-docs/SKILL.md` - authoring workflow and guardrails (for new or restructured `docs/` pages)
 
 **For frontend work**, also read `site/AGENTS.md` before making any changes
 in `site/`.
