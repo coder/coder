@@ -881,6 +881,7 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		"--no-wildcard",
 		"--yes",
 	)
+	//nolint:gocritic // This has always ran with the admin user.
 	clitest.SetupConfig(t, client, root)
 
 	err := inv.WithContext(ctx).Run()
