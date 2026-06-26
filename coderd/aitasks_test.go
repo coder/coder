@@ -1535,12 +1535,15 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 
-		// Provide an explicit valid name so the create handler skips task-name
-		// generation and reaches the external auth gate.
+		// Provide both an explicit name and display name so the create handler
+		// skips task-name generation entirely. The handler generates a name
+		// when either field is empty, and the external auth preflight now runs
+		// after the workspace authorization gates but before name generation.
 		req := codersdk.CreateTaskRequest{
 			TemplateVersionID: template.ActiveVersionID,
 			Input:             "build me a web app",
 			Name:              coderdtest.RandomUsername(t),
+			DisplayName:       "My Task",
 		}
 		_, err := memberClient.CreateTask(ctx, codersdk.Me, req)
 		var apiErr *codersdk.Error
@@ -1565,6 +1568,57 @@ func TestCreateTaskExternalAuth(t *testing.T) {
 		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
 
 		task, err := memberClient.CreateTask(ctx, codersdk.Me, req)
+		require.NoError(t, err)
+		require.Equal(t, member.ID, task.OwnerID)
+	})
+
+	t.Run("OwnerVsInitiator", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			ExternalAuthConfigs: []*externalauth.Config{{
+				InstrumentedOAuth2Config: &testutil.OAuth2Config{},
+				ID:                       "github",
+				Regex:                    regexp.MustCompile(`github\.com`),
+				Type:                     codersdk.EnhancedExternalAuthProviderGitHub.String(),
+				DisplayName:              "GitHub",
+			}},
+		})
+		first := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID,
+			taskExternalAuthVersion(&proto.ExternalAuthProviderResource{Id: "github"}))
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		// The initiating admin is authenticated with the provider, but the task
+		// owner (the member) is not. Token injection at build time uses the
+		// owner's links, so the owner's auth state is what the preflight checks,
+		// not the initiator's.
+		resp := coderdtest.RequestExternalAuthCallback(t, "github", client)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		req := codersdk.CreateTaskRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Input:             "build me a web app",
+			Name:              coderdtest.RandomUsername(t),
+		}
+		_, err := client.CreateTask(ctx, member.Username, req)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Equal(t, externalAuthRequiredMessage, apiErr.Message)
+
+		// Once the owner authenticates, the same create succeeds even though the
+		// initiator's auth state is unchanged.
+		resp = coderdtest.RequestExternalAuthCallback(t, "github", memberClient)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusTemporaryRedirect, resp.StatusCode)
+
+		task, err := client.CreateTask(ctx, member.Username, req)
 		require.NoError(t, err)
 		require.Equal(t, member.ID, task.OwnerID)
 	})
