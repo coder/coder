@@ -5794,6 +5794,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "email_domain": [
         "string"
       ],
+      "email_fallback": true,
       "email_field": "string",
       "group_allow_list": [
         "string"
@@ -6399,6 +6400,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     "email_domain": [
       "string"
     ],
+    "email_fallback": true,
     "email_field": "string",
     "group_allow_list": [
       "string"
@@ -8881,6 +8883,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
   "email_domain": [
     "string"
   ],
+  "email_fallback": true,
   "email_field": "string",
   "group_allow_list": [
     "string"
@@ -8950,6 +8953,7 @@ Only certain features set these fields: - FeatureManagedAgentLimit|
 | `client_key_file`                    | string                           | false    |              | Client key file & ClientCertFile are used in place of ClientSecret for PKI auth.                                                                                                                                                                                                                                                                                   |
 | `client_secret`                      | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `email_domain`                       | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
+| `email_fallback`                     | boolean                          | false    |              | Email fallback allows OIDC logins to fall back to email-based matching when the `linked_id` (issuer+subject) does not match an existing user link. INSECURE: weakens the linked_id check. It exists for IdP brokers that do not issue a stable `sub` for the same user across connections.                                                                         |
 | `email_field`                        | string                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `group_allow_list`                   | array of string                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |
 | `group_auto_create`                  | boolean                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                    |

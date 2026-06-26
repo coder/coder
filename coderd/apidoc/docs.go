@@ -21285,6 +21285,10 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "email_fallback": {
+                    "description": "EmailFallback allows OIDC logins to fall back to email-based matching\nwhen the ` + "`" + `linked_id` + "`" + ` (issuer+subject) does not match an existing user\nlink. INSECURE: weakens the linked_id check. It exists for IdP\nbrokers that do not issue a stable ` + "`" + `sub` + "`" + ` for the same user across\nconnections.",
+                    "type": "boolean"
+                },
                 "email_field": {
                     "type": "string"
                 },
