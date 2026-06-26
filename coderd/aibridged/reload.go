@@ -2,12 +2,15 @@ package aibridged
 
 import (
 	"context"
+	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/retry"
 )
 
 // ProviderReloader refreshes a component's provider snapshot.
@@ -54,4 +57,69 @@ func SubscribeProviderReload(
 		logger.Warn(ctx, "initial ai provider reload", slog.Error(err))
 	}
 	return unsubscribe, nil
+}
+
+// WatchProviderReload opens a coderd WatchAIProviders stream via client and
+// calls reloader.Reload on each change signal the server emits. The stream is
+// re-established with exponential backoff whenever it drops. It runs until ctx
+// is canceled, then returns ctx.Err(). It does not perform an initial load; the
+// caller is responsible for any blocking load before serving.
+func WatchProviderReload(
+	ctx context.Context,
+	client ClientFunc,
+	reloader ProviderReloader,
+	logger slog.Logger,
+) error {
+	if client == nil {
+		return xerrors.New("client is required")
+	}
+	if reloader == nil {
+		return xerrors.New("reloader is required")
+	}
+
+	r := retry.New(50*time.Millisecond, 10*time.Second)
+	for {
+		connected, err := watchProviderReloadOnce(ctx, client, reloader, logger)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		logger.Warn(ctx, "ai provider watch stream ended; reconnecting", slog.Error(err))
+		// A stream that opened resets the backoff so the next reconnect starts
+		// from the floor.
+		if connected {
+			r.Reset()
+		}
+		if !r.Wait(ctx) {
+			return ctx.Err()
+		}
+	}
+}
+
+// watchProviderReloadOnce opens a single WatchAIProviders stream and reloads on
+// each signal until the stream fails. connected reports whether the stream
+// opened before the error.
+func watchProviderReloadOnce(ctx context.Context, client ClientFunc, reloader ProviderReloader, logger slog.Logger) (connected bool, err error) {
+	// client() blocks until the daemon is connected to coderd.
+	c, err := client()
+	if err != nil {
+		return false, xerrors.Errorf("get ai-gateway client: %w", err)
+	}
+	stream, err := c.WatchAIProviders(ctx, &proto.WatchAIProvidersRequest{})
+	if err != nil {
+		return false, xerrors.Errorf("open ai providers watch stream: %w", err)
+	}
+	defer func() {
+		_ = stream.Close()
+	}()
+
+	for {
+		if _, err := stream.Recv(); err != nil {
+			return true, xerrors.Errorf("receive ai providers change signal: %w", err)
+		}
+		if err := reloader.Reload(ctx); err != nil {
+			logger.Warn(ctx, "reload ai provider snapshot from watch signal", slog.Error(err))
+			continue
+		}
+		logger.Debug(ctx, "reloaded ai provider snapshot from watch signal")
+	}
 }

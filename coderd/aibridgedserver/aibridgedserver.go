@@ -24,9 +24,11 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	codermcp "github.com/coder/coder/v2/coderd/mcp"
+	coderpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -97,6 +99,7 @@ type Server struct {
 	// long-running operations.
 	lifecycleCtx        context.Context
 	store               store
+	pubsub              pubsub.Pubsub
 	logger              slog.Logger
 	externalAuthConfigs map[string]*externalauth.Config
 
@@ -108,7 +111,7 @@ type Server struct {
 	budgetPolicy codersdk.AIBudgetPolicy
 }
 
-func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, accessURL string,
+func NewServer(lifecycleCtx context.Context, store store, ps pubsub.Pubsub, logger slog.Logger, accessURL string,
 	bridgeCfg codersdk.AIBridgeConfig, externalAuthConfigs []*externalauth.Config, experiments codersdk.Experiments,
 	aiSeatTracker aiseats.SeatTracker,
 ) (*Server, error) {
@@ -125,6 +128,7 @@ func NewServer(lifecycleCtx context.Context, store store, logger slog.Logger, ac
 	srv := &Server{
 		lifecycleCtx:        lifecycleCtx,
 		store:               store,
+		pubsub:              ps,
 		logger:              logger,
 		externalAuthConfigs: eac,
 		structuredLogging:   bridgeCfg.StructuredLogging.Value(),
@@ -776,6 +780,62 @@ func (s *Server) GetAIProviders(ctx context.Context, _ *proto.GetAIProvidersRequ
 	}
 
 	return &proto.GetAIProvidersResponse{Providers: providers}, nil
+}
+
+// WatchAIProviders streams a payload-free change signal to the AI Gateway daemon
+// on each AIProvidersChangedChannel event, published by the provider CRUD
+// endpoints. The client refetches the authoritative set via GetAIProviders on
+// receipt. One signal is sent immediately on subscribe, and pubsub drop errors
+// are delivered as a signal rather than failing the stream. The stream runs
+// until its context or the server lifecycle is canceled.
+func (s *Server) WatchAIProviders(_ *proto.WatchAIProvidersRequest, stream proto.DRPCProviderConfigurator_WatchAIProvidersStream) error {
+	if s.pubsub == nil {
+		return xerrors.New("pubsub not configured")
+	}
+
+	// ctx ends when either the stream or the server lifecycle is canceled.
+	ctx, cancel := context.WithCancel(stream.Context())
+	defer cancel()
+	go func() {
+		select {
+		case <-s.lifecycleCtx.Done():
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	// Buffered to one so a burst of events collapses into a single pending
+	// signal.
+	signals := make(chan struct{}, 1)
+	notify := func() {
+		select {
+		case signals <- struct{}{}:
+		default:
+		}
+	}
+
+	// Every event signals, including dropped-message errors.
+	unsubscribe, err := s.pubsub.SubscribeWithErr(coderpubsub.AIProvidersChangedChannel, func(_ context.Context, _ []byte, _ error) {
+		notify()
+	})
+	if err != nil {
+		return xerrors.Errorf("subscribe to %s: %w", coderpubsub.AIProvidersChangedChannel, err)
+	}
+	defer unsubscribe()
+
+	// Initial signal on subscribe.
+	notify()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-signals:
+			if err := stream.Send(&proto.WatchAIProvidersResponse{}); err != nil {
+				return xerrors.Errorf("send ai providers change signal: %w", err)
+			}
+		}
+	}
 }
 
 // Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.

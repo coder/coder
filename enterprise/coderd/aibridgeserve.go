@@ -139,6 +139,7 @@ func (api *API) aiBridgeServe(rw http.ResponseWriter, r *http.Request) {
 	srv, err := aibridgedserver.NewServer(
 		connCtx,
 		api.Database,
+		api.AGPL.Pubsub,
 		logger,
 		api.AccessURL.String(),
 		api.DeploymentValues.AI.BridgeConfig,

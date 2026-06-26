@@ -2,14 +2,19 @@ package aibridged_test
 
 import (
 	"context"
+	"io"
 	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/aibridged"
+	"github.com/coder/coder/v2/coderd/aibridged/aibridgedmock"
+	"github.com/coder/coder/v2/coderd/aibridged/proto"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/testutil"
@@ -98,6 +103,107 @@ func TestSubscribeProviderReloadIgnoresEventError(t *testing.T) {
 	ps.listener(ctx, nil, nil)
 	require.Equal(t, 2, calls.count())
 }
+
+func TestWatchProviderReload(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, nil)
+
+	ctrl := gomock.NewController(t)
+	mockClient := aibridgedmock.NewMockDRPCClient(ctrl)
+
+	// A single stream delivers two change signals, then blocks on its context
+	// until the watch is canceled.
+	events := make(chan error, 2)
+	events <- nil
+	events <- nil
+	mockClient.EXPECT().WatchAIProviders(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(rpcCtx context.Context, _ *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+			return &fakeWatchClientStream{ctx: rpcCtx, events: events}, nil
+		}).AnyTimes()
+
+	calls := &recordingReloader{}
+	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, calls, logger) }()
+
+	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
+		"each change signal must trigger a reload")
+
+	// Canceling the watch context unblocks Recv and ends the loop with ctx.Err().
+	watchCancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
+}
+
+func TestWatchProviderReloadReconnects(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	logger := slogtest.Make(t, nil)
+
+	ctrl := gomock.NewController(t)
+	mockClient := aibridgedmock.NewMockDRPCClient(ctrl)
+
+	// The first stream delivers one signal then drops; subsequent streams
+	// deliver one signal then block. WatchProviderReload must reconnect after
+	// the drop and keep reloading.
+	var attempt atomic.Int32
+	mockClient.EXPECT().WatchAIProviders(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(rpcCtx context.Context, _ *proto.WatchAIProvidersRequest) (proto.DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+			ev := make(chan error, 2)
+			if attempt.Add(1) == 1 {
+				ev <- nil
+				ev <- io.EOF
+			} else {
+				ev <- nil
+			}
+			return &fakeWatchClientStream{ctx: rpcCtx, events: ev}, nil
+		}).AnyTimes()
+
+	calls := &recordingReloader{}
+	clientFunc := func() (aibridged.DRPCClient, error) { return mockClient, nil }
+
+	watchCtx, watchCancel := context.WithCancel(ctx)
+	done := make(chan error, 1)
+	go func() { done <- aibridged.WatchProviderReload(watchCtx, clientFunc, calls, logger) }()
+
+	// One reload from the first stream and at least one more after reconnect.
+	require.Eventually(t, func() bool { return calls.count() >= 2 }, testutil.WaitShort, testutil.IntervalFast,
+		"reload must continue after the stream drops and reconnects")
+
+	watchCancel()
+	require.ErrorIs(t, testutil.TryReceive(ctx, t, done), context.Canceled)
+}
+
+// fakeWatchClientStream is a minimal
+// proto.DRPCProviderConfigurator_WatchAIProvidersClient. Each value popped from
+// events either yields a change signal (nil) or returns the given error; when
+// events is empty Recv blocks until the stream context is canceled.
+type fakeWatchClientStream struct {
+	ctx    context.Context
+	events chan error
+}
+
+func (s *fakeWatchClientStream) Recv() (*proto.WatchAIProvidersResponse, error) {
+	select {
+	case err := <-s.events:
+		if err != nil {
+			return nil, err
+		}
+		return &proto.WatchAIProvidersResponse{}, nil
+	case <-s.ctx.Done():
+		return nil, s.ctx.Err()
+	}
+}
+
+func (s *fakeWatchClientStream) Context() context.Context                { return s.ctx }
+func (*fakeWatchClientStream) MsgSend(drpc.Message, drpc.Encoding) error { return nil }
+func (*fakeWatchClientStream) MsgRecv(drpc.Message, drpc.Encoding) error { return nil }
+func (*fakeWatchClientStream) CloseSend() error                          { return nil }
+func (*fakeWatchClientStream) Close() error                              { return nil }
 
 // recordingReloader is a minimal [aibridged.ProviderReloader] that
 // counts calls.

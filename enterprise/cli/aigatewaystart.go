@@ -111,11 +111,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 			}
 			defer srv.Close()
 
-			// Fetch the initial provider set from coderd, retrying until
-			// success. The reloader owns the fetch/build/replace/metrics work;
-			// the standalone gateway just drives it once at startup.
-			// TODO(AIGOV-465): the standalone gateway has no refresh trigger
-			// yet, so this runs once on startup.
+			// Load the initial provider set from coderd, retrying until success,
+			// so the gateway serves with a populated pool.
 			providerLogger := logger.Named("aibridge.providers")
 			reloader := agpl.NewPoolRPCReloader(pool, srv.Client, vals.AI.BridgeConfig, providerLogger, metrics, providerMetrics)
 			if err := loadProviders(ctx, reloader, providerLogger); err != nil {
@@ -129,6 +126,14 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 				}
 				return xerrors.Errorf("initialize ai providers: %w", err)
 			}
+
+			// Watch coderd for provider changes and refresh the pool on each
+			// signal, until ctx is canceled at shutdown.
+			go func() {
+				if err := aibridged.WatchProviderReload(ctx, srv.Client, reloader, providerLogger); err != nil && ctx.Err() == nil {
+					providerLogger.Warn(ctx, "ai provider watch loop exited", slog.Error(err))
+				}
+			}()
 
 			// The standalone listener is dedicated to Gateway traffic, so
 			// the daemon is served at the root. The /api/v2/ai-gateway alias
@@ -229,9 +234,8 @@ func (r *RootCmd) aiGatewayStart() *serpent.Command {
 // reload is retried with backoff. A successful empty provider list is a valid
 // result and ends the loop.
 //
-// TODO(AIGOV-465): the standalone gateway has no provider-change refresh
-// trigger yet, so this runs once on startup; provider add/enable will not
-// propagate to a running standalone gateway.
+// Subsequent provider changes are delivered by WatchProviderReload, started
+// after this initial load returns.
 func loadProviders(ctx context.Context, reloader aibridged.ProviderReloader, logger slog.Logger) error {
 	for r := retry.New(50*time.Millisecond, 10*time.Second); r.Wait(ctx); {
 		if err := reloader.Reload(ctx); err != nil {

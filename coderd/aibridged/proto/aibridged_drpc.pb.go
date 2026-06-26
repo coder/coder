@@ -504,6 +504,7 @@ type DRPCProviderConfiguratorClient interface {
 	DRPCConn() drpc.Conn
 
 	GetAIProviders(ctx context.Context, in *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+	WatchAIProviders(ctx context.Context, in *WatchAIProvidersRequest) (DRPCProviderConfigurator_WatchAIProvidersClient, error)
 }
 
 type drpcProviderConfiguratorClient struct {
@@ -525,8 +526,49 @@ func (c *drpcProviderConfiguratorClient) GetAIProviders(ctx context.Context, in 
 	return out, nil
 }
 
+func (c *drpcProviderConfiguratorClient) WatchAIProviders(ctx context.Context, in *WatchAIProvidersRequest) (DRPCProviderConfigurator_WatchAIProvidersClient, error) {
+	stream, err := c.cc.NewStream(ctx, "/proto.ProviderConfigurator/WatchAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
+	if err != nil {
+		return nil, err
+	}
+	x := &drpcProviderConfigurator_WatchAIProvidersClient{stream}
+	if err := x.MsgSend(in, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return nil, err
+	}
+	if err := x.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type DRPCProviderConfigurator_WatchAIProvidersClient interface {
+	drpc.Stream
+	Recv() (*WatchAIProvidersResponse, error)
+}
+
+type drpcProviderConfigurator_WatchAIProvidersClient struct {
+	drpc.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) GetStream() drpc.Stream {
+	return x.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) Recv() (*WatchAIProvidersResponse, error) {
+	m := new(WatchAIProvidersResponse)
+	if err := x.MsgRecv(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{}); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersClient) RecvMsg(m *WatchAIProvidersResponse) error {
+	return x.MsgRecv(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
+}
+
 type DRPCProviderConfiguratorServer interface {
 	GetAIProviders(context.Context, *GetAIProvidersRequest) (*GetAIProvidersResponse, error)
+	WatchAIProviders(*WatchAIProvidersRequest, DRPCProviderConfigurator_WatchAIProvidersStream) error
 }
 
 type DRPCProviderConfiguratorUnimplementedServer struct{}
@@ -535,9 +577,13 @@ func (s *DRPCProviderConfiguratorUnimplementedServer) GetAIProviders(context.Con
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCProviderConfiguratorUnimplementedServer) WatchAIProviders(*WatchAIProvidersRequest, DRPCProviderConfigurator_WatchAIProvidersStream) error {
+	return drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCProviderConfiguratorDescription struct{}
 
-func (DRPCProviderConfiguratorDescription) NumMethods() int { return 1 }
+func (DRPCProviderConfiguratorDescription) NumMethods() int { return 2 }
 
 func (DRPCProviderConfiguratorDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -550,6 +596,15 @@ func (DRPCProviderConfiguratorDescription) Method(n int) (string, drpc.Encoding,
 						in1.(*GetAIProvidersRequest),
 					)
 			}, DRPCProviderConfiguratorServer.GetAIProviders, true
+	case 1:
+		return "/proto.ProviderConfigurator/WatchAIProviders", drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return nil, srv.(DRPCProviderConfiguratorServer).
+					WatchAIProviders(
+						in1.(*WatchAIProvidersRequest),
+						&drpcProviderConfigurator_WatchAIProvidersStream{in2.(drpc.Stream)},
+					)
+			}, DRPCProviderConfiguratorServer.WatchAIProviders, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -573,4 +628,17 @@ func (x *drpcProviderConfigurator_GetAIProvidersStream) SendAndClose(m *GetAIPro
 		return err
 	}
 	return x.CloseSend()
+}
+
+type DRPCProviderConfigurator_WatchAIProvidersStream interface {
+	drpc.Stream
+	Send(*WatchAIProvidersResponse) error
+}
+
+type drpcProviderConfigurator_WatchAIProvidersStream struct {
+	drpc.Stream
+}
+
+func (x *drpcProviderConfigurator_WatchAIProvidersStream) Send(m *WatchAIProvidersResponse) error {
+	return x.MsgSend(m, drpcEncoding_File_coderd_aibridged_proto_aibridged_proto{})
 }
