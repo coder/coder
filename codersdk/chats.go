@@ -10,6 +10,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -561,6 +562,82 @@ type CreateChatRequest struct {
 	UnsafeDynamicTools []DynamicTool  `json:"unsafe_dynamic_tools,omitempty"`
 	PlanMode           ChatPlanMode   `json:"plan_mode,omitempty"`
 	ClientType         ChatClientType `json:"client_type,omitempty"`
+	// BuiltinTools optionally restricts which built-in (Coder-provided)
+	// tools the chat exposes to the model. The pointer distinguishes
+	// three states:
+	//   - nil (omitted): all built-in tools are available (the default).
+	//   - empty slice: no built-in tools are available, e.g. an
+	//     MCP-only chat. External MCP, workspace MCP, dynamic, and
+	//     provider-native tools (such as web_search) are unaffected.
+	//   - non-empty slice: only the listed built-in tools are available.
+	// Unknown names are rejected. The allow-list is subtractive and
+	// composes with plan-mode and explore-mode tool restrictions.
+	BuiltinTools *[]ChatBuiltinToolName `json:"builtin_tools,omitempty"`
+}
+
+// ChatBuiltinToolName identifies a built-in (Coder-provided) tool that a
+// chat exposes to the model. These are stable identifiers advertised to
+// the model and referenced by CreateChatRequest.BuiltinTools. They do not
+// cover external MCP, workspace MCP, client-executed dynamic, or
+// provider-native tools (such as web_search).
+type ChatBuiltinToolName string
+
+const (
+	ChatBuiltinToolReadFile        ChatBuiltinToolName = "read_file"
+	ChatBuiltinToolWriteFile       ChatBuiltinToolName = "write_file"
+	ChatBuiltinToolEditFiles       ChatBuiltinToolName = "edit_files"
+	ChatBuiltinToolAttachFile      ChatBuiltinToolName = "attach_file"
+	ChatBuiltinToolExecute         ChatBuiltinToolName = "execute"
+	ChatBuiltinToolProcessOutput   ChatBuiltinToolName = "process_output"
+	ChatBuiltinToolProcessList     ChatBuiltinToolName = "process_list"
+	ChatBuiltinToolProcessSignal   ChatBuiltinToolName = "process_signal"
+	ChatBuiltinToolAskUserQuestion ChatBuiltinToolName = "ask_user_question"
+	ChatBuiltinToolListTemplates   ChatBuiltinToolName = "list_templates"
+	ChatBuiltinToolReadTemplate    ChatBuiltinToolName = "read_template"
+	ChatBuiltinToolCreateWorkspace ChatBuiltinToolName = "create_workspace"
+	ChatBuiltinToolStartWorkspace  ChatBuiltinToolName = "start_workspace"
+	ChatBuiltinToolStopWorkspace   ChatBuiltinToolName = "stop_workspace"
+	ChatBuiltinToolProposePlan     ChatBuiltinToolName = "propose_plan"
+	ChatBuiltinToolSpawnAgent      ChatBuiltinToolName = "spawn_agent"
+	ChatBuiltinToolWaitAgent       ChatBuiltinToolName = "wait_agent"
+	ChatBuiltinToolMessageAgent    ChatBuiltinToolName = "message_agent"
+	ChatBuiltinToolCloseAgent      ChatBuiltinToolName = "close_agent"
+	ChatBuiltinToolReadSkill       ChatBuiltinToolName = "read_skill"
+	ChatBuiltinToolReadSkillFile   ChatBuiltinToolName = "read_skill_file"
+)
+
+// AllChatBuiltinToolNames returns every built-in tool name that may be
+// listed in CreateChatRequest.BuiltinTools.
+func AllChatBuiltinToolNames() []ChatBuiltinToolName {
+	return []ChatBuiltinToolName{
+		ChatBuiltinToolReadFile,
+		ChatBuiltinToolWriteFile,
+		ChatBuiltinToolEditFiles,
+		ChatBuiltinToolAttachFile,
+		ChatBuiltinToolExecute,
+		ChatBuiltinToolProcessOutput,
+		ChatBuiltinToolProcessList,
+		ChatBuiltinToolProcessSignal,
+		ChatBuiltinToolAskUserQuestion,
+		ChatBuiltinToolListTemplates,
+		ChatBuiltinToolReadTemplate,
+		ChatBuiltinToolCreateWorkspace,
+		ChatBuiltinToolStartWorkspace,
+		ChatBuiltinToolStopWorkspace,
+		ChatBuiltinToolProposePlan,
+		ChatBuiltinToolSpawnAgent,
+		ChatBuiltinToolWaitAgent,
+		ChatBuiltinToolMessageAgent,
+		ChatBuiltinToolCloseAgent,
+		ChatBuiltinToolReadSkill,
+		ChatBuiltinToolReadSkillFile,
+	}
+}
+
+// Valid reports whether the built-in tool name is one of the supported
+// values.
+func (n ChatBuiltinToolName) Valid() bool {
+	return slices.Contains(AllChatBuiltinToolNames(), n)
 }
 
 // UpdateChatRequest is the request to update a chat.

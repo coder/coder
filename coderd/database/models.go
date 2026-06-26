@@ -4788,6 +4788,7 @@ type Chat struct {
 	PinOrder                 int32                 `db:"pin_order" json:"pin_order"`
 	LastReadMessageID        sql.NullInt64         `db:"last_read_message_id" json:"last_read_message_id"`
 	DynamicTools             pqtype.NullRawMessage `db:"dynamic_tools" json:"dynamic_tools"`
+	BuiltinTools             pqtype.NullRawMessage `db:"builtin_tools" json:"builtin_tools"`
 	OrganizationID           uuid.UUID             `db:"organization_id" json:"organization_id"`
 	PlanMode                 NullChatPlanMode      `db:"plan_mode" json:"plan_mode"`
 	ClientType               ChatClientType        `db:"client_type" json:"client_type"`
@@ -5023,7 +5024,8 @@ type ChatTable struct {
 	// Deterministic prefix of resources that changed since the pinned hash. Reserved for the dirty diff; left NULL until the UI phase populates it.
 	ContextDirtyResources pqtype.NullRawMessage `db:"context_dirty_resources" json:"context_dirty_resources"`
 	// Snapshot-level error copied from the pinned snapshot (count cap exceeded, watcher degraded, etc.). Empty when healthy.
-	ContextError string `db:"context_error" json:"context_error"`
+	ContextError string                `db:"context_error" json:"context_error"`
+	BuiltinTools pqtype.NullRawMessage `db:"builtin_tools" json:"builtin_tools"`
 }
 
 type ChatUsageLimitConfig struct {
