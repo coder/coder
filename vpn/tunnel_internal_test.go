@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"tailscale.com/ipn/ipnstate"
@@ -203,9 +204,9 @@ func TestTunnel_Wake(t *testing.T) {
 
 	_, mgr := setupTunnel(t, ctx, client, quartz.NewMock(t))
 
-	errCh := make(chan error, 1)
-	var resp *TunnelMessage
+	startCh := make(chan *TunnelMessage, 1)
 	go func() {
+		defer close(startCh)
 		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
 			Msg: &ManagerMessage_Start{
 				Start: &StartRequest{
@@ -215,28 +216,28 @@ func TestTunnel_Wake(t *testing.T) {
 				},
 			},
 		})
-		resp = r
-		errCh <- err
+		assert.NoError(t, err)
+		startCh <- r
 	}()
 	testutil.RequireSend(ctx, t, client.ch, conn)
-	err := testutil.TryReceive(ctx, t, errCh)
-	require.NoError(t, err)
-	require.NotNil(t, resp.GetStart())
+	startResp := testutil.TryReceive(ctx, t, startCh)
+	require.NotNil(t, startResp.GetStart())
 
+	wakeCh := make(chan *TunnelMessage, 1)
 	go func() {
+		defer close(wakeCh)
 		r, err := mgr.unaryRPC(ctx, &ManagerMessage{
 			Msg: &ManagerMessage_Wake{
 				Wake: &WakeRequest{},
 			},
 		})
-		resp = r
-		errCh <- err
+		assert.NoError(t, err)
+		wakeCh <- r
 	}()
 
 	testutil.TryReceive(ctx, t, conn.rebinds)
-	err = testutil.TryReceive(ctx, t, errCh)
-	require.NoError(t, err)
-	require.True(t, resp.GetWake().GetSuccess())
+	wakeResp := testutil.TryReceive(ctx, t, wakeCh)
+	require.True(t, wakeResp.GetWake().GetSuccess())
 }
 
 func TestTunnel_PeerUpdate(t *testing.T) {
