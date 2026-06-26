@@ -1,6 +1,6 @@
 ---
 name: write-docs
-description: Authoring workflow and guardrails for writing or editing Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diataxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
+description: Authoring workflow and guardrails for writing or editing Coder documentation under docs/. Points at the canonical content guidelines and prose style guide, then walks research, routing, Diátaxis mode, structure, pedagogy, and validation. Counterpart to the doc-check skill, which reviews changes for documentation needs.
 ---
 
 # Write Docs Skill
@@ -61,17 +61,17 @@ style.
 2. **Decide whether it belongs in the docs, and where.** Walk the
    [quick decision checklist](../../../docs/.style/content-guidelines.md#quick-decision-checklist).
    If it does not belong, route it (see [What not to write](#what-not-to-write)).
-3. **Pick the Diataxis mode and the manifest slot.** Choose one mode per page
+3. **Pick the Diátaxis mode and the manifest slot.** Choose one mode per page
    (tutorial, how-to guide, reference, or explanation) per
-   the Diataxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md).
-   One concept per page. New pages MUST be added to `docs/manifest.json` under
+   the Diátaxis framework in the [content guidelines](../../../docs/.style/content-guidelines.md).
+   One outcome per page. New pages MUST be added to `docs/manifest.json` under
    the right section, and the documentation lands in the same change as the
    feature.
 4. **Draft with deliberate pedagogy** (see patterns below).
 5. **Self-review and validate.** Apply the prose style guide with it open.
    Run `make lint/emdash`, markdownlint, and Vale. Run the commands and code
    in the page. Fix every inbound link you moved and add redirects for any
-   rename (see [Renames and moves](#renames-and-moves)).
+   rename (see [Structural rules to apply](#structural-rules-to-apply)).
 
 ## Pedagogy patterns
 
@@ -96,49 +96,26 @@ style.
 
 ## What not to write
 
-Do not put these in `docs/`. Route them per the
-[routing table](../../../docs/.style/content-guidelines.md#routing-table).
+Do not put non-docs content in `docs/`. The canonical catalog of what to
+exclude, where each item goes, and why is
+[What does not belong in the docs](../../../docs/.style/content-guidelines.md#what-does-not-belong-in-the-docs)
+plus the [routing table](../../../docs/.style/content-guidelines.md#routing-table).
+Check it before adding a page. Do not reproduce the catalog here, so it cannot
+drift from the source.
 
-- **Predictive, timeless, or stale content.** Document only what applies to
-  the current version. Do not predict the future or carry forward material
-  that no longer applies.
-- **Troubleshooting and failure-mode content.** Route to the support
-  knowledge base (Pylon); Support owns it. Docs own intended behavior.
-- **Feature announcements and launch rationale ("why we built this").**
-  Route to the blog. Explaining how a feature is *supposed to work* is docs.
-- **Duplicated third-party documentation** (Terraform, AWS, Microsoft,
-  Google, other vendors). Link to their docs; theirs is the source of truth.
-  The only exception is a minimal Terraform teaching example.
-- **Contributing guides and style guides.** Keep with the code on GitHub.
-- **Deep code internals.** Focus on inputs and outputs for the end user.
-- **Known bugs whose intended behavior is not yet documented.** Route to the
-  changelog (document expected behavior only when Coder agrees the behavior
-  is wrong and the docs do not yet cover what should happen).
+## Structural rules to apply
 
-## Premium feature signaling
+The canonical
+[Structural rules](../../../docs/.style/content-guidelines.md#structural-rules)
+cover the manifest entry, Premium marking, renames and redirects, and the
+emdash ban. Read them for the exact wording; the pre-handoff checklist below
+turns them into pass/fail items. Two application notes the canonical rules do
+not spell out:
 
-A page documenting a Premium feature needs **both**, or it is a defect:
-
-1. The H1 title takes a `(Premium)` suffix, for example
-   `# Template Insights (Premium)`.
-2. The page's `docs/manifest.json` entry includes `"state": ["premium"]`.
-
-## Renames and moves
-
-1. Fix every inbound link to the old path. Choose the new target by intent,
-   the specific page the sentence promises, not just the section hub. A moved
-   section takes its anchor with it, so verify anchors still resolve.
-2. Add a redirect in
-   [`coder/coder.com:redirects.json`](https://github.com/coder/coder.com/blob/master/redirects.json)
-   that maps the old public path to the new one, and open that PR alongside
-   the rename. Do not rely on a directory index resolving the old path, and
-   do not create a `docs/_redirects` file in this repo.
-
-## No emdash, endash, or `--` as punctuation
-
-This applies in prose, code blocks, comments, and string literals. Use
-commas, semicolons, or periods, or restructure the sentence. For numeric
-ranges use a plain hyphen (`0-100`). Enforced by `make lint/emdash`.
+- On a rename, pick the new link target by the specific page each sentence
+  promises, not just the section hub, and confirm moved anchors still resolve.
+- Keep the redirect PR in `coder/coder.com` in sync with the rename PR so the
+  old public path never 404s between merges.
 
 ## Anti-patterns observed in real review cycles
 
@@ -162,7 +139,7 @@ ranges use a plain hyphen (`0-100`). Enforced by `make lint/emdash`.
 - [ ] Commands and code in the page were executed, or explicitly flagged as
       unverified for the reviewer.
 - [ ] The content belongs in `docs/`; anything that does not was routed.
-- [ ] One concept per page, correct Diataxis mode, added to
+- [ ] One outcome per page, correct Diátaxis mode, added to
       `docs/manifest.json`.
 - [ ] Prose style guide applied with it open; `make lint/emdash`,
       markdownlint, and Vale pass.
