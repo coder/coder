@@ -11,6 +11,14 @@ on:
         description: "Go test name regex passed to go test -run. Empty runs all tests."
         required: false
         default: ""
+      test-count:
+        description: "Times to run each test (go test -count). Raise to surface flakes."
+        required: false
+        default: "1"
+      test-shuffle:
+        description: "Go test -shuffle mode: off, on, or an integer seed."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -109,8 +117,9 @@ jobs:
           # Our macOS runners have 8 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
-          test-count: "1"
+          test-count: ${{ inputs.test-count || '1' }}
           run-regex: ${{ inputs.run-regex }}
+          test-shuffle: ${{ inputs.test-shuffle }}
           embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
@@ -122,8 +131,9 @@ jobs:
           # Our Windows runners have 16 cores.
           test-parallelism-packages: "8"
           test-parallelism-tests: "16"
-          test-count: "1"
+          test-count: ${{ inputs.test-count || '1' }}
           run-regex: ${{ inputs.run-regex }}
+          test-shuffle: ${{ inputs.test-shuffle }}
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
