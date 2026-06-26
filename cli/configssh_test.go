@@ -555,6 +555,45 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			},
 		},
 		{
+			name: "Serialize no-wildcard flag",
+			wantConfig: wantConfig{
+				ssh: []string{
+					strings.Join([]string{
+						headerStart,
+						"# Last config-ssh options:",
+						"# :hostname-suffix=coder-suffix",
+						"# :no-wildcard=true",
+						"#",
+					}, "\n"),
+					strings.Join([]string{
+						headerEnd,
+						"",
+					}, "\n"),
+				},
+			},
+			args: []string{
+				"--yes",
+				"--hostname-suffix", "coder-suffix",
+				"--no-wildcard",
+			},
+		},
+		{
+			name: "No wildcard generates per-workspace entries",
+			args: []string{
+				"--yes",
+				"--hostname-suffix", "coder",
+				"--no-wildcard",
+			},
+			hasAgent: true,
+			wantConfig: wantConfig{
+				ssh: []string{
+					"# :hostname-suffix=coder",
+					"# :no-wildcard=true",
+				},
+				regexMatch: `Host [a-z0-9-]+\.coder`,
+			},
+		},
+		{
 			name: "Do not prompt for new options when prev opts flag is set",
 			writeConfig: writeConfig{
 				ssh: strings.Join([]string{
@@ -810,4 +849,53 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConfigSSH_NoWildcard(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	client, db := coderdtest.NewWithDatabase(t, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+
+	// Create two workspaces so we can verify both get their own entries.
+	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent().Do()
+
+	sshConfigPath := sshConfigFileName(t)
+
+	inv, root := clitest.New(t,
+		"config-ssh",
+		"--ssh-config-file", sshConfigPath,
+		"--hostname-suffix", "coder",
+		"--no-wildcard",
+		"--yes",
+	)
+	clitest.SetupConfig(t, client, root)
+
+	err := inv.WithContext(ctx).Run()
+	require.NoError(t, err)
+
+	config := sshConfigFileRead(t, sshConfigPath)
+
+	// Each workspace must have its own host entry.
+	require.Contains(t, config, "Host "+ws1.Workspace.Name+".coder")
+	require.Contains(t, config, "Host "+ws2.Workspace.Name+".coder")
+
+	// No wildcard entries must appear in the Coder section.
+	require.NotContains(t, config, "Host *.coder")
+	require.NotContains(t, config, "Host *.")
+
+	// The no-wildcard option must be persisted in the header.
+	require.Contains(t, config, "# :no-wildcard=true")
 }
