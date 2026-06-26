@@ -39,7 +39,7 @@ const TemplatesPage: FC = () => {
 		enabled: permissions.createTemplates,
 	});
 	const templateBuilderEnabled =
-		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
+		deploymentConfigQuery.data?.config?.template_builder?.disabled === false &&
 		permissions.createTemplates;
 
 	const error =
