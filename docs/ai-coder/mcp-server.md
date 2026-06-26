@@ -182,69 +182,19 @@ section.
 
 ## Available Tools
 
-The tables below cover the most commonly used tools. The authoritative list is
-defined in Coder's [`toolsdk` package](../../codersdk/toolsdk/toolsdk.go).
+The MCP server exposes tools across several areas:
 
-### Workspace Management
+- **Workspace management**: list, inspect, create, and build workspaces
+- **Template operations**: list, inspect, create, and manage templates and versions
+- **File operations**: read, write, and edit files in a workspace
+- **Workspace interaction**: run commands, forward ports, list apps, and read logs
+- **Task management**: create, list, inspect, and control tasks
+- **User and system**: authenticated user details, tar uploads, and task reporting
 
-| Tool                           | Description                                |
-|--------------------------------|--------------------------------------------|
-| `coder_list_workspaces`        | List workspaces for the authenticated user |
-| `coder_get_workspace`          | Get details of a specific workspace        |
-| `coder_create_workspace`       | Create a new workspace from a template     |
-| `coder_create_workspace_build` | Start, stop, or delete a workspace         |
-
-### Template Operations
-
-| Tool                                   | Description                            |
-|----------------------------------------|----------------------------------------|
-| `coder_list_templates`                 | List available templates               |
-| `coder_get_template`                   | Get details of a specific template     |
-| `coder_template_version_parameters`    | Get parameters for a template version  |
-| `coder_create_template`                | Create a new template                  |
-| `coder_create_template_version`        | Create a new template version          |
-| `coder_update_template_active_version` | Update a template's active version     |
-| `coder_delete_template`                | Delete a template                      |
-| `coder_get_template_version_logs`      | Get logs from a template version build |
-
-### File Operations
-
-| Tool                         | Description                         |
-|------------------------------|-------------------------------------|
-| `coder_workspace_ls`         | List files in a workspace directory |
-| `coder_workspace_read_file`  | Read a file from a workspace        |
-| `coder_workspace_write_file` | Write a file to a workspace         |
-| `coder_workspace_edit_file`  | Edit a file in a workspace          |
-| `coder_workspace_edit_files` | Edit multiple files in a workspace  |
-
-### Workspace Interaction
-
-| Tool                             | Description                          |
-|----------------------------------|--------------------------------------|
-| `coder_workspace_bash`           | Execute bash commands in a workspace |
-| `coder_workspace_port_forward`   | Get a URL to forward a port          |
-| `coder_workspace_list_apps`      | List apps running in a workspace     |
-| `coder_get_workspace_agent_logs` | Get workspace agent logs             |
-| `coder_get_workspace_build_logs` | Get workspace build logs             |
-
-### Task Management
-
-| Tool                    | Description                  |
-|-------------------------|------------------------------|
-| `coder_create_task`     | Create a new task            |
-| `coder_list_tasks`      | List tasks                   |
-| `coder_get_task_status` | Get the status of a task     |
-| `coder_get_task_logs`   | Get logs from a task         |
-| `coder_send_task_input` | Send input to a running task |
-| `coder_delete_task`     | Delete a task                |
-
-### User and System
-
-| Tool                           | Description                               |
-|--------------------------------|-------------------------------------------|
-| `coder_get_authenticated_user` | Get the authenticated user's details      |
-| `coder_upload_tar_file`        | Upload a tar file (for template versions) |
-| `coder_report_task`            | Report progress on a task                 |
+The full, authoritative set of tools, including their names, descriptions, and
+arguments, is defined in Coder's
+[`toolsdk` package](../../codersdk/toolsdk/toolsdk.go). Refer to it for the
+current list, since the available tools can change between releases.
 
 ## Troubleshooting
 
