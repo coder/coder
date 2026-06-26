@@ -522,3 +522,275 @@ LIMIT 50;
 		t.Logf("query=%q count=%d duration=%s", query, count, time.Since(queryStart))
 	}
 }
+
+// -----------------------------------------------------------------------------
+// Scaled benchmark.
+//
+// BenchmarkChatMessageSearchIndexScaled is a larger run that approximates a
+// production deployment. It models:
+//   - per-user active/archived chat counts via percentile buckets observed on
+//     dev.coder.com,
+//   - per-chat message size from observed dev chat-size buckets,
+//   - the observed message role/visibility/text-bearing mix,
+//   - child chats attached to a subset of root chats with their own messages.
+//
+// The default user count is intentionally tiny so the workspace's containerized
+// Postgres can handle it. Real runs should be done on dedicated hardware:
+//
+//	CODER_CHAT_SEARCH_BENCH_SCALED_USERS=1000 \
+//	  go test -tags bench_chat_search -run=^$ \
+//	    -bench=BenchmarkChatMessageSearchIndexScaled \
+//	    -benchtime=1x -v ./coderd/database
+func BenchmarkChatMessageSearchIndexScaled(b *testing.B) {
+	ctx := b.Context()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(b)
+
+	createChatMessageSearchSchema(ctx, b, sqlDB)
+
+	userCount := benchEnvInt(b, "CODER_CHAT_SEARCH_BENCH_SCALED_USERS", 10)
+	require.Positive(b, userCount, "scaled benchmark requires at least one user")
+	faker := gofakeit.New(uint64(benchEnvInt(b, "CODER_CHAT_SEARCH_BENCH_SCALED_SEED", 1)))
+
+	plan := planScaledBenchmark(faker, userCount)
+	b.Logf("scaled distribution: users=%d active_chats=%d archived_chats=%d child_chats=%d",
+		userCount, plan.ActiveChats, plan.ArchivedChats, plan.ChildChats)
+
+	seedStart := time.Now()
+	stats := seedScaledChatMessageSearchCorpus(ctx, b, db, plan)
+	seedBeforeIndex := time.Since(seedStart)
+	b.Logf("seed before index: root_messages=%d child_messages=%d duration=%s",
+		stats.RootMessages, stats.ChildMessages, seedBeforeIndex)
+
+	indexStart := time.Now()
+	createChatMessageSearchIndex(ctx, b, sqlDB)
+	createIndexDuration := time.Since(indexStart)
+	b.Logf("create index duration: %s", createIndexDuration)
+	logChatMessageSearchIndexSize(ctx, b, sqlDB, "after create index")
+
+	analyzeChatMessageSearchTables(ctx, b, sqlDB)
+	runChatMessageSearchSampleQueries(ctx, b, sqlDB)
+}
+
+// userBucket assigns a share of users to an active/archived chat-count range.
+type userBucket struct {
+	Name               string
+	Share              float64
+	ActiveChatsRange   [2]int
+	ArchivedChatsRange [2]int
+}
+
+// userBuckets approximate the heavy-tail per-user distribution seen on
+// dev.coder.com.
+var userBuckets = []userBucket{
+	{"light", 0.50, [2]int{1, 10}, [2]int{0, 5}},
+	{"medium", 0.40, [2]int{10, 90}, [2]int{5, 60}},
+	{"heavy", 0.09, [2]int{90, 520}, [2]int{60, 400}},
+	{"power", 0.01, [2]int{520, 1000}, [2]int{400, 900}},
+}
+
+// chatSizeBucket assigns a share of chats to an average-messages bucket. The
+// buckets approximate the spread observed on dev where most chats hold tens of
+// messages and a small tail holds thousands.
+type chatSizeBucket struct {
+	Share       float64
+	AvgMessages int
+}
+
+var chatSizeBuckets = []chatSizeBucket{
+	{0.30, 30},
+	{0.25, 60},
+	{0.20, 120},
+	{0.12, 250},
+	{0.07, 500},
+	{0.04, 1000},
+	{0.015, 2500},
+	{0.005, 5000},
+}
+
+// childBucket assigns a share of root chats to a children-count range. Most
+// root chats have no children; a thin tail has many.
+type childBucket struct {
+	Share         float64
+	ChildrenRange [2]int
+}
+
+var childBuckets = []childBucket{
+	{0.50, [2]int{0, 0}},
+	{0.40, [2]int{1, 3}},
+	{0.09, [2]int{4, 20}},
+	{0.01, [2]int{20, 200}},
+}
+
+// scaledUserPlan describes one synthetic user's chat workload.
+type scaledUserPlan struct {
+	ActiveChats   []scaledChatPlan
+	ArchivedChats []scaledChatPlan
+}
+
+// scaledChatPlan describes one root chat to be seeded along with any children.
+type scaledChatPlan struct {
+	AvgMessages int
+	Children    []scaledChatPlan
+}
+
+// scaledBenchmarkPlan aggregates the per-user plans plus totals so the bench
+// can log scale without re-walking the plan.
+type scaledBenchmarkPlan struct {
+	Users         []scaledUserPlan
+	ActiveChats   int
+	ArchivedChats int
+	ChildChats    int
+}
+
+// planScaledBenchmark generates a reproducible benchmark plan for the given
+// user count using the dev-shape distributions defined above.
+func planScaledBenchmark(faker *gofakeit.Faker, userCount int) scaledBenchmarkPlan {
+	plan := scaledBenchmarkPlan{Users: make([]scaledUserPlan, 0, userCount)}
+	for range userCount {
+		bucket := pickUserBucket(faker)
+		userPlan := scaledUserPlan{
+			ActiveChats:   planChats(faker, bucket.ActiveChatsRange, true),
+			ArchivedChats: planChats(faker, bucket.ArchivedChatsRange, false),
+		}
+		plan.Users = append(plan.Users, userPlan)
+		plan.ActiveChats += len(userPlan.ActiveChats)
+		plan.ArchivedChats += len(userPlan.ArchivedChats)
+		for _, chat := range userPlan.ActiveChats {
+			plan.ChildChats += len(chat.Children)
+		}
+	}
+	return plan
+}
+
+func pickUserBucket(faker *gofakeit.Faker) userBucket {
+	r := faker.Float64()
+	acc := 0.0
+	for _, bucket := range userBuckets {
+		acc += bucket.Share
+		if r <= acc {
+			return bucket
+		}
+	}
+	return userBuckets[len(userBuckets)-1]
+}
+
+func pickChatSize(faker *gofakeit.Faker) int {
+	r := faker.Float64()
+	acc := 0.0
+	for _, bucket := range chatSizeBuckets {
+		acc += bucket.Share
+		if r <= acc {
+			return bucket.AvgMessages
+		}
+	}
+	return chatSizeBuckets[len(chatSizeBuckets)-1].AvgMessages
+}
+
+func pickChildCount(faker *gofakeit.Faker) int {
+	r := faker.Float64()
+	acc := 0.0
+	for _, bucket := range childBuckets {
+		acc += bucket.Share
+		if r <= acc {
+			if bucket.ChildrenRange[1] <= 0 {
+				return 0
+			}
+			return faker.Number(bucket.ChildrenRange[0], bucket.ChildrenRange[1])
+		}
+	}
+	return 0
+}
+
+func planChats(faker *gofakeit.Faker, chatRange [2]int, withChildren bool) []scaledChatPlan {
+	count := faker.Number(chatRange[0], chatRange[1])
+	if count <= 0 {
+		return nil
+	}
+	chats := make([]scaledChatPlan, 0, count)
+	for range count {
+		chat := scaledChatPlan{AvgMessages: pickChatSize(faker)}
+		if withChildren {
+			childCount := pickChildCount(faker)
+			for range childCount {
+				chat.Children = append(chat.Children, scaledChatPlan{AvgMessages: pickChatSize(faker)})
+			}
+		}
+		chats = append(chats, chat)
+	}
+	return chats
+}
+
+// scaledSeedStats reports realized message counts for the seed phase.
+type scaledSeedStats struct {
+	RootMessages  int
+	ChildMessages int
+}
+
+func seedScaledChatMessageSearchCorpus(ctx context.Context, t testing.TB, db database.Store, plan scaledBenchmarkPlan) scaledSeedStats {
+	t.Helper()
+
+	faker := gofakeit.New(2)
+	organization := dbgen.Organization(t, db, database.Organization{})
+	provider := dbgen.ChatProvider(t, db, database.ChatProvider{})
+	modelConfig := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{Provider: provider.Provider})
+
+	stats := scaledSeedStats{}
+	chatCounter := 0
+	for _, userPlan := range plan.Users {
+		owner := dbgen.User(t, db, database.User{})
+		apiKey, _ := dbgen.APIKey(t, db, database.APIKey{UserID: owner.ID})
+
+		for _, chatPlan := range userPlan.ActiveChats {
+			rootChat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    organization.ID,
+				OwnerID:           owner.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("scaled root %d %s", chatCounter, chatSearchSeedText(faker, chatCounter)),
+			})
+			stats.RootMessages += insertChatMessagesForPlan(ctx, t, db, faker, rootChat, owner.ID, apiKey.ID, modelConfig.ID, chatCounter, chatPlan.AvgMessages)
+			chatCounter++
+
+			for _, childPlan := range chatPlan.Children {
+				childChat := dbgen.Chat(t, db, database.Chat{
+					OrganizationID:    organization.ID,
+					OwnerID:           owner.ID,
+					LastModelConfigID: modelConfig.ID,
+					ParentChatID:      uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+					RootChatID:        uuid.NullUUID{UUID: rootChat.ID, Valid: true},
+					Title:             fmt.Sprintf("scaled child %d %s", chatCounter, chatSearchSeedText(faker, chatCounter)),
+				})
+				stats.ChildMessages += insertChatMessagesForPlan(ctx, t, db, faker, childChat, owner.ID, apiKey.ID, modelConfig.ID, chatCounter, childPlan.AvgMessages)
+				chatCounter++
+			}
+		}
+
+		for _, chatPlan := range userPlan.ArchivedChats {
+			rootChat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    organization.ID,
+				OwnerID:           owner.ID,
+				LastModelConfigID: modelConfig.ID,
+				Title:             fmt.Sprintf("scaled archived %d %s", chatCounter, chatSearchSeedText(faker, chatCounter)),
+			})
+			stats.RootMessages += insertChatMessagesForPlan(ctx, t, db, faker, rootChat, owner.ID, apiKey.ID, modelConfig.ID, chatCounter, chatPlan.AvgMessages)
+			_, err := db.ArchiveChatByID(ctx, rootChat.ID)
+			require.NoError(t, err)
+			chatCounter++
+		}
+	}
+	return stats
+}
+
+// insertChatMessagesForPlan inserts one chat's worth of messages using the
+// existing dev-shaped role/visibility/text mix and per-chat jitter.
+func insertChatMessagesForPlan(ctx context.Context, t testing.TB, db database.Store, faker *gofakeit.Faker, chat database.Chat, ownerID uuid.UUID, apiKeyID string, modelConfigID uuid.UUID, chatIndex, avgMessages int) int {
+	t.Helper()
+
+	messageCount := jitteredMessageCount(faker, avgMessages)
+	if messageCount <= 0 {
+		return 0
+	}
+	params := chatMessageBatchParams(faker, chat, ownerID, apiKeyID, modelConfigID, chatIndex, messageCount)
+	_, err := db.InsertChatMessages(ctx, params)
+	require.NoError(t, err)
+	return messageCount
+}
