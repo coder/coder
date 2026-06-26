@@ -30,7 +30,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import {
 	castNotificationMethod,
 	isTaskNotification,
@@ -44,7 +44,7 @@ import { pageTitle } from "#/utils/page";
 
 const NotificationsPage: FC = () => {
 	const { user, permissions } = useAuthenticated();
-	const isGatewayAccount = useIsGatewayAccount();
+	const isGatewayAccount = !useCanCreateWorkspace();
 	const [
 		disabledPreferences,
 		systemTemplatesByGroup,

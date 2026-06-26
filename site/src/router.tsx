@@ -14,7 +14,7 @@ import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { useAuthenticated } from "./hooks/useAuthenticated";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import { useIsGatewayAccount } from "./modules/dashboard/useIsGatewayAccount";
+import { useCanCreateWorkspace } from "./modules/dashboard/useCanCreateWorkspace";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import ConnectionLogPage from "./pages/ConnectionLogPage/ConnectionLogPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
@@ -566,10 +566,10 @@ const RedirectAIBridgeSession = () => {
 // workspace operations role) straight to their account page since the
 // rest of the dashboard is empty for them.
 const DashboardIndexRedirect = () => {
-	const isGatewayAccount = useIsGatewayAccount();
+	const canCreateWorkspace = useCanCreateWorkspace();
 	return (
 		<Navigate
-			to={isGatewayAccount ? "/settings/account" : "/workspaces"}
+			to={canCreateWorkspace ? "/workspaces" : "/settings/account"}
 			replace
 		/>
 	);

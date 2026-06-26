@@ -5,8 +5,8 @@ import type { LinkConfig } from "#/api/typesGenerated";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
 import { canViewDeploymentSettings } from "#/modules/permissions";
 import { useFeatureVisibility } from "../useFeatureVisibility";
 import { NavbarView } from "./NavbarView";
@@ -18,7 +18,7 @@ export const Navbar: FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const proxyContextValue = useProxy();
-	const isGatewayAccount = useIsGatewayAccount();
+	const isGatewayAccount = !useCanCreateWorkspace();
 
 	const canViewDeployment = canViewDeploymentSettings(permissions);
 	const canViewOrganizations = canViewOrganizationSettings;

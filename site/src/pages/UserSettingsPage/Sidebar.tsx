@@ -7,8 +7,8 @@ import {
 	SettingsSidebarNavItem,
 	SidebarHeader,
 } from "#/components/Sidebar/Sidebar";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
 import { getPrereleaseFlag } from "#/utils/buildInfo";
 
 interface SidebarProps {
@@ -17,7 +17,7 @@ interface SidebarProps {
 
 export const Sidebar: FC<SidebarProps> = ({ user }) => {
 	const { entitlements, experiments, buildInfo } = useDashboard();
-	const isGatewayAccount = useIsGatewayAccount();
+	const isGatewayAccount = !useCanCreateWorkspace();
 	const showSchedulePage =
 		!isGatewayAccount &&
 		entitlements.features.advanced_template_scheduling.enabled;

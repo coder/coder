@@ -8,8 +8,8 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { useAuthContext } from "#/contexts/auth/AuthProvider";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useCanCreateWorkspace } from "#/modules/dashboard/useCanCreateWorkspace";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
-import { useIsGatewayAccount } from "#/modules/dashboard/useIsGatewayAccount";
 import { AccountForm } from "./AccountForm";
 import { AccountUserGroups } from "./AccountUserGroups";
 import { GatewayAccountWelcomeDialog } from "./GatewayAccountWelcomeDialog";
@@ -19,7 +19,7 @@ const AccountPage: FC = () => {
 	const { updateProfile, updateProfileError, isUpdatingProfile } =
 		useAuthContext();
 	const { entitlements } = useDashboard();
-	const isGatewayAccount = useIsGatewayAccount();
+	const isGatewayAccount = !useCanCreateWorkspace();
 
 	const hasGroupsFeature = entitlements.features.user_role_management.enabled;
 	const groupsQuery = useQuery({
