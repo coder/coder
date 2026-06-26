@@ -41,25 +41,22 @@ scan_all_files() {
 
 # resolve_diff_base determines the base commit to diff against.
 resolve_diff_base() {
-	# CI pull requests: actions/checkout checks out the PR merge commit,
-	# whose first parent is the base branch tip. Diff against that parent
-	# directly instead of fetching the base branch by name. The base
-	# branch is not always available on origin; Graphite stacks, for
-	# example, use a synthetic graphite-base/<n> ref that is never pushed.
+	# CI pull requests: actions/checkout checks out the PR merge commit
+	# (refs/pull/<n>/merge). Its first parent (HEAD^1) is the exact base
+	# commit GitHub merged against, so diffing HEAD^1 against the checkout
+	# yields every change the PR makes against its base branch. We rely on
+	# this commit rather than fetching the base branch by name: branch
+	# names are mutable and Graphite stacks target an ephemeral
+	# graphite-base/<n> ref that may not exist on origin. Requires the
+	# checkout to use fetch-depth >= 2 so HEAD^1 is present.
 	if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
-		# HEAD^ needs one level of history to resolve. Deepen by one when
-		# the checkout is shallow (fetch-depth: 1). This only extends
-		# HEAD's own history; it does not fetch a separate base branch.
-		if ! git rev-parse --verify --quiet "HEAD^" >/dev/null; then
-			git fetch --deepen=1 >/dev/null 2>&1 || true
+		if ! git rev-parse --verify --quiet "HEAD^1" >/dev/null; then
+			echo "ERROR: the PR base commit (HEAD^1) is missing. Check out" >&2
+			echo "       the PR with fetch-depth >= 2 so the merge commit's" >&2
+			echo "       base parent is available." >&2
+			return 1
 		fi
-
-		if git rev-parse --verify --quiet "HEAD^" >/dev/null; then
-			git rev-parse "HEAD^"
-			return
-		fi
-
-		echo "WARNING: HEAD has no parent commit; cannot determine PR base." >&2
+		git rev-parse "HEAD^1"
 		return
 	fi
 
