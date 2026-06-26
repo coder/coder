@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"testing/synctest"
@@ -354,6 +355,98 @@ type mockMCPFactory struct {
 
 func newMockMCPFactory(proxy *mcpmock.MockServerProxier) *mockMCPFactory {
 	return &mockMCPFactory{proxy: proxy}
+}
+
+// TestPoolShutdownRaceWithInflightWork runs Shutdown concurrently with
+// in-flight serves and Acquires. It tripped the race detector before the
+// shutdown-synchronization fix; it must stay clean under -race.
+func TestPoolShutdownRaceWithInflightWork(t *testing.T) {
+	t.Parallel()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, "ok")
+	}))
+	t.Cleanup(upstream.Close)
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	ctrl := gomock.NewController(t)
+	client := mock.NewMockDRPCClient(ctrl)
+	mcpProxy := mcpmock.NewMockServerProxier(ctrl)
+	mcpProxy.EXPECT().Init(gomock.Any()).AnyTimes().Return(nil)
+	mcpProxy.EXPECT().Shutdown(gomock.Any()).AnyTimes().Return(nil)
+
+	opts := aibridged.PoolOptions{MaxItems: 16, TTL: time.Minute}
+	pool, err := aibridged.NewCachedBridgePool(opts, []aibridge.Provider{
+		aibridge.NewOpenAIProvider(config.OpenAI{Name: "p", BaseURL: upstream.URL}),
+	}, logger, nil, testTracer)
+	require.NoError(t, err)
+
+	clientFn := func() (aibridged.DRPCClient, error) { return client, nil }
+
+	// Cache a bridge up front so the serve workers have a handler to drive.
+	handler, err := pool.Acquire(t.Context(), aibridged.Request{
+		SessionKey:  "key",
+		InitiatorID: uuid.New(),
+		APIKeyID:    uuid.New().String(),
+	}, clientFn, newMockMCPFactory(mcpProxy))
+	require.NoError(t, err)
+
+	var (
+		wg               sync.WaitGroup
+		stop             = make(chan struct{})
+		serves, acquires atomic.Int64
+	)
+
+	// Serve workers race bridge Shutdown (triggered by cache eviction).
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				req := httptest.NewRequest(http.MethodGet, "/p/v1/models", nil)
+				handler.ServeHTTP(httptest.NewRecorder(), req)
+				serves.Add(1)
+			}
+		}()
+	}
+
+	// Acquire workers race cache.Close against Acquire's deferred cache.Wait.
+	for range 4 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if _, err := pool.Acquire(t.Context(), aibridged.Request{
+					SessionKey:  "key",
+					InitiatorID: uuid.New(),
+					APIKeyID:    uuid.New().String(),
+				}, clientFn, newMockMCPFactory(mcpProxy)); err != nil {
+					return // pool shutting down
+				}
+				acquires.Add(1)
+			}
+		}()
+	}
+
+	// Wait until both worker kinds are running so Shutdown overlaps in-flight
+	// work (no sleeps).
+	require.Eventually(t, func() bool {
+		return serves.Load() > 0 && acquires.Load() > 0
+	}, testutil.WaitShort, testutil.IntervalFast)
+
+	require.NoError(t, pool.Shutdown(context.Background()))
+	close(stop)
+	wg.Wait()
 }
 
 func (m *mockMCPFactory) Build(ctx context.Context, req aibridged.Request, tracer trace.Tracer) (mcp.ServerProxier, error) {

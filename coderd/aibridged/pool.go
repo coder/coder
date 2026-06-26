@@ -70,6 +70,14 @@ type CachedBridgePool struct {
 
 	shutDownOnce   sync.Once
 	shuttingDownCh chan struct{}
+
+	// opsMu + opsWG order cache use against Shutdown: Acquire and
+	// ReplaceProviders hold opsMu (read) across the shuttingDownCh check
+	// and opsWG.Add; Shutdown holds it (write) around
+	// close(shuttingDownCh), then waits on opsWG before cache.Close, so
+	// cache use never races Close (which closes ristretto's channels).
+	opsMu sync.RWMutex
+	opsWG sync.WaitGroup
 }
 
 func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, logger slog.Logger, metrics *aibridge.Metrics, tracer trace.Tracer) (*CachedBridgePool, error) {
@@ -120,11 +128,17 @@ func NewCachedBridgePool(options PoolOptions, providers []aibridge.Provider, log
 // It is safe to call concurrently with Acquire and is a no-op after
 // Shutdown.
 func (p *CachedBridgePool) ReplaceProviders(providers []aibridge.Provider) {
+	p.opsMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
+		p.opsMu.RUnlock()
 		return
 	default:
 	}
+	p.opsWG.Add(1)
+	p.opsMu.RUnlock()
+	defer p.opsWG.Done()
+
 	snapshot := slices.Clone(providers)
 	p.providers.Store(&snapshot)
 	version := time.Now().UnixNano()
@@ -178,11 +192,16 @@ func (p *CachedBridgePool) Acquire(ctx context.Context, req Request, clientFn Cl
 		return nil, xerrors.Errorf("acquire: %w", err)
 	}
 
+	p.opsMu.RLock()
 	select {
 	case <-p.shuttingDownCh:
+		p.opsMu.RUnlock()
 		return nil, xerrors.New("pool shutting down")
 	default:
 	}
+	p.opsWG.Add(1)
+	p.opsMu.RUnlock()
+	defer p.opsWG.Done()
 
 	// Wait for all buffered writes to be applied, otherwise multiple calls in quick succession
 	// may visit the slow path unnecessarily.
@@ -261,8 +280,12 @@ func (p *CachedBridgePool) CacheMetrics() PoolMetrics {
 // Shutdown will close the cache which will trigger eviction of all the Bridge entries.
 func (p *CachedBridgePool) Shutdown(_ context.Context) error {
 	p.shutDownOnce.Do(func() {
-		// Prevent new requests from being served.
+		// Block new cache use, drain in-flight ops, then close (see opsMu).
+		p.opsMu.Lock()
 		close(p.shuttingDownCh)
+		p.opsMu.Unlock()
+
+		p.opsWG.Wait()
 
 		p.cache.Close()
 	})

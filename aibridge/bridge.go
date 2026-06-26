@@ -73,6 +73,10 @@ type RequestBridge struct {
 	inflightReqs atomic.Int32
 	inflightWG   sync.WaitGroup // For graceful shutdown.
 
+	// admitMu orders inflightWG.Add (ServeHTTP, read-held) before
+	// close(b.closed) (Shutdown, write-held), so Add never races Wait.
+	admitMu sync.RWMutex
+
 	inflightCtx    context.Context
 	inflightCancel func()
 
@@ -355,24 +359,27 @@ func writeRequestBodyTooLarge(w http.ResponseWriter) {
 // ServeHTTP exposes the internal http.Handler, which has all [Provider]s' routes registered.
 // It also tracks inflight requests.
 func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	b.admitMu.RLock()
 	select {
 	case <-b.closed:
+		b.admitMu.RUnlock()
 		http.Error(rw, "server closed", http.StatusInternalServerError)
 		return
 	default:
 	}
 
-	// We want to abide by the context passed in without losing any of its
-	// functionality, but we still want to link our shutdown context to each
-	// request.
-	ctx := mergeContexts(r.Context(), b.inflightCtx)
-
 	b.inflightReqs.Add(1)
 	b.inflightWG.Add(1)
+	b.admitMu.RUnlock()
 	defer func() {
 		b.inflightReqs.Add(-1)
 		b.inflightWG.Done()
 	}()
+
+	// We want to abide by the context passed in without losing any of its
+	// functionality, but we still want to link our shutdown context to each
+	// request.
+	ctx := mergeContexts(r.Context(), b.inflightCtx)
 
 	// Enforce the request body size limit. MaxBytesReader counts bytes as
 	// they are read from the connection and fails when the limit is exceeded.
@@ -386,8 +393,10 @@ func (b *RequestBridge) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func (b *RequestBridge) Shutdown(ctx context.Context) error {
 	var err error
 	b.shutdownOnce.Do(func() {
-		// Prevent any new requests from being accepted.
+		// Close under admitMu so no ServeHTTP sits mid-admission (see admitMu).
+		b.admitMu.Lock()
 		close(b.closed)
+		b.admitMu.Unlock()
 
 		// Wait for inflight requests to complete or context cancellation.
 		done := make(chan struct{})
