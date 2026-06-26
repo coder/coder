@@ -18,13 +18,13 @@
   "remotes": [
     {
       "type": "streamable-http",
-      "url": "{coder_url}/api/experimental/mcp/http",
+      "url": "https://{coder_hostname}/api/experimental/mcp/http",
       "variables": {
-        "coder_url": {
-          "description": "URL of your Coder deployment (e.g., https://coder.example.com)",
+        "coder_hostname": {
+          "description": "Hostname of your Coder deployment (e.g., coder.example.com)",
           "isRequired": true,
           "format": "string",
-          "placeholder": "https://coder.example.com"
+          "placeholder": "coder.example.com"
         }
       }
     }
