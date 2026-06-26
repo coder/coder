@@ -14,6 +14,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - Frontend: Read [Frontend Development Guidelines](site/AGENTS.md) before changing anything under `site/`.
 - Docs prose: When editing anything under `docs/`, refer to the prose style guide at [`docs/.style/style-guide/`](docs/.style/style-guide/README.md).
   For supporting agent-specific guidance, refer to [`.claude/docs/DOCS_STYLE_GUIDE.md`](.claude/docs/DOCS_STYLE_GUIDE.md), which covers structure, research, and content patterns.
+- Writing docs: Before authoring or editing content under `docs/`, load the [`write-docs` skill](.claude/skills/write-docs/SKILL.md), which points at the canonical content guidelines and prose style guide, then walks research, routing, Diataxis mode, structure, and validation.
 
 ## Foundational rules
 
@@ -221,6 +222,7 @@ manually before starting work:
 - `.claude/docs/TROUBLESHOOTING.md` - common failures and fixes (when stuck)
 - `.claude/docs/DOCS_STYLE_GUIDE.md` - docs prose and formatting (when writing `docs/`)
 - `docs/.style/content-guidelines.md` - canonical content scope and routing rules (when writing `docs/`; governs on conflicts with the style guide)
+- `.claude/skills/write-docs/SKILL.md` - authoring workflow and guardrails (when writing or editing `docs/`)
 
 **For frontend work**, also read `site/AGENTS.md` before making any changes
 in `site/`.
