@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/binary"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,11 +59,16 @@ func TestWriteAgentLogFilesArchiveLimits(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		err = writeAgentLogFilesArchiveWithLimits(agentArchive.Bytes(), bundleZip, 4, 1024)
-		require.NoError(t, err)
+		require.NoError(t, writeAgentLogFilesArchiveWithLimits(agentArchive.Bytes(), bundleZip, 4, 1024))
+		require.NoError(t, bundleZip.Close())
+
+		entries := readBundleEntries(t, bundle.Bytes())
+		require.Equal(t, "1234", string(entries["agent/log_files/files/server.log"]))
+		require.Contains(t, entries, "agent/log_files/manifest.json")
+		require.NotContains(t, entries, "agent/log_files/collection_errors.txt")
 	})
 
-	t.Run("RejectsOversizedLogEntries", func(t *testing.T) {
+	t.Run("SkipsOversizedLogEntries", func(t *testing.T) {
 		t.Parallel()
 
 		var agentArchive bytes.Buffer
@@ -80,7 +86,72 @@ func TestWriteAgentLogFilesArchiveLimits(t *testing.T) {
 
 		var bundle bytes.Buffer
 		bundleZip := zip.NewWriter(&bundle)
-		err = writeAgentLogFilesArchive(archiveBytes, bundleZip)
-		require.ErrorContains(t, err, "agent log files archive exceeds")
+		require.NoError(t, writeAgentLogFilesArchive(archiveBytes, bundleZip))
+		require.NoError(t, bundleZip.Close())
+
+		// The oversized entry is dropped, but the bundle still succeeds and
+		// records why.
+		entries := readBundleEntries(t, bundle.Bytes())
+		require.NotContains(t, entries, "agent/log_files/files/server.log")
+		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "files/server.log")
+		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "exceeds")
 	})
+
+	t.Run("KeepsValidEntriesWhenOneIsOversized", func(t *testing.T) {
+		t.Parallel()
+
+		var agentArchive bytes.Buffer
+		agentZip := zip.NewWriter(&agentArchive)
+		for name, content := range map[string]string{
+			"files/small.log": "ok",
+			"files/big.log":   "this entry is too big",
+		} {
+			entry, err := agentZip.Create(name)
+			require.NoError(t, err)
+			_, err = entry.Write([]byte(content))
+			require.NoError(t, err)
+		}
+		require.NoError(t, agentZip.Close())
+
+		var bundle bytes.Buffer
+		bundleZip := zip.NewWriter(&bundle)
+		// A 4 byte log budget fits small.log but not big.log, regardless of
+		// the order they're encountered in.
+		require.NoError(t, writeAgentLogFilesArchiveWithLimits(agentArchive.Bytes(), bundleZip, 4, 1024))
+		require.NoError(t, bundleZip.Close())
+
+		entries := readBundleEntries(t, bundle.Bytes())
+		require.Equal(t, "ok", string(entries["agent/log_files/files/small.log"]))
+		require.NotContains(t, entries, "agent/log_files/files/big.log")
+		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "files/big.log")
+	})
+
+	t.Run("MalformedArchiveDoesNotFail", func(t *testing.T) {
+		t.Parallel()
+
+		var bundle bytes.Buffer
+		bundleZip := zip.NewWriter(&bundle)
+		require.NoError(t, writeAgentLogFilesArchive([]byte("not a zip"), bundleZip))
+		require.NoError(t, bundleZip.Close())
+
+		entries := readBundleEntries(t, bundle.Bytes())
+		require.Contains(t, string(entries["agent/log_files/collection_errors.txt"]), "open agent log files archive")
+	})
+}
+
+func readBundleEntries(t *testing.T, data []byte) map[string][]byte {
+	t.Helper()
+
+	zr, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+	require.NoError(t, err)
+	entries := map[string][]byte{}
+	for _, file := range zr.File {
+		rc, err := file.Open()
+		require.NoError(t, err)
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
+		require.NoError(t, err)
+		entries[file.Name] = content
+	}
+	return entries
 }

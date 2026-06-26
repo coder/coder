@@ -212,9 +212,7 @@ patterns:
 				BytesWritten: bytesToWrite,
 				Truncated:    bytesToWrite < candidate.size,
 			}
-			if entry.Truncated {
-				manifest.Truncated = true
-			}
+			manifest.Truncated = manifest.Truncated || entry.Truncated
 			if err := writeDebugLogFileEntry(root, candidate, zw, bytesToWrite); err != nil {
 				logger.Warn(ctx, "write debug log file", slog.Error(err), slog.F("path", candidate.resolvedPath))
 				appendDebugLogFilesError(&manifest, candidate.requested, candidate.resolvedPath, err.Error())
@@ -290,18 +288,12 @@ func (f debugLogFilesFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	if err := f.ctx.Err(); err != nil {
 		return nil, err
 	}
-	if readDirFS, ok := f.fsys.(fs.ReadDirFS); ok {
-		return readDirFS.ReadDir(name)
-	}
 	return fs.ReadDir(f.fsys, name)
 }
 
 func (f debugLogFilesFS) Stat(name string) (fs.FileInfo, error) {
 	if err := f.ctx.Err(); err != nil {
 		return nil, err
-	}
-	if statFS, ok := f.fsys.(fs.StatFS); ok {
-		return statFS.Stat(name)
 	}
 	return fs.Stat(f.fsys, name)
 }
@@ -312,23 +304,19 @@ func expandDebugLogFilePattern(home string, requested string) (string, error) {
 		return "", xerrors.Errorf("empty path")
 	}
 
-	var expanded string
-	switch {
-	case trimmed == "$HOME" || trimmed == "${HOME}" || trimmed == "~":
-		expanded = home
-	case strings.HasPrefix(trimmed, "$HOME/"):
-		expanded = filepath.Join(home, filepath.FromSlash(strings.TrimPrefix(trimmed, "$HOME/")))
-	case strings.HasPrefix(trimmed, "${HOME}/"):
-		expanded = filepath.Join(home, filepath.FromSlash(strings.TrimPrefix(trimmed, "${HOME}/")))
-	case strings.HasPrefix(trimmed, "~/"):
-		expanded = filepath.Join(home, filepath.FromSlash(strings.TrimPrefix(trimmed, "~/")))
-	case filepath.IsAbs(trimmed):
-		expanded = trimmed
-	default:
-		return "", xerrors.Errorf("relative path not allowed")
+	switch trimmed {
+	case "$HOME", "${HOME}", "~":
+		return filepath.Clean(home), nil
 	}
-
-	return filepath.Clean(expanded), nil
+	for _, prefix := range []string{"$HOME/", "${HOME}/", "~/"} {
+		if rest, ok := strings.CutPrefix(trimmed, prefix); ok {
+			return filepath.Clean(filepath.Join(home, filepath.FromSlash(rest))), nil
+		}
+	}
+	if filepath.IsAbs(trimmed) {
+		return filepath.Clean(trimmed), nil
+	}
+	return "", xerrors.Errorf("relative path not allowed")
 }
 
 func debugLogFileCandidateForPath(home string, requested string, match string, manifest *debugLogFilesManifest) (debugLogFileCandidate, bool) {
@@ -360,7 +348,7 @@ func debugLogFileCandidateForPath(home string, requested string, match string, m
 		requested:    requested,
 		resolvedPath: resolved,
 		relPath:      filepath.ToSlash(rel),
-		archivePath:  debugLogFilesArchivePath(rel),
+		archivePath:  path.Join("files", filepath.ToSlash(rel)),
 		size:         info.Size(),
 		modTime:      info.ModTime(),
 	}, true
@@ -371,17 +359,10 @@ func homeRelativePath(home string, filePath string) (string, bool) {
 	if err != nil {
 		return "", false
 	}
-	if rel == "." {
-		return rel, true
-	}
 	if rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
 		return "", false
 	}
 	return rel, true
-}
-
-func debugLogFilesArchivePath(rel string) string {
-	return path.Join("files", path.Clean(filepath.ToSlash(rel)))
 }
 
 func writeDebugLogFilesManifestArchive(w io.Writer, manifest debugLogFilesManifest) error {

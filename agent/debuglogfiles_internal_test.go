@@ -18,6 +18,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestCollectDebugLogFiles(t *testing.T) {
@@ -26,7 +27,7 @@ func TestCollectDebugLogFiles(t *testing.T) {
 	t.Run("CollectsExpandedPathsAndGlobs", func(t *testing.T) {
 		t.Parallel()
 
-		home := t.TempDir()
+		home := testutil.TempDirResolved(t)
 		writeTestLogFile(t, home, ".vscode-server/data/logs/server.log", "server log")
 		writeTestLogFile(t, home, ".vscode-server/data/logs/2026/06/nested.log", "nested")
 		writeTestLogFile(t, home, ".vscode-server/data/logs/2026/06/skip.txt", "skip")
@@ -58,8 +59,8 @@ func TestCollectDebugLogFiles(t *testing.T) {
 	t.Run("RejectedPathsAreNonFatal", func(t *testing.T) {
 		t.Parallel()
 
-		home := t.TempDir()
-		outside := t.TempDir()
+		home := testutil.TempDirResolved(t)
+		outside := testutil.TempDirResolved(t)
 		writeTestLogFile(t, home, "kept.log", "kept")
 		writeTestLogFile(t, outside, "outside.log", "outside")
 
@@ -87,8 +88,8 @@ func TestCollectDebugLogFiles(t *testing.T) {
 			t.Skip("symlink behavior differs on windows")
 		}
 
-		home := t.TempDir()
-		outside := t.TempDir()
+		home := testutil.TempDirResolved(t)
+		outside := testutil.TempDirResolved(t)
 		writeTestLogFile(t, outside, "secret.log", "secret")
 		require.NoError(t, os.Symlink(filepath.Join(outside, "secret.log"), filepath.Join(home, "link.log")))
 
@@ -101,7 +102,7 @@ func TestCollectDebugLogFiles(t *testing.T) {
 	t.Run("TailBytesTruncation", func(t *testing.T) {
 		t.Parallel()
 
-		home := t.TempDir()
+		home := testutil.TempDirResolved(t)
 		writeTestLogFile(t, home, "large.log", "0123456789")
 
 		entries := readDebugLogFilesArchive(t, collectDebugLogFilesForTest(t, home, []string{"$HOME/large.log"}, debugLogFilesLimits{
@@ -121,7 +122,7 @@ func TestCollectDebugLogFiles(t *testing.T) {
 	t.Run("Limits", func(t *testing.T) {
 		t.Parallel()
 
-		home := t.TempDir()
+		home := testutil.TempDirResolved(t)
 		writeTestLogFile(t, home, "one.log", "1111")
 		writeTestLogFile(t, home, "two.log", "2222")
 		writeTestLogFile(t, home, "three.log", "3333")
@@ -145,7 +146,7 @@ func TestCollectDebugLogFiles(t *testing.T) {
 	t.Run("ArchivePathCollisions", func(t *testing.T) {
 		t.Parallel()
 
-		home := t.TempDir()
+		home := testutil.TempDirResolved(t)
 		writeTestLogFile(t, home, "dup.log", "one")
 		writeTestLogFile(t, home, "dir/../other.log", "two")
 
@@ -162,8 +163,10 @@ func TestCollectDebugLogFiles(t *testing.T) {
 }
 
 func TestHandleHTTPDebugLogFiles(t *testing.T) {
-	home := t.TempDir()
+	home := testutil.TempDirResolved(t)
+	// os.UserHomeDir reads HOME on Unix and USERPROFILE on Windows.
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 	writeTestLogFile(t, home, "server.log", "server log")
 	a := &agent{
 		logger: slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug),
@@ -225,7 +228,8 @@ func readDebugLogFilesArchive(t *testing.T, data []byte) debugLogFilesArchive {
 	for _, file := range zr.File {
 		rc, err := file.Open()
 		require.NoError(t, err)
-		content, err := ioReadAllAndClose(rc)
+		content, err := io.ReadAll(rc)
+		_ = rc.Close()
 		require.NoError(t, err)
 		if file.Name == "manifest.json" {
 			require.NoError(t, json.Unmarshal(content, &entries.manifest))
@@ -235,15 +239,6 @@ func readDebugLogFilesArchive(t *testing.T, data []byte) debugLogFilesArchive {
 	}
 	require.NotEmpty(t, entries.manifest.Requested)
 	return entries
-}
-
-func ioReadAllAndClose(rc interface {
-	Read([]byte) (int, error)
-	Close() error
-},
-) ([]byte, error) {
-	defer rc.Close()
-	return io.ReadAll(rc)
 }
 
 func requireDebugLogFilesManifestErrors(t *testing.T, errs []debugLogFileError, contains ...string) {

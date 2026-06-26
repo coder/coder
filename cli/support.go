@@ -589,50 +589,98 @@ func writeAgentLogFilesArchiveWithLimits(src []byte, dest *zip.Writer, maxLogByt
 	}
 	zr, err := zip.NewReader(bytes.NewReader(src), int64(len(src)))
 	if err != nil {
-		return xerrors.Errorf("open agent log files archive: %w", err)
+		// A malformed archive shouldn't sink the rest of the bundle.
+		return writeAgentLogFilesSkipped(dest, []string{
+			fmt.Sprintf("open agent log files archive: %s", err),
+		})
 	}
-	totalLogBytes := int64(0)
-	totalMetadataBytes := int64(0)
+	var (
+		totalLogBytes      int64
+		totalMetadataBytes int64
+		skipped            []string
+	)
 	for _, file := range zr.File {
 		name, ok := safeAgentLogFilesArchiveName(file.Name)
 		if !ok || !file.FileInfo().Mode().IsRegular() {
 			continue
 		}
-		uncompressedSize := file.FileInfo().Size()
-		if uncompressedSize < 0 {
-			return xerrors.Errorf("agent log files archive entry %q has invalid size", file.Name)
+		size := file.FileInfo().Size()
+		isLog := strings.HasPrefix(name, "files/")
+		remaining, maxBytes, kind := maxMetadataBytes-totalMetadataBytes, maxMetadataBytes, "metadata"
+		if isLog {
+			remaining, maxBytes, kind = maxLogBytes-totalLogBytes, maxLogBytes, "log"
 		}
-		if strings.HasPrefix(name, "files/") {
-			if uncompressedSize > maxLogBytes-totalLogBytes {
-				return xerrors.Errorf("agent log files archive exceeds %d bytes", maxLogBytes)
-			}
-			totalLogBytes += uncompressedSize
-		} else {
-			if uncompressedSize > maxMetadataBytes-totalMetadataBytes {
-				return xerrors.Errorf("agent log files archive metadata exceeds %d bytes", maxMetadataBytes)
-			}
-			totalMetadataBytes += uncompressedSize
+		if size < 0 {
+			skipped = append(skipped, fmt.Sprintf("%s: invalid size", name))
+			continue
 		}
-		rc, err := file.Open()
+		if size > remaining {
+			skipped = append(skipped, fmt.Sprintf("%s: exceeds %d byte %s limit", name, maxBytes, kind))
+			continue
+		}
+		content, err := readAgentLogFileEntry(file, size)
 		if err != nil {
-			return xerrors.Errorf("open agent log files archive entry %q: %w", file.Name, err)
+			skipped = append(skipped, fmt.Sprintf("%s: %s", name, err))
+			continue
 		}
+		// Failing to write into the bundle (rather than read the agent's
+		// data) means the output zip is broken, so propagate it like the
+		// rest of writeBundle.
 		f, err := dest.Create(path.Join("agent/log_files", name))
 		if err != nil {
-			_ = rc.Close()
 			return xerrors.Errorf("create agent log files entry %q: %w", name, err)
 		}
-		copied, copyErr := io.Copy(f, io.LimitReader(rc, uncompressedSize+1))
-		closeErr := rc.Close()
-		if copyErr != nil {
-			return xerrors.Errorf("copy agent log files entry %q: %w", name, copyErr)
+		if _, err := f.Write(content); err != nil {
+			return xerrors.Errorf("write agent log files entry %q: %w", name, err)
 		}
-		if copied != uncompressedSize {
-			return xerrors.Errorf("agent log files archive entry %q has invalid size", name)
+		if isLog {
+			totalLogBytes += size
+		} else {
+			totalMetadataBytes += size
 		}
-		if closeErr != nil {
-			return xerrors.Errorf("close agent log files entry %q: %w", name, closeErr)
-		}
+	}
+	return writeAgentLogFilesSkipped(dest, skipped)
+}
+
+// readAgentLogFileEntry reads an archive entry into memory, rejecting any
+// whose real content does not match its declared size (e.g. a spoofed
+// header). Reading is bounded by the declared size so it can't be used to
+// exhaust memory.
+func readAgentLogFileEntry(file *zip.File, size int64) ([]byte, error) {
+	rc, err := file.Open()
+	if err != nil {
+		return nil, xerrors.Errorf("open: %w", err)
+	}
+	// Read one extra byte to detect content larger than the declared size.
+	content, err := io.ReadAll(io.LimitReader(rc, size+1))
+	closeErr := rc.Close()
+	if err != nil {
+		return nil, xerrors.Errorf("read: %w", err)
+	}
+	if closeErr != nil {
+		return nil, xerrors.Errorf("close: %w", closeErr)
+	}
+	if int64(len(content)) != size {
+		return nil, xerrors.Errorf("content does not match declared size %d", size)
+	}
+	return content, nil
+}
+
+// writeAgentLogFilesSkipped records, inside the bundle, any workspace log
+// entries dropped while assembling it so the omission stays visible instead
+// of silently shrinking the bundle or failing it entirely.
+func writeAgentLogFilesSkipped(dest *zip.Writer, skipped []string) error {
+	if len(skipped) == 0 {
+		return nil
+	}
+	f, err := dest.Create("agent/log_files/collection_errors.txt")
+	if err != nil {
+		return xerrors.Errorf("create agent log files errors: %w", err)
+	}
+	body := "# workspace log entries dropped while assembling the support bundle\n" +
+		strings.Join(skipped, "\n") + "\n"
+	if _, err := f.Write([]byte(body)); err != nil {
+		return xerrors.Errorf("write agent log files errors: %w", err)
 	}
 	return nil
 }
@@ -646,10 +694,9 @@ func safeAgentLogFilesArchiveName(name string) (string, bool) {
 			return "", false
 		}
 	}
+	// With no ".." segments and a non-absolute name, Clean cannot escape;
+	// requiring a manifest.json or files/ prefix also rejects "." and "".
 	clean := path.Clean(name)
-	if clean == "." || path.IsAbs(clean) || clean == ".." || strings.HasPrefix(clean, "../") {
-		return "", false
-	}
 	if clean != "manifest.json" && !strings.HasPrefix(clean, "files/") {
 		return "", false
 	}
