@@ -444,10 +444,8 @@ oidc:
   # INSECURE: Allow OIDC logins to fall back to email-based matching when the
   # linked_id (issuer+subject) does not match an existing user link. Required for
   # IdP brokers that do not issue a stable 'sub' for the same user across
-  # connections. Enabling this re-introduces the account-takeover vector closed by
-  # the linked_id check: an attacker who registers the victim's email at any IdP
-  # connection can sign in as the victim. The existing user_link's linked_id is
-  # preserved on fallback. Only enable if you understand and accept the risk.
+  # connections. The existing user_link's linked_id is preserved on fallback. Only
+  # enable if you understand and accept the risk.
   # (default: <unset>, type: bool)
   dangerousOidcEmailFallback: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal

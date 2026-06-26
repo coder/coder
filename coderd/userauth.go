@@ -1189,9 +1189,9 @@ type OIDCConfig struct {
 	PKCEMethods         []promoauth.Oauth2PKCEChallengeMethod
 	// EmailFallback, when true, allows OIDC logins to fall back to
 	// email-based user matching when the linked_id (issuer+subject) does
-	// not match an existing user link. INSECURE: re-introduces the email
-	// account-takeover vector. Used for IdP brokers that do not issue a
-	// stable `sub` for the same user across connections.
+	// not match an existing user link. INSECURE: weakens the linked_id
+	// check. Used for IdP brokers that do not issue a stable `sub` for the
+	// same user across connections.
 	EmailFallback bool
 }
 
