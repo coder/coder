@@ -894,7 +894,7 @@ export const AgentChatPageView: FC<AgentChatPageViewProps> = ({
 							onFetchMoreMessages={onFetchMoreMessages}
 							messageCount={messageCount}
 						>
-							<div className="px-4">
+							<div className="px-4" data-chat-scroll-content>
 								<ChatPageTimeline
 									store={store}
 									persistedError={persistedError}

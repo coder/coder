@@ -2001,6 +2001,176 @@ func TestUserOIDC(t *testing.T) {
 			"linked_id must not be modified when the login is blocked")
 	})
 
+	// Tests the INSECURE OIDC email fallback escape hatch. When the
+	// deployment flag is set, an OIDC login whose subject differs from an
+	// existing user_link's linked_id but whose email matches must be
+	// allowed through. The original linked_id is preserved (no overwrite),
+	// so the user can keep logging in with either subject.
+	t.Run("OIDCInsecureEmailFallbackAllowed", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.EmailFallback = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Seed a user whose link records the IdP's first connection.
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		originalLinkedID := fake.IssuerURL().String() + "||" + "first-connection-sub"
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  originalLinkedID,
+		})
+
+		// Login with a different subject (the broker emitted a new `sub`
+		// for the same user) but the same email. With EmailFallback
+		// enabled the email match resolves the login despite the linked_id
+		// mismatch.
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   "second-connection-sub",
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode,
+			"insecure email fallback must allow login with a mismatched subject")
+
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, me.ID,
+			"should authenticate as the existing user")
+
+		// The original linked_id must be preserved, not overwritten by the
+		// new subject. This keeps the next login from the original subject
+		// (which hits the primary linked_id path) working.
+		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, originalLinkedID, link.LinkedID,
+			"linked_id must be preserved on insecure email fallback")
+	})
+
+	// Tests that with the INSECURE OIDC email fallback enabled, the
+	// original subject's login still resolves via the primary linked_id
+	// path after a fallback login from a different subject. The fallback
+	// path does not overwrite the link, so the original subject keeps
+	// matching directly.
+	t.Run("OIDCInsecureEmailFallbackPreservesOriginalLogin", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+			cfg.EmailFallback = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		const originalSub = "first-connection-sub"
+		originalLinkedID := fake.IssuerURL().String() + "||" + originalSub
+		dbgen.UserLink(t, db, database.UserLink{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+			LinkedID:  originalLinkedID,
+		})
+
+		// Fallback login with a different subject.
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   "second-connection-sub",
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		// Subsequent login with the original subject must hit the primary
+		// linked_id match and succeed.
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   originalSub,
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+		require.Equal(t, user.ID, me.ID)
+
+		link, err := db.GetUserLinkByUserIDLoginType(dbauthz.AsSystemRestricted(context.Background()), database.GetUserLinkByUserIDLoginTypeParams{
+			UserID:    user.ID,
+			LoginType: database.LoginTypeOIDC,
+		})
+		require.NoError(t, err)
+		require.Equal(t, originalLinkedID, link.LinkedID,
+			"linked_id must stay anchored to the original subject")
+	})
+
+	// Tests that the INSECURE OIDC email fallback does NOT extend to
+	// signups: an attacker logging in with a brand-new email (no existing
+	// user) still goes through the normal signup gate. The escape hatch is
+	// only about resolving subject-mismatch on existing accounts.
+	t.Run("OIDCInsecureEmailFallbackDoesNotCreateUsers", func(t *testing.T) {
+		t.Parallel()
+
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = false
+			cfg.EmailFallback = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		// Seed an existing user so the deployment's user count is > 0;
+		// otherwise the first signup is always allowed.
+		dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+
+		// New email, no existing user. Signups are disabled, so the
+		// fallback flag must not let the login through.
+		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": "stranger@example.com",
+			"sub":   "stranger-subject",
+		})
+		require.Equal(t, http.StatusForbidden, resp.StatusCode,
+			"insecure email fallback must not bypass the signup gate")
+	})
+
 	t.Run("OIDCSuspended", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitShort)

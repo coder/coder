@@ -43,7 +43,7 @@
     {
       "name": "description",
       "type": "string",
-      "description": "A custom description for the dotfiles parameter. This is shown in the UI - and allows you to customize the instructions you give to your users.",
+      "description": "Custom description for the dotfiles parameter shown in the UI.",
       "default": "Enter a URL for a [dotfiles repository](https://dotfiles.github.io) to personalize your workspace. Use an SSH URL (e.g. `git@host:user/repo`) if your Git provider restricts HTTPS cloning.",
       "required": false,
       "sensitive": false,
@@ -52,7 +52,7 @@
     {
       "name": "dotfiles_branch",
       "type": "string",
-      "description": "The branch to use for the dotfiles repository (optional, when set, the user isn't prompted for the branch)",
+      "description": "Branch to use for the dotfiles repository.",
       "required": false,
       "sensitive": false,
       "computed": false
@@ -77,7 +77,7 @@
     {
       "name": "post_clone_script",
       "type": "string",
-      "description": "Custom script to run after applying dotfiles. Runs every time, even if dotfiles were already applied.",
+      "description": "Custom script to run after applying dotfiles.",
       "required": false,
       "sensitive": false,
       "computed": false

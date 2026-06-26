@@ -322,6 +322,17 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		})
 	})
 
+	// /ai-gateway/serve provides the DRPC-over-WebSocket that standalone AI Gateway
+	// replicas connect to. It authenticates with a gateway key instead of a user session.
+	api.AGPL.APIHandler.Group(func(r chi.Router) {
+		r.Route("/ai-gateway/serve", func(r chi.Router) {
+			r.Use(
+				api.RequireFeatureMW(codersdk.FeatureAIBridge),
+			)
+			r.Get("/", api.aiGatewayServe)
+		})
+	})
+
 	api.AGPL.APIHandler.Group(func(r chi.Router) {
 		r.Get("/entitlements", api.serveEntitlements)
 		// /regions overrides the AGPL /regions endpoint
@@ -678,7 +689,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 
 	// We always want to run the replica manager even if we don't have DERP
-	// enabled, since it's used to detect other coder servers for licensing.
+	// enabled, since it's used to detect other coder servers for licensing,
+	// and NATS clustering for HA pubsub.
 	api.replicaManager, err = replicasync.New(ctx, options.Logger, options.Database, options.ReplicaSyncPubsub, &replicasync.Options{
 		ID:           api.AGPL.ID,
 		RelayAddress: options.DERPServerRelayAddress,
@@ -686,6 +698,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		RegionID:       int32(options.DERPServerRegionID),
 		TLSConfig:      meshTLSConfig,
 		UpdateInterval: options.ReplicaSyncUpdateInterval,
+		ClusterHost:    options.ClusterHost,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("initialize replica: %w", err)
@@ -788,6 +801,7 @@ type Options struct {
 	// Used for high availability.
 	ReplicaSyncUpdateInterval time.Duration
 	ReplicaErrorGracePeriod   time.Duration
+	ClusterHost               string // IP or hostname to reach this specific replica
 	DERPServerRelayAddress    string
 	DERPServerRegionID        int
 
