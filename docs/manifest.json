@@ -15,7 +15,41 @@
 				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./tutorials/quickstart/index.md",
+					"children": [
+						{
+							"title": "Launch your first workspace",
+							"description": "Install the Coder CLI, run the Coder server, and launch your first workspace",
+							"path": "./tutorials/quickstart/launch-workspace.md"
+						},
+						{
+							"title": "Customize workspace startup",
+							"description": "Add support for dotfiles personalization, modify workspace parameters, and add external authentication",
+							"path": "./tutorials/quickstart/customize-workspace-startup.md",
+							"children": [
+								{
+									"title": "Add a programming language",
+									"description": "Expose a language through a parameter and install it when the workspace starts",
+									"path": "./tutorials/quickstart/add-a-language.md"
+								},
+								{
+									"title": "Install your own command-line tools",
+									"description": "Install personal command-line tools that persist across a workspace rebuild",
+									"path": "./tutorials/quickstart/install-command-line-tools.md"
+								},
+								{
+									"title": "Personalize with dotfiles",
+									"description": "Pull in a dotfiles repository with a registry module",
+									"path": "./tutorials/quickstart/personalize-with-dotfiles.md"
+								},
+								{
+									"title": "Authenticate to GitHub",
+									"description": "Clone private repositories with an external-auth data source",
+									"path": "./tutorials/quickstart/authenticate-to-github.md"
+								}
+							]
+						}
+					]
 				},
 				{
 					"title": "Support",
@@ -1362,7 +1396,7 @@
 				{
 					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
-					"path": "./tutorials/quickstart.md"
+					"path": "./tutorials/quickstart/index.md"
 				},
 				{
 					"title": "Write a Template from Scratch",
