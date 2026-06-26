@@ -26,9 +26,9 @@ import (
 	"github.com/coder/websocket"
 )
 
-// aiGatewayKeyLastUsedInterval defines how often an active DRPC session refreshes
-// last_used_at for its authenticating key.
-const aiGatewayKeyLastUsedInterval = 60 * time.Second
+// aiGatewayKeyHeartbeatInterval defines how often an active DRPC session refreshes
+// last_heartbeat_at for its authenticating key.
+const aiGatewayKeyHeartbeatInterval = 60 * time.Second
 
 // aiGatewayServe upgrades the connection to a WebSocket and serves the DRPC
 // services (Recorder, MCPConfigurator, Authorizer) to a remote standalone AI
@@ -128,8 +128,8 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, err := aiGatewayUpdateKeyLastUsed(connCtx, api, gatewayKey.ID); err != nil {
-		logger.Warn(connCtx, "update ai gateway key last used", slog.Error(err))
+	if _, err := aiGatewayUpdateKeyLastHeartbeat(connCtx, api, gatewayKey.ID); err != nil {
+		logger.Warn(connCtx, "update ai gateway key last heartbeat", slog.Error(err))
 	}
 	go aiGatewayTrackKeyUsage(connCtx, keyCtxCancel, api, gatewayKey.ID, logger)
 
@@ -183,20 +183,20 @@ func (api *API) aiGatewayServe(rw http.ResponseWriter, r *http.Request) {
 	_ = conn.Close(websocket.StatusGoingAway, "")
 }
 
-// aiGatewayUpdateKeyLastUsed records liveness for keyID and returns whether
+// aiGatewayUpdateKeyLastHeartbeat records liveness for keyID and returns whether
 // the key is still active. On error key is assumed to not be active.
-func aiGatewayUpdateKeyLastUsed(ctx context.Context, api *API, keyID uuid.UUID) (bool, error) {
+func aiGatewayUpdateKeyLastHeartbeat(ctx context.Context, api *API, keyID uuid.UUID) (bool, error) {
 	// nolint:gocritic // Recording AI Gateway key liveness is an internal system write.
-	rows, err := api.Database.UpdateAIGatewayKeyLastUsedAt(dbauthz.AsSystemRestricted(ctx), keyID)
+	rows, err := api.Database.UpdateAIGatewayKeyLastHeartbeatAt(dbauthz.AsSystemRestricted(ctx), keyID)
 	if err != nil {
 		return false, err
 	}
 	return rows > 0, nil
 }
 
-// aiGatewayTrackKeyUsage refreshes last_used_at for keyID on a fixed interval until ctx is canceled.
+// aiGatewayTrackKeyUsage refreshes last_heartbeat_at for keyID on a fixed interval until ctx is canceled.
 func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, api *API, keyID uuid.UUID, logger slog.Logger) {
-	ticker, done := api.NewTicker(aiGatewayKeyLastUsedInterval)
+	ticker, done := api.NewTicker(aiGatewayKeyHeartbeatInterval)
 	defer done()
 
 	consecutiveFailures := 0
@@ -207,7 +207,7 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 		case <-ticker:
 		}
 
-		active, err := aiGatewayUpdateKeyLastUsed(ctx, api, keyID)
+		active, err := aiGatewayUpdateKeyLastHeartbeat(ctx, api, keyID)
 		if err == nil && !active {
 			logger.Info(ctx, "ai gateway key no longer exists, closing connection")
 			ctxCancel()
@@ -223,15 +223,15 @@ func aiGatewayTrackKeyUsage(ctx context.Context, ctxCancel context.CancelFunc, a
 			// First failure logged at Debug, next failures escalate to Warn.
 			if consecutiveFailures&(consecutiveFailures-1) == 0 {
 				if consecutiveFailures == 1 {
-					logger.Debug(ctx, "update ai gateway key last used", slog.Error(err), slog.F("consecutive_failures", consecutiveFailures))
+					logger.Debug(ctx, "update ai gateway key last heartbeat", slog.Error(err), slog.F("consecutive_failures", consecutiveFailures))
 				} else {
-					logger.Warn(ctx, "update ai gateway key last used", slog.Error(err), slog.F("consecutive_failures", consecutiveFailures))
+					logger.Warn(ctx, "update ai gateway key last heartbeat", slog.Error(err), slog.F("consecutive_failures", consecutiveFailures))
 				}
 			}
 			continue
 		}
 		if consecutiveFailures > 1 {
-			logger.Info(ctx, "ai gateway key last used update recovered",
+			logger.Info(ctx, "ai gateway key last heartbeat update recovered",
 				slog.F("consecutive_failures", consecutiveFailures))
 		}
 		consecutiveFailures = 0

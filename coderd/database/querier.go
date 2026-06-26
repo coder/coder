@@ -1311,10 +1311,10 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	UnsetDefaultChatModelConfigs(ctx context.Context) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)
-	// Records liveness for an active Gateway DRPC session. The database sets the
+	// Records heartbeat liveness for an active Gateway DRPC session. The database sets the
 	// timestamp so it stays consistent regardless of clock drift between API
 	// replicas.
-	UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error)
+	UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error)
 	UpdateAIProvider(ctx context.Context, arg UpdateAIProviderParams) (AIProvider, error)
 	UpdateAPIKeyByID(ctx context.Context, arg UpdateAPIKeyByIDParams) error
 	UpdateChatACLByID(ctx context.Context, arg UpdateChatACLByIDParams) error

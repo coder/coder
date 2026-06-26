@@ -9518,19 +9518,19 @@ func (mr *MockStoreMockRecorder) UpdateAIBridgeInterceptionEnded(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIBridgeInterceptionEnded", reflect.TypeOf((*MockStore)(nil).UpdateAIBridgeInterceptionEnded), ctx, arg)
 }
 
-// UpdateAIGatewayKeyLastUsedAt mocks base method.
-func (m *MockStore) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, id uuid.UUID) (int64, error) {
+// UpdateAIGatewayKeyLastHeartbeatAt mocks base method.
+func (m *MockStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateAIGatewayKeyLastUsedAt", ctx, id)
+	ret := m.ctrl.Call(m, "UpdateAIGatewayKeyLastHeartbeatAt", ctx, id)
 	ret0, _ := ret[0].(int64)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateAIGatewayKeyLastUsedAt indicates an expected call of UpdateAIGatewayKeyLastUsedAt.
-func (mr *MockStoreMockRecorder) UpdateAIGatewayKeyLastUsedAt(ctx, id any) *gomock.Call {
+// UpdateAIGatewayKeyLastHeartbeatAt indicates an expected call of UpdateAIGatewayKeyLastHeartbeatAt.
+func (mr *MockStoreMockRecorder) UpdateAIGatewayKeyLastHeartbeatAt(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayKeyLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayKeyLastUsedAt), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAIGatewayKeyLastHeartbeatAt", reflect.TypeOf((*MockStore)(nil).UpdateAIGatewayKeyLastHeartbeatAt), ctx, id)
 }
 
 // UpdateAIProvider mocks base method.

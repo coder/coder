@@ -5050,11 +5050,11 @@ func (m queryMetricsStore) UpdateAIBridgeInterceptionEnded(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) UpdateAIGatewayKeyLastUsedAt(ctx context.Context, arg uuid.UUID) (int64, error) {
+func (m queryMetricsStore) UpdateAIGatewayKeyLastHeartbeatAt(ctx context.Context, id uuid.UUID) (int64, error) {
 	start := time.Now()
-	r0, r1 := m.s.UpdateAIGatewayKeyLastUsedAt(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastUsedAt").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastUsedAt").Inc()
+	r0, r1 := m.s.UpdateAIGatewayKeyLastHeartbeatAt(ctx, id)
+	m.queryLatencies.WithLabelValues("UpdateAIGatewayKeyLastHeartbeatAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateAIGatewayKeyLastHeartbeatAt").Inc()
 	return r0, r1
 }
 

@@ -15275,7 +15275,7 @@ const docTemplate = `{
                 "key_prefix": {
                     "type": "string"
                 },
-                "last_used_at": {
+                "last_heartbeat_at": {
                     "type": "string",
                     "format": "date-time"
                 },

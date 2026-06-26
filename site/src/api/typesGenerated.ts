@@ -263,7 +263,7 @@ export interface AIGatewayKey {
 	readonly name: string;
 	readonly key_prefix: string;
 	readonly created_at: string;
-	readonly last_used_at?: string;
+	readonly last_heartbeat_at?: string;
 }
 
 // From codersdk/client.go

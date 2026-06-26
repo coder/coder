@@ -1440,7 +1440,7 @@ CREATE TABLE ai_gateway_keys (
     name text NOT NULL,
     secret_prefix character varying(11) NOT NULL,
     hashed_secret bytea NOT NULL,
-    last_used_at timestamp with time zone,
+    last_heartbeat_at timestamp with time zone,
     CONSTRAINT ai_gateway_keys_hashed_secret_check CHECK ((length(hashed_secret) > 0)),
     CONSTRAINT ai_gateway_keys_name_check CHECK (((length(name) <= 64) AND (name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))),
     CONSTRAINT ai_gateway_keys_secret_prefix_check CHECK ((length((secret_prefix)::text) = 11))

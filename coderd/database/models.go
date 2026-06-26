@@ -4618,9 +4618,9 @@ type AIGatewayKey struct {
 	CreatedAt time.Time `db:"created_at" json:"created_at"`
 	Name      string    `db:"name" json:"name"`
 	// Public token prefix for display and audit correlation. Auth uses hashed_secret.
-	SecretPrefix string       `db:"secret_prefix" json:"secret_prefix"`
-	HashedSecret []byte       `db:"hashed_secret" json:"hashed_secret"`
-	LastUsedAt   sql.NullTime `db:"last_used_at" json:"last_used_at"`
+	SecretPrefix    string       `db:"secret_prefix" json:"secret_prefix"`
+	HashedSecret    []byte       `db:"hashed_secret" json:"hashed_secret"`
+	LastHeartbeatAt sql.NullTime `db:"last_heartbeat_at" json:"last_heartbeat_at"`
 }
 
 // Per-model token prices used by AI Bridge to compute interception cost.

@@ -6974,9 +6974,9 @@ func (s *MethodTestSuite) TestAIBridge() {
 		dbm.EXPECT().GetAIGatewayKeyByHashedSecret(gomock.Any(), hashedSecret).Return(key, nil).AnyTimes()
 		check.Args(hashedSecret).Asserts(rbac.ResourceAIGatewayKey, policy.ActionRead).Returns(key)
 	}))
-	s.Run("UpdateAIGatewayKeyLastUsedAt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+	s.Run("UpdateAIGatewayKeyLastHeartbeatAt", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		id := uuid.New()
-		dbm.EXPECT().UpdateAIGatewayKeyLastUsedAt(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
+		dbm.EXPECT().UpdateAIGatewayKeyLastHeartbeatAt(gomock.Any(), id).Return(int64(1), nil).AnyTimes()
 		check.Args(id).Asserts(rbac.ResourceAIGatewayKey, policy.ActionUpdate).Returns(int64(1))
 	}))
 }

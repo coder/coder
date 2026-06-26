@@ -100,7 +100,7 @@ func TestAIGatewayServeSuccess(t *testing.T) {
 		}
 		for _, k := range keys {
 			if k.ID == created.ID {
-				return k.LastUsedAt != nil
+				return k.LastHeartbeatAt != nil
 			}
 		}
 		return false
