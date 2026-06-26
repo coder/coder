@@ -209,12 +209,7 @@ var (
 	}
 )
 
-// ValidateCreateUserSecretRequest validates a single create-secret
-// request and returns field-level ValidationErrors keyed by JSON field
-// name. It is reused by the HTTP handlers and a future CLI. The
-// "value is required" rule lives here, not in UserSecretValueValid,
-// because an empty value is syntactically valid but disallowed at
-// create time.
+// ValidateCreateUserSecretRequest validates a single create-secret request.
 func ValidateCreateUserSecretRequest(req CreateUserSecretRequest) []ValidationError {
 	var validations []ValidationError
 	if err := UserSecretNameValid(req.Name); err != nil {

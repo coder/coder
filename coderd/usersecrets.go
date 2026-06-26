@@ -62,7 +62,7 @@ func (api *API) postUserSecret(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if validations := createUserSecretValidationErrors(req); len(validations) > 0 {
+	if validations := codersdk.ValidateCreateUserSecretRequest(req); len(validations) > 0 {
 		writeUserSecretValidationErrors(ctx, rw, http.StatusBadRequest, validations)
 		return
 	}
@@ -320,22 +320,6 @@ func writeUserSecretValidationErrors(ctx context.Context, rw http.ResponseWriter
 		Message:     "Validation failed.",
 		Validations: validations,
 	})
-}
-
-func createUserSecretValidationErrors(req codersdk.CreateUserSecretRequest) []codersdk.ValidationError {
-	var validations []codersdk.ValidationError
-	validations = appendUserSecretValidationError(validations, userSecretNameField, codersdk.UserSecretNameValid(req.Name))
-	if req.Value == "" {
-		validations = append(validations, codersdk.ValidationError{
-			Field:  userSecretValueField,
-			Detail: "Value is required.",
-		})
-	} else {
-		validations = appendUserSecretValidationError(validations, userSecretValueField, codersdk.UserSecretValueValid(req.Value))
-	}
-	validations = appendUserSecretValidationError(validations, userSecretEnvNameField, codersdk.UserSecretEnvNameValid(req.EnvName))
-	validations = appendUserSecretValidationError(validations, userSecretFilePathField, codersdk.UserSecretFilePathValid(req.FilePath))
-	return validations
 }
 
 func updateUserSecretValidationErrors(req codersdk.UpdateUserSecretRequest) []codersdk.ValidationError {

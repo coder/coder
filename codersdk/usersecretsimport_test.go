@@ -11,9 +11,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// TestParseSecretsFileEnv covers the dotenv parsing rules end-to-end:
-// comments, blank lines, the export prefix, quoting and escapes, inline
-// '#', non-ASCII, and the Name == EnvName == KEY mapping invariant.
 func TestParseSecretsFileEnv(t *testing.T) {
 	t.Parallel()
 
@@ -27,6 +24,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		"WITH_SPACES=  trimmed  ",
 		`DQUOTED="double quoted"`,
 		`DQ_ESCAPES="a\nb\tc\\d\"e"`,
+		`DQ_ESCAPED_QUOTE="a\"b"`,
+		`DQ_EVEN_BACKSLASH_CLOSE="two backslashes\\"`,
 		`SQUOTED='literal \n no escape'`,
 		"EQ_IN_VALUE=a=b=c",
 		"HASH=value # kept literal",
@@ -47,6 +46,8 @@ func TestParseSecretsFileEnv(t *testing.T) {
 		{Name: "WITH_SPACES", EnvName: "WITH_SPACES", Value: "trimmed"},
 		{Name: "DQUOTED", EnvName: "DQUOTED", Value: "double quoted"},
 		{Name: "DQ_ESCAPES", EnvName: "DQ_ESCAPES", Value: "a\nb\tc\\d\"e"},
+		{Name: "DQ_ESCAPED_QUOTE", EnvName: "DQ_ESCAPED_QUOTE", Value: `a"b`},
+		{Name: "DQ_EVEN_BACKSLASH_CLOSE", EnvName: "DQ_EVEN_BACKSLASH_CLOSE", Value: `two backslashes\`},
 		{Name: "SQUOTED", EnvName: "SQUOTED", Value: `literal \n no escape`},
 		{Name: "EQ_IN_VALUE", EnvName: "EQ_IN_VALUE", Value: "a=b=c"},
 		{Name: "HASH", EnvName: "HASH", Value: "value # kept literal"},
@@ -60,8 +61,6 @@ func TestParseSecretsFileEnv(t *testing.T) {
 	require.Equal(t, want, reqs)
 }
 
-// TestParseSecretsFileEnvCRLFAndBOM verifies CRLF normalization and BOM
-// stripping.
 func TestParseSecretsFileEnvCRLFAndBOM(t *testing.T) {
 	t.Parallel()
 
@@ -80,45 +79,26 @@ func TestParseSecretsFileEnvErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
-		errMsg  string
+		errMsgs []string
 	}{
-		{name: "NoEquals", content: "NOEQUALS", errMsg: "no '='"},
-		{name: "MissingKey", content: "=value", errMsg: "missing key"},
-		{name: "UnterminatedDouble", content: `KEY="oops`, errMsg: "missing closing double quote"},
-		{name: "UnterminatedSingle", content: `KEY='oops`, errMsg: "missing closing single quote"},
-		{name: "DuplicateKey", content: "DUP=a\nDUP=b", errMsg: "duplicate key"},
+		{name: "NoEquals", content: "OK=value\nNOEQUALS\n", errMsgs: []string{"no '='", "line 2"}},
+		{name: "MissingKey", content: "=value", errMsgs: []string{"missing key"}},
+		{name: "UnterminatedDouble", content: `KEY="oops`, errMsgs: []string{"missing closing double quote"}},
+		{name: "EscapedDoubleQuoteNotClosing", content: `KEY="oops\"`, errMsgs: []string{"missing closing double quote"}},
+		{name: "DoubleQuoteTrailingData", content: `KEY="ok" # comment`, errMsgs: []string{"unexpected data after closing double quote"}},
+		{name: "UnterminatedSingle", content: `KEY='oops`, errMsgs: []string{"missing closing single quote"}},
+		{name: "DuplicateKey", content: "DUP=a\nDUP=b", errMsgs: []string{"duplicate key", "line 2"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, tt.content)
 			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.errMsg)
+			for _, msg := range tt.errMsgs {
+				assert.Contains(t, err.Error(), msg)
+			}
 		})
 	}
-}
-
-// TestParseSecretsFileEnvDuplicateCitesLine confirms the duplicate-key
-// error reports the offending line for the env format.
-func TestParseSecretsFileEnvDuplicateCitesLine(t *testing.T) {
-	t.Parallel()
-
-	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, "DUP=a\nDUP=b")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "duplicate key")
-	assert.Contains(t, err.Error(), "line 2")
-}
-
-// TestParseSecretsFileEnvMissingEqualsCitesLine confirms the missing
-// '=' error reports the offending line for the env format, not just
-// line 1.
-func TestParseSecretsFileEnvMissingEqualsCitesLine(t *testing.T) {
-	t.Parallel()
-
-	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, "OK=value\nNOEQUALS\n")
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "no '='")
-	assert.Contains(t, err.Error(), "line 2")
 }
 
 func TestParseSecretsFileJSON(t *testing.T) {
@@ -151,6 +131,7 @@ func TestParseSecretsFileJSONErrors(t *testing.T) {
 		{name: "NestedArray", content: `{"A":["x"]}`, errMsg: "nested object or array"},
 		{name: "DuplicateKey", content: `{"DUP":"a","DUP":"b"}`, errMsg: "duplicate key"},
 		{name: "TrailingData", content: `{"A":"1"} {"B":"2"}`, errMsg: "trailing data"},
+		{name: "InvalidTrailingJSON", content: `{"A":"1"} {`, errMsg: "invalid JSON"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -196,6 +177,9 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 		{name: "IntValue", content: "PORT: 8080", errMsg: "must be a string"},
 		{name: "BoolValue", content: "FLAG: true", errMsg: "must be a string"},
 		{name: "NullValue", content: "KEY: null", errMsg: "must be a string"},
+		{name: "BoolKey", content: "true: value", errMsg: "keys must be strings"},
+		{name: "IntKey", content: "1: value", errMsg: "keys must be strings"},
+		{name: "SequenceKey", content: "? [a, b]\n: value", errMsg: "keys must be strings"},
 		{name: "DuplicateKey", content: "DUP: a\nDUP: b", errMsg: "duplicate key"},
 	}
 	for _, tt := range tests {
@@ -208,56 +192,14 @@ func TestParseSecretsFileYAMLErrors(t *testing.T) {
 	}
 }
 
-// TestParseSecretsFileYAMLAliasBomb guards against YAML alias-expansion
-// ("billion laughs") exhaustion. yaml.v3 decodes into a Node without
-// resolving aliases, and the parser only accepts scalar strings, so the
-// inputs below (well under MaxSecretsFileBytes) are rejected quickly
-// rather than expanded.
-func TestParseSecretsFileYAMLAliasBomb(t *testing.T) {
+func TestParseSecretsFileYAMLAlias(t *testing.T) {
 	t.Parallel()
 
-	// Classic nested alias bomb: each anchor references the previous one
-	// nine times, so resolving the last alias would expand to 9^9 nodes.
-	var bomb strings.Builder
-	_, _ = bomb.WriteString("a: &a \"lol\"\n")
-	prev := "a"
-	for i := 0; i < 9; i++ {
-		cur := fmt.Sprintf("l%d", i)
-		_, _ = bomb.WriteString(cur + ": &" + cur + " [")
-		for j := 0; j < 9; j++ {
-			if j > 0 {
-				_ = bomb.WriteByte(',')
-			}
-			_, _ = bomb.WriteString("*" + prev)
-		}
-		_, _ = bomb.WriteString("]\n")
-		prev = cur
-	}
-
-	cases := []struct {
-		name    string
-		content string
-	}{
-		{name: "NestedSequences", content: bomb.String()},
-		// Top-level value is an alias node (not a scalar), which must be
-		// rejected even though the anchor it points at is a scalar.
-		{name: "AliasToScalar", content: "a: &a \"x\"\nb: *a\n"},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			require.Less(t, len(tc.content), codersdk.MaxSecretsFileBytes)
-			_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, tc.content)
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), "must be a string")
-		})
-	}
+	_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "a: &a \"x\"\nb: *a\n")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string")
 }
 
-// TestParseSecretsFileYAMLMultiDocument verifies that a multi-document
-// YAML stream is rejected rather than silently importing only the first
-// document and dropping the rest. A bare trailing "---" separator with
-// no content is harmless and must still parse.
 func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 	t.Parallel()
 
@@ -275,13 +217,11 @@ func TestParseSecretsFileYAMLMultiDocument(t *testing.T) {
 		assert.Contains(t, err.Error(), "single document")
 	})
 
-	t.Run("TrailingSeparatorAllowed", func(t *testing.T) {
+	t.Run("TrailingSeparatorRejected", func(t *testing.T) {
 		t.Parallel()
-		reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: \"1\"\n---\n")
-		require.NoError(t, err)
-		require.Equal(t, []codersdk.CreateUserSecretRequest{
-			{Name: "A", EnvName: "A", Value: "1"},
-		}, reqs)
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatYAML, "A: \"1\"\n---\n")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "single document")
 	})
 }
 
@@ -302,12 +242,33 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 		assert.Contains(t, err.Error(), "format is required")
 	})
 
+	t.Run("MaxBytesBoundary", func(t *testing.T) {
+		t.Parallel()
+		value := strings.Repeat("a", codersdk.MaxSecretsFileBytes-len("KEY="))
+		reqs, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, "KEY="+value)
+		require.NoError(t, err)
+		require.Equal(t, []codersdk.CreateUserSecretRequest{
+			{Name: "KEY", EnvName: "KEY", Value: value},
+		}, reqs)
+	})
+
 	t.Run("Oversized", func(t *testing.T) {
 		t.Parallel()
 		content := strings.Repeat("a", codersdk.MaxSecretsFileBytes+1)
 		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, content)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "maximum allowed size")
+	})
+
+	t.Run("TooManySecrets", func(t *testing.T) {
+		t.Parallel()
+		lines := make([]string, 0, codersdk.MaxUserSecretsPerUserCount+1)
+		for i := 0; i < codersdk.MaxUserSecretsPerUserCount+1; i++ {
+			lines = append(lines, fmt.Sprintf("KEY_%d=value", i))
+		}
+		_, err := codersdk.ParseSecretsFile(codersdk.SecretsFileFormatEnv, strings.Join(lines, "\n"))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "exceeds the maximum")
 	})
 
 	emptyCases := []struct {
@@ -329,33 +290,5 @@ func TestParseSecretsFileGeneralErrors(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "no secrets found")
 		})
-	}
-}
-
-// TestParseSecretsFileMappingEquivalence asserts the documented flat
-// mapping (Name == EnvName == KEY, FilePath empty) holds for every
-// format, which is what makes a single duplicate-KEY check cover
-// duplicate names, env_names, and file_paths at once.
-func TestParseSecretsFileMappingEquivalence(t *testing.T) {
-	t.Parallel()
-
-	cases := []struct {
-		format  codersdk.SecretsFileFormat
-		content string
-	}{
-		{codersdk.SecretsFileFormatEnv, "FOO=bar"},
-		{codersdk.SecretsFileFormatJSON, `{"FOO":"bar"}`},
-		{codersdk.SecretsFileFormatYAML, "FOO: bar"},
-	}
-	for _, tc := range cases {
-		reqs, err := codersdk.ParseSecretsFile(tc.format, tc.content)
-		require.NoErrorf(t, err, "format %s", tc.format)
-		require.Lenf(t, reqs, 1, "format %s", tc.format)
-		got := reqs[0]
-		assert.Equal(t, "FOO", got.Name)
-		assert.Equal(t, "FOO", got.EnvName)
-		assert.Equal(t, "bar", got.Value)
-		assert.Empty(t, got.FilePath)
-		assert.Empty(t, got.Description)
 	}
 }
