@@ -257,7 +257,8 @@ CREATE TYPE api_key_scope AS ENUM (
     'ai_gateway_key:*',
     'ai_gateway_key:create',
     'ai_gateway_key:delete',
-    'ai_gateway_key:read'
+    'ai_gateway_key:read',
+    'ai_gateway_key:update'
 );
 
 CREATE TYPE app_sharing_level AS ENUM (

@@ -386,6 +386,7 @@ const (
 	ApiKeyScopeAIGatewayKeyCreate                  APIKeyScope = "ai_gateway_key:create"
 	ApiKeyScopeAIGatewayKeyDelete                  APIKeyScope = "ai_gateway_key:delete"
 	ApiKeyScopeAIGatewayKeyRead                    APIKeyScope = "ai_gateway_key:read"
+	ApiKeyScopeAIGatewayKeyUpdate                  APIKeyScope = "ai_gateway_key:update"
 )
 
 func (e *APIKeyScope) Scan(src interface{}) error {
@@ -654,7 +655,8 @@ func (e APIKeyScope) Valid() bool {
 		ApiKeyScopeAIGatewayKey,
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
-		ApiKeyScopeAIGatewayKeyRead:
+		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate:
 		return true
 	}
 	return false
@@ -892,6 +894,7 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 		ApiKeyScopeAIGatewayKeyCreate,
 		ApiKeyScopeAIGatewayKeyDelete,
 		ApiKeyScopeAIGatewayKeyRead,
+		ApiKeyScopeAIGatewayKeyUpdate,
 	}
 }
 
