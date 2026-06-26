@@ -33,6 +33,21 @@ on:
         required: false
         type: string
         default: "on"
+      test-timeout:
+        description: "Go test -timeout value (e.g. 20m, 1h). Raise for high-count whole-package runs."
+        required: false
+        type: string
+        default: "20m"
+      test-parallelism-packages:
+        description: "Packages tested in parallel (go test -p)."
+        required: false
+        type: string
+        default: "4"
+      test-parallelism-tests:
+        description: "Tests run in parallel within each package (go test -parallel). Lower this if embedded Postgres on macOS/Windows hits connection limits."
+        required: false
+        type: string
+        default: "16"
       base_sha:
         description: "Base commit to diff against. Defaults to merge-base against origin/main."
         required: false
@@ -130,6 +145,10 @@ jobs:
           SELECTOR_MATRIX: ${{ steps.selector.outputs.matrix }}
         run: |
           set -euo pipefail
+          if [[ -z "${MANUAL_PACKAGES}" && -n "${MANUAL_RUN_REGEX}" ]]; then
+            echo "::error::run-regex was set without test-packages. run-regex only applies in manual mode; set test-packages to use it." >&2
+            exit 1
+          fi
           if [[ -n "${MANUAL_PACKAGES}" ]]; then
             {
               echo "package=${MANUAL_PACKAGES}"
@@ -196,9 +215,10 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          test-parallelism-packages: "4"
-          test-parallelism-tests: "16"
+          test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
+          test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
+          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}
@@ -209,12 +229,14 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          test-parallelism-packages: "4"
-          test-parallelism-tests: "16"
+          test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
+          test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
+          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}
+          gotestsum-json-file: default
           embedded-pg-path: "/tmp/tmpfs/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
@@ -223,12 +245,14 @@ jobs:
         uses: ./.github/actions/test-go-pg
         with:
           postgres-version: "13"
-          test-parallelism-packages: "4"
-          test-parallelism-tests: "16"
+          test-parallelism-packages: ${{ inputs.test-parallelism-packages || '4' }}
+          test-parallelism-tests: ${{ inputs.test-parallelism-tests || '16' }}
           test-count: ${{ inputs.test-count || '35' }}
+          test-timeout: ${{ inputs.test-timeout || '20m' }}
           test-packages: ${{ steps.target.outputs.package }}
           run-regex: ${{ steps.target.outputs.run_regex }}
           test-shuffle: ${{ inputs.test-shuffle || 'on' }}
+          gotestsum-json-file: default
           embedded-pg-path: "R:/temp/embedded-pg"
           embedded-pg-cache: ${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}
 
@@ -238,6 +262,14 @@ jobs:
         with:
           cache-key: ${{ steps.download-embedded-pg-cache.outputs.cache-key }}
           cache-path: "${{ steps.embedded-pg-cache.outputs.embedded-pg-cache }}"
+
+      - name: Upload test JSON (macOS/Windows)
+        if: ${{ always() && steps.target.outputs.should_run == 'true' && runner.os != 'Linux' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: go-test-json-${{ runner.os }}
+          path: ${{ runner.temp }}/go-test.json
+          if-no-files-found: warn
 
       - name: Publish Go test failure report
         if: failure() && steps.flake_check.outcome == 'failure' && github.actor != 'dependabot[bot]' && runner.os == 'Linux' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
