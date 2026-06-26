@@ -19,6 +19,7 @@ import {
 	ExecuteTool as ExecuteToolComponent,
 	WaitForExternalAuthTool,
 } from "./ExecuteTool";
+import { ListAgentsTool } from "./ListAgentsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
@@ -528,12 +529,14 @@ const SubagentRenderer: FC<ToolRendererProps> = ({
 	}
 
 	// Detect timeout from the result. A timed-out wait_agent
-	// typically returns an error string or an object with an
-	// error field containing "timed out".
+	// returns a structured payload with timed_out: true
+	// (IsError=false), or an error string containing "timed out".
 	const resultStr = typeof result === "string" ? result : "";
 	const errorStr = rec ? asString(rec.error) : "";
 	let isTimeout = false;
-	if (subagentIsError) {
+	if (rec && rec.timed_out === true) {
+		isTimeout = true;
+	} else if (subagentIsError) {
 		const timedOutInResult = resultStr.toLowerCase().includes("timed out");
 		const timedOutInError = errorStr.toLowerCase().includes("timed out");
 		if (timedOutInResult || timedOutInError) {
@@ -582,6 +585,34 @@ const ListTemplatesRenderer: FC<ToolRendererProps> = ({
 			status={status}
 			isError={isError}
 			errorMessage={rec ? asString(rec.error || rec.message) : undefined}
+		/>
+	);
+};
+
+const ListAgentsRenderer: FC<ToolRendererProps> = ({
+	status,
+	result,
+	isError,
+}) => {
+	const rec = asRecord(result);
+	const agents = rec && Array.isArray(rec.agents) ? rec.agents : [];
+	const total = rec
+		? (asNumber(rec.total, { parseString: true }) ?? agents.length)
+		: 0;
+
+	return (
+		<ListAgentsTool
+			agents={agents}
+			total={total}
+			status={status}
+			isError={isError}
+			errorMessage={
+				rec
+					? asString(rec.error || rec.message)
+					: typeof result === "string" && isError
+						? result
+						: undefined
+			}
 		/>
 	);
 };
@@ -1033,6 +1064,7 @@ const toolRenderers: Record<string, FC<ToolRendererProps>> = {
 	create_workspace: CreateWorkspaceRenderer,
 	start_workspace: StartWorkspaceRenderer,
 	list_templates: ListTemplatesRenderer,
+	list_agents: ListAgentsRenderer,
 	read_template: ReadTemplateRenderer,
 	read_skill: ReadSkillRenderer,
 	read_skill_file: ReadSkillFileRenderer,
@@ -1074,9 +1106,10 @@ export const Tool = memo(
 		ref,
 		...props
 	}: ToolProps) => {
-		const Renderer = isSubagentToolName(name)
-			? SubagentRenderer
-			: (toolRenderers[name] ?? GenericToolRenderer);
+		const Renderer =
+			isSubagentToolName(name) && name !== "list_agents"
+				? SubagentRenderer
+				: (toolRenderers[name] ?? GenericToolRenderer);
 		const isShellTool = name === "execute" || name === "process_output";
 		if (!shouldRenderTool({ name, status, args, result })) {
 			return null;

@@ -260,6 +260,11 @@ type ExecuteLocalToolsOptions struct {
 	// case a default budget applies.
 	ContextLimit int64
 
+	// ToolNameAliases maps a non-advertised tool name to the canonical
+	// tool it dispatches to. Used for backward compatibility when a tool
+	// is renamed but old chat histories still reference the old name.
+	ToolNameAliases map[string]string
+
 	PublishMessagePart func(codersdk.ChatMessageRole, codersdk.ChatMessagePart)
 	Logger             slog.Logger
 	Metrics            *Metrics
@@ -540,6 +545,7 @@ func ExecuteLocalTools(ctx context.Context, opts ExecuteLocalToolsOptions) (Tool
 		modelName,
 		opts.BuiltinToolNames,
 		maxResultBytes,
+		opts.ToolNameAliases,
 		func(tr fantasy.ToolResultContent, completedAt time.Time) {
 			recordToolResultTimestamp(&result, tr.ToolCallID, completedAt)
 			publishToolAttachments(ctx, opts.Logger, tr, completedAt, publishMessagePart)
@@ -1006,6 +1012,7 @@ func executeTools(
 	provider, model string,
 	builtinToolNames map[string]bool,
 	maxResultBytes int,
+	toolNameAliases map[string]string,
 	onResult func(fantasy.ToolResultContent, time.Time),
 ) []fantasy.ToolResultContent {
 	if len(toolCalls) == 0 {
@@ -1085,6 +1092,7 @@ func executeTools(
 				providerRunnerNames,
 				resultProviderMetadata,
 				maxResultBytes,
+				toolNameAliases,
 			)
 		}()
 	}
@@ -1205,6 +1213,7 @@ func executeSingleTool(
 	providerRunnerNames map[string]struct{},
 	resultProviderMetadata map[string]func(fantasy.ToolResponse) fantasy.ProviderMetadata,
 	maxResultBytes int,
+	toolNameAliases map[string]string,
 ) fantasy.ToolResultContent {
 	result := fantasy.ToolResultContent{
 		ToolCallID:       tc.ToolCallID,
@@ -1224,31 +1233,40 @@ func executeSingleTool(
 		}
 	}()
 
-	_, isProviderRunner := providerRunnerNames[tc.ToolName]
-	if !isProviderRunner && !isToolActive(tc.ToolName, activeTools) {
+	// Resolve backward-compatible tool aliases (for example a renamed
+	// tool whose old name still appears in chat history) to the canonical
+	// tool before the active-tool and dispatch lookups.
+	resolvedName := tc.ToolName
+	if alias, ok := toolNameAliases[tc.ToolName]; ok {
+		resolvedName = alias
+	}
+
+	_, isProviderRunner := providerRunnerNames[resolvedName]
+	if !isProviderRunner && !isToolActive(resolvedName, activeTools) {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not active in this turn: " + tc.ToolName),
+			Error: xerrors.New("Tool not active in this turn: " + resolvedName),
 		}
 		return result
 	}
 
-	tool, exists := toolMap[tc.ToolName]
+	tool, exists := toolMap[resolvedName]
 	if !exists {
 		result.Result = fantasy.ToolResultOutputContentError{
-			Error: xerrors.New("Tool not found: " + tc.ToolName),
+			Error: xerrors.New("Tool not found: " + resolvedName),
 		}
 		return result
 	}
 
 	logger.Debug(ctx, "tool execution",
 		slog.F("tool_name", tc.ToolName),
+		slog.F("resolved_tool_name", resolvedName),
 		slog.F("tool_call_id", tc.ToolCallID),
-		slog.F("builtin", builtinToolNames[tc.ToolName]),
+		slog.F("builtin", builtinToolNames[resolvedName]),
 		slog.F("is_provider_runner", isProviderRunner),
 	)
 	resp, err := tool.Run(ctx, fantasy.ToolCall{
 		ID:    tc.ToolCallID,
-		Name:  tc.ToolName,
+		Name:  resolvedName,
 		Input: tc.Input,
 	})
 	if err != nil {

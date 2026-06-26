@@ -4,6 +4,14 @@ import "github.com/coder/coder/v2/coderd/x/chatd/chattool"
 
 const defaultSystemPromptPlanPathBlockPlaceholder = "{{CODER_CHAT_PLAN_FILE_PATH_BLOCK}}"
 
+// subagentOrchestrationPromptBlock is the root-only orchestration guidance.
+// Delegated child chats cannot call list_agents or message_agent, so this
+// block is stripped from their system prompt at creation time.
+const subagentOrchestrationPromptBlock = `<subagent-orchestration>
+An error status is often recoverable. Resume the agent with message_agent to retry; treat only genuine, repeating failures as terminal.
+If you lose track of your spawned agents, call list_agents to recover them before finishing.
+</subagent-orchestration>`
+
 const workspaceAttachedAwareness = "This chat is attached to a workspace. You can use workspace tools like execute, read_file, write_file, etc."
 
 const workspaceDetachedAwarenessBase = `No workspace is attached to this chat yet.
@@ -131,7 +139,9 @@ Once a workspace is available:
 Write the file first, then present it. All file paths must be absolute.
 When the <plan-file-path> block below is present, use that exact path.
 ` + defaultSystemPromptPlanPathBlockPlaceholder + `
-</planning>`
+</planning>
+
+` + subagentOrchestrationPromptBlock
 
 var planningOverlayPrompt = `You are in Plan Mode.
 Every response must work toward producing a plan.
