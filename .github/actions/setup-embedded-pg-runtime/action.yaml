@@ -1,0 +1,60 @@
+name: "Setup Embedded Postgres runtime"
+description: >-
+  Post-checkout embedded Postgres cache and RAM disk setup for macOS and
+  Windows test jobs. Intended to run only on non-Linux runners (Linux uses
+  a Docker Postgres container instead).
+
+outputs:
+  embedded-pg-path:
+    description: "Filesystem path for embedded Postgres data."
+    value: ${{ steps.pg-path.outputs.path }}
+  embedded-pg-cache:
+    description: "Path for the embedded Postgres binary cache."
+    value: ${{ steps.cache-paths.outputs.embedded-pg-cache }}
+  cache-key:
+    description: "Cache key to pass to embedded-pg-cache/upload."
+    value: ${{ steps.download.outputs.cache-key }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Embedded Postgres Cache Paths
+      id: cache-paths
+      uses: ./.github/actions/setup-embedded-pg-cache-paths
+
+    - name: Download Embedded Postgres Cache
+      id: download
+      uses: ./.github/actions/embedded-pg-cache/download
+      with:
+        key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
+        cache-path: ${{ steps.cache-paths.outputs.cached-dirs }}
+
+    - name: Setup RAM disk (Windows)
+      if: runner.os == 'Windows'
+      shell: bash
+      run: mkdir -p "R:/temp/embedded-pg"
+
+    - name: Setup RAM disk (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        mkdir -p /tmp/tmpfs
+        sudo mount_tmpfs -o noowners -s 8g /tmp/tmpfs
+        touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+
+    - name: Increase PTY limit (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: |
+        # Default is 511; 999 is the maximum value on CI runner.
+        sudo sysctl -w kern.tty.ptmx_max=999
+
+    - name: Resolve embedded Postgres path
+      id: pg-path
+      shell: bash
+      run: |
+        if [[ "${RUNNER_OS}" == "Windows" ]]; then
+          echo "path=R:/temp/embedded-pg" >> "$GITHUB_OUTPUT"
+        else
+          echo "path=/tmp/tmpfs/embedded-pg" >> "$GITHUB_OUTPUT"
+        fi
