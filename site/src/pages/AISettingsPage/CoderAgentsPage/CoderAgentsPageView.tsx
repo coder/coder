@@ -86,7 +86,7 @@ export const CoderAgentsPageView: FC<CoderAgentsPageViewProps> = ({
 					capabilities.
 				</SettingsHeaderDescription>
 			</SettingsHeader>
-			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border p-6">
+			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
 				<AdminPersonalModelOverridesSettings
 					adminSettings={adminOverridesData}
 					adminSettingsError={adminOverridesError}

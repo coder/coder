@@ -75,7 +75,7 @@ export const AdminPersonalModelOverridesSettings: FC<
 			onSubmit={form.handleSubmit}
 			noValidate
 		>
-			<div className="flex min-h-8 items-center gap-2 font-sans text-sm font-normal leading-6 text-content-primary">
+			<div className="flex min-h-8 items-start gap-2 font-sans text-sm font-normal leading-6 text-content-primary">
 				<Switch
 					checked={form.values.allow_users}
 					onCheckedChange={(checked) => {
@@ -84,6 +84,7 @@ export const AdminPersonalModelOverridesSettings: FC<
 					aria-label="Allow personal model overrides"
 					type="button"
 					disabled={isDisabled}
+					className="mt-0.5"
 				/>
 				<div className="flex min-w-0 flex-col">
 					<span>Allow personal model overrides</span>
