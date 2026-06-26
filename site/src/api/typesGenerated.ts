@@ -288,6 +288,14 @@ export interface AIProvider {
 }
 
 // From codersdk/aiproviders_bedrock.go
+export type AIProviderBedrockEndpoint = "invoke-model" | "mantle";
+
+export const AIProviderBedrockEndpoints: AIProviderBedrockEndpoint[] = [
+	"invoke-model",
+	"mantle",
+];
+
+// From codersdk/aiproviders_bedrock.go
 /**
  * AIProviderBedrockSettings configures providers that authenticate
  * against AWS Bedrock. AccessKey and AccessKeySecret are write-only:
@@ -329,6 +337,12 @@ export interface AIProviderBedrockSettings {
 	 * call, and the resulting temporary credentials sign Bedrock requests.
 	 */
 	readonly role_arn?: string;
+	/**
+	 * Endpoint selects the Bedrock transport. An empty value resolves to
+	 * AIProviderBedrockEndpointInvokeModel, so existing rows keep the legacy
+	 * behavior without a schema version bump.
+	 */
+	readonly endpoint?: AIProviderBedrockEndpoint;
 }
 
 // From codersdk/aiproviders_bedrock.go

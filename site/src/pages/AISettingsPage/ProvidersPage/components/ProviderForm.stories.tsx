@@ -136,6 +136,37 @@ export const AddBedrock: Story = {
 	},
 };
 
+// Selecting the mantle transport migrates the base URL and model defaults
+// from the InvokeModel forms to the mantle (anthropic.-prefixed) forms.
+export const AddBedrockMantle: Story = {
+	args: {
+		initialValues: { type: "bedrock" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The form opens on the default InvokeModel transport.
+		const baseUrlInput = await canvas.findByLabelText(/^endpoint\s*\*?$/i);
+		expect(baseUrlInput).toHaveValue(
+			"https://bedrock-runtime.us-east-2.amazonaws.com",
+		);
+
+		// Switch the transport to mantle via the selector.
+		const transport = await canvas.findByRole("combobox");
+		await userEvent.click(transport);
+		const mantleOption = await screen.findByRole("option", { name: /mantle/i });
+		await userEvent.click(mantleOption);
+
+		// The base URL and model defaults migrate to their mantle forms.
+		await waitFor(() =>
+			expect(baseUrlInput).toHaveValue(
+				"https://bedrock-mantle.us-east-1.api.aws",
+			),
+		);
+		const modelInput = await canvas.findByLabelText(/^model\s*\*?$/i);
+		expect(modelInput).toHaveValue("anthropic.claude-opus-4-8");
+	},
+};
+
 // Regression coverage for CODAGT-626. The create form must accept Bedrock
 // configurations whose credentials come from the AWS environment (IAM
 // role, instance profile, AWS_PROFILE) instead of static access keys.

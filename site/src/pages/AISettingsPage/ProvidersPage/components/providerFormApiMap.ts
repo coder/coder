@@ -1,5 +1,6 @@
 import type {
 	AIProvider,
+	AIProviderBedrockEndpoint,
 	AIProviderBedrockSettings,
 	AIProviderKeyMutation,
 	AIProviderSettings,
@@ -110,6 +111,7 @@ const buildBedrockSettings = (
 	accessKey: string,
 	accessKeySecret: string,
 	roleArn: string,
+	endpoint: AIProviderBedrockEndpoint,
 ): BedrockSettingsWire => ({
 	_type: BEDROCK_SETTINGS_TYPE,
 	_version: BEDROCK_SETTINGS_VERSION,
@@ -119,6 +121,9 @@ const buildBedrockSettings = (
 	...(accessKey ? { access_key: accessKey } : {}),
 	...(accessKeySecret ? { access_key_secret: accessKeySecret } : {}),
 	...(roleArn ? { role_arn: roleArn } : {}),
+	// Omit the default transport so blobs stay minimal; an absent endpoint
+	// resolves to invoke-model on the server.
+	...(endpoint === "mantle" ? { endpoint } : {}),
 });
 
 // Bedrock credentials live in `settings`; openai/anthropic keys go in
@@ -144,6 +149,7 @@ export const providerFormValuesToCreate = (
 			sanitizeCredential(values.accessKey),
 			sanitizeCredential(values.accessKeySecret),
 			values.roleArn.trim(),
+			values.endpoint,
 		);
 		return {
 			type: "anthropic",
@@ -219,6 +225,7 @@ export const providerFormValuesToUpdate = (
 		credentialsChanged ? newAccessKey : "",
 		credentialsChanged ? newAccessKeySecret : "",
 		values.roleArn.trim(),
+		values.endpoint,
 	);
 
 	return { ...base, settings: settings as AIProviderSettings };
@@ -243,6 +250,7 @@ export const aiProviderToFormValues = (
 			accessKey: "",
 			accessKeySecret: "",
 			roleArn: s.role_arn ?? "",
+			endpoint: s.endpoint ?? "invoke-model",
 			enabled: provider.enabled,
 		};
 	}

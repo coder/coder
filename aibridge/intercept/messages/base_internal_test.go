@@ -842,6 +842,105 @@ func TestAugmentRequestForBedrock_AdaptiveThinking(t *testing.T) {
 	}
 }
 
+// TestAugmentRequestForBedrockMantle verifies that the mantle transport only
+// remaps the model and leaves the rest of the native Messages request intact:
+// no thinking conversion, no field stripping, no beta-flag filtering.
+func TestAugmentRequestForBedrockMantle(t *testing.T) {
+	t.Parallel()
+
+	clientHeaders := http.Header{
+		"Anthropic-Beta": {"claude-code-20250219,prompt-caching-scope-2026-01-05"},
+	}
+	i := &interceptionBase{
+		reqPayload: mustMessagesPayload(t,
+			`{"max_tokens":10000,"thinking":{"type":"adaptive"},"metadata":{"user_id":"u123"},"context_management":{"type":"auto"}}`),
+		bedrock: &BedrockRuntime{
+			Cfg: config.AWSBedrock{
+				Model:          "anthropic.claude-opus-4-8",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+				Endpoint:       config.BedrockEndpointMantle,
+			},
+		},
+		clientHeaders: clientHeaders,
+		logger:        slog.Make(),
+	}
+
+	i.augmentRequestForBedrock()
+
+	// Model is remapped to the configured mantle model.
+	require.Equal(t, "anthropic.claude-opus-4-8", gjson.GetBytes(i.reqPayload, "model").String())
+	// Thinking is untouched (no InvokeModel adaptive conversion).
+	require.Equal(t, "adaptive", gjson.GetBytes(i.reqPayload, "thinking.type").String())
+	// Fields the InvokeModel path would strip are kept for mantle.
+	require.True(t, gjson.GetBytes(i.reqPayload, "metadata").Exists())
+	require.True(t, gjson.GetBytes(i.reqPayload, "context_management").Exists())
+	// The beta header is left untouched (no filtering).
+	require.Equal(t, []string{"claude-code-20250219,prompt-caching-scope-2026-01-05"},
+		clientHeaders.Values("Anthropic-Beta"))
+}
+
+// TestAWSMantleOptionsValidation verifies the mantle transport requires a
+// region (it scopes the SigV4 signature) in addition to the model fields.
+func TestAWSMantleOptionsValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		cfg      config.AWSBedrock
+		errorMsg string
+	}{
+		{
+			name: "valid",
+			cfg: config.AWSBedrock{
+				Region:         "us-east-1",
+				Model:          "anthropic.claude-opus-4-8",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+				Endpoint:       config.BedrockEndpointMantle,
+			},
+		},
+		{
+			name: "missing region even with base url",
+			cfg: config.AWSBedrock{
+				BaseURL:        "https://proxy.internal",
+				Model:          "anthropic.claude-opus-4-8",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+				Endpoint:       config.BedrockEndpointMantle,
+			},
+			errorMsg: "region required",
+		},
+		{
+			name: "missing model",
+			cfg: config.AWSBedrock{
+				Region:         "us-east-1",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+				Endpoint:       config.BedrockEndpointMantle,
+			},
+			errorMsg: "model required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			base := &interceptionBase{
+				bedrock: &BedrockRuntime{
+					Cfg:   tt.cfg,
+					Creds: credentials.NewStaticCredentialsProvider("test-key", "test-secret", ""),
+				},
+			}
+			opts, err := base.withAWSBedrockOptions(context.Background())
+			if tt.errorMsg != "" {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.errorMsg)
+			} else {
+				require.NoError(t, err)
+				require.NotEmpty(t, opts)
+			}
+		})
+	}
+}
+
 func mustMessagesPayload(t *testing.T, requestBody string) RequestPayload {
 	t.Helper()
 

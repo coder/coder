@@ -388,6 +388,62 @@ func TestAWSBedrockIntegration(t *testing.T) {
 		}
 	})
 
+	// The mantle endpoint is wire-identical to api.anthropic.com: the model
+	// stays in the body, the request targets /anthropic/v1/messages, and only
+	// SigV4 signing (service "bedrock-mantle") is applied. No InvokeModel path
+	// rewriting or field translation happens.
+	t.Run("mantle/v1/messages", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(t.Context(), testutil.WaitLong)
+		t.Cleanup(cancel)
+
+		fix := fixtures.Parse(t, fixtures.AntSingleBuiltinTool)
+		upstream := testutil.NewMockUpstream(ctx, t, testutil.NewFixtureResponse(fix))
+
+		bedrockCfg := &config.AWSBedrock{
+			Region:          "us-west-2",
+			AccessKey:       "test-access-key",
+			AccessKeySecret: "test-secret-key",
+			Model:           "danthropic",      // This model should override the request's given one.
+			SmallFastModel:  "danthropic-mini", // Unused but needed for validation.
+			BaseURL:         upstream.URL,      // Use the mock server.
+			Endpoint:        config.BedrockEndpointMantle,
+		}
+
+		bridgeServer := newBridgeTestServer(ctx, t, upstream.URL,
+			withCustomProvider(aibridgetest.NewAnthropicProvider(t, anthropicCfg(upstream.URL, apiKey), bedrockCfg)),
+		)
+
+		resp, err := bridgeServer.makeRequest(t, http.MethodPost, pathAnthropicMessages, fix.Request())
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		received := upstream.ReceivedRequests()
+		require.Len(t, received, 1)
+
+		// Native passthrough: the request hits the /anthropic Messages path and
+		// keeps the model in the body (no InvokeModel /model/{id}/... rewrite).
+		require.Equal(t, "/anthropic/v1/messages", received[0].Path)
+		require.Equal(t, bedrockCfg.Model, gjson.GetBytes(received[0].Body, "model").String(),
+			"model should be remapped and kept in the body")
+
+		// The request is SigV4-signed for the bedrock-mantle service.
+		authHeader := received[0].Header.Get("Authorization")
+		require.True(t, strings.HasPrefix(authHeader, "AWS4-HMAC-SHA256"), "missing SigV4 auth: %q", authHeader)
+		require.Contains(t, authHeader, "/bedrock-mantle/aws4_request",
+			"signature must be scoped to the bedrock-mantle service")
+
+		// PRM attribution is appended to the User-Agent header.
+		require.Contains(t, received[0].Header.Get("User-Agent"),
+			"sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+
+		interceptions := bridgeServer.Recorder.RecordedInterceptions()
+		require.Len(t, interceptions, 1)
+		require.Equal(t, bedrockCfg.Model, interceptions[0].Model)
+		bridgeServer.Recorder.VerifyAllInterceptionsEnded(t)
+	})
+
 	// Tests that Bedrock-incompatible fields are stripped and adaptive thinking
 	// is handled correctly per model. Different Bedrock model names trigger
 	// different behavior for beta flag filtering and field stripping.

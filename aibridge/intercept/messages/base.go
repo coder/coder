@@ -1,10 +1,14 @@
 package messages
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strconv"
@@ -17,6 +21,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -275,6 +280,9 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 	if i.bedrock == nil {
 		return nil, xerrors.New("nil bedrock runtime")
 	}
+	if i.bedrock.Cfg.Endpoint == aibconfig.BedrockEndpointMantle {
+		return i.withAWSMantleOptions(ctx)
+	}
 	cfg := i.bedrock.Cfg
 	if cfg.Region == "" && cfg.BaseURL == "" {
 		return nil, xerrors.New("region or base url required")
@@ -315,10 +323,95 @@ func (i *interceptionBase) withAWSBedrockOptions(ctx context.Context) ([]option.
 	return out, nil
 }
 
+// withAWSMantleOptions returns request options for the AWS Bedrock mantle
+// endpoint (bedrock-mantle.{region}.api.aws/anthropic/v1/messages). Unlike the
+// InvokeModel transport, mantle is wire-identical to api.anthropic.com, so the
+// request body and SSE response pass through unchanged and only SigV4 signing
+// (service "bedrock-mantle") is applied.
+func (i *interceptionBase) withAWSMantleOptions(ctx context.Context) ([]option.RequestOption, error) {
+	cfg := i.bedrock.Cfg
+	// Region is mandatory for mantle: it scopes the SigV4 signature and forms
+	// the default endpoint host, and is still required behind a custom base URL.
+	if cfg.Region == "" {
+		return nil, xerrors.New("region required")
+	}
+	if cfg.Model == "" {
+		return nil, xerrors.New("model required")
+	}
+	if cfg.SmallFastModel == "" {
+		return nil, xerrors.New("small fast model required")
+	}
+
+	// Fail fast: ensure credentials can be resolved before signing. Served from
+	// the shared cache on most requests (no network); on the cold or refresh
+	// path this performs the actual STS/IMDS call.
+	if _, err := i.bedrock.Creds.Retrieve(ctx); err != nil {
+		return nil, xerrors.Errorf("resolve AWS credentials: %w", err)
+	}
+
+	region := cfg.Region
+
+	// The mantle Messages API lives under the /anthropic path. WithBaseURL
+	// appends a trailing slash so the SDK's relative "v1/messages" resolves to
+	// "/anthropic/v1/messages" rather than replacing the /anthropic segment.
+	baseURL := cfg.BaseURL
+	if baseURL == "" {
+		baseURL = fmt.Sprintf("https://bedrock-mantle.%s.api.aws", region)
+	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	if !strings.HasSuffix(baseURL, "/anthropic") {
+		baseURL += "/anthropic"
+	}
+
+	signer := v4.NewSigner()
+	var out []option.RequestOption
+	out = append(out, option.WithBaseURL(baseURL))
+	// This middleware is appended last, so it runs innermost (right before the
+	// HTTP send) and signs the request after all other headers are set.
+	out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
+		if ua := req.Header.Get("User-Agent"); ua != "" {
+			req.Header.Set("User-Agent", ua+" sdk-ua-app-id/APN_1.1%2Fpc_cdfmjwn8i6u8l9fwz8h82e4w3%24")
+		}
+
+		var body []byte
+		if req.Body != nil {
+			var err error
+			body, err = io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			_ = req.Body.Close()
+			reader := bytes.NewReader(body)
+			req.Body = io.NopCloser(reader)
+			req.GetBody = func() (io.ReadCloser, error) {
+				_, err := reader.Seek(0, 0)
+				return io.NopCloser(reader), err
+			}
+			req.ContentLength = int64(len(body))
+		}
+
+		creds, err := i.bedrock.Creds.Retrieve(req.Context())
+		if err != nil {
+			return nil, err
+		}
+		hash := sha256.Sum256(body)
+		if err := signer.SignHTTP(req.Context(), creds, req, hex.EncodeToString(hash[:]), "bedrock-mantle", region, time.Now()); err != nil {
+			return nil, err
+		}
+		return next(req)
+	}))
+
+	return out, nil
+}
+
 // augmentRequestForBedrock will change the model used for the request since AWS Bedrock doesn't support
 // Anthropics' model names. It also converts adaptive thinking to enabled with a budget for models that
 // don't support adaptive thinking natively, or enabled thinking to adaptive for models that only support
 // adaptive (Opus 4.7+).
+//
+// The mantle endpoint is wire-identical to api.anthropic.com, so only the model
+// rewrite applies; the InvokeModel-specific thinking, beta, and field
+// adjustments below are skipped for it.
 func (i *interceptionBase) augmentRequestForBedrock() {
 	if i.bedrock == nil {
 		return
@@ -331,6 +424,10 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 		return
 	}
 	i.reqPayload = updated
+
+	if i.bedrock.Cfg.Endpoint == aibconfig.BedrockEndpointMantle {
+		return
+	}
 
 	switch {
 	case bedrockModelRequiresAdaptiveThinking(model):

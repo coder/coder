@@ -287,6 +287,28 @@ func TestBuildProviders(t *testing.T) {
 		assert.Equal(t, model, got.Model)
 		assert.Equal(t, smallModel, got.SmallFastModel)
 		assert.Equal(t, roleARN, got.RoleARN)
+		// An unset endpoint resolves to the legacy InvokeModel transport.
+		assert.Equal(t, "invoke-model", string(got.Endpoint))
+	})
+
+	t.Run("BedrockMantleEndpoint", func(t *testing.T) {
+		t.Parallel()
+		row := database.AIProvider{
+			Type:    database.AIProviderTypeBedrock,
+			Name:    "bedrock-mantle",
+			BaseUrl: "https://bedrock-mantle.us-east-1.api.aws",
+		}
+		settings := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:         "us-east-1",
+				Model:          "anthropic.claude-opus-4-8",
+				SmallFastModel: "anthropic.claude-haiku-4-5",
+				Endpoint:       codersdk.AIProviderBedrockEndpointMantle,
+			},
+		}
+		got := bedrockConfigFromRow(row, settings)
+		require.NotNil(t, got)
+		assert.Equal(t, "mantle", string(got.Endpoint))
 	})
 
 	t.Run("BedrockSettingsEmpty", func(t *testing.T) {

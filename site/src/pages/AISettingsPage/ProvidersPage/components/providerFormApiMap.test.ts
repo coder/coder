@@ -30,6 +30,7 @@ const baseOpenAIFormValues: ProviderFormValues = {
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
+	endpoint: "invoke-model",
 	apiKey: "sk-test",
 	enabled: true,
 };
@@ -44,6 +45,7 @@ const baseBedrockFormValues: ProviderFormValues = {
 	accessKey: "AKIA-test",
 	accessKeySecret: "secret",
 	roleArn: "",
+	endpoint: "invoke-model",
 	apiKey: "",
 	enabled: true,
 };
@@ -58,6 +60,7 @@ const baseCopilotFormValues: ProviderFormValues = {
 	accessKey: "",
 	accessKeySecret: "",
 	roleArn: "",
+	endpoint: "invoke-model",
 	apiKey: "",
 	enabled: true,
 };
@@ -105,6 +108,20 @@ describe("parseBedrockRegionFromBaseUrl", () => {
 		expect(
 			parseBedrockRegionFromBaseUrl("https://bedrock.internal.example.com"),
 		).toBeUndefined();
+	});
+
+	it("extracts the region from a mantle URL", () => {
+		expect(
+			parseBedrockRegionFromBaseUrl("https://bedrock-mantle.us-west-2.api.aws"),
+		).toBe("us-west-2");
+	});
+
+	it("extracts the region from a mantle URL with the /anthropic path", () => {
+		expect(
+			parseBedrockRegionFromBaseUrl(
+				"https://bedrock-mantle.eu-west-1.api.aws/anthropic",
+			),
+		).toBe("eu-west-1");
 	});
 
 	it("returns undefined for an empty string", () => {
@@ -424,6 +441,23 @@ describe("providerFormValuesToCreate", () => {
 			const req = providerFormValuesToCreate(baseBedrockFormValues);
 			const s = req.settings as unknown as Record<string, unknown>;
 			expect(s.role_arn).toBeUndefined();
+		});
+
+		it("omits the endpoint for the default invoke-model transport", () => {
+			const req = providerFormValuesToCreate(baseBedrockFormValues);
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.endpoint).toBeUndefined();
+		});
+
+		it("sets the endpoint and region for the mantle transport", () => {
+			const req = providerFormValuesToCreate({
+				...baseBedrockFormValues,
+				endpoint: "mantle",
+				baseUrl: "https://bedrock-mantle.us-west-2.api.aws",
+			});
+			const s = req.settings as unknown as Record<string, unknown>;
+			expect(s.endpoint).toBe("mantle");
+			expect(s.region).toBe("us-west-2");
 		});
 
 		it("trims whitespace around the role ARN", () => {

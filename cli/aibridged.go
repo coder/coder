@@ -350,6 +350,7 @@ func bedrockConfigFromRow(row database.AIProvider, settings codersdk.AIProviderS
 		Model:           bedrockSettings.Model,
 		SmallFastModel:  bedrockSettings.SmallFastModel,
 		RoleARN:         bedrockSettings.RoleARN,
+		Endpoint:        aibridge.BedrockEndpoint(bedrockSettings.ResolvedEndpoint()),
 	}
 }
 

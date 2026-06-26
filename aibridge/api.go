@@ -39,6 +39,13 @@ type (
 	AWSBedrockConfig = config.AWSBedrock
 	OpenAIConfig     = config.OpenAI
 	CopilotConfig    = config.Copilot
+
+	BedrockEndpoint = config.BedrockEndpoint
+)
+
+const (
+	BedrockEndpointInvokeModel = config.BedrockEndpointInvokeModel
+	BedrockEndpointMantle      = config.BedrockEndpointMantle
 )
 
 func AsActor(ctx context.Context, actorID string, metadata recorder.Metadata) context.Context {

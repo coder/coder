@@ -212,3 +212,91 @@ func TestAIProviderRequest_ValidateRoleARN(t *testing.T) {
 		})
 	}
 }
+
+func TestAIProviderBedrockSettings_Endpoint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ResolvedEndpointDefaultsToInvokeModel", func(t *testing.T) {
+		t.Parallel()
+		require.Equal(t, codersdk.AIProviderBedrockEndpointInvokeModel,
+			codersdk.AIProviderBedrockSettings{}.ResolvedEndpoint())
+		require.Equal(t, codersdk.AIProviderBedrockEndpointMantle,
+			codersdk.AIProviderBedrockSettings{Endpoint: codersdk.AIProviderBedrockEndpointMantle}.ResolvedEndpoint())
+	})
+
+	t.Run("RoundTripKeepsVersion1", func(t *testing.T) {
+		t.Parallel()
+		in := codersdk.AIProviderSettings{
+			Bedrock: &codersdk.AIProviderBedrockSettings{
+				Region:   "us-east-1",
+				Endpoint: codersdk.AIProviderBedrockEndpointMantle,
+			},
+		}
+		raw, err := json.Marshal(in)
+		require.NoError(t, err)
+		require.Contains(t, string(raw), `"endpoint":"mantle"`)
+		require.Contains(t, string(raw), `"_version":1`)
+
+		var out codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal(raw, &out))
+		require.NotNil(t, out.Bedrock)
+		require.Equal(t, codersdk.AIProviderBedrockEndpointMantle, out.Bedrock.Endpoint)
+	})
+
+	t.Run("AbsentEndpointDecodesAsInvokeModel", func(t *testing.T) {
+		t.Parallel()
+		var out codersdk.AIProviderSettings
+		require.NoError(t, json.Unmarshal(
+			[]byte(`{"_type":"bedrock","_version":1,"region":"us-east-1"}`), &out))
+		require.NotNil(t, out.Bedrock)
+		require.Empty(t, out.Bedrock.Endpoint)
+		require.Equal(t, codersdk.AIProviderBedrockEndpointInvokeModel, out.Bedrock.ResolvedEndpoint())
+	})
+}
+
+func TestAIProviderRequest_ValidateMantleEndpoint(t *testing.T) {
+	t.Parallel()
+
+	hasFieldError := func(vs []codersdk.ValidationError, field string) bool {
+		for _, v := range vs {
+			if v.Field == field {
+				return true
+			}
+		}
+		return false
+	}
+
+	t.Run("MantleRequiresRegion", func(t *testing.T) {
+		t.Parallel()
+		create := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock",
+			BaseURL: "https://bedrock-mantle.us-east-1.api.aws",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Endpoint: codersdk.AIProviderBedrockEndpointMantle,
+				},
+			},
+		}
+		require.True(t, hasFieldError(create.Validate(), "settings.region"))
+
+		create.Settings.Bedrock.Region = "us-east-1"
+		require.False(t, hasFieldError(create.Validate(), "settings.region"))
+	})
+
+	t.Run("UnknownEndpointRejected", func(t *testing.T) {
+		t.Parallel()
+		create := codersdk.CreateAIProviderRequest{
+			Type:    codersdk.AIProviderTypeBedrock,
+			Name:    "bedrock",
+			BaseURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
+			Settings: codersdk.AIProviderSettings{
+				Bedrock: &codersdk.AIProviderBedrockSettings{
+					Region:   "us-east-1",
+					Endpoint: "responses",
+				},
+			},
+		}
+		require.True(t, hasFieldError(create.Validate(), "settings.endpoint"))
+	})
+}
